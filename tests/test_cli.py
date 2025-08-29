@@ -3,7 +3,6 @@
 This module contains tests for the command line interface.
 """
 
-import pytest
 from typer.testing import CliRunner
 
 from homepot_client import __version__

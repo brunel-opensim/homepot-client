@@ -11,7 +11,7 @@ from homepot_client import __version__
 
 app = typer.Typer(
     name="homepot-client",
-    help="HOMEPOT Client - Homogenous Cyber Management of End-Points and Operational Technology",
+    help="HOMEPOT Client - Homogenous Cyber Management of End-Points and OT",
     add_completion=False,
 )
 console = Console()
@@ -19,7 +19,7 @@ console = Console()
 
 @app.command()
 def version() -> None:
-    """Display the HOMEPOT Client version."""
+    """Show the HOMEPOT Client version."""
     console.print(
         Panel(
             f"[bold blue]HOMEPOT Client[/bold blue]\n"
@@ -33,12 +33,12 @@ def version() -> None:
 
 @app.command()
 def info() -> None:
-    """Display information about the HOMEPOT Client."""
+    """Show information about the HOMEPOT Client."""
     console.print(
         Panel(
             "[bold blue]HOMEPOT Client[/bold blue]\n\n"
-            "[yellow]HOMEPOT[/yellow] stands for [italic]Homogenous Cyber Management "
-            "of End-Points and Operational Technology[/italic].\n\n"
+            "[yellow]HOMEPOT[/yellow] stands for [italic]Homogenous Cyber "
+            "Management of End-Points and Operational Technology[/italic].\n\n"
             "[bold]Key Features:[/bold]\n"
             "• Unified device management across multiple ecosystems\n"
             "• Secure communication with distributed devices\n"
@@ -56,7 +56,7 @@ def info() -> None:
 
 
 def main() -> None:
-    """Main entry point for the CLI."""
+    """Entry point for the CLI."""
     app()
 
 

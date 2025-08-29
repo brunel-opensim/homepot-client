@@ -6,7 +6,6 @@ foundation for the larger project test suite.
 """
 
 from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -79,7 +78,9 @@ class TestClientFactory:
         assert client.config == {}
         assert client.connected is False
 
-    def test_create_client_with_config(self, sample_config: Dict[str, Any]) -> None:
+    def test_create_client_with_config(
+        self, sample_config: Dict[str, Any]
+    ) -> None:
         """Test creating client with provided configuration."""
         client = create_client(sample_config)
 
@@ -114,7 +115,9 @@ class TestClientIntegration:
     """
 
     @pytest.mark.asyncio
-    async def test_client_lifecycle(self, sample_config: Dict[str, Any]) -> None:
+    async def test_client_lifecycle(
+        self, sample_config: Dict[str, Any]
+    ) -> None:
         """Test complete client lifecycle: create, connect, disconnect."""
         # Create client
         client = create_client(sample_config)

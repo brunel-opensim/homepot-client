@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 class HomepotClient:
     """Main HOMEPOT Client class for device management.
 
-    This is a placeholder implementation that will be expanded as the project develops.
-    Currently provides basic structure and logging for testing purposes.
+    This is a placeholder implementation that will be expanded as the project
+    develops. Currently provides basic structure and logging for testing
+    purposes.
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
@@ -48,7 +49,7 @@ class HomepotClient:
         logger.info("Disconnected from HOMEPOT services")
 
     def is_connected(self) -> bool:
-        """Check if client is connected.
+        """Return True if client is connected.
 
         Returns:
             True if connected, False otherwise
@@ -56,7 +57,7 @@ class HomepotClient:
         return self.connected
 
     def get_version(self) -> str:
-        """Get the client version.
+        """Return the client version.
 
         Returns:
             Version string
@@ -67,7 +68,7 @@ class HomepotClient:
 
 
 def create_client(config: Optional[Dict[str, Any]] = None) -> HomepotClient:
-    """Factory function to create a HOMEPOT Client instance.
+    """Create a HOMEPOT Client instance.
 
     Args:
         config: Optional configuration dictionary
