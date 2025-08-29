@@ -57,11 +57,15 @@ jobs:
 
     - name: Run CodeQL Analysis
       uses: github/codeql-action/init@v3
+      if: github.repository_owner == 'brunel-opensim'
+      continue-on-error: true
       with:
         languages: python
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
+      if: github.repository_owner == 'brunel-opensim'
+      continue-on-error: true
 
     - name: Dependency Review
       uses: actions/dependency-review-action@v4

@@ -49,11 +49,30 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
 
+    - name: Check Advanced Security availability
+      if: github.repository_owner != 'brunel-opensim'
+      run: |
+        echo "ℹ️  GitHub Advanced Security is not enabled for this repository."
+        echo "   SARIF upload will be skipped. Security scan results are still available in job logs."
+        echo "   To enable code scanning, contact your GitHub organization admin."
+
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      if: always() && github.repository_owner == 'brunel-opensim'
+      continue-on-error: true
       with:
         sarif_file: 'trivy-results.sarif'
+
+    - name: Upload security scan artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-scan-results
+        path: |
+          bandit-results.json
+          safety-results.json
+          trivy-results.sarif
+        retention-days: 30
 
   code-quality:
     name: Code Quality
