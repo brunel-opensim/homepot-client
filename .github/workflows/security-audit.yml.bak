@@ -37,24 +37,21 @@ jobs:
 
     - name: Install dependencies
       run: |
-        set -e
         python -m pip install --upgrade pip
-        pip install --no-cache-dir -r requirements.txt
+        pip install -r requirements.txt
         pip install -e .
 
     - name: Run Safety security scan
       run: safety check --json --output safety-results.json
       continue-on-error: true
-      continue-on-error: true
 
     - name: Run Bandit security scan
       run: bandit -r src/ -f json -o bandit-results.json
       continue-on-error: true
-      continue-on-error: true
 
     - name: Run pip-audit
       run: |
-        pip install --no-cache-dir pip-audit
+        pip install pip-audit
         pip-audit --format=json --output=pip-audit-results.json
       continue-on-error: true
 
@@ -76,7 +73,6 @@ jobs:
         fail-on-severity: moderate
 
   secret-scan:
-    timeout-minutes: 10
     name: Secret Scanning
     runs-on: ubuntu-latest
     if: github.repository == 'brunel-opensim/homepot-client'
@@ -155,11 +151,11 @@ jobs:
         fi
         
         # Install and check package can be built
-        pip install --no-cache-dir build
+        pip install build
         python -m build --wheel
         
         # Verify package metadata
-        pip install --no-cache-dir twine
+        pip install twine
         twine check dist/*
 
     - name: Create security report

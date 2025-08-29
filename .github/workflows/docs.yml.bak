@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   build-docs:
-    timeout-minutes: 15
     runs-on: ubuntu-latest
     
     steps:
@@ -25,13 +24,11 @@ jobs:
         
     - name: Install dependencies
       run: |
-        set -e
         python -m pip install --upgrade pip
         pip install -e ".[docs]"
         
     - name: Build documentation
       run: |
-        set -e
         cd docs
         make html
         
