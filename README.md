@@ -125,11 +125,13 @@ This project maintains high code quality standards:
 ### Quick Start with Docker
 
 ```bash
-# Development mode (with hot reload)
-docker-compose up --build
+# First-time setup
+make setup
 
-# Production mode
-HOMEPOT_ENV=production docker-compose up --build -d
+# Development mode (with hot reload)
+make dev
+# or
+docker-compose up --build
 
 # Access the API
 curl http://localhost:8000/health
@@ -139,14 +141,30 @@ open http://localhost:8000/docs  # API documentation
 ### Environment Configuration
 
 ```bash
-# Copy environment template
+# Copy and edit environment file
 cp .env.example .env
-
-# Edit configuration
 nano .env
 
-# Run with custom environment
+# For development with hot reload, uncomment in .env:
+# HOMEPOT_SOURCE_MOUNT=./src
+
+# Run with environment
 docker-compose up --build
+```
+
+### Makefile Commands
+
+```bash
+# See all available commands
+make help
+
+# Common commands
+make setup    # First-time setup (copy templates)
+make dev      # Start development mode
+make prod     # Start production mode  
+make test     # Run tests in container
+make logs     # View logs
+make clean    # Clean up everything
 ```
 
 ### Production Deployment
@@ -173,7 +191,7 @@ docker run -d \
 docker-compose up --build
 
 # Or explicitly set development mode
-HOMEPOT_ENV=development docker-compose up --build
+HOMEPOT_ENV=development HOMEPOT_SOURCE_MOUNT=./src docker-compose up --build
 
 # Run tests in container
 docker-compose exec homepot-client pytest

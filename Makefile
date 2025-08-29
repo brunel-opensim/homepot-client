@@ -32,7 +32,7 @@ down:
 	docker-compose down
 
 dev:
-	HOMEPOT_ENV=development docker-compose up --build
+	HOMEPOT_ENV=development HOMEPOT_SOURCE_MOUNT=./src docker-compose up --build
 
 prod:
 	HOMEPOT_ENV=production docker-compose up --build -d
@@ -55,3 +55,4 @@ clean:
 setup:
 	cp .env.example .env
 	@echo "Environment file created. Please edit .env as needed."
+	@echo "For development, uncomment HOMEPOT_SOURCE_MOUNT=./src in .env"

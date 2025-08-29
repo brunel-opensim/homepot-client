@@ -13,10 +13,11 @@ services:
       - PYTHONPATH=/app/src
       - HOMEPOT_DEBUG=${HOMEPOT_DEBUG:-false}
     volumes:
-      # Production: only data and logs
+      # Always mount data and logs
       - ${HOMEPOT_DATA_DIR:-./data}:/app/data
       - ${HOMEPOT_LOGS_DIR:-./logs}:/app/logs
-      # Development: mount source code for hot reload (override with docker-compose.override.yml)
+      # Mount source code in development mode only
+      - ${HOMEPOT_SOURCE_MOUNT:-/dev/null}:/app/src:ro
     command: >
       sh -c "
       if [ \"$$HOMEPOT_ENV\" = \"development\" ]; then
