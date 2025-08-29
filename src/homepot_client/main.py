@@ -8,9 +8,9 @@ exposing REST API endpoints for device management and monitoring.
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+from typing import Any, AsyncIterator, Dict, Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -21,11 +21,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global client instance
-client_instance: HomepotClient = None
+client_instance: Optional[HomepotClient] = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan events."""
     global client_instance
 
@@ -90,7 +90,7 @@ async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str,
     """Health check endpoint for monitoring and load balancers."""
     try:
         is_connected = client.is_connected()
-        version = await client.get_version()
+        version = client.get_version()
 
         return {
             "status": "healthy" if is_connected else "degraded",
@@ -112,7 +112,7 @@ async def get_status(client: HomepotClient = Depends(get_client)) -> Dict[str, A
     """Get detailed client status information."""
     try:
         is_connected = client.is_connected()
-        version = await client.get_version()
+        version = client.get_version()
 
         return {
             "connected": is_connected,
@@ -159,7 +159,7 @@ async def disconnect_client(
 async def get_version(client: HomepotClient = Depends(get_client)) -> Dict[str, str]:
     """Get the client version information."""
     try:
-        version = await client.get_version()
+        version = client.get_version()
         return {"version": version}
     except Exception as e:
         logger.error(f"Version check failed: {e}")
@@ -168,7 +168,7 @@ async def get_version(client: HomepotClient = Depends(get_client)) -> Dict[str, 
 
 # Error handlers
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handle HTTP exceptions."""
     return JSONResponse(
         status_code=exc.status_code,
@@ -177,7 +177,7 @@ async def http_exception_handler(request, exc):
 
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle general exceptions."""
     logger.error(f"Unhandled exception: {exc}")
     return JSONResponse(
