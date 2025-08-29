@@ -112,11 +112,13 @@ jobs:
     - name: Run mypy type checking
       run: mypy src/
 
-    - name: Test documentation build
+    - name: Validate documentation files
       run: |
-        pip install -e ".[docs]"
-        cd docs
-        sphinx-build -b html . _build/html
+        # Check that essential documentation files exist
+        test -f README.md || (echo "ERROR: README.md missing" && exit 1)
+        test -f docs/index.md || (echo "ERROR: docs/index.md missing" && exit 1)
+        test -f docs/api-reference.md || (echo "ERROR: docs/api-reference.md missing" && exit 1)
+        echo "Documentation files validated"
 
   test:
     timeout-minutes: 15

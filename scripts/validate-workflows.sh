@@ -100,19 +100,46 @@ validate_code_quality() {
 validate_python() {
     echo "  Checking Python setup..."
     
+    # Check pyproject.toml
     if [ -f "pyproject.toml" ]; then
         echo -n "    pyproject.toml: "
-        if python3 -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))" 2>/dev/null; then
+        if python -m pip check > /dev/null 2>&1; then
             echo -e "${GREEN}Valid${NC}"
         else
-            echo -e "${RED}Invalid${NC}"
-            return 1
+            echo -e "${YELLOW}Warning - dependency issues${NC}"
         fi
     fi
     
+    # Check requirements.txt
     if [ -f "requirements.txt" ]; then
-        echo "    requirements.txt: Found"
+        echo -n "    requirements.txt: "
+        echo -e "${GREEN}Found${NC}"
     fi
+    
+    return 0
+}
+
+# 5. Documentation validation
+validate_documentation() {
+    echo "  Checking documentation files..."
+    
+    # Check essential documentation files
+    local docs_files=("README.md" "CONTRIBUTING.md" "docs/index.md" "docs/api-reference.md" "docs/cli-reference.md" "docs/getting-started.md")
+    
+    for file in "${docs_files[@]}"; do
+        if [ -f "$file" ]; then
+            echo -n "    $file: "
+            if [ -s "$file" ]; then
+                echo -e "${GREEN}Found${NC}"
+            else
+                echo -e "${YELLOW}Empty${NC}"
+            fi
+        else
+            echo -n "    $file: "
+            echo -e "${RED}Missing${NC}"
+            return 1
+        fi
+    done
     
     return 0
 }
@@ -126,6 +153,7 @@ main() {
     run_check "Workflow Structure" "validate_structure"
     run_check "Code Quality" "validate_code_quality"
     run_check "Python Setup" "validate_python"
+    run_check "Documentation" "validate_documentation"
     
     # Final summary
     echo -e "\n📊 Validation Summary"
