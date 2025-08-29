@@ -73,7 +73,7 @@ autodoc_default_options = {
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/', None),
     'fastapi': ('https://fastapi.tiangolo.com/', None),
-    'pydantic': ('https://docs.pydantic.dev/', None),
+    'pydantic': ('https://docs.pydantic.dev/2.0/', None),
 }
 
 # TODO extension
@@ -95,11 +95,8 @@ myst_enable_extensions = [
     "tasklist",
 ]
 
-# Source file suffix
-source_suffix = {
-    '.rst': None,
-    '.md': 'myst_parser',
-}
+# Source file extensions
+source_suffix = ['.rst', '.md']
 
 # Master document
 master_doc = 'index'
@@ -107,7 +104,6 @@ master_doc = 'index'
 # HTML theme options
 html_theme_options = {
     'logo_only': False,
-    'display_version': True,
     'prev_next_buttons_location': 'bottom',
     'style_external_links': False,
     'vcs_pageview_mode': '',
