@@ -1,5 +1,9 @@
-# Read the Docs Configuration File
+# Read the Docs Configuration File (Optional for Private Repository)
 # See: https://docs.readthedocs.io/en/stable/config-file/v2.html
+# 
+# NOTE: This configuration is provided for potential future use with Read the Docs for Business.
+# Currently, documentation is deployed via GitHub Pages (see .github/workflows/docs.yml)
+# since this is a private repository and GitHub Pages works seamlessly with private repos.
 
 version: 2
 

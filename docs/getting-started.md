@@ -146,5 +146,5 @@ For support and questions:
 - Discord: [HOMEPOT Community](https://discord.gg/homepot)
 <!-- Links will be activated when repository is created
 - Issues: [GitHub Issues](https://github.com/brunel-opensim/homepot-client/issues)
-- Documentation: [GitHub Docs](https://github.com/brunel-opensim/homepot-client/tree/main/docs)
+- Documentation: [GitHub Pages](https://brunel-opensim.github.io/homepot-client/)
 -->

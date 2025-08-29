@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-brightgreen.svg)](https://python.org/)
-[![Documentation](https://img.shields.io/badge/docs-Read%20the%20Docs-blue.svg)](https://homepot-client.readthedocs.io)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://brunel-opensim.github.io/homepot-client/)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Security Audit](https://github.com/brunel-opensim/homepot-client/workflows/Security%20Audit/badge.svg)](https://github.com/brunel-opensim/homepot-client/actions)
 
@@ -16,9 +16,9 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ## Documentation
 
-**Complete documentation is available at: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
+**Complete documentation is available at: [https://brunel-opensim.github.io/homepot-client/](https://brunel-opensim.github.io/homepot-client/)**
 
-- **[Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started.html)** - Installation, configuration, and first steps
+- **[Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)** - Installation, configuration, and first steps
 - **[API Reference](https://homepot-client.readthedocs.io/en/latest/api-reference.html)** - Complete API documentation
 - **[CLI Reference](https://homepot-client.readthedocs.io/en/latest/cli-reference.html)** - Command-line interface guide
 - **[Examples](https://homepot-client.readthedocs.io/en/latest/examples.html)** - Practical usage examples
