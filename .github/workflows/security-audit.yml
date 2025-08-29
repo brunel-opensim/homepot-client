@@ -12,11 +12,19 @@ on:
       - 'requirements*.txt'
       - '.github/workflows/security-audit.yml'
 
+# Default permissions
+permissions:
+  contents: read
+
 jobs:
   security-audit:
     name: Security Vulnerability Audit
     runs-on: ubuntu-latest
     if: github.repository == 'brunel-opensim/homepot-client'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     
     steps:
     - name: Checkout code

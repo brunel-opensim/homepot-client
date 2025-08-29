@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🔍 Validating GitHub Actions workflows..."
+echo "Validating GitHub Actions workflows..."
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -15,13 +15,13 @@ NC='\033[0m' # No Color
 # Function to validate YAML syntax
 validate_yaml() {
     local file="$1"
-    echo -n "  📄 $(basename "$file"): "
+    echo -n "  $(basename "$file"): "
     
     if python3 -c "import yaml; yaml.safe_load(open('$file', 'r'))" 2>/dev/null; then
-        echo -e "${GREEN}✅ Valid YAML${NC}"
+        echo -e "${GREEN} Valid YAML${NC}"
         return 0
     else
-        echo -e "${RED}❌ Invalid YAML${NC}"
+        echo -e "${RED} Invalid YAML${NC}"
         return 1
     fi
 }
@@ -29,7 +29,7 @@ validate_yaml() {
 # Function to check GitHub Actions structure
 validate_github_actions() {
     local file="$1"
-    echo -n "  🔧 $(basename "$file") structure: "
+    echo -n "  $(basename "$file") structure: "
     
     python3 -c "
 import yaml
@@ -63,19 +63,19 @@ try:
             print(f'Job {job_name} missing steps')
             sys.exit(1)
     
-    print('✅ Valid structure')
+    print('Valid structure')
     
 except Exception as e:
-    print(f'❌ Structure error: {e}')
+    print(f'Structure error: {e}')
     sys.exit(1)
-" 2>/dev/null && echo -e "${GREEN}✅ Valid structure${NC}" || echo -e "${RED}❌ Invalid structure${NC}"
+" 2>/dev/null && echo -e "${GREEN}Valid structure${NC}" || echo -e "${RED}❌ Invalid structure${NC}"
 }
 
 # Find all workflow files
 workflow_files=$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null || true)
 
 if [ -z "$workflow_files" ]; then
-    echo -e "${YELLOW}⚠️  No workflow files found${NC}"
+    echo -e "${YELLOW} No workflow files found${NC}"
     exit 0
 fi
 
@@ -89,22 +89,22 @@ for file in $workflow_files; do
     
     if validate_yaml "$file" && validate_github_actions "$file"; then
         valid_files=$((valid_files + 1))
-        echo -e "  ${GREEN}✅ $file is valid${NC}"
+        echo -e "  ${GREEN} $file is valid${NC}"
     else
-        echo -e "  ${RED}❌ $file has issues${NC}"
+        echo -e "  ${RED} $file has issues${NC}"
     fi
     echo
 done
 
 # Summary
-echo "📊 Validation Summary:"
+echo "Validation Summary:"
 echo "  Total files: $total_files"
 echo "  Valid files: $valid_files"
 
 if [ $valid_files -eq $total_files ]; then
-    echo -e "${GREEN}🎉 All workflow files are valid!${NC}"
+    echo -e "${GREEN} All workflow files are valid!${NC}"
     exit 0
 else
-    echo -e "${RED}❌ Some workflow files have issues${NC}"
+    echo -e "${RED} Some workflow files have issues${NC}"
     exit 1
 fi
