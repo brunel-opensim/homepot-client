@@ -41,9 +41,11 @@ jobs:
         path: docs/_build/html/
         
   deploy-docs:
+    # Deploy documentation to GitHub Pages
+    # Only runs on main branch pushes in the official repository
     needs: build-docs
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository == 'brunel-opensim/homepot-client'
     
     steps:
     - uses: actions/checkout@v4
