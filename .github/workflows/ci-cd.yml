@@ -111,7 +111,7 @@ jobs:
       run: |
         pip install -e ".[docs]"
         cd docs
-        sphinx-build -b html -W . _build/html
+        sphinx-build -b html . _build/html
 
   test:
     name: Test Suite

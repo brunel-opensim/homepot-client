@@ -13,8 +13,9 @@ pip install homepot-client
 ### From Source
 
 ```bash
-git clone https://github.com/brunel-opensim/homepot-client.git
-cd homepot-client
+# Clone the repository (URL will be updated when repository is created)
+# git clone https://github.com/brunel-opensim/homepot-client.git
+# cd homepot-client
 pip install -e .
 ```
 
@@ -141,7 +142,9 @@ async def robust_example():
 
 For support and questions:
 
-- Email: support@homepot-consortium.org
+- Email: [support@homepot-consortium.org](mailto:support@homepot-consortium.org)
 - Discord: [HOMEPOT Community](https://discord.gg/homepot)
+<!-- Links will be activated when repository is created
 - Issues: [GitHub Issues](https://github.com/brunel-opensim/homepot-client/issues)
-- Documentation: [Read the Docs](https://homepot-client.readthedocs.io/)
+- Documentation: [GitHub Docs](https://github.com/brunel-opensim/homepot-client/tree/main/docs)
+-->

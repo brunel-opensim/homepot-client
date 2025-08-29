@@ -74,5 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CodeQL**: GitHub security analysis
 - **Branch Protection**: Main and develop branch protection rules
 
+<!-- Links will be activated when repository is created
 [Unreleased]: https://github.com/brunel-opensim/homepot-client/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/brunel-opensim/homepot-client/releases/tag/v0.1.0
+-->

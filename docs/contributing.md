@@ -444,8 +444,10 @@ We follow [Semantic Versioning](https://semver.org/):
 
 - 💬 **Discord**: [HOMEPOT Community](https://discord.gg/homepot)
 - 📧 **Email**: dev@homepot-consortium.org
+<!-- Links will be activated when repository is created
 - 🐛 **Issues**: [GitHub Issues](https://github.com/brunel-opensim/homepot-client/issues)
 - 💡 **Discussions**: [GitHub Discussions](https://github.com/brunel-opensim/homepot-client/discussions)
+-->
 
 ### Resources
 
