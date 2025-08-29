@@ -1,0 +1,16 @@
+[flake8]
+max-line-length = 88
+ignore = 
+    # S101: Use of assert detected (normal in tests)
+    S101,
+    # S104: Binding to all interfaces (intentional in FastAPI)
+    S104
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    .eggs,
+    *.egg-info,
+    build,
+    dist

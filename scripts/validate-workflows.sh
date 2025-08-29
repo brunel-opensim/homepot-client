@@ -85,10 +85,10 @@ validate_code_quality() {
     # flake8 linting
     if command -v flake8 >/dev/null 2>&1; then
         echo -n "    Linting (flake8): "
-        if flake8 --max-line-length=88 --ignore=S101,S104 src/ tests/ 2>/dev/null; then
+        if flake8 src/ tests/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: flake8 --max-line-length=88 --ignore=S101,S104 src/ tests/${NC}"
+            echo -e "${RED}Failed - run: flake8 src/ tests/${NC}"
             return 1
         fi
     fi
