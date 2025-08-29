@@ -7,8 +7,6 @@ Welcome to the HOMEPOT Client documentation! This library provides a Python clie
 :caption: Contents:
 
 getting-started
-api-reference
-cli-reference
 ```
 
 ## Quick Start

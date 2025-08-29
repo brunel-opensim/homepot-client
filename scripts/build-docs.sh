@@ -1,5 +1,9 @@
 #!/bin/bash
-# Documentation build and serve script for HOMEPOT client
+# Documentation validation and serve script for HOMEPOT client
+# Simplified for Markdown-only documentation
+
+# Useful command
+# ./scripts/build-docs.sh --help
 
 set -e
 
@@ -15,14 +19,15 @@ COMMAND="build"
 CLEAN=false
 SERVE=false
 PORT=8000
+BUILD_DIR="docs/_build"
 
 # Print usage
 usage() {
     echo "Usage: $0 [COMMAND] [OPTIONS]"
     echo ""
     echo "Commands:"
-    echo "  build       Build documentation (default)"
-    echo "  serve       Build and serve documentation"
+    echo "  build       Validate and organize documentation (default)"
+    echo "  serve       Serve documentation locally"
     echo "  clean       Clean build directory"
     echo "  check       Check documentation for issues"
     echo ""
@@ -32,9 +37,9 @@ usage() {
     echo "  -h, --help      Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0 build                 # Build documentation"
+    echo "  $0 build                 # Validate documentation"
     echo "  $0 serve --port 9000     # Serve on port 9000"
-    echo "  $0 build --clean         # Clean build and rebuild"
+    echo "  $0 build --clean         # Clean and rebuild"
     echo "  $0 check                 # Check for issues"
 }
 
@@ -74,10 +79,11 @@ fi
 # Check if documentation dependencies are installed
 check_deps() {
     echo -e "${BLUE}Checking documentation dependencies...${NC}"
-    python -c "import sphinx, sphinx_rtd_theme, myst_parser" 2>/dev/null || {
-        echo -e "${YELLOW}Installing documentation dependencies...${NC}"
-        pip install -e ".[docs]"
-    }
+    # Check for basic tools needed for markdown validation
+    if ! command -v python3 &> /dev/null; then
+        echo -e "${RED}Error: Python3 is required but not installed${NC}"
+        exit 1
+    fi
     echo -e "${GREEN}Documentation dependencies OK${NC}"
 }
 
@@ -85,9 +91,7 @@ check_deps() {
 clean_build() {
     if [[ "$CLEAN" == true ]] || [[ "$COMMAND" == "clean" ]]; then
         echo -e "${YELLOW}Cleaning build directory...${NC}"
-        cd docs
-        make clean-build
-        cd ..
+        rm -rf "$BUILD_DIR"
         echo -e "${GREEN}Build directory cleaned${NC}"
     fi
 }
@@ -95,43 +99,101 @@ clean_build() {
 # Build documentation
 build_docs() {
     echo -e "${BLUE}Building documentation...${NC}"
-    cd docs
     
-    # Build HTML documentation
-    if make html; then
-        echo -e "${GREEN}Documentation built successfully${NC}"
-        echo -e "${BLUE}Output: docs/_build/html/index.html${NC}"
-    else
-        echo -e "${RED}Documentation build failed${NC}"
-        exit 1
-    fi
+    # Create build directory
+    mkdir -p "$BUILD_DIR"
     
-    cd ..
+    # Copy markdown files to build directory
+    echo -e "${YELLOW}Copying documentation files...${NC}"
+    cp docs/*.md "$BUILD_DIR/"
+    cp README.md "$BUILD_DIR/"
+    cp CONTRIBUTING.md "$BUILD_DIR/"
+    
+    # Generate a simple index.html for navigation
+    echo -e "${YELLOW}Generating navigation page...${NC}"
+    cat > "$BUILD_DIR/index.html" << 'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOMEPOT Client Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; border-bottom: 2px solid #007acc; }
+        .doc-link { display: block; padding: 10px; margin: 5px 0; background: #f5f5f5; text-decoration: none; color: #333; border-radius: 5px; }
+        .doc-link:hover { background: #e5e5e5; }
+        .description { color: #666; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <h1>HOMEPOT Client Documentation</h1>
+    <p>Welcome to the HOMEPOT Client documentation. Choose a document to view:</p>
+    
+    <a href="index.md" class="doc-link">
+        <strong>Project Overview</strong>
+        <div class="description">Main project documentation and overview</div>
+    </a>
+    
+    <a href="getting-started.md" class="doc-link">
+        <strong>Getting Started Guide</strong>
+        <div class="description">Installation, usage, and examples</div>
+    </a>
+    
+    <a href="README.md" class="doc-link">
+        <strong>README</strong>
+        <div class="description">Repository information and quick start</div>
+    </a>
+    
+    <a href="CONTRIBUTING.md" class="doc-link">
+        <strong>Contributing Guidelines</strong>
+        <div class="description">How to contribute to the project</div>
+    </a>
+    
+    <p><em>Documentation built on $(date)</em></p>
+</body>
+</html>
+EOF
+    
+    echo -e "${GREEN}Documentation built successfully${NC}"
+    echo -e "${BLUE}Output: $BUILD_DIR/${NC}"
 }
 
 # Check documentation
 check_docs() {
     echo -e "${BLUE}Checking documentation...${NC}"
-    cd docs
     
-    # Check for broken links
-    echo -e "${YELLOW}Checking for broken links...${NC}"
-    if sphinx-build -b linkcheck . _build/linkcheck; then
-        echo -e "${GREEN}Link check passed${NC}"
-    else
-        echo -e "${RED}Link check failed${NC}"
-    fi
+    # Check if required files exist
+    echo -e "${YELLOW}Checking required documentation files...${NC}"
+    local required_files=("docs/index.md" "docs/getting-started.md" "README.md" "CONTRIBUTING.md")
+    local missing_files=()
     
-    # Check for proper build
-    echo -e "${YELLOW}Checking build integrity...${NC}"
-    if sphinx-build -b html -W . _build/html; then
-        echo -e "${GREEN}Build check passed${NC}"
-    else
-        echo -e "${RED}Build check failed${NC}"
+    for file in "${required_files[@]}"; do
+        if [[ ! -f "$file" ]]; then
+            missing_files+=("$file")
+        fi
+    done
+    
+    if [[ ${#missing_files[@]} -gt 0 ]]; then
+        echo -e "${RED}Missing required files:${NC}"
+        printf '%s\n' "${missing_files[@]}"
         exit 1
     fi
     
-    cd ..
+    # Check markdown syntax (basic check)
+    echo -e "${YELLOW}Checking markdown syntax...${NC}"
+    for file in docs/*.md; do
+        if [[ -f "$file" ]]; then
+            # Basic syntax check - look for common issues
+            if grep -q "^#" "$file"; then
+                echo -e "${GREEN}✓ $file${NC}"
+            else
+                echo -e "${YELLOW}⚠ $file (no headers found)${NC}"
+            fi
+        fi
+    done
+    
+    echo -e "${GREEN}Documentation check completed${NC}"
 }
 
 # Serve documentation
@@ -140,18 +202,8 @@ serve_docs() {
     echo -e "${GREEN}Open http://localhost:${PORT} in your browser${NC}"
     echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
     
-    cd docs/_build/html
-    python -m http.server "$PORT"
-}
-
-# Live reload server
-live_serve() {
-    echo -e "${BLUE}Starting live documentation server...${NC}"
-    echo -e "${GREEN}Documentation will auto-rebuild on changes${NC}"
-    echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
-    
-    cd docs
-    sphinx-autobuild -b html . _build/html --port "$PORT" --open-browser
+    cd "$BUILD_DIR"
+    python3 -m http.server "$PORT"
 }
 
 # Main execution
@@ -168,17 +220,12 @@ main() {
             ;;
         serve)
             build_docs
-            if command -v sphinx-autobuild &> /dev/null; then
-                live_serve
-            else
-                serve_docs
-            fi
+            serve_docs
             ;;
         clean)
             echo -e "${GREEN}Clean completed${NC}"
             ;;
         check)
-            build_docs
             check_docs
             ;;
         *)

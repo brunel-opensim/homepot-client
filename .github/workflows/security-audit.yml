@@ -45,11 +45,9 @@ jobs:
     - name: Run Safety security scan
       run: safety check --json --output safety-results.json
       continue-on-error: true
-      continue-on-error: true
 
     - name: Run Bandit security scan
       run: bandit -r src/ -f json -o bandit-results.json
-      continue-on-error: true
       continue-on-error: true
 
     - name: Run pip-audit

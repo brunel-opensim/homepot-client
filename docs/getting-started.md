@@ -1,150 +1,112 @@
-# Getting Started
+# Getting Started with HOMEPOT Client
 
 This guide will help you get started with the HOMEPOT client library.
 
 ## Installation
 
-### From PyPI (Recommended)
+### From Source (Current Method)
 
 ```bash
-pip install homepot-client
-```
+# Clone the repository
+git clone https://github.com/brunel-opensim/homepot-client.git
+cd homepot-client
 
-### From Source
-
-```bash
-# Clone the repository (URL will be updated when repository is created)
-# git clone https://github.com/brunel-opensim/homepot-client.git
-# cd homepot-client
+# Install the package
 pip install -e .
 ```
 
 ## Prerequisites
 
 - Python 3.9 or higher
-- A HOMEPOT account (for consortium members)
+- pip package manager
+- Git
 
-## Basic Configuration
+## Available Commands
 
-### Environment Variables
+The HOMEPOT client currently provides these working commands:
 
-Create a `.env` file in your project root:
-
-```bash
-# Copy the example file
-cp .env.example .env
-```
-
-Edit the `.env` file with your configuration:
-
-```env
-# HOMEPOT API Configuration
-HOMEPOT_API_URL=https://api.homepot.example.com
-HOMEPOT_API_KEY=your_api_key_here
-
-# Client Configuration
-HOMEPOT_CLIENT_TIMEOUT=30
-HOMEPOT_CLIENT_RETRIES=3
-
-# Logging Configuration
-HOMEPOT_LOG_LEVEL=INFO
-HOMEPOT_LOG_FORMAT=json
-```
-
-### Configuration File
-
-Alternatively, you can use a configuration file:
-
-```python
-from homepot_client import HomepotClient, ClientConfig
-
-config = ClientConfig(
-    api_url="https://api.homepot.example.com",
-    api_key="your_api_key_here",
-    timeout=30,
-    retries=3
-)
-
-client = HomepotClient(config=config)
-```
-
-## First Steps
-
-### 1. Initialize the Client
-
-```python
-import asyncio
-from homepot_client import HomepotClient
-
-async def main():
-    # Create client with default configuration
-    client = HomepotClient()
-    
-    try:
-        # Connect to the HOMEPOT service
-        await client.connect()
-        
-        # Check connection status
-        if client.is_connected:
-            print("Successfully connected to HOMEPOT!")
-        
-    finally:
-        # Always clean up
-        await client.disconnect()
-
-# Run the example
-asyncio.run(main())
-```
-
-### 2. Using the CLI
-
-The HOMEPOT client comes with a command-line interface:
+### CLI Commands
 
 ```bash
-# Check version
+# Check version information
 homepot-client version
 
-# Get client information
+# Get detailed client information
 homepot-client info
 
-# Connect to service (future feature)
-homepot-client connect --url https://api.homepot.example.com
+# Get help
+homepot-client --help
 ```
 
-### 3. Error Handling
+## Basic Usage (Python API)
+
+### Import and Create Client
 
 ```python
-from homepot_client import HomepotClient, HomepotError
+from homepot_client import create_client
 
-async def robust_example():
-    client = HomepotClient()
-    
-    try:
-        await client.connect()
-        # Your application logic here
-        
-    except HomepotError as e:
-        print(f"HOMEPOT error: {e}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-    finally:
-        await client.disconnect()
+# Create a client instance
+client = create_client()
+
+# Check if client is working
+print(f"Client version: {client.get_version()}")
+print(f"Connected: {client.is_connected()}")
 ```
+
+## Running Tests
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run with coverage
+pytest tests/ --cov=homepot_client
+
+# Run validation checks
+./scripts/validate-workflows.sh
+```
+
+## Docker Usage
+
+```bash
+# Build and run with Docker
+docker compose up --build
+
+# Test health endpoint
+curl http://localhost:8000/health
+```
+
+## Development Status
+
+This is an **early development version** of the HOMEPOT client. Currently implemented:
+
+**Working Features:**
+
+- Basic client creation and management
+- CLI commands (`version`, `info`)
+- Async connect/disconnect (placeholder)
+- Version information
+- Docker containerization
+
+**In Development:**
+
+- Full HOMEPOT protocol implementation
+- Device management capabilities
+- Consortium-specific features
+- Production deployment configurations
 
 ## Next Steps
 
-- Read the [API Reference](api-reference.md) for detailed documentation
-- Check out [Examples](examples.md) for common use cases
-- See [CLI Reference](cli-reference.md) for command-line usage
-- Learn about [Contributing](contributing.md) to the project
+As the HOMEPOT client develops, this documentation will be updated with:
+
+- Complete API reference
+- Real device management examples
+- Consortium-specific usage patterns
+- Production deployment guides
 
 ## Support
 
-For support and questions:
+For HOMEPOT consortium members:
 
-- Email: [support@homepot-consortium.org](mailto:support@homepot-consortium.org)
-- Discord: [HOMEPOT Community](https://discord.gg/homepot)
-<!-- Links will be activated when repository is created
-- Issues: [GitHub Issues](https://github.com/brunel-opensim/homepot-client/issues)
-- Documentation: [GitHub Pages](https://brunel-opensim.github.io/homepot-client/)
--->
+- GitHub Issues: [Report bugs and requests](https://github.com/brunel-opensim/homepot-client/issues)
+- Contributing: See [CONTRIBUTING.md](../CONTRIBUTING.md) for development guidelines

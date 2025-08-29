@@ -19,10 +19,6 @@ It is designed as a flexible, extensible client system that enables secure, scal
 **Complete documentation is available at: [https://brunel-opensim.github.io/homepot-client/](https://brunel-opensim.github.io/homepot-client/)**
 
 - **[Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)** - Installation, configuration, and first steps
-- **[API Reference](https://brunel-opensim.github.io/homepot-client/api-reference.html)** - Complete API documentation
-- **[CLI Reference](https://brunel-opensim.github.io/homepot-client/cli-reference.html)** - Command-line interface guide
-- **[Examples](https://brunel-opensim.github.io/homepot-client/examples.html)** - Practical usage examples
-- **[Contributing](https://brunel-opensim.github.io/homepot-client/contributing.html)** - Development workflow and guidelines
 
 ## Key Goals
 
