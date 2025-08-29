@@ -9,8 +9,6 @@ on:
 # Set permissions for GITHUB_TOKEN
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   build-docs:
@@ -46,34 +44,7 @@ jobs:
         name: documentation
         path: docs/_build/html/
         
-  deploy-docs:
-    # Deploy documentation to GitHub Pages
-    # Only runs on main branch pushes in the official repository
-    needs: build-docs
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository == 'brunel-opensim/homepot-client'
-    
-    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
-    permissions:
-      pages: write      # to deploy to Pages
-      id-token: write   # to verify the deployment originates from an appropriate source
-      contents: read    # to read the repository contents
-    
-    steps:
-    - name: Download documentation artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: documentation
-        path: ./docs-build
-    
-    - name: Setup Pages
-      uses: actions/configure-pages@v4
-      
-    - name: Upload to GitHub Pages
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: ./docs-build
-        
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+  # Note: GitHub Pages deployment is disabled for private repositories
+  # Documentation artifacts are still built and available for download
+  # To enable Pages deployment, the repository would need to be public
+  # or use GitHub Enterprise for private Pages hosting

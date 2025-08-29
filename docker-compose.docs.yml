@@ -1,0 +1,18 @@
+# Optional: Self-hosted documentation server
+# Run with: docker-compose -f docker-compose.yml -f docker-compose.docs.yml up
+
+version: '3.8'
+
+services:
+  docs:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docs/_build/html:/usr/share/nginx/html:ro
+    environment:
+      - NGINX_PORT=80
+    depends_on:
+      - homepot-client
+    profiles:
+      - docs
