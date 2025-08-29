@@ -49,3 +49,39 @@ To use a custom domain like `docs.homepot-consortium.org`:
 3. Update the GitHub Pages settings to use the custom domain
 
 This can be automated by modifying the deployment workflow to include the CNAME file.
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. 403 Authentication Error
+
+```text
+remote: Write access to repository not granted.
+fatal: unable to access 'https://github.com/brunel-opensim/homepot-client.git/': The requested URL returned error: 403
+```
+
+**Solution**: Ensure GitHub Pages is configured to use **GitHub Actions** as the source (not branch deployment).
+
+#### 2. Workflow Permissions Error
+
+**Solution**: The workflow includes proper permissions configuration:
+
+```yaml
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+```
+
+#### 3. Pages Not Updating
+
+- Check that GitHub Pages source is set to **GitHub Actions**
+- Verify the workflow runs successfully in the Actions tab
+- Allow up to 10 minutes for Pages to update after deployment
+
+#### 4. Documentation Build Failures
+
+- Check the workflow logs in GitHub Actions
+- Ensure all dependencies are properly specified in `pyproject.toml[docs]`
+- Test the build locally with `cd docs && make html`
