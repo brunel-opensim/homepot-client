@@ -83,12 +83,24 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Run TruffleHog
+    - name: Run TruffleHog for Recent Commits
+      if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: main
-        head: HEAD
+        base: ${{ github.event.before }}
+        head: ${{ github.event.after }}
+        extra_args: --debug --only-verified
+
+    - name: Run TruffleHog for Full Repository Scan
+      if: github.event_name != 'push' || github.event.before == '0000000000000000000000000000000000000000'
+      run: |
+        docker run --rm -v "$PWD:/pwd" \
+          ghcr.io/trufflesecurity/trufflehog:latest \
+          filesystem /pwd \
+          --debug \
+          --only-verified \
+          --json
 
   compliance-check:
     name: Consortium Compliance Check
