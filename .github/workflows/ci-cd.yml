@@ -225,54 +225,12 @@ jobs:
         docker stop test-container
         docker rm test-container
 
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' && github.repository == 'brunel-opensim/homepot-client'
-    needs: [docker-build]
-    environment:
-      name: staging
-      url: https://staging.homepot-client.example.com
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: python-package
-        path: dist/
-
-    - name: Deploy to staging environment
-      run: echo "Deploy to staging - implementation depends on infrastructure"
-      # Add actual deployment steps here
-
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.repository == 'brunel-opensim/homepot-client'
-    needs: [docker-build]
-    environment:
-      name: production
-      url: https://homepot-client.example.com
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: python-package
-        path: dist/
-
-    - name: Deploy to production environment
-      run: echo "Deploy to production - implementation depends on infrastructure"
-      # Add actual deployment steps here
-
   notify-consortium:
     name: Notify Consortium Partners
     runs-on: ubuntu-latest
     if: always() && github.repository == 'brunel-opensim/homepot-client'
-    needs: [deploy-staging, deploy-production]
+    needs: [docker-build]
     steps:
     - name: Send deployment notification
-      run: echo "Send notification to consortium partners - implement based on communication preferences"
-      # Add notification logic here (Slack, email, etc.)
+      run: echo "HOMEPOT Client CI/CD pipeline completed successfully"
+      # Future: Add notification logic here (Slack, email, etc.)
