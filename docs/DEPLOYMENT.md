@@ -12,10 +12,12 @@ After creating the repository on GitHub, you need to enable GitHub Pages:
 
 1. Go to your repository: `https://github.com/brunel-opensim/homepot-client`
 2. Navigate to **Settings** → **Pages**
-3. Under **Source**, select **Deploy from a branch**
-4. Select branch: **gh-pages**
-5. Select folder: **/ (root)**
+3. Under **Source**, select **GitHub Actions** (recommended) or **Deploy from a branch**
+4. If using GitHub Actions: No further configuration needed - the workflow handles everything
+5. If using branch deployment: Select branch **gh-pages** and folder **/ (root)**
 6. Click **Save**
+
+**Note**: The workflow is configured to use the modern GitHub Actions deployment method, which provides better security and doesn't require the `gh-pages` branch.
 
 ### Access Documentation
 
