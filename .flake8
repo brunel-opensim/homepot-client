@@ -1,0 +1,23 @@
+[flake8]
+max-line-length = 88
+docstring-convention = pep257
+ignore = 
+    # S101: Use of assert detected (normal in tests)
+    S101,
+    # E203: whitespace before ':' (conflicts with Black)
+    E203,
+    # W503: line break before binary operator (conflicts with Black)
+    W503
+extend-exclude = 
+    .venv,
+    venv,
+    .git,
+    __pycache__,
+    docs/_build,
+    build,
+    dist,
+    .eggs,
+    *.egg
+per-file-ignores =
+    # Tests can use assert statements
+    tests/*: S101
