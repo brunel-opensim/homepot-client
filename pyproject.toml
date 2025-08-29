@@ -178,6 +178,7 @@ omit = [
     "*/site-packages/*",
     "*/venv/*",
     "*/.venv/*",
+    "src/homepot_client/main.py",  # Exclude FastAPI demo app from coverage
 ]
 
 [tool.coverage.report]

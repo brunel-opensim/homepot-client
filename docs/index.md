@@ -9,9 +9,6 @@ Welcome to the HOMEPOT Client documentation! This library provides a Python clie
 getting-started
 api-reference
 cli-reference
-examples
-contributing
-changelog
 ```
 
 ## Quick Start
