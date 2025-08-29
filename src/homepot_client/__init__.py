@@ -1,6 +1,6 @@
 """HOMEPOT Client - Homogenous Cyber Management of End-Points and Operational Technology.
 
-This package provides a unified client system for managing and communicating with 
+This package provides a unified client system for managing and communicating with
 diverse end-points and operational technology devices across different platforms.
 
 The HOMEPOT Client is designed for:
