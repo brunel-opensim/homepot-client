@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  homepot-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: homepot-client
+    ports:
+      - "8000:8000"
+    environment:
+      - HOMEPOT_ENV=production
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - homepot-network
+
+  # Optional: Add monitoring
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: homepot-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   networks:
+  #     - homepot-network
+
+networks:
+  homepot-network:
+    driver: bridge
+
+volumes:
+  homepot-data:
+  homepot-logs:

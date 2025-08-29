@@ -68,7 +68,7 @@ try:
 except Exception as e:
     print(f'Structure error: {e}')
     sys.exit(1)
-" 2>/dev/null && echo -e "${GREEN}Valid structure${NC}" || echo -e "${RED}❌ Invalid structure${NC}"
+" 2>/dev/null && echo -e "${GREEN}Valid structure${NC}" || echo -e "${RED}Invalid structure${NC}"
 }
 
 # Find all workflow files
@@ -84,7 +84,7 @@ total_files=0
 valid_files=0
 
 for file in $workflow_files; do
-    echo "🔍 Validating: $file"
+    echo "Validating: $file"
     total_files=$((total_files + 1))
     
     if validate_yaml "$file" && validate_github_actions "$file"; then

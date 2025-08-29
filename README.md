@@ -19,10 +19,10 @@ It is designed as a flexible, extensible client system that enables secure, scal
 **Complete documentation is available at: [https://brunel-opensim.github.io/homepot-client/](https://brunel-opensim.github.io/homepot-client/)**
 
 - **[Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)** - Installation, configuration, and first steps
-- **[API Reference](https://homepot-client.readthedocs.io/en/latest/api-reference.html)** - Complete API documentation
-- **[CLI Reference](https://homepot-client.readthedocs.io/en/latest/cli-reference.html)** - Command-line interface guide
-- **[Examples](https://homepot-client.readthedocs.io/en/latest/examples.html)** - Practical usage examples
-- **[Contributing](https://homepot-client.readthedocs.io/en/latest/contributing.html)** - Development workflow and guidelines
+- **[API Reference](https://brunel-opensim.github.io/homepot-client/api-reference.html)** - Complete API documentation
+- **[CLI Reference](https://brunel-opensim.github.io/homepot-client/cli-reference.html)** - Command-line interface guide
+- **[Examples](https://brunel-opensim.github.io/homepot-client/examples.html)** - Practical usage examples
+- **[Contributing](https://brunel-opensim.github.io/homepot-client/contributing.html)** - Development workflow and guidelines
 
 ## Key Goals
 
@@ -120,6 +120,52 @@ This project maintains high code quality standards:
 - **pytest**: Comprehensive testing (>80% coverage required)
 - **Bandit**: Security analysis
 
+## Docker Deployment
+
+### Quick Start with Docker
+
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Access the API
+curl http://localhost:8000/health
+open http://localhost:8000/docs  # API documentation
+```
+
+### Production Deployment
+
+```bash
+# Build production image
+docker build -t homepot-client:latest .
+
+# Run production container
+docker run -d \
+  --name homepot-client \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  -e HOMEPOT_ENV=production \
+  homepot-client:latest
+```
+
+### Development with Docker
+
+```bash
+# Development with hot reload
+docker-compose -f docker-compose.dev.yml up
+
+# Run tests in container
+docker-compose exec homepot-client-dev pytest
+```
+
+### Available Endpoints
+
+- **Health Check**: `GET /health` - Container health status
+- **API Documentation**: `GET /docs` - Interactive API docs
+- **Client Status**: `GET /status` - Detailed client information
+- **Connect/Disconnect**: `POST /connect`, `POST /disconnect`
+
 ## Security
 
 Security is paramount in the HOMEPOT project. Please review our [Security Policy](SECURITY.md) for:
@@ -139,17 +185,17 @@ We welcome contributions from consortium members! Please see our [Contributing G
 - Pull request process
 - Issue reporting
 
-## Documentation
+## Complete Documentation
 
-**Complete documentation: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
+**Complete documentation: [https://brunel-opensim.github.io/homepot-client/](https://brunel-opensim.github.io/homepot-client/)**
 
 Key documentation sections:
 
-- **[Getting Started](https://homepot-client.readthedocs.io/en/latest/getting-started.html)** - Installation, configuration, and first steps
-- **[API Reference](https://homepot-client.readthedocs.io/en/latest/api-reference.html)** - Complete API documentation with examples
-- **[CLI Reference](https://homepot-client.readthedocs.io/en/latest/cli-reference.html)** - Command-line interface guide
-- **[Examples](https://homepot-client.readthedocs.io/en/latest/examples.html)** - Practical usage examples and code samples
-- **[Contributing Guide](https://homepot-client.readthedocs.io/en/latest/contributing.html)** - Development workflow and contribution guidelines
+- **[Getting Started](https://brunel-opensim.github.io/homepot-client/getting-started.html)** - Installation, configuration, and first steps
+- **[API Reference](https://brunel-opensim.github.io/homepot-client/api-reference.html)** - Complete API documentation with examples
+- **[CLI Reference](https://brunel-opensim.github.io/homepot-client/cli-reference.html)** - Command-line interface guide
+- **[Examples](https://brunel-opensim.github.io/homepot-client/examples.html)** - Practical usage examples and code samples
+- **[Contributing Guide](https://brunel-opensim.github.io/homepot-client/contributing.html)** - Development workflow and contribution guidelines
 
 *Local documentation is also available in the [`docs/`](docs/) directory and can be built using `./scripts/build-docs.sh`*
 

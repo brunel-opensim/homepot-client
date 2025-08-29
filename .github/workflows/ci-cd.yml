@@ -174,7 +174,7 @@ jobs:
         retention-days: 30
 
   docker-build:
-    name: Docker Build
+    name: Docker Build & Test
     runs-on: ubuntu-latest
     if: github.repository == 'brunel-opensim/homepot-client'
     needs: [build]
@@ -184,7 +184,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Docker image
+    - name: Build and test Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -192,6 +192,26 @@ jobs:
         tags: homepot-client:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        load: true
+
+    - name: Test Docker container
+      run: |
+        # Start container in background
+        docker run -d --name test-container -p 8000:8000 homepot-client:latest
+        
+        # Wait for container to be ready
+        sleep 15
+        
+        # Test health endpoint
+        curl -f http://localhost:8000/health || exit 1
+        curl -f http://localhost:8000/ || exit 1
+        
+        # Check container logs
+        docker logs test-container
+        
+        # Cleanup
+        docker stop test-container
+        docker rm test-container
 
   deploy-staging:
     name: Deploy to Staging
