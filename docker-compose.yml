@@ -7,13 +7,24 @@ services:
       dockerfile: Dockerfile
     container_name: homepot-client
     ports:
-      - "8000:8000"
+      - "${HOMEPOT_PORT:-8000}:8000"
     environment:
-      - HOMEPOT_ENV=production
+      - HOMEPOT_ENV=${HOMEPOT_ENV:-production}
       - PYTHONPATH=/app/src
+      - HOMEPOT_DEBUG=${HOMEPOT_DEBUG:-false}
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      # Production: only data and logs
+      - ${HOMEPOT_DATA_DIR:-./data}:/app/data
+      - ${HOMEPOT_LOGS_DIR:-./logs}:/app/logs
+      # Development: mount source code for hot reload (override with docker-compose.override.yml)
+    command: >
+      sh -c "
+      if [ \"$$HOMEPOT_ENV\" = \"development\" ]; then
+        uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
+      else
+        uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000
+      fi
+      "
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -24,7 +35,7 @@ services:
     networks:
       - homepot-network
 
-  # Optional: Add monitoring
+  # Optional: Add monitoring (uncomment when needed)
   # prometheus:
   #   image: prom/prometheus:latest
   #   container_name: homepot-prometheus

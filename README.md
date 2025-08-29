@@ -125,21 +125,38 @@ This project maintains high code quality standards:
 ### Quick Start with Docker
 
 ```bash
-# Build and run with Docker Compose
+# Development mode (with hot reload)
 docker-compose up --build
+
+# Production mode
+HOMEPOT_ENV=production docker-compose up --build -d
 
 # Access the API
 curl http://localhost:8000/health
 open http://localhost:8000/docs  # API documentation
 ```
 
+### Environment Configuration
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit configuration
+nano .env
+
+# Run with custom environment
+docker-compose up --build
+```
+
 ### Production Deployment
 
 ```bash
-# Build production image
-docker build -t homepot-client:latest .
+# Option 1: Using Docker Compose (Recommended)
+HOMEPOT_ENV=production HOMEPOT_PORT=8000 docker-compose up -d
 
-# Run production container
+# Option 2: Direct Docker run
+docker build -t homepot-client:latest .
 docker run -d \
   --name homepot-client \
   -p 8000:8000 \
@@ -149,14 +166,17 @@ docker run -d \
   homepot-client:latest
 ```
 
-### Development with Docker
+### Development Mode
 
 ```bash
-# Development with hot reload
-docker-compose -f docker-compose.dev.yml up
+# Development with hot reload (default with docker-compose.override.yml)
+docker-compose up --build
+
+# Or explicitly set development mode
+HOMEPOT_ENV=development docker-compose up --build
 
 # Run tests in container
-docker-compose exec homepot-client-dev pytest
+docker-compose exec homepot-client pytest
 ```
 
 ### Available Endpoints
