@@ -18,6 +18,18 @@ This repository is private and restricted to HOMEPOT consortium members only. Pl
 
 ## Development Workflow
 
+### Branch Protection Policy
+
+> **Important**: The HOMEPOT consortium follows strict branch protection policies to ensure code quality and security. These policies are enforced through process and CI/CD workflows.
+
+**Main Branch Protection Rules:**
+- **No direct pushes to `main`** - All changes must go through pull requests
+- **Require 2+ reviewer approvals** for all pull requests to main
+- **All CI/CD checks must pass** (tests, security scans, code quality)
+- **Conversations must be resolved** before merging
+- **Branches must be up-to-date** before merging
+- **Linear git history** required (no merge commits)
+
 ### Branching Strategy
 
 We follow a Git Flow branching model:
@@ -89,12 +101,37 @@ security(auth): implement token validation Closes #89
 ### Pull Request Process
 
 1. Ensure your branch is up to date with `develop`
-2. Create a pull request targeting `develop`
+2. Create a pull request targeting `develop` (or `main` for releases)
 3. Include a clear description of changes
 4. Reference any related issues
 5. Ensure all CI/CD checks pass
-6. Request review from at least one team member
+6. Request review from at least **2 consortium members**
 7. Address review feedback promptly
+8. **All conversations must be resolved** before merging
+
+> **Direct Push Protection**: If you accidentally try to push directly to main, our CI/CD workflow will block it and provide instructions on creating a proper pull request.
+
+### Repository Access Levels
+
+**Admin (Consortium Leads):**
+- Full repository access and settings management
+- Can approve and merge pull requests
+- Emergency hotfix authority
+
+**Maintainer (Senior Developers):**
+- Can approve pull requests (2+ approvals required)
+- Can merge to develop branch
+- Cannot bypass protection policies
+
+**Write (Active Contributors):**
+- Can create feature branches and submit pull requests
+- Cannot merge to protected branches
+- Standard development access
+
+**Read (Observers/New Members):**
+- Can view code and documentation
+- Can create issues and participate in discussions
+- Learning and onboarding access
 
 ## Code Standards
 
