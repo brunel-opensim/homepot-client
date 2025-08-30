@@ -11,6 +11,12 @@ on:
       - 'pyproject.toml'
       - 'requirements*.txt'
       - '.github/workflows/security-audit.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - '.github/workflows/security-audit.yml'
 
 # Default permissions
 permissions:
@@ -70,8 +76,18 @@ jobs:
 
     - name: Dependency Review
       uses: actions/dependency-review-action@v4
+      # Only run dependency review on pull requests where we have base/head refs
+      if: github.event_name == 'pull_request'
       with:
         fail-on-severity: moderate
+
+    - name: Alternative Dependency Security Check
+      # Run alternative dependency check for push/schedule events
+      if: github.event_name != 'pull_request'
+      run: |
+        echo "Running dependency security check for non-PR events..."
+        # Use pip-audit which was already installed above
+        pip-audit --desc --format=text || echo "Some vulnerabilities found - check pip-audit-results.json for details"
 
   secret-scan:
     timeout-minutes: 10

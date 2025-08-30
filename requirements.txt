@@ -1,5 +1,5 @@
 # Development dependencies for HOMEPOT Client
-# Use: pip install -r requirements-dev.txt
+# Use: pip install -r requirements.txt
 
 # Testing
 pytest>=7.4.0
