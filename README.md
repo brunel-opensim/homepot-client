@@ -3,8 +3,8 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-brightgreen.svg)](https://python.org/)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://brunel-opensim.github.io/homepot-client/)
-[![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Security Audit](https://github.com/brunel-opensim/homepot-client/workflows/Security%20Audit/badge.svg)](https://github.com/brunel-opensim/homepot-client/actions)
+[![Code Style](https://img.shields.io/badge/code%20style-black%20%7C%20flake8-000000.svg)](https://github.com/psf/black)
+[![Security](https://img.shields.io/badge/security-audit%20passing-green.svg)](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
 
 > **Private Repository**: This repository is restricted to HOMEPOT consortium members only.
 
@@ -33,15 +33,18 @@ It is designed as a flexible, extensible client system that enables secure, scal
 homepot-client/
 ├── src/
 │   └── homepot_client/        # Python package source code
-├── tests/                     # Test files
-├── docs/                      # Documentation
-├── .github/                   # GitHub workflows and templates
+├── tests/                     # Test files and test configuration
+├── docs/                      # Documentation source and builds
+├── scripts/                   # Development and automation scripts
+├── .github/                   # GitHub workflows and documentation
+│   ├── workflows/             # CI/CD automation workflows
+│   └── WORKFLOWS.md           # Workflow documentation
+├── Dockerfile                 # Container configuration
+├── docker-compose.yml         # Multi-container setup
 ├── pyproject.toml             # Python project configuration
-├── requirements.txt           # Project dependencies
-├── .env.example               # Environment configuration template
+├── requirements.txt           # Development dependencies
 ├── CONTRIBUTING.md            # Contribution guidelines
-├── SECURITY.md                # Security policy
-├── CHANGELOG.md               # Version history
+├── LICENSE                    # Apache 2.0 license
 └── README.md                  # This file
 ```
 
@@ -50,155 +53,43 @@ homepot-client/
 ### Prerequisites
 
 - **Python**: >= 3.9
-- **pip**: Latest version
+- **pip**: Latest version  
 - **Git**: Latest version
 - **Access**: HOMEPOT consortium membership required
 
-### Installation
+### Basic Installation
 
-1. **Clone the repository** (consortium members only):
+```bash
+# Clone the repository (consortium members only)
+git clone https://github.com/brunel-opensim/homepot-client.git
+cd homepot-client
 
-   ```bash
-   git clone https://github.com/brunel-opensim/homepot-client.git
-   cd homepot-client
-   ```
+# Install using the automated script
+./scripts/install.sh --dev
+```
 
-2. **Install dependencies**:
-
-   ```bash
-   pip install -r requirements.txt
-   pip install -e .
-   ```
-
-3. **Set up environment**:
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-4. **Run tests**:
-
-   ```bash
-   pytest
-   ```
-
-5. **Test CLI**:
-
-   ```bash
-   homepot-client --help
-   homepot-client version
-   ```
-
-> **For detailed installation and configuration instructions, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started.html)**
+**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)**
 
 ## Development
 
-### Available Scripts
+### Quick Reference
 
 | Command | Description |
 |---------|-------------|
 | `pytest` | Run test suite with coverage |
-| `pytest -m unit` | Run unit tests only |
-| `pytest -m integration` | Run integration tests only |
 | `homepot-client version` | Display version information |
 | `homepot-client info` | Display project information |
 
-### Code Quality
+**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)**
 
-This project maintains high code quality standards:
+### Code Quality Standards
 
-- **Python 3.9+**: Modern Python with type hints
-- **Black**: Code formatting
-- **isort**: Import sorting  
-- **flake8**: Code linting with security rules
-- **mypy**: Static type checking
-- **pytest**: Comprehensive testing (>80% coverage required)
-- **Bandit**: Security analysis
+This project maintains high code quality with automated tooling:
 
-## Docker Deployment
-
-### Quick Start with Docker
-
-```bash
-# First-time setup
-make setup
-
-# Development mode (with hot reload)
-make dev
-# or
-docker-compose up --build
-
-# Access the API
-curl http://localhost:8000/health
-open http://localhost:8000/docs  # API documentation
-```
-
-### Environment Configuration
-
-```bash
-# Copy and edit environment file
-cp .env.example .env
-nano .env
-
-# For development with hot reload, uncomment in .env:
-# HOMEPOT_SOURCE_MOUNT=./src
-
-# Run with environment
-docker-compose up --build
-```
-
-### Makefile Commands
-
-```bash
-# See all available commands
-make help
-
-# Common commands
-make setup    # First-time setup (copy templates)
-make dev      # Start development mode
-make prod     # Start production mode  
-make test     # Run tests in container
-make logs     # View logs
-make clean    # Clean up everything
-```
-
-### Production Deployment
-
-```bash
-# Option 1: Using Docker Compose (Recommended)
-HOMEPOT_ENV=production HOMEPOT_PORT=8000 docker-compose up -d
-
-# Option 2: Direct Docker run
-docker build -t homepot-client:latest .
-docker run -d \
-  --name homepot-client \
-  -p 8000:8000 \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/logs:/app/logs \
-  -e HOMEPOT_ENV=production \
-  homepot-client:latest
-```
-
-### Development Mode
-
-```bash
-# Development with hot reload (default with docker-compose.override.yml)
-docker-compose up --build
-
-# Or explicitly set development mode
-HOMEPOT_ENV=development HOMEPOT_SOURCE_MOUNT=./src docker-compose up --build
-
-# Run tests in container
-docker-compose exec homepot-client pytest
-```
-
-### Available Endpoints
-
-- **Health Check**: `GET /health` - Container health status
-- **API Documentation**: `GET /docs` - Interactive API docs
-- **Client Status**: `GET /status` - Detailed client information
-- **Connect/Disconnect**: `POST /connect`, `POST /disconnect`
+- **Python 3.9+** with type hints and modern features
+- **Automated Testing** with >98% coverage requirement
+- **Code Formatting** with Black, isort, flake8, mypy
+- **Security Analysis** with Bandit and safety checks
 
 ## Security
 
