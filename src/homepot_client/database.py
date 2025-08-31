@@ -278,11 +278,16 @@ class DatabaseService:
             return result.rowcount > 0
     
     async def get_job_by_id(self, job_id: str) -> Optional[Job]:
-        """Get job by job_id."""
+        """Get job by job_id with site relationship loaded."""
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         
         async with self.get_session() as session:
-            result = await session.execute(select(Job).where(Job.job_id == job_id))
+            result = await session.execute(
+                select(Job)
+                .options(selectinload(Job.site))
+                .where(Job.job_id == job_id)
+            )
             return result.scalar_one_or_none()
     
     async def get_pending_jobs(self, limit: int = 10) -> List[Job]:

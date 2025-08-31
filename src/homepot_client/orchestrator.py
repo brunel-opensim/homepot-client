@@ -9,7 +9,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from homepot_client.config import get_settings
 from homepot_client.database import get_database_service
@@ -199,6 +199,7 @@ class JobOrchestrator:
         return {
             "job_id": job.job_id,
             "action": job.action,
+            "description": job.description,
             "status": job.status,
             "priority": job.priority,
             "site_id": job.site.site_id if job.site else None,
@@ -408,6 +409,37 @@ class JobOrchestrator:
             
         except Exception as e:
             logger.error(f"Failed to process device ACK for {device.device_id}: {e}")
+
+    async def get_recent_jobs_status(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent jobs status for WebSocket updates."""
+        try:
+            from sqlalchemy import select, desc
+            
+            async with self.db_service.get_session() as session:
+                result = await session.execute(
+                    select(Job)
+                    .order_by(desc(Job.created_at))
+                    .limit(limit)
+                )
+                jobs = result.scalars().all()
+                
+                recent_jobs = []
+                for job in jobs:
+                    recent_jobs.append({
+                        "job_id": job.job_id,
+                        "site_id": job.site_id,
+                        "status": job.status.value,
+                        "action": job.action,
+                        "description": job.description,
+                        "created_at": job.created_at.isoformat() if job.created_at else None,
+                        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+                    })
+                
+                return recent_jobs
+                
+        except Exception as e:
+            logger.error(f"Failed to get recent jobs: {e}")
+            return []
 
 
 # Global orchestrator instance

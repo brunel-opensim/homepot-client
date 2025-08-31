@@ -228,7 +228,7 @@ class AuditLog(Base):
     # Data
     old_values = Column(JSON, nullable=True)
     new_values = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    event_metadata = Column(JSON, nullable=True)  # Renamed from 'metadata' to avoid SQLAlchemy conflict
     
     # Request context
     ip_address = Column(String(45), nullable=True)
