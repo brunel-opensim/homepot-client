@@ -7,7 +7,7 @@ for the HOMEPOT system.
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -306,27 +306,47 @@ class DatabaseService:
     # Health check operations
     async def create_health_check(
         self,
-        device_id: int,
-        is_healthy: bool,
-        response_time_ms: Optional[int] = None,
-        status_code: Optional[int] = None,
-        endpoint: Optional[str] = None,
-        response_data: Optional[dict] = None,
-        error_message: Optional[str] = None,
+        device_id: Optional[int] = None,
+        device_name: Optional[str] = None,
+        is_healthy: bool = True,
+        response_time_ms: int = 0,
+        status_code: int = 200,
+        endpoint: str = "/health",
+        response_data: Optional[Dict[str, Any]] = None,
     ) -> HealthCheck:
-        """Create a health check record."""
+        """Create a new health check record.
+        
+        Args:
+            device_id: Database ID of the device (optional)
+            device_name: Device name/device_id string for lookup (optional)
+            is_healthy: Whether the device is healthy
+            response_time_ms: Response time in milliseconds
+            status_code: HTTP status code
+            endpoint: Endpoint that was checked
+            response_data: Additional response data
+        """
+        from sqlalchemy import select
+        
         async with self.get_session() as session:
+            # If device_name is provided but device_id is not, look up device_id
+            if device_name and device_id is None:
+                result = await session.execute(
+                    select(Device).where(Device.device_id == device_name)
+                )
+                device = result.scalar_one_or_none()
+                if device:
+                    device_id = device.id
+                    
             health_check = HealthCheck(
                 device_id=device_id,
                 is_healthy=is_healthy,
                 response_time_ms=response_time_ms,
                 status_code=status_code,
                 endpoint=endpoint,
-                response_data=response_data,
-                error_message=error_message,
+                response_data=response_data or {},
             )
             session.add(health_check)
-            await session.flush()
+            await session.commit()
             await session.refresh(health_check)
             return health_check
     

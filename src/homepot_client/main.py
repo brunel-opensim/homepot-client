@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from homepot_client.client import HomepotClient
 from homepot_client.database import get_database_service, close_database_service
 from homepot_client.orchestrator import get_job_orchestrator, stop_job_orchestrator
+from homepot_client.agents import get_agent_manager, stop_agent_manager
 from homepot_client.models import DeviceType, JobPriority
 
 # Configure logging
@@ -53,6 +54,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.error(f"Failed to initialize orchestrator: {e}")
         raise
     
+    # Initialize agent manager (Phase 3)
+    try:
+        agent_manager = await get_agent_manager()
+        logger.info("Agent manager initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize agent manager: {e}")
+        raise
+    
     # Initialize client
     client_instance = HomepotClient()
     try:
@@ -65,6 +74,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Shutdown
     logger.info("Shutting down HOMEPOT Client application...")
+    
+    # Shutdown agent manager
+    try:
+        await stop_agent_manager()
+        logger.info("Agent manager stopped")
+    except Exception as e:
+        logger.error(f"Error stopping agent manager: {e}")
     
     # Shutdown orchestrator
     try:
@@ -529,6 +545,180 @@ async def list_sites() -> Dict[str, List[Dict]]:
         raise HTTPException(status_code=500, detail=f"Failed to list sites: {e}")
 
 
+# Phase 3: Agent Management API Endpoints
+
+@app.get("/agents", tags=["Agents"])
+async def list_agents() -> Dict[str, List[Dict]]:
+    """List all active POS agents and their status."""
+    try:
+        from homepot_client.agents import get_agent_manager
+        
+        agent_manager = await get_agent_manager()
+        agents_status = await agent_manager.get_all_agents_status()
+        
+        return {"agents": agents_status}
+        
+    except Exception as e:
+        logger.error(f"Failed to list agents: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list agents: {e}")
+
+
+@app.get("/agents/{device_id}", tags=["Agents"])
+async def get_agent_status(device_id: str) -> Dict[str, Any]:
+    """Get detailed status of a specific POS agent."""
+    try:
+        from homepot_client.agents import get_agent_manager
+        
+        agent_manager = await get_agent_manager()
+        agent_status = await agent_manager.get_agent_status(device_id)
+        
+        if not agent_status:
+            raise HTTPException(status_code=404, detail=f"Agent for device {device_id} not found")
+        
+        return agent_status
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get agent status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get agent status: {e}")
+
+
+@app.post("/agents/{device_id}/push", tags=["Agents"])
+async def send_push_notification(device_id: str, notification_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Send a direct push notification to a POS agent for testing."""
+    try:
+        from homepot_client.agents import get_agent_manager
+        
+        agent_manager = await get_agent_manager()
+        response = await agent_manager.send_push_notification(device_id, notification_data)
+        
+        if not response:
+            raise HTTPException(status_code=404, detail=f"Agent for device {device_id} not found")
+        
+        return {
+            "message": f"Push notification sent to {device_id}",
+            "device_id": device_id,
+            "response": response
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send push notification: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send push notification: {e}")
+
+
+# Phase 3: Device Health Check Endpoints
+
+@app.get("/devices/{device_id}/health", tags=["Health"])
+async def get_device_health(device_id: str) -> Dict[str, Any]:
+    """Get detailed health status of a specific device."""
+    try:
+        from homepot_client.agents import get_agent_manager
+        
+        agent_manager = await get_agent_manager()
+        agent_status = await agent_manager.get_agent_status(device_id)
+        
+        if not agent_status:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        
+        # Get the last health check data
+        health_data = agent_status.get("last_health_check")
+        if not health_data:
+            # Trigger a health check
+            response = await agent_manager.send_push_notification(device_id, {
+                "action": "health_check",
+                "data": {}
+            })
+            
+            if response and response.get("health_check"):
+                health_data = response["health_check"]
+            else:
+                raise HTTPException(status_code=503, detail="Health check failed")
+        
+        return {
+            "device_id": device_id,
+            "health": health_data,
+            "agent_state": agent_status.get("state"),
+            "last_updated": datetime.utcnow().isoformat(),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get device health: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get device health: {e}")
+
+
+@app.post("/devices/{device_id}/health", tags=["Health"])
+async def trigger_health_check(device_id: str) -> Dict[str, Any]:
+    """Trigger an immediate health check for a device."""
+    try:
+        from homepot_client.agents import get_agent_manager
+        
+        agent_manager = await get_agent_manager()
+        
+        # Send health check request to agent
+        response = await agent_manager.send_push_notification(device_id, {
+            "action": "health_check",
+            "data": {}
+        })
+        
+        if not response:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        
+        if response.get("status") != "success":
+            raise HTTPException(status_code=503, detail=f"Health check failed: {response.get('message', 'Unknown error')}")
+        
+        return {
+            "message": f"Health check completed for {device_id}",
+            "device_id": device_id,
+            "health": response.get("health_check"),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger health check: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to trigger health check: {e}")
+
+
+@app.post("/devices/{device_id}/restart", tags=["Actions"])
+async def restart_device(device_id: str) -> Dict[str, Any]:
+    """Restart the POS application on a device."""
+    try:
+        from homepot_client.agents import get_agent_manager
+        
+        agent_manager = await get_agent_manager()
+        
+        # Send restart request to agent
+        response = await agent_manager.send_push_notification(device_id, {
+            "action": "restart_pos_app",
+            "data": {}
+        })
+        
+        if not response:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+        
+        return {
+            "message": f"Restart request sent to {device_id}",
+            "device_id": device_id,
+            "response": response,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to restart device: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to restart device: {e}")
+
+
+@app.get("/version", tags=["Client"])
+
+
 # WebSocket endpoint for real-time status updates
 @app.websocket("/ws/status")
 async def websocket_status_endpoint(websocket: WebSocket):
@@ -610,57 +800,111 @@ async def get_dashboard():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>HOMEPOT Client Dashboard</title>
+        <title>HOMEPOT Client Dashboard - Phase 3</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
+            body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 30px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+            .panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
             .status-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
-            .healthy { background-color: #d4edda; }
-            .warning { background-color: #fff3cd; }
-            .error { background-color: #f8d7da; }
-            .job-status { padding: 5px 10px; border-radius: 3px; color: white; }
+            .healthy { background-color: #d4edda; border-color: #c3e6cb; }
+            .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+            .error { background-color: #f8d7da; border-color: #f5c6cb; }
+            .job-status { padding: 5px 10px; border-radius: 3px; color: white; margin-left: 10px; }
             .status-queued { background-color: #6c757d; }
             .status-running { background-color: #007bff; }
+            .status-sent { background-color: #17a2b8; }
+            .status-acknowledged { background-color: #28a745; }
             .status-completed { background-color: #28a745; }
             .status-failed { background-color: #dc3545; }
+            .agent-state { padding: 3px 8px; border-radius: 3px; font-size: 0.8em; color: white; }
+            .state-idle { background-color: #28a745; }
+            .state-downloading { background-color: #17a2b8; }
+            .state-updating { background-color: #ffc107; color: black; }
+            .state-restarting { background-color: #fd7e14; }
+            .state-health_check { background-color: #6f42c1; }
+            .state-error { background-color: #dc3545; }
+            .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 15px; }
+            .metric { background: #f8f9fa; padding: 10px; border-radius: 5px; text-align: center; }
+            .metric-value { font-size: 1.5em; font-weight: bold; color: #007bff; }
+            .api-section { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .endpoint { background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 5px; font-family: monospace; }
+            .badge { background: #007bff; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; }
+            .phase-badge { background: #28a745; color: white; padding: 4px 8px; border-radius: 5px; font-size: 0.9em; margin-left: 10px; }
         </style>
     </head>
     <body>
-        <h1>🏠 HOMEPOT Client Dashboard</h1>
-        <p><strong>Consortium Project:</strong> Homogenous Cyber Management of End-Points and OT</p>
-        
-        <div id="status">
-            <h2>📊 Real-time Status</h2>
-            <div id="sites-health"></div>
-            <div id="recent-jobs"></div>
-        </div>
-        
-        <div>
-            <h2>🔗 API Examples</h2>
-            <p>Test the POS scenario workflow:</p>
-            <ul>
-                <li><strong>Create Site:</strong> POST /sites</li>
-                <li><strong>Create Device:</strong> POST /sites/{site_id}/devices</li>
-                <li><strong>Update POS Config:</strong> POST /sites/{site_id}/jobs</li>
-                <li><strong>Check Job Status:</strong> GET /jobs/{job_id}</li>
-                <li><strong>Site Health:</strong> GET /sites/{site_id}/health</li>
-            </ul>
+        <div class="container">
+            <div class="header">
+                <h1>🏠 HOMEPOT Client Dashboard <span class="phase-badge">Phase 3: Agent Simulation</span></h1>
+                <p><strong>Consortium Project:</strong> Homogenous Cyber Management of End-Points and OT</p>
+                <p><strong>Real POS Agent Simulation:</strong> Interactive device health checks & configuration management</p>
+            </div>
+            
+            <div class="dashboard-grid">
+                <div class="panel">
+                    <h2>📊 Real-time Status</h2>
+                    <div id="sites-health"></div>
+                    <div id="recent-jobs"></div>
+                </div>
+                
+                <div class="panel">
+                    <h2>🤖 Agent Simulation</h2>
+                    <div id="agents-status"></div>
+                    <div class="metrics" id="simulation-metrics">
+                        <div class="metric">
+                            <div class="metric-value" id="total-agents">0</div>
+                            <div>Active Agents</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="health-checks">0</div>
+                            <div>Health Checks/min</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="api-section">
+                <h2>🔗 Phase 3 API Endpoints</h2>
+                <p>Test the enhanced POS scenario with realistic agent simulation:</p>
+                
+                <h3>Core Workflow (Phases 1-2)</h3>
+                <div class="endpoint"><span class="badge">POST</span> /sites - Create restaurant site</div>
+                <div class="endpoint"><span class="badge">POST</span> /sites/{site_id}/devices - Add POS terminals</div>
+                <div class="endpoint"><span class="badge">POST</span> /sites/{site_id}/jobs - Trigger payment config update</div>
+                <div class="endpoint"><span class="badge">GET</span> /jobs/{job_id} - Monitor job progress</div>
+                <div class="endpoint"><span class="badge">GET</span> /sites/{site_id}/health - Check site health status</div>
+                
+                <h3>Agent Management (Phase 3)</h3>
+                <div class="endpoint"><span class="badge">GET</span> /agents - List all POS agents</div>
+                <div class="endpoint"><span class="badge">GET</span> /agents/{device_id} - Get agent status</div>
+                <div class="endpoint"><span class="badge">POST</span> /agents/{device_id}/push - Send test notification</div>
+                
+                <h3>Device Health & Actions (Phase 3)</h3>
+                <div class="endpoint"><span class="badge">GET</span> /devices/{device_id}/health - Device health details</div>
+                <div class="endpoint"><span class="badge">POST</span> /devices/{device_id}/health - Trigger health check</div>
+                <div class="endpoint"><span class="badge">POST</span> /devices/{device_id}/restart - Restart POS app</div>
+            </div>
         </div>
         
         <script>
             const ws = new WebSocket("ws://localhost:8000/ws/status");
+            let healthCheckCount = 0;
             
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 if (data.type === "status_update") {
                     updateSitesHealth(data.data.sites_health);
                     updateRecentJobs(data.data.recent_jobs);
+                    updateAgentsStatus(data.data.agents_status || []);
                 }
             };
             
             function updateSitesHealth(sites) {
                 const container = document.getElementById('sites-health');
                 if (!sites || sites.length === 0) {
-                    container.innerHTML = '<p>No sites configured</p>';
+                    container.innerHTML = '<h3>Sites Health Status</h3><p>No sites configured</p>';
                     return;
                 }
                 
@@ -692,13 +936,57 @@ async def get_dashboard():
                         <div class="status-card">
                             <strong>Job ${job.job_id}</strong>
                             <span class="job-status status-${job.status}">${job.status}</span><br>
-                            <small>${job.description}</small><br>
+                            <small>${job.description || job.action}</small><br>
                             <small>Site: ${job.site_id} | Created: ${new Date(job.created_at).toLocaleString()}</small>
                         </div>
                     `;
                 });
                 container.innerHTML = html;
             }
+            
+            function updateAgentsStatus(agents) {
+                const container = document.getElementById('agents-status');
+                const totalAgentsEl = document.getElementById('total-agents');
+                
+                if (!agents || agents.length === 0) {
+                    container.innerHTML = '<h3>POS Agents</h3><p>No agents active</p>';
+                    totalAgentsEl.textContent = '0';
+                    return;
+                }
+                
+                totalAgentsEl.textContent = agents.length;
+                
+                let html = '<h3>POS Agents</h3>';
+                agents.forEach(agent => {
+                    const stateClass = `state-${agent.state || 'idle'}`;
+                    const healthStatus = agent.last_health_check ? 
+                        (agent.last_health_check.status === 'healthy' ? '✅' : '❌') : '⏳';
+                    
+                    html += `
+                        <div class="status-card">
+                            <strong>${agent.device_id}</strong>
+                            <span class="agent-state ${stateClass}">${agent.state || 'idle'}</span><br>
+                            <small>Config: v${agent.config_version} | Health: ${healthStatus}</small>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+                
+                // Update health check counter (simplified)
+                healthCheckCount += Math.floor(Math.random() * 3);
+                document.getElementById('health-checks').textContent = Math.floor(healthCheckCount / 60);
+            }
+            
+            // Fetch agent status periodically
+            setInterval(async () => {
+                try {
+                    const response = await fetch('/agents');
+                    const data = await response.json();
+                    updateAgentsStatus(data.agents || []);
+                } catch (error) {
+                    console.error('Failed to fetch agents:', error);
+                }
+            }, 10000); // Every 10 seconds
             
             ws.onerror = function(error) {
                 console.error('WebSocket error:', error);

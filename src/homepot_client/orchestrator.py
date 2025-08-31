@@ -336,79 +336,42 @@ class JobOrchestrator:
             )
     
     async def _send_push_notification(self, device, push_notification: PushNotification) -> bool:
-        """Send push notification to a device (simulated for now).
+        """Send push notification to a device using the agent manager.
         
-        In a real implementation, this would:
-        1. Connect to FCM/APNs/WNS/Web Push service
-        2. Send the notification payload
-        3. Handle delivery confirmations
-        
-        For the demo, we simulate the push notification.
+        This now uses the realistic agent simulation instead of basic simulation.
         """
         try:
-            # Simulate network delay
-            await asyncio.sleep(0.1)
+            # Import here to avoid circular imports
+            from homepot_client.agents import get_agent_manager
             
-            # Simulate 95% success rate
-            import random
-            success = random.random() < 0.95
+            agent_manager = await get_agent_manager()
             
-            if success:
-                logger.debug(f"Push notification sent to {device.device_id}: {push_notification.collapse_key}")
-                
-                # In real implementation, the device would:
-                # 4. Agent downloads config, writes it, restarts POS app, runs /health
-                # 5. Agent sends ACK back to HOMEPOT
-                
-                # For demo, we simulate the ACK response
-                await self._simulate_device_ack(device, push_notification)
-                
-            return success
+            # Prepare notification data for the agent
+            notification_data = {
+                "action": push_notification.action,
+                "data": {
+                    "config_url": push_notification.config_url,
+                    "config_version": push_notification.version,
+                    "priority": push_notification.priority,
+                },
+                "collapse_key": push_notification.collapse_key,
+                "time_to_live": push_notification.time_to_live,
+            }
             
+            # Send to agent and get response
+            response = await agent_manager.send_push_notification(device.device_id, notification_data)
+            
+            if response and response.get("status") == "success":
+                logger.debug(f"Push notification successful to {device.device_id}: {response.get('message', 'OK')}")
+                return True
+            else:
+                error_msg = response.get("message", "Unknown error") if response else "No response from agent"
+                logger.warning(f"Push notification failed to {device.device_id}: {error_msg}")
+                return False
+                
         except Exception as e:
             logger.error(f"Failed to send push to {device.device_id}: {e}")
             return False
-    
-    async def _simulate_device_ack(self, device, push_notification: PushNotification):
-        """Simulate device ACK response (Step 4-5 from scenario)."""
-        try:
-            # Simulate device processing time (download, restart, health check)
-            await asyncio.sleep(0.5)
-            
-            # Create health check record
-            db_service = await get_database_service()
-            
-            # Simulate health check result
-            import random
-            is_healthy = random.random() < 0.9  # 90% success rate
-            response_time = random.randint(50, 200)  # 50-200ms response time
-            
-            await db_service.create_health_check(
-                device_id=device.id,
-                is_healthy=is_healthy,
-                response_time_ms=response_time,
-                status_code=200 if is_healthy else 500,
-                endpoint="/health",
-                response_data={
-                    "status": "healthy" if is_healthy else "unhealthy",
-                    "config_version": push_notification.version,
-                    "last_restart": datetime.utcnow().isoformat(),
-                    "services": {
-                        "payment_gateway": "online" if is_healthy else "error",
-                        "pos_app": "running" if is_healthy else "failed",
-                    },
-                },
-            )
-            
-            # Update device status
-            from homepot_client.models import DeviceStatus
-            new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
-            await db_service.update_device_status(device.device_id, new_status)
-            
-            logger.debug(f"Device {device.device_id} ACK: {'healthy' if is_healthy else 'unhealthy'}")
-            
-        except Exception as e:
-            logger.error(f"Failed to process device ACK for {device.device_id}: {e}")
 
     async def get_recent_jobs_status(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent jobs status for WebSocket updates."""
