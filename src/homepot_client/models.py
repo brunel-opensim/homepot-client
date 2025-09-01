@@ -21,7 +21,8 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
-Base = declarative_base()
+# Create declarative base for SQLAlchemy models
+Base = declarative_base()  # type: ignore[misc]
 
 
 class JobStatus(str, Enum):
