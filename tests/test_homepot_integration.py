@@ -9,6 +9,7 @@ This test suite validates the complete HOMEPOT POS management system including:
 The tests use httpx for async HTTP testing and cover the full API surface.
 """
 
+import os
 import time
 
 import httpx
@@ -19,7 +20,14 @@ from fastapi.testclient import TestClient
 TEST_BASE_URL = "http://localhost:8000"
 TEST_TIMEOUT = 30.0
 
+# Skip live tests in CI environments
+skip_live_tests = pytest.mark.skipif(
+    os.environ.get("CI") is not None,
+    reason="Integration tests skipped in CI environment - requires running server"
+)
 
+
+@skip_live_tests
 class TestHOMEPOTSystem:
     """Comprehensive system tests for all four phases of HOMEPOT implementation."""
 
@@ -40,6 +48,7 @@ class TestHOMEPOTSystem:
 
 
 @pytest.mark.integration
+@skip_live_tests
 class TestPhase1CoreInfrastructure:
     """Test Phase 1: Core Infrastructure & Database functionality."""
 
@@ -86,6 +95,7 @@ class TestPhase1CoreInfrastructure:
 
 
 @pytest.mark.integration
+@skip_live_tests
 class TestPhase2APIEndpoints:
     """Test Phase 2: Enhanced API Endpoints & WebSocket Dashboard."""
 
@@ -200,6 +210,7 @@ class TestPhase2APIEndpoints:
 
 
 @pytest.mark.integration
+@skip_live_tests
 class TestPhase3AgentSimulation:
     """Test Phase 3: Realistic Agent Simulation & Health Checks."""
 
@@ -289,6 +300,7 @@ class TestPhase3AgentSimulation:
 
 
 @pytest.mark.integration
+@skip_live_tests
 class TestPhase4AuditLogging:
     """Test Phase 4: Comprehensive Audit Logging & System Metrics."""
 
@@ -331,6 +343,7 @@ class TestPhase4AuditLogging:
 
 
 @pytest.mark.integration
+@skip_live_tests
 class TestEndToEndWorkflows:
     """Test complete end-to-end workflows across all phases."""
 
@@ -433,6 +446,7 @@ class TestEndToEndWorkflows:
 
 
 @pytest.mark.performance
+@skip_live_tests
 class TestSystemPerformance:
     """Performance tests for the complete HOMEPOT system."""
 
@@ -483,6 +497,7 @@ class TestSystemPerformance:
 
 
 @pytest.mark.api
+@skip_live_tests
 class TestAPIDocumentation:
     """Test API documentation and schema validation."""
 

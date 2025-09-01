@@ -7,6 +7,7 @@ Run with: pytest tests/test_performance.py -v
 """
 
 import concurrent.futures
+import os
 import statistics
 import time
 
@@ -16,7 +17,14 @@ import requests
 BASE_URL = "http://localhost:8000"
 TIMEOUT = 30.0
 
+# Skip live tests in CI environments
+skip_live_tests = pytest.mark.skipif(
+    os.environ.get("CI") is not None,
+    reason="Live API tests skipped in CI environment - requires running server"
+)
 
+
+@skip_live_tests  
 class TestPerformance:
     """Performance tests for HOMEPOT system."""
 
@@ -300,6 +308,7 @@ class TestPerformance:
         assert requests_per_second > 5  # At least 5 requests per second
 
 
+@skip_live_tests
 class TestScalability:
     """Tests for system scalability characteristics."""
 

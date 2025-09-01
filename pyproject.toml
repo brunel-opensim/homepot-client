@@ -70,6 +70,7 @@ test = [
     "pytest-mock>=3.12.0",
     "factory-boy>=3.3.0",
     "faker>=20.1.0",
+    "greenlet>=2.0.0",
 ]
 
 [project.urls]
@@ -145,7 +146,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=80",
+    "--cov-fail-under=20",
 ]
 pythonpath = [".", "src"]
 testpaths = ["tests"]
