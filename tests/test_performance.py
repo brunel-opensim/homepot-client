@@ -13,7 +13,6 @@ import time
 import pytest
 import requests
 
-
 BASE_URL = "http://localhost:8000"
 TIMEOUT = 30.0
 

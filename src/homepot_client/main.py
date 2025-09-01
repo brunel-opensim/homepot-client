@@ -20,15 +20,15 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
-from homepot_client.client import HomepotClient
-from homepot_client.database import get_database_service, close_database_service
-from homepot_client.orchestrator import get_job_orchestrator, stop_job_orchestrator
 from homepot_client.agents import get_agent_manager, stop_agent_manager
-from homepot_client.audit import get_audit_logger, AuditEventType
+from homepot_client.audit import AuditEventType, get_audit_logger
+from homepot_client.client import HomepotClient
+from homepot_client.database import close_database_service, get_database_service
 from homepot_client.models import DeviceType, JobPriority
+from homepot_client.orchestrator import get_job_orchestrator, stop_job_orchestrator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -613,6 +613,7 @@ async def list_sites() -> Dict[str, List[Dict]]:
 
         # For demo, we'll create a simple query (in real app, add pagination)
         from sqlalchemy import select
+
         from homepot_client.models import Site
 
         async with db_service.get_session() as session:
@@ -980,7 +981,8 @@ async def websocket_status_endpoint(websocket: WebSocket):
 
             # Get all sites health summary
             from sqlalchemy import select
-            from homepot_client.models import Site, Device, DeviceStatus
+
+            from homepot_client.models import Device, DeviceStatus, Site
 
             sites_health = []
             async with db_service.get_session() as session:

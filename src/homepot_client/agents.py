@@ -16,8 +16,8 @@ import asyncio
 import logging
 import random  # nosec - Used for POS device simulation, not cryptographic purposes
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from homepot_client.database import get_database_service
 from homepot_client.models import DeviceStatus
@@ -385,6 +385,7 @@ class AgentManager:
 
             # Get all active POS devices
             from sqlalchemy import select
+
             from homepot_client.models import Device, DeviceType
 
             async with db_service.get_session() as session:

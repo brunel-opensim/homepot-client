@@ -24,11 +24,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from src.homepot_client.agents import POSAgentSimulator
+from src.homepot_client.database import DatabaseService
+
 # Import HOMEPOT components
 from src.homepot_client.main import app
 from src.homepot_client.models import Base, User
-from src.homepot_client.database import DatabaseService
-from src.homepot_client.agents import POSAgentSimulator
 
 
 class TestPOSDummy:
@@ -74,8 +75,16 @@ class TestPOSDummy:
         before we attempt any actual functionality testing.
         """
         # Test core application imports
-        from src.homepot_client import main, models, database, agents
-        from src.homepot_client import orchestrator, audit, client, config
+        from src.homepot_client import (
+            agents,
+            audit,
+            client,
+            config,
+            database,
+            main,
+            models,
+            orchestrator,
+        )
 
         # Verify FastAPI app exists
         assert hasattr(main, "app"), "FastAPI app not found in main module"

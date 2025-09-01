@@ -7,8 +7,8 @@ and monitoring purposes.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from homepot_client.database import get_database_service
 from homepot_client.models import AuditLog
@@ -249,7 +249,7 @@ class AuditLogger:
         try:
             db_service = await get_database_service()
 
-            from sqlalchemy import select, desc
+            from sqlalchemy import desc, select
 
             async with db_service.get_session() as session:
                 query = (
@@ -307,8 +307,9 @@ class AuditLogger:
         try:
             db_service = await get_database_service()
 
-            from sqlalchemy import select, func
             from datetime import timedelta
+
+            from sqlalchemy import func, select
 
             since = datetime.utcnow() - timedelta(hours=hours)
 

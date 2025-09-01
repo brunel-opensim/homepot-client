@@ -15,7 +15,6 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-
 # Test Configuration
 TEST_BASE_URL = "http://localhost:8000"
 TEST_TIMEOUT = 30.0

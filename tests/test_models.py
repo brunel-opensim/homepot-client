@@ -4,21 +4,22 @@ This module provides tests for SQLAlchemy model definitions,
 relationships, and model-specific functionality.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.homepot_client.models import (
     Base,
-    Site,
     Device,
-    Job,
-    User,
-    JobStatus,
-    JobPriority,
     DeviceStatus,
     DeviceType,
+    Job,
+    JobPriority,
+    JobStatus,
+    Site,
+    User,
 )
 
 

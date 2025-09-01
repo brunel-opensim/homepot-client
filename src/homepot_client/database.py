@@ -257,6 +257,7 @@ class DatabaseService:
     ) -> bool:
         """Update job status and result."""
         from datetime import datetime
+
         from sqlalchemy import update
 
         async with self.get_session() as session:

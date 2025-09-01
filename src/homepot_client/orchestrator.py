@@ -419,7 +419,7 @@ class JobOrchestrator:
     async def get_recent_jobs_status(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent jobs status for WebSocket updates."""
         try:
-            from sqlalchemy import select, desc
+            from sqlalchemy import desc, select
 
             async with self.db_service.get_session() as session:
                 result = await session.execute(
