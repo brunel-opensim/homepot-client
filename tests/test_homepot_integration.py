@@ -525,6 +525,7 @@ class TestAPIDocumentation:
         assert "swagger" in response.text.lower()
 
 
+@skip_live_tests
 def test_system_integration_health_check():
     """High-level integration test to verify system is operational."""
     import requests
