@@ -79,6 +79,13 @@ Early integration test inspired by FabSim3's FabDummy pattern. Verifies complete
 - **License compliance verification**
 - **Consortium security standards validation**
 - **Security report generation**
+- **Dependency review for pull requests** (Available - repository is public with dependency graph enabled)
+
+**Repository Status:**
+- **Visibility:** Public (enables full GitHub security features)
+- **Dependency Graph:** Enabled
+- **Dependency Review:** Available for pull requests
+- **GitHub Advanced Security:** Not required (public repository)
 
 **Jobs Overview:**
 
@@ -408,8 +415,14 @@ ls -la pyproject.toml requirements.txt src/
 
 **2. Dependency Review Action Error:**
 
-- **Issue:** `actions/dependency-review-action` requires base/head refs
-- **Solution:** Now runs only on pull requests; push events use alternative scanning
+- **Issue:** `Dependency review is not supported on this repository. Please ensure that Dependency graph is enabled along with GitHub Advanced Security on private repositories`
+- **Root Cause:** The dependency review action requires dependency graph to be enabled. For private repositories, this requires GitHub Advanced Security.
+- **Solution:** Repository is now **public** with dependency graph enabled. The `actions/dependency-review-action@v4` should work properly.
+- **Status:** **RESOLVED** - Repository converted to public, dependency graph is enabled
+- **Technical Details:**
+  - Dependency graph: Enabled (visible in repository settings)
+  - Dependency review: Available for pull requests
+  - Alternative scanning: Available for push/schedule events via pip-audit
 
 **3. CodeQL Analysis Warnings:**
 
@@ -540,5 +553,5 @@ gh run list --workflow="POSDummy Integration Test" --limit 5
 - [HOMEPOT Development Guide](../docs/development.md)
 - [Security Best Practices](../docs/security.md)
 
-**Last Updated:** August 30, 2025  
+**Last Updated:** September 2, 2025  
 **Maintainers:** HOMEPOT Consortium Development Team
