@@ -19,7 +19,7 @@ TIMEOUT = 10.0
 # Skip live tests in CI environments
 skip_live_tests = pytest.mark.skipif(
     os.environ.get("CI") is not None,
-    reason="Live API tests skipped in CI environment - requires running server"
+    reason="Live API tests skipped in CI environment - requires running server",
 )
 
 

@@ -23,7 +23,7 @@ TEST_TIMEOUT = 30.0
 # Skip live tests in CI environments
 skip_live_tests = pytest.mark.skipif(
     os.environ.get("CI") is not None,
-    reason="Integration tests skipped in CI environment - requires running server"
+    reason="Integration tests skipped in CI environment - requires running server",
 )
 
 
