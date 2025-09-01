@@ -176,3 +176,14 @@ docker-compose.override.yml
 temp/
 tmp/
 logs/
+
+# Database files - keep demo database, ignore test/temporary ones
+data/homepot_test.db
+data/homepot_backup*.db
+data/temp_*.db
+data/*.tmp
+data/*.db-wal
+data/*.db-shm
+
+# Keep the main demo database
+!data/homepot.db

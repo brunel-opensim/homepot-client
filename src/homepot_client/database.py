@@ -4,7 +4,6 @@ This module provides async database operations and session management
 for the HOMEPOT system.
 """
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, List, Optional
@@ -29,53 +28,53 @@ logger = logging.getLogger(__name__)
 
 class DatabaseService:
     """Async database service for HOMEPOT operations."""
-    
+
     def __init__(self):
         """Initialize database service."""
         settings = get_settings()
-        
+
         # Convert SQLite URL to async format
         db_url = settings.database.url
         if db_url.startswith("sqlite://"):
             db_url = db_url.replace("sqlite://", "sqlite+aiosqlite://")
         elif db_url.startswith("postgresql://"):
             db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
-        
+
         self.engine = create_async_engine(
             db_url,
             echo=settings.database.echo_sql,
             future=True,
         )
-        
+
         self.session_maker = async_sessionmaker(
             self.engine,
             class_=AsyncSession,
             expire_on_commit=False,
         )
-        
+
         self._initialized = False
-    
+
     async def initialize(self):
         """Initialize database schema."""
         if self._initialized:
             return
-        
+
         try:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            
+
             logger.info("Database initialized successfully")
             self._initialized = True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise
-    
+
     async def close(self):
         """Close database connections."""
         await self.engine.dispose()
         logger.info("Database connections closed")
-    
+
     @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         """Get async database session."""
@@ -88,7 +87,7 @@ class DatabaseService:
                 raise
             finally:
                 await session.close()
-    
+
     # User operations
     async def create_user(
         self,
@@ -111,17 +110,17 @@ class DatabaseService:
             await session.flush()
             await session.refresh(user)
             return user
-    
+
     async def get_user_by_api_key(self, api_key: str) -> Optional[User]:
         """Get user by API key."""
         from sqlalchemy import select
-        
+
         async with self.get_session() as session:
             result = await session.execute(
-                select(User).where(User.api_key == api_key, User.is_active == True)
+                select(User).where(User.api_key == api_key, User.is_active.is_(True))
             )
             return result.scalar_one_or_none()
-    
+
     # Site operations
     async def create_site(
         self,
@@ -142,17 +141,17 @@ class DatabaseService:
             await session.flush()
             await session.refresh(site)
             return site
-    
+
     async def get_site_by_site_id(self, site_id: str) -> Optional[Site]:
         """Get site by site_id."""
         from sqlalchemy import select
-        
+
         async with self.get_session() as session:
             result = await session.execute(
-                select(Site).where(Site.site_id == site_id, Site.is_active == True)
+                select(Site).where(Site.site_id == site_id, Site.is_active.is_(True))
             )
             return result.scalar_one_or_none()
-    
+
     # Device operations
     async def create_device(
         self,
@@ -178,29 +177,29 @@ class DatabaseService:
             await session.flush()
             await session.refresh(device)
             return device
-    
+
     async def get_devices_by_site_and_segment(
         self, site_id: int, segment: Optional[str] = None
     ) -> List[Device]:
         """Get devices by site and optional segment."""
         from sqlalchemy import select
-        
+
         async with self.get_session() as session:
             query = select(Device).where(
-                Device.site_id == site_id, Device.is_active == True
+                Device.site_id == site_id, Device.is_active.is_(True)
             )
-            
+
             # For POS scenario: filter by device type if segment specified
             if segment == "pos-terminals":
                 query = query.where(Device.device_type == "pos_terminal")
-            
+
             result = await session.execute(query)
             return list(result.scalars().all())
-    
+
     async def update_device_status(self, device_id: str, status: DeviceStatus) -> bool:
         """Update device status."""
-        from sqlalchemy import select, update
-        
+        from sqlalchemy import update
+
         async with self.get_session() as session:
             result = await session.execute(
                 update(Device)
@@ -208,7 +207,7 @@ class DatabaseService:
                 .values(status=status)
             )
             return result.rowcount > 0
-    
+
     # Job operations
     async def create_job(
         self,
@@ -248,7 +247,7 @@ class DatabaseService:
             await session.flush()
             await session.refresh(job)
             return job
-    
+
     async def update_job_status(
         self,
         job_id: str,
@@ -259,10 +258,10 @@ class DatabaseService:
         """Update job status and result."""
         from datetime import datetime
         from sqlalchemy import update
-        
+
         async with self.get_session() as session:
             update_data = {"status": status, "updated_at": datetime.utcnow()}
-            
+
             if status == JobStatus.COMPLETED and result is not None:
                 update_data["result"] = result
                 update_data["completed_at"] = datetime.utcnow()
@@ -271,29 +270,27 @@ class DatabaseService:
                 update_data["completed_at"] = datetime.utcnow()
             elif status == JobStatus.SENT:
                 update_data["started_at"] = datetime.utcnow()
-            
+
             result = await session.execute(
                 update(Job).where(Job.job_id == job_id).values(**update_data)
             )
             return result.rowcount > 0
-    
+
     async def get_job_by_id(self, job_id: str) -> Optional[Job]:
         """Get job by job_id with site relationship loaded."""
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
-        
+
         async with self.get_session() as session:
             result = await session.execute(
-                select(Job)
-                .options(selectinload(Job.site))
-                .where(Job.job_id == job_id)
+                select(Job).options(selectinload(Job.site)).where(Job.job_id == job_id)
             )
             return result.scalar_one_or_none()
-    
+
     async def get_pending_jobs(self, limit: int = 10) -> List[Job]:
         """Get pending jobs for processing."""
         from sqlalchemy import select
-        
+
         async with self.get_session() as session:
             result = await session.execute(
                 select(Job)
@@ -302,7 +299,7 @@ class DatabaseService:
                 .limit(limit)
             )
             return list(result.scalars().all())
-    
+
     # Health check operations
     async def create_health_check(
         self,
@@ -315,7 +312,7 @@ class DatabaseService:
         response_data: Optional[Dict[str, Any]] = None,
     ) -> HealthCheck:
         """Create a new health check record.
-        
+
         Args:
             device_id: Database ID of the device (optional)
             device_name: Device name/device_id string for lookup (optional)
@@ -326,7 +323,7 @@ class DatabaseService:
             response_data: Additional response data
         """
         from sqlalchemy import select
-        
+
         async with self.get_session() as session:
             # If device_name is provided but device_id is not, look up device_id
             if device_name and device_id is None:
@@ -336,7 +333,7 @@ class DatabaseService:
                 device = result.scalar_one_or_none()
                 if device:
                     device_id = device.id
-                    
+
             health_check = HealthCheck(
                 device_id=device_id,
                 is_healthy=is_healthy,
@@ -349,8 +346,7 @@ class DatabaseService:
             await session.commit()
             await session.refresh(health_check)
             return health_check
-    
-    # Audit logging
+
     async def create_audit_log(
         self,
         event_type: str,
@@ -359,13 +355,13 @@ class DatabaseService:
         job_id: Optional[int] = None,
         device_id: Optional[int] = None,
         site_id: Optional[int] = None,
-        old_values: Optional[dict] = None,
-        new_values: Optional[dict] = None,
-        metadata: Optional[dict] = None,
+        old_values: Optional[Dict[str, Any]] = None,
+        new_values: Optional[Dict[str, Any]] = None,
+        event_metadata: Optional[Dict[str, Any]] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> AuditLog:
-        """Create an audit log entry."""
+        """Create a new audit log entry."""
         async with self.get_session() as session:
             audit_log = AuditLog(
                 event_type=event_type,
@@ -376,12 +372,12 @@ class DatabaseService:
                 site_id=site_id,
                 old_values=old_values,
                 new_values=new_values,
-                metadata=metadata,
+                event_metadata=event_metadata,
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
             session.add(audit_log)
-            await session.flush()
+            await session.commit()
             await session.refresh(audit_log)
             return audit_log
 

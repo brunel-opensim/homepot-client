@@ -8,16 +8,17 @@ This document describes the automated workflows configured for the HOMEPOT Clien
 
 **Trigger Events:**
 
-- Push to `main` branch
-- Pull requests to `main` branch
+- Push to `main` and `develop` branches
+- Pull requests to `main` and `develop` branches
 - Manual trigger via `workflow_dispatch`
 
 **What it does:**
 
+- **Security scanning** (Bandit, Safety, Trivy vulnerability scanner)
+- **POSDummy infrastructure gate** (comprehensive integration test)
 - **Cross-platform testing** across Ubuntu, Windows, and macOS
-- **Multi-version Python support** (3.9, 3.11, 3.12)
-- **Code quality checks** (Black formatting, flake8 linting, import sorting)
-- **Security scanning** (Bandit, Safety)
+- **Multi-version Python support** (3.9, 3.11)
+- **Code quality checks** (Black formatting, flake8 linting, isort, mypy)
 - **Unit testing** with pytest and coverage reporting
 - **Package building** and validation
 - **Docker container testing**
@@ -26,15 +27,42 @@ This document describes the automated workflows configured for the HOMEPOT Clien
 **Jobs Overview:**
 
 ```text
-├── Code Quality (Python 3.9, 3.11)
 ├── Security Scan
+├── POSDummy Infrastructure Gate
+├── Code Quality (Python 3.9, 3.11)
 ├── Test Suite (Ubuntu/Windows/macOS × Python 3.9/3.11)
 ├── Build Package
 ├── Docker Build & Test
 └── Notify Consortium Partners
 ```
 
-### 2. Security Audit (`security-audit.yml`)
+**POSDummy Infrastructure Gate:**
+Early integration test inspired by FabSim3's FabDummy pattern. Verifies complete HOMEPOT infrastructure is functional before running expensive operations. Fast execution (2-3 minutes) with comprehensive coverage.
+
+### 2. POSDummy Integration Test (`pos-dummy.yml`)
+
+**Trigger Events:**
+
+- Manual trigger with test mode selection (`full`, `quick`, `verbose`)
+- Automatic trigger on core file changes
+- Scheduled runs every 6 hours for continuous monitoring
+
+**What it does:**
+
+- **Infrastructure verification** across all critical HOMEPOT components
+- **Fast feedback** for structural issues
+- **Continuous monitoring** of repository health
+- **Early detection** of breaking changes
+
+**Test Phases:**
+1. **Critical Imports** - Module loading and dependency verification
+2. **API Endpoints** - FastAPI routing and accessibility
+3. **Database Connectivity** - SQLAlchemy operations and integrity
+4. **Complete Pipeline** - End-to-end site→device→job→agent→audit flow
+5. **Configuration Integrity** - Package and config validation
+6. **Package Structure** - Python module organization
+
+### 3. Security Audit (`security-audit.yml`)
 
 **Trigger Events:**
 
@@ -81,6 +109,7 @@ This document describes the automated workflows configured for the HOMEPOT Clien
 2. **View specific workflow:**
 
    - CI/CD Pipeline: [workflow link](https://github.com/brunel-opensim/homepot-client/actions/workflows/ci-cd.yml)
+   - POSDummy Integration Test: [workflow link](https://github.com/brunel-opensim/homepot-client/actions/workflows/pos-dummy.yml)
    - Security Audit: [workflow link](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
 
 ### Using GitHub CLI
@@ -117,6 +146,7 @@ gh run watch <run-id>
 
 # Trigger a workflow manually
 gh workflow run "CI/CD Pipeline"
+gh workflow run "POSDummy Integration Test"
 gh workflow run "Security Audit"
 ```
 
@@ -125,6 +155,7 @@ gh workflow run "Security Audit"
 ```bash
 # Show status of latest runs
 gh run list --workflow="CI/CD Pipeline" --limit 5
+gh run list --workflow="POSDummy Integration Test" --limit 5
 gh run list --workflow="Security Audit" --limit 5
 
 # View logs of the latest run
@@ -132,6 +163,9 @@ gh run view --log $(gh run list --workflow="CI/CD Pipeline" --limit 1 --json dat
 
 # Download artifacts from latest run
 gh run download $(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
+
+# Monitor POSDummy health
+gh run list --workflow="POSDummy Integration Test" --limit 10
 ```
 
 ## Running Workflows Locally
@@ -150,7 +184,54 @@ source scripts/activate-homepot.sh
 
 ### Replicating CI/CD Pipeline Locally
 
-**1. Code Quality Checks:**
+**Enhanced Validation Script:**
+
+The `validate-workflows.sh` script now mirrors the complete GitHub Actions workflow:
+
+```bash
+# Run complete validation (matches CI/CD exactly)
+./scripts/validate-workflows.sh
+
+# Quick infrastructure check (POSDummy only)
+./scripts/validate-workflows.sh --posdummy-only
+
+# Specific validation modes
+./scripts/validate-workflows.sh --code-only
+./scripts/validate-workflows.sh --yaml-only
+./scripts/validate-workflows.sh --no-tests --no-docs
+
+# Verbose output for debugging
+./scripts/validate-workflows.sh --verbose
+./scripts/validate-workflows.sh --posdummy-only --verbose
+
+# Fast development feedback
+./scripts/validate-workflows.sh --fail-fast
+```
+
+**Validation Order (matches CI/CD):**
+```text
+YAML Syntax → Workflow Structure → POSDummy Gate → Code Quality → Python Setup → Documentation → Tests
+```
+
+**1. POSDummy Infrastructure Verification:**
+
+```bash
+# Quick infrastructure health check (2-3 minutes)
+./scripts/run-pos-dummy.sh --quick
+
+# Complete infrastructure verification
+./scripts/run-pos-dummy.sh
+
+# Detailed diagnostics
+./scripts/run-pos-dummy.sh --verbose
+
+# Integration via validation script
+./scripts/validate-workflows.sh --posdummy-only
+```
+
+**2. Code Quality Checks:**
+
+**2. Code Quality Checks:**
 
 ```bash
 # Run all validation (equivalent to CI/CD checks)
@@ -171,7 +252,9 @@ flake8 src/ tests/
 mypy src/
 ```
 
-**2. Security Scanning:**
+**3. Security Scanning:**
+
+**3. Security Scanning:**
 
 ```bash
 # Run security scans
@@ -183,7 +266,7 @@ pip-audit
 ./scripts/validate-workflows.sh --security-only
 ```
 
-**3. Testing:**
+**4. Testing:**
 
 ```bash
 # Run unit tests
@@ -195,9 +278,12 @@ pytest tests/ --cov=src --cov-report=html
 # Run specific test categories
 pytest tests/unit/ -v
 pytest tests/integration/ -v
+
+# POSDummy infrastructure testing
+pytest tests/test_pos_dummy.py -v
 ```
 
-**4. Package Building:**
+**5. Package Building:**
 
 ```bash
 # Build package
@@ -210,7 +296,7 @@ twine check dist/*
 pip install -e .
 ```
 
-**5. Docker Testing:**
+**6. Docker Testing:**
 
 ```bash
 # Test Docker setup
@@ -219,6 +305,52 @@ pip install -e .
 # Manual Docker testing
 docker build -t homepot-client .
 docker run --rm homepot-client homepot-client --version
+```
+
+### Running POSDummy Tests Locally
+
+POSDummy provides fast infrastructure verification inspired by FabSim3's FabDummy pattern:
+
+**Basic Usage:**
+
+```bash
+# Quick health check (30 seconds)
+./scripts/validate-workflows.sh --posdummy-only
+
+# Standalone execution
+./scripts/run-pos-dummy.sh --quick     # Fast mode
+./scripts/run-pos-dummy.sh             # Full mode  
+./scripts/run-pos-dummy.sh --verbose   # Detailed output
+```
+
+**Integration Testing:**
+
+```bash
+# Test critical imports and dependencies
+pytest tests/test_pos_dummy.py::TestPOSDummy::test_critical_imports -v
+
+# Test API endpoints
+pytest tests/test_pos_dummy.py::TestPOSDummy::test_api_endpoints_available -v
+
+# Test database connectivity
+pytest tests/test_pos_dummy.py::TestPOSDummy::test_database_connectivity -v
+
+# Complete pipeline test
+pytest tests/test_pos_dummy.py::TestPOSDummy::test_complete_pos_dummy_pipeline -v
+```
+
+**Debugging Infrastructure Issues:**
+
+```bash
+# Verbose POSDummy analysis
+./scripts/run-pos-dummy.sh --verbose
+
+# Check specific phases
+pytest tests/test_pos_dummy.py -v -k "critical_imports"
+pytest tests/test_pos_dummy.py -v -k "database_connectivity"
+
+# Integration via validation script
+./scripts/validate-workflows.sh --posdummy-only --verbose
 ```
 
 ### Replicating Security Audit Locally
@@ -263,33 +395,55 @@ ls -la pyproject.toml requirements.txt src/
 
 ### Common Issues and Solutions
 
-**1. Dependency Review Action Error:**
+**1. POSDummy Infrastructure Test Failures:**
+
+- **Issue:** POSDummy test fails with import errors
+- **Solution:** Install package in development mode: `pip install -e .`
+
+- **Issue:** POSDummy detects API endpoint failures
+- **Solution:** Check if HOMEPOT services are properly configured; run `./scripts/run-pos-dummy.sh --verbose` for details
+
+- **Issue:** Database connectivity issues in POSDummy
+- **Solution:** Verify database setup and configuration; POSDummy uses temporary SQLite for testing
+
+**2. Dependency Review Action Error:**
 
 - **Issue:** `actions/dependency-review-action` requires base/head refs
 - **Solution:** Now runs only on pull requests; push events use alternative scanning
 
-**2. CodeQL Analysis Warnings:**
+**3. CodeQL Analysis Warnings:**
 
 - **Issue:** "Advanced Security must be enabled"
 - **Solution:** Expected for public repos without GitHub Enterprise; core scanning still works
 
-**3. Test Failures:**
+**4. Test Failures:**
 
 - **Issue:** Tests failing in CI but passing locally
 - **Solution:** Check Python version compatibility and environment differences
 
-**4. Security Scan Alerts:**
+**5. Security Scan Alerts:**
 
 - **Issue:** New vulnerabilities detected
 - **Solution:** Update dependencies with `pip install --upgrade` and rerun `safety check`
+
+**6. Enhanced Validation Script Issues:**
+
+- **Issue:** `./scripts/validate-workflows.sh` command not found
+- **Solution:** Make script executable: `chmod +x scripts/validate-workflows.sh`
+
+- **Issue:** Validation script fails with "Python not available"
+- **Solution:** Ensure Python environment is activated and dependencies installed
 
 ### Getting Help
 
 **Local Development Issues:**
 
 ```bash
-# Run comprehensive validation
+# Run comprehensive validation with detailed output
 ./scripts/validate-workflows.sh --verbose
+
+# Check POSDummy infrastructure health
+./scripts/run-pos-dummy.sh --verbose
 
 # Check installation
 ./scripts/install.sh --help
@@ -303,6 +457,9 @@ gh run view <run-id> --log
 
 # Check workflow file syntax
 ./scripts/validate-workflows.sh --yaml-only
+
+# Monitor POSDummy workflow health
+gh run list --workflow="POSDummy Integration Test" --limit 5
 ```
 
 **Consortium Support:**
@@ -378,6 +535,8 @@ gh run view <run-id> --log
 
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [GitHub CLI Manual](https://cli.github.com/manual/)
+- [POSDummy Documentation](../docs/POSDummy.md) - Infrastructure testing overview
+- [POSDummy Integration Guide](../docs/POSDummy-Integration.md) - Detailed implementation guide
 - [HOMEPOT Development Guide](../docs/development.md)
 - [Security Best Practices](../docs/security.md)
 

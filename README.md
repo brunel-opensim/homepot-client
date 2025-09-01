@@ -34,6 +34,7 @@ homepot-client/
 ├── src/
 │   └── homepot_client/        # Python package source code
 ├── tests/                     # Test files and test configuration
+├── data/                      # Database storage for testing
 ├── docs/                      # Documentation source and builds
 ├── scripts/                   # Development and automation scripts
 ├── .github/                   # GitHub workflows and documentation

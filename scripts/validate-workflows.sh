@@ -19,9 +19,11 @@ VERBOSE=false
 QUIET=false
 CHECK_YAML=true
 CHECK_STRUCTURE=true
+CHECK_POSDUMMY=true
 CHECK_CODE=true
 CHECK_PYTHON=true
 CHECK_DOCS=true
+CHECK_TESTS=true
 FAIL_FAST=false
 
 # Print usage
@@ -39,19 +41,25 @@ usage() {
     echo "Check Selection (default: all):"
     echo "  --yaml-only         Only validate YAML syntax"
     echo "  --structure-only    Only validate workflow structure"
+    echo "  --posdummy-only     Only run POSDummy integration test"
     echo "  --code-only         Only run code quality checks"
     echo "  --python-only       Only validate Python setup"
     echo "  --docs-only         Only validate documentation"
+    echo "  --tests-only        Only run essential tests"
     echo "  --no-yaml           Skip YAML validation"
     echo "  --no-structure      Skip workflow structure validation"
+    echo "  --no-posdummy       Skip POSDummy integration test"
     echo "  --no-code           Skip code quality checks"
     echo "  --no-python         Skip Python setup validation"
     echo "  --no-docs           Skip documentation validation"
+    echo "  --no-tests          Skip test execution"
     echo ""
     echo "Examples:"
     echo "  $0                          # Run all checks"
     echo "  $0 --verbose                # Run all checks with verbose output"
+    echo "  $0 --posdummy-only          # Only run POSDummy integration test"
     echo "  $0 --code-only              # Only run code quality checks"
+    echo "  $0 --tests-only             # Only run essential tests"
     echo "  $0 --no-code --no-python    # Skip code and Python checks"
     echo "  $0 --fail-fast              # Stop on first failure"
 }
@@ -74,41 +82,71 @@ while [[ $# -gt 0 ]]; do
         --yaml-only)
             CHECK_YAML=true
             CHECK_STRUCTURE=false
+            CHECK_POSDUMMY=false
             CHECK_CODE=false
             CHECK_PYTHON=false
             CHECK_DOCS=false
+            CHECK_TESTS=false
             shift
             ;;
         --structure-only)
             CHECK_YAML=false
             CHECK_STRUCTURE=true
+            CHECK_POSDUMMY=false
             CHECK_CODE=false
             CHECK_PYTHON=false
             CHECK_DOCS=false
+            CHECK_TESTS=false
+            shift
+            ;;
+        --posdummy-only)
+            CHECK_YAML=false
+            CHECK_STRUCTURE=false
+            CHECK_POSDUMMY=true
+            CHECK_CODE=false
+            CHECK_PYTHON=false
+            CHECK_DOCS=false
+            CHECK_TESTS=false
             shift
             ;;
         --code-only)
             CHECK_YAML=false
             CHECK_STRUCTURE=false
+            CHECK_POSDUMMY=false
             CHECK_CODE=true
             CHECK_PYTHON=false
             CHECK_DOCS=false
+            CHECK_TESTS=false
             shift
             ;;
         --python-only)
             CHECK_YAML=false
             CHECK_STRUCTURE=false
+            CHECK_POSDUMMY=false
             CHECK_CODE=false
             CHECK_PYTHON=true
             CHECK_DOCS=false
+            CHECK_TESTS=false
             shift
             ;;
         --docs-only)
             CHECK_YAML=false
             CHECK_STRUCTURE=false
+            CHECK_POSDUMMY=false
             CHECK_CODE=false
             CHECK_PYTHON=false
             CHECK_DOCS=true
+            CHECK_TESTS=false
+            shift
+            ;;
+        --tests-only)
+            CHECK_YAML=false
+            CHECK_STRUCTURE=false
+            CHECK_POSDUMMY=false
+            CHECK_CODE=false
+            CHECK_PYTHON=false
+            CHECK_DOCS=false
+            CHECK_TESTS=true
             shift
             ;;
         --no-yaml)
@@ -117,6 +155,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-structure)
             CHECK_STRUCTURE=false
+            shift
+            ;;
+        --no-posdummy)
+            CHECK_POSDUMMY=false
             shift
             ;;
         --no-code)
@@ -129,6 +171,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-docs)
             CHECK_DOCS=false
+            shift
+            ;;
+        --no-tests)
+            CHECK_TESTS=false
             shift
             ;;
         -h|--help)
@@ -256,7 +302,110 @@ validate_structure() {
     return 0
 }
 
-# 3. Essential code quality
+# 3. POSDummy Infrastructure Gate
+validate_posdummy() {
+    log_info "  Running POSDummy infrastructure verification..."
+    
+    # Check if POSDummy files exist
+    if [[ ! -f "tests/test_pos_dummy.py" ]]; then
+        log_warning "POSDummy test file not found at tests/test_pos_dummy.py"
+        return 0
+    fi
+    
+    if [[ ! -f "scripts/run-pos-dummy.sh" ]]; then
+        log_warning "POSDummy runner not found at scripts/run-pos-dummy.sh"
+        return 0
+    fi
+    
+    # Check if Python and pytest are available
+    if ! command -v python >/dev/null 2>&1; then
+        log_warning "Python not available, skipping POSDummy execution"
+        return 0
+    fi
+    
+    local failed=false
+    local posdummy_mode="quick"
+    
+    # Determine POSDummy mode based on verbosity
+    if [[ "$VERBOSE" == true ]]; then
+        posdummy_mode="verbose"
+    fi
+    
+    # Run POSDummy integration test
+    echo -n "    POSDummy infrastructure test: "
+    log_verbose "Running: ./scripts/run-pos-dummy.sh --${posdummy_mode}"
+    
+    # Capture POSDummy output for analysis
+    local posdummy_output
+    if posdummy_output=$(./scripts/run-pos-dummy.sh --${posdummy_mode} 2>&1); then
+        echo -e "${GREEN}Passed${NC}"
+        log_verbose "POSDummy verification completed successfully"
+        
+        # Parse POSDummy results if verbose
+        if [[ "$VERBOSE" == true ]]; then
+            local phases_passed=$(echo "$posdummy_output" | grep -c "✅" || echo "0")
+            local phases_warned=$(echo "$posdummy_output" | grep -c "⚠️" || echo "0")
+            log_verbose "POSDummy results: $phases_passed phases passed, $phases_warned warnings"
+            
+            # Show specific phase results in verbose mode
+            if [[ "$phases_passed" -gt 0 ]]; then
+                log_verbose "✓ Critical imports verified"
+                log_verbose "✓ API endpoints accessible"  
+                log_verbose "✓ Database connectivity confirmed"
+                log_verbose "✓ Agent simulation functional"
+            fi
+        fi
+    else
+        echo -e "${RED}Failed${NC}"
+        log_error "POSDummy infrastructure test failed!"
+        
+        # Show failure details
+        if [[ "$VERBOSE" == true ]]; then
+            log_verbose "POSDummy output:"
+            echo "$posdummy_output" | head -20
+        else
+            # Show just the key failure info
+            local failure_summary=$(echo "$posdummy_output" | grep -E "(❌|FAILED|Error)" | head -3)
+            if [[ -n "$failure_summary" ]]; then
+                log_error "POSDummy failure summary:"
+                echo "$failure_summary"
+            fi
+        fi
+        
+        log_error "This indicates structural issues in HOMEPOT infrastructure."
+        log_error "Run './scripts/run-pos-dummy.sh --verbose' for detailed diagnostics."
+        failed=true
+    fi
+    
+    # Additional POSDummy health checks
+    if [[ "$failed" == false ]]; then
+        echo -n "    POSDummy files integrity: "
+        if [[ -s "tests/test_pos_dummy.py" ]] && [[ -s "scripts/run-pos-dummy.sh" ]]; then
+            echo -e "${GREEN}Valid${NC}"
+            log_verbose "POSDummy files are present and non-empty"
+        else
+            echo -e "${YELLOW}Warning${NC}"
+            log_verbose "Some POSDummy files may be empty or missing"
+        fi
+        
+        # Check POSDummy documentation
+        if [[ -f "docs/POSDummy.md" ]]; then
+            echo -n "    POSDummy documentation: "
+            echo -e "${GREEN}Available${NC}"
+            log_verbose "POSDummy documentation found at docs/POSDummy.md"
+        else
+            log_verbose "POSDummy documentation not found (optional)"
+        fi
+    fi
+    
+    if [[ "$failed" == true ]]; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# 4. Essential code quality
 validate_code_quality() {
     log_info "  Running essential code quality checks..."
     
@@ -303,7 +452,7 @@ validate_code_quality() {
     return 0
 }
 
-# 4. Basic Python setup
+# 5. Basic Python setup
 validate_python() {
     log_info "  Checking Python setup..."
     
@@ -338,7 +487,7 @@ validate_python() {
     return 0
 }
 
-# 5. Documentation validation
+# 6. Documentation validation
 validate_documentation() {
     log_info "  Checking documentation files..."
     
@@ -379,6 +528,124 @@ validate_documentation() {
     return 0
 }
 
+# 7. Essential test validation
+validate_tests() {
+    log_info "  Running essential tests..."
+    
+    # Check if we have a tests directory
+    if [[ ! -d "tests/" ]]; then
+        log_warning "No tests/ directory found"
+        return 0
+    fi
+    
+    # Check if we have essential test files
+    local essential_tests=("test_database.py" "test_models.py")
+    local found_tests=()
+    
+    for test_file in "${essential_tests[@]}"; do
+        if [ -f "tests/$test_file" ]; then
+            found_tests+=("$test_file")
+            log_verbose "Found essential test: $test_file"
+        fi
+    done
+    
+    if [[ ${#found_tests[@]} -eq 0 ]]; then
+        log_warning "No essential test files found"
+        return 0
+    fi
+    
+    # Check if pytest is available
+    if ! command -v python >/dev/null 2>&1; then
+        log_warning "Python not available, skipping test execution"
+        return 0
+    fi
+    
+    local failed=false
+    
+    # Run database and model tests (essential for our database organization)
+    if [[ " ${found_tests[*]} " =~ " test_database.py " ]]; then
+        echo -n "    Database tests: "
+        log_verbose "Running: python -m pytest tests/test_database.py -q --no-cov"
+        if python -m pytest tests/test_database.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "Database tests failed - check database configuration"
+            failed=true
+        fi
+    fi
+    
+    if [[ " ${found_tests[*]} " =~ " test_models.py " ]]; then
+        echo -n "    Model tests: "
+        log_verbose "Running: python -m pytest tests/test_models.py -q --no-cov"
+        if python -m pytest tests/test_models.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "Model tests failed - check model definitions"
+            failed=true
+        fi
+    fi
+    
+    # Run configuration tests
+    if [[ " ${found_tests[*]} " =~ " test_config.py " ]]; then
+        echo -n "    Configuration tests: "
+        log_verbose "Running: python -m pytest tests/test_config.py -q --no-cov"
+        if python -m pytest tests/test_config.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "Configuration tests failed - check config settings"
+            failed=true
+        fi
+    fi
+    
+    # Check if we have additional test files
+    if [ -f "tests/test_homepot_integration.py" ]; then
+        echo -n "    Integration test file: "
+        echo -e "${GREEN}Found${NC}"
+        log_verbose "Integration test file available"
+    fi
+    
+    # Quick smoke test - basic import check
+    echo -n "    Import smoke test: "
+    log_verbose "Testing basic imports"
+    if python -c "
+try:
+    from src.homepot_client.config import get_settings
+    from src.homepot_client.models import Site, Device, Job
+    print('✓ Core imports successful')
+except ImportError as e:
+    print(f'✗ Import failed: {e}')
+    exit(1)
+except Exception as e:
+    print(f'✗ Unexpected error: {e}')
+    exit(1)
+" >/dev/null 2>&1; then
+        echo -e "${GREEN}Passed${NC}"
+    else
+        echo -e "${RED}Failed${NC}"
+        log_verbose "Basic imports failed - check module structure"
+        failed=true
+    fi
+    
+    # Database file check (our new organization)
+    echo -n "    Database file check: "
+    if [ -f "data/homepot.db" ]; then
+        echo -e "${GREEN}Found${NC}"
+        log_verbose "Database file found at data/homepot.db (new organization)"
+    else
+        echo -e "${YELLOW}Missing${NC}"
+        log_verbose "Database file not found at data/homepot.db - may need setup"
+    fi
+    
+    if [[ "$failed" == true ]]; then
+        return 1
+    fi
+    
+    return 0
+}
+
 # Main execution
 main() {
     # Print header unless quiet mode
@@ -390,11 +657,13 @@ main() {
         local enabled_checks=()
         [[ "$CHECK_YAML" == true ]] && enabled_checks+=("YAML")
         [[ "$CHECK_STRUCTURE" == true ]] && enabled_checks+=("Structure")
+        [[ "$CHECK_POSDUMMY" == true ]] && enabled_checks+=("POSDummy")
         [[ "$CHECK_CODE" == true ]] && enabled_checks+=("Code Quality")
         [[ "$CHECK_PYTHON" == true ]] && enabled_checks+=("Python Setup")
         [[ "$CHECK_DOCS" == true ]] && enabled_checks+=("Documentation")
+        [[ "$CHECK_TESTS" == true ]] && enabled_checks+=("Essential Tests")
         
-        if [[ ${#enabled_checks[@]} -eq 5 ]]; then
+        if [[ ${#enabled_checks[@]} -eq 7 ]]; then
             echo "Running all validation checks..."
         else
             echo "Running selected checks: ${enabled_checks[*]}"
@@ -418,9 +687,11 @@ main() {
     # Run selected checks
     [[ "$CHECK_YAML" == true ]] && run_check "YAML Syntax" "validate_yaml"
     [[ "$CHECK_STRUCTURE" == true ]] && run_check "Workflow Structure" "validate_structure"
+    [[ "$CHECK_POSDUMMY" == true ]] && run_check "POSDummy Infrastructure Gate" "validate_posdummy"
     [[ "$CHECK_CODE" == true ]] && run_check "Code Quality" "validate_code_quality"
     [[ "$CHECK_PYTHON" == true ]] && run_check "Python Setup" "validate_python"
     [[ "$CHECK_DOCS" == true ]] && run_check "Documentation" "validate_documentation"
+    [[ "$CHECK_TESTS" == true ]] && run_check "Essential Tests" "validate_tests"
     
     # Final summary (unless quiet)
     if [[ "$QUIET" != true ]]; then
