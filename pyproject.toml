@@ -147,6 +147,7 @@ addopts = [
     "--cov-report=xml",
     "--cov-fail-under=80",
 ]
+pythonpath = [".", "src"]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -156,6 +157,8 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "security: marks tests as security tests",
+    "performance: marks tests as performance tests",
+    "live: marks tests that require live services",
 ]
 asyncio_mode = "auto"
 
