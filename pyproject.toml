@@ -159,6 +159,7 @@ markers = [
     "security: marks tests as security tests",
     "performance: marks tests as performance tests",
     "live: marks tests that require live services",
+    "api: marks tests for API functionality",
 ]
 asyncio_mode = "auto"
 
