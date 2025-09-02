@@ -188,5 +188,20 @@ data/*.db-shm
 # Keep the main demo database
 !data/homepot.db
 
-# Dependency records
-dependency-health-report*/
+# GitHub Workflows - Downloaded artifacts and reports
+dependency-health-report-*/
+security-audit-report-*/
+workflow-artifacts-*/
+test-results-*/
+
+# Backup files created by upgrade processes
+backup-requirements.txt
+pre-upgrade-freeze.txt
+test-upgrade/
+test-major-upgrade/
+
+# Dependency analysis temporary files
+outdated.txt
+security-audit.json
+pipdeptree-output.txt
+
