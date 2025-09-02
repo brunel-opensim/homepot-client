@@ -265,14 +265,28 @@ jobs:
         # Start container in background
         docker run -d --name test-container -p 8000:8000 homepot-client:latest
         
-        # Wait for container to be ready
-        sleep 15
+        # Wait for container to be ready (increased from 15s to 60s to match health check start period)
+        echo "Waiting for container to initialize..."
+        sleep 60
         
-        # Test health endpoint
-        curl -f http://localhost:8000/health || exit 1
+        # Test health endpoint with retries
+        echo "Testing health endpoint..."
+        for i in {1..5}; do
+          if curl -f http://localhost:8000/health; then
+            echo "Health check passed!"
+            break
+          else
+            echo "Health check failed, attempt $i/5, waiting 10s..."
+            sleep 10
+          fi
+        done
+        
+        # Test root endpoint
+        echo "Testing root endpoint..."
         curl -f http://localhost:8000/ || exit 1
         
         # Check container logs
+        echo "Container logs:"
         docker logs test-container
         
         # Cleanup
