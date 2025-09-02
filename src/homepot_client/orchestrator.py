@@ -67,7 +67,7 @@ class JobOrchestrator:
         """Initialize job orchestrator."""
         self.settings = get_settings()
         self._running = False
-        self._job_queue = asyncio.Queue()
+        self._job_queue: asyncio.Queue[Job] = asyncio.Queue()
         self._active_jobs: Dict[str, Job] = {}
         self._worker_tasks: List[asyncio.Task] = []
 
@@ -154,7 +154,7 @@ class JobOrchestrator:
             action=action,
             description=description
             or f"Update POS payment configuration for {site_id}",
-            site_id=site.id,
+            site_id=int(site.id),
             segment="pos-terminals",  # Target POS terminals segment
             config_url=config_url,
             config_version=config_version,
@@ -179,9 +179,9 @@ class JobOrchestrator:
             event_type="job_created",
             description=f"Created job {job_id} for {action} at {site_id}",
             user_id=user_id,
-            job_id=job.id,
-            site_id=site.id,
-            metadata={
+            job_id=int(job.id),
+            site_id=int(site.id),
+            event_metadata={
                 "job_id": job_id,
                 "action": action,
                 "site_id": site_id,
@@ -246,27 +246,27 @@ class JobOrchestrator:
         try:
             # Mark job as started
             db_service = await get_database_service()
-            await db_service.update_job_status(job.job_id, JobStatus.SENT)
+            await db_service.update_job_status(str(job.job_id), JobStatus.SENT)
 
             # Step 3: Orchestrator sends a high-priority push with tiny payload
             push_notification = PushNotification(
-                config_url=job.config_url,
-                version=job.config_version,
-                ttl_sec=job.ttl_seconds,
-                collapse_key=job.collapse_key,
+                config_url=str(job.config_url),
+                version=str(job.config_version),
+                ttl_sec=int(job.ttl_seconds),
+                collapse_key=str(job.collapse_key) if job.collapse_key else None,
                 priority="high",
             )
 
             # Get target devices for this job
             devices = await db_service.get_devices_by_site_and_segment(
-                site_id=job.site_id,
-                segment=job.segment,
+                site_id=int(job.site_id),
+                segment=str(job.segment) if job.segment else None,
             )
 
             if not devices:
                 # No devices found - mark as completed with warning
                 await db_service.update_job_status(
-                    job.job_id,
+                    str(job.job_id),
                     JobStatus.COMPLETED,
                     result={
                         "status": "no_devices",
@@ -334,7 +334,7 @@ class JobOrchestrator:
 
             if failed_pushes == 0:
                 await db_service.update_job_status(
-                    job.job_id, JobStatus.ACKNOWLEDGED, result=result
+                    str(job.job_id), JobStatus.ACKNOWLEDGED, result=result
                 )
                 logger.info(
                     f"Job {job.job_id} completed successfully: "
@@ -342,7 +342,7 @@ class JobOrchestrator:
                 )
             else:
                 await db_service.update_job_status(
-                    job.job_id,
+                    str(job.job_id),
                     JobStatus.FAILED,
                     result=result,
                     error_message=(
@@ -360,7 +360,7 @@ class JobOrchestrator:
             # Mark job as failed
             db_service = await get_database_service()
             await db_service.update_job_status(
-                job.job_id,
+                str(job.job_id),
                 JobStatus.FAILED,
                 error_message=str(e),
             )
@@ -380,14 +380,14 @@ class JobOrchestrator:
 
             # Prepare notification data for the agent
             notification_data = {
-                "action": push_notification.action,
+                "action": "config_update",  # Fixed constant action value
                 "data": {
                     "config_url": push_notification.config_url,
                     "config_version": push_notification.version,
                     "priority": push_notification.priority,
                 },
                 "collapse_key": push_notification.collapse_key,
-                "time_to_live": push_notification.time_to_live,
+                "time_to_live": push_notification.ttl_sec,  # Fixed attribute name
             }
 
             # Send to agent and get response
@@ -421,7 +421,8 @@ class JobOrchestrator:
         try:
             from sqlalchemy import desc, select
 
-            async with self.db_service.get_session() as session:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
                 result = await session.execute(
                     select(Job).order_by(desc(Job.created_at)).limit(limit)
                 )

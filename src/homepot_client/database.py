@@ -272,10 +272,10 @@ class DatabaseService:
             elif status == JobStatus.SENT:
                 update_data["started_at"] = datetime.utcnow()
 
-            result = await session.execute(
+            exec_result = await session.execute(
                 update(Job).where(Job.job_id == job_id).values(**update_data)
             )
-            return result.rowcount > 0
+            return exec_result.rowcount > 0
 
     async def get_job_by_id(self, job_id: str) -> Optional[Job]:
         """Get job by job_id with site relationship loaded."""
@@ -331,9 +331,9 @@ class DatabaseService:
                 result = await session.execute(
                     select(Device).where(Device.device_id == device_name)
                 )
-                device = result.scalar_one_or_none()
+                device: Optional[Device] = result.scalar_one_or_none()
                 if device:
-                    device_id = device.id
+                    device_id = int(device.id)  # type: ignore[arg-type]
 
             health_check = HealthCheck(
                 device_id=device_id,

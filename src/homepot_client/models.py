@@ -18,11 +18,12 @@ from sqlalchemy import (
     Text,
     create_engine,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
-# Create declarative base for SQLAlchemy models
-Base = declarative_base()  # type: ignore[misc]
+# Create declarative base for SQLAlchemy models using modern approach
+class Base(DeclarativeBase):
+    """Base class for all SQLAlchemy models."""
+    pass
 
 
 class JobStatus(str, Enum):

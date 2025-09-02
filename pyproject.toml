@@ -131,6 +131,7 @@ warn_unused_ignores = false
 warn_no_return = false
 warn_unreachable = true
 strict_equality = false
+plugins = ["sqlalchemy.ext.mypy.plugin"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"

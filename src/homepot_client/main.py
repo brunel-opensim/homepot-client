@@ -62,34 +62,34 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.error(f"Failed to initialize orchestrator: {e}")
         raise
 
-        # Initialize agent manager (Phase 3)
-        try:
-            await get_agent_manager()
-            logger.info("Agent manager initialized")
-        except Exception as e:
-            logger.error(f"Failed to initialize agent manager: {e}")
-            raise
+    # Initialize agent manager (Phase 3)
+    try:
+        await get_agent_manager()
+        logger.info("Agent manager initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize agent manager: {e}")
+        raise
 
-        # Initialize audit logging (Phase 4)
-        try:
-            audit_logger = get_audit_logger()
-            await audit_logger.log_system_event(
-                AuditEventType.SYSTEM_STARTUP,
-                "HOMEPOT Client application started successfully",
-                metadata={
-                    "version": "1.0.0",
-                    "components": [
-                        "database",
-                        "orchestrator",
-                        "agent_manager",
-                        "client",
-                    ],
-                },
-            )
-            logger.info("Audit logging initialized")
-        except Exception as e:
-            logger.error(f"Failed to initialize audit logging: {e}")
-            # Don't raise - audit logging shouldn't prevent startup
+    # Initialize audit logging (Phase 4)
+    try:
+        audit_logger = get_audit_logger()
+        await audit_logger.log_system_event(
+            AuditEventType.SYSTEM_STARTUP,
+            "HOMEPOT Client application started successfully",
+            metadata={
+                "version": "1.0.0",
+                "components": [
+                    "database",
+                    "orchestrator",
+                    "agent_manager",
+                    "client",
+                ],
+            },
+        )
+        logger.info("Audit logging initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize audit logging: {e}")
+        # Don't raise - audit logging shouldn't prevent startup
 
     # Initialize client
     client_instance = HomepotClient()
@@ -388,11 +388,11 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
         await audit_logger.log_event(
             AuditEventType.SITE_CREATED,
             f"Site '{site.name}' created with ID {site.site_id}",
-            site_id=site.id,
+            site_id=int(site.id),
             new_values={
-                "site_id": site.site_id,
-                "name": site.name,
-                "description": site.description,
+                "site_id": str(site.site_id),
+                "name": str(site.name),
+                "description": str(site.description),
                 "location": site.location,
             },
         )
@@ -400,8 +400,8 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
         logger.info(f"Created site {site.site_id}")
         return {
             "message": f"Site {site.site_id} created successfully",
-            "site_id": site.site_id,
-            "name": site.name,
+            "site_id": str(site.site_id),
+            "name": str(site.name),
         }
 
     except HTTPException:
@@ -429,7 +429,7 @@ async def create_device(
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=site.id,
+            site_id=int(site.id),
             ip_address=device_request.ip_address,
             config=device_request.config,
         )
@@ -437,7 +437,7 @@ async def create_device(
         logger.info(f"Created device {device.device_id} for site {site_id}")
         return {
             "message": f"Device {device.device_id} created successfully",
-            "device_id": device.device_id,
+            "device_id": str(device.device_id),
             "site_id": site_id,
         }
 
@@ -535,7 +535,7 @@ async def get_site_health(site_id: str) -> SiteHealthResponse:
             raise HTTPException(status_code=404, detail=f"Site {site_id} not found")
 
         # Get all devices for the site
-        devices = await db_service.get_devices_by_site_and_segment(site.id)
+        devices = await db_service.get_devices_by_site_and_segment(int(site.id))
 
         if not devices:
             return SiteHealthResponse(
@@ -924,7 +924,7 @@ async def get_audit_statistics(hours: int = 24) -> Dict[str, Any]:
 
 
 @app.get("/audit/event-types", tags=["Audit"])
-async def get_audit_event_types() -> Dict[str, List[str]]:
+async def get_audit_event_types() -> Dict[str, Any]:
     """Get all available audit event types."""
     return {
         "event_types": [event_type.value for event_type in AuditEventType],

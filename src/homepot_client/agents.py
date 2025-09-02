@@ -59,7 +59,7 @@ class POSAgentSimulator:
         self.device_type = device_type
         self.state = AgentState.IDLE
         self.current_config_version = "1.0.0"
-        self.last_health_check = None
+        self.last_health_check: Optional[Dict[str, Any]] = None
         self.error_rate = 0.1  # 10% chance of errors for realistic simulation
         self.response_time_ms = random.randint(100, 500)  # nosec - simulation only
         self.is_running = False
@@ -264,7 +264,7 @@ class POSAgentSimulator:
         await asyncio.sleep(random.uniform(0.1, 0.5))
 
         # Simulate various health scenarios
-        scenarios = [
+        scenarios: List[Dict[str, Any]] = [
             {"healthy": True, "weight": 0.85},  # 85% healthy
             {"healthy": False, "error": "Payment gateway timeout", "weight": 0.08},
             {"healthy": False, "error": "Database connection failed", "weight": 0.04},
@@ -285,7 +285,7 @@ class POSAgentSimulator:
         is_healthy = selected_scenario["healthy"]
 
         # Generate realistic health data
-        health_data = {
+        health_data: Dict[str, Any] = {
             "status": "healthy" if is_healthy else "unhealthy",
             "config_version": self.current_config_version,
             "last_restart": (
@@ -398,7 +398,7 @@ class AgentManager:
                 devices = result.scalars().all()
 
                 for device in devices:
-                    await self._start_agent_for_device(device.device_id, device.name)
+                    await self._start_agent_for_device(str(device.device_id), str(device.name))
 
         except Exception as e:
             logger.error(f"Failed to discover devices: {e}")
