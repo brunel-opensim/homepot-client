@@ -263,11 +263,31 @@ jobs:
       run: |
         set -e
         # Start container in background
-        docker run -d --name test-container -p 8000:8000 homepot-client:latest
+        echo "Starting Docker container..."
+        container_id=$(docker run -d --name test-container -p 8000:8000 homepot-client:latest)
+        echo "Container ID: $container_id"
         
-        # Wait for container to be ready (increased from 15s to 60s to match health check start period)
-        echo "Waiting for container to initialize..."
-        sleep 60
+        # Check if container is running
+        echo "Checking container status..."
+        docker ps -a
+        
+        # Wait a bit and check logs early
+        echo "Waiting 10 seconds and checking initial logs..."
+        sleep 10
+        echo "Initial container logs:"
+        docker logs test-container || echo "No logs yet"
+        
+        # Wait for container to be ready (total wait: 60s)
+        echo "Waiting additional 50 seconds for full initialization..."
+        sleep 50
+        
+        # Show container status again
+        echo "Final container status:"
+        docker ps -a
+        
+        # Show full logs before testing
+        echo "Full container logs before testing:"
+        docker logs test-container
         
         # Test health endpoint with retries
         echo "Testing health endpoint..."
@@ -277,6 +297,12 @@ jobs:
             break
           else
             echo "Health check failed, attempt $i/5, waiting 10s..."
+            if [ $i -eq 5 ]; then
+              echo "All health check attempts failed!"
+              echo "Final container logs:"
+              docker logs test-container
+              exit 1
+            fi
             sleep 10
           fi
         done
@@ -284,10 +310,6 @@ jobs:
         # Test root endpoint
         echo "Testing root endpoint..."
         curl -f http://localhost:8000/ || exit 1
-        
-        # Check container logs
-        echo "Container logs:"
-        docker logs test-container
         
         # Cleanup
         docker stop test-container
