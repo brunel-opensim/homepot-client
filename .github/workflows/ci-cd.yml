@@ -39,11 +39,9 @@ jobs:
 
     - name: Run Bandit security scan
       run: bandit -r src/ -f json -o bandit-results.json || true
-      continue-on-error: true
 
     - name: Run Safety security scan
       run: safety check --json --output safety-results.json || true
-      continue-on-error: true
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
