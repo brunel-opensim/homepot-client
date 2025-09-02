@@ -13,7 +13,6 @@ import time
 
 import pytest
 import requests
-
 from test_config import config
 
 BASE_URL = config.base_url
