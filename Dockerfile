@@ -1,6 +1,6 @@
 # Multi-stage build for HOMEPOT Client
 # Stage 1: Build stage
-FROM python:3.9-slim as builder
+FROM python:3.11-slim as builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -25,12 +25,13 @@ RUN pip install --upgrade pip && \
     pip install .
 
 # Stage 2: Production stage
-FROM python:3.9-slim as production
+FROM python:3.11-slim as production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    HOMEPOT_ENV=production
+    HOMEPOT_ENV=production \
+    PYTHONPATH=/app
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -42,7 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy installed packages from builder stage
-COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application source
@@ -51,7 +52,8 @@ COPY --chown=homepot:homepot pyproject.toml README.md ./
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/data /app/logs && \
-    chown -R homepot:homepot /app
+    chown -R homepot:homepot /app && \
+    chmod -R 755 /app/data /app/logs
 
 # Switch to non-root user
 USER homepot
@@ -59,9 +61,9 @@ USER homepot
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+# Health check with longer start period for database initialization
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command
-CMD ["uvicorn", "homepot_client.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the properly installed package
+CMD ["uvicorn", "homepot_client.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]

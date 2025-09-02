@@ -48,6 +48,48 @@ git pull origin develop
 git checkout -b feature/your-feature-name
 ```
 
+### Pre-Push Validation
+
+Before pushing your changes, run our validation script to ensure your code will pass CI/CD checks:
+
+#### Quick Validation (Recommended)
+
+```bash
+# Run essential workflow validations (skips code formatting)
+./scripts/validate-workflows.sh --no-code
+```
+
+#### Full Validation
+
+```bash
+# Run all validation checks including code quality
+./scripts/validate-workflows.sh
+```
+
+#### Specific Validations
+
+```bash
+# Only validate YAML and workflow structure
+./scripts/validate-workflows.sh --yaml-only --structure-only
+
+# Only run essential tests
+./scripts/validate-workflows.sh --tests-only
+
+# Run without code quality checks (faster)
+./scripts/validate-workflows.sh --no-code --verbose
+```
+
+#### What Gets Validated
+
+- **YAML Syntax**: GitHub workflow files are properly formatted
+- **Workflow Structure**: Required workflow components are present
+- **Python Setup**: Dependencies and environment are correct
+- **Documentation**: Essential documentation files exist
+- **Essential Tests**: Database and model tests pass (18 tests total)
+- **Code Quality**: Formatting and linting (optional with `--no-code`)
+
+> **Tip**: Run `./scripts/validate-workflows.sh --no-code` before every commit to catch issues early and avoid CI/CD failures.
+
 ### Commit Guidelines
 
 We follow a strict commit message protocol to maintain project history clarity and enable automated tools.

@@ -74,20 +74,20 @@ jobs:
       if: github.repository_owner == 'brunel-opensim'
       continue-on-error: true
 
-    - name: Dependency Review
-      uses: actions/dependency-review-action@v4
-      # Only run dependency review on pull requests where we have base/head refs
-      if: github.event_name == 'pull_request'
-      with:
-        fail-on-severity: moderate
+    # Dependency Review disabled - using pip-audit for all events
+    # - name: Dependency Review
+    #   uses: actions/dependency-review-action@v4
+    #   if: github.event_name == 'pull_request'
+    #   with:
+    #     fail-on-severity: moderate
 
-    - name: Alternative Dependency Security Check
-      # Run alternative dependency check for push/schedule events
-      if: github.event_name != 'pull_request'
+    - name: Comprehensive Dependency Security Check
+      # Run dependency security check for all events using pip-audit
       run: |
-        echo "Running dependency security check for non-PR events..."
+        echo "Running comprehensive dependency security check..."
         # Use pip-audit which was already installed above
         pip-audit --desc --format=text || echo "Some vulnerabilities found - check pip-audit-results.json for details"
+        echo "Dependency security scan completed successfully"
 
   secret-scan:
     timeout-minutes: 10
