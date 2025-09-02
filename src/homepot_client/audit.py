@@ -326,7 +326,9 @@ class AuditLogger:
                     .where(AuditLog.created_at >= since)
                     .group_by(AuditLog.event_type)
                 )
-                events_by_type: Dict[str, int] = {row[0]: row[1] for row in type_result.all()}
+                events_by_type: Dict[str, int] = {
+                    row[0]: row[1] for row in type_result.all()
+                }
 
                 # API access count
                 api_result = await session.execute(

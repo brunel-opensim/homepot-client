@@ -398,7 +398,9 @@ class AgentManager:
                 devices = result.scalars().all()
 
                 for device in devices:
-                    await self._start_agent_for_device(str(device.device_id), str(device.name))
+                    await self._start_agent_for_device(
+                        str(device.device_id), str(device.name)
+                    )
 
         except Exception as e:
             logger.error(f"Failed to discover devices: {e}")

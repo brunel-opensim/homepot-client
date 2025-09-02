@@ -1,6 +1,15 @@
 #!/bin/bash
 # GitHub Actions Workflow Validator
-# Validates workflow syntax and runs code quality checks
+# Comprehensive local validation matching the full CI/CD pipeline
+# 
+# Runs all checks that the GitHub Actions workflow performs:
+# - Code Quality: Black, isort, flake8, mypy, bandit
+# - POSDummy Integration Testing
+# - Documentation Validation
+# - Essential Test Suite
+# - YAML & Workflow Structure
+#
+# This helps minimize failed PRs by catching issues locally
 
 # Useful command
 # ./scripts/validate-workflows.sh --help
@@ -31,6 +40,7 @@ usage() {
     echo "Usage: $0 [OPTIONS] [CHECKS]"
     echo ""
     echo "GitHub Actions workflow and code quality validator"
+    echo "Comprehensive local validation matching CI/CD pipeline checks"
     echo ""
     echo "Options:"
     echo "  -v, --verbose       Enable verbose output"
@@ -42,7 +52,7 @@ usage() {
     echo "  --yaml-only         Only validate YAML syntax"
     echo "  --structure-only    Only validate workflow structure"
     echo "  --posdummy-only     Only run POSDummy integration test"
-    echo "  --code-only         Only run code quality checks"
+    echo "  --code-only         Only run code quality checks (Black, isort, flake8, mypy, bandit)"
     echo "  --python-only       Only validate Python setup"
     echo "  --docs-only         Only validate documentation"
     echo "  --tests-only        Only run essential tests"
@@ -54,8 +64,15 @@ usage() {
     echo "  --no-docs           Skip documentation validation"
     echo "  --no-tests          Skip test execution"
     echo ""
+    echo "Code Quality Checks (--code-only):"
+    echo "  • Black code formatting"
+    echo "  • isort import sorting"
+    echo "  • flake8 linting"
+    echo "  • mypy type checking"
+    echo "  • bandit security scanning"
+    echo ""
     echo "Examples:"
-    echo "  $0                          # Run all checks"
+    echo "  $0                          # Run all checks (matches full CI/CD pipeline)"
     echo "  $0 --verbose                # Run all checks with verbose output"
     echo "  $0 --posdummy-only          # Only run POSDummy integration test"
     echo "  $0 --code-only              # Only run code quality checks"
@@ -407,7 +424,7 @@ validate_posdummy() {
 
 # 4. Essential code quality
 validate_code_quality() {
-    log_info "  Running essential code quality checks..."
+    log_info "  Running comprehensive code quality checks (matching CI/CD)..."
     
     # Check if source directories exist
     if [[ ! -d "src/" ]] && [[ ! -d "tests/" ]]; then
@@ -428,7 +445,21 @@ validate_code_quality() {
             failed=true
         fi
     else
-        log_verbose "Black not available, skipping formatting check"
+        log_warning "Black not available, skipping formatting check"
+    fi
+    
+    # isort import sorting (NEW - matches CI/CD)
+    if command -v isort >/dev/null 2>&1; then
+        echo -n "    Import sorting (isort): "
+        log_verbose "Running: isort --check-only src/ tests/"
+        if isort --check-only src/ tests/ 2>/dev/null; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed - run: isort src/ tests/${NC}"
+            failed=true
+        fi
+    else
+        log_warning "isort not available, skipping import sorting check"
     fi
     
     # flake8 linting
@@ -442,7 +473,36 @@ validate_code_quality() {
             failed=true
         fi
     else
-        log_verbose "flake8 not available, skipping linting check"
+        log_warning "flake8 not available, skipping linting check"
+    fi
+    
+    # MyPy type checking (NEW - matches CI/CD)
+    if command -v mypy >/dev/null 2>&1; then
+        echo -n "    Type checking (mypy): "
+        log_verbose "Running: mypy src/"
+        if mypy src/ 2>/dev/null; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed - run: mypy src/${NC}"
+            failed=true
+        fi
+    else
+        log_warning "mypy not available, skipping type checking"
+    fi
+    
+    # Security scans (NEW - matches CI/CD)
+    if command -v bandit >/dev/null 2>&1; then
+        echo -n "    Security scan (bandit): "
+        log_verbose "Running: bandit -r src/ -ll"
+        # Use -ll for low severity threshold, ignore medium/low issues for now
+        if bandit -r src/ -ll -q 2>/dev/null; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${YELLOW}Warnings found - review with: bandit -r src/${NC}"
+            log_verbose "Security scan found issues but continuing (non-blocking)"
+        fi
+    else
+        log_verbose "bandit not available, skipping security scan"
     fi
     
     if [[ "$failed" == true ]]; then
