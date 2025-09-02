@@ -125,8 +125,8 @@ jobs:
         pip install pipdeptree
         
         # Analyze each outdated package for constraints and risk
-        echo "| Package | Current | Latest | Risk Level | Strategy | Constraints |" >> dependency-report.md
-        echo "|---------|---------|--------|------------|----------|-------------|" >> dependency-report.md
+        echo "| Package | Current → Latest | Risk Level | Strategy | Main Constraints |" >> dependency-report.md
+        echo "|---------|------------------|------------|----------|------------------|" >> dependency-report.md
         
         # Process outdated packages
         if [ -f outdated.txt ] && [ -s outdated.txt ]; then
@@ -143,47 +143,53 @@ jobs:
               latest_minor=$(echo "$latest" | cut -d. -f2)
               
               if [ "$current_major" != "$latest_major" ]; then
-                risk="HIGH"
-                strategy="Research breaking changes"
+                risk="🔴 HIGH"
+                strategy="Research breaking changes first"
               elif [ "$current_minor" != "$latest_minor" ]; then
                 minor_gap=$((latest_minor - current_minor))
                 if [ "$minor_gap" -gt 2 ]; then
-                  risk="MEDIUM-HIGH"
+                  risk="🟡 MEDIUM-HIGH"
                   strategy="Staged upgrade recommended"
                 else
-                  risk="MEDIUM"
-                  strategy="Test carefully"
+                  risk="🟡 MEDIUM"
+                  strategy="Test in development"
                 fi
               else
-                risk="LOW"
+                risk="🟢 LOW"
                 strategy="Safe to upgrade"
               fi
               
-              # Check for dependency constraints
-              constraints=""
+              # Simplified constraint check - just count direct dependents
+              constraints="None found"
               if pip show "$pkg" >/dev/null 2>&1; then
-                # Check what packages depend on this one
-                dependents=$(pipdeptree --reverse --packages "$pkg" 2>/dev/null | grep -v "^$pkg" | head -3 | tr '\n' ', ' | sed 's/,$//')
-                if [ -n "$dependents" ]; then
-                  constraints="Used by: $dependents"
-                else
-                  constraints="No direct dependents found"
+                # Get clean list of packages that depend on this one
+                dependent_count=$(pip show "$pkg" 2>/dev/null | grep "Required-by:" | cut -d: -f2 | tr ',' '\n' | wc -w)
+                if [ "$dependent_count" -gt 0 ]; then
+                  # Get first few package names cleanly
+                  main_dependents=$(pip show "$pkg" 2>/dev/null | grep "Required-by:" | cut -d: -f2 | tr ',' '\n' | head -2 | tr -d ' ' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+                  if [ -n "$main_dependents" ]; then
+                    if [ "$dependent_count" -gt 2 ]; then
+                      constraints="$main_dependents, +$((dependent_count - 2)) more"
+                    else
+                      constraints="$main_dependents"
+                    fi
+                  fi
                 fi
               else
-                constraints="Not currently installed"
+                constraints="Not installed"
               fi
               
-              echo "| $pkg | $current | $latest | $risk | $strategy | $constraints |" >> dependency-report.md
+              echo "| $pkg | $current → $latest | $risk | $strategy | $constraints |" >> dependency-report.md
             fi
           done
         fi
         
         echo "" >> dependency-report.md
-        echo "**Risk Level Legend:**" >> dependency-report.md
-        echo "- **LOW**: Patch versions (X.Y.Z→X.Y.Z+1) - Usually safe" >> dependency-report.md
-        echo "- **MEDIUM**: Minor versions (X.Y→X.Y+1-2) - Test functionality" >> dependency-report.md
-        echo "- **MEDIUM-HIGH**: Multiple minor versions (X.Y→X.Y+3+) - Staged approach" >> dependency-report.md
-        echo "- **HIGH**: Major versions (X→X+1) - Review breaking changes" >> dependency-report.md
+        echo "**Risk Assessment:**" >> dependency-report.md
+        echo "- 🟢 **LOW**: Patch versions (safe updates)" >> dependency-report.md
+        echo "- 🟡 **MEDIUM**: Minor versions (test required)" >> dependency-report.md
+        echo "- 🟡 **MEDIUM-HIGH**: Multiple minor jumps (staged approach)" >> dependency-report.md
+        echo "- 🔴 **HIGH**: Major versions (breaking changes likely)" >> dependency-report.md
 
     - name: Check dependency constraints
       if: steps.outdated.outputs.has_outdated == 'true'
