@@ -13,8 +13,7 @@ import time
 
 import pytest
 import requests
-
-BASE_URL = "http://localhost:8000"
+from test_config import BASE_URL
 TIMEOUT = 30.0
 
 # Skip live tests in CI environments
