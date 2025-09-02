@@ -357,6 +357,7 @@ class AuditLogger:
                 "error": "Internal server error",
             }
 
+
 # Global audit logger instance
 _audit_logger: Optional[AuditLogger] = None
 

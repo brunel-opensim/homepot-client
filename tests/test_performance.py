@@ -13,8 +13,11 @@ import time
 
 import pytest
 import requests
-from test_config import BASE_URL
-TIMEOUT = 30.0
+
+from test_config import config
+
+BASE_URL = config.base_url
+TIMEOUT = config.DEFAULT_TIMEOUT
 
 # Skip live tests in CI environments
 skip_live_tests = pytest.mark.skipif(
