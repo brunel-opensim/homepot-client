@@ -2,7 +2,16 @@
 
 This document describes the automated workflows configured for the### ✅ Resolved Issues
 
-**1. Dependency Review Strategy (Fixed)**
+**1. D**1. Windows Testing Issues**
+- **Problem:** Tests failing on Windows platform due to SQLite file locking during cleanup
+- **Root Cause:** `PermissionError: [WinError 32] process cannot access file because it is being used by another process`
+- **Status:** **Fixes implemented** - Enhanced database fixtures with Windows-safe cleanup
+- **Solutions Applied:**
+  - Proper SQLAlchemy engine disposal before file cleanup
+  - Windows-specific retry logic for file deletion (3 attempts with delays)
+  - Platform-aware cleanup that converts errors to warnings
+  - Enhanced pytest configuration with Windows-specific warning filters
+- **Impact:** Tests should now complete successfully on Windows platformdency Review Strategy (Fixed)**
 
 - **Problem:** GitHub dependency review workflow action was f## Key Improvements Made
 

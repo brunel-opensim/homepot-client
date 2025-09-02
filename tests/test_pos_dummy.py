@@ -50,7 +50,7 @@ class TestPOSDummy:
         """Create a temporary database for testing."""
         import platform
         import time
-        
+
         # Create temporary database file
         db_fd, db_path = tempfile.mkstemp(suffix=".db")
         os.close(db_fd)
@@ -71,15 +71,15 @@ class TestPOSDummy:
                 # Dispose engine to close all connections
                 if engine is not None:
                     engine.dispose()
-                    
+
                 # On Windows, add small delay for file handles to be released
                 if platform.system() == "Windows":
                     time.sleep(0.1)
-                
+
                 # Clean up environment variable
                 if "HOMEPOT_DATABASE_URL" in os.environ:
                     del os.environ["HOMEPOT_DATABASE_URL"]
-                
+
                 # Try to remove the file with Windows-specific retry logic
                 if os.path.exists(db_path):
                     max_retries = 3 if platform.system() == "Windows" else 1
@@ -88,16 +88,21 @@ class TestPOSDummy:
                             os.unlink(db_path)
                             break
                         except PermissionError:
-                            if attempt < max_retries - 1 and platform.system() == "Windows":
+                            if (
+                                attempt < max_retries - 1
+                                and platform.system() == "Windows"
+                            ):
                                 time.sleep(0.2)
                                 continue
                             # If all retries failed, log but don't fail the test
                             import warnings
+
                             warnings.warn(f"Could not cleanup temp database: {db_path}")
                             break
             except Exception as e:
                 # Don't fail tests due to cleanup issues
                 import warnings
+
                 warnings.warn(f"Database cleanup error: {e}")
 
     def test_critical_imports(self):

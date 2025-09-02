@@ -22,10 +22,10 @@ from src.homepot_client.models import Base
 
 def create_windows_safe_temp_db() -> Generator[sessionmaker, None, None]:
     """Create a temporary database that cleans up safely on Windows.
-    
+
     This fixture handles the Windows-specific file locking issues that
     occur when SQLite files can't be deleted immediately after use.
-    
+
     Yields:
         sessionmaker: A SQLAlchemy session factory for the temp database
     """
@@ -48,10 +48,10 @@ def create_windows_safe_temp_db() -> Generator[sessionmaker, None, None]:
 
 def create_windows_safe_pos_dummy_db() -> Generator[str, None, None]:
     """Create a temporary database for POSDummy tests with Windows-safe cleanup.
-    
+
     This is specifically designed for POSDummy tests that need to set
     environment variables and handle cleanup differently.
-    
+
     Yields:
         str: Path to the temporary database file
     """
@@ -75,7 +75,7 @@ def create_windows_safe_pos_dummy_db() -> Generator[str, None, None]:
 
 def _cleanup_temp_database(engine: Engine, temp_db_path: Path, temp_dir: str) -> None:
     """Clean up temporary database with Windows-safe handling.
-    
+
     Args:
         engine: SQLAlchemy engine to dispose
         temp_db_path: Path to the temporary database file
@@ -84,11 +84,11 @@ def _cleanup_temp_database(engine: Engine, temp_db_path: Path, temp_dir: str) ->
     try:
         # Dispose engine to close all connections
         engine.dispose()
-        
+
         # On Windows, add small delay for file handles to be released
         if platform.system() == "Windows":
             time.sleep(0.1)
-            
+
         # Try to remove the file, with Windows-specific retry logic
         if temp_db_path.exists():
             max_retries = 3 if platform.system() == "Windows" else 1
@@ -118,7 +118,7 @@ def _cleanup_temp_database(engine: Engine, temp_db_path: Path, temp_dir: str) ->
 
 def _cleanup_pos_dummy_database(engine: Engine, db_path: str) -> None:
     """Clean up POSDummy database with Windows-safe handling.
-    
+
     Args:
         engine: SQLAlchemy engine to dispose
         db_path: Path to the database file
@@ -127,15 +127,15 @@ def _cleanup_pos_dummy_database(engine: Engine, db_path: str) -> None:
         # Dispose engine to close all connections
         if engine is not None:
             engine.dispose()
-            
+
         # On Windows, add small delay for file handles to be released
         if platform.system() == "Windows":
             time.sleep(0.1)
-        
+
         # Clean up environment variable
         if "HOMEPOT_DATABASE_URL" in os.environ:
             del os.environ["HOMEPOT_DATABASE_URL"]
-        
+
         # Try to remove the file with Windows-specific retry logic
         if os.path.exists(db_path):
             max_retries = 3 if platform.system() == "Windows" else 1
