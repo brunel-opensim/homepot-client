@@ -1,0 +1,241 @@
+name: Dependency Health Check
+
+on:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    # Allow manual triggering
+  push:
+    # Only run on dependency-related file changes
+    paths:
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/dependency-check.yml'
+
+permissions:
+  contents: read
+  issues: write  # To create issues for security vulnerabilities
+
+jobs:
+  dependency-health:
+    name: Dependency Health Check
+    runs-on: ubuntu-latest
+    if: github.repository == 'brunel-opensim/homepot-client'
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install project dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+
+    - name: Install analysis tools
+      run: |
+        pip install pip-audit pip-tools
+
+    - name: Check for outdated dependencies
+      id: outdated
+      run: |
+        echo "## Dependency Health Report" > dependency-report.md
+        echo "**Generated on:** $(date)" >> dependency-report.md
+        echo "**Repository:** ${{ github.repository }}" >> dependency-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> dependency-report.md
+        echo "" >> dependency-report.md
+        
+        echo "### Outdated Packages" >> dependency-report.md
+        if pip list --outdated --format=columns > outdated.txt 2>&1; then
+          if [ -s outdated.txt ] && [ $(wc -l < outdated.txt) -gt 2 ]; then
+            echo "**Found outdated packages:**" >> dependency-report.md
+            echo "" >> dependency-report.md
+            echo '```' >> dependency-report.md
+            cat outdated.txt >> dependency-report.md
+            echo '```' >> dependency-report.md
+            
+            # Count outdated packages (excluding header lines)
+            outdated_count=$(($(wc -l < outdated.txt) - 2))
+            echo "outdated_count=$outdated_count" >> $GITHUB_OUTPUT
+            echo "has_outdated=true" >> $GITHUB_OUTPUT
+            
+            echo "" >> dependency-report.md
+            echo "**Total outdated packages:** $outdated_count" >> dependency-report.md
+          else
+            echo "**All packages are up to date!**" >> dependency-report.md
+            echo "outdated_count=0" >> $GITHUB_OUTPUT
+            echo "has_outdated=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "**Failed to check for outdated packages**" >> dependency-report.md
+          echo "has_outdated=unknown" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Security vulnerability scan
+      id: security
+      run: |
+        echo "" >> dependency-report.md
+        echo "### Security Vulnerabilities" >> dependency-report.md
+        
+        if pip-audit --format=json --output=security-audit.json --quiet; then
+          if [ -s security-audit.json ] && [ "$(cat security-audit.json | jq length)" != "0" ]; then
+            vuln_count=$(cat security-audit.json | jq length)
+            echo "**Security vulnerabilities found:** $vuln_count" >> dependency-report.md
+            echo "" >> dependency-report.md
+            
+            # Create human-readable summary
+            echo "| Package | Vulnerability | Severity |" >> dependency-report.md
+            echo "|---------|---------------|----------|" >> dependency-report.md
+            cat security-audit.json | jq -r '.[] | "| \(.package) | \(.id) | \(.severity // "Unknown") |"' >> dependency-report.md
+            
+            echo "" >> dependency-report.md
+            echo "<details><summary>Click to see full security audit JSON</summary>" >> dependency-report.md
+            echo "" >> dependency-report.md
+            echo '```json' >> dependency-report.md
+            cat security-audit.json >> dependency-report.md
+            echo '```' >> dependency-report.md
+            echo "</details>" >> dependency-report.md
+            
+            echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
+            echo "vulnerability_count=$vuln_count" >> $GITHUB_OUTPUT
+          else
+            echo "**No known security vulnerabilities!**" >> dependency-report.md
+            echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+            echo "vulnerability_count=0" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "**Failed to run security audit**" >> dependency-report.md
+          pip-audit --format=text >> dependency-report.md || true
+          echo "has_vulnerabilities=unknown" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Check Python version compatibility
+      run: |
+        echo "" >> dependency-report.md
+        echo "### Python Version Compatibility" >> dependency-report.md
+        echo "**Current Python:** $(python --version)" >> dependency-report.md
+        echo "**Supported versions:** 3.9, 3.11 (as per pyproject.toml)" >> dependency-report.md
+        echo "Python $(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') compatibility verified" >> dependency-report.md
+
+    - name: Generate actionable recommendations
+      if: steps.outdated.outputs.has_outdated == 'true' || steps.security.outputs.has_vulnerabilities == 'true'
+      run: |
+        echo "" >> dependency-report.md
+        echo "### Recommended Actions" >> dependency-report.md
+        echo "" >> dependency-report.md
+        
+        if [ "${{ steps.security.outputs.has_vulnerabilities }}" == "true" ]; then
+          echo "**URGENT - Security vulnerabilities detected:**" >> dependency-report.md
+          echo "1. Review each vulnerability in the security audit" >> dependency-report.md
+          echo "2. Update affected packages immediately" >> dependency-report.md
+          echo "3. Test the application thoroughly after updates" >> dependency-report.md
+          echo "4. Consider pinning versions if updates cause breaking changes" >> dependency-report.md
+          echo "" >> dependency-report.md
+        fi
+        
+        if [ "${{ steps.outdated.outputs.has_outdated }}" == "true" ]; then
+          echo "**Outdated dependencies:**" >> dependency-report.md
+          echo "1. Review release notes for each outdated package" >> dependency-report.md
+          echo "2. Update non-breaking changes first (patch versions)" >> dependency-report.md
+          echo "3. Test minor version updates in development environment" >> dependency-report.md
+          echo "4. Plan major version updates with adequate testing" >> dependency-report.md
+          echo "5. Update both \`requirements.txt\` and \`pyproject.toml\`" >> dependency-report.md
+          echo "" >> dependency-report.md
+        fi
+        
+        echo "**Update commands:**" >> dependency-report.md
+        echo '```bash' >> dependency-report.md
+        echo '# Install tools' >> dependency-report.md
+        echo 'pip install pip-tools' >> dependency-report.md
+        echo '' >> dependency-report.md
+        echo '# Update requirements.txt' >> dependency-report.md
+        echo 'pip-compile --upgrade requirements.in  # if using .in files' >> dependency-report.md
+        echo '# OR manually update requirements.txt' >> dependency-report.md
+        echo '' >> dependency-report.md
+        echo '# Update pyproject.toml dependencies and reinstall' >> dependency-report.md
+        echo 'pip install -e .' >> dependency-report.md
+        echo '```' >> dependency-report.md
+
+    - name: Upload dependency health report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: dependency-health-report-${{ github.run_id }}
+        path: |
+          dependency-report.md
+          outdated.txt
+          security-audit.json
+        retention-days: 90
+
+    - name: Create issue for security vulnerabilities
+      if: steps.security.outputs.has_vulnerabilities == 'true' && github.event_name == 'schedule'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('dependency-report.md', 'utf8');
+          const vulnerabilityCount = ${{ steps.security.outputs.vulnerability_count }};
+          
+          const title = `Security Alert: ${vulnerabilityCount} vulnerabilities in dependencies`;
+          const body = `${report}
+          
+          ---
+          **This issue was automatically created by the Dependency Health Check workflow.**
+          **Please review and address these security vulnerabilities promptly.**
+          
+          - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Branch: ${{ github.ref_name }}
+          - Triggered: ${{ github.event_name }}`;
+          
+          // Check if a similar issue already exists
+          const { data: issues } = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: 'security,dependencies'
+          });
+          
+          const existingIssue = issues.find(issue => 
+            issue.title.includes('Security Alert') && 
+            issue.title.includes('vulnerabilities in dependencies')
+          );
+          
+          if (existingIssue) {
+            // Update existing issue
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              body: `## Updated Security Report\n\n${body}`
+            });
+          } else {
+            // Create new issue
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'dependencies', 'automated']
+            });
+          }
+
+    - name: Summary
+      if: always()
+      run: |
+        echo "## Dependency Health Check Summary"
+        echo "- **Outdated packages:** ${{ steps.outdated.outputs.outdated_count || 'Unknown' }}"
+        echo "- **Security vulnerabilities:** ${{ steps.security.outputs.vulnerability_count || 'Unknown' }}"
+        echo "- **Report artifact:** dependency-health-report-${{ github.run_id }}"
+        
+        if [ "${{ steps.security.outputs.has_vulnerabilities }}" == "true" ]; then
+          echo "**Action required:** Security vulnerabilities detected!"
+        elif [ "${{ steps.outdated.outputs.has_outdated }}" == "true" ]; then
+          echo "**Maintenance needed:** Outdated dependencies found"
+        else
+          echo "**All good:** Dependencies are healthy!"
+        fi
