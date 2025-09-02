@@ -48,10 +48,14 @@ class TestPOSDummy:
     @pytest.fixture(scope="class")
     def temp_db(self):
         """Create a temporary database for testing."""
+        import platform
+        import time
+        
         # Create temporary database file
         db_fd, db_path = tempfile.mkstemp(suffix=".db")
         os.close(db_fd)
 
+        engine = None
         try:
             # Set up test database
             engine = create_engine(f"sqlite:///{db_path}")
@@ -62,11 +66,39 @@ class TestPOSDummy:
 
             yield db_path
         finally:
-            # Cleanup
-            if os.path.exists(db_path):
-                os.unlink(db_path)
-            if "HOMEPOT_DATABASE_URL" in os.environ:
-                del os.environ["HOMEPOT_DATABASE_URL"]
+            # Cleanup with proper connection disposal
+            try:
+                # Dispose engine to close all connections
+                if engine is not None:
+                    engine.dispose()
+                    
+                # On Windows, add small delay for file handles to be released
+                if platform.system() == "Windows":
+                    time.sleep(0.1)
+                
+                # Clean up environment variable
+                if "HOMEPOT_DATABASE_URL" in os.environ:
+                    del os.environ["HOMEPOT_DATABASE_URL"]
+                
+                # Try to remove the file with Windows-specific retry logic
+                if os.path.exists(db_path):
+                    max_retries = 3 if platform.system() == "Windows" else 1
+                    for attempt in range(max_retries):
+                        try:
+                            os.unlink(db_path)
+                            break
+                        except PermissionError:
+                            if attempt < max_retries - 1 and platform.system() == "Windows":
+                                time.sleep(0.2)
+                                continue
+                            # If all retries failed, log but don't fail the test
+                            import warnings
+                            warnings.warn(f"Could not cleanup temp database: {db_path}")
+                            break
+            except Exception as e:
+                # Don't fail tests due to cleanup issues
+                import warnings
+                warnings.warn(f"Database cleanup error: {e}")
 
     def test_critical_imports(self):
         """Phase 0: Verify all critical modules can be imported without errors.

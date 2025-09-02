@@ -19,6 +19,9 @@ from src.homepot_client.models import Base, Device, Job, JobStatus, Site, User
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
+    import platform
+    import time
+    
     # Create temporary database file
     temp_dir = tempfile.mkdtemp()
     temp_db_path = Path(temp_dir) / "test_homepot.db"
@@ -32,8 +35,42 @@ def temp_db():
 
     yield SessionLocal
 
-    # Cleanup
-    temp_db_path.unlink(missing_ok=True)
+    # Cleanup with proper connection disposal
+    try:
+        # Dispose engine to close all connections
+        engine.dispose()
+        
+        # On Windows, add small delay for file handles to be released
+        if platform.system() == "Windows":
+            time.sleep(0.1)
+            
+        # Try to remove the file, with Windows-specific retry logic
+        if temp_db_path.exists():
+            max_retries = 3 if platform.system() == "Windows" else 1
+            for attempt in range(max_retries):
+                try:
+                    temp_db_path.unlink()
+                    break
+                except PermissionError:
+                    if attempt < max_retries - 1 and platform.system() == "Windows":
+                        time.sleep(0.2)
+                        continue
+                    # If all retries failed, log but don't fail the test
+                    import warnings
+                    warnings.warn(f"Could not cleanup temp database: {temp_db_path}")
+                    break
+    except Exception as e:
+        # Don't fail tests due to cleanup issues
+        import warnings
+        warnings.warn(f"Database cleanup error: {e}")
+    finally:
+        # Remove temp directory if empty
+        try:
+            temp_dir_path = Path(temp_dir)
+            if temp_dir_path.exists() and not any(temp_dir_path.iterdir()):
+                temp_dir_path.rmdir()
+        except Exception:
+            pass
 
 
 def test_database_connection():

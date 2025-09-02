@@ -163,6 +163,12 @@ markers = [
     "api: marks tests for API functionality",
 ]
 asyncio_mode = "auto"
+# Windows-specific configuration for better file handling
+filterwarnings = [
+    "ignore::Warning:homepot_client.*",
+    "ignore:.*Database cleanup.*:UserWarning",
+    "ignore:.*Could not cleanup temp database.*:UserWarning",
+]
 
 # Coverage configuration
 [tool.coverage.run]

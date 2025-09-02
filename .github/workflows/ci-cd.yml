@@ -187,7 +187,20 @@ jobs:
         pip install -e .
 
     - name: Run unit tests
-      run: pytest tests/ -v --cov=homepot_client --cov-report=xml
+      shell: bash
+      run: |
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          # Windows-specific pytest configuration for better file handling
+          pytest tests/ -v --cov=homepot_client --cov-report=xml \
+            --tb=short \
+            --durations=10 \
+            -W ignore::UserWarning:homepot_client \
+            -W ignore:".*Database cleanup.*":UserWarning \
+            -W ignore:".*Could not cleanup temp database.*":UserWarning
+        else
+          # Standard pytest configuration for Unix systems
+          pytest tests/ -v --cov=homepot_client --cov-report=xml
+        fi
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
