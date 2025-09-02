@@ -348,14 +348,14 @@ class AuditLogger:
 
         except Exception as e:
             self.logger.error(f"Failed to get audit statistics: {e}")
+            # Return a generic error message, do not expose exception details
             return {
                 "total_events": 0,
                 "events_by_type": {},
                 "api_access_count": 0,
                 "time_period_hours": hours,
-                "error": str(e),
+                "error": "Internal server error",
             }
-
 
 # Global audit logger instance
 _audit_logger: Optional[AuditLogger] = None
