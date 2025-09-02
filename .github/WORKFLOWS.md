@@ -96,6 +96,26 @@ This document describes the automated workflows
 - **Security report generation**
 - **Comprehensive dependency security** for all events (via pip-audit)
 
+### 4. Dependency Health Check (`dependency-check.yml`)
+
+**Trigger Events:**
+- Scheduled weekly (Sundays at 2 AM UTC)
+- Push events affecting dependency files (`requirements.txt`, `pyproject.toml`)
+- Manual trigger via `workflow_dispatch`
+
+**What it does:**
+- **Automated security vulnerability scanning** using pip-audit
+- **Outdated package detection** with version comparison
+- **Comprehensive health reports** with actionable recommendations
+- **Automatic GitHub issue creation** for security vulnerabilities
+- **90-day artifact retention** for historical tracking
+
+**Key Features:**
+- Zero-maintenance dependency monitoring
+- Smart duplicate issue prevention
+- Ready-to-use upgrade commands
+- Security severity classification
+
 **Jobs Overview:**
 ```text
 ├── Security Vulnerability Audit
@@ -171,6 +191,7 @@ gh run view <run-id> --log
 gh workflow run "CI/CD Pipeline"
 gh workflow run "POSDummy Integration Test"
 gh workflow run "Security Audit"
+gh workflow run "Dependency Health Check"
 ```
 
 **Useful Workflow Monitoring:**
@@ -179,10 +200,47 @@ gh workflow run "Security Audit"
 gh run list --workflow="CI/CD Pipeline" --limit 5
 gh run list --workflow="POSDummy Integration Test" --limit 5
 gh run list --workflow="Security Audit" --limit 5
+gh run list --workflow="Dependency Health Check" --limit 5
 
 # Monitor POSDummy health
 gh run list --workflow="POSDummy Integration Test" --limit 10
 ```
+
+### Accessing Dependency Check Reports
+
+**Command Line Access:**
+```bash
+# List recent dependency check runs
+gh run list --workflow=dependency-check.yml --limit 5
+
+# View specific run details and artifacts
+gh run view <run-id>
+
+# Download dependency health reports
+gh run download <run-id>
+
+# Reports will be in: dependency-health-report-<run-id>/
+# Contains: dependency-report.md, outdated.txt, security-audit.json
+```
+
+**Web Interface Access:**
+1. Go to repository → **Actions** tab
+2. Click **"Dependency Health Check"** in left sidebar
+3. Click any workflow run from the list
+4. Scroll to **"Artifacts"** section
+5. Download the `dependency-health-report-<run-id>` ZIP file
+
+**What You Get:**
+- `dependency-report.md` - Formatted health report with recommendations
+- `outdated.txt` - Raw outdated packages list
+- `security-audit.json` - Security vulnerability details (if any)
+
+**Report Content:**
+- Outdated packages with current vs latest versions
+- Security vulnerability analysis with severity levels
+- Python version compatibility status
+- Ready-to-use upgrade commands
+- Actionable maintenance recommendations
 
 ## Running Workflows Locally
 

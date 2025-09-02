@@ -187,3 +187,6 @@ data/*.db-shm
 
 # Keep the main demo database
 !data/homepot.db
+
+# Dependency records
+dependency-health-report*/

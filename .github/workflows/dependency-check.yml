@@ -5,7 +5,7 @@ on:
     # Run weekly on Sundays at 2 AM UTC
     - cron: '0 2 * * 0'
   workflow_dispatch:
-    # Allow manual triggering
+    # Allow manual triggering for testing
   push:
     # Only run on dependency-related file changes
     paths:
@@ -114,6 +114,111 @@ jobs:
           echo "has_vulnerabilities=unknown" >> $GITHUB_OUTPUT
         fi
 
+    - name: Analyze upgrade strategies
+      if: steps.outdated.outputs.has_outdated == 'true'
+      run: |
+        echo "" >> dependency-report.md
+        echo "### Upgrade Strategy Analysis" >> dependency-report.md
+        echo "" >> dependency-report.md
+        
+        # Install pipdeptree for dependency analysis
+        pip install pipdeptree
+        
+        # Analyze each outdated package for constraints and risk
+        echo "| Package | Current | Latest | Risk Level | Strategy | Constraints |" >> dependency-report.md
+        echo "|---------|---------|--------|------------|----------|-------------|" >> dependency-report.md
+        
+        # Process outdated packages
+        if [ -f outdated.txt ] && [ -s outdated.txt ]; then
+          tail -n +3 outdated.txt | while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              pkg=$(echo "$line" | awk '{print $1}')
+              current=$(echo "$line" | awk '{print $2}')
+              latest=$(echo "$line" | awk '{print $3}')
+              
+              # Determine version gap and risk level
+              current_major=$(echo "$current" | cut -d. -f1)
+              current_minor=$(echo "$current" | cut -d. -f2)
+              latest_major=$(echo "$latest" | cut -d. -f1)
+              latest_minor=$(echo "$latest" | cut -d. -f2)
+              
+              if [ "$current_major" != "$latest_major" ]; then
+                risk="HIGH"
+                strategy="Research breaking changes"
+              elif [ "$current_minor" != "$latest_minor" ]; then
+                minor_gap=$((latest_minor - current_minor))
+                if [ "$minor_gap" -gt 2 ]; then
+                  risk="MEDIUM-HIGH"
+                  strategy="Staged upgrade recommended"
+                else
+                  risk="MEDIUM"
+                  strategy="Test carefully"
+                fi
+              else
+                risk="LOW"
+                strategy="Safe to upgrade"
+              fi
+              
+              # Check for dependency constraints
+              constraints=""
+              if pip show "$pkg" >/dev/null 2>&1; then
+                # Check what packages depend on this one
+                dependents=$(pipdeptree --reverse --packages "$pkg" 2>/dev/null | grep -v "^$pkg" | head -3 | tr '\n' ', ' | sed 's/,$//')
+                if [ -n "$dependents" ]; then
+                  constraints="Used by: $dependents"
+                else
+                  constraints="No direct dependents found"
+                fi
+              else
+                constraints="Not currently installed"
+              fi
+              
+              echo "| $pkg | $current | $latest | $risk | $strategy | $constraints |" >> dependency-report.md
+            fi
+          done
+        fi
+        
+        echo "" >> dependency-report.md
+        echo "**Risk Level Legend:**" >> dependency-report.md
+        echo "- **LOW**: Patch versions (X.Y.Z→X.Y.Z+1) - Usually safe" >> dependency-report.md
+        echo "- **MEDIUM**: Minor versions (X.Y→X.Y+1-2) - Test functionality" >> dependency-report.md
+        echo "- **MEDIUM-HIGH**: Multiple minor versions (X.Y→X.Y+3+) - Staged approach" >> dependency-report.md
+        echo "- **HIGH**: Major versions (X→X+1) - Review breaking changes" >> dependency-report.md
+
+    - name: Check dependency constraints
+      if: steps.outdated.outputs.has_outdated == 'true'
+      run: |
+        echo "" >> dependency-report.md
+        echo "### Dependency Constraint Analysis" >> dependency-report.md
+        echo "" >> dependency-report.md
+        
+        # Check for potential conflicts before upgrading
+        echo "**Constraint Check Results:**" >> dependency-report.md
+        echo "" >> dependency-report.md
+        
+        # Test if pip-check can identify any current issues
+        if pip check >/dev/null 2>&1; then
+          echo "**Current environment**: No dependency conflicts detected" >> dependency-report.md
+        else
+          echo "**Current environment**: Dependency conflicts detected" >> dependency-report.md
+          echo '```' >> dependency-report.md
+          pip check 2>&1 || true >> dependency-report.md
+          echo '```' >> dependency-report.md
+        fi
+        
+        echo "" >> dependency-report.md
+        echo "**Upgrade Testing Recommended:**" >> dependency-report.md
+        echo "Before upgrading packages with dependencies, test in isolated environment:" >> dependency-report.md
+        echo '```bash' >> dependency-report.md
+        echo '# Create test environment' >> dependency-report.md
+        echo 'python -m venv test-upgrade' >> dependency-report.md
+        echo 'source test-upgrade/bin/activate' >> dependency-report.md
+        echo 'pip install -r requirements.txt' >> dependency-report.md
+        echo 'pip install --upgrade <package-name>' >> dependency-report.md
+        echo 'pip check  # Look for conflicts' >> dependency-report.md
+        echo 'pytest tests/  # Verify functionality' >> dependency-report.md
+        echo '```' >> dependency-report.md
+
     - name: Check Python version compatibility
       run: |
         echo "" >> dependency-report.md
@@ -126,39 +231,77 @@ jobs:
       if: steps.outdated.outputs.has_outdated == 'true' || steps.security.outputs.has_vulnerabilities == 'true'
       run: |
         echo "" >> dependency-report.md
-        echo "### Recommended Actions" >> dependency-report.md
+        echo "### Strategic Recommendations" >> dependency-report.md
         echo "" >> dependency-report.md
         
         if [ "${{ steps.security.outputs.has_vulnerabilities }}" == "true" ]; then
-          echo "**URGENT - Security vulnerabilities detected:**" >> dependency-report.md
-          echo "1. Review each vulnerability in the security audit" >> dependency-report.md
-          echo "2. Update affected packages immediately" >> dependency-report.md
-          echo "3. Test the application thoroughly after updates" >> dependency-report.md
-          echo "4. Consider pinning versions if updates cause breaking changes" >> dependency-report.md
+          echo "**PRIORITY 1: Security vulnerabilities detected**" >> dependency-report.md
+          echo "1. **Immediate action required** - Security vulnerabilities must be addressed first" >> dependency-report.md
+          echo "2. **Review each vulnerability** in the security audit above" >> dependency-report.md
+          echo "3. **Test security updates** before other upgrades" >> dependency-report.md
+          echo "4. **Consider hotfix deployment** if vulnerabilities are critical" >> dependency-report.md
           echo "" >> dependency-report.md
         fi
         
         if [ "${{ steps.outdated.outputs.has_outdated }}" == "true" ]; then
-          echo "**Outdated dependencies:**" >> dependency-report.md
-          echo "1. Review release notes for each outdated package" >> dependency-report.md
-          echo "2. Update non-breaking changes first (patch versions)" >> dependency-report.md
-          echo "3. Test minor version updates in development environment" >> dependency-report.md
-          echo "4. Plan major version updates with adequate testing" >> dependency-report.md
-          echo "5. Update both \`requirements.txt\` and \`pyproject.toml\`" >> dependency-report.md
+          echo "**PRIORITY 2: Outdated dependencies management**" >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          echo "**Recommended Upgrade Order:**" >> dependency-report.md
+          echo "1. **Low-risk packages first** (patch versions) - Quick wins" >> dependency-report.md
+          echo "2. **Medium-risk packages** (minor versions) - Test in development" >> dependency-report.md
+          echo "3. **High-risk packages last** (major versions) - Plan thoroughly" >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          echo "**Before Any Upgrades:**" >> dependency-report.md
+          echo '```bash' >> dependency-report.md
+          echo '# 1. Backup current state' >> dependency-report.md
+          echo 'pip freeze > backup-requirements.txt' >> dependency-report.md
+          echo 'git add backup-requirements.txt && git commit -m "Backup: Pre-upgrade state"' >> dependency-report.md
+          echo '' >> dependency-report.md
+          echo '# 2. Check current dependency health' >> dependency-report.md
+          echo 'pip check' >> dependency-report.md
+          echo '```' >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          echo "**Safe Upgrade Process:**" >> dependency-report.md
+          echo '```bash' >> dependency-report.md
+          echo '# 1. For LOW risk packages:' >> dependency-report.md
+          echo 'pip install --upgrade <package-name>' >> dependency-report.md
+          echo 'pip check  # Verify no conflicts' >> dependency-report.md
+          echo 'pytest tests/  # Quick functionality test' >> dependency-report.md
+          echo '' >> dependency-report.md
+          echo '# 2. For MEDIUM risk packages:' >> dependency-report.md
+          echo 'pip install --upgrade <package-name>' >> dependency-report.md
+          echo 'pip check' >> dependency-report.md
+          echo 'pytest tests/ -v  # Full test suite' >> dependency-report.md
+          echo 'pytest tests/integration/  # Integration tests if available' >> dependency-report.md
+          echo '' >> dependency-report.md
+          echo '# 3. For HIGH risk packages:' >> dependency-report.md
+          echo '# First check release notes and breaking changes!' >> dependency-report.md
+          echo 'python -m venv test-major-upgrade' >> dependency-report.md
+          echo 'source test-major-upgrade/bin/activate' >> dependency-report.md
+          echo 'pip install -r requirements.txt' >> dependency-report.md
+          echo 'pip install --upgrade <package-name>' >> dependency-report.md
+          echo 'pip check && pytest tests/' >> dependency-report.md
+          echo '```' >> dependency-report.md
           echo "" >> dependency-report.md
         fi
         
-        echo "**Update commands:**" >> dependency-report.md
+        echo "**Post-Upgrade Checklist:**" >> dependency-report.md
+        echo "- [ ] Update both \`requirements.txt\` and \`pyproject.toml\`" >> dependency-report.md
+        echo "- [ ] Run complete test suite (\`pytest tests/\`)" >> dependency-report.md
+        echo "- [ ] Check dependency conflicts (\`pip check\`)" >> dependency-report.md
+        echo "- [ ] Test critical application workflows manually" >> dependency-report.md
+        echo "- [ ] Update documentation if APIs changed" >> dependency-report.md
+        echo "- [ ] Monitor application after deployment" >> dependency-report.md
+        echo "" >> dependency-report.md
+        
+        echo "**Emergency Rollback Commands:**" >> dependency-report.md
         echo '```bash' >> dependency-report.md
-        echo '# Install tools' >> dependency-report.md
-        echo 'pip install pip-tools' >> dependency-report.md
-        echo '' >> dependency-report.md
-        echo '# Update requirements.txt' >> dependency-report.md
-        echo 'pip-compile --upgrade requirements.in  # if using .in files' >> dependency-report.md
-        echo '# OR manually update requirements.txt' >> dependency-report.md
-        echo '' >> dependency-report.md
-        echo '# Update pyproject.toml dependencies and reinstall' >> dependency-report.md
-        echo 'pip install -e .' >> dependency-report.md
+        echo '# If something breaks after upgrade:' >> dependency-report.md
+        echo 'pip install -r backup-requirements.txt' >> dependency-report.md
+        echo 'pip check && pytest tests/' >> dependency-report.md
         echo '```' >> dependency-report.md
 
     - name: Upload dependency health report
