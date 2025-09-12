@@ -374,8 +374,8 @@ class JobOrchestrator:
         """
         try:
             # Import modular push notification system
-            from .push_notifications.factory import get_fallback_provider
             from .push_notifications.base import PushNotificationPayload, PushPriority
+            from .push_notifications.factory import get_fallback_provider
 
             # Create standardized payload from the orchestrator notification
             payload = PushNotificationPayload(
@@ -386,16 +386,22 @@ class JobOrchestrator:
                     "config_version": push_notification.version,
                     "priority": push_notification.priority,
                 },
-                priority=PushPriority.HIGH if push_notification.priority == "high" else PushPriority.NORMAL,
+                priority=(
+                    PushPriority.HIGH
+                    if push_notification.priority == "high"
+                    else PushPriority.NORMAL
+                ),
                 collapse_key=push_notification.collapse_key,
                 ttl_seconds=push_notification.ttl_sec,
             )
 
             # Try to get the best available provider (simulation as fallback)
-            provider = await get_fallback_provider(['fcm_linux', 'simulation'])
-            
+            provider = await get_fallback_provider(["fcm_linux", "simulation"])
+
             if not provider:
-                logger.error(f"No push notification providers available for {device.device_id}")
+                logger.error(
+                    f"No push notification providers available for {device.device_id}"
+                )
                 return False
 
             # Send notification through the modular system
@@ -403,14 +409,14 @@ class JobOrchestrator:
 
             if result.success:
                 logger.debug(
-                    f"Push notification successful to {device.device_id} via {result.platform}: "
-                    f"{result.message}"
+                    f"Push notification successful to {device.device_id} via "
+                    f"{result.platform}: {result.message}"
                 )
                 return True
             else:
                 logger.warning(
-                    f"Push notification failed to {device.device_id} via {result.platform}: "
-                    f"{result.message} (Error: {result.error_code})"
+                    f"Push notification failed to {device.device_id} via "
+                    f"{result.platform}: {result.message} (Error: {result.error_code})"
                 )
                 return False
 

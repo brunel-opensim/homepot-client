@@ -7,15 +7,13 @@ from .retry_handlers import *
 __all__ = [
     # Authentication utilities
     "ServiceAccountAuthenticator",
-    "OAuth2Authenticator", 
+    "OAuth2Authenticator",
     "APIKeyAuthenticator",
-    
     # Payload builders
     "FCMPayloadBuilder",
     "APNsPayloadBuilder",
     "WNSPayloadBuilder",
     "WebPushPayloadBuilder",
-    
     # Retry handlers
     "ExponentialBackoffRetry",
     "LinearBackoffRetry",

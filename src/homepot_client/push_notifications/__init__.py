@@ -1,7 +1,7 @@
 """Push Notification System for HOMEPOT Client.
 
 This module provides a plugin-based push notification system that supports
-multiple platforms including FCM (Linux/Android), APNs (macOS/iOS), 
+multiple platforms including FCM (Linux/Android), APNs (macOS/iOS),
 WNS (Windows), and Web Push (browsers).
 
 The system is designed to be:
@@ -12,10 +12,10 @@ The system is designed to be:
 
 Example usage:
     from homepot_client.push_notifications import get_push_provider
-    
+
     # Get FCM provider for Linux devices
     fcm_provider = get_push_provider("fcm_linux")
-    
+
     # Send notification
     success = await fcm_provider.send_notification(
         device_token="fcm_token_here",
@@ -30,10 +30,10 @@ Example usage:
     )
 """
 
-from typing import Dict, Optional
+from typing import Dict
 
-from .base import PushNotificationProvider, PushNotificationPayload
-from .factory import get_push_provider, get_available_platforms
+from .base import PushNotificationPayload, PushNotificationProvider
+from .factory import get_available_platforms, get_push_provider
 
 __version__ = "1.0.0"
 __author__ = "HOMEPOT Consortium"
@@ -41,7 +41,7 @@ __author__ = "HOMEPOT Consortium"
 # Export main interfaces
 __all__ = [
     "PushNotificationProvider",
-    "PushNotificationPayload", 
+    "PushNotificationPayload",
     "get_push_provider",
     "get_available_platforms",
 ]
@@ -52,12 +52,12 @@ PLATFORM_STATUS: Dict[str, bool] = {}
 
 def check_platform_availability() -> Dict[str, bool]:
     """Check which push notification platforms are available.
-    
+
     Returns:
         Dictionary mapping platform names to availability status
     """
     global PLATFORM_STATUS
-    
+
     platforms = {
         "fcm_linux": False,
         "apns_macos": False,
@@ -67,56 +67,62 @@ def check_platform_availability() -> Dict[str, bool]:
         "unified_push": False,
         "simulation": True,  # Always available for testing
     }
-    
+
     # Check FCM Linux
     try:
-        from .fcm_linux import FCMLinuxProvider
+        from .fcm_linux import FCMLinuxProvider  # noqa: F401
+
         platforms["fcm_linux"] = True
     except ImportError:
         pass
-    
+
     # Check APNs macOS (when implemented)
     try:
-        from .apns_macos import APNsMacOSProvider
+        from .apns_macos import APNsMacOSProvider  # noqa: F401
+
         platforms["apns_macos"] = True
     except ImportError:
         pass
-    
+
     # Check WNS Windows (when implemented)
     try:
-        from .wns_windows import WNSWindowsProvider
+        from .wns_windows import WNSWindowsProvider  # noqa: F401
+
         platforms["wns_windows"] = True
     except ImportError:
         pass
-    
+
     # Check Web Push (when implemented)
     try:
-        from .web_push import WebPushProvider
+        from .web_push import WebPushProvider  # noqa: F401
+
         platforms["web_push"] = True
     except ImportError:
         pass
-    
+
     # Check FCM Android (when implemented)
     try:
-        from .fcm_android import FCMAndroidProvider
+        from .fcm_android import FCMAndroidProvider  # noqa: F401
+
         platforms["fcm_android"] = True
     except ImportError:
         pass
-    
+
     # Check UnifiedPush (when implemented)
     try:
-        from .unified_push import UnifiedPushProvider
+        from .unified_push import UnifiedPushProvider  # noqa: F401
+
         platforms["unified_push"] = True
     except ImportError:
         pass
-        
+
     PLATFORM_STATUS = platforms
     return platforms
 
 
 def get_platform_status() -> Dict[str, bool]:
     """Get cached platform availability status.
-    
+
     Returns:
         Dictionary mapping platform names to availability status
     """
