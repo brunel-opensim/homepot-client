@@ -6,7 +6,7 @@ from .authentication import (
     ServiceAccountAuthenticator,
 )
 
-# Note: payload_builders and retry_handlers modules will be added in future implementations
+# Note: payload_builders and retry_handlers modules will be added in future
 
 __all__ = [
     # Authentication utilities

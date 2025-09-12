@@ -81,11 +81,11 @@ class SimulationProvider(PushNotificationProvider):
 
         # Simulate network delay
         delay_min, delay_max = self.delivery_delay_ms
-        delay = random.uniform(delay_min, delay_max) / 1000.0  # nosec B311
+        delay = random.uniform(delay_min, delay_max) / 1000.0  # noqa: S311
         await asyncio.sleep(delay)
 
         # Simulate various error scenarios
-        if self.error_scenarios and random.random() > self.success_rate:  # nosec B311
+        if self.error_scenarios and random.random() > self.success_rate:  # noqa: S311
             return self._simulate_error(device_token, payload)
 
         # Try to deliver to agent simulation
@@ -109,7 +109,7 @@ class SimulationProvider(PushNotificationProvider):
                     message="Notification delivered to agent simulation",
                     platform=self.platform_name,
                     device_token=device_token,
-                    message_id=f"sim-{random.randint(100000, 999999)}",  # nosec B311
+                    message_id=f"sim-{random.randint(100000, 999999)}",  # noqa: S311
                 )
             else:
                 error_msg = (
@@ -238,7 +238,7 @@ class SimulationProvider(PushNotificationProvider):
                 success=successful > 0,
                 message=f"Topic notification sent to {successful}/{total} devices",
                 platform=self.platform_name,
-                message_id=f"topic-sim-{random.randint(100000, 999999)}",  # nosec B311
+                message_id=f"topic-sim-{random.randint(100000, 999999)}",  # noqa: S311
             )
 
         except Exception as e:
@@ -358,7 +358,7 @@ class SimulationProvider(PushNotificationProvider):
         ]
 
         # Select error based on weights
-        rand = random.random()  # nosec B311
+        rand = random.random()  # noqa: S311
         cumulative = 0
         selected_error = errors[0]
 

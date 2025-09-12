@@ -33,6 +33,11 @@ class Authenticator(ABC):
     """Abstract base class for authentication providers."""
 
     def __init__(self, config: Dict[str, Any]):
+        """Initialize authenticator with configuration.
+
+        Args:
+            config: Authentication configuration dictionary
+        """
         self.config = config
         self._token: Optional[str] = None
         self._token_expiry: Optional[float] = None
@@ -83,6 +88,11 @@ class ServiceAccountAuthenticator(Authenticator):
     """
 
     def __init__(self, config: Dict[str, Any]):
+        """Initialize service account authenticator.
+
+        Args:
+            config: Configuration dict containing service_account_path and scopes
+        """
         super().__init__(config)
 
         if not GOOGLE_AUTH_AVAILABLE:
@@ -154,6 +164,11 @@ class OAuth2Authenticator(Authenticator):
     """
 
     def __init__(self, config: Dict[str, Any]):
+        """Initialize OAuth2 authenticator.
+
+        Args:
+            config: Configuration dict containing OAuth2 credentials and URLs
+        """
         super().__init__(config)
 
         self.client_id = config.get("client_id")
@@ -216,6 +231,11 @@ class APIKeyAuthenticator(Authenticator):
     """
 
     def __init__(self, config: Dict[str, Any]):
+        """Initialize API key authenticator.
+
+        Args:
+            config: Configuration dict containing api_key and optional header_name
+        """
         super().__init__(config)
 
         self.api_key = config.get("api_key")
@@ -238,7 +258,7 @@ class APIKeyAuthenticator(Authenticator):
         return {self.header_name: f"{self.header_prefix}{self._token}"}
 
     async def refresh_token(self) -> bool:
-        """API keys don't need refreshing.
+        """Refresh API key token (no-op for API keys).
 
         Returns:
             Always True for API keys
@@ -254,6 +274,11 @@ class JWTAuthenticator(Authenticator):
     """
 
     def __init__(self, config: Dict[str, Any]):
+        """Initialize JWT authenticator.
+
+        Args:
+            config: Configuration dict containing JWT credentials and settings
+        """
         super().__init__(config)
 
         if not JWT_AVAILABLE:
