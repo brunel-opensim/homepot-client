@@ -231,6 +231,10 @@ When reporting issues:
 
 For questions about contributing, contact the project maintainers through GitHub or consortium communication channels.
 
+## Review System Test
+
+This section was added to test the branch protection review requirements. The review system should now require 1 reviewer before merging to main.
+
 ---
 
 *This project is part of the HOMEPOT consortium and subject to consortium agreements and confidentiality requirements.*
