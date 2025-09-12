@@ -20,8 +20,27 @@ cd homepot-client
 # 2. Install dependencies
 ./scripts/install.sh --dev
 
-# 3. Start the system
+# 3. Check the version
+python -m homepot_client.cli version
+
+# 4. More information
+python -m homepot_client.cli info
+
+# 5. Test configuration
+python -m pytest tests/test_client.py -v --disable-warnings
+```
+
+When ready to start the client:
+
+```bash
+# 6. Start the system
 python -m homepot_client.main
+```
+
+Or, specifically set arguments:
+
+```bash
+python -m uvicorn src.homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Verify Installation
@@ -30,12 +49,23 @@ Open a new terminal and test the system:
 
 ```bash
 # Check system health
-curl http://localhost:8000/health
+curl http://localhost:8000/health | python3 -m json.tool
 # Expected: {"status":"healthy","client_connected":true,"version":"0.1.0"}
 
 # View all POS sites
-curl http://localhost:8000/sites
+curl http://localhost:8000/sites | python3 -m json.tool
 # Expected: Array of 14 pre-configured sites
+```
+
+Expected output for health check:
+
+```json
+{
+    "status": "healthy",
+    "client_connected": true,
+    "version": "0.1.0",
+    "timestamp": 2021.463
+}
 ```
 
 ### Access the System
