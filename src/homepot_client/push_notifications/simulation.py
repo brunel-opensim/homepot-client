@@ -1,13 +1,4 @@
-"""Simulatioimport asyncio
-import logging
-import random
-from typing import Any, Dict, List
-
-from .base import (
-    PushNotificationPayload,
-    PushNotificationProvider,
-    PushNotificationResult,
-)r testing push notifications without real services.
+"""Simulation provider for testing push notifications without real services.
 
 This provider simulates push notification delivery and is primarily used for:
 - Testing and development
@@ -22,16 +13,13 @@ but delivers notifications to the existing agent simulation system.
 import asyncio
 import logging
 import random
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import Any, Dict, List
 
 from .base import (
     PushNotificationPayload,
     PushNotificationProvider,
     PushNotificationResult,
 )
-
-if TYPE_CHECKING:
-    from homepot_client.models import Device
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +47,7 @@ class SimulationProvider(PushNotificationProvider):
         self.error_scenarios = config.get("enable_error_scenarios", True)
 
         self.logger.info(
-            f"Initialized simulation provider with {self.success_rate*100}% success rate"
+            f"Initialized simulation provider with {self.success_rate * 100}% success"
         )
 
     async def initialize(self) -> bool:
@@ -93,7 +81,7 @@ class SimulationProvider(PushNotificationProvider):
 
         # Simulate network delay
         delay_min, delay_max = self.delivery_delay_ms
-        delay = random.uniform(delay_min, delay_max) / 1000.0  # Convert to seconds  # nosec B311
+        delay = random.uniform(delay_min, delay_max) / 1000.0  # nosec B311
         await asyncio.sleep(delay)
 
         # Simulate various error scenarios

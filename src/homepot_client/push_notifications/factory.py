@@ -177,7 +177,6 @@ def get_provider_status() -> Dict[str, Dict]:
 # Auto-registration of providers when modules are imported
 def _auto_register_providers() -> None:
     """Automatically register providers when their modules can be imported."""
-
     # Try to register FCM Linux
     try:
         from .fcm_linux import FCMLinuxProvider
