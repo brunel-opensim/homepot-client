@@ -251,7 +251,7 @@ class FCMLinuxProvider(PushNotificationProvider):
 
         # Process in batches
         for i in range(0, len(notifications), self.batch_size):
-            batch = notifications[i : i + self.batch_size]
+            batch = notifications[i:i + self.batch_size]
             batch_results = await self._send_batch(batch)
             results.extend(batch_results)
 
