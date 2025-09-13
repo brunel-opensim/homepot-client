@@ -8,7 +8,9 @@ ignore =
     # S110: Try/except/pass (acceptable for cleanup code)
     S110,
     # W503: Line break before binary operator (conflicts with W504, we prefer W503 style)
-    W503
+    W503,
+    # E203: Whitespace before ':' (conflicts with black formatter)
+    E203
 per-file-ignores =
     # S106: Hardcoded passwords are normal in test files
     tests/*:S106,S105,

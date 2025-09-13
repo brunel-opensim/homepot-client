@@ -11,7 +11,7 @@ push notification services including:
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional, Type, cast
+from typing import Any, Dict, Optional, Type
 
 try:
     from google.auth.transport.requests import Request
@@ -117,7 +117,7 @@ class ServiceAccountAuthenticator(Authenticator):
         """Load service account credentials from file."""
         if self.service_account_path is None:
             raise ValueError("service_account_path is required")
-        
+
         service_account_file = Path(self.service_account_path)
         if not service_account_file.exists():
             raise FileNotFoundError(
@@ -204,7 +204,7 @@ class OAuth2Authenticator(Authenticator):
         try:
             if self.token_url is None:
                 raise ValueError("token_url is required")
-                
+
             data = {
                 "grant_type": "client_credentials",
                 "client_id": self.client_id,
@@ -305,7 +305,7 @@ class JWTAuthenticator(Authenticator):
         """Load private key from file."""
         if self.private_key_path is None:
             raise ValueError("private_key_path is required")
-        
+
         key_file = Path(self.private_key_path)
         if not key_file.exists():
             raise FileNotFoundError(

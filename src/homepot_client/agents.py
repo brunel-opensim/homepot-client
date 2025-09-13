@@ -76,7 +76,7 @@ class POSAgentSimulator:
 
         logger.info(f"POS Agent {device_id} ({device_type}) initialized")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the agent simulator."""
         self.is_running = True
         logger.info(f"Agent {self.device_id} started")
@@ -84,7 +84,7 @@ class POSAgentSimulator:
         # Start health check loop
         asyncio.create_task(self._health_check_loop())
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the agent simulator."""
         self.is_running = False
         logger.info(f"Agent {self.device_id} stopped")
@@ -335,7 +335,7 @@ class POSAgentSimulator:
 
         return health_data
 
-    async def _health_check_loop(self):
+    async def _health_check_loop(self) -> None:
         """Periodic health check loop (every 30 seconds)."""
         while self.is_running:
             try:
@@ -350,12 +350,12 @@ class POSAgentSimulator:
 class AgentManager:
     """Manages all POS agent simulators."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the agent manager with empty agent registry."""
         self.agents: Dict[str, POSAgentSimulator] = {}
         self.is_running = False
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the agent manager and discover existing devices."""
         self.is_running = True
         logger.info("Agent Manager started")
@@ -366,7 +366,7 @@ class AgentManager:
         # Start monitoring for new devices
         asyncio.create_task(self._device_monitor_loop())
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop all agents."""
         self.is_running = False
         logger.info("Stopping Agent Manager")
@@ -378,7 +378,7 @@ class AgentManager:
         self.agents.clear()
         logger.info("Agent Manager stopped")
 
-    async def _discover_and_start_agents(self):
+    async def _discover_and_start_agents(self) -> None:
         """Discover existing devices and start agents for them."""
         try:
             db_service = await get_database_service()
@@ -405,7 +405,7 @@ class AgentManager:
         except Exception as e:
             logger.error(f"Failed to discover devices: {e}")
 
-    async def _start_agent_for_device(self, device_id: str, device_name: str):
+    async def _start_agent_for_device(self, device_id: str, device_name: str) -> None:
         """Start an agent for a specific device."""
         if device_id not in self.agents:
             agent = POSAgentSimulator(device_id, device_name)
@@ -413,7 +413,7 @@ class AgentManager:
             await agent.start()
             logger.info(f"Started agent for device {device_id}")
 
-    async def _device_monitor_loop(self):
+    async def _device_monitor_loop(self) -> None:
         """Monitor for new devices and start agents for them."""
         while self.is_running:
             try:
@@ -470,7 +470,7 @@ async def get_agent_manager() -> AgentManager:
     return _agent_manager
 
 
-async def stop_agent_manager():
+async def stop_agent_manager() -> None:
     """Stop agent manager."""
     global _agent_manager
     if _agent_manager is not None:

@@ -962,7 +962,7 @@ async def get_audit_event_types() -> Dict[str, Any]:
 @app.get("/version", tags=["Client"])
 # WebSocket endpoint for real-time status updates
 @app.websocket("/ws/status")
-async def websocket_status_endpoint(websocket: WebSocket):
+async def websocket_status_endpoint(websocket: WebSocket) -> None:
     """Websocket endpoint for real-time status updates.
 
     Provides live updates of job status and site health for dashboard UI.
@@ -1048,7 +1048,7 @@ async def websocket_status_endpoint(websocket: WebSocket):
 
 
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
-async def get_dashboard():
+async def get_dashboard() -> HTMLResponse:
     """Get simple dashboard HTML for testing WebSocket and API endpoints."""
     html_content = """
     <!DOCTYPE html>

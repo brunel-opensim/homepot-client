@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from homepot_client.config import get_settings
 from homepot_client.database import get_database_service
-from homepot_client.models import Job, JobPriority, JobStatus
+from homepot_client.models import Device, Job, JobPriority, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class PushNotification:
 class JobOrchestrator:
     """Orchestrator for managing and executing device jobs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize job orchestrator."""
         self.settings = get_settings()
         self._running = False
@@ -71,7 +71,7 @@ class JobOrchestrator:
         self._active_jobs: Dict[str, Job] = {}
         self._worker_tasks: List[asyncio.Task] = []
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the job orchestrator."""
         if self._running:
             return
@@ -86,7 +86,7 @@ class JobOrchestrator:
 
         logger.info(f"Job orchestrator started with {num_workers} workers")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the job orchestrator."""
         if not self._running:
             return
@@ -218,7 +218,7 @@ class JobOrchestrator:
             "error_message": job.error_message,
         }
 
-    async def _worker(self, worker_name: str):
+    async def _worker(self, worker_name: str) -> None:
         """Worker task for processing jobs from the queue."""
         logger.info(f"Job worker {worker_name} started")
 
@@ -239,7 +239,7 @@ class JobOrchestrator:
 
         logger.info(f"Job worker {worker_name} stopped")
 
-    async def _process_job(self, job: Job, worker_name: str):
+    async def _process_job(self, job: Job, worker_name: str) -> None:
         """Process a single job (Step 3 from scenario: Orchestrator sends push)."""
         logger.info(f"Worker {worker_name} processing job {job.job_id}")
 
@@ -366,7 +366,7 @@ class JobOrchestrator:
             )
 
     async def _send_push_notification(
-        self, device, push_notification: PushNotification
+        self, device: Device, push_notification: PushNotification
     ) -> bool:
         """Send push notification to a device using the new modular push system.
 
@@ -405,7 +405,7 @@ class JobOrchestrator:
                 return False
 
             # Send notification through the modular system
-            result = await provider.send_notification(device.device_id, payload)
+            result = await provider.send_notification(str(device.device_id), payload)
 
             if result.success:
                 logger.debug(
@@ -474,7 +474,7 @@ async def get_job_orchestrator() -> JobOrchestrator:
     return _orchestrator
 
 
-async def stop_job_orchestrator():
+async def stop_job_orchestrator() -> None:
     """Stop job orchestrator."""
     global _orchestrator
     if _orchestrator is not None:

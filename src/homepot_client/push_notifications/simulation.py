@@ -195,7 +195,6 @@ class SimulationProvider(PushNotificationProvider):
 
             from homepot_client.database import get_database_service
             from homepot_client.models import Device, DeviceType
-            from sqlalchemy import select
 
             db_service = await get_database_service()
 
