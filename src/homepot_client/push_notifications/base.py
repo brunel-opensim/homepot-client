@@ -74,7 +74,7 @@ class PushNotificationPayload:
     created_at: datetime = field(default_factory=datetime.utcnow)
     expires_at: Optional[datetime] = field(default=None)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Set expiration time based on TTL."""
         if self.expires_at is None:
             self.expires_at = self.created_at + timedelta(seconds=self.ttl_seconds)

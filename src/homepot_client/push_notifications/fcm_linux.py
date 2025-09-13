@@ -251,7 +251,7 @@ class FCMLinuxProvider(PushNotificationProvider):
 
         # Process in batches
         for i in range(0, len(notifications), self.batch_size):
-            batch = notifications[i:i + self.batch_size]
+            batch = notifications[i: i + self.batch_size]
             batch_results = await self._send_batch(batch)
             results.extend(batch_results)
 
@@ -416,16 +416,22 @@ class FCMLinuxProvider(PushNotificationProvider):
 
         # Add collapse key if specified
         if payload.collapse_key:
-            message["message"]["android"]["collapse_key"] = payload.collapse_key
+            android_config = message["message"]["android"]
+            assert isinstance(android_config, dict)
+            android_config["collapse_key"] = payload.collapse_key
 
         # Convert payload data to strings (FCM requirement)
-        for key, value in payload.data.items():
-            message["message"]["data"][key] = str(value)
+        payload_data = payload.data
+        assert isinstance(payload_data, dict)
+        message_data = message["message"]["data"]
+        assert isinstance(message_data, dict)
+        for key, value in payload_data.items():
+            message_data[key] = str(value)
 
         # Add title and body as data fields for Linux devices
-        message["message"]["data"]["title"] = payload.title
-        message["message"]["data"]["body"] = payload.body
-        message["message"]["data"]["priority"] = payload.priority.value
+        message_data["title"] = payload.title
+        message_data["body"] = payload.body
+        message_data["priority"] = payload.priority.value
 
         # Add platform-specific data
         if payload.platform_data.get("fcm_linux"):
@@ -489,6 +495,9 @@ class FCMLinuxProvider(PushNotificationProvider):
         }
 
         try:
+            if self._session is None:
+                raise RuntimeError("HTTP session not initialized")
+            
             async with self._session.post(
                 url, json=message, headers=headers
             ) as response:
@@ -549,6 +558,8 @@ class FCMLinuxProvider(PushNotificationProvider):
                     )
                 )
             else:
+                # result is guaranteed to be PushNotificationResult here
+                assert isinstance(result, PushNotificationResult)
                 processed_results.append(result)
 
         return processed_results

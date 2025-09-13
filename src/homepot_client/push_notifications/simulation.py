@@ -171,6 +171,8 @@ class SimulationProvider(PushNotificationProvider):
                     )
                 )
             else:
+                # result is guaranteed to be PushNotificationResult here
+                assert isinstance(result, PushNotificationResult)
                 processed_results.append(result)
 
         return processed_results
@@ -193,11 +195,12 @@ class SimulationProvider(PushNotificationProvider):
 
             from homepot_client.database import get_database_service
             from homepot_client.models import Device, DeviceType
+            from sqlalchemy import select
 
             db_service = await get_database_service()
 
             # Map topic to device query
-            devices = []
+            devices: List[Device] = []
             async with db_service.get_session() as session:
                 if topic.startswith("site-"):
                     # Topic is a site - get all devices for that site
@@ -207,7 +210,7 @@ class SimulationProvider(PushNotificationProvider):
                             Device.site_id == int(site_id), Device.is_active.is_(True)
                         )
                     )
-                    devices = result.scalars().all()
+                    devices = list(result.scalars().all())
                 elif topic == "pos-terminals":
                     # Get all POS terminals
                     result = await session.execute(
@@ -216,7 +219,7 @@ class SimulationProvider(PushNotificationProvider):
                             Device.is_active.is_(True),
                         )
                     )
-                    devices = result.scalars().all()
+                    devices = list(result.scalars().all())
 
             if not devices:
                 return PushNotificationResult(
@@ -227,7 +230,7 @@ class SimulationProvider(PushNotificationProvider):
                 )
 
             # Send to all devices in the topic
-            notifications = [(device.device_id, payload) for device in devices]
+            notifications = [(str(device.device_id), payload) for device in devices]
             results = await self.send_bulk_notifications(notifications)
 
             # Summarize results
@@ -312,13 +315,19 @@ class SimulationProvider(PushNotificationProvider):
 
         # Add platform-specific data if present
         if payload.platform_data:
-            notification["data"].update(payload.platform_data)
+            notification_data = notification["data"]
+            assert isinstance(notification_data, dict)
+            notification_data.update(payload.platform_data)
 
         # Handle specific action types based on data content
-        if "config_url" in payload.data:
+        payload_data = payload.data
+        assert isinstance(payload_data, dict)
+        if "config_url" in payload_data:
             notification["action"] = "update_pos_payment_config"
-            notification["data"]["config_url"] = payload.data["config_url"]
-            notification["data"]["config_version"] = payload.data.get(
+            notification_data = notification["data"]
+            assert isinstance(notification_data, dict)
+            notification_data["config_url"] = payload_data["config_url"]
+            notification_data["config_version"] = payload_data.get(
                 "config_version", "1.0.0"
             )
         elif "restart" in payload.data and payload.data["restart"]:
@@ -359,7 +368,7 @@ class SimulationProvider(PushNotificationProvider):
 
         # Select error based on weights
         rand = random.random()  # noqa: S311
-        cumulative = 0
+        cumulative = 0.0
         selected_error = errors[0]
 
         for error_code, message, weight in errors:

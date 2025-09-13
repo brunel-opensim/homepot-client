@@ -11,7 +11,7 @@ push notification services including:
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type, cast
 
 try:
     from google.auth.transport.requests import Request
@@ -115,6 +115,9 @@ class ServiceAccountAuthenticator(Authenticator):
 
     def _load_credentials(self) -> None:
         """Load service account credentials from file."""
+        if self.service_account_path is None:
+            raise ValueError("service_account_path is required")
+        
         service_account_file = Path(self.service_account_path)
         if not service_account_file.exists():
             raise FileNotFoundError(
@@ -199,6 +202,9 @@ class OAuth2Authenticator(Authenticator):
         import aiohttp
 
         try:
+            if self.token_url is None:
+                raise ValueError("token_url is required")
+                
             data = {
                 "grant_type": "client_credentials",
                 "client_id": self.client_id,
@@ -297,6 +303,9 @@ class JWTAuthenticator(Authenticator):
 
     def _load_private_key(self) -> None:
         """Load private key from file."""
+        if self.private_key_path is None:
+            raise ValueError("private_key_path is required")
+        
         key_file = Path(self.private_key_path)
         if not key_file.exists():
             raise FileNotFoundError(
@@ -367,7 +376,7 @@ def create_authenticator(auth_type: str, config: Dict[str, Any]) -> Authenticato
     Raises:
         ValueError: If auth_type is not supported
     """
-    authenticators = {
+    authenticators: Dict[str, Type[Authenticator]] = {
         "service_account": ServiceAccountAuthenticator,
         "oauth2": OAuth2Authenticator,
         "api_key": APIKeyAuthenticator,
@@ -377,4 +386,5 @@ def create_authenticator(auth_type: str, config: Dict[str, Any]) -> Authenticato
     if auth_type not in authenticators:
         raise ValueError(f"Unsupported auth type: {auth_type}")
 
-    return authenticators[auth_type](config)
+    authenticator_class = authenticators[auth_type]
+    return authenticator_class(config)
