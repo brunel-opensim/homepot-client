@@ -63,7 +63,7 @@ class AuditEventType(str, Enum):
 class AuditLogger:
     """Comprehensive audit logging service."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the audit logger with configured logging."""
         self.logger = logging.getLogger(f"{__name__}.AuditLogger")
 

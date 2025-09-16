@@ -12,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Engine,
     ForeignKey,
     Integer,
     String,
@@ -253,7 +254,7 @@ class AuditLog(Base):
 
 
 # Database engine and session configuration
-def create_database_engine(database_url: str = "sqlite:///./homepot.db"):
+def create_database_engine(database_url: str = "sqlite:///./homepot.db") -> Engine:
     """Create database engine with appropriate configuration."""
     if database_url.startswith("sqlite"):
         # SQLite specific configuration
@@ -269,11 +270,11 @@ def create_database_engine(database_url: str = "sqlite:///./homepot.db"):
     return engine
 
 
-def create_tables(engine):
+def create_tables(engine: Engine) -> None:
     """Create all tables in the database."""
     Base.metadata.create_all(bind=engine)
 
 
-def get_session_maker(engine):
+def get_session_maker(engine: Engine) -> sessionmaker:
     """Create session maker for database operations."""
     return sessionmaker(autocommit=False, autoflush=False, bind=engine)

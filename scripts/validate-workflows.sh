@@ -480,10 +480,32 @@ validate_code_quality() {
     if command -v mypy >/dev/null 2>&1; then
         echo -n "    Type checking (mypy): "
         log_verbose "Running: mypy src/"
-        if mypy src/ 2>/dev/null; then
+        
+        # Capture mypy output to check for specific errors
+        local mypy_output
+        if mypy_output=$(mypy src/ 2>&1); then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: mypy src/${NC}"
+            # Check for specific error types
+            if echo "$mypy_output" | grep -qE "(Cannot find implementation|import-not-found|missing library stubs|import-untyped)"; then
+                echo -e "${RED}Failed - missing dependencies/stubs${NC}"
+                log_verbose "MyPy failed due to missing library stubs or dependencies"
+                if [[ "$VERBOSE" == true ]]; then
+                    echo "$mypy_output" | grep -E "(Cannot find implementation|import-not-found|missing library stubs|import-untyped|google\.)" | head -5 | while read -r line; do
+                        log_verbose "  $line"
+                    done
+                fi
+                log_verbose "This indicates missing dependencies in requirements.txt or missing type stubs"
+                log_verbose "Consider installing missing packages or type stubs (e.g., pip install types-*)"
+            else
+                echo -e "${RED}Failed - run: mypy src/${NC}"
+                log_verbose "MyPy failed for other reasons"
+                if [[ "$VERBOSE" == true ]]; then
+                    echo "$mypy_output" | head -10 | while read -r line; do
+                        log_verbose "  $line"
+                    done
+                fi
+            fi
             failed=true
         fi
     else
@@ -512,19 +534,66 @@ validate_code_quality() {
     return 0
 }
 
-# 5. Basic Python setup
+# 5. Enhanced Python setup validation
 validate_python() {
-    log_info "  Checking Python setup..."
+    log_info "  Checking Python setup and compatibility..."
+    
+    local failed=false
+    local current_python_version=$(python3 --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' || echo "unknown")
+    
+    echo -n "    Current Python version: "
+    if [[ "$current_python_version" != "unknown" ]]; then
+        echo -e "${GREEN}$current_python_version${NC}"
+        log_verbose "Running on Python $current_python_version"
+        
+        # Check if it matches CI versions (3.9, 3.11)
+        if [[ "$current_python_version" =~ ^(3\.9|3\.11|3\.12)$ ]]; then
+            log_verbose "✓ Python version compatible with CI"
+        else
+            log_warning "Local Python $current_python_version differs from CI versions (3.9, 3.11)"
+            log_verbose "Consider testing with Python 3.9 or 3.11 for CI compatibility"
+        fi
+    else
+        echo -e "${RED}Unknown${NC}"
+        log_verbose "Could not determine Python version"
+        failed=true
+    fi
     
     # Check pyproject.toml
     if [ -f "pyproject.toml" ]; then
         echo -n "    pyproject.toml: "
         log_verbose "Checking pyproject.toml and dependencies"
-        if python -m pip check > /dev/null 2>&1; then
+        
+        # Enhanced dependency check
+        if python -c "
+import sys
+sys.path.insert(0, 'src')
+try:
+    import pkg_resources
+    # Test basic pip check
+    import subprocess
+    result = subprocess.run([sys.executable, '-m', 'pip', 'check'], 
+                          capture_output=True, text=True)
+    if result.returncode == 0:
+        print('✓ Dependencies compatible')
+        exit(0)
+    else:
+        print('⚠ Dependency conflicts detected')
+        exit(1)
+except Exception as e:
+    print(f'⚠ Cannot verify dependencies: {e}')
+    exit(1)
+" >/dev/null 2>&1; then
             echo -e "${GREEN}Valid${NC}"
         else
             echo -e "${YELLOW}Warning - dependency issues${NC}"
-            log_verbose "Some dependency conflicts detected"
+            log_verbose "Some dependency conflicts detected - may cause CI issues"
+            
+            # Show specific conflicts in verbose mode
+            if [[ "$VERBOSE" == true ]]; then
+                log_verbose "Running detailed dependency check..."
+                python -m pip check 2>/dev/null || log_verbose "Dependency conflicts exist"
+            fi
         fi
     else
         log_verbose "pyproject.toml not found"
@@ -533,8 +602,24 @@ validate_python() {
     # Check requirements.txt
     if [ -f "requirements.txt" ]; then
         echo -n "    requirements.txt: "
-        echo -e "${GREEN}Found${NC}"
-        log_verbose "requirements.txt found with $(wc -l < requirements.txt) lines"
+        if [[ -s "requirements.txt" ]]; then
+            echo -e "${GREEN}Found${NC}"
+            local req_count=$(wc -l < requirements.txt)
+            log_verbose "requirements.txt found with $req_count lines"
+            
+            # Check for common problematic packages
+            if [[ "$VERBOSE" == true ]]; then
+                if grep -q "tensorflow\|torch" requirements.txt; then
+                    log_verbose "⚠ Large ML packages detected - may slow CI builds"
+                fi
+                if grep -q "==.*dev\|==.*alpha\|==.*beta" requirements.txt; then
+                    log_verbose "⚠ Development/pre-release packages detected"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}Empty${NC}"
+            log_verbose "requirements.txt exists but is empty"
+        fi
     else
         log_verbose "requirements.txt not found"
     fi
@@ -542,6 +627,158 @@ validate_python() {
     # Check setup.py (legacy)
     if [ -f "setup.py" ]; then
         log_verbose "setup.py found (legacy setup)"
+    fi
+    
+    # NEW: Dependency installation validation  
+    echo -n "    Dependency completeness: "
+    log_verbose "Checking if all code dependencies are in requirements.txt"
+    if python -c "
+import sys
+sys.path.insert(0, 'src')
+import ast
+import os
+from pathlib import Path
+
+# Common standard library modules that don't need to be in requirements.txt
+STDLIB_MODULES = {
+    'asyncio', 'json', 'logging', 'datetime', 'pathlib', 'typing', 'os', 'sys',
+    'time', 'uuid', 'tempfile', 'subprocess', 'collections', 'contextlib',
+    'functools', 'itertools', 're', 'socket', 'ssl', 'urllib', 'http', 'email',
+    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum'
+}
+
+def get_imports_from_file(file_path):
+    '''Extract imports from a Python file'''
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            tree = ast.parse(f.read())
+        
+        imports = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    imports.add(name.name.split('.')[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.add(node.module.split('.')[0])
+        return imports
+    except:
+        return set()
+
+# Find all Python files in src/
+src_dir = Path('src')
+all_imports = set()
+
+for py_file in src_dir.rglob('*.py'):
+    if '__pycache__' not in str(py_file):
+        file_imports = get_imports_from_file(py_file)
+        all_imports.update(file_imports)
+
+# Filter out standard library and local modules
+external_imports = {imp for imp in all_imports 
+                   if imp not in STDLIB_MODULES 
+                   and not imp.startswith('homepot_client')
+                   and not imp.startswith('tests')
+                   and not imp.startswith('src')}
+
+# Check what's in requirements.txt
+try:
+    with open('requirements.txt', 'r') as f:
+        req_content = f.read().lower()
+    
+    missing_deps = []
+    for imp in external_imports:
+        # Check various forms (package name might differ from import name)
+        if (imp.lower() not in req_content and 
+            imp.replace('_', '-').lower() not in req_content and
+            imp.replace('-', '_').lower() not in req_content):
+            missing_deps.append(imp)
+    
+    if missing_deps:
+        print(f'⚠ Potential missing dependencies: {missing_deps}')
+        exit(1)
+    else:
+        print('✓ All external imports appear to be in requirements.txt')
+        exit(0)
+        
+except Exception as e:
+    print(f'⚠ Could not validate dependencies: {e}')
+    exit(1)
+" >/dev/null 2>&1; then
+        echo -e "${GREEN}Complete${NC}"
+        log_verbose "All external imports found in requirements.txt"
+    else
+        echo -e "${YELLOW}Warnings${NC}"
+        log_verbose "Some external imports may be missing from requirements.txt"
+        if [[ "$VERBOSE" == true ]]; then
+            # Run the check again to show the actual warnings
+            python -c "
+import sys
+sys.path.insert(0, 'src')
+import ast
+import os
+from pathlib import Path
+
+STDLIB_MODULES = {
+    'asyncio', 'json', 'logging', 'datetime', 'pathlib', 'typing', 'os', 'sys',
+    'time', 'uuid', 'tempfile', 'subprocess', 'collections', 'contextlib',
+    'functools', 'itertools', 're', 'socket', 'ssl', 'urllib', 'http', 'email',
+    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum'
+}
+
+def get_imports_from_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            tree = ast.parse(f.read())
+        imports = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    imports.add(name.name.split('.')[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.add(node.module.split('.')[0])
+        return imports
+    except:
+        return set()
+
+src_dir = Path('src')
+all_imports = set()
+for py_file in src_dir.rglob('*.py'):
+    if '__pycache__' not in str(py_file):
+        file_imports = get_imports_from_file(py_file)
+        all_imports.update(file_imports)
+
+external_imports = {imp for imp in all_imports 
+                   if imp not in STDLIB_MODULES 
+                   and not imp.startswith('homepot_client')
+                   and not imp.startswith('tests')
+                   and not imp.startswith('src')}
+
+try:
+    with open('requirements.txt', 'r') as f:
+        req_content = f.read().lower()
+    
+    missing_deps = []
+    for imp in external_imports:
+        if (imp.lower() not in req_content and 
+            imp.replace('_', '-').lower() not in req_content and
+            imp.replace('-', '_').lower() not in req_content):
+            missing_deps.append(imp)
+    
+    if missing_deps:
+        print(f'Missing from requirements.txt: {missing_deps}')
+        
+except Exception as e:
+    print(f'Error checking dependencies: {e}')
+" 2>/dev/null | while read -r line; do
+                log_verbose "  $line"
+            done
+        fi
+    fi
+    
+    if [[ "$failed" == true ]]; then
+        return 1
     fi
     
     return 0
@@ -660,11 +897,131 @@ validate_tests() {
         fi
     fi
     
-    # Check if we have additional test files
+    # NEW: Integration test fixture validation
+    echo -n "    Integration test fixtures: "
     if [ -f "tests/test_homepot_integration.py" ]; then
-        echo -n "    Integration test file: "
-        echo -e "${GREEN}Found${NC}"
-        log_verbose "Integration test file available"
+        log_verbose "Checking integration test fixture dependencies"
+        # Test if integration tests can import properly (without running full tests)
+        if python -c "
+import sys
+sys.path.insert(0, 'src')
+try:
+    # Test basic imports that integration tests need
+    from homepot_client.main import app
+    from fastapi.testclient import TestClient
+    
+    # Test that we can create a test client (basic fixture functionality)
+    test_client = TestClient(app)
+    
+    # Check if pytest can find the fixture by testing collection
+    import subprocess
+    result = subprocess.run([
+        sys.executable, '-m', 'pytest', 
+        'tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
+        '--collect-only', '-q'
+    ], capture_output=True, text=True, cwd='.')
+    
+    if 'no tests ran' not in result.stdout and result.returncode == 0:
+        print('✓ Integration test fixtures available')
+        exit(0)
+    else:
+        print('✗ Integration test collection failed')
+        exit(1)
+        
+except ImportError as e:
+    print(f'✗ Integration fixture import failed: {e}')
+    exit(1)
+except Exception as e:
+    print(f'✗ Integration fixture error: {e}')
+    exit(1)
+" >/dev/null 2>&1; then
+            echo -e "${GREEN}Available${NC}"
+            log_verbose "Integration test fixtures properly configured"
+        else
+            echo -e "${RED}Missing/Broken${NC}"
+            log_verbose "Integration test fixtures have issues - may cause CI failures"
+            failed=true
+        fi
+    else
+        echo -e "${YELLOW}Not found${NC}"
+        log_verbose "No integration tests found"
+    fi
+    
+    # NEW: App startup validation (critical for health checks)
+    echo -n "    App startup validation: "
+    log_verbose "Testing FastAPI application startup and lifespan events"
+    if python -c "
+import sys
+sys.path.insert(0, 'src')
+try:
+    from homepot_client.main import app
+    from fastapi.testclient import TestClient
+    
+    # Test that app can start
+    client = TestClient(app)
+    
+    # Test critical endpoints that depend on startup
+    health_response = client.get('/health')
+    root_response = client.get('/')
+    
+    # Check if we get expected errors or successes
+    if health_response.status_code in [200, 503] and root_response.status_code == 200:
+        print('✓ FastAPI app starts and responds properly')
+        exit(0)
+    else:
+        print(f'✗ App responses unexpected: health={health_response.status_code}, root={root_response.status_code}')
+        exit(1)
+        
+except Exception as e:
+    print(f'✗ App startup failed: {e}')
+    exit(1)
+" >/dev/null 2>&1; then
+        echo -e "${GREEN}Passed${NC}"
+        log_verbose "FastAPI application starts successfully"
+    else
+        echo -e "${RED}Failed${NC}"
+        log_verbose "FastAPI application fails to start properly - will cause test failures"
+        failed=true
+    fi
+    
+    # NEW: Integration test compatibility validation
+    echo -n "    Integration test compatibility: "
+    log_verbose "Testing if integration tests can run without 503 errors"
+    if python -c "
+import sys
+sys.path.insert(0, 'src')
+try:
+    # Test integration tests using pytest (which uses our fixtures)
+    import subprocess
+    result = subprocess.run([
+        sys.executable, '-m', 'pytest', 
+        'tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
+        '-v', '--no-cov', '--tb=no'
+    ], capture_output=True, text=True, cwd='.')
+    
+    if result.returncode == 0 and 'PASSED' in result.stdout:
+        print('✓ Integration tests pass with proper fixtures')
+        exit(0)
+    elif 'FAILED' in result.stdout and '503' in result.stdout:
+        print('✗ Integration tests fail with 503 errors - client dependency issues')
+        exit(1)
+    elif 'FAILED' in result.stdout:
+        print('✗ Integration tests fail for other reasons')
+        exit(1)
+    else:
+        print('✗ Integration test run had unexpected results')
+        exit(1)
+        
+except Exception as e:
+    print(f'✗ Integration test compatibility check failed: {e}')
+    exit(1)
+" >/dev/null 2>&1; then
+        echo -e "${GREEN}Compatible${NC}"
+        log_verbose "Integration tests work properly with fixtures"
+    else
+        echo -e "${RED}Issues${NC}"
+        log_verbose "Integration tests likely to fail - check test fixtures and dependencies"
+        failed=true
     fi
     
     # Quick smoke test - basic import check
@@ -697,6 +1054,20 @@ except Exception as e:
     else
         echo -e "${YELLOW}Missing${NC}"
         log_verbose "Database file not found at data/homepot.db - may need setup"
+    fi
+    
+    # NEW: Full test suite smoke test (optional but valuable)
+    if [[ "$VERBOSE" == true ]]; then
+        echo -n "    Full test collection: "
+        log_verbose "Testing if pytest can collect all tests without errors"
+        if python -m pytest --collect-only -q >/dev/null 2>&1; then
+            echo -e "${GREEN}Valid${NC}"
+            local test_count=$(python -m pytest --collect-only -q 2>/dev/null | grep "<" | wc -l)
+            log_verbose "Found $test_count tests that can be collected"
+        else
+            echo -e "${YELLOW}Issues${NC}"
+            log_verbose "Some tests have collection issues - may cause CI failures"
+        fi
     fi
     
     if [[ "$failed" == true ]]; then

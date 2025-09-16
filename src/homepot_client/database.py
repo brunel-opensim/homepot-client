@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class DatabaseService:
     """Async database service for HOMEPOT operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize database service."""
         settings = get_settings()
 
@@ -54,7 +54,7 @@ class DatabaseService:
 
         self._initialized = False
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database schema."""
         if self._initialized:
             return
@@ -70,7 +70,7 @@ class DatabaseService:
             logger.error(f"Failed to initialize database: {e}")
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connections."""
         await self.engine.dispose()
         logger.info("Database connections closed")
@@ -396,7 +396,7 @@ async def get_database_service() -> DatabaseService:
     return _db_service
 
 
-async def close_database_service():
+async def close_database_service() -> None:
     """Close database service."""
     global _db_service
     if _db_service is not None:

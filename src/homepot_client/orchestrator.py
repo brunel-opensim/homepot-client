@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from homepot_client.config import get_settings
 from homepot_client.database import get_database_service
-from homepot_client.models import Job, JobPriority, JobStatus
+from homepot_client.models import Device, Job, JobPriority, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class PushNotification:
 class JobOrchestrator:
     """Orchestrator for managing and executing device jobs."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize job orchestrator."""
         self.settings = get_settings()
         self._running = False
@@ -71,7 +71,7 @@ class JobOrchestrator:
         self._active_jobs: Dict[str, Job] = {}
         self._worker_tasks: List[asyncio.Task] = []
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the job orchestrator."""
         if self._running:
             return
@@ -86,7 +86,7 @@ class JobOrchestrator:
 
         logger.info(f"Job orchestrator started with {num_workers} workers")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the job orchestrator."""
         if not self._running:
             return
@@ -218,7 +218,7 @@ class JobOrchestrator:
             "error_message": job.error_message,
         }
 
-    async def _worker(self, worker_name: str):
+    async def _worker(self, worker_name: str) -> None:
         """Worker task for processing jobs from the queue."""
         logger.info(f"Job worker {worker_name} started")
 
@@ -239,7 +239,7 @@ class JobOrchestrator:
 
         logger.info(f"Job worker {worker_name} stopped")
 
-    async def _process_job(self, job: Job, worker_name: str):
+    async def _process_job(self, job: Job, worker_name: str) -> None:
         """Process a single job (Step 3 from scenario: Orchestrator sends push)."""
         logger.info(f"Worker {worker_name} processing job {job.job_id}")
 
@@ -366,49 +366,57 @@ class JobOrchestrator:
             )
 
     async def _send_push_notification(
-        self, device, push_notification: PushNotification
+        self, device: Device, push_notification: PushNotification
     ) -> bool:
-        """Send push notification to a device using the agent manager.
+        """Send push notification to a device using the new modular push system.
 
-        This now uses the realistic agent simulation instead of basic simulation.
+        This uses the new modular push notification system with fallback to simulation.
         """
         try:
-            # Import here to avoid circular imports
-            from homepot_client.agents import get_agent_manager
+            # Import modular push notification system
+            from .push_notifications.base import PushNotificationPayload, PushPriority
+            from .push_notifications.factory import get_fallback_provider
 
-            agent_manager = await get_agent_manager()
-
-            # Prepare notification data for the agent
-            notification_data = {
-                "action": "config_update",  # Fixed constant action value
-                "data": {
+            # Create standardized payload from the orchestrator notification
+            payload = PushNotificationPayload(
+                title=f"Configuration Update {push_notification.version}",
+                body=f"New configuration available for {device.device_id}",
+                data={
                     "config_url": push_notification.config_url,
                     "config_version": push_notification.version,
                     "priority": push_notification.priority,
                 },
-                "collapse_key": push_notification.collapse_key,
-                "time_to_live": push_notification.ttl_sec,  # Fixed attribute name
-            }
-
-            # Send to agent and get response
-            response = await agent_manager.send_push_notification(
-                device.device_id, notification_data
+                priority=(
+                    PushPriority.HIGH
+                    if push_notification.priority == "high"
+                    else PushPriority.NORMAL
+                ),
+                collapse_key=push_notification.collapse_key,
+                ttl_seconds=push_notification.ttl_sec,
             )
 
-            if response and response.get("status") == "success":
+            # Try to get the best available provider (simulation as fallback)
+            provider = await get_fallback_provider(["fcm_linux", "simulation"])
+
+            if not provider:
+                logger.error(
+                    f"No push notification providers available for {device.device_id}"
+                )
+                return False
+
+            # Send notification through the modular system
+            result = await provider.send_notification(str(device.device_id), payload)
+
+            if result.success:
                 logger.debug(
-                    f"Push notification successful to {device.device_id}: "
-                    f"{response.get('message', 'OK')}"
+                    f"Push notification successful to {device.device_id} via "
+                    f"{result.platform}: {result.message}"
                 )
                 return True
             else:
-                error_msg = (
-                    response.get("message", "Unknown error")
-                    if response
-                    else "No response from agent"
-                )
                 logger.warning(
-                    f"Push notification failed to {device.device_id}: {error_msg}"
+                    f"Push notification failed to {device.device_id} via "
+                    f"{result.platform}: {result.message} (Error: {result.error_code})"
                 )
                 return False
 
@@ -466,7 +474,7 @@ async def get_job_orchestrator() -> JobOrchestrator:
     return _orchestrator
 
 
-async def stop_job_orchestrator():
+async def stop_job_orchestrator() -> None:
     """Stop job orchestrator."""
     global _orchestrator
     if _orchestrator is not None:
