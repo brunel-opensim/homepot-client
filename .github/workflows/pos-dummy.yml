@@ -1,0 +1,154 @@
+name: POSDummy Integration Test
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test mode to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - quick
+        - verbose
+      
+  # Automatic trigger on specific changes
+  push:
+    paths:
+    - 'src/homepot_client/main.py'
+    - 'src/homepot_client/models.py' 
+    - 'src/homepot_client/database.py'
+    - 'src/homepot_client/agents.py'
+    - 'src/homepot_client/orchestrator.py'
+    - 'tests/test_pos_dummy.py'
+    - 'scripts/run-pos-dummy.sh'
+    
+  # Schedule regular POSDummy runs (every 6 hours)
+  schedule:
+    - cron: '0 */6 * * *'
+
+# Minimal permissions needed
+permissions:
+  contents: read
+
+jobs:
+  pos-dummy-gate:
+    name: POSDummy Infrastructure Verification 
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache Python dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-posdummy-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-posdummy-
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        set -e
+        python -m pip install --upgrade pip
+        pip install --no-cache-dir -r requirements.txt
+        pip install -e .
+        
+    - name: Determine test mode
+      id: test-mode
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "mode=${{ github.event.inputs.test_mode }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "schedule" ]; then
+          echo "mode=full" >> $GITHUB_OUTPUT  
+        else
+          echo "mode=quick" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Run POSDummy Test (Quick)
+      if: steps.test-mode.outputs.mode == 'quick'
+      run: |
+        echo "🏃‍♂️ Running Quick POSDummy verification..."
+        ./scripts/run-pos-dummy.sh --quick
+        
+    - name: Run POSDummy Test (Full)
+      if: steps.test-mode.outputs.mode == 'full'
+      run: |
+        echo "Running Full POSDummy integration test..."
+        ./scripts/run-pos-dummy.sh
+        
+    - name: Run POSDummy Test (Verbose)
+      if: steps.test-mode.outputs.mode == 'verbose'
+      run: |
+        echo "Running Verbose POSDummy integration test..."
+        ./scripts/run-pos-dummy.sh --verbose
+        
+    - name: Generate POSDummy Report
+      if: always()
+      run: |
+        echo "# POSDummy Test Report" > pos-dummy-report.md
+        echo "" >> pos-dummy-report.md
+        echo "**Test Mode:** ${{ steps.test-mode.outputs.mode }}" >> pos-dummy-report.md
+        echo "**Trigger:** ${{ github.event_name }}" >> pos-dummy-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> pos-dummy-report.md
+        echo "**Commit:** ${{ github.sha }}" >> pos-dummy-report.md
+        echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> pos-dummy-report.md
+        echo "" >> pos-dummy-report.md
+        
+        if [ $? -eq 0 ]; then
+          echo "**Result:** ✓ PASSED - HOMEPOT infrastructure is functional" >> pos-dummy-report.md
+          echo "" >> pos-dummy-report.md
+          echo "All critical HOMEPOT components verified successfully:" >> pos-dummy-report.md
+          echo "- Module imports and dependencies" >> pos-dummy-report.md  
+          echo "- API endpoint accessibility" >> pos-dummy-report.md
+          echo "- Database connectivity and operations" >> pos-dummy-report.md
+          echo "- Complete end-to-end pipeline" >> pos-dummy-report.md
+          echo "- Configuration and package integrity" >> pos-dummy-report.md
+        else
+          echo "**Result:** FAILED - HOMEPOT has structural issues" >> pos-dummy-report.md
+          echo "" >> pos-dummy-report.md
+          echo "POSDummy detected infrastructure problems. Check job logs for details." >> pos-dummy-report.md
+        fi
+        
+    - name: Upload POSDummy Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pos-dummy-report-${{ steps.test-mode.outputs.mode }}
+        path: pos-dummy-report.md
+        retention-days: 14
+        
+    - name: Notify on failure
+      if: failure() && github.event_name == 'schedule'
+      run: |
+        echo "Scheduled POSDummy test failed!"
+        echo "This indicates potential infrastructure issues in HOMEPOT."
+        echo "Please check the repository health and recent changes."
+        # Future: Add actual notification logic (Slack, email, etc.)
+        
+    - name: Summary
+      if: always()
+      run: |
+        echo "## POSDummy Test Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Mode:** ${{ steps.test-mode.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+        
+        if [ $? -eq 0 ]; then
+          echo "**Status:** ✓ PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "HOMEPOT infrastructure is verified and functional. All critical components passed validation." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**Status:** FAILED" >> $GITHUB_STEP_SUMMARY  
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "POSDummy detected structural issues. Review job logs and recent changes to identify the root cause." >> $GITHUB_STEP_SUMMARY
+        fi

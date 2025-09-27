@@ -176,3 +176,32 @@ docker-compose.override.yml
 temp/
 tmp/
 logs/
+
+# Database files - keep demo database, ignore test/temporary ones
+data/homepot_test.db
+data/homepot_backup*.db
+data/temp_*.db
+data/*.tmp
+data/*.db-wal
+data/*.db-shm
+
+# Keep the main demo database
+!data/homepot.db
+
+# GitHub Workflows - Downloaded artifacts and reports
+dependency-health-report-*/
+security-audit-report-*/
+workflow-artifacts-*/
+test-results-*/
+
+# Backup files created by upgrade processes
+backup-requirements.txt
+pre-upgrade-freeze.txt
+test-upgrade/
+test-major-upgrade/
+
+# Dependency analysis temporary files
+outdated.txt
+security-audit.json
+pipdeptree-output.txt
+

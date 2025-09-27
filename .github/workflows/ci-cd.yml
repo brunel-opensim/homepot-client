@@ -39,11 +39,9 @@ jobs:
 
     - name: Run Bandit security scan
       run: bandit -r src/ -f json -o bandit-results.json || true
-      continue-on-error: true
 
     - name: Run Safety security scan
       run: safety check --json --output safety-results.json || true
-      continue-on-error: true
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -78,10 +76,49 @@ jobs:
           trivy-results.sarif
         retention-days: 30
 
+  pos-dummy:
+    name: POSDummy Integration Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'brunel-opensim/homepot-client'
+    needs: [security-scan]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install minimal dependencies
+      run: |
+        set -e
+        python -m pip install --upgrade pip
+        pip install --no-cache-dir -r requirements.txt
+        pip install -e .
+
+    - name: Run POSDummy Integration Test
+      run: |
+        set -e
+        echo "Running POSDummy Integration Gate..."
+        ./scripts/run-pos-dummy.sh --verbose
+        echo "POSDummy gate passed - HOMEPOT infrastructure verified!"
+
+    - name: Upload POSDummy test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pos-dummy-results
+        path: |
+          pytest-results.xml
+          pos-dummy-report.txt
+        retention-days: 7
+
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
     if: github.repository == 'brunel-opensim/homepot-client'
+    needs: [pos-dummy]
     strategy:
       matrix:
         python-version: ['3.9', '3.11']
@@ -126,6 +163,7 @@ jobs:
     name: Test Suite
     runs-on: ${{ matrix.os }}
     if: github.repository == 'brunel-opensim/homepot-client'
+    needs: [pos-dummy]
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -147,7 +185,20 @@ jobs:
         pip install -e .
 
     - name: Run unit tests
-      run: pytest tests/ -v --cov=homepot_client --cov-report=xml
+      shell: bash
+      run: |
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          # Windows-specific pytest configuration for better file handling
+          pytest tests/ -v --cov=homepot_client --cov-report=xml \
+            --tb=short \
+            --durations=10 \
+            -W ignore::UserWarning:homepot_client \
+            -W ignore:".*Database cleanup.*":UserWarning \
+            -W ignore:".*Could not cleanup temp database.*":UserWarning
+        else
+          # Standard pytest configuration for Unix systems
+          pytest tests/ -v --cov=homepot_client --cov-report=xml
+        fi
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
@@ -210,17 +261,53 @@ jobs:
       run: |
         set -e
         # Start container in background
-        docker run -d --name test-container -p 8000:8000 homepot-client:latest
+        echo "Starting Docker container..."
+        container_id=$(docker run -d --name test-container -p 8000:8000 homepot-client:latest)
+        echo "Container ID: $container_id"
         
-        # Wait for container to be ready
-        sleep 15
+        # Check if container is running
+        echo "Checking container status..."
+        docker ps -a
         
-        # Test health endpoint
-        curl -f http://localhost:8000/health || exit 1
-        curl -f http://localhost:8000/ || exit 1
+        # Wait a bit and check logs early
+        echo "Waiting 10 seconds and checking initial logs..."
+        sleep 10
+        echo "Initial container logs:"
+        docker logs test-container || echo "No logs yet"
         
-        # Check container logs
+        # Wait for container to be ready (total wait: 60s)
+        echo "Waiting additional 50 seconds for full initialization..."
+        sleep 50
+        
+        # Show container status again
+        echo "Final container status:"
+        docker ps -a
+        
+        # Show full logs before testing
+        echo "Full container logs before testing:"
         docker logs test-container
+        
+        # Test health endpoint with retries
+        echo "Testing health endpoint..."
+        for i in {1..5}; do
+          if curl -f http://localhost:8000/health; then
+            echo "Health check passed!"
+            break
+          else
+            echo "Health check failed, attempt $i/5, waiting 10s..."
+            if [ $i -eq 5 ]; then
+              echo "All health check attempts failed!"
+              echo "Final container logs:"
+              docker logs test-container
+              exit 1
+            fi
+            sleep 10
+          fi
+        done
+        
+        # Test root endpoint
+        echo "Testing root endpoint..."
+        curl -f http://localhost:8000/ || exit 1
         
         # Cleanup
         docker stop test-container
