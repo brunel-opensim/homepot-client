@@ -1,14 +1,38 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Any, Dict
 from datetime import datetime
 import logging
+from homepot_client.client import HomepotClient
+from typing import Any, AsyncIterator, Dict, List, Optional
+import asyncio
+from pydantic import BaseModel
+from homepot_client.database import close_database_service, get_database_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+client_instance: Optional[HomepotClient] = None
 
+class SiteHealthResponse(BaseModel):
+    """Response model for site health status."""
+
+    site_id: str
+    total_devices: int
+    healthy_devices: int
+    offline_devices: int
+    error_devices: int
+    health_percentage: float
+    status_summary: str
+    devices: List[Dict]
+    last_updated: str
+
+def get_client() -> HomepotClient:
+    """Dependency to get the client instance."""
+    if client_instance is None:
+        raise HTTPException(status_code=503, detail="Client not available")
+    return client_instance
 
 @router.get("/health", tags=["Health"])
 async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str, Any]:
@@ -30,7 +54,7 @@ async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str,
             "error": str(e),
             "timestamp": asyncio.get_event_loop().time(),
         }
-@app.get("/sites/{site_id}/health", tags=["Health"], response_model=SiteHealthResponse)
+@router.get("/sites/{site_id}/health", tags=["Health"], response_model=SiteHealthResponse)
 async def get_site_health(site_id: str) -> SiteHealthResponse:
     """Get site health status (Step 5: '5/5 terminals healthy')."""
     try:
@@ -151,7 +175,7 @@ async def get_device_health(device_id: str) -> Dict[str, Any]:
     
 
 
-@router.post("/devices/{device_id}/health", tags=["Health"])
+@router.post("/devices/{device_id}/health")
 async def trigger_health_check(device_id: str) -> Dict[str, Any]:
     """Trigger an immediate health check for a device."""
     try:
