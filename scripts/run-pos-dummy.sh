@@ -157,7 +157,7 @@ run_full_posdummy() {
     log_info "Running Full POSDummy Integration Test..."
     
     # Prepare pytest command
-    local cmd="python -m pytest tests/test_pos_dummy.py --tb=short --no-cov"
+    local cmd="python3 -m pytest tests/test_pos_dummy.py --tb=short --no-cov"
     
     if $VERBOSE; then
         cmd="$cmd -v --capture=no -s"
