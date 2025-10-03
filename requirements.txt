@@ -24,6 +24,7 @@ websockets>=12.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+email-validator>=2.1.0  # For EmailStr validation in Pydantic models
 
 # Push Notifications
 aiohttp>=3.9.0  # For HTTP requests in push notifications

@@ -7,6 +7,7 @@ exposing REST API endpoints for device management and monitoring.
 
 import asyncio
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -15,13 +16,15 @@ from fastapi import (
     Depends,
     FastAPI,
     HTTPException,
+    Query,
     Request,
     WebSocket,
     WebSocketDisconnect,
+    status,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 from homepot_client.agents import get_agent_manager, stop_agent_manager
 from homepot_client.audit import AuditEventType, get_audit_logger
@@ -240,6 +243,112 @@ class CreateDeviceRequest(BaseModel):
         }
 
 
+# User Management Pydantic Models
+class UserCreateRequest(BaseModel):
+    """Request model for creating a new user."""
+    
+    username: str = Field(..., min_length=3, max_length=50, description="Unique username")
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=8, description="User password")
+    is_admin: bool = Field(default=False, description="Whether user has admin privileges")
+
+    class Config:
+        """Pydantic model configuration with example data."""
+        json_schema_extra = {
+            "example": {
+                "username": "john_doe",
+                "email": "john.doe@example.com",
+                "password": "securepassword123",
+                "is_admin": False
+            }
+        }
+
+
+class UserUpdateRequest(BaseModel):
+    """Request model for updating user information."""
+    
+    username: Optional[str] = Field(None, min_length=3, max_length=50, description="New username")
+    email: Optional[EmailStr] = Field(None, description="New email address")
+    password: Optional[str] = Field(None, min_length=8, description="New password")
+    is_active: Optional[bool] = Field(None, description="User active status")
+    is_admin: Optional[bool] = Field(None, description="Admin privileges")
+
+    class Config:
+        """Pydantic model configuration with example data."""
+        json_schema_extra = {
+            "example": {
+                "username": "john_doe_updated",
+                "email": "john.doe.new@example.com",
+                "is_active": True,
+                "is_admin": False
+            }
+        }
+
+
+class UserResponse(BaseModel):
+    """Response model for user information."""
+    
+    id: int
+    username: str
+    email: str
+    api_key: Optional[str] = None
+    is_active: bool
+    is_admin: bool
+    created_at: str
+    updated_at: str
+
+    class Config:
+        """Pydantic model configuration."""
+        from_attributes = True
+
+
+class UserListResponse(BaseModel):
+    """Response model for user list."""
+    
+    users: List[UserResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class UserCreateResponse(BaseModel):
+    """Response model for user creation."""
+    
+    message: str
+    user: UserResponse
+    api_key: str
+
+
+class PasswordChangeRequest(BaseModel):
+    """Request model for password change."""
+    
+    current_password: str = Field(..., description="Current password")
+    new_password: str = Field(..., min_length=8, description="New password")
+
+    class Config:
+        """Pydantic model configuration with example data."""
+        json_schema_extra = {
+            "example": {
+                "current_password": "oldpassword123",
+                "new_password": "newpassword456"
+            }
+        }
+
+
+class ApiKeyGenerateRequest(BaseModel):
+    """Request model for API key generation."""
+    
+    description: Optional[str] = Field(None, description="Description for the API key")
+
+    class Config:
+        """Pydantic model configuration with example data."""
+        json_schema_extra = {
+            "example": {
+                "description": "API key for mobile app"
+            }
+        }
+
+
 # Create FastAPI application
 app = FastAPI(
     title="HOMEPOT Client API",
@@ -265,6 +374,34 @@ def get_client() -> HomepotClient:
     if client_instance is None:
         raise HTTPException(status_code=503, detail="Client not available")
     return client_instance
+
+
+# User Management Utility Functions
+def hash_password(password: str) -> str:
+    """Hash a password using a simple approach (in production, use bcrypt or similar)."""
+    import hashlib
+    
+    salt = secrets.token_hex(16)
+    password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    return f"{salt}:{password_hash.hex()}"
+
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash."""
+    import hashlib
+    
+    try:
+        salt, password_hash = hashed_password.split(':')
+        password_hash_bytes = bytes.fromhex(password_hash)
+        computed_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+        return computed_hash == password_hash_bytes
+    except (ValueError, TypeError):
+        return False
+
+
+def generate_api_key() -> str:
+    """Generate a secure API key."""
+    return f"hp_{secrets.token_urlsafe(32)}"
 
 
 @app.get("/", tags=["Root"])
@@ -960,6 +1097,487 @@ async def get_audit_event_types() -> Dict[str, Any]:
 
 
 @app.get("/version", tags=["Client"])
+async def get_version(client: HomepotClient = Depends(get_client)) -> Dict[str, str]:
+    """Get the client version information."""
+    try:
+        version = client.get_version()
+        return {"version": version}
+    except Exception as e:
+        logger.error(f"Version check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get version: {e}")
+
+
+# User Management API Endpoints
+
+@app.post("/users", response_model=UserCreateResponse, status_code=status.HTTP_201_CREATED, tags=["Users"])
+async def create_user(user_request: UserCreateRequest) -> UserCreateResponse:
+    """Create a new user account."""
+    try:
+        db_service = await get_database_service()
+        
+        # Check if username already exists
+        existing_user = await db_service.get_user_by_username(user_request.username)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Username '{user_request.username}' already exists"
+            )
+        
+        # Check if email already exists
+        existing_email = await db_service.get_user_by_email(user_request.email)
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Email '{user_request.email}' already exists"
+            )
+        
+        # Hash password and generate API key
+        hashed_password = hash_password(user_request.password)
+        api_key = generate_api_key()
+        
+        # Create user
+        user = await db_service.create_user(
+            username=user_request.username,
+            email=user_request.email,
+            hashed_password=hashed_password,
+            api_key=api_key,
+            is_admin=user_request.is_admin
+        )
+        
+        # Log audit event
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.USER_CREATED,
+            f"User '{user.username}' created successfully",
+            user_id=int(user.id),
+            new_values={
+                "username": user.username,
+                "email": user.email,
+                "is_admin": user.is_admin,
+                "is_active": user.is_active
+            }
+        )
+        
+        logger.info(f"Created user {user.username} with ID {user.id}")
+        
+        return UserCreateResponse(
+            message=f"User '{user.username}' created successfully",
+            user=UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                api_key=user.api_key,
+                is_active=user.is_active,
+                is_admin=user.is_admin,
+                created_at=user.created_at.isoformat(),
+                updated_at=user.updated_at.isoformat()
+            ),
+            api_key=api_key
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create user: {e}"
+        )
+
+
+@app.get("/users", response_model=UserListResponse, tags=["Users"])
+async def list_users(
+    limit: int = Query(50, ge=1, le=100, description="Number of users to return"),
+    offset: int = Query(0, ge=0, description="Number of users to skip")
+) -> UserListResponse:
+    """List all users with pagination."""
+    try:
+        db_service = await get_database_service()
+        
+        users = await db_service.list_users(limit=limit, offset=offset)
+        
+        user_responses = []
+        for user in users:
+            user_responses.append(UserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                api_key=user.api_key,
+                is_active=user.is_active,
+                is_admin=user.is_admin,
+                created_at=user.created_at.isoformat(),
+                updated_at=user.updated_at.isoformat()
+            ))
+        
+        return UserListResponse(
+            users=user_responses,
+            total=len(user_responses),
+            limit=limit,
+            offset=offset
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to list users: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list users: {e}"
+        )
+
+
+@app.get("/users/{user_id}", response_model=UserResponse, tags=["Users"])
+async def get_user(user_id: int) -> UserResponse:
+    """Get a specific user by ID."""
+    try:
+        db_service = await get_database_service()
+        
+        user = await db_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        return UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            api_key=user.api_key,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            created_at=user.created_at.isoformat(),
+            updated_at=user.updated_at.isoformat()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user: {e}"
+        )
+
+
+@app.put("/users/{user_id}", response_model=UserResponse, tags=["Users"])
+async def update_user(user_id: int, user_request: UserUpdateRequest) -> UserResponse:
+    """Update user information."""
+    try:
+        db_service = await get_database_service()
+        
+        # Check if user exists
+        user = await db_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Check for username conflicts
+        if user_request.username and user_request.username != user.username:
+            existing_user = await db_service.get_user_by_username(user_request.username)
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Username '{user_request.username}' already exists"
+                )
+        
+        # Check for email conflicts
+        if user_request.email and user_request.email != user.email:
+            existing_email = await db_service.get_user_by_email(user_request.email)
+            if existing_email:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Email '{user_request.email}' already exists"
+                )
+        
+        # Prepare update data
+        update_data = {}
+        if user_request.username is not None:
+            update_data["username"] = user_request.username
+        if user_request.email is not None:
+            update_data["email"] = user_request.email
+        if user_request.password is not None:
+            update_data["hashed_password"] = hash_password(user_request.password)
+        if user_request.is_active is not None:
+            update_data["is_active"] = user_request.is_active
+        if user_request.is_admin is not None:
+            update_data["is_admin"] = user_request.is_admin
+        
+        # Update user
+        success = await db_service.update_user(user_id, **update_data)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update user"
+            )
+        
+        # Get updated user
+        updated_user = await db_service.get_user_by_id(user_id)
+        
+        # Log audit event
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.USER_UPDATED,
+            f"User '{updated_user.username}' updated successfully",
+            user_id=user_id,
+            old_values={
+                "username": user.username,
+                "email": user.email,
+                "is_active": user.is_active,
+                "is_admin": user.is_admin
+            },
+            new_values={
+                "username": updated_user.username,
+                "email": updated_user.email,
+                "is_active": updated_user.is_active,
+                "is_admin": updated_user.is_admin
+            }
+        )
+        
+        logger.info(f"Updated user {user_id}")
+        
+        return UserResponse(
+            id=updated_user.id,
+            username=updated_user.username,
+            email=updated_user.email,
+            api_key=updated_user.api_key,
+            is_active=updated_user.is_active,
+            is_admin=updated_user.is_admin,
+            created_at=updated_user.created_at.isoformat(),
+            updated_at=updated_user.updated_at.isoformat()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user: {e}"
+        )
+
+
+@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Users"])
+async def delete_user(user_id: int) -> None:
+    """Delete (deactivate) a user."""
+    try:
+        db_service = await get_database_service()
+        
+        # Check if user exists
+        user = await db_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Soft delete user
+        success = await db_service.delete_user(user_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete user"
+            )
+        
+        # Log audit event
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.USER_DELETED,
+            f"User '{user.username}' deleted successfully",
+            user_id=user_id,
+            old_values={
+                "username": user.username,
+                "email": user.email,
+                "is_active": user.is_active,
+                "is_admin": user.is_admin
+            }
+        )
+        
+        logger.info(f"Deleted user {user_id}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete user: {e}"
+        )
+
+
+@app.post("/users/{user_id}/change-password", status_code=status.HTTP_200_OK, tags=["Users"])
+async def change_password(user_id: int, password_request: PasswordChangeRequest) -> Dict[str, str]:
+    """Change user password."""
+    try:
+        db_service = await get_database_service()
+        
+        # Get user
+        user = await db_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Verify current password
+        if not verify_password(password_request.current_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect"
+            )
+        
+        # Update password
+        new_hashed_password = hash_password(password_request.new_password)
+        success = await db_service.update_user(user_id, hashed_password=new_hashed_password)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update password"
+            )
+        
+        # Log audit event
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.USER_PASSWORD_CHANGED,
+            f"Password changed for user '{user.username}'",
+            user_id=user_id
+        )
+        
+        logger.info(f"Password changed for user {user_id}")
+        
+        return {"message": "Password changed successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to change password for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to change password: {e}"
+        )
+
+
+@app.post("/users/{user_id}/generate-api-key", status_code=status.HTTP_200_OK, tags=["Users"])
+async def generate_api_key_endpoint(user_id: int, request: ApiKeyGenerateRequest) -> Dict[str, str]:
+    """Generate a new API key for user."""
+    try:
+        db_service = await get_database_service()
+        
+        # Get user
+        user = await db_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Generate new API key
+        new_api_key = generate_api_key()
+        
+        # Update user with new API key
+        success = await db_service.update_user(user_id, api_key=new_api_key)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate API key"
+            )
+        
+        # Log audit event
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.USER_API_KEY_GENERATED,
+            f"New API key generated for user '{user.username}'",
+            user_id=user_id,
+            event_metadata={"description": request.description}
+        )
+        
+        logger.info(f"Generated new API key for user {user_id}")
+        
+        return {
+            "message": "API key generated successfully",
+            "api_key": new_api_key
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate API key for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate API key: {e}"
+        )
+
+
+@app.get("/users/by-username/{username}", response_model=UserResponse, tags=["Users"])
+async def get_user_by_username(username: str) -> UserResponse:
+    """Get a user by username."""
+    try:
+        db_service = await get_database_service()
+        
+        user = await db_service.get_user_by_username(username)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with username '{username}' not found"
+            )
+        
+        return UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            api_key=user.api_key,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            created_at=user.created_at.isoformat(),
+            updated_at=user.updated_at.isoformat()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get user by username '{username}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user: {e}"
+        )
+
+
+@app.get("/users/by-email/{email}", response_model=UserResponse, tags=["Users"])
+async def get_user_by_email(email: str) -> UserResponse:
+    """Get a user by email."""
+    try:
+        db_service = await get_database_service()
+        
+        user = await db_service.get_user_by_email(email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with email '{email}' not found"
+            )
+        
+        return UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            api_key=user.api_key,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            created_at=user.created_at.isoformat(),
+            updated_at=user.updated_at.isoformat()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get user by email '{email}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user: {e}"
+        )
+
+
 # WebSocket endpoint for real-time status updates
 @app.websocket("/ws/status")
 async def websocket_status_endpoint(websocket: WebSocket) -> None:

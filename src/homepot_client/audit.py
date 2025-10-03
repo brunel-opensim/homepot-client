@@ -23,6 +23,11 @@ class AuditEventType(str, Enum):
     USER_LOGIN = "user_login"
     USER_LOGOUT = "user_logout"
     USER_ACTION = "user_action"
+    USER_CREATED = "user_created"
+    USER_UPDATED = "user_updated"
+    USER_DELETED = "user_deleted"
+    USER_PASSWORD_CHANGED = "user_password_changed"
+    USER_API_KEY_GENERATED = "user_api_key_generated"
 
     # Site management
     SITE_CREATED = "site_created"
