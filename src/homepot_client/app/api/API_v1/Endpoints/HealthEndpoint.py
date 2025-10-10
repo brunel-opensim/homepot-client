@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 client_instance: Optional[HomepotClient] = None
 
+
 class SiteHealthResponse(BaseModel):
     """Response model for site health status."""
 
@@ -28,11 +29,13 @@ class SiteHealthResponse(BaseModel):
     devices: List[Dict]
     last_updated: str
 
+
 def get_client() -> HomepotClient:
     """Dependency to get the client instance."""
     if client_instance is None:
         raise HTTPException(status_code=503, detail="Client not available")
     return client_instance
+
 
 @router.get("/health", tags=["Health"])
 async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str, Any]:
@@ -54,7 +57,11 @@ async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str,
             "error": str(e),
             "timestamp": asyncio.get_event_loop().time(),
         }
-@router.get("/sites/{site_id}/health", tags=["Health"], response_model=SiteHealthResponse)
+
+
+@router.get(
+    "/sites/{site_id}/health", tags=["Health"], response_model=SiteHealthResponse
+)
 async def get_site_health(site_id: str) -> SiteHealthResponse:
     """Get site health status (Step 5: '5/5 terminals healthy')."""
     try:
@@ -134,7 +141,8 @@ async def get_site_health(site_id: str) -> SiteHealthResponse:
     except Exception as e:
         logger.error(f"Failed to get site health: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get site health: {e}")
-    
+
+
 @router.get("/devices/{device_id}/health", tags=["Health"])
 async def get_device_health(device_id: str) -> Dict[str, Any]:
     """Get detailed health status of a specific device."""
@@ -172,7 +180,6 @@ async def get_device_health(device_id: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to get device health: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get device health: {e}")
-    
 
 
 @router.post("/devices/{device_id}/health")

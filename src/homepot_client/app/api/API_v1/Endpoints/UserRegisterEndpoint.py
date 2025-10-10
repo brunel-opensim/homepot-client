@@ -5,13 +5,19 @@ from sqlalchemy.orm import Session
 from homepot_client.app.models import UserRegisterModel as models
 from homepot_client.app.schemas import schemas
 from homepot_client.app.db.database import SessionLocal
-from homepot_client.app.auth_utils import hash_password, verify_password, create_access_token, require_role
+from homepot_client.app.auth_utils import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    require_role,
+)
 
 # Setup Logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 router = APIRouter()
+
 
 # Database Dependency
 def get_db():
@@ -24,11 +30,7 @@ def get_db():
 
 # Unified Response Format
 def response(success: bool, message: str, data: dict = None):
-    return {
-        "success": success,
-        "message": message,
-        "data": data or {}
-    }
+    return {"success": success, "message": message, "data": data or {}}
 
 
 @router.post("/signup", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -46,7 +48,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
             role=user.role if user.role else "User",
             created_date=datetime.utcnow(),
             updated_date=datetime.utcnow(),
-            last_login=datetime.utcnow()
+            last_login=datetime.utcnow(),
         )
 
         db.add(new_user)
@@ -58,7 +60,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
         return response(
             success=True,
             message="User registered successfully",
-            data={"access_token": create_access_token({"sub": new_user.email})}
+            data={"access_token": create_access_token({"sub": new_user.email})},
         )
 
     except Exception as e:
@@ -83,10 +85,12 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
             success=True,
             message="Login successful",
             data={
-                "access_token": create_access_token({"sub": db_user.email, "role": db_user.role}),
+                "access_token": create_access_token(
+                    {"sub": db_user.email, "role": db_user.role}
+                ),
                 "username": db_user.name,
-                "role": db_user.role
-            }
+                "role": db_user.role,
+            },
         )
 
     except HTTPException:
@@ -96,12 +100,14 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.put("/users/{user_id}/role", response_model=dict, status_code=status.HTTP_200_OK)
+@router.put(
+    "/users/{user_id}/role", response_model=dict, status_code=status.HTTP_200_OK
+)
 def assign_role(
     user_id: int,
     new_role: str,
     db: Session = Depends(get_db),
-    admin=Depends(require_role("Admin"))
+    admin=Depends(require_role("Admin")),
 ):
     try:
         db_user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -118,7 +124,7 @@ def assign_role(
         return response(
             success=True,
             message=f"Role updated to {new_role} for {db_user.email}",
-            data={"user_id": db_user.id, "email": db_user.email, "role": db_user.role}
+            data={"user_id": db_user.id, "email": db_user.email, "role": db_user.role},
         )
 
     except HTTPException:

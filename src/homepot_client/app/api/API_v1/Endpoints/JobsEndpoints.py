@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 class JobStatusResponse(BaseModel):
     """Response model for job status."""
 
@@ -35,6 +36,7 @@ class JobStatusResponse(BaseModel):
     completed_at: Optional[str] = None
     result: Optional[Dict] = None
     error_message: Optional[str] = None
+
 
 # Pydantic models for API requests/responses
 class CreateJobRequest(BaseModel):
@@ -56,6 +58,7 @@ class CreateJobRequest(BaseModel):
                 "priority": "high",
             }
         }
+
 
 @router.post("/sites/{site_id}/jobs", tags=["Jobs"], response_model=Dict[str, str])
 async def create_pos_config_job(
@@ -130,4 +133,3 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
     except Exception as e:
         logger.error(f"Failed to get job status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get job status: {e}")
-

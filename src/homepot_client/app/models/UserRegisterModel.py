@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, fun
 from sqlalchemy.orm import relationship
 from homepot_client.app.db.database import Base
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -15,5 +16,3 @@ class User(Base):
     updated_date = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
     # match_results = relationship("MatchResult", back_populates="user")  # Optional reverse relationship
-
-
