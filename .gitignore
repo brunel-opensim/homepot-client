@@ -205,3 +205,11 @@ outdated.txt
 security-audit.json
 pipdeptree-output.txt
 
+
+node_modules
+node_modules/
+ 
+/node_modules
+node_modules/.
+.vscode/settings.json
+package-lock.json

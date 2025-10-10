@@ -1,0 +1,7 @@
+:root {
+  --color-primary: #70868640; /* Teal with transparency */
+  --color-secondary: #33e2d6; /* Teal-400 */
+  --color-accent: #116f6f; /* Amber-500 */
+  --color-background: #111827; /* Gray-900 */
+  --color-text: #f9fafb; /* Gray-50 */
+}
