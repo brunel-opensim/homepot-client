@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from typing import Any, AsyncIterator, Dict, List, Optional
-import logging
 import asyncio
+import logging
+from typing import Any, AsyncIterator, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from homepot_client.client import HomepotClient
 
 client_instance: Optional[HomepotClient] = None

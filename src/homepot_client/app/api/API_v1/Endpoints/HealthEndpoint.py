@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Any, Dict
-from datetime import datetime
-import logging
-from homepot_client.client import HomepotClient
-from typing import Any, AsyncIterator, Dict, List, Optional
 import asyncio
+import logging
+from datetime import datetime
+from typing import Any, AsyncIterator, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from homepot_client.client import HomepotClient
 from homepot_client.database import close_database_service, get_database_service
 
 # Configure logging

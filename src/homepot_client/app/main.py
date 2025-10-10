@@ -2,15 +2,14 @@
 Imports for the app
 """
 
-from typing import List
-from typing import Optional
-from fastapi import FastAPI
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from jose.exceptions import ExpiredSignatureError
-from homepot_client.app.api.API_v1.Api import api_v1_router
+from typing import List, Optional
 
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from jose.exceptions import ExpiredSignatureError
+
+from homepot_client.app.api.API_v1.Api import api_v1_router
 
 # App declaration
 app = FastAPI(

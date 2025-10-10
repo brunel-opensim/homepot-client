@@ -1,11 +1,12 @@
 # db/database.py
-import os
 import logging
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import OperationalError
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()

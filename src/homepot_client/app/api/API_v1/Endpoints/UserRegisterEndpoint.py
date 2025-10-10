@@ -1,16 +1,18 @@
 import logging
 from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+
+from homepot_client.app.auth_utils import (
+    create_access_token,
+    hash_password,
+    require_role,
+    verify_password,
+)
+from homepot_client.app.db.database import SessionLocal
 from homepot_client.app.models import UserRegisterModel as models
 from homepot_client.app.schemas import schemas
-from homepot_client.app.db.database import SessionLocal
-from homepot_client.app.auth_utils import (
-    hash_password,
-    verify_password,
-    create_access_token,
-    require_role,
-)
 
 # Setup Logger
 logger = logging.getLogger(__name__)

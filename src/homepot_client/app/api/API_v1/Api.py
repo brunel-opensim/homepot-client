@@ -1,12 +1,13 @@
 from fastapi import APIRouter
+
 from .Endpoints import (
-    HealthEndpoint,
-    UIEndpoint,
-    ClientEndpoint,
-    SitesEndpoint,
-    DevicesEndpoints,
-    JobsEndpoints,
     AgentsEndpoints,
+    ClientEndpoint,
+    DevicesEndpoints,
+    HealthEndpoint,
+    JobsEndpoints,
+    SitesEndpoint,
+    UIEndpoint,
     UserRegisterEndpoint,
 )
 
