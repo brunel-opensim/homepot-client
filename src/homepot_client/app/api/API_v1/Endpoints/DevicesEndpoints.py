@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 class CreateDeviceRequest(BaseModel):
     """Request model for creating a new device."""
 
@@ -40,7 +41,10 @@ class CreateDeviceRequest(BaseModel):
             }
         }
 
-@router.post("/sites/{site_id}/devices", tags=["Devices"], response_model=Dict[str, str])
+
+@router.post(
+    "/sites/{site_id}/devices", tags=["Devices"], response_model=Dict[str, str]
+)
 async def create_device(
     site_id: str, device_request: CreateDeviceRequest
 ) -> Dict[str, str]:

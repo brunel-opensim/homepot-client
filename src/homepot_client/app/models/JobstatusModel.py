@@ -97,4 +97,3 @@ class Job(Base):
     target_device = relationship("Device", back_populates="jobs")
     created_by_user = relationship("User", back_populates="jobs")
     logs = relationship("AuditLog", back_populates="job")
-

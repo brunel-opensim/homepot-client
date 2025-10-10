@@ -3,6 +3,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 import logging
 import asyncio
 from homepot_client.client import HomepotClient
+
 client_instance: Optional[HomepotClient] = None
 
 # Configure logging
@@ -12,11 +13,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 def get_client() -> HomepotClient:
     """Dependency to get the client instance."""
     if client_instance is None:
         raise HTTPException(status_code=503, detail="Client not available")
     return client_instance
+
 
 @router.get("/agents", tags=["Agents"])
 async def list_agents() -> Dict[str, List[Dict]]:

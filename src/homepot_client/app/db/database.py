@@ -30,6 +30,7 @@ except OperationalError as e:
     logger.error("Failed to connect to the database: %s", e)
     raise
 
+
 def get_db():
     """Dependency for getting a database session (FastAPI style)."""
     db = None
@@ -42,6 +43,7 @@ def get_db():
     finally:
         if db is not None:
             db.close()
+
 
 def create_tables():
     """Create all database tables."""

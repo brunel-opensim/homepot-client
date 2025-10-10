@@ -3,6 +3,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 import logging
 import asyncio
 from homepot_client.client import HomepotClient
+
 client_instance: Optional[HomepotClient] = None
 
 # Configure logging
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
+
 
 def get_client() -> HomepotClient:
     """Dependency to get the client instance."""
@@ -35,7 +37,7 @@ async def get_status(client: HomepotClient = Depends(get_client)) -> Dict[str, A
     except Exception as e:
         logger.error(f"Status check failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get status: {e}")
-    
+
 
 @router.post("/connect", tags=["Client"])
 async def connect_client(client: HomepotClient = Depends(get_client)) -> Dict[str, str]:
@@ -49,7 +51,8 @@ async def connect_client(client: HomepotClient = Depends(get_client)) -> Dict[st
     except Exception as e:
         logger.error(f"Connect failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect: {e}")
-    
+
+
 @router.post("/disconnect", tags=["Client"])
 async def disconnect_client(
     client: HomepotClient = Depends(get_client),
