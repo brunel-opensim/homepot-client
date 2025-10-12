@@ -32,6 +32,7 @@ Push notification integrations for different platforms:
 - **[Push Notification System](push-notification.md)** - Overview and architecture
 - **[Firebase Cloud Messaging (FCM)](fcm-linux-integration.md)** - Android/Linux device push notifications
 - **[Windows Notification Service (WNS)](wns-windows-integration.md)** - Windows device push notifications
+- **[Apple Push Notification service (APNs)](apns-apple-integration.md)** - iOS/macOS/watchOS/tvOS device push notifications
 
 ## System Overview
 
@@ -71,8 +72,8 @@ Out of the box, HOMEPOT provides:
 ## Getting Help
 
 - **[GitHub Issues](https://github.com/brunel-opensim/homepot-client/issues)** - Bug reports and feature requests
-- **[Contributing Guide](../CONTRIBUTING.md)** - Development guidelines
-- **[Security Policy](../SECURITY.md)** - Vulnerability reporting
+- **[Collaboration Guide](collaboration-guide.md)** - Development and contribution guidelines
+- **[Development Guide](development-guide.md)** - Testing and code quality
 
 ## Architecture
 

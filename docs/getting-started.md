@@ -123,8 +123,8 @@ python -m homepot_client.main
 ### Getting Help
 
 - **[GitHub Issues](https://github.com/brunel-opensim/homepot-client/issues)** - Bug reports and feature requests
-- **[Contributing Guide](../CONTRIBUTING.md)** - Development guidelines
-- **[Security Policy](../SECURITY.md)** - Vulnerability reporting
+- **[Collaboration Guide](collaboration-guide.md)** - Development and contribution guidelines
+- **[Development Guide](development-guide.md)** - Testing and code quality
 
 ---
 

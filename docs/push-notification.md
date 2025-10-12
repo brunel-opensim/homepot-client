@@ -31,15 +31,13 @@ src/homepot_client/push_notifications/
 ├── __init__.py                 # Package initialization
 ├── base.py                     # Abstract base classes and data models
 ├── factory.py                  # Provider factory and registration
-├── fcm_linux.py                # Firebase Cloud Messaging for Linux
+├── fcm_linux.py                # Firebase Cloud Messaging for Android/Linux
 ├── wns_windows.py              # Windows Notification Service for Windows
+├── apns.py                     # Apple Push Notification service for iOS/macOS
 ├── simulation.py               # Testing/development provider
-└── auth/
+└── utils/
     ├── __init__.py
-    ├── base.py                 # Authentication interfaces
-    ├── service_account.py     # Service account auth
-    ├── api_key.py             # API key auth
-    └── oauth.py               # OAuth2 auth
+    └── authentication.py       # Authentication utilities
 ```
 
 ## Integration Status
@@ -60,12 +58,11 @@ src/homepot_client/push_notifications/
 
 | Platform | Script | Status | Notes |
 |----------|--------|--------|-------|
-| FCM Linux | `fcm_linux.py` | Implemented | Ready for Firebase credentials |
-| Simulation | `simulation.py` | Working | Integrated with agent system |
-| APNs macOS | `apns_macos.py` | Planned | Next iteration |
-| WNS Windows | `wns_windows.py` | Planned | Next iteration |
-| Web Push | `web_push.py` | Planned | Next iteration |
-| FCM Android | `fcm_android.py` | Planned | If different from Linux |
+| FCM Linux/Android | `fcm_linux.py` | ✅ Implemented | 87% test coverage, 19 tests passing |
+| WNS Windows | `wns_windows.py` | ✅ Implemented | 66% test coverage, 14 tests passing |
+| APNs (Apple) | `apns.py` | ✅ Implemented | 89% test coverage, 36 tests passing |
+| Simulation | `simulation.py` | ✅ Working | Integrated with agent system |
+| Web Push | `web_push.py` | 📋 Planned | Next iteration |
 
 ## Usage Examples
 
