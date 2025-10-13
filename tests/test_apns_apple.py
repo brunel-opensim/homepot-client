@@ -18,13 +18,13 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from src.homepot_client.push_notifications.apns_apple import (
+from homepot_client.push_notifications.apns_apple import (
     APNS_MAX_PAYLOAD_SIZE,
     APNS_PRODUCTION_URL,
     APNS_SANDBOX_URL,
     APNsProvider,
 )
-from src.homepot_client.push_notifications.base import (
+from homepot_client.push_notifications.base import (
     PushNotificationPayload,
     PushPriority,
 )
