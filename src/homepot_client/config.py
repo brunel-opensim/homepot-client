@@ -150,7 +150,7 @@ class Settings(BaseSettings):
         description="Mobivisor API endpoint URL",
     )
     mobivisor_api_token: Optional[str] = Field(
-        default='eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwiX2lkIjoiNjgwN2E1ODM2NDE1ZjRlZDFlZTA4MWVhIiwiaWQiOiI2ODA3YTU4MzY0MTVmNGVkMWVlMDgxZWEiLCJyb2xlX2lkIjoiQWRtaW4iLCJkaXNwbGF5TmFtZSI6ImFkbWluIiwidGVuYW50IjoibXlkZCIsImlhdCI6MTc2MDA4NjYzMywiZXhwIjoxNzYyNjc4NjMzfQ.HeNWgnG_v7zToVXUw6XlV1exuAOJaOI3nQwSqp_w7rc', description="Mobivisor API Bearer token"
+        default=None, description="Mobivisor API Bearer token"
     )
 
     class Config:
