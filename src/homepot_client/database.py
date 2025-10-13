@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
+from sqlalchemy import Result
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from homepot_client.config import get_settings
@@ -201,7 +202,7 @@ class DatabaseService:
         from sqlalchemy import update
 
         async with self.get_session() as session:
-            result = await session.execute(
+            result: Result[Any] = await session.execute(
                 update(Device)
                 .where(Device.device_id == device_id)
                 .values(status=status)
@@ -273,7 +274,7 @@ class DatabaseService:
             elif status == JobStatus.SENT:
                 update_data["started_at"] = datetime.utcnow()
 
-            exec_result = await session.execute(
+            exec_result: Result[Any] = await session.execute(
                 update(Job).where(Job.job_id == job_id).values(**update_data)
             )
             row_count: int = getattr(exec_result, "rowcount", 0)

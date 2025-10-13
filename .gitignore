@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 *.so
 .Python
 build/
@@ -205,14 +206,30 @@ outdated.txt
 security-audit.json
 pipdeptree-output.txt
 
-
-#Front-end part
-node_modules
+# Node.js / Frontend (merged from PR #5 and health checks)
 node_modules/
-/node_modules
-node_modules/.
-.vscode/settings.json
-package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+package-lock.json
+.npm
+.yarn-integrity
+
+# Frontend build outputs
+dist/
+dist-ssr/
+*.local
+build/
+.next/
+out/
+.nuxt/
+.cache/
+
+# Frontend environment
+.env.local
+.env.*.local
+
+# VSCode
+.vscode/settings.json
