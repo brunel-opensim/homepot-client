@@ -1,7 +1,7 @@
 """Authentication and authorization utilities for the HomePot system."""
 
 import os
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -22,17 +22,17 @@ security = HTTPBearer()
 
 def hash_password(password: str) -> str:
     """Hash a plaintext password."""
-    return pwd_context.hash(password)
+    return cast(str, pwd_context.hash(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against a hashed password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return cast(bool, pwd_context.verify(plain_password, hashed_password))
 
 
 def create_access_token(data: dict[str, Any]) -> str:
     """Create a JWT access token."""
-    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+    return cast(str, jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM))
 
 
 class TokenData(BaseModel):
