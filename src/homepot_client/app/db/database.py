@@ -2,10 +2,11 @@
 
 import logging
 import os
-from typing import Generator
+from typing import Any, Generator, Optional, cast
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
@@ -57,3 +58,27 @@ def create_tables() -> None:
     except Exception as e:
         logger.error("Error creating tables: %s", e)
         raise
+
+
+def execute_update(sql: str, params: Optional[dict[str, Any]] = None) -> bool:
+    """Execute an UPDATE or DELETE statement."""
+    params = params or {}
+    with SessionLocal() as session:
+        raw_result = session.execute(text(sql), params)
+        session.commit()
+        # Correct cast for mypy
+        result: CursorResult = cast(CursorResult, raw_result)
+        row_count: int = result.rowcount or 0
+        return row_count > 0
+
+
+def insert_row(sql: str, params: Optional[dict[str, Any]] = None) -> bool:
+    """Execute an INSERT statement and return True if any rows were inserted."""
+    params = params or {}
+    with SessionLocal() as session:
+        raw_result = session.execute(text(sql), params)
+        session.commit()
+        # Correct cast for mypy
+        result: CursorResult = cast(CursorResult, raw_result)
+        row_count: int = result.rowcount or 0
+        return row_count > 0
