@@ -1,4 +1,11 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, func
+"""Database models for HOMEPOT Client.
+
+This module defines SQLAlchemy models for the HOMEPOT system including
+devices, jobs, users, and audit logs.
+"""
+
+
+from sqlalchemy import Column, DateTime, Integer, String, func
 # from sqlalchemy.orm import relationship
 
 from homepot_client.app.db.database import Base

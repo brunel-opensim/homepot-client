@@ -1,3 +1,5 @@
+"""Authentication and authorization utilities for the HomePot system."""
+
 import os
 from typing import Optional
 

@@ -1,3 +1,6 @@
+"""API endpoints for managing agents in the HomePot system."""
+
+
 import logging
 from typing import Any, Dict, List, Optional
 

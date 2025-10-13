@@ -1,3 +1,5 @@
+"""Pydantic schemas for user registration and authentication in the HomePot system."""
+
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr

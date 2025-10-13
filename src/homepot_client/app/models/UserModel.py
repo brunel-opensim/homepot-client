@@ -8,18 +8,13 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import (
-    JSON,
     Boolean,
     Column,
     DateTime,
-    Engine,
-    ForeignKey,
     Integer,
     String,
-    Text,
-    create_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, relationship
 
 
 # Create declarative base for SQLAlchemy models using modern approach

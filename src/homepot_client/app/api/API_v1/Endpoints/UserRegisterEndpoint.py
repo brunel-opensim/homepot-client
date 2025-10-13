@@ -1,7 +1,10 @@
+"""API endpoints for managing user in the HomePot system."""
+
+
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from homepot_client.app.auth_utils import (

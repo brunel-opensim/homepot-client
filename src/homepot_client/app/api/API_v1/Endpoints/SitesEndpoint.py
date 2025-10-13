@@ -1,13 +1,15 @@
-import asyncio
-import logging
-from typing import Any, AsyncIterator, Dict, List, Optional
+"""API endpoints for managing sites in the HomePot system."""
 
-from fastapi import APIRouter, Depends, HTTPException
+
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from homepot_client.audit import AuditEventType, get_audit_logger
 from homepot_client.client import HomepotClient
-from homepot_client.database import close_database_service, get_database_service
+from homepot_client.database import  get_database_service
 
 client_instance: Optional[HomepotClient] = None
 
