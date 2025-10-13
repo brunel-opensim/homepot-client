@@ -2,12 +2,13 @@
 
 import logging
 import os
+from typing import Generator
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 # Load environment variables
 load_dotenv()
@@ -33,7 +34,7 @@ except OperationalError as e:
     raise
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """Dependency for getting a database session (FastAPI style)."""
     db = None
     try:
@@ -47,7 +48,7 @@ def get_db():
             db.close()
 
 
-def create_tables():
+def create_tables() -> None:
     """Create all database tables."""
     try:
         # from db import models  # Ensure models are imported

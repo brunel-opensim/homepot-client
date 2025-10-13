@@ -1,6 +1,6 @@
 """Pydantic schemas for user registration and authentication in the HomePot system."""
 
-from typing import Optional
+from typing import Optional, TypedDict
 
 from pydantic import BaseModel, EmailStr
 
@@ -10,7 +10,7 @@ class UserCreate(BaseModel):
 
     email: EmailStr
     password: str
-    name: str = None
+    name: Optional[str] = None
     role: Optional[str] = "User"  # Default role
 
 
@@ -26,7 +26,7 @@ class UserOut(BaseModel):
 
     id: int
     email: EmailStr
-    name: str = None
+    name: Optional[str] = None
     role: str
 
     class Config:
@@ -40,3 +40,10 @@ class Token(BaseModel):
 
     access_token: str
     token_type: str
+
+
+class UserDict(TypedDict):
+    """TypedDict for user information extracted from JWT token."""
+
+    email: Optional[str]
+    role: Optional[str]

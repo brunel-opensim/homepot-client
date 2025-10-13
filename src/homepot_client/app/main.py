@@ -36,7 +36,7 @@ app.add_middleware(
 
 # TEST BASE URL API (insecure/test)
 @app.get("/")
-def root():
+def root() -> dict:
     """Root endpoint to test if the API is alive."""
     return {"message": "I Am Alive"}
 

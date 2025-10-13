@@ -1,7 +1,8 @@
 """API endpoints for managing user in the HomePot system."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Dict, Generator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -23,7 +24,7 @@ logger.setLevel(logging.INFO)
 router = APIRouter()
 
 
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """Database Dependency."""
     db = SessionLocal()
     try:
@@ -32,13 +33,13 @@ def get_db():
         db.close()
 
 
-def response(success: bool, message: str, data: dict = None):
+def response(success: bool, message: str, data: Optional[dict] = None) -> dict:
     """Unified Response Formatter."""
     return {"success": success, "message": message, "data": data or {}}
 
 
 @router.post("/signup", response_model=dict, status_code=status.HTTP_201_CREATED)
-def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
     """User Registration and Authentication Endpoints."""
     try:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
@@ -51,9 +52,9 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
             name=user.name,
             hashed_password=hash_password(user.password),
             role=user.role if user.role else "User",
-            created_date=datetime.utcnow(),
-            updated_date=datetime.utcnow(),
-            last_login=datetime.utcnow(),
+            created_date=datetime.now(timezone.utc),
+            updated_date=datetime.now(timezone.utc),
+            last_login=datetime.now(timezone.utc),
         )
 
         db.add(new_user)
@@ -74,15 +75,16 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=dict, status_code=status.HTTP_200_OK)
-def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+def login(user: schemas.UserLogin, db: Session = Depends(get_db)) -> dict:
     """User Login Endpoint."""
     try:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
-        if not db_user or not verify_password(user.password, db_user.hashed_password):
+        hashed_pw: str = db_user.hashed_password  # type: ignore
+        if not db_user or not verify_password(user.password, hashed_pw):
             logger.warning(f"Login failed for {user.email}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        db_user.last_login = datetime.utcnow()
+        db_user.last_login = datetime.now(timezone.utc)  # type: ignore
         db.commit()
 
         logger.info(f"User logged in: {db_user.email}")
@@ -113,8 +115,8 @@ def assign_role(
     user_id: int,
     new_role: str,
     db: Session = Depends(get_db),
-    admin=Depends(require_role("Admin")),
-):
+    admin: Dict = Depends(require_role("Admin")),
+) -> dict:
     """Assign Role Endpoint - Admin Only."""
     try:
         db_user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -122,7 +124,7 @@ def assign_role(
             logger.warning(f"Role assignment failed: User {user_id} not found")
             raise HTTPException(status_code=404, detail="User not found")
 
-        db_user.role = new_role
+        db_user.role = new_role  # type: ignore
         db.commit()
         db.refresh(db_user)
 
