@@ -67,3 +67,5 @@ passlib[bcrypt]==1.7.4
 requests==2.32.4
 pydantic[email]==2.11.7
 psycopg2-binary==2.9.9
+types-python-jose
+types-passlib
