@@ -1,13 +1,7 @@
-"""
-Imports for the app
-"""
+"""Imports for the app."""
 
-from typing import List, Optional
-
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from jose.exceptions import ExpiredSignatureError
 
 from homepot_client.app.api.API_v1.Api import api_v1_router
 
@@ -43,6 +37,7 @@ app.add_middleware(
 # TEST BASE URL API (insecure/test)
 @app.get("/")
 def root():
+    """Root endpoint to test if the API is alive."""
     return {"message": "I Am Alive"}
 
 

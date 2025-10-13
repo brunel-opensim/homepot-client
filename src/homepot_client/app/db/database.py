@@ -1,7 +1,4 @@
-# db/database.py
-"""
-Databse connection and session management for the HomePot Client application.
-"""
+"""Databse connection and session management for the HomePot Client application."""
 import logging
 import os
 

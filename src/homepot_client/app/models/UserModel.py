@@ -5,7 +5,6 @@ devices, jobs, users, and audit logs.
 """
 
 from datetime import datetime
-from enum import Enum
 
 from sqlalchemy import (
     Boolean,

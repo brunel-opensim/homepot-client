@@ -19,18 +19,23 @@ security = HTTPBearer()
 
 
 def hash_password(password: str) -> str:
+    """Hash a plaintext password."""
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plaintext password against a hashed password."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict):
+    """Create a JWT access token."""
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
 
 
 class TokenData(BaseModel):
+    """Data contained in the JWT token."""
+
     email: Optional[str] = None
     role: Optional[str] = None
 
@@ -38,6 +43,7 @@ class TokenData(BaseModel):
 def verify_token(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> TokenData:
+    """Verify a JWT token and extract the token data."""
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -51,6 +57,7 @@ def verify_token(
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get the current user from the JWT token."""
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -62,6 +69,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
 
 def require_role(required_role: str):
+    """Dependency to require a specific user role."""
+
     def role_checker(user=Depends(get_current_user)):
         if user["role"] != required_role:
             raise HTTPException(

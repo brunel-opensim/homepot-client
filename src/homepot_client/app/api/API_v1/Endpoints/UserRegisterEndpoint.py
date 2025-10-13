@@ -23,8 +23,8 @@ logger.setLevel(logging.INFO)
 router = APIRouter()
 
 
-# Database Dependency
 def get_db():
+    """Database Dependency."""
     db = SessionLocal()
     try:
         yield db
@@ -32,13 +32,14 @@ def get_db():
         db.close()
 
 
-# Unified Response Format
 def response(success: bool, message: str, data: dict = None):
+    """Unified Response Formatter."""
     return {"success": success, "message": message, "data": data or {}}
 
 
 @router.post("/signup", response_model=dict, status_code=status.HTTP_201_CREATED)
 def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """User Registration and Authentication Endpoints."""
     try:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
         if db_user:
@@ -74,6 +75,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=dict, status_code=status.HTTP_200_OK)
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+    """User Login Endpoint."""
     try:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
         if not db_user or not verify_password(user.password, db_user.hashed_password):
@@ -113,6 +115,7 @@ def assign_role(
     db: Session = Depends(get_db),
     admin=Depends(require_role("Admin")),
 ):
+    """Assign Role Endpoint - Admin Only."""
     try:
         db_user = db.query(models.User).filter(models.User.id == user_id).first()
         if not db_user:

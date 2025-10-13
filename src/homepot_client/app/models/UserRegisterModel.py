@@ -6,12 +6,14 @@ devices, jobs, users, and audit logs.
 
 from sqlalchemy import Column, DateTime, Integer, String, func
 
-# from sqlalchemy.orm import relationship
-
 from homepot_client.app.db.database import Base
+
+# from sqlalchemy.orm import relationship
 
 
 class User(Base):
+    """User model for authentication and authorization."""
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -23,4 +25,3 @@ class User(Base):
     created_date = Column(DateTime(timezone=True), server_default=func.now())
     updated_date = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
-    # match_results = relationship("MatchResult", back_populates="user")  # Optional reverse relationship
