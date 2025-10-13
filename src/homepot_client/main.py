@@ -248,28 +248,35 @@ class CreateDeviceRequest(BaseModel):
 # User Management Pydantic Models
 class UserCreateRequest(BaseModel):
     """Request model for creating a new user."""
-    
-    username: str = Field(..., min_length=3, max_length=50, description="Unique username")
+
+    username: str = Field(
+        ..., min_length=3, max_length=50, description="Unique username"
+    )
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password")
-    is_admin: bool = Field(default=False, description="Whether user has admin privileges")
+    is_admin: bool = Field(
+        default=False, description="Whether user has admin privileges"
+    )
 
     class Config:
         """Pydantic model configuration with example data."""
+
         json_schema_extra = {
             "example": {
                 "username": "john_doe",
                 "email": "john.doe@example.com",
                 "password": "securepassword123",
-                "is_admin": False
+                "is_admin": False,
             }
         }
 
 
 class UserUpdateRequest(BaseModel):
     """Request model for updating user information."""
-    
-    username: Optional[str] = Field(None, min_length=3, max_length=50, description="New username")
+
+    username: Optional[str] = Field(
+        None, min_length=3, max_length=50, description="New username"
+    )
     email: Optional[EmailStr] = Field(None, description="New email address")
     password: Optional[str] = Field(None, min_length=8, description="New password")
     is_active: Optional[bool] = Field(None, description="User active status")
@@ -277,19 +284,20 @@ class UserUpdateRequest(BaseModel):
 
     class Config:
         """Pydantic model configuration with example data."""
+
         json_schema_extra = {
             "example": {
                 "username": "john_doe_updated",
                 "email": "john.doe.new@example.com",
                 "is_active": True,
-                "is_admin": False
+                "is_admin": False,
             }
         }
 
 
 class UserResponse(BaseModel):
     """Response model for user information."""
-    
+
     id: int
     username: str
     email: str
@@ -301,12 +309,13 @@ class UserResponse(BaseModel):
 
     class Config:
         """Pydantic model configuration."""
+
         from_attributes = True
 
 
 class UserListResponse(BaseModel):
     """Response model for user list."""
-    
+
     users: List[UserResponse]
     total: int
     limit: int
@@ -315,7 +324,7 @@ class UserListResponse(BaseModel):
 
 class UserCreateResponse(BaseModel):
     """Response model for user creation."""
-    
+
     message: str
     user: UserResponse
     api_key: str
@@ -323,32 +332,30 @@ class UserCreateResponse(BaseModel):
 
 class PasswordChangeRequest(BaseModel):
     """Request model for password change."""
-    
+
     current_password: str = Field(..., description="Current password")
     new_password: str = Field(..., min_length=8, description="New password")
 
     class Config:
         """Pydantic model configuration with example data."""
+
         json_schema_extra = {
             "example": {
                 "current_password": "oldpassword123",
-                "new_password": "newpassword456"
+                "new_password": "newpassword456",
             }
         }
 
 
 class ApiKeyGenerateRequest(BaseModel):
     """Request model for API key generation."""
-    
+
     description: Optional[str] = Field(None, description="Description for the API key")
 
     class Config:
         """Pydantic model configuration with example data."""
-        json_schema_extra = {
-            "example": {
-                "description": "API key for mobile app"
-            }
-        }
+
+        json_schema_extra = {"example": {"description": "API key for mobile app"}}
 
 
 # Create FastAPI application
@@ -382,20 +389,24 @@ def get_client() -> HomepotClient:
 def hash_password(password: str) -> str:
     """Hash a password using a simple approach (in production, use bcrypt or similar)."""
     import hashlib
-    
+
     salt = secrets.token_hex(16)
-    password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    password_hash = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
+    )
     return f"{salt}:{password_hash.hex()}"
 
 
 def verify_password(password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
     import hashlib
-    
+
     try:
-        salt, password_hash = hashed_password.split(':')
+        salt, password_hash = hashed_password.split(":")
         password_hash_bytes = bytes.fromhex(password_hash)
-        computed_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+        computed_hash = hashlib.pbkdf2_hmac(
+            "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
+        )
         return computed_hash == password_hash_bytes
     except (ValueError, TypeError):
         return False
@@ -1111,24 +1122,25 @@ async def get_version(client: HomepotClient = Depends(get_client)) -> Dict[str, 
 
 # External Devices API (Mobivisor)
 @app.get("/devices", tags=["Devices"])
-async def fetch_external_devices(
-    request: Request    
-) -> Any:
+async def fetch_external_devices(request: Request) -> Any:
     """Fetch device data from Mobivisor endpoint.
     - Reads Bearer token from Authorization header or optional token query param
     - Proxies GET request to https://mydd.mobivisor.com/devices
     - Returns upstream JSON or maps errors appropriately
     """
     mobivisorConfig = get_mobivisor_api_config()
-    
-    upstream_url = mobivisorConfig['mobivisor_api_url']
+
+    upstream_url = mobivisorConfig["mobivisor_api_url"]
     # "https://mydd.mobivisor.com/devices"
 
     # Resolve bearer token
-    auth_header = mobivisorConfig['mobivisor_api_token']
+    auth_header = mobivisorConfig["mobivisor_api_token"]
     # bearer_token = None
     if not auth_header:
-        raise HTTPException(status_code=401, detail="Missing Bearer token. Provide Authorization header or token query param.")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Bearer token. Provide Authorization header or token query param.",
+        )
 
     headers = {"Authorization": f"Bearer {auth_header}"}
 
@@ -1141,27 +1153,37 @@ async def fetch_external_devices(
             # Return upstream JSON transparently
             return resp.json()
         elif resp.status_code in (401, 403):
-            raise HTTPException(status_code=resp.status_code, detail="Unauthorized to access upstream devices endpoint")
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail="Unauthorized to access upstream devices endpoint",
+            )
         elif resp.status_code == 404:
-            raise HTTPException(status_code=404, detail="Upstream devices resource not found")
+            raise HTTPException(
+                status_code=404, detail="Upstream devices resource not found"
+            )
         else:
             # Try to forward upstream error details if JSON, else generic
             try:
                 upstream_error = resp.json()
             except Exception:
                 upstream_error = {"detail": resp.text}
-            raise HTTPException(status_code=502, detail={
-                "message": "Upstream service error",
-                "status_code": resp.status_code,
-                "error": upstream_error,
-            })
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": "Upstream service error",
+                    "status_code": resp.status_code,
+                    "error": upstream_error,
+                },
+            )
     except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="Upstream devices endpoint timed out")
+        raise HTTPException(
+            status_code=504, detail="Upstream devices endpoint timed out"
+        )
     except httpx.RequestError as e:
         logger.error(f"Network error contacting upstream: {e}")
-        raise HTTPException(status_code=502, detail="Failed to contact upstream devices service")
-
-
+        raise HTTPException(
+            status_code=502, detail="Failed to contact upstream devices service"
+        )
 
 
 # WebSocket endpoint for real-time status updates

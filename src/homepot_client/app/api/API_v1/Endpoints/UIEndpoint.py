@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.get("/", response_class=HTMLResponse, tags=["UI"])
 async def get_dashboard() -> HTMLResponse:
     """Get simple dashboard HTML for testing WebSocket and API endpoints."""

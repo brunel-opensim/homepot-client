@@ -166,7 +166,7 @@ class DatabaseService:
 
         async with self.get_session() as session:
             update_data = {}
-            
+
             if username is not None:
                 update_data["username"] = username
             if email is not None:

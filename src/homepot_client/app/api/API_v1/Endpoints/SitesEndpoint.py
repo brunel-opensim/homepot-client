@@ -52,6 +52,7 @@ class CreateSiteRequest(BaseModel):
             }
         }
 
+
 def get_client() -> HomepotClient:
     """Dependency to get the client instance."""
     if client_instance is None:
@@ -106,6 +107,8 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
     except Exception as e:
         logger.error(f"Failed to create site: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create site: {e}")
+
+
 @router.get("/sites", tags=["Sites"])
 async def list_sites() -> Dict[str, List[Dict]]:
     """List all sites."""

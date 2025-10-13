@@ -143,7 +143,7 @@ class Settings(BaseSettings):
     devices: DeviceSettings = Field(default_factory=DeviceSettings)
     websocket: WebSocketSettings = Field(default_factory=WebSocketSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
-    
+
     # Mobivisor API settings
     mobivisor_api_url: str = Field(
         default="https://mydd.mobivisor.com/devices",
@@ -201,7 +201,11 @@ def get_secret_key() -> str:
     """Get JWT secret key."""
     return get_settings().auth.secret_key
 
+
 def get_mobivisor_api_config() -> tuple[str, Optional[str]]:
     """Get Mobivisor API URL and token."""
     settings = get_settings()
-    return {'mobivisor_api_url':settings.mobivisor_api_url, 'mobivisor_api_token':settings.mobivisor_api_token}
+    return {
+        "mobivisor_api_url": settings.mobivisor_api_url,
+        "mobivisor_api_token": settings.mobivisor_api_token,
+    }

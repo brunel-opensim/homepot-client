@@ -1,6 +1,7 @@
 """
 Imports for the app
 """
+
 from typing import List
 from typing import Optional
 from fastapi import FastAPI
@@ -12,14 +13,14 @@ from homepot_client.app.api.API_v1.Api import api_v1_router
 
 
 # App declaration
-app = FastAPI(  
-                ttitle="HOMEPOT Client API",
-                description="REST API for HOMEPOT device management and monitoring",
-                version="0.1.0",
-                docs_url="/docs",
-                redoc_url="/redoc"
-                # lifespan=lifespan,
-            )
+app = FastAPI(
+    ttitle="HOMEPOT Client API",
+    description="REST API for HOMEPOT device management and monitoring",
+    version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    # lifespan=lifespan,
+)
 
 
 # Create tables
@@ -45,5 +46,6 @@ app.add_middleware(
 def root():
     return {"message": "I Am Alive"}
 
+
 # Incluse all routes from API v1
-app.include_router(api_v1_router, prefix = '/api/v1')
+app.include_router(api_v1_router, prefix="/api/v1")
