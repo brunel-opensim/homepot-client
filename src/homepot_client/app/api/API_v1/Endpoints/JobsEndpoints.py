@@ -1,6 +1,5 @@
 """API endpoints for managing jobs in the HomePot system."""
 
-
 import logging
 from typing import Dict, Optional
 

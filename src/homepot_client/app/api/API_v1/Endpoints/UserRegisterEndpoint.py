@@ -1,6 +1,5 @@
 """API endpoints for managing user in the HomePot system."""
 
-
 import logging
 from datetime import datetime
 

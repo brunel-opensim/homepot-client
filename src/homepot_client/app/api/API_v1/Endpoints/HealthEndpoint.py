@@ -1,6 +1,5 @@
 """API endpoints for managing Health in the HomePot system."""
 
-
 import asyncio
 import logging
 from datetime import datetime
@@ -10,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from homepot_client.client import HomepotClient
-from homepot_client.database import  get_database_service
+from homepot_client.database import get_database_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

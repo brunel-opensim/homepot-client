@@ -4,8 +4,8 @@ This module defines SQLAlchemy models for the HOMEPOT system including
 devices, jobs, users, and audit logs.
 """
 
-
 from sqlalchemy import Column, DateTime, Integer, String, func
+
 # from sqlalchemy.orm import relationship
 
 from homepot_client.app.db.database import Base

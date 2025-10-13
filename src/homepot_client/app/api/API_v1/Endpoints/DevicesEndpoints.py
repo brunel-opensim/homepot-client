@@ -1,6 +1,5 @@
 """API endpoints for managing Device in the HomePot system."""
 
-
 import logging
 from typing import Dict, Optional
 
@@ -8,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from homepot_client.client import HomepotClient
-from homepot_client.database import  get_database_service
+from homepot_client.database import get_database_service
 from homepot_client.models import DeviceType
 
 client_instance: Optional[HomepotClient] = None

@@ -1,6 +1,5 @@
 """API endpoints for managing clients in the HomePot system."""
 
-
 import asyncio
 import logging
 from typing import Any, Dict, Optional

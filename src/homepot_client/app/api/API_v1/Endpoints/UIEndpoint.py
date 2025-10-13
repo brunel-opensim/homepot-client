@@ -1,6 +1,5 @@
 """API endpoints for managing UI in the HomePot system."""
 
-
 import logging
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
