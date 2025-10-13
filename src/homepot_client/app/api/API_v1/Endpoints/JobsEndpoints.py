@@ -1,15 +1,13 @@
-import asyncio
 import logging
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from homepot_client.audit import AuditEventType, get_audit_logger
 from homepot_client.client import HomepotClient
-from homepot_client.database import close_database_service, get_database_service
-from homepot_client.models import DeviceType, JobPriority
-from homepot_client.orchestrator import get_job_orchestrator, stop_job_orchestrator
+from homepot_client.models import JobPriority
+from homepot_client.orchestrator import get_job_orchestrator
 
 client_instance: Optional[HomepotClient] = None
 

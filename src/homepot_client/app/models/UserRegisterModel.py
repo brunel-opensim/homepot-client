@@ -1,5 +1,5 @@
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, func
-from sqlalchemy.orm import relationship
+# from sqlalchemy.orm import relationship
 
 from homepot_client.app.db.database import Base
 
