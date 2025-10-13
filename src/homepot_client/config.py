@@ -143,6 +143,15 @@ class Settings(BaseSettings):
     devices: DeviceSettings = Field(default_factory=DeviceSettings)
     websocket: WebSocketSettings = Field(default_factory=WebSocketSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
+    
+    # Mobivisor API settings
+    mobivisor_api_url: str = Field(
+        default="https://mydd.mobivisor.com/devices",
+        description="Mobivisor API endpoint URL",
+    )
+    mobivisor_api_token: Optional[str] = Field(
+        default='eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwiX2lkIjoiNjgwN2E1ODM2NDE1ZjRlZDFlZTA4MWVhIiwiaWQiOiI2ODA3YTU4MzY0MTVmNGVkMWVlMDgxZWEiLCJyb2xlX2lkIjoiQWRtaW4iLCJkaXNwbGF5TmFtZSI6ImFkbWluIiwidGVuYW50IjoibXlkZCIsImlhdCI6MTc2MDA4NjYzMywiZXhwIjoxNzYyNjc4NjMzfQ.HeNWgnG_v7zToVXUw6XlV1exuAOJaOI3nQwSqp_w7rc', description="Mobivisor API Bearer token"
+    )
 
     class Config:
         """Pydantic configuration."""
@@ -191,3 +200,8 @@ def is_debug() -> bool:
 def get_secret_key() -> str:
     """Get JWT secret key."""
     return get_settings().auth.secret_key
+
+def get_mobivisor_api_config() -> tuple[str, Optional[str]]:
+    """Get Mobivisor API URL and token."""
+    settings = get_settings()
+    return {'mobivisor_api_url':settings.mobivisor_api_url, 'mobivisor_api_token':settings.mobivisor_api_token}

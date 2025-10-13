@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 import httpx
 from pydantic import BaseModel, EmailStr, Field
+from homepot_client.config import get_mobivisor_api_config
 
 from homepot_client.agents import get_agent_manager, stop_agent_manager
 from homepot_client.audit import AuditEventType, get_audit_logger
@@ -1118,10 +1119,13 @@ async def fetch_external_devices(
     - Proxies GET request to https://mydd.mobivisor.com/devices
     - Returns upstream JSON or maps errors appropriately
     """
-    upstream_url = "https://mydd.mobivisor.com/devices"
+    mobivisorConfig = get_mobivisor_api_config()
+    
+    upstream_url = mobivisorConfig['mobivisor_api_url']
+    # "https://mydd.mobivisor.com/devices"
 
     # Resolve bearer token
-    auth_header = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6ImFkbWluIiwiX2lkIjoiNjgwN2E1ODM2NDE1ZjRlZDFlZTA4MWVhIiwiaWQiOiI2ODA3YTU4MzY0MTVmNGVkMWVlMDgxZWEiLCJyb2xlX2lkIjoiQWRtaW4iLCJkaXNwbGF5TmFtZSI6ImFkbWluIiwidGVuYW50IjoibXlkZCIsImlhdCI6MTc2MDA4NjYzMywiZXhwIjoxNzYyNjc4NjMzfQ.HeNWgnG_v7zToVXUw6XlV1exuAOJaOI3nQwSqp_w7rc'
+    auth_header = mobivisorConfig['mobivisor_api_token']
     # bearer_token = None
     if not auth_header:
         raise HTTPException(status_code=401, detail="Missing Bearer token. Provide Authorization header or token query param.")
