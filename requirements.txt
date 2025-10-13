@@ -4,7 +4,8 @@
 # Core FastAPI and Database
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
-sqlalchemy>=2.0.0
+# sqlalchemy>=2.0.0
+SQLAlchemy==1.4.52
 aiosqlite>=0.19.0
 alembic>=1.12.0
 
