@@ -17,11 +17,9 @@ from fastapi import (
     Depends,
     FastAPI,
     HTTPException,
-    Query,
     Request,
     WebSocket,
-    WebSocketDisconnect,
-    status,
+    WebSocketDisconnect
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -386,15 +384,14 @@ def get_client() -> HomepotClient:
 
 
 # User Management Utility Functions
-def hash_password(password: str) -> str:
-    """Hash a password using a simple approach (in production, use bcrypt or similar)."""
-    import hashlib
+# def hash_password(password: str) -> str:
+#     import hashlib
 
-    salt = secrets.token_hex(16)
-    password_hash = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
-    )
-    return f"{salt}:{password_hash.hex()}"
+#     salt = secrets.token_hex(16)
+#     password_hash = hashlib.pbkdf2_hmac(
+#         "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000
+#     )
+#     return f"{salt}:{password_hash.hex()}"
 
 
 def verify_password(password: str, hashed_password: str) -> bool:
