@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, AsyncIterator, Dict, List, Optional
 
+import httpx
 from fastapi import (
     Depends,
     FastAPI,
@@ -24,13 +25,12 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-import httpx
 from pydantic import BaseModel, EmailStr, Field
-from homepot_client.config import get_mobivisor_api_config
 
 from homepot_client.agents import get_agent_manager, stop_agent_manager
 from homepot_client.audit import AuditEventType, get_audit_logger
 from homepot_client.client import HomepotClient
+from homepot_client.config import get_mobivisor_api_config
 from homepot_client.database import close_database_service, get_database_service
 from homepot_client.models import DeviceType, JobPriority
 from homepot_client.orchestrator import get_job_orchestrator, stop_job_orchestrator
