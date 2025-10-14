@@ -205,3 +205,14 @@ outdated.txt
 security-audit.json
 pipdeptree-output.txt
 
+
+#Front-end part
+node_modules
+node_modules/
+/node_modules
+node_modules/.
+.vscode/settings.json
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
