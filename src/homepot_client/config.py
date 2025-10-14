@@ -146,7 +146,7 @@ class Settings(BaseSettings):
 
     # Mobivisor API settings
     mobivisor_api_url: str = Field(
-        default="https://mydd.mobivisor.com/devices",
+        default="https://mydd.mobivisor.com/",
         description="Mobivisor API endpoint URL",
     )
     mobivisor_api_token: Optional[str] = Field(
