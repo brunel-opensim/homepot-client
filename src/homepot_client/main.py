@@ -1059,8 +1059,8 @@ async def fetch_external_devices(request: Request) -> Any:
     - Returns upstream JSON or maps errors appropriately
     """
     mobivisorConfig = get_mobivisor_api_config()
-
-    upstream_url = mobivisorConfig["mobivisor_api_url"] + "devices"
+    base_url = mobivisorConfig.get("mobivisor_api_url") or ""
+    upstream_url = base_url + "devices"
     # "https://mydd.mobivisor.com/devices"
 
     # Resolve bearer token
@@ -1131,9 +1131,10 @@ async def fetch_devices_details(device_id: str) -> Dict[str, Any]:
     - Proxies GET request to https://mydd.mobivisor.com/devices
     - Returns upstream JSON or maps errors appropriately
     """
+    
     mobivisorConfig = get_mobivisor_api_config()
-
-    upstream_url = mobivisorConfig["mobivisor_api_url"] + "devices/" + device_id
+    base_url = mobivisorConfig.get("mobivisor_api_url") or ""
+    upstream_url = base_url + "devices/" + device_id
     # "https://mydd.mobivisor.com/devices"
 
     # Resolve bearer token
