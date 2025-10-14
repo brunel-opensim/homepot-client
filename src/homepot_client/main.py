@@ -1106,21 +1106,11 @@ async def get_audit_event_types() -> Dict[str, Any]:
     }
 
 
-@app.get("/version", tags=["Client"])
-async def get_version(client: HomepotClient = Depends(get_client)) -> Dict[str, str]:
-    """Get the client version information."""
-    try:
-        version = client.get_version()
-        return {"version": version}
-    except Exception as e:
-        logger.error(f"Version check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get version: {e}")
-
-
 # External Devices API (Mobivisor)
 @app.get("/devices", tags=["Devices"])
 async def fetch_external_devices(request: Request) -> Any:
     """Fetch device data from Mobivisor endpoint.
+
     - Reads Bearer token from Authorization header or optional token query param
     - Proxies GET request to https://mydd.mobivisor.com/devices
     - Returns upstream JSON or maps errors appropriately
@@ -1136,7 +1126,7 @@ async def fetch_external_devices(request: Request) -> Any:
     if not auth_header:
         raise HTTPException(
             status_code=401,
-            detail="Missing Bearer token. Provide Authorization header or token query param.",
+            detail="Missing Bearer token.Provide Authorization header.",
         )
 
     headers = {"Authorization": f"Bearer {auth_header}"}
