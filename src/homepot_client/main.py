@@ -1125,13 +1125,12 @@ async def fetch_external_devices(request: Request) -> Any:
 # External Devices API (Mobivisor)
 @app.get("/devices/{device_id}", tags=["Devices"])
 async def fetch_devices_details(device_id: str) -> Dict[str, Any]:
-    """Fetch device data from Mobivisor endpoint.
+    """Fetch device data by device id from Mobivisor endpoint.
 
     - Reads Bearer token from Authorization header or optional token query param
     - Proxies GET request to https://mydd.mobivisor.com/devices
     - Returns upstream JSON or maps errors appropriately
     """
-    
     mobivisorConfig = get_mobivisor_api_config()
     base_url = mobivisorConfig.get("mobivisor_api_url") or ""
     upstream_url = base_url + "devices/" + device_id
