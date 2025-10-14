@@ -1,7 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
-from typing import Any, AsyncIterator, Dict, List, Optional
-import logging
+"""API endpoints for managing clients in the HomePot system."""
+
 import asyncio
+import logging
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from homepot_client.client import HomepotClient
 
 client_instance: Optional[HomepotClient] = None

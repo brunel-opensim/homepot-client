@@ -297,7 +297,8 @@ class DatabaseService:
                 .where(Device.device_id == device_id)
                 .values(status=status)
             )
-            return result.rowcount > 0
+            row_count: int = getattr(result, "rowcount", 0)
+            return row_count > 0
 
     # Job operations
     async def create_job(
@@ -366,7 +367,8 @@ class DatabaseService:
             exec_result = await session.execute(
                 update(Job).where(Job.job_id == job_id).values(**update_data)
             )
-            return exec_result.rowcount > 0
+            row_count: int = getattr(exec_result, "rowcount", 0)
+            return row_count > 0
 
     async def get_job_by_id(self, job_id: str) -> Optional[Job]:
         """Get job by job_id with site relationship loaded."""

@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+"""API endpoints for managing UI in the HomePot system."""
+
 import logging
-from fastapi.responses import HTMLResponse, JSONResponse
+
+from fastapi import APIRouter
+from fastapi.responses import HTMLResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
