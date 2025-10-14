@@ -275,7 +275,7 @@ class DatabaseService:
             exec_result = await session.execute(
                 update(Job).where(Job.job_id == job_id).values(**update_data)
             )
-            return exec_result.rowcount > 0
+            return bool(result.rowcount) if hasattr(result, "rowcount") else False
 
     async def get_job_by_id(self, job_id: str) -> Optional[Job]:
         """Get job by job_id with site relationship loaded."""
