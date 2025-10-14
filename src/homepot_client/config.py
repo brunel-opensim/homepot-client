@@ -202,7 +202,7 @@ def get_secret_key() -> str:
     return get_settings().auth.secret_key
 
 
-def get_mobivisor_api_config() -> tuple[str, Optional[str]]:
+def get_mobivisor_api_config() -> dict[str, Optional[str]]:
     """Get Mobivisor API URL and token."""
     settings = get_settings()
     return {

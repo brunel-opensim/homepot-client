@@ -1129,6 +1129,12 @@ async def fetch_external_devices(request: Request) -> Any:
             detail="Missing Bearer token.Provide Authorization header.",
         )
 
+    if upstream_url is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Mobivisor URL",
+        )
+
     headers = {"Authorization": f"Bearer {auth_header}"}
 
     timeout = httpx.Timeout(10.0, connect=5.0)
