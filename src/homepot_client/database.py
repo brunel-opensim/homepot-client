@@ -206,7 +206,7 @@ class DatabaseService:
                 .where(Device.device_id == device_id)
                 .values(status=status)
             )
-            return result.rowcount > 0
+            return bool(result.rowcount) if hasattr(result, "rowcount") else False
 
     # Job operations
     async def create_job(
