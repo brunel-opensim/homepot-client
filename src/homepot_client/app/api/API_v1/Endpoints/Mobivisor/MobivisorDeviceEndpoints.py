@@ -1,13 +1,9 @@
-"""API endpoints for managing agents in the HomePot system."""
+"""API endpoints for managing Mobivisor Device Data in the HomePot system."""
 
 import logging
 from typing import Any, Dict, Optional
-from fastapi import (
-    HTTPException,
-    Request,
-)
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from homepot_client.config import get_mobivisor_api_config
 from homepot_client.client import HomepotClient
 
@@ -24,7 +20,6 @@ router = APIRouter()
 # External Devices API (Mobivisor)
 @router.get("/devices", tags=["Devices"])
 async def fetch_external_devices(request: Request) -> Any:
-    print("Hello")
     """Fetch device data from Mobivisor endpoint.
 
     - Reads Bearer token from Authorization header or optional token query param

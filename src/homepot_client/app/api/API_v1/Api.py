@@ -14,7 +14,7 @@ from .Endpoints import (
 )
 
 from .Endpoints.Mobivisor import (
-    MobivisorDeviceEndpoints
+    MobivisorDeviceEndpoints as MobivisorDevice
 )
 
 api_v1_router = APIRouter()
@@ -32,4 +32,6 @@ api_v1_router.include_router(
     UserRegisterEndpoint.router, prefix="/auth", tags=["Authentication"]
 )
 
-api_v1_router.include_router(MobivisorDeviceEndpoints.router, prefix="/mobivisor/devices", tags=["Mobivisor"])
+api_v1_router.include_router(
+    MobivisorDevice.router, prefix="/mobivisor/devices", tags=["Mobivisor Devices"]
+)
