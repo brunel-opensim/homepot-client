@@ -151,3 +151,63 @@ async def fetch_devices_details(device_id: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=502, detail="Failed to contact upstream devices service"
         )
+
+
+@router.delete("/devices/{device_id}", tags=["Devices"])
+async def delete_device(device_id: str) -> Dict[str, Any]:
+    """Delete a device by device id from Mobivisor endpoint."""
+    mobivisorConfig = get_mobivisor_api_config()
+    base_url = mobivisorConfig.get("mobivisor_api_url")
+
+    if not base_url:
+        raise HTTPException(status_code=500, detail="Mobivisor base URL is missing")
+
+    upstream_url = f"{base_url}devices/{device_id}"
+
+    # Resolve bearer token
+    auth_header = mobivisorConfig.get("mobivisor_api_token")
+    if not auth_header:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Bearer token. Provide Authorization header.",
+        )
+
+    headers = {"Authorization": f"Bearer {auth_header}"}
+    timeout = httpx.Timeout(10.0, connect=5.0)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.delete(upstream_url, headers=headers)
+
+        if resp.status_code in (200, 204):
+            return {"message": "Device deleted successfully", "device_id": device_id}
+        elif resp.status_code in (401, 403):
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail="Unauthorized to delete device on upstream endpoint",
+            )
+        elif resp.status_code == 404:
+            raise HTTPException(status_code=404, detail="Device not found on upstream")
+        else:
+            try:
+                upstream_error = resp.json()
+            except Exception:
+                upstream_error = {"detail": resp.text}
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "message": "Upstream service error during delete",
+                    "status_code": resp.status_code,
+                    "error": upstream_error,
+                },
+            )
+
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=504, detail="Upstream devices endpoint timed out during delete"
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Network error contacting upstream: {e}")
+        raise HTTPException(
+            status_code=502, detail="Failed to contact upstream devices service"
+        )
