@@ -13,6 +13,10 @@ from .Endpoints import (
     UserRegisterEndpoint,
 )
 
+from .Endpoints.Mobivisor import (
+    MobivisorDeviceEndpoints
+)
+
 api_v1_router = APIRouter()
 
 api_v1_router.include_router(HealthEndpoint.router, prefix="/health", tags=["Health"])
@@ -27,3 +31,5 @@ api_v1_router.include_router(AgentsEndpoints.router, prefix="/agents", tags=["Ag
 api_v1_router.include_router(
     UserRegisterEndpoint.router, prefix="/auth", tags=["Authentication"]
 )
+
+api_v1_router.include_router(MobivisorDeviceEndpoints.router, prefix="/mobivisor/devices", tags=["Mobivisor"])

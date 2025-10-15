@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-import httpx
 from fastapi import (
     Depends,
     FastAPI,
@@ -27,7 +26,6 @@ from pydantic import BaseModel
 from homepot_client.agents import get_agent_manager, stop_agent_manager
 from homepot_client.audit import AuditEventType, get_audit_logger
 from homepot_client.client import HomepotClient
-from homepot_client.config import get_mobivisor_api_config
 from homepot_client.database import close_database_service, get_database_service
 from homepot_client.models import DeviceType, JobPriority
 from homepot_client.orchestrator import get_job_orchestrator, stop_job_orchestrator
@@ -1047,142 +1045,6 @@ async def websocket_status_endpoint(websocket: WebSocket) -> None:
             await websocket.close()
         except Exception:
             pass  # nosec - Ignore errors when closing websocket
-
-
-# External Devices API (Mobivisor)
-@app.get("/devices", tags=["Devices"])
-async def fetch_external_devices(request: Request) -> Any:
-    """Fetch device data from Mobivisor endpoint.
-
-    - Reads Bearer token from Authorization header or optional token query param
-    - Proxies GET request to https://mydd.mobivisor.com/devices
-    - Returns upstream JSON or maps errors appropriately
-    """
-    mobivisorConfig = get_mobivisor_api_config()
-    base_url = mobivisorConfig.get("mobivisor_api_url") or ""
-    upstream_url = base_url + "devices"
-    # "https://mydd.mobivisor.com/devices"
-
-    # Resolve bearer token
-    auth_header = mobivisorConfig["mobivisor_api_token"]
-    # bearer_token = None
-    if not auth_header:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing Bearer token.Provide Authorization header.",
-        )
-
-    if upstream_url is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing Mobivisor URL",
-        )
-
-    headers = {"Authorization": f"Bearer {auth_header}"}
-
-    timeout = httpx.Timeout(10.0, connect=5.0)
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(upstream_url, headers=headers)
-
-        if resp.status_code == 200:
-            # Return upstream JSON transparently
-            return resp.json()
-        elif resp.status_code in (401, 403):
-            raise HTTPException(
-                status_code=resp.status_code,
-                detail="Unauthorized to access upstream devices endpoint",
-            )
-        elif resp.status_code == 404:
-            raise HTTPException(
-                status_code=404, detail="Upstream devices resource not found"
-            )
-        else:
-            # Try to forward upstream error details if JSON, else generic
-            try:
-                upstream_error = resp.json()
-            except Exception:
-                upstream_error = {"detail": resp.text}
-            raise HTTPException(
-                status_code=502,
-                detail={
-                    "message": "Upstream service error",
-                    "status_code": resp.status_code,
-                    "error": upstream_error,
-                },
-            )
-    except httpx.TimeoutException:
-        raise HTTPException(
-            status_code=504, detail="Upstream devices endpoint timed out"
-        )
-    except httpx.RequestError as e:
-        logger.error(f"Network error contacting upstream: {e}")
-        raise HTTPException(
-            status_code=502, detail="Failed to contact upstream devices service"
-        )
-
-
-@app.get("/devices/{device_id}", tags=["Devices"])
-async def fetch_devices_details(device_id: str) -> Dict[str, Any]:
-    """Fetch device data by device id from Mobivisor endpoint."""
-    mobivisorConfig = get_mobivisor_api_config()
-    base_url = mobivisorConfig.get("mobivisor_api_url")
-
-    if not base_url:
-        raise HTTPException(status_code=500, detail="Mobivisor base URL is missing")
-
-    upstream_url = f"{base_url}devices/{device_id}"
-
-    # Resolve bearer token
-    auth_header = mobivisorConfig.get("mobivisor_api_token")
-    if not auth_header:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing Bearer token. Provide Authorization header.",
-        )
-
-    headers = {"Authorization": f"Bearer {auth_header}"}
-
-    timeout = httpx.Timeout(10.0, connect=5.0)
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.get(upstream_url, headers=headers)
-
-        if resp.status_code == 200:
-            data: Dict[str, Any] = resp.json()
-            return data
-        elif resp.status_code in (401, 403):
-            raise HTTPException(
-                status_code=resp.status_code,
-                detail="Unauthorized to access upstream devices endpoint",
-            )
-        elif resp.status_code == 404:
-            raise HTTPException(
-                status_code=404, detail="Upstream devices resource not found"
-            )
-        else:
-            try:
-                upstream_error = resp.json()
-            except Exception:
-                upstream_error = {"detail": resp.text}
-            raise HTTPException(
-                status_code=502,
-                detail={
-                    "message": "Upstream service error",
-                    "status_code": resp.status_code,
-                    "error": upstream_error,
-                },
-            )
-
-    except httpx.TimeoutException:
-        raise HTTPException(
-            status_code=504, detail="Upstream devices endpoint timed out"
-        )
-    except httpx.RequestError as e:
-        logger.error(f"Network error contacting upstream: {e}")
-        raise HTTPException(
-            status_code=502, detail="Failed to contact upstream devices service"
-        )
 
 
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
