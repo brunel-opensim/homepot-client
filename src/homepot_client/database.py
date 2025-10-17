@@ -8,7 +8,6 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
-from urllib.parse import urlparse
 
 from sqlalchemy import Result
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -71,7 +70,7 @@ class DatabaseService:
                 db_path = db_url.replace("sqlite:///", "")
                 if db_path.startswith("./"):
                     db_path = db_path[2:]
-                
+
                 # Create parent directory if it doesn't exist
                 db_file = Path(db_path)
                 db_file.parent.mkdir(parents=True, exist_ok=True)
