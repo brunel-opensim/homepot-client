@@ -303,10 +303,10 @@ validate_structure() {
         
         if [[ "$has_name" == true && "$has_trigger" == true && "$has_jobs" == true ]]; then
             echo -e "${GREEN}Valid structure${NC}"
-            log_verbose "✓ name: found, ✓ trigger: found, ✓ jobs: found"
+            log_verbose "name: found, trigger: found, jobs: found"
         else
             echo -e "${RED}Missing required fields${NC}"
-            log_verbose "✗ name: $has_name, ✗ trigger: $has_trigger, ✗ jobs: $has_jobs"
+            log_verbose "name: $has_name, trigger: $has_trigger, jobs: $has_jobs"
             return 1
         fi
     done
@@ -366,10 +366,10 @@ validate_posdummy() {
             
             # Show specific phase results in verbose mode
             if [[ "$phases_passed" -gt 0 ]]; then
-                log_verbose "✓ Critical imports verified"
-                log_verbose "✓ API endpoints accessible"  
-                log_verbose "✓ Database connectivity confirmed"
-                log_verbose "✓ Agent simulation functional"
+                log_verbose "Critical imports verified"
+                log_verbose "API endpoints accessible"  
+                log_verbose "Database connectivity confirmed"
+                log_verbose "Agent simulation functional"
             fi
         fi
     else
@@ -548,7 +548,7 @@ validate_python() {
         
         # Check if it matches CI versions (3.9, 3.11)
         if [[ "$current_python_version" =~ ^(3\.9|3\.11|3\.12)$ ]]; then
-            log_verbose "✓ Python version compatible with CI"
+            log_verbose "Python version compatible with CI"
         else
             log_warning "Local Python $current_python_version differs from CI versions (3.9, 3.11)"
             log_verbose "Consider testing with Python 3.9 or 3.11 for CI compatibility"
@@ -575,7 +575,7 @@ try:
     result = subprocess.run([sys.executable, '-m', 'pip', 'check'], 
                           capture_output=True, text=True)
     if result.returncode == 0:
-        print('✓ Dependencies compatible')
+        print('Dependencies compatible')
         exit(0)
     else:
         print('⚠ Dependency conflicts detected')
@@ -610,10 +610,10 @@ except Exception as e:
             # Check for common problematic packages
             if [[ "$VERBOSE" == true ]]; then
                 if grep -q "tensorflow\|torch" backend/requirements.txt; then
-                    log_verbose "⚠ Large ML packages detected - may slow CI builds"
+                    log_verbose "Large ML packages detected - may slow CI builds"
                 fi
                 if grep -q "==.*dev\|==.*alpha\|==.*beta" backend/requirements.txt; then
-                    log_verbose "⚠ Development/pre-release packages detected"
+                    log_verbose "Development/pre-release packages detected"
                 fi
             fi
         else
@@ -698,11 +698,11 @@ try:
         print(f'⚠ Potential missing dependencies: {missing_deps}')
         exit(1)
     else:
-        print('✓ All external imports appear to be in requirements.txt')
+        print('All external imports appear to be in requirements.txt')
         exit(0)
         
 except Exception as e:
-    print(f'⚠ Could not validate dependencies: {e}')
+    print(f'Could not validate dependencies: {e}')
     exit(1)
 " >/dev/null 2>&1; then
         echo -e "${GREEN}Complete${NC}"
@@ -922,17 +922,17 @@ try:
     ], capture_output=True, text=True, cwd='.')
     
     if 'no tests ran' not in result.stdout and result.returncode == 0:
-        print('✓ Integration test fixtures available')
+        print('Integration test fixtures available')
         exit(0)
     else:
-        print('✗ Integration test collection failed')
+        print('Integration test collection failed')
         exit(1)
         
 except ImportError as e:
-    print(f'✗ Integration fixture import failed: {e}')
+    print(f'Integration fixture import failed: {e}')
     exit(1)
 except Exception as e:
-    print(f'✗ Integration fixture error: {e}')
+    print(f'Integration fixture error: {e}')
     exit(1)
 " >/dev/null 2>&1; then
             echo -e "${GREEN}Available${NC}"
@@ -966,14 +966,14 @@ try:
     
     # Check if we get expected errors or successes
     if health_response.status_code in [200, 503] and root_response.status_code == 200:
-        print('✓ FastAPI app starts and responds properly')
+        print('FastAPI app starts and responds properly')
         exit(0)
     else:
-        print(f'✗ App responses unexpected: health={health_response.status_code}, root={root_response.status_code}')
+        print(f'App responses unexpected: health={health_response.status_code}, root={root_response.status_code}')
         exit(1)
         
 except Exception as e:
-    print(f'✗ App startup failed: {e}')
+    print(f'App startup failed: {e}')
     exit(1)
 " >/dev/null 2>&1; then
         echo -e "${GREEN}Passed${NC}"
@@ -1000,20 +1000,20 @@ try:
     ], capture_output=True, text=True, cwd='.')
     
     if result.returncode == 0 and 'PASSED' in result.stdout:
-        print('✓ Integration tests pass with proper fixtures')
+        print('Integration tests pass with proper fixtures')
         exit(0)
     elif 'FAILED' in result.stdout and '503' in result.stdout:
-        print('✗ Integration tests fail with 503 errors - client dependency issues')
+        print('Integration tests fail with 503 errors - client dependency issues')
         exit(1)
     elif 'FAILED' in result.stdout:
-        print('✗ Integration tests fail for other reasons')
+        print('Integration tests fail for other reasons')
         exit(1)
     else:
-        print('✗ Integration test run had unexpected results')
+        print('Integration test run had unexpected results')
         exit(1)
         
 except Exception as e:
-    print(f'✗ Integration test compatibility check failed: {e}')
+    print(f'Integration test compatibility check failed: {e}')
     exit(1)
 " >/dev/null 2>&1; then
         echo -e "${GREEN}Compatible${NC}"
@@ -1031,12 +1031,12 @@ except Exception as e:
 try:
     from src.homepot_client.config import get_settings
     from src.homepot_client.models import Site, Device, Job
-    print('✓ Core imports successful')
+    print('Core imports successful')
 except ImportError as e:
-    print(f'✗ Import failed: {e}')
+    print(f'Import failed: {e}')
     exit(1)
 except Exception as e:
-    print(f'✗ Unexpected error: {e}')
+    print(f'Unexpected error: {e}')
     exit(1)
 " >/dev/null 2>&1; then
         echo -e "${GREEN}Passed${NC}"

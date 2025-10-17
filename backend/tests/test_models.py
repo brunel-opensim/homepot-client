@@ -108,7 +108,7 @@ def test_user_model_creation(memory_db):
     user = User(
         username="testuser",
         email="test@example.com",
-        hashed_password="hashed_password_123",
+        hashed_password="hashed_password_123",  # noqa: S106
         api_key="test-api-key-123",
         is_admin=True,
     )
@@ -135,7 +135,9 @@ def test_job_model_creation(memory_db):
     # Create dependencies
     site = Site(site_id="site-001", name="Test Site", location="Test Location")
     user = User(
-        username="jobcreator", email="creator@example.com", hashed_password="hashed123"
+        username="jobcreator",
+        email="creator@example.com",
+        hashed_password="hashed123",  # noqa: S106
     )
 
     db.add_all([site, user])
@@ -235,7 +237,9 @@ def test_job_relationships(memory_db):
         site_id=1,
     )
     user = User(
-        username="admin", email="admin@example.com", hashed_password="hashed123"
+        username="admin",
+        email="admin@example.com",
+        hashed_password="hashed123",  # noqa: S106
     )
 
     db.add_all([site, device, user])
@@ -343,7 +347,9 @@ def test_model_defaults(memory_db):
 
     # Test User defaults
     user = User(
-        username="testuser", email="test@example.com", hashed_password="hashed123"
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed123",  # noqa: S106
     )
     db.add(user)
     db.commit()

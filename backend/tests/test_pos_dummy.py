@@ -15,8 +15,6 @@ could break the core HOMEPOT functionality.
 """
 
 import os
-import subprocess  # noqa: S404 - Needed for POSDummy standalone execution
-import sys
 import tempfile
 
 import pytest
@@ -25,7 +23,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from homepot_client.agents import POSAgentSimulator
-from homepot_client.database import DatabaseService
 
 # Import HOMEPOT components
 from homepot_client.main import app
@@ -106,13 +103,13 @@ class TestPOSDummy:
                 warnings.warn(f"Database cleanup error: {e}")
 
     def test_critical_imports(self):
-        """Phase 0: Verify all critical modules can be imported without errors.
+        """Phase 0: Verify all critical modules can be imported.
 
-        This catches basic syntax errors, missing dependencies, and import issues
-        before we attempt any actual functionality testing.
+        This catches basic syntax errors, missing dependencies, and import
+        issues before we attempt any actual functionality testing.
         """
-        # Test core application imports
-        from homepot_client import (
+        # Test core application imports  # noqa: F401
+        from homepot_client import (  # noqa: F401
             agents,
             audit,
             client,
@@ -173,7 +170,7 @@ class TestPOSDummy:
             dummy_user = User(
                 username="pos_dummy_user",
                 email="dummy@posdummy.test",
-                hashed_password="dummy_hash_123",
+                hashed_password="dummy_hash_123",  # noqa: S106
             )
             session.add(dummy_user)
             session.commit()
@@ -202,11 +199,11 @@ class TestPOSDummy:
         """
         print("\nStarting POSDummy complete pipeline test...")
 
-        # Step 1: Create a dummy site (test the endpoint exists and responds)
+        # Step 1: Create a dummy site (test endpoint exists and responds)
         dummy_site_data = {
             "site_id": "POS_DUMMY_SITE",
             "name": "POSDummy Test Site",
-            "description": "Automated test site for POSDummy integration test",
+            "description": "Test site for POSDummy integration test",
             "location": "Test Environment",
         }
 
@@ -277,15 +274,19 @@ class TestPOSDummy:
                     200,
                     404,
                     500,
-                ], f"Job status endpoint non-functional: {response.status_code}"
+                ], (
+                    f"Job status endpoint non-functional: " f"{response.status_code}"
+                )
                 print("  Job status endpoint accessible")
             else:
                 print(
-                    "  Job created but no ID returned (acceptable for infrastructure test)"
+                    "  Job created but no ID returned "
+                    "(acceptable for infrastructure test)"
                 )
         else:
             print(
-                "  Job creation failed (acceptable - testing infrastructure, not perfect functionality)"
+                "  Job creation failed (acceptable - "
+                "testing infrastructure, not functionality)"
             )
 
         print("  Dummy job submission infrastructure verified")
@@ -314,7 +315,8 @@ class TestPOSDummy:
 
         print("POSDummy test PASSED - HOMEPOT infrastructure is functional!")
         print(
-            "    Note: Some API bugs may exist (normal), but core infrastructure is intact."
+            "    Note: Some API bugs may exist (normal), but core "
+            "infrastructure is intact."
         )
 
     def test_configuration_integrity(self):
@@ -384,13 +386,13 @@ class TestPOSDummy:
 # Standalone function for command-line testing
 def run_pos_dummy():
     """Run POSDummy test standalone for quick verification."""
-    import subprocess
+    import subprocess  # noqa: S404
     import sys
 
     print("Running POSDummy Integration Test...")
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [
                 sys.executable,
                 "-m",

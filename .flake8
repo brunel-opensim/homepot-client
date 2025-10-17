@@ -13,8 +13,10 @@ ignore =
     E203
 per-file-ignores =
     # S106: Hardcoded passwords are normal in test files
+    backend/tests/*:S106,S105,E501,
     tests/*:S106,S105,
     # POSDummy specific exceptions for integration testing
+    backend/tests/test_pos_dummy.py:S106,S105,S404,S603,F401,F811,E501,
     tests/test_pos_dummy.py:S106,S105,S404,S603,F401,F811,E501
 exclude = 
     .git,

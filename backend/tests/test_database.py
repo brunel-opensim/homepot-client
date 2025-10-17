@@ -147,7 +147,9 @@ def test_job_creation(temp_db):
     db.commit()
 
     user = User(
-        username="testuser", email="test@example.com", hashed_password="hashed123"
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed123",  # noqa: S106
     )
     db.add(user)
     db.commit()
