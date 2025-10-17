@@ -71,7 +71,7 @@ class DatabaseService:
                 db_path = db_url.replace("sqlite:///", "")
                 if db_path.startswith("./"):
                     db_path = db_path[2:]
-                
+
                 # Create parent directory if it doesn't exist
                 db_file = Path(db_path)
                 db_file.parent.mkdir(parents=True, exist_ok=True)
