@@ -479,11 +479,11 @@ validate_code_quality() {
     # MyPy type checking (NEW - matches CI/CD)
     if command -v mypy >/dev/null 2>&1; then
         echo -n "    Type checking (mypy): "
-        log_verbose "Running: mypy backend/"
+        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/homepot_client/"
         
         # Capture mypy output to check for specific errors
         local mypy_output
-        if mypy_output=$(mypy backend/ 2>&1); then
+        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/homepot_client/ 2>&1); then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check for specific error types
@@ -498,7 +498,7 @@ validate_code_quality() {
                 log_verbose "This indicates missing dependencies in requirements.txt or missing type stubs"
                 log_verbose "Consider installing missing packages or type stubs (e.g., pip install types-*)"
             else
-                echo -e "${RED}Failed - run: mypy backend/${NC}"
+                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/homepot_client/${NC}"
                 log_verbose "MyPy failed for other reasons"
                 if [[ "$VERBOSE" == true ]]; then
                     echo "$mypy_output" | head -10 | while read -r line; do

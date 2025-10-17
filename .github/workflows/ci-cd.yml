@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
   workflow_dispatch:
 
 # Default permissions for all jobs
@@ -147,7 +147,7 @@ jobs:
       run: flake8 backend/homepot_client/ backend/tests/
 
     - name: Run mypy type checking
-      run: mypy backend/homepot_client/
+      run: mypy --config-file=backend/mypy.ini backend/homepot_client/
 
     - name: Validate documentation files
       run: |
