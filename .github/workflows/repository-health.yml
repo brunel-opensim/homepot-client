@@ -1,0 +1,233 @@
+name: Repository Health Check
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  structural-validation:
+    name: Repository Structure Validation
+    runs-on: ubuntu-latest
+    if: github.repository == 'brunel-opensim/homepot-client'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check for node_modules in repository
+      run: |
+        echo "Checking for accidentally committed node_modules..."
+        
+        # Check if node_modules exists in git tracked files
+        if git ls-files | grep -q 'node_modules/'; then
+          echo "ERROR: node_modules/ directory found in repository!"
+          echo ""
+          echo "Files found:"
+          git ls-files | grep 'node_modules/' | head -20
+          echo ""
+          echo "node_modules/ should NEVER be committed to git."
+          echo "Please remove it using:"
+          echo "  git rm -r --cached **/node_modules/"
+          echo "  git commit -m 'fix: remove node_modules from git tracking'"
+          echo ""
+          echo "And add to .gitignore:"
+          echo "  node_modules/"
+          exit 1
+        else
+          echo "No node_modules/ found in repository"
+        fi
+
+    - name: Check for accidentally committed dependencies
+      run: |
+        echo "Checking for other accidentally committed dependency directories..."
+        
+        ISSUES_FOUND=0
+        
+        # Python virtual environments
+        if git ls-files | grep -E '^(venv|\.venv|env|\.env)/'; then
+          echo "Python virtual environment found in repository!"
+          echo "Add to .gitignore: venv/, .venv/, env/, .env/"
+          ISSUES_FOUND=1
+        fi
+        
+        # Python cache
+        if git ls-files | grep -E '__pycache__/'; then
+          echo "Python __pycache__ found in repository!"
+          echo "Add to .gitignore: __pycache__/"
+          ISSUES_FOUND=1
+        fi
+        
+        # IDE directories
+        if git ls-files | grep -E '^\.vscode/settings\.json|^\.idea/workspace\.xml'; then
+          echo "IDE-specific files found (consider adding to .gitignore)"
+          echo "These files contain personal preferences and shouldn't be shared"
+        fi
+        
+        # Build artifacts
+        if git ls-files | grep -E '^(dist|build)/.*\.(js|css|wasm)$'; then
+          echo "Build artifacts found in repository"
+          echo "Consider adding dist/ and build/ to .gitignore"
+        fi
+        
+        if [ $ISSUES_FOUND -eq 1 ]; then
+          exit 1
+        fi
+        
+        echo "No problematic dependency directories found"
+
+    - name: Check for large files
+      run: |
+        echo "Checking for large files (>5MB)..."
+        
+        LARGE_FILES=$(git ls-files | xargs ls -l 2>/dev/null | awk '$5 > 5242880 {print $9, "(" $5/1024/1024 "MB)"}' || true)
+        
+        if [ -n "$LARGE_FILES" ]; then
+          echo "Large files detected:"
+          echo "$LARGE_FILES"
+          echo ""
+          echo "Consider using Git LFS for large binary files:"
+          echo "  https://git-lfs.github.com/"
+          # Don't fail for this, just warn
+        else
+          echo "No excessively large files found"
+        fi
+
+    - name: Check for sensitive files
+      run: |
+        echo "Checking for potentially sensitive files..."
+        
+        ISSUES_FOUND=0
+        
+        # Check for common sensitive file patterns
+        SENSITIVE_PATTERNS=(
+          "\.env$"
+          "\.env\.local$"
+          "\.env\.production$"
+          "secret"
+          "\.pem$"
+          "\.key$"
+          "\.p12$"
+          "id_rsa"
+          "credentials\.json$"
+          "config\.json$"
+        )
+        
+        for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+          MATCHES=$(git ls-files | grep -E "$pattern" | grep -v -E '(example|sample|template|test|mock|dummy)' || true)
+          if [ -n "$MATCHES" ]; then
+            echo "Potential sensitive files matching pattern '$pattern':"
+            echo "$MATCHES"
+            echo ""
+            ISSUES_FOUND=1
+          fi
+        done
+        
+        if [ $ISSUES_FOUND -eq 1 ]; then
+          echo "Please review these files to ensure no secrets are committed."
+          echo "Use git-secrets or similar tools: https://github.com/awslabs/git-secrets"
+          # Don't fail - just warn, as there may be legitimate test files
+        else
+          echo "No obviously sensitive files found"
+        fi
+
+    - name: Validate .gitignore completeness
+      run: |
+        echo "Validating .gitignore coverage..."
+        
+        MISSING_PATTERNS=()
+        
+        # Check if .gitignore exists
+        if [ ! -f .gitignore ]; then
+          echo "No .gitignore file found!"
+          exit 1
+        fi
+        
+        # Common patterns that should be in .gitignore
+        REQUIRED_PATTERNS=(
+          "__pycache__"
+          "*.pyc"
+          ".pytest_cache"
+          "*.egg-info"
+          "venv"
+          ".env"
+          "node_modules"
+          "*.log"
+        )
+        
+        for pattern in "${REQUIRED_PATTERNS[@]}"; do
+          if ! grep -q "$pattern" .gitignore; then
+            MISSING_PATTERNS+=("$pattern")
+          fi
+        done
+        
+        if [ ${#MISSING_PATTERNS[@]} -gt 0 ]; then
+          echo "Recommended patterns missing from .gitignore:"
+          printf '%s\n' "${MISSING_PATTERNS[@]}"
+          echo ""
+          echo "Consider adding these to .gitignore"
+          # Don't fail - just warn
+        else
+          echo ".gitignore has good coverage"
+        fi
+
+    - name: Check PR size
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "Checking PR size..."
+        
+        # Get PR details
+        PR_NUMBER=${{ github.event.pull_request.number }}
+        
+        # Check additions/deletions
+        ADDITIONS=${{ github.event.pull_request.additions }}
+        DELETIONS=${{ github.event.pull_request.deletions }}
+        CHANGED_FILES=${{ github.event.pull_request.changed_files }}
+        
+        echo "PR Statistics:"
+        echo "  Files changed: $CHANGED_FILES"
+        echo "  Lines added: $ADDITIONS"
+        echo "  Lines deleted: $DELETIONS"
+        echo "  Net change: $((ADDITIONS - DELETIONS))"
+        
+        # Warn about very large PRs
+        if [ $ADDITIONS -gt 50000 ]; then
+          echo "WARNING: This is a very large PR ($ADDITIONS additions)"
+          echo "Large PRs are difficult to review and may indicate:"
+          echo "  - Committed dependencies (node_modules, etc.)"
+          echo "  - Generated/built files that shouldn't be in git"
+          echo "  - Multiple features that should be separate PRs"
+          echo ""
+          echo "Consider breaking this into smaller, focused PRs."
+        elif [ $ADDITIONS -gt 10000 ]; then
+          echo "This is a large PR. Consider reviewing if all changes are necessary."
+        else
+          echo "PR size is reasonable"
+        fi
+        
+        if [ $CHANGED_FILES -gt 100 ]; then
+          echo "PR touches $CHANGED_FILES files - consider breaking into smaller PRs"
+        fi
+
+    - name: Summary
+      if: always()
+      run: |
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Repository Health Check Complete"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "This automated check helps catch common repository issues:"
+        echo "  Accidentally committed dependencies"
+        echo "  Large/binary files"
+        echo "  Sensitive information"
+        echo "  .gitignore completeness"
+        echo "  PR size warnings"
+        echo ""
+        echo "Keep your repository clean and secure!"
