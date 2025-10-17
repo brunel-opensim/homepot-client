@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.homepot_client.models import (
+from homepot_client.models import (
     Base,
     Device,
     DeviceStatus,

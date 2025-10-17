@@ -170,7 +170,7 @@ python -c "from src.homepot_client import main; print('FastAPI app OK')"
 
 ```text
 POSDummy Implementation:
-├── tests/test_pos_dummy.py           # Main test implementation
+├── backend/tests/test_pos_dummy.py           # Main test implementation
 ├── scripts/run-pos-dummy.sh          # Command-line runner
 ├── .github/workflows/pos-dummy.yml   # Dedicated workflow
 ├── .github/workflows/ci-cd.yml       # Integrated in main pipeline

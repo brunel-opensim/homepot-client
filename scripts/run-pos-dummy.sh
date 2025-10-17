@@ -102,15 +102,15 @@ setup_environment() {
     fi
     
     # Verify we're in the right place
-    if [[ ! -d "src/homepot_client" ]]; then
+    if [[ ! -d "backend/homepot_client" ]]; then
         log_error "Not in HOMEPOT project root directory"
         log_error "Run this script from the homepot-client directory"
         return 1
     fi
     
     # Check for required files
-    if [[ ! -f "tests/test_pos_dummy.py" ]]; then
-        log_error "POSDummy test file not found: tests/test_pos_dummy.py"
+    if [[ ! -f "backend/tests/test_pos_dummy.py" ]]; then
+        log_error "POSDummy test file not found: backend/tests/test_pos_dummy.py"
         return 1
     fi
     
@@ -122,9 +122,9 @@ run_quick_posdummy() {
     log_info "Running Quick POSDummy verification..."
     
     local test_commands=(
-        "python -m pytest tests/test_pos_dummy.py::TestPOSDummy::test_critical_imports -q --tb=short --no-cov"
-        "python -m pytest tests/test_pos_dummy.py::TestPOSDummy::test_configuration_integrity -q --tb=short --no-cov"
-        "python -m pytest tests/test_pos_dummy.py::TestPOSDummy::test_package_structure -q --tb=short --no-cov"
+        "python -m pytest backend/tests/test_pos_dummy.py::TestPOSDummy::test_critical_imports -q --tb=short --no-cov"
+        "python -m pytest backend/tests/test_pos_dummy.py::TestPOSDummy::test_configuration_integrity -q --tb=short --no-cov"
+        "python -m pytest backend/tests/test_pos_dummy.py::TestPOSDummy::test_package_structure -q --tb=short --no-cov"
     )
     
     local i=1
@@ -157,7 +157,7 @@ run_full_posdummy() {
     log_info "Running Full POSDummy Integration Test..."
     
     # Prepare pytest command
-    local cmd="python -m pytest tests/test_pos_dummy.py --tb=short --no-cov"
+    local cmd="python -m pytest backend/tests/test_pos_dummy.py --tb=short --no-cov"
     
     if $VERBOSE; then
         cmd="$cmd -v --capture=no -s"

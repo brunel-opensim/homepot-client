@@ -324,8 +324,8 @@ validate_posdummy() {
     log_info "  Running POSDummy infrastructure verification..."
     
     # Check if POSDummy files exist
-    if [[ ! -f "tests/test_pos_dummy.py" ]]; then
-        log_warning "POSDummy test file not found at tests/test_pos_dummy.py"
+    if [[ ! -f "backend/tests/test_pos_dummy.py" ]]; then
+        log_warning "POSDummy test file not found at backend/tests/test_pos_dummy.py"
         return 0
     fi
     
@@ -397,7 +397,7 @@ validate_posdummy() {
     # Additional POSDummy health checks
     if [[ "$failed" == false ]]; then
         echo -n "    POSDummy files integrity: "
-        if [[ -s "tests/test_pos_dummy.py" ]] && [[ -s "scripts/run-pos-dummy.sh" ]]; then
+        if [[ -s "backend/tests/test_pos_dummy.py" ]] && [[ -s "scripts/run-pos-dummy.sh" ]]; then
             echo -e "${GREEN}Valid${NC}"
             log_verbose "POSDummy files are present and non-empty"
         else
@@ -427,8 +427,8 @@ validate_code_quality() {
     log_info "  Running comprehensive code quality checks (matching CI/CD)..."
     
     # Check if source directories exist
-    if [[ ! -d "src/" ]] && [[ ! -d "tests/" ]]; then
-        log_warning "No src/ or tests/ directories found"
+    if [[ ! -d "backend/" ]] && [[ ! -d "backend/tests/" ]]; then
+        log_warning "No backend/ or backend/tests/ directories found"
         return 0
     fi
     
@@ -437,11 +437,11 @@ validate_code_quality() {
     # Black formatting
     if command -v black >/dev/null 2>&1; then
         echo -n "    Black formatting: "
-        log_verbose "Running: black --check src/ tests/"
-        if black --check src/ tests/ 2>/dev/null; then
+        log_verbose "Running: black --check backend/ backend/tests/"
+        if black --check backend/ backend/tests/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: black src/ tests/${NC}"
+            echo -e "${RED}Failed - run: black backend/ backend/tests/${NC}"
             failed=true
         fi
     else
@@ -451,11 +451,11 @@ validate_code_quality() {
     # isort import sorting (NEW - matches CI/CD)
     if command -v isort >/dev/null 2>&1; then
         echo -n "    Import sorting (isort): "
-        log_verbose "Running: isort --check-only src/ tests/"
-        if isort --check-only src/ tests/ 2>/dev/null; then
+        log_verbose "Running: isort --check-only backend/ backend/tests/"
+        if isort --check-only backend/ backend/tests/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: isort src/ tests/${NC}"
+            echo -e "${RED}Failed - run: isort backend/ backend/tests/${NC}"
             failed=true
         fi
     else
@@ -465,11 +465,11 @@ validate_code_quality() {
     # flake8 linting
     if command -v flake8 >/dev/null 2>&1; then
         echo -n "    Linting (flake8): "
-        log_verbose "Running: flake8 src/ tests/"
-        if flake8 src/ tests/ 2>/dev/null; then
+        log_verbose "Running: flake8 backend/ backend/tests/"
+        if flake8 backend/ backend/tests/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: flake8 src/ tests/${NC}"
+            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/${NC}"
             failed=true
         fi
     else
@@ -479,11 +479,11 @@ validate_code_quality() {
     # MyPy type checking (NEW - matches CI/CD)
     if command -v mypy >/dev/null 2>&1; then
         echo -n "    Type checking (mypy): "
-        log_verbose "Running: mypy src/"
+        log_verbose "Running: mypy backend/"
         
         # Capture mypy output to check for specific errors
         local mypy_output
-        if mypy_output=$(mypy src/ 2>&1); then
+        if mypy_output=$(mypy backend/ 2>&1); then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check for specific error types
@@ -498,7 +498,7 @@ validate_code_quality() {
                 log_verbose "This indicates missing dependencies in requirements.txt or missing type stubs"
                 log_verbose "Consider installing missing packages or type stubs (e.g., pip install types-*)"
             else
-                echo -e "${RED}Failed - run: mypy src/${NC}"
+                echo -e "${RED}Failed - run: mypy backend/${NC}"
                 log_verbose "MyPy failed for other reasons"
                 if [[ "$VERBOSE" == true ]]; then
                     echo "$mypy_output" | head -10 | while read -r line; do
@@ -515,12 +515,12 @@ validate_code_quality() {
     # Security scans (NEW - matches CI/CD)
     if command -v bandit >/dev/null 2>&1; then
         echo -n "    Security scan (bandit): "
-        log_verbose "Running: bandit -r src/ -ll"
+        log_verbose "Running: bandit -r backend/ -ll"
         # Use -ll for low severity threshold, ignore medium/low issues for now
-        if bandit -r src/ -ll -q 2>/dev/null; then
+        if bandit -r backend/ -ll -q 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${YELLOW}Warnings found - review with: bandit -r src/${NC}"
+            echo -e "${YELLOW}Warnings found - review with: bandit -r backend/${NC}"
             log_verbose "Security scan found issues but continuing (non-blocking)"
         fi
     else
@@ -560,14 +560,14 @@ validate_python() {
     fi
     
     # Check pyproject.toml
-    if [ -f "pyproject.toml" ]; then
+    if [ -f "backend/pyproject.toml" ]; then
         echo -n "    pyproject.toml: "
-        log_verbose "Checking pyproject.toml and dependencies"
+        log_verbose "Checking backend/pyproject.toml and dependencies"
         
         # Enhanced dependency check
         if python -c "
 import sys
-sys.path.insert(0, 'src')
+sys.path.insert(0, 'backend')
 try:
     import pkg_resources
     # Test basic pip check
@@ -600,28 +600,28 @@ except Exception as e:
     fi
     
     # Check requirements.txt
-    if [ -f "requirements.txt" ]; then
+    if [ -f "backend/requirements.txt" ]; then
         echo -n "    requirements.txt: "
-        if [[ -s "requirements.txt" ]]; then
+        if [[ -s "backend/requirements.txt" ]]; then
             echo -e "${GREEN}Found${NC}"
-            local req_count=$(wc -l < requirements.txt)
-            log_verbose "requirements.txt found with $req_count lines"
+            local req_count=$(wc -l < backend/requirements.txt)
+            log_verbose "backend/requirements.txt found with $req_count lines"
             
             # Check for common problematic packages
             if [[ "$VERBOSE" == true ]]; then
-                if grep -q "tensorflow\|torch" requirements.txt; then
+                if grep -q "tensorflow\|torch" backend/requirements.txt; then
                     log_verbose "⚠ Large ML packages detected - may slow CI builds"
                 fi
-                if grep -q "==.*dev\|==.*alpha\|==.*beta" requirements.txt; then
+                if grep -q "==.*dev\|==.*alpha\|==.*beta" backend/requirements.txt; then
                     log_verbose "⚠ Development/pre-release packages detected"
                 fi
             fi
         else
             echo -e "${YELLOW}Empty${NC}"
-            log_verbose "requirements.txt exists but is empty"
+            log_verbose "backend/requirements.txt exists but is empty"
         fi
     else
-        log_verbose "requirements.txt not found"
+        log_verbose "backend/requirements.txt not found"
     fi
     
     # Check setup.py (legacy)
@@ -634,7 +634,7 @@ except Exception as e:
     log_verbose "Checking if all code dependencies are in requirements.txt"
     if python -c "
 import sys
-sys.path.insert(0, 'src')
+sys.path.insert(0, 'backend')
 import ast
 import os
 from pathlib import Path
@@ -665,7 +665,7 @@ def get_imports_from_file(file_path):
     except:
         return set()
 
-# Find all Python files in src/
+# Find all Python files in backend/
 src_dir = Path('src')
 all_imports = set()
 
@@ -714,7 +714,7 @@ except Exception as e:
             # Run the check again to show the actual warnings
             python -c "
 import sys
-sys.path.insert(0, 'src')
+sys.path.insert(0, 'backend')
 import ast
 import os
 from pathlib import Path
@@ -830,8 +830,8 @@ validate_tests() {
     log_info "  Running essential tests..."
     
     # Check if we have a tests directory
-    if [[ ! -d "tests/" ]]; then
-        log_warning "No tests/ directory found"
+    if [[ ! -d "backend/tests/" ]]; then
+        log_warning "No backend/tests/ directory found"
         return 0
     fi
     
@@ -840,7 +840,7 @@ validate_tests() {
     local found_tests=()
     
     for test_file in "${essential_tests[@]}"; do
-        if [ -f "tests/$test_file" ]; then
+        if [ -f "backend/tests/$test_file" ]; then
             found_tests+=("$test_file")
             log_verbose "Found essential test: $test_file"
         fi
@@ -862,8 +862,8 @@ validate_tests() {
     # Run database and model tests (essential for our database organization)
     if [[ " ${found_tests[*]} " =~ " test_database.py " ]]; then
         echo -n "    Database tests: "
-        log_verbose "Running: python -m pytest tests/test_database.py -q --no-cov"
-        if python -m pytest tests/test_database.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: python -m pytest backend/tests/test_database.py -q --no-cov"
+        if python -m pytest backend/tests/test_database.py -q --no-cov >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -874,8 +874,8 @@ validate_tests() {
     
     if [[ " ${found_tests[*]} " =~ " test_models.py " ]]; then
         echo -n "    Model tests: "
-        log_verbose "Running: python -m pytest tests/test_models.py -q --no-cov"
-        if python -m pytest tests/test_models.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: python -m pytest backend/tests/test_models.py -q --no-cov"
+        if python -m pytest backend/tests/test_models.py -q --no-cov >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -887,8 +887,8 @@ validate_tests() {
     # Run configuration tests
     if [[ " ${found_tests[*]} " =~ " test_config.py " ]]; then
         echo -n "    Configuration tests: "
-        log_verbose "Running: python -m pytest tests/test_config.py -q --no-cov"
-        if python -m pytest tests/test_config.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: python -m pytest backend/tests/test_config.py -q --no-cov"
+        if python -m pytest backend/tests/test_config.py -q --no-cov >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -899,12 +899,12 @@ validate_tests() {
     
     # NEW: Integration test fixture validation
     echo -n "    Integration test fixtures: "
-    if [ -f "tests/test_homepot_integration.py" ]; then
+    if [ -f "backend/tests/test_homepot_integration.py" ]; then
         log_verbose "Checking integration test fixture dependencies"
         # Test if integration tests can import properly (without running full tests)
         if python -c "
 import sys
-sys.path.insert(0, 'src')
+sys.path.insert(0, 'backend')
 try:
     # Test basic imports that integration tests need
     from homepot_client.main import app
@@ -917,7 +917,7 @@ try:
     import subprocess
     result = subprocess.run([
         sys.executable, '-m', 'pytest', 
-        'tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
+        'backend/tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
         '--collect-only', '-q'
     ], capture_output=True, text=True, cwd='.')
     
@@ -952,7 +952,7 @@ except Exception as e:
     log_verbose "Testing FastAPI application startup and lifespan events"
     if python -c "
 import sys
-sys.path.insert(0, 'src')
+sys.path.insert(0, 'backend')
 try:
     from homepot_client.main import app
     from fastapi.testclient import TestClient
@@ -989,13 +989,13 @@ except Exception as e:
     log_verbose "Testing if integration tests can run without 503 errors"
     if python -c "
 import sys
-sys.path.insert(0, 'src')
+sys.path.insert(0, 'backend')
 try:
     # Test integration tests using pytest (which uses our fixtures)
     import subprocess
     result = subprocess.run([
         sys.executable, '-m', 'pytest', 
-        'tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
+        'backend/tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
         '-v', '--no-cov', '--tb=no'
     ], capture_output=True, text=True, cwd='.')
     
@@ -1110,7 +1110,7 @@ main() {
     fi
     
     # Check if we're in the right directory
-    if [[ ! -f "pyproject.toml" ]] && [[ ! -f "setup.py" ]] && [[ ! -f "requirements.txt" ]]; then
+    if [[ ! -f "backend/pyproject.toml" ]] && [[ ! -f "setup.py" ]] && [[ ! -f "backend/requirements.txt" ]]; then
         log_error "Error: No Python project files found. Please run from project root."
         exit 1
     fi

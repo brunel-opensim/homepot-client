@@ -27,7 +27,7 @@ Successfully implemented a modular, plugin-based push notification system for th
 ## File Structure
 
 ```
-src/homepot_client/push_notifications/
+backend/homepot_client/push_notifications/
 ├── __init__.py                 # Package initialization
 ├── base.py                     # Abstract base classes and data models
 ├── factory.py                  # Provider factory and registration

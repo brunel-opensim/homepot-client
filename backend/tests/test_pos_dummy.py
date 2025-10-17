@@ -24,12 +24,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.homepot_client.agents import POSAgentSimulator
-from src.homepot_client.database import DatabaseService
+from homepot_client.agents import POSAgentSimulator
+from homepot_client.database import DatabaseService
 
 # Import HOMEPOT components
-from src.homepot_client.main import app
-from src.homepot_client.models import Base, User
+from homepot_client.main import app
+from homepot_client.models import Base, User
 
 
 class TestPOSDummy:
@@ -112,7 +112,7 @@ class TestPOSDummy:
         before we attempt any actual functionality testing.
         """
         # Test core application imports
-        from src.homepot_client import (
+        from homepot_client import (
             agents,
             audit,
             client,
@@ -323,17 +323,24 @@ class TestPOSDummy:
         This ensures the package is properly configured and can be built.
         """
         # Check that critical configuration files exist and are readable
+        # Paths relative to project root
+        project_root = (
+            os.path.dirname(os.path.dirname(os.getcwd()))
+            if "backend" in os.getcwd()
+            else os.getcwd()
+        )
+
         config_files = [
-            "pyproject.toml",
-            "requirements.txt",
-            ".flake8",
-            "Dockerfile",
-            "README.md",
-            "CONTRIBUTING.md",
+            ("backend/pyproject.toml", project_root),
+            ("backend/requirements.txt", project_root),
+            (".flake8", project_root),
+            ("Dockerfile", project_root),
+            ("README.md", project_root),
+            ("CONTRIBUTING.md", project_root),
         ]
 
-        for config_file in config_files:
-            file_path = os.path.join(os.getcwd(), config_file)
+        for config_file, root in config_files:
+            file_path = os.path.join(root, config_file)
             assert os.path.exists(
                 file_path
             ), f"Critical config file missing: {config_file}"
@@ -349,16 +356,23 @@ class TestPOSDummy:
         This ensures the Python package structure hasn't been broken.
         """
         # Check critical source files exist
+        # Paths relative to project root
+        project_root = (
+            os.path.dirname(os.path.dirname(os.getcwd()))
+            if "backend" in os.getcwd()
+            else os.getcwd()
+        )
+
         critical_files = [
-            "src/homepot_client/__init__.py",
-            "src/homepot_client/main.py",
-            "src/homepot_client/models.py",
-            "src/homepot_client/database.py",
-            "src/homepot_client/agents.py",
+            "backend/homepot_client/__init__.py",
+            "backend/homepot_client/main.py",
+            "backend/homepot_client/models.py",
+            "backend/homepot_client/database.py",
+            "backend/homepot_client/agents.py",
         ]
 
         for file_path in critical_files:
-            full_path = os.path.join(os.getcwd(), file_path)
+            full_path = os.path.join(project_root, file_path)
             assert os.path.exists(
                 full_path
             ), f"Critical source file missing: {file_path}"

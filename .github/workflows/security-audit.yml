@@ -8,14 +8,14 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'pyproject.toml'
-      - 'requirements*.txt'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
       - '.github/workflows/security-audit.yml'
   pull_request:
     branches: [ main ]
     paths:
-      - 'pyproject.toml'
-      - 'requirements*.txt'
+      - 'backend/pyproject.toml'
+      - 'backend/requirements*.txt'
       - '.github/workflows/security-audit.yml'
 
 # Default permissions
@@ -45,15 +45,15 @@ jobs:
       run: |
         set -e
         python -m pip install --upgrade pip
-        pip install --no-cache-dir -r requirements.txt
-        pip install -e .
+        pip install --no-cache-dir -r backend/requirements.txt
+        pip install -e backend/
 
     - name: Run Safety security scan
       run: safety check --json --output safety-results.json
       continue-on-error: true
 
     - name: Run Bandit security scan
-      run: bandit -r src/ -f json -o bandit-results.json
+      run: bandit -r backend/homepot_client/ -f json -o bandit-results.json
       continue-on-error: true
 
     - name: Run pip-audit

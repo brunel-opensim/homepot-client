@@ -16,9 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create and set the working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml README.md ./
-COPY src/ src/
+# Copy backend dependency files and source
+COPY backend/pyproject.toml ./
+COPY README.md ../README.md
+COPY backend/homepot_client/ homepot_client/
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
@@ -47,8 +48,9 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application source
-COPY --from=builder /app/src /app/src
-COPY --chown=homepot:homepot pyproject.toml README.md ./
+COPY --from=builder /app/homepot_client /app/homepot_client
+COPY --chown=homepot:homepot backend/pyproject.toml ./
+COPY --chown=homepot:homepot README.md ../README.md
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/data /app/logs && \

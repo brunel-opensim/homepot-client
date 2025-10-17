@@ -36,8 +36,8 @@
 ### What's Tracked in Git
 
 **Schema and code** (versioned):
-- `src/homepot_client/models.py` - Database schema
-- `src/homepot_client/database.py` - Database service
+- `backend/homepot_client/models.py` - Database schema
+- `backend/homepot_client/database.py` - Database service
 - `scripts/init-database.sh` - Initialization script
 - `data/README.md` - Documentation
 - `data/backups/.gitkeep` - Directory structure

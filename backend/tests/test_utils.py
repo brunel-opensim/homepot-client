@@ -17,7 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
-from src.homepot_client.models import Base
+from homepot_client.models import Base
 
 
 def create_windows_safe_temp_db() -> Generator[sessionmaker, None, None]:
