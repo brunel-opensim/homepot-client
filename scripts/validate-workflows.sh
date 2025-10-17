@@ -1079,6 +1079,14 @@ except Exception as e:
 
 # Main execution
 main() {
+    # Try to activate virtual environment if it exists and isn't already active
+    if [[ -z "$VIRTUAL_ENV" ]] && [[ -f "venv/bin/activate" ]]; then
+        log_verbose "Activating virtual environment at venv/"
+        source venv/bin/activate
+    elif [[ -n "$VIRTUAL_ENV" ]]; then
+        log_verbose "Virtual environment already active: $VIRTUAL_ENV"
+    fi
+    
     # Print header unless quiet mode
     if [[ "$QUIET" != true ]]; then
         echo -e "${GREEN}HOMEPOT Workflow & Code Quality Validation${NC}"

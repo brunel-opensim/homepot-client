@@ -11,6 +11,7 @@ The tests use httpx for async HTTP testing and cover the full API surface.
 
 import os
 import time
+from typing import AsyncGenerator
 
 import httpx
 import pytest
@@ -39,7 +40,7 @@ class TestHOMEPOTSystem:
         return TestClient(app)
 
     @pytest.fixture(scope="class")
-    async def async_client(self) -> httpx.AsyncClient:
+    async def async_client(self) -> AsyncGenerator[httpx.AsyncClient, None]:
         """Create an async HTTP client for testing."""
         async with httpx.AsyncClient(
             base_url=TEST_BASE_URL, timeout=TEST_TIMEOUT
