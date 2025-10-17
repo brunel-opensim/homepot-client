@@ -20,11 +20,12 @@ cd homepot-client
 
 ```bash
 # Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
+cd backend
+pip install --upgrade pip
+pip install -r requirements.txt
 
-# Install with development dependencies
-pip install -e ".[dev]"
+# Still in backend/ directory
+pip install -e .
 
 # Install additional development tools
 pip install pytest pytest-cov black isort flake8 mypy bandit

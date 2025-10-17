@@ -160,11 +160,11 @@ Trusted External Contributors:  Read (PR only)
 3. **Configure Branch Protection** (Recommended)
    ```
    Settings > Branches > Add rule for "main":
-   ✅ Require pull request reviews before merging
-   ✅ Require status checks to pass before merging
-   ✅ Restrict pushes that create files larger than 100MB
-   ❌ Allow force pushes (keep disabled)
-   ❌ Allow deletions (keep disabled)
+   - Require pull request reviews before merging
+   - Require status checks to pass before merging
+   - Restrict pushes that create files larger than 100MB
+   - Allow force pushes (keep disabled)
+   - Allow deletions (keep disabled)
    ```
 
 ### Using GitHub CLI (Alternative):

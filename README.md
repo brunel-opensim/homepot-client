@@ -54,7 +54,7 @@ homepot-client/
 └── README.md                  # This file
 ```
 
-> 📖 See [Monorepo Migration Guide](docs/monorepo-migration.md) for details on the new structure
+> See [Monorepo Migration Guide](docs/monorepo-migration.md) for details on the new structure
 
 ## Quick Start
 
@@ -120,7 +120,7 @@ We welcome contributions from consortium members! Please see our [Contributing G
 
 ## Complete Documentation
 
-**📚 Full Documentation: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
+**Full Documentation: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
 
 Key documentation sections:
 
