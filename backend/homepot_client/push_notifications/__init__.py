@@ -60,7 +60,7 @@ def check_platform_availability() -> Dict[str, bool]:
 
     platforms = {
         "fcm_linux": False,
-        "apns_macos": False,
+        "apns_apple": False,  # APNs for iOS/macOS devices
         "wns_windows": False,
         "web_push": False,
         "fcm_android": False,
@@ -76,15 +76,15 @@ def check_platform_availability() -> Dict[str, bool]:
     except ImportError:
         pass
 
-    # Check APNs macOS (when implemented)
+    # Check APNs Apple (iOS/macOS)
     try:
-        from .apns_macos import APNsMacOSProvider  # noqa: F401
+        from .apns_apple import APNsProvider  # noqa: F401
 
-        platforms["apns_macos"] = True
+        platforms["apns_apple"] = True
     except ImportError:
         pass
 
-    # Check WNS Windows (when implemented)
+    # Check WNS Windows
     try:
         from .wns_windows import WNSWindowsProvider  # noqa: F401
 
