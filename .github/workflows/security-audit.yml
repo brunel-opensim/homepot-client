@@ -163,10 +163,13 @@ jobs:
     - name: Python package compliance
       run: |
         # Check that pyproject.toml exists and is valid
-        if [ ! -f "pyproject.toml" ]; then
-          echo "Error: pyproject.toml file is missing"
+        if [ ! -f "backend/pyproject.toml" ]; then
+          echo "Error: backend/pyproject.toml file is missing"
           exit 1
         fi
+        
+        # Change to backend directory for package operations
+        cd backend
         
         # Install and check package can be built
         pip install --no-cache-dir build
