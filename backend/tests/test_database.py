@@ -12,8 +12,8 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from src.homepot_client.config import get_settings
-from src.homepot_client.models import Base, Device, Job, JobStatus, Site, User
+from homepot_client.config import get_settings
+from homepot_client.models import Base, Device, Job, JobStatus, Site, User
 
 
 @pytest.fixture
@@ -147,7 +147,9 @@ def test_job_creation(temp_db):
     db.commit()
 
     user = User(
-        username="testuser", email="test@example.com", hashed_password="hashed123"
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed123",  # noqa: S106
     )
     db.add(user)
     db.commit()

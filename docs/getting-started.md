@@ -2,6 +2,8 @@
 
 Welcome to **HOMEPOT** (Homogenous Cyber Management of End-Points and OT) - an enterprise-grade POS payment gateway management system for the HOMEPOT consortium.
 
+> **Note**: HOMEPOT uses a monorepo structure with separate `backend/`, `frontend/`, and `ai/` directories. This guide focuses on the backend setup. For detailed information about the structure, see the [Monorepo Migration Guide](monorepo-migration.md) and [Running Locally Guide](running-locally.md).
+
 ## Quick Start (5 minutes)
 
 ### Prerequisites
@@ -17,30 +19,38 @@ Welcome to **HOMEPOT** (Homogenous Cyber Management of End-Points and OT) - an e
 git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
 
-# 2. Install dependencies
-./scripts/install.sh --dev
+# 2. Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# 3. Check the version
+# 3. Navigate to backend directory
+cd backend
+
+# 4. Install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
+
+# 5. Initialize database
+python -m homepot_client.database
+
+# 6. Check the version
 python -m homepot_client.cli version
 
-# 4. More information
+# 7. More information
 python -m homepot_client.cli info
 
-# 5. Test configuration
-python -m pytest tests/test_client.py -v --disable-warnings
+# 8. Test configuration
+cd ..  # Return to root
+python -m pytest backend/tests/test_client.py -v --disable-warnings
 ```
 
 When ready to start the client:
 
 ```bash
-# 6. Start the system
-python -m homepot_client.main
-```
-
-Or, specifically set arguments:
-
-```bash
-python -m uvicorn src.homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
+# 9. Start the backend server (from backend/ directory)
+cd backend
+python -m uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Verify Installation
@@ -113,11 +123,12 @@ python -m homepot_client.main
 
 **Connection Issues:**
 ```bash
-# Check if server is running
+# Check if server is running (from root directory)
 curl http://localhost:8000/health
 
-# If connection refused, restart
-python -m homepot_client.main
+# If connection refused, restart from backend/ directory
+cd backend
+python -m uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Getting Help

@@ -95,11 +95,11 @@ Documentation = "https://github.com/brunel-opensim/homepot-client/tree/main/docs
 homepot-client = "homepot_client.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
 include = ["homepot_client*"]
 
 [tool.setuptools.package-dir]
-"" = "src"
+"" = "."
 
 # Black configuration
 [tool.black]
@@ -161,7 +161,7 @@ addopts = [
     "--cov-report=xml",
     "--cov-fail-under=20",
 ]
-pythonpath = [".", "src"]
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -185,7 +185,7 @@ filterwarnings = [
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["src"]
+source = ["homepot_client"]
 omit = [
     "*/tests/*",
     "*/test_*",
@@ -193,7 +193,7 @@ omit = [
     "*/site-packages/*",
     "*/venv/*",
     "*/.venv/*",
-    "src/homepot_client/main.py",  # Exclude FastAPI demo app from coverage
+    "homepot_client/main.py",  # Exclude FastAPI demo app from coverage
 ]
 
 [tool.coverage.report]

@@ -94,8 +94,8 @@ class TestPerformance:
         print("\nConcurrent Load Test")
         print("=" * 30)
 
-        def make_request(endpoint: str) -> float:
-            """Make a single request and return response time."""
+        def make_request(endpoint: str) -> tuple[float, bool]:
+            """Make a single request and return response time and success status."""
             start = time.time()
             response = requests.get(f"{BASE_URL}{endpoint}", timeout=TIMEOUT)
             end = time.time()

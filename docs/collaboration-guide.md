@@ -8,27 +8,27 @@ This guide outlines the collaboration workflow and access controls for the modul
 
 ### Core Architecture (Maintainer Access Required)
 ```
-src/homepot_client/push_notifications/
-├── __init__.py                 # 🔒 Core maintainer only
-├── base.py                     # 🔒 Core maintainer only  
-├── factory.py                  # 🔒 Core maintainer only
+backend/homepot_client/push_notifications/
+├── __init__.py                 # Core maintainer only
+├── base.py                     # Core maintainer only  
+├── factory.py                  # Core maintainer only
 └── auth/
-    ├── __init__.py            # 🔒 Core maintainer only
-    ├── base.py                # 🔒 Core maintainer only
-    ├── service_account.py     # 🔒 Core maintainer only
-    ├── api_key.py             # 🔒 Core maintainer only
-    └── oauth.py               # 🔒 Core maintainer only
+    ├── __init__.py            # Core maintainer only
+    ├── base.py                # Core maintainer only
+    ├── service_account.py     # Core maintainer only
+    ├── api_key.py             # Core maintainer only
+    └── oauth.py               # Core maintainer only
 ```
 
 ### Platform Implementations (Contributor Access)
 ```
-src/homepot_client/push_notifications/
-├── fcm_linux.py               # 🟢 Firebase/Linux specialists
-├── simulation.py              # 🟢 Testing/QA team
-├── apns_macos.py              # 🟢 Apple/macOS specialists (pending)
-├── wns_windows.py             # 🟢 Microsoft/Windows specialists (pending)
-├── web_push.py                # 🟢 Web/PWA specialists (pending)
-└── fcm_android.py             # 🟢 Android specialists (pending)
+backend/homepot_client/push_notifications/
+├── fcm_linux.py               # Firebase/Linux specialists
+├── simulation.py              # Testing/QA team
+├── apns_macos.py              # Apple/macOS specialists (pending)
+├── wns_windows.py             # Microsoft/Windows specialists (pending)
+├── web_push.py                # Web/PWA specialists (pending)
+└── fcm_android.py             # Android specialists (pending)
 ```
 
 ## Access Control Strategy (Small Team - 3 Developers)

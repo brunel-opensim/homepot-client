@@ -112,7 +112,7 @@ This matches the GitHub Actions workflow order, ensuring local validation mirror
    - Enhanced command-line options
    - Integrated into execution pipeline
 
-2. **`tests/test_pos_dummy.py`**
+2. **`backend/tests/test_pos_dummy.py`**
    - Code quality improvements
    - Black formatting applied
    - Flake8 compliance via exceptions

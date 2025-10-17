@@ -17,7 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
-from src.homepot_client.models import Base
+from homepot_client.models import Base
 
 
 def create_windows_safe_temp_db() -> Generator[sessionmaker, None, None]:
@@ -70,7 +70,8 @@ def create_windows_safe_pos_dummy_db() -> Generator[str, None, None]:
 
         yield db_path
     finally:
-        _cleanup_pos_dummy_database(engine, db_path)
+        if engine is not None:
+            _cleanup_pos_dummy_database(engine, db_path)
 
 
 def _cleanup_temp_database(engine: Engine, temp_db_path: Path, temp_dir: str) -> None:

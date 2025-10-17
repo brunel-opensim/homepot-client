@@ -5,6 +5,8 @@ including authentication, notification sending, error handling, and
 batch operations.
 """
 
+# ruff: noqa: S105 - Test file contains mock tokens, not real secrets
+
 import json
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 

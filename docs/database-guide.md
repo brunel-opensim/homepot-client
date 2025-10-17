@@ -65,17 +65,17 @@ homepot-client/
 │   ├── homepot.db                # Main development database
 │   ├── homepot_test.db           # Test database (auto-created)
 │   └── migrations/               # Schema changes (future)
-├── src/homepot_client/
+├── backend/homepot_client/
 │   ├── database.py               # Database connection
 │   ├── models.py                 # SQLAlchemy models
 │   └── config.py                 # Database configuration
-└── tests/
+└── backend/tests/
     └── test_database.py          # Database tests
 ```
 
 ### Configuration
 
-Database connections are configured in `src/homepot_client/config.py`:
+Database connections are configured in `backend/homepot_client/config.py`:
 
 ```python
 # Development (default)

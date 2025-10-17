@@ -126,7 +126,7 @@ check_project_root() {
         exit 1
     fi
     
-    if [[ ! -f "src/homepot_client/__init__.py" ]]; then
+    if [[ ! -f "backend/homepot_client/__init__.py" ]]; then
         log_error "Error: HOMEPOT client source not found"
         log_error "Please ensure you're in the correct project directory"
         exit 1

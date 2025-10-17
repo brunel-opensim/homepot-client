@@ -17,12 +17,12 @@ on:
   # Automatic trigger on specific changes
   push:
     paths:
-    - 'src/homepot_client/main.py'
-    - 'src/homepot_client/models.py' 
-    - 'src/homepot_client/database.py'
-    - 'src/homepot_client/agents.py'
-    - 'src/homepot_client/orchestrator.py'
-    - 'tests/test_pos_dummy.py'
+    - 'backend/homepot_client/main.py'
+    - 'backend/homepot_client/models.py' 
+    - 'backend/homepot_client/database.py'
+    - 'backend/homepot_client/agents.py'
+    - 'backend/homepot_client/orchestrator.py'
+    - 'backend/tests/test_pos_dummy.py'
     - 'scripts/run-pos-dummy.sh'
     
   # Schedule regular POSDummy runs (every 6 hours)
@@ -61,8 +61,8 @@ jobs:
       run: |
         set -e
         python -m pip install --upgrade pip
-        pip install --no-cache-dir -r requirements.txt
-        pip install -e .
+        pip install --no-cache-dir -r backend/requirements.txt
+        pip install -e backend/
         
     - name: Determine test mode
       id: test-mode

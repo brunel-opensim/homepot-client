@@ -29,25 +29,32 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ## Project Structure
 
+**Monorepo organization for full-stack development:**
+
 ```text
 homepot-client/
-├── src/
-│   └── homepot_client/        # Python package source code
-├── tests/                     # Test files and test configuration
-├── data/                      # Database storage for testing
-├── docs/                      # Documentation source and builds
+├── backend/                   # Python backend service
+│   ├── homepot_client/       # Main Python package
+│   ├── tests/                # Backend tests
+│   ├── pyproject.toml        # Python configuration
+│   └── requirements.txt      # Python dependencies
+├── frontend/                  # React frontend application
+│   ├── src/                  # Frontend source code
+│   ├── public/               # Static assets
+│   └── package.json          # npm dependencies
+├── ai/                        # AI/LLM services (future)
+│   └── README.md             # AI service documentation
+├── docs/                      # Documentation
 ├── scripts/                   # Development and automation scripts
-├── .github/                   # GitHub workflows and documentation
-│   ├── workflows/             # CI/CD automation workflows
-│   └── WORKFLOWS.md           # Workflow documentation
-├── Dockerfile                 # Container configuration
-├── docker-compose.yml         # Multi-container setup
-├── pyproject.toml             # Python project configuration
-├── requirements.txt           # Development dependencies
+├── data/                      # Database storage
+├── .github/                   # GitHub workflows
+├── docker-compose.yml         # Multi-service orchestration
 ├── CONTRIBUTING.md            # Contribution guidelines
 ├── LICENSE                    # Apache 2.0 license
 └── README.md                  # This file
 ```
+
+> See [Monorepo Migration Guide](docs/monorepo-migration.md) for details on the new structure
 
 ## Quick Start
 
@@ -113,7 +120,7 @@ We welcome contributions from consortium members! Please see our [Contributing G
 
 ## Complete Documentation
 
-**📚 Full Documentation: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
+**Full Documentation: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
 
 Key documentation sections:
 

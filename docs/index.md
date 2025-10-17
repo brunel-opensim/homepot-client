@@ -7,6 +7,8 @@ Welcome to the HOMEPOT (Homogenous Cyber Management of End-Points and OT) docume
 New to HOMEPOT? Start here:
 
 - **[Getting Started](getting-started.md)** - Installation and basic setup
+- **[Running Locally](running-locally.md)** - Run HOMEPOT on your local machine (Monorepo)
+- **[Monorepo Migration Guide](monorepo-migration.md)** - Understanding the new repository structure
 
 ## Feature Guides
 

@@ -131,7 +131,7 @@ async def test_apns_provider_initialize(apns_config):
 
     assert success is True
     assert provider._initialized is True
-    assert provider._jwt_token == "mock_jwt_token"
+    assert provider._jwt_token == "mock_jwt_token"  # noqa: S105
     assert provider._client is not None
     assert isinstance(provider._client, httpx.AsyncClient)
 
@@ -199,7 +199,7 @@ async def test_jwt_token_refresh(apns_config):
         # Refresh should generate new token
         with patch("jwt.encode", return_value="new_jwt_token"):
             provider._ensure_valid_jwt()
-            assert provider._jwt_token == "new_jwt_token"
+            assert provider._jwt_token == "new_jwt_token"  # noqa: S105
 
     await provider.cleanup()
 
@@ -370,7 +370,7 @@ async def test_send_notification_invalid_token(apns_config, sample_payload):
     with patch("jwt.encode", return_value="mock_jwt_token"):
         await provider.initialize()
 
-        invalid_token = "invalid"
+        invalid_token = "invalid"  # noqa: S105
         result = await provider.send_notification(invalid_token, sample_payload)
 
         assert result.success is False

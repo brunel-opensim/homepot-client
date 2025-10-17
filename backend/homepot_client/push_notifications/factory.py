@@ -30,7 +30,7 @@ def register_provider(
     """Register a push notification provider.
 
     Args:
-        platform: Platform identifier (e.g., 'fcm_linux', 'apns_macos')
+        platform: Platform identifier (e.g., 'fcm_linux', 'apns_apple')
         provider_class: Provider class to register
     """
     _PROVIDER_REGISTRY[platform] = provider_class
@@ -64,7 +64,7 @@ async def get_push_provider(
     """Get a push notification provider for the specified platform.
 
     Args:
-        platform: Platform identifier (e.g., 'fcm_linux', 'apns_macos')
+        platform: Platform identifier (e.g., 'fcm_linux', 'apns_apple')
         config: Platform-specific configuration dictionary
         force_new: If True, create a new instance instead of reusing cached one
 

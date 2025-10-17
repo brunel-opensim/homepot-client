@@ -10,14 +10,14 @@ services:
       - "${HOMEPOT_PORT:-8000}:8000"
     environment:
       - HOMEPOT_ENV=${HOMEPOT_ENV:-production}
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app
       - HOMEPOT_DEBUG=${HOMEPOT_DEBUG:-false}
     volumes:
       # Always mount data and logs
       - ${HOMEPOT_DATA_DIR:-./data}:/app/data
       - ${HOMEPOT_LOGS_DIR:-./logs}:/app/logs
       # Mount source code in development mode only
-      - ${HOMEPOT_SOURCE_MOUNT:-/dev/null}:/app/src:ro
+      - ${HOMEPOT_SOURCE_MOUNT:-/dev/null}:/app/homepot_client:ro
     command: >
       sh -c "
       if [ \"$$HOMEPOT_ENV\" = \"development\" ]; then

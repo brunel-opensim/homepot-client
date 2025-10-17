@@ -58,8 +58,8 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add backend to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 from homepot_client.database import DatabaseService
 from homepot_client.models import Base, Site, Device, Job, User, DeviceType, DeviceStatus, JobStatus
