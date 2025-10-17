@@ -325,12 +325,12 @@ class TestPOSDummy:
         This ensures the package is properly configured and can be built.
         """
         # Check that critical configuration files exist and are readable
-        # Paths relative to project root
-        project_root = (
-            os.path.dirname(os.path.dirname(os.getcwd()))
-            if "backend" in os.getcwd()
-            else os.getcwd()
-        )
+        # Determine project root: if we're in backend/, go up one level
+        cwd = os.getcwd()
+        if os.path.basename(cwd) == "backend":
+            project_root = os.path.dirname(cwd)
+        else:
+            project_root = cwd
 
         config_files = [
             ("backend/pyproject.toml", project_root),
@@ -358,12 +358,12 @@ class TestPOSDummy:
         This ensures the Python package structure hasn't been broken.
         """
         # Check critical source files exist
-        # Paths relative to project root
-        project_root = (
-            os.path.dirname(os.path.dirname(os.getcwd()))
-            if "backend" in os.getcwd()
-            else os.getcwd()
-        )
+        # Determine project root: if we're in backend/, go up one level
+        cwd = os.getcwd()
+        if os.path.basename(cwd) == "backend":
+            project_root = os.path.dirname(cwd)
+        else:
+            project_root = cwd
 
         critical_files = [
             "backend/homepot_client/__init__.py",
