@@ -6,7 +6,9 @@ for the HOMEPOT system.
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional
+from urllib.parse import urlparse
 
 from sqlalchemy import Result
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -61,6 +63,20 @@ class DatabaseService:
             return
 
         try:
+            # Create data directory if it doesn't exist (for SQLite databases)
+            settings = get_settings()
+            db_url = settings.database.url
+            if db_url.startswith("sqlite://"):
+                # Parse the database file path
+                db_path = db_url.replace("sqlite:///", "")
+                if db_path.startswith("./"):
+                    db_path = db_path[2:]
+                
+                # Create parent directory if it doesn't exist
+                db_file = Path(db_path)
+                db_file.parent.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Ensured database directory exists: {db_file.parent}")
+
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
 

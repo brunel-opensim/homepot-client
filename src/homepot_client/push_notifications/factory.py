@@ -185,13 +185,13 @@ def _auto_register_providers() -> None:
     except ImportError:
         logger.debug("FCM Linux provider not available")
 
-    # Try to register APNs macOS (when implemented)
+    # Try to register APNs
     try:
-        from .apns_macos import APNsMacOSProvider
+        from .apns_apple import APNsProvider
 
-        register_provider("apns_macos", APNsMacOSProvider)
+        register_provider("apns", APNsProvider)
     except ImportError:
-        logger.debug("APNs macOS provider not available")
+        logger.debug("APNs provider not available")
 
     # Try to register WNS Windows (when implemented)
     try:

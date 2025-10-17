@@ -110,6 +110,7 @@ nav:
     - Overview: push-notification.md
     - FCM Linux Integration: fcm-linux-integration.md
     - WNS Windows Integration: wns-windows-integration.md
+    - APNs Apple Integration: apns-apple-integration.md
   - Technical Guides:
     - Database Guide: database-guide.md
     - Collaboration Guide: collaboration-guide.md
