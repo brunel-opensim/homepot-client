@@ -1,0 +1,138 @@
+# HOMEPOT Client Documentation
+
+site_name: HOMEPOT Client
+site_description: Homogenous Cyber Management of End-Points and OT - POS Payment Gateway Management System
+site_author: Brunel OpenSim
+site_url: https://homepot-client.readthedocs.io
+
+# Repository
+repo_name: brunel-opensim/homepot-client
+repo_url: https://github.com/brunel-opensim/homepot-client
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2024-2025 Brunel OpenSim
+
+# Configuration
+theme:
+  name: material
+  language: en
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - md_in_html
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Plugins
+plugins:
+  - search:
+      lang: en
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+
+# Page tree
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started.md
+    - Development Guide: development-guide.md
+    - Deployment Guide: deployment-guide.md
+  - Features:
+    - POS Management: pos-management.md
+    - Real-time Dashboard: real-time-dashboard.md
+    - Agent Simulation: agent-simulation.md
+    - Audit & Compliance: audit-compliance.md
+  - Push Notifications:
+    - Overview: push-notification.md
+    - FCM Linux Integration: fcm-linux-integration.md
+    - WNS Windows Integration: wns-windows-integration.md
+  - Technical Guides:
+    - Database Guide: database-guide.md
+    - Collaboration Guide: collaboration-guide.md
+    - GitHub Permissions: github-permissions-guide.md
+  - POS Dummy:
+    - Overview: POSDummy.md
+    - Integration: POSDummy-Integration.md
+
+# Extra
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/brunel-opensim/homepot-client
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/homepot-client/
+  version:
+    provider: mike
+
+# CSS
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

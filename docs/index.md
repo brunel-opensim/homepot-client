@@ -25,6 +25,14 @@ For developers and system administrators:
 - **[Database Guide](database-guide.md)** - Database setup, management, and usage
 - **[Deployment Guide](deployment-guide.md)** - Production deployment with Docker
 
+## Platform Integration Guides
+
+Push notification integrations for different platforms:
+
+- **[Push Notification System](push-notification.md)** - Overview and architecture
+- **[Firebase Cloud Messaging (FCM)](fcm-linux-integration.md)** - Android/Linux device push notifications
+- **[Windows Notification Service (WNS)](wns-windows-integration.md)** - Windows device push notifications
+
 ## System Overview
 
 HOMEPOT is a complete **four-phase enterprise POS management system**:

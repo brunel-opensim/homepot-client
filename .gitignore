@@ -178,16 +178,17 @@ temp/
 tmp/
 logs/
 
-# Database files - keep demo database, ignore test/temporary ones
-data/homepot_test.db
-data/homepot_backup*.db
-data/temp_*.db
-data/*.tmp
+# Database files - DON'T track runtime databases
+# The database is created by scripts/init-database.sh
+# Tracking database files causes merge conflicts every time the DB is modified
+data/*.db
 data/*.db-wal
 data/*.db-shm
+data/*.tmp
 
-# Keep the main demo database
-!data/homepot.db
+# Keep backups directory structure but not the backup files
+data/backups/*.db
+!data/backups/.gitkeep
 
 # GitHub Workflows - Downloaded artifacts and reports
 dependency-health-report-*/

@@ -32,11 +32,12 @@ src/homepot_client/push_notifications/
 ├── base.py                     # Abstract base classes and data models
 ├── factory.py                  # Provider factory and registration
 ├── fcm_linux.py                # Firebase Cloud Messaging for Linux
+├── wns_windows.py              # Windows Notification Service for Windows
 ├── simulation.py               # Testing/development provider
 └── auth/
     ├── __init__.py
     ├── base.py                 # Authentication interfaces
-    ├── service_account.py      # Service account auth
+    ├── service_account.py     # Service account auth
     ├── api_key.py             # API key auth
     └── oauth.py               # OAuth2 auth
 ```
