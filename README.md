@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-brightgreen.svg)](https://python.org/)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://brunel-opensim.github.io/homepot-client/)
+[![Documentation](https://readthedocs.org/projects/homepot-client/badge/?version=latest)](https://homepot-client.readthedocs.io/en/latest/)
 [![Code Style](https://img.shields.io/badge/code%20style-black%20%7C%20flake8-000000.svg)](https://github.com/psf/black)
 [![Security](https://img.shields.io/badge/security-audit%20passing-green.svg)](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
 
@@ -16,9 +16,9 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ## Documentation
 
-**Complete documentation is available at: [https://brunel-opensim.github.io/homepot-client/](https://brunel-opensim.github.io/homepot-client/)**
+**Complete documentation is available at: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
 
-- **[Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)** - Installation, configuration, and first steps
+- **[Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
 
 ## Key Goals
 
@@ -69,7 +69,7 @@ cd homepot-client
 ./scripts/install.sh --dev
 ```
 
-**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)**
+**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
 
 ## Development
 
@@ -81,7 +81,7 @@ cd homepot-client
 | `homepot-client version` | Display version information |
 | `homepot-client info` | Display project information |
 
-**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://brunel-opensim.github.io/homepot-client/getting-started.html)**
+**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
 
 ### Code Quality Standards
 
@@ -113,17 +113,18 @@ We welcome contributions from consortium members! Please see our [Contributing G
 
 ## Complete Documentation
 
-**Complete documentation: [https://brunel-opensim.github.io/homepot-client/](https://brunel-opensim.github.io/homepot-client/)**
+**📚 Full Documentation: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
 
 Key documentation sections:
 
-- **[Getting Started](https://brunel-opensim.github.io/homepot-client/getting-started.html)** - Installation, configuration, and first steps
-- **[API Reference](https://brunel-opensim.github.io/homepot-client/api-reference.html)** - Complete API documentation with examples
-- **[CLI Reference](https://brunel-opensim.github.io/homepot-client/cli-reference.html)** - Command-line interface guide
-- **[Examples](https://brunel-opensim.github.io/homepot-client/examples.html)** - Practical usage examples and code samples
-- **[Contributing Guide](https://brunel-opensim.github.io/homepot-client/contributing.html)** - Development workflow and contribution guidelines
+- **[Getting Started](https://homepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
+- **[Development Guide](https://homepot-client.readthedocs.io/en/latest/development-guide/)** - Development workflow and best practices
+- **[Push Notifications](https://homepot-client.readthedocs.io/en/latest/push-notification/)** - FCM, WNS, and APNs integration guides
+- **[Database Management](https://homepot-client.readthedocs.io/en/latest/database-management/)** - Database setup and workflow
+- **[POS Management](https://homepot-client.readthedocs.io/en/latest/pos-management/)** - Point-of-sale device management
+- **[Deployment Guide](https://homepot-client.readthedocs.io/en/latest/deployment-guide/)** - Production deployment instructions
 
-*Local documentation is also available in the [`docs/`](docs/) directory and can be built using `./scripts/build-docs.sh`*
+*Local documentation is also available in the [`docs/`](docs/) directory and can be built using `mkdocs serve`*
 
 ## Consortium Information
 
