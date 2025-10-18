@@ -71,7 +71,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Check if we're in the right directory
-if [[ ! -f "pyproject.toml" ]] || [[ ! -d "docs" ]]; then
+if [[ ! -f "mkdocs.yml" ]] || [[ ! -d "docs" ]]; then
     echo -e "${RED}Error: Please run this script from the project root directory${NC}"
     exit 1
 fi

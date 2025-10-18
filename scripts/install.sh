@@ -120,9 +120,11 @@ log_error() {
 
 # Check if we're in the right directory
 check_project_root() {
-    if [[ ! -f "pyproject.toml" ]] && [[ ! -f "setup.py" ]]; then
-        log_error "Error: Not in a Python project directory"
+    # Check for monorepo structure (backend/pyproject.toml)
+    if [[ ! -f "backend/pyproject.toml" ]]; then
+        log_error "Error: Not in a HOMEPOT client project directory"
         log_error "Please run this script from the HOMEPOT client project root"
+        log_error "Expected to find: backend/pyproject.toml"
         exit 1
     fi
     
@@ -132,7 +134,7 @@ check_project_root() {
         exit 1
     fi
     
-    log_verbose "Project root validation passed"
+    log_verbose "Project root validation passed (monorepo structure detected)"
 }
 
 # Check Python version
@@ -219,15 +221,15 @@ upgrade_pip() {
 install_dependencies() {
     log_info "Installing dependencies..."
     
-    # Install main dependencies
+    # Install main dependencies from backend directory
     if [[ "$DEV_INSTALL" == true ]]; then
-        log_verbose "Installing with development dependencies"
+        log_verbose "Installing with development dependencies (from backend/)"
         log_info "Installing HOMEPOT client with development dependencies..."
         echo ""
         
         if [[ "$QUIET" == true ]]; then
             # Quiet mode - suppress pip output
-            if python -m pip install -e ".[dev]" > /dev/null 2>&1; then
+            if python -m pip install -e "backend/[dev]" > /dev/null 2>&1; then
                 log_success "Development dependencies installed"
             else
                 log_error "Failed to install development dependencies"
@@ -235,7 +237,7 @@ install_dependencies() {
             fi
         else
             # Show pip output to user
-            if python -m pip install -e ".[dev]"; then
+            if python -m pip install -e "backend/[dev]"; then
                 echo ""
                 log_success "Development dependencies installed"
             else
@@ -245,13 +247,13 @@ install_dependencies() {
             fi
         fi
     else
-        log_verbose "Installing production dependencies"
+        log_verbose "Installing production dependencies (from backend/)"
         log_info "Installing HOMEPOT client..."
         echo ""
         
         if [[ "$QUIET" == true ]]; then
             # Quiet mode - suppress pip output
-            if python -m pip install -e . > /dev/null 2>&1; then
+            if python -m pip install -e backend/ > /dev/null 2>&1; then
                 log_success "Production dependencies installed"
             else
                 log_error "Failed to install production dependencies"
@@ -259,7 +261,7 @@ install_dependencies() {
             fi
         else
             # Show pip output to user
-            if python -m pip install -e .; then
+            if python -m pip install -e backend/; then
                 echo ""
                 log_success "Production dependencies installed"
             else
@@ -270,27 +272,27 @@ install_dependencies() {
         fi
     fi
     
-    # Install from requirements.txt if it exists
-    if [[ -f "requirements.txt" ]]; then
-        log_verbose "Installing from requirements.txt"
+    # Install from backend/requirements.txt if it exists
+    if [[ -f "backend/requirements.txt" ]]; then
+        log_verbose "Installing from backend/requirements.txt"
         log_info "Installing additional requirements..."
         echo ""
         
         if [[ "$QUIET" == true ]]; then
             # Quiet mode - suppress pip output
-            if python -m pip install -r requirements.txt > /dev/null 2>&1; then
+            if python -m pip install -r backend/requirements.txt > /dev/null 2>&1; then
                 log_verbose "Additional requirements installed"
             else
-                log_warning "Some requirements from requirements.txt failed to install"
+                log_warning "Some requirements from backend/requirements.txt failed to install"
             fi
         else
             # Show pip output to user
-            if python -m pip install -r requirements.txt; then
+            if python -m pip install -r backend/requirements.txt; then
                 echo ""
                 log_verbose "Additional requirements installed"
             else
                 echo ""
-                log_warning "Some requirements from requirements.txt failed to install"
+                log_warning "Some requirements from backend/requirements.txt failed to install"
             fi
         fi
     fi
@@ -365,15 +367,15 @@ run_tests() {
     fi
     
     # Run unit tests if pytest is available
-    if command -v pytest &> /dev/null && [[ -d "tests/" ]]; then
-        log_verbose "Running unit tests with pytest"
-        if pytest tests/ -q > /dev/null 2>&1; then
+    if command -v pytest &> /dev/null && [[ -d "backend/tests/" ]]; then
+        log_verbose "Running unit tests with pytest (from backend/tests/)"
+        if pytest backend/tests/ -q > /dev/null 2>&1; then
             log_success "Unit tests passed"
         else
             log_warning "Some unit tests failed"
         fi
     else
-        log_verbose "Pytest not available or no tests directory, skipping unit tests"
+        log_verbose "Pytest not available or no backend/tests/ directory, skipping unit tests"
     fi
     
     return 0
