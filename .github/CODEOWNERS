@@ -5,27 +5,27 @@
 * @mghorbani
 
 # Core push notification architecture - requires admin approval
-/src/homepot_client/push_notifications/__init__.py @mghorbani
-/src/homepot_client/push_notifications/base.py @mghorbani
-/src/homepot_client/push_notifications/factory.py @mghorbani
+/backend/homepot_client/push_notifications/__init__.py @mghorbani
+/backend/homepot_client/push_notifications/base.py @mghorbani
+/backend/homepot_client/push_notifications/factory.py @mghorbani
 
 # Authentication system - requires admin review for security
-/src/homepot_client/push_notifications/auth/ @mghorbani
+/backend/homepot_client/push_notifications/auth/ @mghorbani
 
 # Platform-specific implementations - write-access collaborators can modify
 # Admin review recommended but collaborators can self-merge after tests pass
-/src/homepot_client/push_notifications/fcm_linux.py
-/src/homepot_client/push_notifications/simulation.py
+/backend/homepot_client/push_notifications/fcm_linux.py
+/backend/homepot_client/push_notifications/simulation.py
 
 # Future platform implementations (write-access collaborators can add)
-/src/homepot_client/push_notifications/apns_*.py
-/src/homepot_client/push_notifications/wns_*.py  
-/src/homepot_client/push_notifications/web_push.py
-/src/homepot_client/push_notifications/fcm_android.py
+/backend/homepot_client/push_notifications/apns_*.py
+/backend/homepot_client/push_notifications/wns_*.py  
+/backend/homepot_client/push_notifications/web_push.py
+/backend/homepot_client/push_notifications/fcm_android.py
 
 # Integration points - requires admin review
-/src/homepot_client/orchestrator.py @mghorbani
-/src/homepot_client/main.py @mghorbani
+/backend/homepot_client/orchestrator.py @mghorbani
+/backend/homepot_client/main.py @mghorbani
 
 # Documentation - any write-access collaborator can update
 /docs/push-notification.md
@@ -33,14 +33,14 @@
 /docs/github-permissions-guide.md
 
 # Tests - any write-access collaborator can update
-/tests/test_*push*
-/tests/test_*fcm*
-/tests/test_*apns*
-/tests/test_*wns*
+/backend/tests/test_*push*
+/backend/tests/test_*fcm*
+/backend/tests/test_*apns*
+/backend/tests/test_*wns*
 
 # Configuration and deployment - admin only
-/pyproject.toml @mghorbani
-/requirements.txt @mghorbani
+/backend/pyproject.toml @mghorbani
+/backend/requirements.txt @mghorbani
 /docker-compose.yml @mghorbani
 /Dockerfile @mghorbani
 /.github/ @mghorbani
