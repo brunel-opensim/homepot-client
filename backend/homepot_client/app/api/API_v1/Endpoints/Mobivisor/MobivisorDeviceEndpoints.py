@@ -202,10 +202,10 @@ async def fetch_device_details(device_id: str) -> Dict[str, Any]:
         device_id: The unique identifier of the device
 
     Returns:
-        Dict[str, Any]: JSON response from Mobivisor API containing device details
+        Dict[str, Any]: JSON response from Mobivisor API with device details
 
     Raises:
-        HTTPException: If configuration is missing, device not found, or API request fails
+        HTTPException: If configuration missing, device not found, or request fails
 
     Example:
         ```python
@@ -238,7 +238,7 @@ async def delete_device(device_id: str) -> Dict[str, Any]:
         Dict[str, Any]: Success message with deleted device ID
 
     Raises:
-        HTTPException: If configuration is missing, device not found, or API request fails
+        HTTPException: If configuration missing, device not found, or request fails
 
     Example:
         ```python
