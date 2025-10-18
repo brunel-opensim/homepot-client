@@ -196,7 +196,7 @@ gh api repos/brunel-opensim/homepot-client/collaborators/username \
    ```
    # In .github/CODEOWNERS
    * @mghorbani
-   /src/homepot_client/push_notifications/ @mghorbani
+   /backend/homepot_client/push_notifications/ @mghorbani
    ```
 
 4. **Enable security features:**

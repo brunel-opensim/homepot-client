@@ -144,10 +144,10 @@ homepot-client/
 
 ```bash
 cd backend
-pytest                          # Run all tests
-pytest tests/test_client.py     # Run specific test file
-pytest -v                       # Verbose output
-pytest --cov                    # With coverage
+pytest                             # Run all tests
+pytest tests/test_client.py        # Run specific test file
+pytest -v                          # Verbose output
+pytest --cov=homepot_client        # With coverage
 ```
 
 #### Frontend Tests
