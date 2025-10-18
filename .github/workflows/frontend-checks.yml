@@ -54,9 +54,8 @@ jobs:
           echo "Detailed breakdown:"
           du -h dist/* | sort -h
 
-      - name: Run tests (when available)
-        run: npm run test 2>/dev/null || echo "Tests skipped - vitest not yet configured"
-        continue-on-error: true  # Don't fail if no tests yet
+      - name: Run tests
+        run: npm run test
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
