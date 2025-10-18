@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 
-from homepot_client.main import app
+from homepot_client.app.main import app
 
 
 @pytest.fixture
