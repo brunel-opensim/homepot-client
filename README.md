@@ -129,7 +129,6 @@ Key documentation sections:
 - **[Push Notifications](https://homepot-client.readthedocs.io/en/latest/push-notification/)** - FCM, WNS, and APNs integration guides
 - **[Database Management](https://homepot-client.readthedocs.io/en/latest/database-management/)** - Database setup and workflow
 - **[POS Management](https://homepot-client.readthedocs.io/en/latest/pos-management/)** - Point-of-sale device management
-- **[Deployment Guide](https://homepot-client.readthedocs.io/en/latest/deployment-guide/)** - Production deployment instructions
 
 *Local documentation is also available in the [`docs/`](docs/) directory and can be built using `mkdocs serve`*
 
