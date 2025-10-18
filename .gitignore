@@ -213,7 +213,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-package-lock.json
+# NOTE: We now commit frontend/package-lock.json for reproducible builds and CI caching
+# Only ignore package-lock.json outside of frontend/
+/**/package-lock.json
+!frontend/package-lock.json
 .npm
 .yarn-integrity
 

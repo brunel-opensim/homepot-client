@@ -49,9 +49,9 @@ jobs:
 
       - name: Check bundle size
         run: |
-          echo "📦 Build output size:"
+          echo "Build output size:"
           du -sh dist/
-          echo "📄 Detailed breakdown:"
+          echo "Detailed breakdown:"
           du -h dist/* | sort -h
 
       - name: Run tests (when available)
@@ -104,14 +104,14 @@ jobs:
       - name: Check job results
         run: |
           if [[ "${{ needs.frontend-quality.result }}" == "failure" ]]; then
-            echo "❌ Frontend quality checks failed"
+            echo "Frontend quality checks failed"
             exit 1
           elif [[ "${{ needs.frontend-quality.result }}" == "success" ]]; then
-            echo "✅ Frontend quality checks passed"
+            echo "Frontend quality checks passed"
           fi
           
           if [[ "${{ needs.dependency-audit.result }}" == "failure" ]]; then
-            echo "⚠️ Security audit found issues"
+            echo "Security audit found issues"
           else
-            echo "✅ Security audit passed"
+            echo "Security audit passed"
           fi
