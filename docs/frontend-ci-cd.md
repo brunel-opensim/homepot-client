@@ -19,12 +19,12 @@ The workflow runs on:
 Tests the frontend on multiple Node.js versions (20.x and 22.x) to ensure compatibility.
 
 **Steps:**
-- ✅ **Install dependencies** - Uses `npm ci` for consistent, clean installs
-- ✅ **ESLint** - Checks code quality and style
-- ✅ **Build** - Verifies production build succeeds
-- ✅ **Bundle size** - Reports build output size
-- ✅ **Tests** - Runs Vitest tests (currently optional until tests are written)
-- ✅ **Artifacts** - Uploads build output for review
+- **Install dependencies** - Uses `npm ci` for consistent, clean installs
+- **ESLint** - Checks code quality and style
+- **Build** - Verifies production build succeeds
+- **Bundle size** - Reports build output size
+- **Tests** - Runs Vitest tests (currently optional until tests are written)
+- **Artifacts** - Uploads build output for review
 
 **What it catches:**
 - Syntax errors
@@ -38,8 +38,8 @@ Tests the frontend on multiple Node.js versions (20.x and 22.x) to ensure compat
 Checks for security vulnerabilities in dependencies.
 
 **Steps:**
-- ✅ **npm audit** - Scans for known vulnerabilities
-- ✅ **Outdated packages** - Lists packages that need updates
+- **npm audit** - Scans for known vulnerabilities
+- **Outdated packages** - Lists packages that need updates
 
 **What it catches:**
 - Security vulnerabilities (moderate and above)
@@ -62,11 +62,11 @@ The workflow is optimized for speed:
 
 ## What Gets Checked
 
-### ✅ **Always Required (Blocks PR)**
+### **Always Required (Blocks PR)**
 - ESLint passes
 - Production build succeeds
 
-### ⚠️ **Optional (Warns but doesn't block)**
+### **Optional (Warns but doesn't block)**
 - Security audit (informational)
 - Tests (until test suite is complete)
 - Outdated packages (informational)
@@ -142,12 +142,12 @@ npm audit             # Review remaining issues
 
 Potential additions for the future:
 
-- 🔄 **Visual regression testing** - Screenshot comparisons
-- 📊 **Code coverage** - Track test coverage percentage
-- 🎨 **Lighthouse CI** - Performance and accessibility scores
-- 📦 **Bundle analysis** - Detailed size breakdown
-- 🔐 **License checking** - Verify dependency licenses
-- 🌐 **E2E tests** - Playwright/Cypress integration
+- **Visual regression testing** - Screenshot comparisons
+- **Code coverage** - Track test coverage percentage
+- **Lighthouse CI** - Performance and accessibility scores
+- **Bundle analysis** - Detailed size breakdown
+- **License checking** - Verify dependency licenses
+- **E2E tests** - Playwright/Cypress integration
 
 ## Questions?
 
