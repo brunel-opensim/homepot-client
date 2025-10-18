@@ -47,7 +47,8 @@ class TestMobivisorDevicesEndpoints:
     """Test cases for Mobivisor devices endpoints."""
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_fetch_devices_success(
@@ -82,7 +83,8 @@ class TestMobivisorDevicesEndpoints:
         assert response.json() == devices_data
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     def test_fetch_devices_missing_url(self, mock_config, client):
         """Test device fetch with missing URL configuration."""
@@ -97,7 +99,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Configuration Error" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     def test_fetch_devices_missing_token(self, mock_config, client):
         """Test device fetch with missing token configuration."""
@@ -112,7 +115,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Configuration Error" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_fetch_devices_unauthorized(
@@ -139,7 +143,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Unauthorized" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_fetch_devices_timeout(
@@ -160,7 +165,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Gateway Timeout" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_fetch_device_details_success(
@@ -191,7 +197,8 @@ class TestMobivisorDevicesEndpoints:
         assert response.json() == device_data
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_fetch_device_details_not_found(
@@ -218,7 +225,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Not Found" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_delete_device_success(
@@ -245,7 +253,8 @@ class TestMobivisorDevicesEndpoints:
         assert data["device_id"] == "123"
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_delete_device_not_found(
@@ -272,7 +281,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Not Found" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_delete_device_forbidden(
@@ -299,7 +309,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Unauthorized" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_fetch_devices_network_error(
@@ -320,7 +331,8 @@ class TestMobivisorDevicesEndpoints:
         assert "Bad Gateway" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
     def test_fetch_devices_bad_gateway(
