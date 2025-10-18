@@ -73,10 +73,6 @@ const AndroidIcon = () => (
     return matchSearch && matchLocation;
   });
 
-  const handleCardClick = (siteId) => {
-    navigate(`/site/${siteId}`);
-  };
-
   return (
     <div className="min-h-screen bg-[#0b0e13] text-white p-6">
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-3">

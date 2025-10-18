@@ -4,7 +4,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+// Commented out until actual tests are written
+// import { render, screen } from '@testing-library/react';
 
 // Example test - replace with actual component tests
 describe('Example Component Tests', () => {

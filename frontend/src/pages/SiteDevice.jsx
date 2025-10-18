@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 // Sparkline component
@@ -51,7 +51,6 @@ const sparkData = {
 
 export default function SiteDeviceScreen() {
   const { deviceId: id } = useParams();
-  const navigate = useNavigate();
 
   const WindowsIcon = () => (
     <img

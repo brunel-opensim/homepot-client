@@ -276,7 +276,6 @@ function StatBlock({ title, value, subtitle, data = [] }) {
 function Sparkline({
   data = [4, 6, 5, 7, 6, 8, 9],
   height = 40,
-  animated = false,
 }) {
   const width = 144;
   const max = Math.max(...data) || 1;
