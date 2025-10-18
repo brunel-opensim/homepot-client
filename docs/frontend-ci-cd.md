@@ -94,6 +94,26 @@ npm run lint:fix       # Auto-fix ESLint issues
 npm run format         # Auto-format with Prettier
 ```
 
+### Unified Validation Script
+
+For convenience, you can run all frontend checks using the unified validation script:
+
+```bash
+# From project root - run all checks (backend + frontend)
+./scripts/validate-workflows.sh
+
+# Run only frontend checks
+./scripts/validate-workflows.sh --frontend-only
+
+# Run with verbose output
+./scripts/validate-workflows.sh --frontend-only --verbose
+
+# Skip frontend checks (only backend)
+./scripts/validate-workflows.sh --no-frontend
+```
+
+This script matches exactly what the CI/CD pipeline runs, helping you catch issues before pushing.
+
 ## Configuration Files
 
 - **ESLint**: `frontend/eslint.config.js` - Code quality rules
