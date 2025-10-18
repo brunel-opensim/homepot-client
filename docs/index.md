@@ -25,7 +25,6 @@ For developers and system administrators:
 
 - **[Development Guide](development-guide.md)** - Testing, code quality, and contributing
 - **[Database Guide](database-guide.md)** - Database setup, management, and usage
-- **[Deployment Guide](deployment-guide.md)** - Production deployment with Docker
 
 ## Platform Integration Guides
 
@@ -81,20 +80,20 @@ Out of the box, HOMEPOT provides:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                HOMEPOT POS Management Dashboard                 │
-│                   (Real-time Monitoring)                       │
+                 HOMEPOT POS Management Dashboard                 
+                      (Real-time Monitoring)                       
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │   Live Site     │  │   POS Agent     │  │  Audit Trail    │ │
-│  │   Monitoring    │  │   Simulation    │  │   & Reports     │ │
-│  │   (WebSocket)   │  │   (23+ agents)  │  │   (Compliance)  │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
+   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  
+       Live Site            POS Agent            Audit Trail       
+       Monitoring           Simulation            & Reports        
+       (WebSocket)          (23+ agents)         (Compliance)     
+   └─────────────────┘  └─────────────────┘  └─────────────────┘  
 ├─────────────────────────────────────────────────────────────────┤
-│                      FastAPI REST API                          │
-│               (Sites, Devices, Jobs, Audit)                    │
+                       FastAPI REST API                           
+                (Sites, Devices, Jobs, Audit)                     
 ├─────────────────────────────────────────────────────────────────┤
-│                     Database Layer                             │
-│          (Sites, Devices, Jobs, Users, Audit Logs)            │
+                      Database Layer                              
+           (Sites, Devices, Jobs, Users, Audit Logs)             
 └─────────────────────────────────────────────────────────────────┘
 ```
 

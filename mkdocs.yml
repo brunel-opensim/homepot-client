@@ -1,7 +1,7 @@
 # HOMEPOT Client Documentation
 
 site_name: HOMEPOT Client
-site_description: Homogenous Cyber Management of End-Points and OT - POS Payment Gateway Management System
+site_description: Homogenous Cyber Management of End-Points and OT - Gateway Management System
 site_author: Brunel OpenSim
 site_url: https://homepot-client.readthedocs.io
 
@@ -102,8 +102,10 @@ nav:
     - Running Locally: running-locally.md
     - Development Guide: development-guide.md
     - Testing Guide: testing-guide.md
-    - Deployment Guide: deployment-guide.md
     - Monorepo Migration: monorepo-migration.md
+  - Frontend Development:
+    - CI/CD Pipeline: frontend-ci-cd.md
+    - Testing Guide: frontend-testing-guide.md
   - Features:
     - POS Management: pos-management.md
     - Real-time Dashboard: real-time-dashboard.md
@@ -120,6 +122,8 @@ nav:
     - Collaboration Guide: collaboration-guide.md
     - GitHub Permissions: github-permissions-guide.md
     - Repository Health: repository-health.md
+  - Deployment:
+    - Deployment Guide: deployment-guide.md
   - POS Dummy:
     - Overview: POSDummy.md
     - Integration: POSDummy-Integration.md
