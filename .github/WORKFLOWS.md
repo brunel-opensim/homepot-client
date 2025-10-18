@@ -116,6 +116,45 @@ This document describes the automated workflows
 - Ready-to-use upgrade commands
 - Security severity classification
 
+### 5. Frontend Checks (`frontend-checks.yml`)
+
+**Trigger Events:**
+- Push to `main`, `develop`, or `feature/**` branches (when frontend files change)
+- Pull requests to `main` and `develop` (when frontend files change)
+
+**What it does:**
+- **Code quality validation** (ESLint)
+- **Production build verification** (Vite)
+- **Multi-version Node.js testing** (20.x, 22.x)
+- **Security vulnerability scanning** (npm audit)
+- **Bundle size reporting**
+- **Automated testing** (Vitest, when tests are implemented)
+- **Build artifact retention** for deployment
+
+**Key Features:**
+- Fast execution (2-4 minutes)
+- Path-based filtering (only runs when frontend changes)
+- Dependency caching for speed
+- Parallel job execution
+- Optional test runs (doesn't block until tests are complete)
+
+**Jobs Overview:**
+```text
+├── Frontend Quality Checks (Node 20.x, 22.x)
+│   ├── ESLint validation
+│   ├── Production build
+│   ├── Bundle size analysis
+│   ├── Test execution (optional)
+│   └── Build artifact upload
+├── Security Audit
+│   ├── npm audit scan
+│   └── Outdated package detection
+└── Frontend Status Check
+    └── Overall health summary
+```
+
+### Backend Dependency Jobs
+
 **Jobs Overview:**
 ```text
 ├── Security Vulnerability Audit
@@ -298,6 +337,33 @@ pytest backend/tests/ --cov=backend/homepot_client --cov-report=html
 
 # POSDummy infrastructure testing
 pytest backend/tests/test_pos_dummy.py -v
+```
+
+### Frontend Quality Checks
+```bash
+# Navigate to frontend
+cd frontend
+
+# Install dependencies (first time)
+npm install
+
+# Run ESLint
+npm run lint
+
+# Fix ESLint issues automatically
+npm run lint -- --fix
+
+# Build production bundle
+npm run build
+
+# Run tests (when available)
+npm run test
+
+# Check for security vulnerabilities
+npm audit
+
+# Check for outdated packages
+npm outdated
 ```
 
 ## Key Improvements Made

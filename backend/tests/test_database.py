@@ -279,7 +279,12 @@ def test_database_tables_exist():
 
 
 def test_demo_data_exists():
-    """Test that demo data exists in the database."""
+    """Test that demo data exists in the database.
+
+    This test verifies that the database contains at least some initial data,
+    whether from init-database.sh seed data (2 sites, 8 devices) or from
+    POSDummy test data (1 site, 1 device).
+    """
     settings = get_settings()
 
     # Skip if not using SQLite
@@ -296,18 +301,23 @@ def test_demo_data_exists():
     engine = create_engine(settings.database.url)
 
     with engine.connect() as conn:
-        # Check that we have demo sites
+        # Check that we have at least one site
         sites_query = text("SELECT COUNT(*) FROM sites")
         site_count = conn.execute(sites_query).scalar()
 
-        assert site_count > 0, "No demo sites found in database"
-        assert site_count >= 10, f"Expected at least 10 demo sites, found {site_count}"
+        assert (
+            site_count > 0
+        ), "No sites found in database - database may not be initialized"
 
-        # Check that we have demo devices
+        # Check that we have at least one device
         devices_query = text("SELECT COUNT(*) FROM devices")
         device_count = conn.execute(devices_query).scalar()
 
-        assert device_count > 0, "No demo devices found in database"
         assert (
-            device_count >= 20
-        ), f"Expected at least 20 demo devices, found {device_count}"
+            device_count > 0
+        ), "No devices found in database - database may not be initialized"
+
+        # Verify data consistency - devices should be linked to sites
+        assert (
+            device_count >= site_count
+        ), f"Data inconsistency: found {device_count} devices but {site_count} sites"

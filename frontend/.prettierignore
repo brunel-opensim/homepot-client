@@ -1,0 +1,21 @@
+# Ignore files for Prettier formatting
+node_modules
+dist
+build
+coverage
+.next
+.nuxt
+.cache
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+*.min.js
+*.bundle.js
+
+# Config files that should preserve formatting
+.prettierrc
+.eslintrc

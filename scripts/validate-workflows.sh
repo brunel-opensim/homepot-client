@@ -33,6 +33,7 @@ CHECK_CODE=true
 CHECK_PYTHON=true
 CHECK_DOCS=true
 CHECK_TESTS=true
+CHECK_FRONTEND=true
 FAIL_FAST=false
 
 # Print usage
@@ -56,6 +57,7 @@ usage() {
     echo "  --python-only       Only validate Python setup"
     echo "  --docs-only         Only validate documentation"
     echo "  --tests-only        Only run essential tests"
+    echo "  --frontend-only     Only run frontend checks (ESLint, Prettier, Build, Tests)"
     echo "  --no-yaml           Skip YAML validation"
     echo "  --no-structure      Skip workflow structure validation"
     echo "  --no-posdummy       Skip POSDummy integration test"
@@ -63,6 +65,7 @@ usage() {
     echo "  --no-python         Skip Python setup validation"
     echo "  --no-docs           Skip documentation validation"
     echo "  --no-tests          Skip test execution"
+    echo "  --no-frontend       Skip frontend checks"
     echo ""
     echo "Code Quality Checks (--code-only):"
     echo "  • Black code formatting"
@@ -71,11 +74,19 @@ usage() {
     echo "  • mypy type checking"
     echo "  • bandit security scanning"
     echo ""
+    echo "Frontend Checks (--frontend-only):"
+    echo "  • ESLint code quality"
+    echo "  • Prettier code formatting"
+    echo "  • Vite production build"
+    echo "  • Vitest test suite"
+    echo "  • npm audit security scan"
+    echo ""
     echo "Examples:"
     echo "  $0                          # Run all checks (matches full CI/CD pipeline)"
     echo "  $0 --verbose                # Run all checks with verbose output"
     echo "  $0 --posdummy-only          # Only run POSDummy integration test"
     echo "  $0 --code-only              # Only run code quality checks"
+    echo "  $0 --frontend-only          # Only run frontend checks"
     echo "  $0 --tests-only             # Only run essential tests"
     echo "  $0 --no-code --no-python    # Skip code and Python checks"
     echo "  $0 --fail-fast              # Stop on first failure"
@@ -164,6 +175,18 @@ while [[ $# -gt 0 ]]; do
             CHECK_PYTHON=false
             CHECK_DOCS=false
             CHECK_TESTS=true
+            CHECK_FRONTEND=false
+            shift
+            ;;
+        --frontend-only)
+            CHECK_YAML=false
+            CHECK_STRUCTURE=false
+            CHECK_POSDUMMY=false
+            CHECK_CODE=false
+            CHECK_PYTHON=false
+            CHECK_DOCS=false
+            CHECK_TESTS=false
+            CHECK_FRONTEND=true
             shift
             ;;
         --no-yaml)
@@ -192,6 +215,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-tests)
             CHECK_TESTS=false
+            shift
+            ;;
+        --no-frontend)
+            CHECK_FRONTEND=false
             shift
             ;;
         -h|--help)
@@ -361,7 +388,7 @@ validate_posdummy() {
         # Parse POSDummy results if verbose
         if [[ "$VERBOSE" == true ]]; then
             local phases_passed=$(echo "$posdummy_output" | grep -c "✅" || echo "0")
-            local phases_warned=$(echo "$posdummy_output" | grep -c "⚠️" || echo "0")
+            local phases_warned=$(echo "$posdummy_output" | grep -c "⚠" || echo "0")
             log_verbose "POSDummy results: $phases_passed phases passed, $phases_warned warnings"
             
             # Show specific phase results in verbose mode
@@ -1028,9 +1055,11 @@ except Exception as e:
     echo -n "    Import smoke test: "
     log_verbose "Testing basic imports"
     if python -c "
+import sys
+sys.path.insert(0, 'backend')
 try:
-    from src.homepot_client.config import get_settings
-    from src.homepot_client.models import Site, Device, Job
+    from homepot_client.config import get_settings
+    from homepot_client.models import Site, Device, Job
     print('Core imports successful')
 except ImportError as e:
     print(f'Import failed: {e}')
@@ -1077,6 +1106,186 @@ except Exception as e:
     return 0
 }
 
+# 8. Frontend quality checks
+validate_frontend() {
+    log_info "  Running frontend quality checks (matching CI/CD)..."
+    
+    # Check if frontend directory exists
+    if [[ ! -d "frontend/" ]]; then
+        log_warning "No frontend/ directory found"
+        return 0
+    fi
+    
+    # Check if package.json exists
+    if [[ ! -f "frontend/package.json" ]]; then
+        log_warning "No frontend/package.json found"
+        return 0
+    fi
+    
+    local failed=false
+    local current_dir=$(pwd)
+    
+    # Change to frontend directory
+    cd frontend/ || {
+        log_error "Failed to change to frontend directory"
+        return 1
+    }
+    
+    # Check if node_modules exists
+    if [[ ! -d "node_modules" ]]; then
+        log_warning "node_modules not found - run 'npm install' in frontend/"
+        echo -n "    Dependencies installation: "
+        echo -e "${RED}Required${NC}"
+        failed=true
+        cd "$current_dir"
+        return 1
+    fi
+    
+    # ESLint check
+    if command -v npm >/dev/null 2>&1; then
+        echo -n "    ESLint (code quality): "
+        log_verbose "Running: npm run lint"
+        if npm run lint >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed - run: cd frontend && npm run lint:fix${NC}"
+            failed=true
+        fi
+        
+        # Prettier check
+        echo -n "    Prettier (formatting): "
+        log_verbose "Running: npm run format:check"
+        if npm run format:check >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed - run: cd frontend && npm run format${NC}"
+            failed=true
+        fi
+        
+        # Production build check
+        echo -n "    Production build: "
+        log_verbose "Running: npm run build"
+        if npm run build >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+            
+            # Check bundle size
+            if [[ -d "dist/" ]]; then
+                local bundle_size=$(du -sh dist/ 2>/dev/null | cut -f1)
+                log_verbose "Bundle size: $bundle_size"
+                
+                if [[ "$VERBOSE" == true ]]; then
+                    echo "      Bundle details:"
+                    du -h dist/* 2>/dev/null | sort -h | tail -5 | while read -r size file; do
+                        log_verbose "        $size - $(basename "$file")"
+                    done
+                fi
+            fi
+        else
+            echo -e "${RED}Failed - check build configuration${NC}"
+            failed=true
+        fi
+        
+        # Test suite check
+        echo -n "    Vitest tests: "
+        log_verbose "Running: npm run test"
+        
+        # Capture test output for analysis
+        local test_output
+        if test_output=$(npm run test 2>&1); then
+            echo -e "${GREEN}Passed${NC}"
+            
+            # Parse test results
+            if [[ "$VERBOSE" == true ]]; then
+                local test_count=$(echo "$test_output" | grep -oP '\d+(?= passed)' | head -1 || echo "0")
+                local test_files=$(echo "$test_output" | grep -oP '\d+(?= passed \(\d+\))' | head -1 || echo "0")
+                log_verbose "Tests: $test_count passed across $test_files test files"
+            fi
+        else
+            echo -e "${RED}Failed - run: cd frontend && npm run test${NC}"
+            log_verbose "Test suite failed"
+            if [[ "$VERBOSE" == true ]]; then
+                local failure_summary=$(echo "$test_output" | grep -E "(FAILED|Error|✗)" | head -3)
+                if [[ -n "$failure_summary" ]]; then
+                    log_error "Test failure summary:"
+                    echo "$failure_summary"
+                fi
+            fi
+            failed=true
+        fi
+        
+        # Security audit (informational)
+        echo -n "    Security audit: "
+        log_verbose "Running: npm audit --audit-level=moderate"
+        local audit_output
+        if audit_output=$(npm audit --audit-level=moderate 2>&1); then
+            echo -e "${GREEN}No vulnerabilities${NC}"
+        else
+            # Check severity of vulnerabilities
+            if echo "$audit_output" | grep -qE "critical|high"; then
+                echo -e "${RED}High/Critical vulnerabilities found${NC}"
+                log_verbose "Run 'npm audit' in frontend/ for details"
+                if [[ "$VERBOSE" == true ]]; then
+                    local vuln_count=$(echo "$audit_output" | grep -oP '\d+(?= vulnerabilities)' | head -1 || echo "0")
+                    log_verbose "Found $vuln_count vulnerabilities"
+                fi
+            elif echo "$audit_output" | grep -qE "moderate|low"; then
+                echo -e "${YELLOW}Moderate/Low vulnerabilities found${NC}"
+                log_verbose "Run 'npm audit' in frontend/ for details"
+            else
+                echo -e "${YELLOW}Audit warnings${NC}"
+            fi
+        fi
+        
+        # Check for outdated packages (informational only)
+        if [[ "$VERBOSE" == true ]]; then
+            echo -n "    Package freshness: "
+            log_verbose "Checking for outdated packages"
+            local outdated_output
+            if outdated_output=$(npm outdated 2>&1); then
+                echo -e "${GREEN}All packages up-to-date${NC}"
+            else
+                local outdated_count=$(echo "$outdated_output" | tail -n +2 | wc -l)
+                echo -e "${YELLOW}$outdated_count packages outdated${NC}"
+                log_verbose "Run 'npm outdated' in frontend/ for details"
+            fi
+        fi
+        
+        # Check configuration files
+        echo -n "    Configuration files: "
+        local config_files=(".prettierrc" ".prettierignore" "eslint.config.js" "vite.config.js" "vitest.config.js")
+        local missing_configs=()
+        
+        for config_file in "${config_files[@]}"; do
+            if [[ ! -f "$config_file" ]]; then
+                missing_configs+=("$config_file")
+            fi
+        done
+        
+        if [[ ${#missing_configs[@]} -eq 0 ]]; then
+            echo -e "${GREEN}Complete${NC}"
+            log_verbose "All frontend config files present"
+        else
+            echo -e "${YELLOW}Missing: ${missing_configs[*]}${NC}"
+            log_verbose "Some config files missing: ${missing_configs[*]}"
+        fi
+        
+    else
+        log_warning "npm not available, skipping frontend checks"
+        echo -n "    Node.js/npm: "
+        echo -e "${RED}Not installed${NC}"
+        failed=true
+    fi
+    
+    # Return to original directory
+    cd "$current_dir"
+    
+    if [[ "$failed" == true ]]; then
+        return 1
+    fi
+    
+    return 0
+}
+
 # Main execution
 main() {
     # Try to activate virtual environment if it exists and isn't already active
@@ -1101,8 +1310,9 @@ main() {
         [[ "$CHECK_PYTHON" == true ]] && enabled_checks+=("Python Setup")
         [[ "$CHECK_DOCS" == true ]] && enabled_checks+=("Documentation")
         [[ "$CHECK_TESTS" == true ]] && enabled_checks+=("Essential Tests")
+        [[ "$CHECK_FRONTEND" == true ]] && enabled_checks+=("Frontend")
         
-        if [[ ${#enabled_checks[@]} -eq 7 ]]; then
+        if [[ ${#enabled_checks[@]} -eq 8 ]]; then
             echo "Running all validation checks..."
         else
             echo "Running selected checks: ${enabled_checks[*]}"
@@ -1131,6 +1341,7 @@ main() {
     [[ "$CHECK_PYTHON" == true ]] && run_check "Python Setup" "validate_python"
     [[ "$CHECK_DOCS" == true ]] && run_check "Documentation" "validate_documentation"
     [[ "$CHECK_TESTS" == true ]] && run_check "Essential Tests" "validate_tests"
+    [[ "$CHECK_FRONTEND" == true ]] && run_check "Frontend Quality" "validate_frontend"
     
     # Final summary (unless quiet)
     if [[ "$QUIET" != true ]]; then

@@ -207,7 +207,9 @@ pre-commit run --all-files
 |--------|---------|-------|
 | `./scripts/install.sh` | Install dependencies | `./scripts/install.sh --dev` |
 | `./scripts/activate-homepot.sh` | Activate environment | `source ./scripts/activate-homepot.sh` |
-| `./scripts/validate-workflows.sh` | Run all quality checks | `./scripts/validate-workflows.sh` |
+| `./scripts/validate-workflows.sh` | Run all quality checks (backend + frontend) | `./scripts/validate-workflows.sh` |
+| `./scripts/validate-workflows.sh --frontend-only` | Run frontend checks only | `./scripts/validate-workflows.sh --frontend-only` |
+| `./scripts/validate-workflows.sh --code-only` | Run Python code quality only | `./scripts/validate-workflows.sh --code-only` |
 | `./scripts/build-docs.sh` | Build documentation | `./scripts/build-docs.sh` |
 | `./scripts/test-docker.sh` | Test Docker setup | `./scripts/test-docker.sh` |
 

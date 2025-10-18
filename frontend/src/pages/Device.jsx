@@ -1,26 +1,26 @@
-import React from "react";
+import React from 'react';
 
 export default function Device() {
   const stats = {
-    cpu: { label: "CPU", value: "3,4rh", subtitle: "avg 3.4%" },
-    memory: { label: "Memory", value: "4 MW", subtitle: "used 4GB" },
-    disk: { label: "Disk", value: "25s ago", subtitle: "last check" },
+    cpu: { label: 'CPU', value: '3,4rh', subtitle: 'avg 3.4%' },
+    memory: { label: 'Memory', value: '4 MW', subtitle: 'used 4GB' },
+    disk: { label: 'Disk', value: '25s ago', subtitle: 'last check' },
   };
 
   const command = [
-    { title: "Configuration updated", date: "22 Jan 2024" },
-    { title: "Alert resolved", date: "2024-04-23" },
+    { title: 'Configuration updated', date: '22 Jan 2024' },
+    { title: 'Alert resolved', date: '2024-04-23' },
   ];
 
   const connections = [
-    { name: "POS System" },
-    { name: "Delivery App", status: "online" },
-    { name: "Payment Gateway", status: "online" },
+    { name: 'POS System' },
+    { name: 'Delivery App', status: 'online' },
+    { name: 'Payment Gateway', status: 'online' },
   ];
 
   const audit = [
-    { title: "Configuration updated", date: "22 Jan 2024" },
-    { title: "Alert resolved", date: "2024-04-23" },
+    { title: 'Configuration updated', date: '22 Jan 2024' },
+    { title: 'Alert resolved', date: '2024-04-23' },
   ];
 
   const sparkData = {
@@ -52,9 +52,7 @@ export default function Device() {
             </div>
 
             <div className="leading-tight">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                DEVICE-00001
-              </h1>
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">DEVICE-00001</h1>
               <div className="flex items-center gap-2 mt-1 text-sm text-emerald-300">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.14)] inline-block" />
                 <span className="font-medium">Healthy</span>
@@ -76,38 +74,24 @@ export default function Device() {
           <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Health & Status */}
             <LargeCard className="md:col-span-2">
-              <h3 className="text-sm text-slate-300 font-medium mb-4">
-                HEALTH & STATUS
-              </h3>
+              <h3 className="text-sm text-slate-300 font-medium mb-4">HEALTH & STATUS</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="flex flex-col gap-1">
                   <StatBlock data={sparkData.small} />
-                  <div className="text-sm font-semibold tracking-tight">
-                    {stats.cpu.label}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {stats.cpu.value}
-                  </div>
+                  <div className="text-sm font-semibold tracking-tight">{stats.cpu.label}</div>
+                  <div className="text-xs text-slate-400">{stats.cpu.value}</div>
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <StatBlock data={sparkData.small} />
-                  <div className="text-sm font-semibold tracking-tight">
-                    {stats.memory.label}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {stats.memory.value}
-                  </div>
+                  <div className="text-sm font-semibold tracking-tight">{stats.memory.label}</div>
+                  <div className="text-xs text-slate-400">{stats.memory.value}</div>
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <StatBlock data={sparkData.small} />
-                  <div className="text-sm font-semibold tracking-tight">
-                    {stats.disk.label}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {stats.disk.value}
-                  </div>
+                  <div className="text-sm font-semibold tracking-tight">{stats.disk.label}</div>
+                  <div className="text-xs text-slate-400">{stats.disk.value}</div>
                 </div>
               </div>
             </LargeCard>
@@ -143,21 +127,16 @@ export default function Device() {
           <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-4 gap-4 text-left">
             {/* Connections */}
             <Card>
-              <h3 className="text-sm text-slate-300 font-medium">
-                CONNECTIONS
-              </h3>
+              <h3 className="text-sm text-slate-300 font-medium">CONNECTIONS</h3>
               <ul className="mt-4 space-y-3 text-sm">
                 {connections.map((c) => (
-                  <li
-                    key={c.name}
-                    className="flex items-center justify-between"
-                  >
+                  <li key={c.name} className="flex items-center justify-between">
                     <span className="font-medium">{c.name}</span>
                     <div
                       className={`w-3 h-3 rounded-full ${
-                        c.status === "online"
-                          ? "bg-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.12)]"
-                          : ""
+                        c.status === 'online'
+                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.12)]'
+                          : ''
                       }`}
                     />
                   </li>
@@ -173,9 +152,7 @@ export default function Device() {
 
             {/* Command Input */}
             <Card>
-              <h3 className="text-sm text-slate-300 font-medium mb-3">
-                COMMAND
-              </h3>
+              <h3 className="text-sm text-slate-300 font-medium mb-3">COMMAND</h3>
               <div className="flex flex-col gap-3">
                 <div className="relative">
                   <input
@@ -197,9 +174,7 @@ export default function Device() {
 
             {/* Audit & Logs */}
             <Card>
-              <h3 className="text-sm text-slate-300 font-medium mb-3">
-                AUDIT & LOGS
-              </h3>
+              <h3 className="text-sm text-slate-300 font-medium mb-3">AUDIT & LOGS</h3>
               <div className="space-y-3 text-sm">
                 {audit.map((a) => (
                   <div key={a.title} className="flex flex-col">
@@ -230,7 +205,7 @@ export default function Device() {
 }
 
 /* === Small Reusable Components === */
-function Card({ children, className = "" }) {
+function Card({ children, className = '' }) {
   return (
     <div
       className={`border border-[#0e2f37] rounded-2xl p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${className}`}
@@ -240,7 +215,7 @@ function Card({ children, className = "" }) {
   );
 }
 
-function LargeCard({ children, className = "" }) {
+function LargeCard({ children, className = '' }) {
   return (
     <div
       className={`bg-gradient-to-b from-[#072026] to-[#04181b] border border-[#103237] rounded-2xl p-4 shadow-[0_8px_30px_rgba(2,136,153,0.06)] ${className}`}
@@ -273,11 +248,7 @@ function StatBlock({ title, value, subtitle, data = [] }) {
   );
 }
 
-function Sparkline({
-  data = [4, 6, 5, 7, 6, 8, 9],
-  height = 40,
-  animated = false,
-}) {
+function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40 }) {
   const width = 144;
   const max = Math.max(...data) || 1;
   const min = Math.min(...data) || 0;
@@ -287,16 +258,12 @@ function Sparkline({
       const y = height - ((d - min) / (max - min || 1)) * height;
       return `${x},${y}`;
     })
-    .join(" ");
+    .join(' ');
 
-  const pathD = `M${points.split(" ").join(" L ")}`;
+  const pathD = `M${points.split(' ').join(' L ')}`;
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="w-full h-full"
-      preserveAspectRatio="none"
-    >
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" preserveAspectRatio="none">
       <defs>
         <linearGradient id="gStroke" x1="0" x2="1">
           <stop offset="0%" stopColor="#34d399" />
