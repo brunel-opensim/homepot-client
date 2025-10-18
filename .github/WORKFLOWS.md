@@ -100,7 +100,7 @@ This document describes the automated workflows
 
 **Trigger Events:**
 - Scheduled weekly (Sundays at 2 AM UTC)
-- Push events affecting dependency files (`requirements.txt`, `pyproject.toml`)
+- Push events affecting dependency files (`backend/requirements.txt`, `backend/pyproject.toml`)
 - Manual trigger via `workflow_dispatch`
 
 **What it does:**
@@ -272,15 +272,15 @@ source scripts/activate-homepot.sh
 ./scripts/validate-workflows.sh
 
 # Individual quality checks
-black src/ tests/
-isort src/ tests/
-flake8 src/ tests/
+black backend/homepot_client/ backend/tests/
+isort backend/homepot_client/ backend/tests/
+flake8 backend/homepot_client/ backend/tests/
 ```
 
 ### Security Scanning
 ```bash
 # Run security scans (matches CI workflow)
-bandit -r src/
+bandit -r backend/homepot_client/
 safety check
 pip-audit
 
@@ -291,13 +291,13 @@ pip-audit
 ### Testing
 ```bash
 # Run unit tests
-pytest tests/ -v
+pytest backend/tests/ -v
 
 # Run tests with coverage
-pytest tests/ --cov=src --cov-report=html
+pytest backend/tests/ --cov=backend/homepot_client --cov-report=html
 
 # POSDummy infrastructure testing
-pytest tests/test_pos_dummy.py -v
+pytest backend/tests/test_pos_dummy.py -v
 ```
 
 ## Key Improvements Made
@@ -328,7 +328,7 @@ pytest tests/test_pos_dummy.py -v
 2. **Check security:**
    ```bash
    safety check
-   bandit -r src/
+   bandit -r backend/homepot_client/
    pip-audit
    ```
 

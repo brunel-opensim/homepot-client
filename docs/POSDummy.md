@@ -82,10 +82,10 @@ POSDummy runs automatically in GitHub Actions:
 
 ```bash
 # Run via pytest
-pytest tests/test_pos_dummy.py -v
+pytest backend/tests/test_pos_dummy.py -v
 
 # Run specific phase
-pytest tests/test_pos_dummy.py::TestPOSDummy::test_critical_imports -v
+pytest backend/tests/test_pos_dummy.py::TestPOSDummy::test_critical_imports -v
 ```
 
 ## Integration Points

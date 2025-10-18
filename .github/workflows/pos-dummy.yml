@@ -52,7 +52,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-posdummy-${{ hashFiles('requirements.txt') }}
+        key: ${{ runner.os }}-pip-posdummy-${{ hashFiles('backend/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-posdummy-
           ${{ runner.os }}-pip-

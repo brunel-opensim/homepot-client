@@ -99,8 +99,11 @@ nav:
   - Home: index.md
   - Getting Started:
     - Quick Start: getting-started.md
+    - Running Locally: running-locally.md
     - Development Guide: development-guide.md
+    - Testing Guide: testing-guide.md
     - Deployment Guide: deployment-guide.md
+    - Monorepo Migration: monorepo-migration.md
   - Features:
     - POS Management: pos-management.md
     - Real-time Dashboard: real-time-dashboard.md

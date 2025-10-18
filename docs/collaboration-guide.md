@@ -132,8 +132,8 @@ git checkout -b feature/your-feature-name
 # Edit files, add features, fix bugs
 
 # 3. Test your changes
-python -m pytest tests/
-python -m pytest tests/test_your_new_feature.py
+python -m pytest backend/tests/
+python -m pytest backend/tests/test_your_new_feature.py
 
 # 4. Commit and push
 git add .

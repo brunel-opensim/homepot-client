@@ -66,7 +66,7 @@ This creates a fresh database with:
 
 ```bash
 # Work normally - database changes are local
-pytest tests/
+pytest backend/tests/
 python -m homepot_client.main
 
 # No database conflicts when pulling updates!

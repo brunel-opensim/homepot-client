@@ -114,48 +114,60 @@ addopts =
 ### Automated Validation
 
 ```bash
-# Run all validation checks
-./scripts/validate-workflows.sh
-
-# Individual tools
-black src/ tests/           # Code formatting
-isort src/ tests/           # Import sorting
-flake8 src/ tests/          # Style linting
-mypy src/                   # Type checking
-bandit -r src/              # Security scanning
+```bash
+black backend/homepot_client/ backend/tests/    # Code formatting
+isort backend/homepot_client/ backend/tests/    # Import sorting
+flake8 backend/homepot_client/ backend/tests/   # Style linting
+mypy backend/homepot_client/                    # Type checking
+bandit -r backend/homepot_client/               # Security scanning
+```
 ```
 
 ### Code Formatting
 
 ```bash
-# Format code automatically
-black src/ tests/
+**Format code:**
+```bash
+black backend/homepot_client/ backend/tests/
+```
 
-# Check formatting without changes
-black --check src/ tests/
+**Check formatting without modifying:**
+```bash
+black --check backend/homepot_client/ backend/tests/
+```
 
-# Sort imports
-isort src/ tests/
+**Import sorting:**
+```bash
+isort backend/homepot_client/ backend/tests/
+```
 ```
 
 ### Type Checking
 
 ```bash
-# Run type checking
-mypy src/
+**Type checking:**
+```bash
+mypy backend/homepot_client/
+```
 
-# Generate type stub files
-stubgen -m homepot_client -o stubs/
+**Security scanning:**
+```bash
+# Basic scan
+bandit -r backend/homepot_client/
+
+# Generate report
+bandit -r backend/homepot_client/ -f json -o security-report.json
+```
 ```
 
 ### Security Scanning
 
 ```bash
 # Run security analysis
-bandit -r src/
+bandit -r backend/homepot_client/
 
 # Generate security report
-bandit -r src/ -f json -o security-report.json
+bandit -r backend/homepot_client/ -f json -o security-report.json
 ```
 
 ## Development Workflow
@@ -401,7 +413,7 @@ mprof plot
 pip install locust
 
 # Run load tests
-locust -f tests/load_test.py --host=http://localhost:8000
+locust -f backend/tests/load_test.py --host=http://localhost:8000
 ```
 
 ## Troubleshooting
@@ -420,10 +432,10 @@ python -c "import sys; print(sys.path)"
 **Test Failures:**
 ```bash
 # Run specific failing test
-pytest tests/test_specific.py::test_function -v
+pytest backend/tests/test_specific.py::test_function -v
 
 # Debug test with pdb
-pytest tests/test_specific.py::test_function --pdb
+pytest backend/tests/test_specific.py::test_function --pdb
 ```
 
 **Database Issues:**

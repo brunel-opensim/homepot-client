@@ -173,13 +173,13 @@ def test_site_creation(db_session):
 
 ```bash
 # Run all database tests
-pytest tests/test_database.py -v
+pytest backend/tests/test_database.py -v
 
 # Run with database reset
-pytest tests/ --reset-db
+pytest backend/tests/ --reset-db
 
 # Test specific functionality
-pytest tests/test_models.py::test_site_device_relationship
+pytest backend/tests/test_models.py::test_site_device_relationship
 ```
 
 ## Demo Data Overview
