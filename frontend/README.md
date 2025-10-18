@@ -4,12 +4,14 @@ Homepot is a modern React application built with **Vite** and **Tailwind CSS**, 
 
 ## Table of Contents
 
-- [Installation](#installation)
-- [Available Scripts](#available-scripts)
-- [Dependencies](#dependencies)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
+- [Homepot](#homepot)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+  - [Available Scripts](#available-scripts)
+  - [Dependencies](#dependencies)
+  - [Development](#development)
+  - [Pages](#pages)
+  - [Contributing](#contributing)
 
 ## Installation
 
@@ -78,8 +80,8 @@ npm run dev
 4. Start editing the source code in the `src/` folder. Changes will hot-reload automatically.
 
 **Current Status:**
-- ✅ All UI pages implemented and working
-- ⚠️ **Backend API integration pending** - Currently using mock/static data
+- All UI pages implemented and working
+- **Backend API integration pending** - Currently using mock/static data
 - See `FRONTEND_REVIEW.md` in the root directory for detailed status
 
 ## Pages
