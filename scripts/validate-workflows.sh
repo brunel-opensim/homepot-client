@@ -1055,9 +1055,11 @@ except Exception as e:
     echo -n "    Import smoke test: "
     log_verbose "Testing basic imports"
     if python -c "
+import sys
+sys.path.insert(0, 'backend')
 try:
-    from src.homepot_client.config import get_settings
-    from src.homepot_client.models import Site, Device, Job
+    from homepot_client.config import get_settings
+    from homepot_client.models import Site, Device, Job
     print('Core imports successful')
 except ImportError as e:
     print(f'Import failed: {e}')
