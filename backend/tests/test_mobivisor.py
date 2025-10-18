@@ -4,10 +4,11 @@ This module contains unit tests for the Mobivisor device integration endpoints.
 Tests mock the httpx client to avoid actual API calls during testing.
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, patch, MagicMock
-import httpx
 
 from homepot_client.app.main import app
 
