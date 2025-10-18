@@ -20,18 +20,21 @@ Tests the frontend on multiple Node.js versions (20.x and 22.x) to ensure compat
 
 **Steps:**
 - **Install dependencies** - Uses `npm ci` for consistent, clean installs
-- **ESLint** - Checks code quality and style
+- **ESLint** - Checks code quality and style (linting)
+- **Prettier** - Checks code formatting consistency
 - **Build** - Verifies production build succeeds
 - **Bundle size** - Reports build output size
-- **Tests** - Runs Vitest tests (currently optional until tests are written)
+- **Tests** - Runs Vitest tests with coverage reporting
 - **Artifacts** - Uploads build output for review
 
 **What it catches:**
 - Syntax errors
 - Import issues
-- ESLint violations
+- ESLint violations (code quality issues)
+- Prettier violations (inconsistent formatting)
 - Build failures
 - Broken dependencies
+- Test failures
 
 #### 2. **Security Audit**
 
@@ -63,12 +66,13 @@ The workflow is optimized for speed:
 ## What Gets Checked
 
 ### **Always Required (Blocks PR)**
-- ESLint passes
+- ESLint passes (code quality)
+- Prettier check passes (code formatting)
 - Production build succeeds
+- All tests pass
 
 ### **Optional (Warns but doesn't block)**
 - Security audit (informational)
-- Tests (until test suite is complete)
 - Outdated packages (informational)
 
 ## Local Development
@@ -79,17 +83,36 @@ Before pushing, you can run these checks locally:
 cd frontend
 
 # Run all checks
-npm run lint        # ESLint
-npm run build       # Production build
-npm run test        # Tests (when available)
-npm audit           # Security check
+npm run lint           # ESLint (code quality)
+npm run format:check   # Prettier (formatting)
+npm run build          # Production build
+npm run test           # Vitest tests with coverage
+npm audit              # Security check
+
+# Auto-fix issues
+npm run lint:fix       # Auto-fix ESLint issues
+npm run format         # Auto-format with Prettier
 ```
 
 ## Configuration Files
 
-- **ESLint**: `frontend/eslint.config.js`
-- **Vite**: `frontend/vite.config.js`
-- **Vitest**: `frontend/vitest.config.js`
+- **ESLint**: `frontend/eslint.config.js` - Code quality rules
+- **Prettier**: `frontend/.prettierrc` - Code formatting rules
+- **Vite**: `frontend/vite.config.js` - Build configuration
+- **Vitest**: `frontend/vitest.config.js` - Test configuration
+
+## Code Quality Tools
+
+The frontend uses industry-standard tools equivalent to Python's quality tools:
+
+| Python Tool | JavaScript Equivalent | Purpose |
+|-------------|----------------------|---------|
+| **Black** | **Prettier** | Auto-formats code consistently |
+| **Flake8** | **ESLint** | Lints code for quality issues |
+| **MyPy** | **TypeScript** | Type checking (optional) |
+
+**Prettier** ensures consistent code style (quotes, semicolons, indentation, line length).  
+**ESLint** catches code quality issues (unused variables, missing imports, bad patterns).
 
 ## When Tests Are Added
 
@@ -119,12 +142,22 @@ https://github.com/brunel-opensim/homepot-client/actions
 
 ### ESLint Failures
 
-**Cause:** Code doesn't meet style guidelines
+**Cause:** Code doesn't meet quality guidelines
 
 **Solution:**
 ```bash
 npm run lint          # See errors
-npm run lint -- --fix # Auto-fix when possible
+npm run lint:fix      # Auto-fix when possible
+```
+
+### Prettier Formatting Failures
+
+**Cause:** Code formatting doesn't match standards
+
+**Solution:**
+```bash
+npm run format:check  # See which files need formatting
+npm run format        # Auto-format all files
 ```
 
 ### Security Audit Warnings
