@@ -108,6 +108,12 @@ export default function Dashboard() {
   //     alert: "12m ago",
   //     icon: <WindowsIcon className="text-blue-400" />,
   //   },
+  // {
+  //     site: "Site 3",
+  //     online: 8,
+  //     alert: "12m ago",
+  //     icon: <WindowsIcon className="text-blue-400" />,
+  //   },
   // ];
 
   return (
