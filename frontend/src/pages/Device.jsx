@@ -1,26 +1,26 @@
-import React from "react";
+import React from 'react';
 
 export default function Device() {
   const stats = {
-    cpu: { label: "CPU", value: "3,4rh", subtitle: "avg 3.4%" },
-    memory: { label: "Memory", value: "4 MW", subtitle: "used 4GB" },
-    disk: { label: "Disk", value: "25s ago", subtitle: "last check" },
+    cpu: { label: 'CPU', value: '3,4rh', subtitle: 'avg 3.4%' },
+    memory: { label: 'Memory', value: '4 MW', subtitle: 'used 4GB' },
+    disk: { label: 'Disk', value: '25s ago', subtitle: 'last check' },
   };
 
   const command = [
-    { title: "Configuration updated", date: "22 Jan 2024" },
-    { title: "Alert resolved", date: "2024-04-23" },
+    { title: 'Configuration updated', date: '22 Jan 2024' },
+    { title: 'Alert resolved', date: '2024-04-23' },
   ];
 
   const connections = [
-    { name: "POS System" },
-    { name: "Delivery App", status: "online" },
-    { name: "Payment Gateway", status: "online" },
+    { name: 'POS System' },
+    { name: 'Delivery App', status: 'online' },
+    { name: 'Payment Gateway', status: 'online' },
   ];
 
   const audit = [
-    { title: "Configuration updated", date: "22 Jan 2024" },
-    { title: "Alert resolved", date: "2024-04-23" },
+    { title: 'Configuration updated', date: '22 Jan 2024' },
+    { title: 'Alert resolved', date: '2024-04-23' },
   ];
 
   const sparkData = {
@@ -52,9 +52,7 @@ export default function Device() {
             </div>
 
             <div className="leading-tight">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                DEVICE-00001
-              </h1>
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">DEVICE-00001</h1>
               <div className="flex items-center gap-2 mt-1 text-sm text-emerald-300">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.14)] inline-block" />
                 <span className="font-medium">Healthy</span>
@@ -76,11 +74,9 @@ export default function Device() {
           <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Health & Status */}
             <LargeCard className="md:col-span-2">
-              <h3 className="text-sm text-slate-300 font-medium mb-4">
-                HEALTH & STATUS
-              </h3>
+              <h3 className="text-sm text-slate-300 font-medium mb-4">HEALTH & STATUS</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {["cpu", "memory", "disk"].map((key) => (
+                {['cpu', 'memory', 'disk'].map((key) => (
                   <div key={key} className="flex flex-col gap-1">
                     <StatBlock
                       data={sparkData.small}
@@ -134,9 +130,9 @@ export default function Device() {
                     <span className="font-medium">{c.name}</span>
                     <div
                       className={`w-3 h-3 rounded-full ${
-                        c.status === "online"
-                          ? "bg-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.12)]"
-                          : ""
+                        c.status === 'online'
+                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.12)]'
+                          : ''
                       }`}
                     />
                   </li>
@@ -209,7 +205,7 @@ export default function Device() {
 }
 
 /* === Small Reusable Components === */
-function Card({ children, className = "" }) {
+function Card({ children, className = '' }) {
   return (
     <div
       className={`border border-[#0e2f37] rounded-2xl p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${className}`}
@@ -219,7 +215,7 @@ function Card({ children, className = "" }) {
   );
 }
 
-function LargeCard({ children, className = "" }) {
+function LargeCard({ children, className = '' }) {
   return (
     <div
       className={`border border-[#103237] rounded-2xl p-4 shadow-[0_8px_30px_rgba(2,136,153,0.06)] ${className}`}
@@ -262,14 +258,14 @@ function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40, animated = false
       const y = height - ((d - min) / (max - min || 1)) * height;
       return `${x},${y}`;
     })
-    .join(" ");
+    .join(' ');
 
-  const pathD = `M${points.split(" ").join(" L ")}`;
+  const pathD = `M${points.split(' ').join(' L ')}`;
 
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className={`w-full h-full ${animated ? "animate-pulse" : ""}`}
+      className={`w-full h-full ${animated ? 'animate-pulse' : ''}`}
       preserveAspectRatio="none"
     >
       <defs>

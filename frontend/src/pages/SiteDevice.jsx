@@ -1,6 +1,6 @@
-import React from "react";
-import { useParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import React from 'react';
+import { useParams } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 // Sparkline component
 function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 48, animated = false }) {
@@ -14,15 +14,15 @@ function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 48, animated = false
       const y = height - ((d - min) / (max - min || 1)) * height;
       return `${x},${y}`;
     })
-    .join(" ");
+    .join(' ');
 
-  const pathD = `M${points.split(" ").join(" L ")}`;
+  const pathD = `M${points.split(' ').join(' L ')}`;
 
   return (
     <div className="w-full h-[60px] sm:h-[100px] md:h-[150px] overflow-hidden">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className={`w-full h-full ${animated ? "animate-pulse" : ""}`}
+        className={`w-full h-full ${animated ? 'animate-pulse' : ''}`}
         preserveAspectRatio="none"
       >
         <defs>
@@ -59,7 +59,7 @@ export default function SiteDeviceScreen() {
       className="w-5 h-5"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
@@ -71,7 +71,7 @@ export default function SiteDeviceScreen() {
       className="w-5 h-5 text-gray-300"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
@@ -83,7 +83,7 @@ export default function SiteDeviceScreen() {
       className="w-5 h-5"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
@@ -95,7 +95,7 @@ export default function SiteDeviceScreen() {
       className="w-5 h-5 text-gray-300"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
@@ -103,23 +103,23 @@ export default function SiteDeviceScreen() {
   const site = {
     id,
     name: `SITE-${id}`,
-    location: "New York",
-    lastPing: "1m ago",
-    lastAlert: "5m ago",
+    location: 'New York',
+    lastPing: '1m ago',
+    lastAlert: '5m ago',
     devices: [
-      { id: "00002", name: "Device-00002", healthy: true, uptime: "12h", icon: <WindowsIcon /> },
-      { id: "00003", name: "Device-00003", healthy: true, uptime: "10h", icon: <AppleIcon /> },
-      { id: "00004", name: "Device-00004", healthy: true, uptime: "8h", icon: <LinuxIcon /> },
-      { id: "00005", name: "Device-00005", healthy: true, uptime: "6h", icon: <AndroidIcon /> },
-      { id: "00006", name: "Device-00006", healthy: true, uptime: "9h", icon: <WindowsIcon /> },
-      { id: "00007", name: "Device-00007", healthy: true, uptime: "5h", icon: <AppleIcon /> },
+      { id: '00002', name: 'Device-00002', healthy: true, uptime: '12h', icon: <WindowsIcon /> },
+      { id: '00003', name: 'Device-00003', healthy: true, uptime: '10h', icon: <AppleIcon /> },
+      { id: '00004', name: 'Device-00004', healthy: true, uptime: '8h', icon: <LinuxIcon /> },
+      { id: '00005', name: 'Device-00005', healthy: true, uptime: '6h', icon: <AndroidIcon /> },
+      { id: '00006', name: 'Device-00006', healthy: true, uptime: '9h', icon: <WindowsIcon /> },
+      { id: '00007', name: 'Device-00007', healthy: true, uptime: '5h', icon: <AppleIcon /> },
     ],
     alerts: [
-      { time: "5 min ago", event: "Notifications Sent", color: "text-textPrimary" },
-      { time: "10 min ago", event: "Device Offline", color: "text-red-400" },
-      { time: "30 min ago", event: "Device Offline", color: "text-red-400" },
+      { time: '5 min ago', event: 'Notifications Sent', color: 'text-textPrimary' },
+      { time: '10 min ago', event: 'Device Offline', color: 'text-red-400' },
+      { time: '30 min ago', event: 'Device Offline', color: 'text-red-400' },
     ],
-    error: [{ time: "1 hour ago", event: "Error", color: "text-red-400" }],
+    error: [{ time: '1 hour ago', event: 'Error', color: 'text-red-400' }],
   };
 
   return (
@@ -173,11 +173,15 @@ export default function SiteDeviceScreen() {
                   <h3 className="text-md font-medium">{device.name}</h3>
                   {device.icon}
                 </div>
-                <p className={`text-md mb-2 text-start ${device.healthy ? "text-textPrimary" : "text-red-400"}`}>
-                  {device.healthy ? "Healthy" : "Offline"}
+                <p
+                  className={`text-md mb-2 text-start ${device.healthy ? 'text-textPrimary' : 'text-red-400'}`}
+                >
+                  {device.healthy ? 'Healthy' : 'Offline'}
                 </p>
                 <p className="text-start text-textPrimary text-xs mt-1">Uptime {device.uptime}</p>
-                <p className="text-start text-textPrimary text-xs mt-1">2025-09-15&nbsp;&nbsp;07:30</p>
+                <p className="text-start text-textPrimary text-xs mt-1">
+                  2025-09-15&nbsp;&nbsp;07:30
+                </p>
               </div>
             ))}
           </div>

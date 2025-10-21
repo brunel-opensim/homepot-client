@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function SiteScreen() {
   const WindowsIcon = () => (
@@ -11,7 +11,7 @@ export default function SiteScreen() {
       className="w-5 h-5"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
@@ -23,7 +23,7 @@ export default function SiteScreen() {
       className="w-5 h-5 text-gray-300"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
@@ -35,7 +35,7 @@ export default function SiteScreen() {
       className="w-5 h-5"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
@@ -47,27 +47,38 @@ export default function SiteScreen() {
       className="w-5 h-5 text-gray-300"
       style={{
         filter:
-          "invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)",
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
       }}
     />
   );
 
   const navigate = useNavigate();
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
 
   const sites = [
-    { id: "00001", name: "Site - 00001", location: "Los Angeles", status: "Online", alert: null },
-    { id: "00002", name: "Site - 00002", location: "New York", status: "Online", alert: "1 asst alert: 2h ago" },
-    { id: "00003", name: "Site - 00003", location: "Chicago", status: "Online", alert: null },
-    { id: "00004", name: "Site - 00004", location: "New York", status: "Offline", alert: "2 asst alerts: 1h ago" },
+    { id: '00001', name: 'Site - 00001', location: 'Los Angeles', status: 'Online', alert: null },
+    {
+      id: '00002',
+      name: 'Site - 00002',
+      location: 'New York',
+      status: 'Online',
+      alert: '1 asst alert: 2h ago',
+    },
+    { id: '00003', name: 'Site - 00003', location: 'Chicago', status: 'Online', alert: null },
+    {
+      id: '00004',
+      name: 'Site - 00004',
+      location: 'New York',
+      status: 'Offline',
+      alert: '2 asst alerts: 1h ago',
+    },
   ];
 
   const filteredSites = sites.filter((site) => {
     const matchSearch =
-      site.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      site.id.includes(searchTerm);
+      site.name.toLowerCase().includes(searchTerm.toLowerCase()) || site.id.includes(searchTerm);
     const matchLocation = locationFilter ? site.location === locationFilter : true;
     return matchSearch && matchLocation;
   });
@@ -77,8 +88,12 @@ export default function SiteScreen() {
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-3">
         <h1 className="text-2xl font-semibold">View Sites</h1>
         <div className="flex gap-3">
-          <Button className="bg-primary text-textPrimary border border-borderPrimary">View Devices</Button>
-          <Button className="bg-primary text-textPrimary border border-borderPrimary">Send Notification</Button>
+          <Button className="bg-primary text-textPrimary border border-borderPrimary">
+            View Devices
+          </Button>
+          <Button className="bg-primary text-textPrimary border border-borderPrimary">
+            Send Notification
+          </Button>
         </div>
       </div>
 
@@ -93,7 +108,12 @@ export default function SiteScreen() {
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
+              />
             </svg>
           </span>
           <input
@@ -135,7 +155,7 @@ export default function SiteScreen() {
             </div>
 
             <div className="flex items-center space-x-3 mb-3">
-              {site.status === "Online" && (
+              {site.status === 'Online' && (
                 <>
                   <WindowsIcon />
                   <LinuxIcon />
@@ -153,7 +173,7 @@ export default function SiteScreen() {
 
             <div className="flex items-center gap-2 mb-3">
               <span
-                className={`w-3 h-3 rounded-full ${site.status === "Online" ? "bg-green-400" : "bg-red-500"}`}
+                className={`w-3 h-3 rounded-full ${site.status === 'Online' ? 'bg-green-400' : 'bg-red-500'}`}
               ></span>
               <span className="text-sm">{site.status}</span>
             </div>
