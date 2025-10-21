@@ -80,35 +80,16 @@ export default function Device() {
                 HEALTH & STATUS
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="flex flex-col gap-1">
-                  <StatBlock data={sparkData.small} />
-                  <div className="text-sm font-semibold tracking-tight">
-                    {stats.cpu.label}
+                {["cpu", "memory", "disk"].map((key) => (
+                  <div key={key} className="flex flex-col gap-1">
+                    <StatBlock
+                      data={sparkData.small}
+                      title={stats[key].label}
+                      value={stats[key].value}
+                      subtitle={stats[key].subtitle}
+                    />
                   </div>
-                  <div className="text-xs text-slate-400">
-                    {stats.cpu.value}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <StatBlock data={sparkData.small} />
-                  <div className="text-sm font-semibold tracking-tight">
-                    {stats.memory.label}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {stats.memory.value}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <StatBlock data={sparkData.small} />
-                  <div className="text-sm font-semibold tracking-tight">
-                    {stats.disk.label}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {stats.disk.value}
-                  </div>
-                </div>
+                ))}
               </div>
             </LargeCard>
 
@@ -122,7 +103,7 @@ export default function Device() {
                   placeholder="Enter command"
                 />
                 <div className="mt-3 text-sm text-slate-200">restart POS</div>
-                <div className="mt-1 text-xs text-slate-400">festart POS</div>
+                <div className="mt-1 text-xs text-slate-400">restart POS</div>
               </div>
             </Card>
           </div>
@@ -130,9 +111,7 @@ export default function Device() {
           {/* Command (Top right) */}
           <Card className="lg:col-span-4 text-left">
             <h3 className="text-sm text-slate-300 font-medium mb-3">COMMAND</h3>
-
-              <div className="border-t border-[#1f2735] mb-2"></div>
-
+            <div className="border-t border-[#1f2735] mb-2"></div>
             <div className="space-y-3 text-sm">
               {command.map((a) => (
                 <div key={a.title} className="flex flex-col">
@@ -147,18 +126,11 @@ export default function Device() {
           <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-4 gap-4 text-left">
             {/* Connections */}
             <Card>
-              <h3 className="text-sm text-slate-300 font-medium">
-                CONNECTIONS
-              </h3>
-
+              <h3 className="text-sm text-slate-300 font-medium">CONNECTIONS</h3>
               <div className="border-t border-[#1f2735] mt-2"></div>
-
               <ul className="mt-4 space-y-3 text-sm">
                 {connections.map((c) => (
-                  <li
-                    key={c.name}
-                    className="flex items-center justify-between"
-                  >
+                  <li key={c.name} className="flex items-center justify-between">
                     <span className="font-medium">{c.name}</span>
                     <div
                       className={`w-3 h-3 rounded-full ${
@@ -171,9 +143,8 @@ export default function Device() {
                 ))}
               </ul>
               <div className="border-t border-[#1f2735] mt-4"></div>
-
-              <div className="mt-4 ">
-                <div className="text-xs text-slate-400 mb-2 ">Network</div>
+              <div className="mt-4">
+                <div className="text-xs text-slate-400 mb-2">Network</div>
                 <div className="w-full h-12">
                   <Sparkline data={sparkData.medium} height={48} animated />
                 </div>
@@ -182,27 +153,21 @@ export default function Device() {
 
             {/* Command Input */}
             <Card>
-              <h3 className="text-sm text-slate-300 font-medium mb-3">
-                COMMAND
-              </h3>
-
+              <h3 className="text-sm text-slate-300 font-medium mb-3">COMMAND</h3>
               <div className="border-t border-[#1f2735] mb-2"></div>
-
               <div className="flex flex-col gap-3">
                 <div className="relative">
                   <input
                     className="w-full bg-[#051a1d] border border-[#0e2f37] rounded px-3 py-2 text-sm outline-none placeholder:text-slate-500 pr-10"
                     placeholder="Enter command"
                   />
-                  <button className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 rounded  text-teal-300 text-sm  hover:bg-teal-500/30">
+                  <button className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 rounded text-teal-300 text-sm hover:bg-teal-500/30">
                     &gt;
                   </button>
                 </div>
-
                 <div className="text-sm text-slate-200 mt-2">restart POS</div>
-                 <div className="border-t border-[#1f2735] mb-2"></div>
+                <div className="border-t border-[#1f2735] mb-2"></div>
                 <div className="text-xs text-slate-400">Logs</div>
-
                 <div className="text-sm text-slate-200 mt-3">restart POS</div>
                 <div className="text-xs text-slate-400">Logs</div>
               </div>
@@ -210,9 +175,7 @@ export default function Device() {
 
             {/* Audit & Logs */}
             <Card>
-              <h3 className="text-sm text-slate-300 font-medium mb-3">
-                AUDIT & LOGS
-              </h3>
+              <h3 className="text-sm text-slate-300 font-medium mb-3">AUDIT & LOGS</h3>
               <div className="border-t border-[#1f2735] mb-2"></div>
               <div className="space-y-3 text-sm">
                 {audit.map((a) => (
@@ -227,19 +190,15 @@ export default function Device() {
             {/* Monitoring */}
             <Card>
               <h3 className="text-sm text-slate-300 font-medium">MONITORING</h3>
-
               <div className="border-t border-[#1f2735] mt-2"></div>
-
               <div className="mt-3 text-sm text-slate-200">Uptime</div>
               <div className="mt-2">
-                <Sparkline data={[8, 10, 12, 10, 14, 16, 18]} height={48} />
+                <Sparkline data={[8, 10, 12, 10, 14, 16, 18]} height={48} animated />
               </div>
-
               <div className="border-t border-[#1f2735] mt-2"></div>
-
               <div className="mt-3 text-sm text-slate-200">Alerts</div>
               <div className="mt-2">
-                <Sparkline data={[4, 6, 5, 6, 7, 6, 8]} height={48} />
+                <Sparkline data={[4, 6, 5, 6, 7, 6, 8]} height={48} animated />
               </div>
             </Card>
           </div>
@@ -263,8 +222,7 @@ function Card({ children, className = "" }) {
 function LargeCard({ children, className = "" }) {
   return (
     <div
-      // className={`bg-gradient-to-b from-[#072026] to-[#04181b] border border-[#103237] rounded-2xl p-4 shadow-[0_8px_30px_rgba(2,136,153,0.06)] ${className}`}
-      className={` border border-[#103237] rounded-2xl p-4 shadow-[0_8px_30px_rgba(2,136,153,0.06)] ${className}`}
+      className={`border border-[#103237] rounded-2xl p-4 shadow-[0_8px_30px_rgba(2,136,153,0.06)] ${className}`}
     >
       {children}
     </div>
@@ -281,9 +239,9 @@ function ActionButton({ children }) {
 
 function StatBlock({ title, value, subtitle, data = [] }) {
   return (
-    <div className=" border border-[#0d2b2f] rounded-lg p-3 flex flex-col gap-2 text-left">
+    <div className="border border-[#0d2b2f] rounded-lg p-3 flex flex-col gap-2 text-left">
       <div className="w-full h-10">
-        <Sparkline data={data} height={40} small />
+        <Sparkline data={data} height={40} animated />
       </div>
       <div className="mt-2">
         <div className="text-xs text-slate-400">{title}</div>
@@ -294,11 +252,7 @@ function StatBlock({ title, value, subtitle, data = [] }) {
   );
 }
 
-function Sparkline({
-  data = [4, 6, 5, 7, 6, 8, 9],
-  height = 40,
-  animated = false,
-}) {
+function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40, animated = false }) {
   const width = 144;
   const max = Math.max(...data) || 1;
   const min = Math.min(...data) || 0;
@@ -315,7 +269,7 @@ function Sparkline({
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className="w-full h-full"
+      className={`w-full h-full ${animated ? "animate-pulse" : ""}`}
       preserveAspectRatio="none"
     >
       <defs>
