@@ -32,6 +32,7 @@ google-auth-oauthlib>=1.1.0  # For OAuth2 flows (FCM Linux)
 pyjwt[crypto]>=2.8.0  # For JWT token generation (APNs authentication)
 pywebpush>=1.14.0  # For Web Push notifications (browsers)
 cryptography>=41.0.0  # For VAPID key generation and encryption (Web Push)
+paho-mqtt>=1.6.1  # For MQTT push notifications (IoT/OT devices)
 
 # Testing
 pytest>=7.4.0
