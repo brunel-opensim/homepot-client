@@ -109,8 +109,8 @@ async def get_push_provider(platform: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=(
-            f"Failed to initialize {platform} provider. "
-            "Please check server logs."
+                f"Failed to initialize {platform} provider. "
+                "Please check server logs."
             ),
         )
 
