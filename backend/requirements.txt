@@ -30,6 +30,8 @@ aiohttp>=3.9.0  # For async HTTP requests in push notification providers
 google-auth>=2.23.0  # For Google Cloud/Firebase authentication (FCM Linux)
 google-auth-oauthlib>=1.1.0  # For OAuth2 flows (FCM Linux)
 pyjwt[crypto]>=2.8.0  # For JWT token generation (APNs authentication)
+pywebpush>=1.14.0  # For Web Push notifications (browsers)
+cryptography>=41.0.0  # For VAPID key generation and encryption (Web Push)
 
 # Testing
 pytest>=7.4.0
