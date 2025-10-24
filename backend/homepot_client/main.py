@@ -314,8 +314,10 @@ async def get_status(client: HomepotClient = Depends(get_client)) -> Dict[str, A
             "client_type": "HOMEPOT Client",
         }
     except Exception as e:
-        logger.error(f"Status check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get status: {e}")
+        logger.error(f"Status check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get status. Please check server logs."
+        )
 
 
 @app.post("/connect", tags=["Client"])
@@ -328,8 +330,10 @@ async def connect_client(client: HomepotClient = Depends(get_client)) -> Dict[st
         await client.connect()
         return {"message": "Client connected successfully", "status": "connected"}
     except Exception as e:
-        logger.error(f"Connect failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to connect: {e}")
+        logger.error(f"Connect failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to connect. Please check server logs."
+        )
 
 
 @app.post("/disconnect", tags=["Client"])
@@ -344,8 +348,10 @@ async def disconnect_client(
         await client.disconnect()
         return {"message": "Client disconnected successfully", "status": "disconnected"}
     except Exception as e:
-        logger.error(f"Disconnect failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to disconnect: {e}")
+        logger.error(f"Disconnect failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to disconnect. Please check server logs."
+        )
 
 
 @app.get("/version", tags=["Client"])
@@ -355,8 +361,10 @@ async def get_version(client: HomepotClient = Depends(get_client)) -> Dict[str, 
         version = client.get_version()
         return {"version": version}
     except Exception as e:
-        logger.error(f"Version check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get version: {e}")
+        logger.error(f"Version check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get version. Please check server logs."
+        )
 
 
 # POS Scenario API Endpoints
@@ -407,8 +415,10 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create site: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create site: {e}")
+        logger.error(f"Failed to create site: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to create site. Please check server logs."
+        )
 
 
 @app.post("/sites/{site_id}/devices", tags=["Devices"], response_model=Dict[str, str])
@@ -444,8 +454,10 @@ async def create_device(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create device: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create device: {e}")
+        logger.error(f"Failed to create device: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to create device. Please check server logs."
+        )
 
 
 @app.post("/sites/{site_id}/jobs", tags=["Jobs"], response_model=Dict[str, str])
@@ -497,11 +509,15 @@ async def create_pos_config_job(
             "status": "queued",
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(
+            status_code=404, detail="Resource not found. Please check server logs."
+        )
     except Exception as e:
-        logger.error(f"Failed to create job: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create job: {e}")
+        logger.error(f"Failed to create job: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to create job. Please check server logs."
+        )
 
 
 @app.get("/jobs/{job_id}", tags=["Jobs"], response_model=JobStatusResponse)
@@ -519,8 +535,11 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get job status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get job status: {e}")
+        logger.error(f"Failed to get job status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get job status. Please check server logs.",
+        )
 
 
 @app.get("/sites/{site_id}/health", tags=["Health"], response_model=SiteHealthResponse)
@@ -601,8 +620,11 @@ async def get_site_health(site_id: str) -> SiteHealthResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get site health: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get site health: {e}")
+        logger.error(f"Failed to get site health: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get site health. Please check server logs.",
+        )
 
 
 @app.get("/sites", tags=["Sites"])
@@ -641,8 +663,10 @@ async def list_sites() -> Dict[str, List[Dict]]:
             return {"sites": site_list}
 
     except Exception as e:
-        logger.error(f"Failed to list sites: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list sites: {e}")
+        logger.error(f"Failed to list sites: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to list sites. Please check server logs."
+        )
 
 
 @app.get("/sites/{site_id}", tags=["Sites"])
@@ -670,8 +694,10 @@ async def get_site(site_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get site {site_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get site: {e}")
+        logger.error(f"Failed to get site {site_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get site. Please check server logs."
+        )
 
 
 # Phase 3: Agent Management API Endpoints
@@ -689,8 +715,10 @@ async def list_agents() -> Dict[str, List[Dict]]:
         return {"agents": agents_status}
 
     except Exception as e:
-        logger.error(f"Failed to list agents: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list agents: {e}")
+        logger.error(f"Failed to list agents: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to list agents. Please check server logs."
+        )
 
 
 @app.get("/agents/{device_id}", tags=["Agents"])
@@ -712,8 +740,11 @@ async def get_agent_status(device_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get agent status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get agent status: {e}")
+        logger.error(f"Failed to get agent status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get agent status. Please check server logs.",
+        )
 
 
 @app.post("/agents/{device_id}/push", tags=["Agents"])
@@ -745,7 +776,8 @@ async def send_push_notification(
     except Exception as e:
         logger.error(f"Failed to send push notification: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to send push notification: {e}"
+            status_code=500,
+            detail="Failed to send push notification. Please check server logs.",
         )
 
 
@@ -787,8 +819,11 @@ async def get_device_health(device_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get device health: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get device health: {e}")
+        logger.error(f"Failed to get device health: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get device health. Please check server logs.",
+        )
 
 
 @app.post("/devices/{device_id}/health", tags=["Health"])
@@ -827,7 +862,8 @@ async def trigger_health_check(device_id: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to trigger health check: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to trigger health check: {e}"
+            status_code=500,
+            detail="Failed to trigger health check. Please check server logs.",
         )
 
 
@@ -857,8 +893,11 @@ async def restart_device(device_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to restart device: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to restart device: {e}")
+        logger.error(f"Failed to restart device: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to restart device. Please check server logs.",
+        )
 
 
 # Phase 4: Audit Logging API Endpoints
@@ -900,8 +939,11 @@ async def get_audit_events(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get audit events: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get audit events: {e}")
+        logger.error(f"Failed to get audit events: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get audit events. Please check server logs.",
+        )
 
 
 @app.get("/audit/statistics", tags=["Audit"])
@@ -919,7 +961,8 @@ async def get_audit_statistics(hours: int = 24) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to get audit statistics: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to get audit statistics: {e}"
+            status_code=500,
+            detail="Failed to get audit statistics. Please check server logs.",
         )
 
 

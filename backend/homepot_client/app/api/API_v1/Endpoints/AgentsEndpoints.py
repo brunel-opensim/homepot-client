@@ -36,8 +36,10 @@ async def list_agents() -> Dict[str, List[Dict]]:
         return {"agents": agents_status}
 
     except Exception as e:
-        logger.error(f"Failed to list agents: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list agents: {e}")
+        logger.error(f"Failed to list agents: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to list agents. Please check server logs."
+        )
 
 
 @router.get("/agents/{device_id}", tags=["Agents"])
@@ -59,8 +61,11 @@ async def get_agent_status(device_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get agent status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get agent status: {e}")
+        logger.error(f"Failed to get agent status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get agent status. Please check server logs.",
+        )
 
 
 @router.post("/agents/{device_id}/push", tags=["Agents"])
@@ -90,7 +95,8 @@ async def send_push_notification(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to send push notification: {e}")
+        logger.error(f"Failed to send push notification: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to send push notification: {e}"
+            status_code=500,
+            detail="Failed to send push notification. Please check server logs.",
         )

@@ -110,11 +110,15 @@ async def create_pos_config_job(
             "status": "queued",
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(
+            status_code=404, detail="Operation failed. Please check server logs."
+        )
     except Exception as e:
-        logger.error(f"Failed to create job: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create job: {e}")
+        logger.error(f"Failed to create job: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to create job. Please check server logs."
+        )
 
 
 @router.get("/jobs/{job_id}", tags=["Jobs"], response_model=JobStatusResponse)
@@ -132,5 +136,8 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get job status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get job status: {e}")
+        logger.error(f"Failed to get job status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get job status. Please check server logs.",
+        )

@@ -1,14 +1,51 @@
-# HOMEPOT Documentation
+# HOMEPOT Client Documentation
 
-Welcome to the HOMEPOT (Homogenous Cyber Management of End-Points and OT) documentation. HOMEPOT is an enterprise-grade POS payment gateway management system for the HOMEPOT consortium.
+Welcome to the HOMEPOT Client documentation! This comprehensive guide will help you get started with the HOMEPOT IoT device management platform.
+
+## Quick Navigation
+
+### For New Users
+- **[Getting Started](getting-started.md)** - First time setup
+- **[Running Locally](running-locally.md)** - How to run the application
+- **[Integration Guide](integration-guide.md)** - Complete setup and usage guide
+
+### For Developers
+- **[Engineering TODO](engineering-todo.md)** - Task list with priorities
+- **[Development Guide](development-guide.md)** - How to contribute
+- **[Testing Guide](testing-guide.md)** - How to test your code
+
+### For Stakeholders
+- **[Project Vision](../PROJECT_VISION.md)** - Strategic roadmap
+- **[Integration Summary](../INTEGRATION_SUMMARY.md)** - What's accomplished
+
+## New Documentation (October 2025)
+
+### Integration Guide
+**2000+ lines** - Your complete technical reference covering architecture, installation, API reference, frontend guide, push notifications (all 5 platforms), testing, deployment, and troubleshooting.
+
+[Read Integration Guide →](integration-guide.md)
+
+### Engineering TODO
+**1500+ lines** - Clear, actionable task list with phase-by-phase breakdown, priorities, estimates, acceptance criteria, and quick reference commands.
+
+[Read Engineering TODO →](engineering-todo.md)
+
+### Project Vision
+**900+ lines** - Strategic overview with executive summary, 8-phase roadmap, timelines, success metrics, and team information.
+
+[Read Project Vision →](../PROJECT_VISION.md)
 
 ## Quick Start
 
-New to HOMEPOT? Start here:
+```bash
+# ONE COMMAND to run everything:
+./scripts/test-integration.sh
 
-- **[Getting Started](getting-started.md)** - Installation and basic setup
-- **[Running Locally](running-locally.md)** - Run HOMEPOT on your local machine (Monorepo)
-- **[Monorepo Migration Guide](monorepo-migration.md)** - Understanding the new repository structure
+# Access:
+# Frontend: http://localhost:5173
+# Backend: http://localhost:8000
+# API Docs: http://localhost:8000/docs
+```
 
 ## Feature Guides
 
