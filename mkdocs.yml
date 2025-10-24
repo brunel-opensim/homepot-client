@@ -3,7 +3,7 @@
 site_name: HOMEPOT Client
 site_description: Homogenous Cyber Management of End-Points and OT - Gateway Management System
 site_author: Brunel OpenSim
-site_url: https://homepot-client.readthedocs.io
+site_url: https://brunel-opensimhomepot-client.readthedocs.io/en/latest/
 
 # Repository
 repo_name: brunel-opensim/homepot-client

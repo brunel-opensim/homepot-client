@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-brightgreen.svg)](https://python.org/)
-[![Documentation](https://readthedocs.org/projects/homepot-client/badge/?version=latest)](https://homepot-client.readthedocs.io/en/latest/)
+[![Documentation](https://readthedocs.org/projects/brunel-opensimhomepot-client/badge/?version=latest)](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/)
 [![Code Style](https://img.shields.io/badge/code%20style-black%20%7C%20flake8-000000.svg)](https://github.com/psf/black)
 [![Security](https://img.shields.io/badge/security-audit%20passing-green.svg)](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
 
@@ -16,9 +16,9 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ## Documentation
 
-**Complete documentation is available at: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
+**📚 Complete documentation is available at: [https://brunel-opensimhomepot-client.readthedocs.io/en/latest/](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/)**
 
-- **[Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
+- **[Getting Started Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
 
 ## Key Goals
 
@@ -76,7 +76,7 @@ cd homepot-client
 ./scripts/install.sh --dev
 ```
 
-**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
+**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)**
 
 ## Development
 
@@ -88,7 +88,7 @@ cd homepot-client
 | `homepot-client version` | Display version information |
 | `homepot-client info` | Display project information |
 
-**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
+**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)**
 
 ### Code Quality Standards
 
@@ -120,15 +120,15 @@ We welcome contributions from consortium members! Please see our [Contributing G
 
 ## Complete Documentation
 
-**Full Documentation: [https://homepot-client.readthedocs.io](https://homepot-client.readthedocs.io)**
+**📚 Full Documentation: [https://brunel-opensimhomepot-client.readthedocs.io/en/latest/](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/)**
 
 Key documentation sections:
 
-- **[Getting Started](https://homepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
-- **[Development Guide](https://homepot-client.readthedocs.io/en/latest/development-guide/)** - Development workflow and best practices
-- **[Push Notifications](https://homepot-client.readthedocs.io/en/latest/push-notification/)** - FCM, WNS, and APNs integration guides
-- **[Database Management](https://homepot-client.readthedocs.io/en/latest/database-management/)** - Database setup and workflow
-- **[POS Management](https://homepot-client.readthedocs.io/en/latest/pos-management/)** - Point-of-sale device management
+- **[Getting Started](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
+- **[Development Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/development-guide/)** - Development workflow and best practices
+- **[Push Notifications](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/push-notification/)** - FCM, WNS, and APNs integration guides
+- **[Database Management](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/database-management/)** - Database setup and workflow
+- **[POS Management](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/pos-management/)** - Point-of-sale device management
 
 *Local documentation is also available in the [`docs/`](docs/) directory and can be built using `mkdocs serve`*
 
