@@ -73,7 +73,6 @@ jupyter>=1.0.0
 httpx[http2]>=0.25.0  # for testing HTTP clients and APNs HTTP/2 support
 
 passlib[bcrypt]==1.7.4
-# python-jose==3.5.0
 requests==2.32.4
 pydantic[email]==2.11.7
 psycopg2-binary==2.9.9

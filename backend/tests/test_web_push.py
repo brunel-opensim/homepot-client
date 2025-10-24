@@ -1,14 +1,15 @@
 """Tests for Web Push notification provider."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from homepot_client.push_notifications.web_push import WebPushProvider
+import pytest
+
 from homepot_client.push_notifications.base import (
     PushNotificationPayload,
     PushPriority,
 )
+from homepot_client.push_notifications.web_push import WebPushProvider
 
 
 @pytest.fixture
@@ -20,7 +21,10 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg/enUgwULCGxZvVrv
 9c3fXx+01poP45NJPN6WcfhT0qehRANCAASTmibcZrXiJa8rN1o/48ispQNpr8Al
 KhSyjDxfVaszuOIzST7CYcmS70YYddT0EDOgMekEsyu8CRoabhcdws85
 -----END PRIVATE KEY-----""",
-        "vapid_public_key": "BJOaJtxmteIlrys3Wj_jyKylA2mvwCUqFLKMPF9VqzO44jNJPsJhyZLvRhh11PQQM6Ax6QSzK7wJGhpuFx3Czzk",
+        "vapid_public_key": (
+            "BJOaJtxmteIlrys3Wj_jyKylA2mvwCUqFLKMPF9VqzO44jNJPsJhyZLvRhh"
+            "11PQQM6Ax6QSzK7wJGhpuFx3Czzk"
+        ),
         "vapid_subject": "mailto:test@example.com",
         "ttl_seconds": 300,
     }
@@ -82,16 +86,12 @@ class TestWebPushProvider:
         """Test successful provider initialization."""
         assert web_push_provider._initialized is True
 
-    def test_validate_subscription_valid(
-        self, web_push_provider, sample_subscription
-    ):
+    def test_validate_subscription_valid(self, web_push_provider, sample_subscription):
         """Test subscription validation with valid subscription."""
         is_valid = web_push_provider._validate_subscription(sample_subscription)
         assert is_valid is True
 
-    def test_validate_subscription_missing_endpoint(
-        self, web_push_provider
-    ):
+    def test_validate_subscription_missing_endpoint(self, web_push_provider):
         """Test subscription validation fails without endpoint."""
         invalid_subscription = {
             "keys": {
@@ -102,17 +102,13 @@ class TestWebPushProvider:
         is_valid = web_push_provider._validate_subscription(invalid_subscription)
         assert is_valid is False
 
-    def test_validate_subscription_invalid_endpoint(
-        self, web_push_provider
-    ):
+    def test_validate_subscription_invalid_endpoint(self, web_push_provider):
         """Test subscription validation fails with invalid endpoint URL."""
         invalid_subscription = {"endpoint": "not-a-valid-url"}
         is_valid = web_push_provider._validate_subscription(invalid_subscription)
         assert is_valid is False
 
-    def test_validate_device_token_valid(
-        self, web_push_provider, sample_subscription
-    ):
+    def test_validate_device_token_valid(self, web_push_provider, sample_subscription):
         """Test device token validation with valid subscription JSON."""
         device_token = json.dumps(sample_subscription)
         is_valid = web_push_provider.validate_device_token(device_token)
@@ -171,9 +167,7 @@ class TestWebPushProvider:
         assert "sent successfully" in result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_send_notification_invalid_subscription(
-        self, web_push_provider
-    ):
+    async def test_send_notification_invalid_subscription(self, web_push_provider):
         """Test sending notification with invalid subscription."""
         invalid_token = json.dumps({"invalid": "subscription"})
         payload = PushNotificationPayload(title="Test", body="Message")
@@ -222,9 +216,7 @@ class TestWebPushProvider:
             assert mock_send.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_send_topic_notification_not_supported(
-        self, web_push_provider
-    ):
+    async def test_send_topic_notification_not_supported(self, web_push_provider):
         """Test that topic notifications return not supported error."""
         payload = PushNotificationPayload(title="Test", body="Message")
 
@@ -258,7 +250,7 @@ class TestWebPushProvider:
         """Test that statistics are tracked correctly."""
         # Mock successful webpush response
         mock_webpush.return_value = MagicMock(status_code=201)
-        
+
         device_token = json.dumps(sample_subscription)
         payload = PushNotificationPayload(title="Test", body="Message")
 
@@ -279,9 +271,7 @@ class TestWebPushIntegration:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_full_notification_flow(
-        self, web_push_config, sample_subscription
-    ):
+    async def test_full_notification_flow(self, web_push_config, sample_subscription):
         """Test complete notification sending flow."""
         # Initialize provider
         provider = WebPushProvider(web_push_config)

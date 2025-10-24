@@ -2,21 +2,21 @@
 
 This directory contains the SQLite database for HOMEPOT Client.
 
-## 🚨 Important: Database Files Are NOT Tracked in Git
+## Important: Database Files Are NOT Tracked in Git
 
 The database files (`*.db`) are **excluded from git** to prevent merge conflicts. Each developer/environment creates their own database.
 
-## 🎯 Why This Approach?
+## Why This Approach?
 
 **Problem:** Tracking database files in git causes:
-- ❌ Merge conflicts on every run (binary files change)
-- ❌ Large repository size (databases grow over time)  
-- ❌ Cannot merge binary files meaningfully
-- ❌ Different developers need different data
+- Merge conflicts on every run (binary files change)
+- Large repository size (databases grow over time)  
+- Cannot merge binary files meaningfully
+- Different developers need different data
 
 **Solution:** Track the **schema and initialization scripts**, not the database file itself.
 
-## 📋 Quick Start
+## Quick Start
 
 ### First Time Setup
 
@@ -41,23 +41,23 @@ rm data/homepot.db
 ./scripts/init-database.sh
 ```
 
-## 📁 What's Tracked vs. Not Tracked
+## What's Tracked vs. Not Tracked
 
-### ✅ Tracked in Git:
+### Tracked in Git:
 - Database initialization script (`scripts/init-database.sh`)
 - Database models/schema (`src/homepot_client/models.py`)
 - Database service layer (`src/homepot_client/database.py`)
 - This README
 - Backup directory structure (`backups/.gitkeep`)
 
-### ❌ NOT Tracked in Git:
+### NOT Tracked in Git:
 - `homepot.db` - Runtime database file
 - `*.db-wal` - Write-Ahead Log files
 - `*.db-shm` - Shared memory files
 - `backups/*.db` - Database backups
 - Any temporary database files
 
-## 🔄 Database Lifecycle
+## Database Lifecycle
 
 ### Development Workflow
 
@@ -80,7 +80,7 @@ If someone updates the database schema (adds tables, columns, etc.):
 
 Your old data will be backed up to `data/backups/`.
 
-## 💾 Backups
+## Backups
 
 Database backups are automatically created when re-initializing:
 
@@ -97,7 +97,7 @@ To restore from backup:
 cp data/backups/homepot_backup_TIMESTAMP.db data/homepot.db
 ```
 
-## 🏗️ Database Schema
+## Database Schema
 
 The database schema is defined in `src/homepot_client/models.py`:
 
@@ -110,7 +110,7 @@ The database schema is defined in `src/homepot_client/models.py`:
 
 Schema is automatically created by the initialization script using SQLAlchemy's `create_all()`.
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 ### Database is locked
 ```bash
@@ -142,14 +142,14 @@ rm -rf data/backups/*.db
 ./scripts/init-database.sh
 ```
 
-## 📚 Related Files
+## Related Files
 
 - `scripts/init-database.sh` - Database initialization script
 - `src/homepot_client/models.py` - Database schema definitions
 - `src/homepot_client/database.py` - Database service layer
 - `.gitignore` - Excludes `*.db` files
 
-## 🔍 Migration to Alembic (Future)
+## Migration to Alembic (Future)
 
 For production deployments, consider using **Alembic** for database migrations:
 

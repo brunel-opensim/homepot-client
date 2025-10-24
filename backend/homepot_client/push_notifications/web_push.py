@@ -1,4 +1,4 @@
-"""Web Push Notification provider for web browsers.
+r"""Web Push Notification provider for web browsers.
 
 This module implements Web Push notifications for modern web browsers including:
 - Chrome/Edge (via Firebase Cloud Messaging endpoints)
@@ -54,18 +54,13 @@ import asyncio
 import base64
 import json
 import logging
-import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from urllib.parse import urlparse
 
-import aiohttp
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-
 try:
-    from pywebpush import webpush, WebPushException
+    from pywebpush import WebPushException, webpush
+
     WEBPUSH_AVAILABLE = True
 except ImportError:
     WEBPUSH_AVAILABLE = False
@@ -73,8 +68,6 @@ except ImportError:
     WebPushException = Exception
 
 from .base import (
-    AuthenticationError,
-    NetworkError,
     PushNotificationPayload,
     PushNotificationProvider,
     PushNotificationResult,
@@ -118,30 +111,33 @@ class WebPushProvider(PushNotificationProvider):
         super().__init__(config)
         self.platform_name = "web_push"
 
-        # Required configuration
-        self.vapid_private_key = config.get("vapid_private_key")
-        self.vapid_public_key = config.get("vapid_public_key")
-        self.vapid_subject = config.get("vapid_subject")
-
-        # Optional configuration
-        self.ttl_seconds = config.get("ttl_seconds", self.DEFAULT_TTL)
-        self.timeout = config.get("timeout_seconds", 30)
+        # Required configuration - validated below
+        vapid_private_key = config.get("vapid_private_key")
+        vapid_public_key = config.get("vapid_public_key")
+        vapid_subject = config.get("vapid_subject")
 
         # Validate configuration
-        if not self.vapid_private_key or not self.vapid_public_key:
+        if not vapid_private_key or not vapid_public_key:
             raise ValueError(
                 "Web Push requires 'vapid_private_key' and 'vapid_public_key'"
             )
 
-        if not self.vapid_subject:
+        if not vapid_subject:
             raise ValueError(
                 "Web Push requires 'vapid_subject' (mailto: or https: URL)"
             )
 
-        if not self.vapid_subject.startswith(("mailto:", "https://")):
-            raise ValueError(
-                "vapid_subject must start with 'mailto:' or 'https://'"
-            )
+        if not vapid_subject.startswith(("mailto:", "https://")):
+            raise ValueError("vapid_subject must start with 'mailto:' or 'https://'")
+
+        # Assign validated values (now mypy knows they're not None)
+        self.vapid_private_key: str = vapid_private_key
+        self.vapid_public_key: str = vapid_public_key
+        self.vapid_subject: str = vapid_subject
+
+        # Optional configuration
+        self.ttl_seconds = config.get("ttl_seconds", self.DEFAULT_TTL)
+        self.timeout = config.get("timeout_seconds", 30)
 
         # Check if pywebpush is available
         if not WEBPUSH_AVAILABLE:
@@ -150,8 +146,8 @@ class WebPushProvider(PushNotificationProvider):
                 "Install with: pip install pywebpush"
             )
 
-        # Statistics
-        self.stats = {
+        # Statistics tracking
+        self.stats: Dict[str, Any] = {
             "total_sent": 0,
             "total_success": 0,
             "total_failed": 0,
@@ -284,7 +280,7 @@ class WebPushProvider(PushNotificationProvider):
 
             # Send push notification
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
+            await loop.run_in_executor(
                 None,
                 lambda: webpush(
                     subscription_info=subscription,
@@ -353,7 +349,10 @@ class WebPushProvider(PushNotificationProvider):
         # Would require manual VAPID header generation and encryption
         return PushNotificationResult(
             success=False,
-            message="pywebpush library not available. Please install: pip install pywebpush",
+            message=(
+                "pywebpush library not available. "
+                "Please install: pip install pywebpush"
+            ),
             platform=self.platform_name,
             device_token=subscription["endpoint"][:50] + "...",
             error_code="LIBRARY_NOT_AVAILABLE",
@@ -378,7 +377,7 @@ class WebPushProvider(PushNotificationProvider):
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Convert exceptions to failed results
-        processed_results = []
+        processed_results: List[PushNotificationResult] = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 device_token = notifications[i][0]
@@ -392,7 +391,8 @@ class WebPushProvider(PushNotificationProvider):
                     )
                 )
             else:
-                processed_results.append(result)
+                # result is PushNotificationResult here
+                processed_results.append(result)  # type: ignore[arg-type]
 
         return processed_results
 
@@ -447,7 +447,7 @@ class WebPushProvider(PushNotificationProvider):
             ValueError: If token is invalid
         """
         try:
-            subscription = json.loads(token)
+            subscription: Dict[str, Any] = json.loads(token)
             return subscription
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid subscription JSON: {e}")
@@ -476,9 +476,7 @@ class WebPushProvider(PushNotificationProvider):
                 service in parsed.netloc for service in self.SUPPORTED_ENDPOINTS
             )
             if not is_known_service:
-                self.logger.warning(
-                    f"Unknown push service endpoint: {parsed.netloc}"
-                )
+                self.logger.warning(f"Unknown push service endpoint: {parsed.netloc}")
 
         except Exception:
             return False
@@ -509,7 +507,8 @@ class WebPushProvider(PushNotificationProvider):
                 "badge": payload.platform_data.get("badge"),
                 "image": payload.platform_data.get("image"),
                 "tag": payload.collapse_key,
-                "requireInteraction": payload.priority in [
+                "requireInteraction": payload.priority
+                in [
                     PushPriority.HIGH,
                     PushPriority.CRITICAL,
                 ],
