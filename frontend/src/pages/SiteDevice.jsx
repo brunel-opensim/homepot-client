@@ -64,7 +64,6 @@ export default function SiteDeviceScreen() {
     />
   );
 
-  // Apple Icon (light grey)
   const AppleIcon = () => (
     <img
       src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/apple.svg"
@@ -119,8 +118,8 @@ export default function SiteDeviceScreen() {
       { time: '5 min ago', event: 'Notifications Sent', color: 'text-textPrimary' },
       { time: '10 min ago', event: 'Device Offline', color: 'text-red-400' },
       { time: '30 min ago', event: 'Device Offline', color: 'text-red-400' },
-      { time: '1 hour ago', event: 'Error', color: 'text-red-400' },
     ],
+    error: [{ time: '1 hour ago', event: 'Error', color: 'text-red-400' }],
   };
 
   return (
@@ -130,9 +129,20 @@ export default function SiteDeviceScreen() {
         <div className="text-start">
           <h1 className="text-2xl sm:text-3xl font-semibold">{site.name}</h1>
           <p className="text-lg sm:text-xl text-textPrimary">{site.location}</p>
-          <div className="flex flex-wrap gap-4 text-xs sm:text-sm text-textPrimary mt-2">
-            <span>Last Ping: {site.lastPing}</span>
-            <span>Last Alert: {site.lastAlert}</span>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 gap-44">
+            {/* Last Ping / Last Alert */}
+            <div className="flex flex-wrap gap-4 text-xs sm:text-sm text-textPrimary">
+              <span>Last Ping: {site.lastPing}</span>
+              <span>Last Alert: {site.lastAlert}</span>
+            </div>
+
+            {/* Icons with border and spacing */}
+            <div className="flex items-center gap-5 border border-[#1f2735] rounded-md p-2 mt-2 sm:mt-0">
+              <WindowsIcon />
+              <AppleIcon />
+              <AndroidIcon />
+            </div>
           </div>
         </div>
 
@@ -146,10 +156,12 @@ export default function SiteDeviceScreen() {
         </div>
       </div>
 
+      <div className="border-b border-[#1f2735] mb-6"></div>
+
       {/* Main Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Device Overview */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-4 border-r border-[#1f2735] pr-4">
           <h2 className="text-lg sm:text-xl font-semibold mb-2 text-start">Device Overview</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {site.devices.map((device) => (
@@ -162,9 +174,7 @@ export default function SiteDeviceScreen() {
                   {device.icon}
                 </div>
                 <p
-                  className={`text-md mb-2 text-start ${
-                    device.healthy ? 'text-textPrimary' : 'text-red-400'
-                  }`}
+                  className={`text-md mb-2 text-start ${device.healthy ? 'text-textPrimary' : 'text-red-400'}`}
                 >
                   {device.healthy ? 'Healthy' : 'Offline'}
                 </p>
@@ -180,8 +190,6 @@ export default function SiteDeviceScreen() {
         {/* Live Metrics + Alerts */}
         <div className="space-y-4">
           <h2 className="text-lg sm:text-xl font-semibold mb-2 text-start">Live Metrics</h2>
-
-          {/* Make metrics horizontally scrollable on small screens */}
           <div className="flex flex-col sm:flex-row sm:overflow-x-auto gap-4">
             <div className="bg-[#141a24] flex-1 min-w-[220px] border border-[#1f2735] rounded-xl p-4">
               <p className="text-sm mb-2 text-textPrimary flex items-center gap-2">CPU Usage</p>
@@ -196,6 +204,15 @@ export default function SiteDeviceScreen() {
           <h2 className="text-lg sm:text-xl font-semibold mt-6 mb-2 text-start">Alerts & Events</h2>
           <div className="bg-[#141a24] border border-[#1f2735] rounded-xl p-4 space-y-3">
             {site.alerts.map((alert, index) => (
+              <div key={index} className="flex flex-wrap justify-between text-sm sm:text-base">
+                <span className="text-textPrimary">{alert.time}</span>
+                <span className={alert.color}>{alert.event}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-[#141a24] border border-[#1f2735] rounded-xl p-4 space-y-3">
+            {site.error.map((alert, index) => (
               <div key={index} className="flex flex-wrap justify-between text-sm sm:text-base">
                 <span className="text-textPrimary">{alert.time}</span>
                 <span className={alert.color}>{alert.event}</span>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Terminal, Smartphone, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function SiteScreen() {
@@ -16,7 +16,6 @@ export default function SiteScreen() {
     />
   );
 
-  // Apple Icon (light grey)
   const AppleIcon = () => (
     <img
       src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/apple.svg"
@@ -52,6 +51,7 @@ export default function SiteScreen() {
       }}
     />
   );
+
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,14 +98,34 @@ export default function SiteScreen() {
       </div>
 
       <div className="flex flex-col md:flex-row items-center gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="Search by site ID or name"
-          className="bg-[#141a24] border border-[#1f2735] text-white px-4 py-2 rounded-lg w-full md:w-1/2 focus:outline-none"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        {/* Search input */}
+        <div className="relative w-full md:w-1/2">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <svg
+              className="h-5 w-5 text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
+              />
+            </svg>
+          </span>
+          <input
+            type="text"
+            placeholder="Search by site ID or name"
+            className="bg-[#141a24] border border-[#1f2735] text-white px-10 py-2 rounded-lg w-full focus:outline-none"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
+        {/* Location dropdown */}
         <select
           className="bg-[#141a24] border border-[#1f2735] text-textPrimary w-80 px-4 py-[10px] rounded-lg"
           value={locationFilter}
@@ -116,6 +136,8 @@ export default function SiteScreen() {
           <option value="New York">New York</option>
           <option value="Chicago">Chicago</option>
         </select>
+
+        {/* Status box */}
         <div className="bg-[#141a24] border border-[#1f2735] text-textPrimary px-4 py-[10px] rounded-lg">
           <p className="text-textPrimary text-sm">Status</p>
         </div>
@@ -125,7 +147,6 @@ export default function SiteScreen() {
         {filteredSites.map((site) => (
           <div
             key={site.id}
-            // onClick={() => handleCardClick(site.id)}
             className="bg-[#141a24] border border-[#1f2735] rounded-xl p-5 hover:border-teal-400 cursor-pointer transition-all flex flex-col"
           >
             <div className="mb-6">
@@ -134,33 +155,32 @@ export default function SiteScreen() {
             </div>
 
             <div className="flex items-center space-x-3 mb-3">
-              <WindowsIcon />
-              <LinuxIcon />
-              <AppleIcon />
-              <AndroidIcon />
+              {site.status === 'Online' && (
+                <>
+                  <WindowsIcon />
+                  <LinuxIcon />
+                  <AppleIcon />
+                  <AndroidIcon />
+                </>
+              )}
             </div>
 
-            {site.alert ? (
+            {site.alert && (
               <div className="flex items-center text-yellow-400 text-sm mb-2">
                 <AlertTriangle size={16} className="mr-2" /> {site.alert}
               </div>
-            ) : null}
+            )}
 
             <div className="flex items-center gap-2 mb-3">
               <span
-                className={`w-3 h-3 rounded-full ${
-                  site.status === 'Online' ? 'bg-green-400' : 'bg-red-500'
-                }`}
+                className={`w-3 h-3 rounded-full ${site.status === 'Online' ? 'bg-green-400' : 'bg-red-500'}`}
               ></span>
               <span className="text-sm">{site.status}</span>
             </div>
 
-            {/* push button to bottom */}
+            {/* View Devices button */}
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/site/${site.id}`);
-              }}
+              onClick={() => navigate(`/site/${site.id}`)}
               className="mt-auto w-full border border-borderPrimary py-2 rounded-lg text-sm hover:bg-[#1f2735] text-textPrimary transition"
             >
               View Devices
