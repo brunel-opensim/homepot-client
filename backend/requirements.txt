@@ -19,11 +19,16 @@ redis>=5.0.0
 
 # Real-time Communication
 websockets>=12.0
+asyncio-mqtt>=0.16.0  # For async MQTT client communication
 
 # Utilities
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+structlog>=23.2.0  # For structured logging
+rich>=13.7.0  # For rich terminal output
+typer>=0.9.0  # For CLI interface
+pyyaml>=6.0.1  # For YAML configuration
 
 # Push Notifications
 aiohttp>=3.9.0  # For async HTTP requests in push notification providers
