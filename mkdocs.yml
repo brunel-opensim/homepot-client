@@ -117,6 +117,7 @@ nav:
     - WNS Windows Integration: wns-windows-integration.md
     - APNs Apple Integration: apns-apple-integration.md
     - Web Push Integration: web-push-integration.md
+    - MQTT Push Integration: mqtt-push-integration.md
   - Technical Guides:
     - Database Guide: database-guide.md
     - Database Management: database-management.md

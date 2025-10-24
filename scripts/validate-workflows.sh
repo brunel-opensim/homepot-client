@@ -979,6 +979,19 @@ validate_tests() {
         fi
     fi
     
+    # MQTT (IoT/Industrial)
+    if [ -f "backend/tests/test_mqtt_push.py" ]; then
+        echo -n "    MQTT (IoT/Industrial) tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_mqtt_push.py -q --no-cov"
+        if python -m pytest backend/tests/test_mqtt_push.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "MQTT tests failed - check MQTT provider implementation"
+            failed=true
+        fi
+    fi
+    
     # NEW: Integration test fixture validation
     echo -n "    Integration test fixtures: "
     if [ -f "backend/tests/test_homepot_integration.py" ]; then
