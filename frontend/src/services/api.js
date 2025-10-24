@@ -1,6 +1,6 @@
 /**
  * HOMEPOT API Service
- * 
+ *
  * Centralized API client for all backend communications.
  * Handles authentication, error handling, and request/response formatting.
  */
@@ -42,7 +42,7 @@ apiClient.interceptors.response.use(
     if (error.response) {
       // Server responded with error status
       const { status, data } = error.response;
-      
+
       switch (status) {
         case 401:
           // Unauthorized - clear token and redirect to login
@@ -68,7 +68,7 @@ apiClient.interceptors.response.use(
       // Error in request setup
       console.error('Request Error:', error.message);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -77,9 +77,8 @@ apiClient.interceptors.response.use(
  * API Service Object
  */
 const api = {
-  
   // ==================== Authentication ====================
-  
+
   auth: {
     /**
      * User signup
@@ -88,7 +87,7 @@ const api = {
       const response = await apiClient.post('/auth/signup', userData);
       return response.data;
     },
-    
+
     /**
      * User login
      */
@@ -99,7 +98,7 @@ const api = {
       }
       return response.data;
     },
-    
+
     /**
      * Logout
      */
@@ -108,9 +107,9 @@ const api = {
       window.location.href = '/login';
     },
   },
-  
+
   // ==================== Health & Status ====================
-  
+
   health: {
     /**
      * Check API health
@@ -119,7 +118,7 @@ const api = {
       const response = await apiClient.get('/health');
       return response.data;
     },
-    
+
     /**
      * Get site health
      */
@@ -127,7 +126,7 @@ const api = {
       const response = await apiClient.get(`/sites/${siteId}/health`);
       return response.data;
     },
-    
+
     /**
      * Get device health
      */
@@ -135,7 +134,7 @@ const api = {
       const response = await apiClient.get(`/health/devices/${deviceId}/health`);
       return response.data;
     },
-    
+
     /**
      * Trigger health check
      */
@@ -144,9 +143,9 @@ const api = {
       return response.data;
     },
   },
-  
+
   // ==================== Sites ====================
-  
+
   sites: {
     /**
      * List all sites
@@ -155,7 +154,7 @@ const api = {
       const response = await apiClient.get('/sites');
       return response.data;
     },
-    
+
     /**
      * Get site details
      */
@@ -163,7 +162,7 @@ const api = {
       const response = await apiClient.get(`/sites/${siteId}`);
       return response.data;
     },
-    
+
     /**
      * Create new site
      */
@@ -172,9 +171,9 @@ const api = {
       return response.data;
     },
   },
-  
+
   // ==================== Devices ====================
-  
+
   devices: {
     /**
      * Create device
@@ -183,7 +182,7 @@ const api = {
       const response = await apiClient.post(`/sites/${siteId}/devices`, deviceData);
       return response.data;
     },
-    
+
     /**
      * Restart device
      */
@@ -192,9 +191,9 @@ const api = {
       return response.data;
     },
   },
-  
+
   // ==================== Jobs ====================
-  
+
   jobs: {
     /**
      * Create job
@@ -203,7 +202,7 @@ const api = {
       const response = await apiClient.post(`/sites/${siteId}/jobs`, jobData);
       return response.data;
     },
-    
+
     /**
      * Get job status
      */
@@ -212,9 +211,9 @@ const api = {
       return response.data;
     },
   },
-  
+
   // ==================== Agents ====================
-  
+
   agents: {
     /**
      * List all agents
@@ -223,7 +222,7 @@ const api = {
       const response = await apiClient.get('/agents');
       return response.data;
     },
-    
+
     /**
      * Get agent status
      */
@@ -231,7 +230,7 @@ const api = {
       const response = await apiClient.get(`/agents/${deviceId}`);
       return response.data;
     },
-    
+
     /**
      * Send push notification to agent
      */
@@ -240,9 +239,9 @@ const api = {
       return response.data;
     },
   },
-  
+
   // ==================== Push Notifications ====================
-  
+
   push: {
     /**
      * Get VAPID public key for Web Push
@@ -251,7 +250,7 @@ const api = {
       const response = await apiClient.get('/push/vapid-public-key');
       return response.data;
     },
-    
+
     /**
      * Subscribe to push notifications
      */
@@ -259,7 +258,7 @@ const api = {
       const response = await apiClient.post('/push/subscribe', subscriptionData);
       return response.data;
     },
-    
+
     /**
      * Send notification to device
      */
@@ -267,7 +266,7 @@ const api = {
       const response = await apiClient.post('/push/send', notificationData);
       return response.data;
     },
-    
+
     /**
      * Send bulk notifications
      */
@@ -275,7 +274,7 @@ const api = {
       const response = await apiClient.post('/push/send-bulk', bulkData);
       return response.data;
     },
-    
+
     /**
      * Publish MQTT topic
      */
@@ -283,7 +282,7 @@ const api = {
       const response = await apiClient.post('/push/mqtt/publish', topicData);
       return response.data;
     },
-    
+
     /**
      * List all platforms
      */
@@ -291,7 +290,7 @@ const api = {
       const response = await apiClient.get('/push/platforms');
       return response.data;
     },
-    
+
     /**
      * Get platform info
      */
@@ -299,20 +298,20 @@ const api = {
       const response = await apiClient.get(`/push/platforms/${platform}/info`);
       return response.data;
     },
-    
+
     /**
      * Send test notification
      */
     sendTest: async (platform, deviceToken) => {
       const response = await apiClient.post('/push/test', null, {
-        params: { platform, device_token: deviceToken }
+        params: { platform, device_token: deviceToken },
       });
       return response.data;
     },
   },
-  
+
   // ==================== Client Management ====================
-  
+
   client: {
     /**
      * Get client status
@@ -321,7 +320,7 @@ const api = {
       const response = await apiClient.get('/client/status');
       return response.data;
     },
-    
+
     /**
      * Connect client
      */
@@ -329,7 +328,7 @@ const api = {
       const response = await apiClient.post('/client/connect');
       return response.data;
     },
-    
+
     /**
      * Disconnect client
      */
@@ -337,7 +336,7 @@ const api = {
       const response = await apiClient.post('/client/disconnect');
       return response.data;
     },
-    
+
     /**
      * Get version
      */
@@ -358,14 +357,14 @@ export const apiHelpers = {
   isAuthenticated: () => {
     return !!localStorage.getItem('auth_token');
   },
-  
+
   /**
    * Get stored auth token
    */
   getAuthToken: () => {
     return localStorage.getItem('auth_token');
   },
-  
+
   /**
    * Format error message from API response
    */
@@ -378,19 +377,17 @@ export const apiHelpers = {
     }
     return 'An unknown error occurred';
   },
-  
+
   /**
    * Convert base64 URL-safe string to Uint8Array (for VAPID key)
    */
   urlBase64ToUint8Array: (base64String) => {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding)
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+
     const rawData = window.atob(base64);
     const outputArray = new Uint8Array(rawData.length);
-    
+
     for (let i = 0; i < rawData.length; ++i) {
       outputArray[i] = rawData.charCodeAt(i);
     }
