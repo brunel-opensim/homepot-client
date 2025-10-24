@@ -924,6 +924,61 @@ validate_tests() {
         fi
     fi
     
+    # Run Push Notification Provider Tests
+    echo "  Push Notification Provider Tests:"
+    
+    # FCM (Firebase Cloud Messaging) - Linux/Android
+    if [ -f "backend/tests/test_fcm_linux.py" ]; then
+        echo -n "    FCM (Linux/Android) tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_fcm_linux.py -q --no-cov"
+        if python -m pytest backend/tests/test_fcm_linux.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "FCM tests failed - check FCM provider implementation"
+            failed=true
+        fi
+    fi
+    
+    # WNS (Windows Notification Service)
+    if [ -f "backend/tests/test_wns_windows.py" ]; then
+        echo -n "    WNS (Windows) tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_wns_windows.py -q --no-cov"
+        if python -m pytest backend/tests/test_wns_windows.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "WNS tests failed - check WNS provider implementation"
+            failed=true
+        fi
+    fi
+    
+    # APNs (Apple Push Notification service)
+    if [ -f "backend/tests/test_apns_apple.py" ]; then
+        echo -n "    APNs (Apple) tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_apns_apple.py -q --no-cov"
+        if python -m pytest backend/tests/test_apns_apple.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "APNs tests failed - check APNs provider implementation"
+            failed=true
+        fi
+    fi
+    
+    # Web Push (Modern Browsers)
+    if [ -f "backend/tests/test_web_push.py" ]; then
+        echo -n "    Web Push (Browsers) tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_web_push.py -q --no-cov"
+        if python -m pytest backend/tests/test_web_push.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "Web Push tests failed - check Web Push provider implementation"
+            failed=true
+        fi
+    fi
+    
     # NEW: Integration test fixture validation
     echo -n "    Integration test fixtures: "
     if [ -f "backend/tests/test_homepot_integration.py" ]; then

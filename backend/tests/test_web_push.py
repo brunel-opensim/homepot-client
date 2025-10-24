@@ -15,11 +15,12 @@ from homepot_client.push_notifications.base import (
 def web_push_config():
     """Provide Web Push configuration for testing."""
     return {
-        "vapid_private_key": """-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIBvC6tl+UQWPvEMXECpQhkdL3b1z6BhR8CY8d7FqDFkpoAoGCCqGSM49
-AwEHoUQDQgAEExampleKey123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ=
------END EC PRIVATE KEY-----""",
-        "vapid_public_key": "BExamplePublicKey123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "vapid_private_key": """-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg/enUgwULCGxZvVrv
+9c3fXx+01poP45NJPN6WcfhT0qehRANCAASTmibcZrXiJa8rN1o/48ispQNpr8Al
+KhSyjDxfVaszuOIzST7CYcmS70YYddT0EDOgMekEsyu8CRoabhcdws85
+-----END PRIVATE KEY-----""",
+        "vapid_public_key": "BJOaJtxmteIlrys3Wj_jyKylA2mvwCUqFLKMPF9VqzO44jNJPsJhyZLvRhh11PQQM6Ax6QSzK7wJGhpuFx3Czzk",
         "vapid_subject": "mailto:test@example.com",
         "ttl_seconds": 300,
     }
@@ -250,20 +251,26 @@ class TestWebPushProvider:
         assert public_key == web_push_provider.vapid_public_key
 
     @pytest.mark.asyncio
+    @patch("homepot_client.push_notifications.web_push.webpush")
     async def test_statistics_tracking(
-        self, web_push_provider, sample_subscription
+        self, mock_webpush, web_push_provider, sample_subscription
     ):
         """Test that statistics are tracked correctly."""
+        # Mock successful webpush response
+        mock_webpush.return_value = MagicMock(status_code=201)
+        
         device_token = json.dumps(sample_subscription)
         payload = PushNotificationPayload(title="Test", body="Message")
 
         initial_sent = web_push_provider.stats["total_sent"]
-        initial_failed = web_push_provider.stats["total_failed"]
+        initial_success = web_push_provider.stats["total_success"]
 
-        # This will fail without pywebpush, but should still update stats
-        await web_push_provider.send_notification(device_token, payload)
+        # Send notification
+        result = await web_push_provider.send_notification(device_token, payload)
 
+        assert result.success is True
         assert web_push_provider.stats["total_sent"] == initial_sent + 1
+        assert web_push_provider.stats["total_success"] == initial_success + 1
         assert web_push_provider.stats["last_sent"] is not None
 
 
