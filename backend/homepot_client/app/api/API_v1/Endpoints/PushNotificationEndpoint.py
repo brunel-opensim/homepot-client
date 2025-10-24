@@ -103,10 +103,15 @@ async def get_push_provider(platform: str):
             ),
         )
     except Exception as e:
-        logger.error(f"Failed to initialize provider for '{platform}': {e}")
+        logger.error(
+            f"Failed to initialize provider for '{platform}': {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initialize {platform} provider: {str(e)}",
+            detail=(
+            f"Failed to initialize {platform} provider. "
+            "Please check server logs."
+            ),
         )
 
 
@@ -129,10 +134,10 @@ async def get_vapid_public_key() -> Dict[str, str]:
             "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
-        logger.error(f"Failed to get VAPID public key: {e}")
+        logger.error(f"Failed to get VAPID public key: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get VAPID public key: {str(e)}",
+            detail="Failed to get VAPID public key. Please check server logs.",
         )
 
 
@@ -178,10 +183,12 @@ async def subscribe_to_push(subscription: PushSubscription) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Subscription failed for {subscription.platform}: {e}")
+        logger.error(
+            f"Subscription failed for {subscription.platform}: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Subscription failed: {str(e)}",
+            detail="Subscription failed. Please check server logs.",
         )
 
 

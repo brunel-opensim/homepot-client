@@ -54,7 +54,7 @@ async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str,
             "timestamp": asyncio.get_event_loop().time(),
         }
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        logger.error(f"Health check failed: {e}", exc_info=True)
         return {
             "status": "unhealthy",
             "error": str(e),
@@ -142,8 +142,11 @@ async def get_site_health(site_id: str) -> SiteHealthResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get site health: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get site health: {e}")
+        logger.error(f"Failed to get site health: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get site health. Please check server logs.",
+        )
 
 
 @router.get("/devices/{device_id}/health", tags=["Health"])
@@ -181,8 +184,11 @@ async def get_device_health(device_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get device health: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get device health: {e}")
+        logger.error(f"Failed to get device health: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get device health. Please check server logs.",
+        )
 
 
 @router.post("/devices/{device_id}/health")
@@ -219,7 +225,8 @@ async def trigger_health_check(device_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to trigger health check: {e}")
+        logger.error(f"Failed to trigger health check: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to trigger health check: {e}"
+            status_code=500,
+            detail="Failed to trigger health check. Please check server logs.",
         )

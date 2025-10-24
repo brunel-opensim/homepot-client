@@ -39,8 +39,10 @@ async def get_status(client: HomepotClient = Depends(get_client)) -> Dict[str, A
             "client_type": "HOMEPOT Client",
         }
     except Exception as e:
-        logger.error(f"Status check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get status: {e}")
+        logger.error(f"Status check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get status. Please check server logs."
+        )
 
 
 @router.post("/connect", tags=["Client"])
@@ -53,8 +55,10 @@ async def connect_client(client: HomepotClient = Depends(get_client)) -> Dict[st
         await client.connect()
         return {"message": "Client connected successfully", "status": "connected"}
     except Exception as e:
-        logger.error(f"Connect failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to connect: {e}")
+        logger.error(f"Connect failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to connect. Please check server logs."
+        )
 
 
 @router.post("/disconnect", tags=["Client"])
@@ -69,8 +73,10 @@ async def disconnect_client(
         await client.disconnect()
         return {"message": "Client disconnected successfully", "status": "disconnected"}
     except Exception as e:
-        logger.error(f"Disconnect failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to disconnect: {e}")
+        logger.error(f"Disconnect failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to disconnect. Please check server logs."
+        )
 
 
 @router.get("/version", tags=["Client"])
@@ -80,5 +86,7 @@ async def get_version(client: HomepotClient = Depends(get_client)) -> Dict[str, 
         version = client.get_version()
         return {"version": version}
     except Exception as e:
-        logger.error(f"Version check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get version: {e}")
+        logger.error(f"Version check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get version. Please check server logs."
+        )
