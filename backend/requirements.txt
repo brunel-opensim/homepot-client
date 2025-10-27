@@ -83,3 +83,4 @@ types-python-jose
 types-passlib
 types-requests
 types-psutil
+types-pyjwt
