@@ -19,11 +19,21 @@ app = FastAPI(
 # Create tables
 # database.CreateTables()
 
+# CORS settings
+origins = [ 
+    "http://localhost:8080",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3000",
+    "http://192.168.0.112:3000",
+    "http://192.168.0.112:3001",
+    "http://192.168.0.112:8080"
+]
 
 # CORS settings
 app.add_middleware(
     CORSMiddleware,
     # allow_origins=config.origins,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
