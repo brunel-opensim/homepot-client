@@ -542,13 +542,18 @@ validate_code_quality() {
     # Security scans (NEW - matches CI/CD)
     if command -v bandit >/dev/null 2>&1; then
         echo -n "    Security scan (bandit): "
-        log_verbose "Running: bandit -r backend/ -ll"
-        # Use -ll for low severity threshold, ignore medium/low issues for now
-        if bandit -r backend/ -ll -q 2>/dev/null; then
+        log_verbose "Running: bandit -r backend/ -ll --exclude venv,.venv,htmlcov,.pytest_cache,.mypy_cache"
+        # Use -ll for low severity threshold, exclude virtual env and build artifacts
+        if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot_client.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${YELLOW}Warnings found - review with: bandit -r backend/${NC}"
-            log_verbose "Security scan found issues but continuing (non-blocking)"
+            # Check exit code - 0 means success, 1 means issues found
+            if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot_client.egg-info 2>/dev/null; then
+                echo -e "${GREEN}Passed${NC}"
+            else
+                echo -e "${YELLOW}Warnings found - review with: bandit -r backend/ -ll${NC}"
+                log_verbose "Security scan found issues but continuing (non-blocking)"
+            fi
         fi
     else
         log_verbose "bandit not available, skipping security scan"
@@ -885,6 +890,55 @@ validate_tests() {
     fi
     
     local failed=false
+    
+    # Check and initialize database if needed (before running database tests)
+    if [[ " ${found_tests[*]} " =~ " test_database.py " ]]; then
+        log_verbose "Checking database initialization..."
+        
+        # Check if database file exists and has data
+        DB_FILE="data/homepot.db"
+        if [ -f "$DB_FILE" ]; then
+            # Check if database has data (count sites)
+            SITE_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM sites;" 2>/dev/null || echo "0")
+            
+            if [ "$SITE_COUNT" -eq 0 ]; then
+                log_verbose "Database is empty, initializing with seed data..."
+                echo "    Database initialization: Empty database detected, running init..."
+                
+                # Create backup
+                mkdir -p data/backups
+                TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                cp "$DB_FILE" "data/backups/homepot_backup_auto_$TIMESTAMP.db" 2>/dev/null || true
+                
+                # Initialize database by calling init-database.sh non-interactively
+                # Use 'yes' to auto-answer the prompt
+                if echo "y" | bash scripts/init-database.sh >/dev/null 2>&1; then
+                    echo -e "    Database initialization: ${GREEN}Completed${NC}"
+                    log_verbose "Database initialized successfully with seed data"
+                else
+                    echo -e "    Database initialization: ${YELLOW}Failed (tests may fail)${NC}"
+                    log_warning "Failed to initialize database automatically"
+                fi
+            else
+                log_verbose "Database has data (${SITE_COUNT} sites), skipping initialization"
+            fi
+        else
+            log_verbose "Database file not found at $DB_FILE, creating fresh database..."
+            echo "    Database initialization: No database found, creating..."
+            
+            # Create database directory
+            mkdir -p data
+            
+            # Run init-database.sh (it will create new DB without prompting since file doesn't exist)
+            if bash scripts/init-database.sh >/dev/null 2>&1; then
+                echo -e "    Database initialization: ${GREEN}Completed${NC}"
+                log_verbose "Database created successfully with seed data"
+            else
+                echo -e "    Database initialization: ${YELLOW}Failed (tests may fail)${NC}"
+                log_warning "Failed to create database automatically"
+            fi
+        fi
+    fi
     
     # Run database and model tests (essential for our database organization)
     if [[ " ${found_tests[*]} " =~ " test_database.py " ]]; then

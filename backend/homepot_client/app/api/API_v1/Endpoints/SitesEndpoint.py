@@ -107,8 +107,10 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create site: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create site: {e}")
+        logger.error(f"Failed to create site: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to create site. Please check server logs."
+        )
 
 
 @router.get("/sites", tags=["Sites"])
@@ -147,8 +149,10 @@ async def list_sites() -> Dict[str, List[Dict]]:
             return {"sites": site_list}
 
     except Exception as e:
-        logger.error(f"Failed to list sites: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list sites: {e}")
+        logger.error(f"Failed to list sites: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to list sites. Please check server logs."
+        )
 
 
 @router.get("/sites/{site_id}", tags=["Sites"])
@@ -176,5 +180,7 @@ async def get_site(site_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get site {site_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get site: {e}")
+        logger.error(f"Failed to get site {site_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get site. Please check server logs."
+        )

@@ -8,6 +8,7 @@ from .Endpoints import (
     DevicesEndpoints,
     HealthEndpoint,
     JobsEndpoints,
+    PushNotificationEndpoint,
     SitesEndpoint,
     UIEndpoint,
     UserRegisterEndpoint,
@@ -26,4 +27,7 @@ api_v1_router.include_router(JobsEndpoints.router, prefix="/jobs", tags=["Jobs"]
 api_v1_router.include_router(AgentsEndpoints.router, prefix="/agents", tags=["Agents"])
 api_v1_router.include_router(
     UserRegisterEndpoint.router, prefix="/auth", tags=["Authentication"]
+)
+api_v1_router.include_router(
+    PushNotificationEndpoint.router, prefix="/push", tags=["Push Notifications"]
 )
