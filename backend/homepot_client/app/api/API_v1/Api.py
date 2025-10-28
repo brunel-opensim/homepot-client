@@ -13,6 +13,7 @@ from .Endpoints import (
     UIEndpoint,
     UserRegisterEndpoint,
 )
+
 from .Endpoints.Mobivisor import MobivisorDeviceEndpoints as MobivisorDevice
 
 api_v1_router = APIRouter()
