@@ -353,7 +353,7 @@ class JWTAuthenticator(Authenticator):
                 key=self._private_key,
                 algorithm=self.algorithm,
                 headers=headers,
-            )
+            ).decode("utf-8")
 
             self._token_expiry = now + 3600
             return True
