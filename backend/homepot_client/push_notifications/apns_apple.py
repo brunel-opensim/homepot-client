@@ -231,7 +231,7 @@ class APNsProvider(PushNotificationProvider):
             # Generate token
             self._jwt_token = jwt.encode(
                 payload, self._private_key, algorithm="ES256", headers=headers
-            ).decode("utf-8")
+            ) #.decode("utf-8")
 
             # Set expiration time
             self._jwt_expires_at = datetime.utcnow() + timedelta(
