@@ -100,7 +100,9 @@ nav:
   - Getting Started:
     - Quick Start: getting-started.md
     - Running Locally: running-locally.md
+    - Integration Guide: integration-guide.md
     - Development Guide: development-guide.md
+    - Engineering TODO: engineering-todo.md
     - Testing Guide: testing-guide.md
     - Monorepo Migration: monorepo-migration.md
   - Frontend Development:

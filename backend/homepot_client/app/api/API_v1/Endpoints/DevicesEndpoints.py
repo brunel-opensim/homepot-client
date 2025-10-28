@@ -78,5 +78,7 @@ async def create_device(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create device: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create device: {e}")
+        logger.error(f"Failed to create device: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to create device. Please check server logs."
+        )
