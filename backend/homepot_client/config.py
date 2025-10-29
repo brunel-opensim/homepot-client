@@ -4,7 +4,7 @@ This module provides configuration loading from environment variables
 and settings files using Pydantic Settings.
 """
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -191,3 +191,21 @@ def is_debug() -> bool:
 def get_secret_key() -> str:
     """Get JWT secret key."""
     return get_settings().auth.secret_key
+
+
+class CorsSettings(BaseSettings):
+    """Existing fields."""
+
+    # CORS Configuration
+    cors_origins: List[str] = Field(
+        default=[
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:3001",
+            "http://127.0.0.1:3000",
+            "http://192.168.0.112:3000",
+            "http://192.168.0.112:3001",
+            "http://192.168.0.112:8080",
+        ],
+        description="Allowed CORS origins",
+    )

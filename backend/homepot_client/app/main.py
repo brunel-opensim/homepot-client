@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from homepot_client.app.api.API_v1.Api import api_v1_router
+from homepot_client.config import CorsSettings
 
 # App declaration
 app = FastAPI(
@@ -23,7 +24,7 @@ app = FastAPI(
 # CORS settings
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=config.origins,
+    allow_origins=CorsSettings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
