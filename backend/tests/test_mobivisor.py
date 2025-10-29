@@ -46,9 +46,7 @@ def mock_httpx_response():
 class TestMobivisorDevicesEndpoints:
     """Test cases for Mobivisor devices endpoints."""
 
-    @patch(
-        "homepot_client.config.get_mobivisor_api_config"
-    )
+    @patch("homepot_client.config.get_mobivisor_api_config")
     @patch("httpx.AsyncClient")
     def test_fetch_devices_success(
         self,
@@ -81,9 +79,7 @@ class TestMobivisorDevicesEndpoints:
         assert response.status_code == 200
         assert response.json() == devices_data
 
-    @patch(
-        "homepot_client.config.get_mobivisor_api_config"
-    )
+    @patch("homepot_client.config.get_mobivisor_api_config")
     def test_fetch_devices_missing_url(self, mock_config, client):
         """Test device fetch with missing URL configuration."""
         mock_config.return_value = {

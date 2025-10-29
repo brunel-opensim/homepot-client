@@ -4,11 +4,14 @@ Utility functions for making requests to the Mobivisor API.
 This module provides helper functions to interact with the Mobivisor API,
 including request handling, authentication, and error mapping.
 """
+
 import logging
-import httpx
 from typing import Any, Dict
-from homepot_client.config import get_mobivisor_api_config
+
+import httpx
 from fastapi import HTTPException
+
+from homepot_client.config import get_mobivisor_api_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

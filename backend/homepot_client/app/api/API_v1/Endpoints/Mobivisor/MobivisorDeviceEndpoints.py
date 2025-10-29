@@ -7,12 +7,13 @@ with proper authentication and error handling.
 
 import logging
 from typing import Any, Dict
-from homepot_client.app.utils.mobivisor_request import (
-    _make_mobivisor_request,
-    _handle_mobivisor_response
-)
+
 from fastapi import APIRouter
 
+from homepot_client.app.utils.mobivisor_request import (
+    _handle_mobivisor_response,
+    _make_mobivisor_request,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
