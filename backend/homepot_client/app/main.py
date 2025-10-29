@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from homepot_client.app.api.API_v1.Api import api_v1_router
+from homepot_client.config import CorsSettings
 
 # App declaration
 app = FastAPI(
@@ -19,22 +20,11 @@ app = FastAPI(
 # Create tables
 # database.CreateTables()
 
-# CORS settings
-origins = [
-    "http://localhost:8080",
-    "http://127.0.0.1:3001",
-    "http://127.0.0.1:3000",
-    "http://192.168.0.112:3000",
-    "http://192.168.0.112:3001",
-    "http://192.168.0.112:8080",
-    "http://localhost:3000",
-]
 
 # CORS settings
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=config.origins,
-    allow_origins=origins,
+    allow_origins=CorsSettings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
