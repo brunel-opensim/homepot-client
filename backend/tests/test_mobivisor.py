@@ -47,12 +47,7 @@ class TestMobivisorDevicesEndpoints:
     """Test cases for Mobivisor devices endpoints."""
 
     @patch(
-<<<<<<< HEAD
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
-        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
-=======
         "homepot_client.config.get_mobivisor_api_config"
->>>>>>> e7622f9 (Update based on PR 20 instructions)
     )
     @patch("httpx.AsyncClient")
     def test_fetch_devices_success(
