@@ -35,3 +35,6 @@ api_v1_router.include_router(
     prefix="/mobivisor",
     tags=["Mobivisor Devices"],
 )
+api_v1_router.include_router(
+    PushNotificationEndpoint.router, prefix="/push", tags=["Push Notifications"]
+)

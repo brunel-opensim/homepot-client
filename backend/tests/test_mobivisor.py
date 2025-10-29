@@ -47,8 +47,12 @@ class TestMobivisorDevicesEndpoints:
     """Test cases for Mobivisor devices endpoints."""
 
     @patch(
+<<<<<<< HEAD
         "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+=======
+        "homepot_client.config.get_mobivisor_api_config"
+>>>>>>> e7622f9 (Update based on PR 20 instructions)
     )
     @patch("httpx.AsyncClient")
     def test_fetch_devices_success(
@@ -83,8 +87,7 @@ class TestMobivisorDevicesEndpoints:
         assert response.json() == devices_data
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
-        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+        "homepot_client.config.get_mobivisor_api_config"
     )
     def test_fetch_devices_missing_url(self, mock_config, client):
         """Test device fetch with missing URL configuration."""
@@ -94,7 +97,7 @@ class TestMobivisorDevicesEndpoints:
         }
 
         response = client.get("/api/v1/mobivisor/devices")
-
+        print(response.status_code, response.json(), "-------------")
         assert response.status_code == 500
         assert "Configuration Error" in response.json()["detail"]["error"]
 
