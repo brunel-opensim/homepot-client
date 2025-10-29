@@ -123,6 +123,7 @@ nav:
   - Technical Guides:
     - Database Guide: database-guide.md
     - Database Management: database-management.md
+    - Mobivisor Integration: mobivisor-integration.md
     - Collaboration Guide: collaboration-guide.md
     - GitHub Permissions: github-permissions-guide.md
     - Repository Health: repository-health.md
