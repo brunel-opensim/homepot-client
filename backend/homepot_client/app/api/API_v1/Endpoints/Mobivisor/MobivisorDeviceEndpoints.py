@@ -8,7 +8,7 @@ with proper authentication and error handling.
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from homepot_client.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
@@ -16,6 +16,7 @@ from homepot_client.app.utils.mobivisor_request import (
 from homepot_client.app.utils.mobivisor_request import (
     _make_mobivisor_request as make_mobivisor_request,
 )
+from homepot_client.config import get_mobivisor_api_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +53,22 @@ async def fetch_external_devices() -> Any:
         }
         ```
     """
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
     logger.info("Fetching devices from Mobivisor API")
     response = await make_mobivisor_request("GET", "devices")
     return handle_mobivisor_response(response, "fetch devices")
