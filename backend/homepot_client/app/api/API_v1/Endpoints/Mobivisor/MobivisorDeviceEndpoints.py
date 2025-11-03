@@ -12,6 +12,8 @@ from fastapi import APIRouter
 
 from homepot_client.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
+)
+from homepot_client.app.utils.mobivisor_request import (
     _make_mobivisor_request as make_mobivisor_request,
 )
 
