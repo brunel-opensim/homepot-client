@@ -16,6 +16,9 @@ app = typer.Typer(
 )
 console = Console()
 
+# Alias for test compatibility
+cli = app
+
 
 @app.command()
 def version() -> None:

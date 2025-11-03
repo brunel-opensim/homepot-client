@@ -959,7 +959,7 @@ validate_tests() {
     fi
     
     # Check if we have essential test files
-    local essential_tests=("test_database.py" "test_models.py")
+    local essential_tests=("test_database.py" "test_models.py" "test_cli.py" "test_client.py")
     local found_tests=()
     
     for test_file in "${essential_tests[@]}"; do
@@ -1065,6 +1065,32 @@ validate_tests() {
         else
             echo -e "${RED}Failed${NC}"
             log_verbose "Configuration tests failed - check config settings"
+            failed=true
+        fi
+    fi
+    
+    # Run CLI tests
+    if [[ " ${found_tests[*]} " =~ " test_cli.py " ]]; then
+        echo -n "    CLI tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_cli.py -q --no-cov"
+        if python -m pytest backend/tests/test_cli.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "CLI tests failed - check CLI implementation"
+            failed=true
+        fi
+    fi
+    
+    # Run client tests
+    if [[ " ${found_tests[*]} " =~ " test_client.py " ]]; then
+        echo -n "    Client tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_client.py -q --no-cov"
+        if python -m pytest backend/tests/test_client.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "Client tests failed - check client implementation"
             failed=true
         fi
     fi
