@@ -12,7 +12,9 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from homepot_client.audit import AuditEventType, get_audit_logger
-from homepot_client.push_notifications.factory import PushNotificationFactory
+from homepot_client.push_notifications.factory import (
+    register_provider as PushNotificationFactory
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -90,7 +92,7 @@ class TopicNotificationRequest(BaseModel):
 async def get_push_provider(platform: str):
     """Get push notification provider for the specified platform."""
     try:
-        provider = PushNotificationFactory.create_provider(platform)
+        provider = PushNotificationFactory(platform)
         await provider.initialize()
         return provider
     except ValueError as e:
