@@ -55,7 +55,7 @@ This creates:
 
 ```bash
 # From backend/ directory
-python -m homepot_client.database
+python -m homepot.database
 ```
 
 #### **What Gets Created**
@@ -79,10 +79,10 @@ sqlite3 data/homepot.db "SELECT COUNT(*) as sites FROM sites; SELECT COUNT(*) as
 
 ```bash
 # 6. Check the version (from backend/ directory)
-python -m homepot_client.cli version
+python -m homepot.cli version
 
 # 7. More information
-python -m homepot_client.cli info
+python -m homepot.cli info
 
 # 8. Test configuration (from root directory)
 cd ..  # Return to root
@@ -96,7 +96,7 @@ When ready to start the client:
 ```bash
 # Start the backend server (from backend/ directory)
 cd backend
-python -m uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 The `--reload` flag enables auto-restart on code changes (development mode).
@@ -173,7 +173,7 @@ Congratulations! You now have a complete enterprise POS management system with:
 # Initialize the database:
 ./scripts/init-database.sh
 # Or from backend/:
-cd backend && python -m homepot_client.database
+cd backend && python -m homepot.database
 ```
 
 **Database Schema Mismatch (After git pull):**
@@ -192,7 +192,7 @@ sudo kill $(lsof -ti :8000)
 
 # Restart the server
 cd backend
-python -m uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Connection Issues:**
@@ -202,7 +202,7 @@ curl http://localhost:8000/health
 
 # If connection refused, restart from backend/ directory
 cd backend
-python -m uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Want to Start Fresh?**

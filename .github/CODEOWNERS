@@ -5,27 +5,27 @@
 * @mghorbani
 
 # Core push notification architecture - requires admin approval
-/backend/homepot_client/push_notifications/__init__.py @mghorbani
-/backend/homepot_client/push_notifications/base.py @mghorbani
-/backend/homepot_client/push_notifications/factory.py @mghorbani
+/backend/src/homepot/push_notifications/__init__.py @mghorbani
+/backend/src/homepot/push_notifications/base.py @mghorbani
+/backend/src/homepot/push_notifications/factory.py @mghorbani
 
 # Authentication system - requires admin review for security
-/backend/homepot_client/push_notifications/auth/ @mghorbani
+/backend/src/homepot/push_notifications/auth/ @mghorbani
 
 # Platform-specific implementations - write-access collaborators can modify
 # Admin review recommended but collaborators can self-merge after tests pass
-/backend/homepot_client/push_notifications/fcm_linux.py
-/backend/homepot_client/push_notifications/simulation.py
+/backend/src/homepot/push_notifications/fcm_linux.py
+/backend/src/homepot/push_notifications/simulation.py
 
 # Future platform implementations (write-access collaborators can add)
-/backend/homepot_client/push_notifications/apns_*.py
-/backend/homepot_client/push_notifications/wns_*.py  
-/backend/homepot_client/push_notifications/web_push.py
-/backend/homepot_client/push_notifications/fcm_android.py
+/backend/src/homepot/push_notifications/apns_*.py
+/backend/src/homepot/push_notifications/wns_*.py  
+/backend/src/homepot/push_notifications/web_push.py
+/backend/src/homepot/push_notifications/fcm_android.py
 
 # Integration points - requires admin review
-/backend/homepot_client/orchestrator.py @mghorbani
-/backend/homepot_client/main.py @mghorbani
+/backend/src/homepot/orchestrator.py @mghorbani
+/backend/src/homepot/main.py @mghorbani
 
 # Documentation - any write-access collaborator can update
 /docs/push-notification.md

@@ -17,11 +17,11 @@ on:
   # Automatic trigger on specific changes
   push:
     paths:
-    - 'backend/homepot_client/main.py'
-    - 'backend/homepot_client/models.py' 
-    - 'backend/homepot_client/database.py'
-    - 'backend/homepot_client/agents.py'
-    - 'backend/homepot_client/orchestrator.py'
+    - 'backend/src/homepot/main.py'
+    - 'backend/src/homepot/models.py' 
+    - 'backend/src/homepot/database.py'
+    - 'backend/src/homepot/agents.py'
+    - 'backend/src/homepot/orchestrator.py'
     - 'backend/tests/test_pos_dummy.py'
     - 'scripts/run-pos-dummy.sh'
     

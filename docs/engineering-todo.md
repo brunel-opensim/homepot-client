@@ -796,7 +796,7 @@ backend/tests/
 **Run Backend Tests:**
 ```bash
 cd backend
-pytest --cov=homepot_client --cov-report=html
+pytest --cov=homepot --cov-report=html
 ```
 
 **Acceptance Criteria:**
@@ -831,7 +831,7 @@ pytest --cov=homepot_client --cov-report=html
 ```
 backend/
 ├── .env.production (NEW - template)
-└── homepot_client/
+└── homepot/
     └── config.py (UPDATE - production settings)
 
 frontend/
@@ -1064,7 +1064,7 @@ cd frontend && npx playwright test
 cd frontend && npm run lint
 
 # Backend type checking
-cd backend && mypy homepot_client/
+cd backend && mypy homepot/
 ```
 
 ### Git Workflow

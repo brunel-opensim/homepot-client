@@ -163,8 +163,8 @@ Now you can send notifications to your Apple devices!
 #### Python Example
 
 ```python
-from homepot_client.push_notifications import get_push_provider
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications import get_push_provider
+from homepot.push_notifications.base import (
     PushNotificationPayload,
     PushPriority
 )
@@ -839,8 +839,8 @@ Here's a complete example for a POS payment notification system:
 
 ```python
 import asyncio
-from homepot_client.push_notifications import get_push_provider
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications import get_push_provider
+from homepot.push_notifications.base import (
     PushNotificationPayload,
     PushPriority
 )

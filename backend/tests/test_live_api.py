@@ -324,4 +324,4 @@ if __name__ == "__main__":
         print("Usage: pytest tests/test_live_api.py -v")
     else:
         print("\nStart HOMEPOT system first:")
-        print("   python -m homepot_client.main")
+        print("   python -m homepot.main")

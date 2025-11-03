@@ -104,8 +104,8 @@ Now you can send notifications to your Windows devices!
 Toast notifications are the pop-up messages that appear on Windows screens.
 
 ```python
-from homepot_client.push_notifications import get_notification_provider
-from homepot_client.push_notifications.base import PushNotificationPayload, PushPriority
+from homepot.push_notifications import get_notification_provider
+from homepot.push_notifications.base import PushNotificationPayload, PushPriority
 
 # Initialize the WNS provider
 wns_provider = get_notification_provider("wns_windows", {
@@ -671,8 +671,8 @@ Here's a full working example:
 ```python
 import asyncio
 import os
-from homepot_client.push_notifications import get_notification_provider
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications import get_notification_provider
+from homepot.push_notifications.base import (
     PushNotificationPayload, 
     PushPriority
 )

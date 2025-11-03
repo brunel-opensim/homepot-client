@@ -11,11 +11,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications.base import (
     PushNotificationPayload,
     PushPriority,
 )
-from homepot_client.push_notifications.wns_windows import (
+from homepot.push_notifications.wns_windows import (
     WNSNotificationType,
     WNSWindowsProvider,
 )

@@ -114,7 +114,7 @@ WEB_PUSH_TIMEOUT_SECONDS=30
 **Python code:**
 
 ```python
-from homepot_client.push_notifications import get_push_provider
+from homepot.push_notifications import get_push_provider
 
 # Configure Web Push provider
 config = {
@@ -365,7 +365,7 @@ async def send_push_notification(
 ### Send Single Notification
 
 ```python
-from homepot_client.push_notifications import get_push_provider, PushNotificationPayload
+from homepot.push_notifications import get_push_provider, PushNotificationPayload
 
 # Get provider
 provider = await get_push_provider("web_push")
@@ -491,7 +491,7 @@ Enable debug logging to see detailed information:
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("homepot_client.push_notifications.web_push")
+logger = logging.getLogger("homepot.push_notifications.web_push")
 logger.setLevel(logging.DEBUG)
 ```
 

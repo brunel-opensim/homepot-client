@@ -90,7 +90,7 @@ fi
 echo -e "${GREEN}.dockerignore found${NC}"
 
 # Check if main application file exists
-if [ ! -f "backend/homepot_client/main.py" ]; then
+if [ ! -f "backend/src/homepot/main.py" ]; then
     echo -e "${RED}Error: main.py not found${NC}"
     exit 1
 fi

@@ -6,7 +6,7 @@ This directory contains the Python backend service for the HOMEPOT Client.
 
 ```
 backend/
-├── homepot_client/          # Main Python package
+├── homepot/          # Main Python package
 │   ├── app/                 # FastAPI application
 │   ├── push_notifications/  # Push notification services
 │   ├── agents.py
@@ -38,7 +38,7 @@ pytest
 ### Running the Server
 
 ```bash
-uvicorn homepot_client.app.main:app --reload
+uvicorn homepot.app.main:app --reload
 ```
 
 ## Development

@@ -52,7 +52,7 @@ Jobs (1) ←→ (Many) Audit Logs
 
 4. **Test Connection**
    ```bash
-   python -c "from src.homepot_client.database import get_db; print('Database connected!')"
+   python -c "from src.homepot.database import get_db; print('Database connected!')"
    ```
 
 ## Database Organization
@@ -65,7 +65,7 @@ homepot-client/
 │   ├── homepot.db                # Main development database
 │   ├── homepot_test.db           # Test database (auto-created)
 │   └── migrations/               # Schema changes (future)
-├── backend/homepot_client/
+├── backend/src/homepot/
 │   ├── database.py               # Database connection
 │   ├── models.py                 # SQLAlchemy models
 │   └── config.py                 # Database configuration
@@ -75,7 +75,7 @@ homepot-client/
 
 ### Configuration
 
-Database connections are configured in `backend/homepot_client/config.py`:
+Database connections are configured in `backend/src/homepot/config.py`:
 
 ```python
 # Development (default)
@@ -150,7 +150,7 @@ cp data/homepot_backup.db data/homepot.db
 ```python
 # Test database isolation
 import pytest
-from src.homepot_client.database import get_test_db
+from src.homepot.database import get_test_db
 
 @pytest.fixture
 def db_session():
@@ -219,7 +219,7 @@ The easiest way to add data is through the REST API when the server is running.
 **Start the server:**
 ```bash
 cd backend
-python -m uvicorn homepot_client.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Add a new site:**
@@ -273,8 +273,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.getcwd(), "backend"))
 
-from homepot_client.database import DatabaseService
-from homepot_client.models import DeviceType
+from homepot.database import DatabaseService
+from homepot.models import DeviceType
 
 async def add_bulk_data():
     """Add multiple sites and devices."""
@@ -392,8 +392,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.getcwd(), "backend"))
 
-from homepot_client.database import DatabaseService
-from homepot_client.models import DeviceType
+from homepot.database import DatabaseService
+from homepot.models import DeviceType
 
 async def create_large_dataset():
     """Create 10 sites with 5 devices each (50 devices total)."""
@@ -448,7 +448,7 @@ Use the built-in Swagger UI for interactive data creation:
 1. **Start the server:**
    ```bash
    cd backend
-   python -m uvicorn homepot_client.main:app --reload
+   python -m uvicorn homepot.main:app --reload
    ```
 
 2. **Open browser:** [http://localhost:8000/docs](http://localhost:8000/docs)
@@ -489,8 +489,8 @@ LEFT JOIN (
 ### Custom Queries
 
 ```python
-from src.homepot_client.database import get_db
-from src.homepot_client.models import Site, Device
+from src.homepot.database import get_db
+from src.homepot.models import Site, Device
 
 # Get all sites with device counts
 db = get_db()

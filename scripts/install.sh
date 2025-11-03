@@ -128,7 +128,7 @@ check_project_root() {
         exit 1
     fi
     
-    if [[ ! -f "backend/homepot_client/__init__.py" ]]; then
+    if [[ ! -f "backend/src/homepot/__init__.py" ]]; then
         log_error "Error: HOMEPOT client source not found"
         log_error "Please ensure you're in the correct project directory"
         exit 1
@@ -305,7 +305,7 @@ verify_installation() {
     log_info "Verifying installation..."
     
     # Test import
-    if python -c "import homepot_client" 2>/dev/null; then
+    if python -c "import homepot" 2>/dev/null; then
         log_success "HOMEPOT client import successful"
     else
         log_error "Failed to import HOMEPOT client"

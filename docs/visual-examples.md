@@ -369,7 +369,7 @@ def get_db():
 === "Python"
 
     ```python
-    from homepot_client import Client
+    from homepot import Client
     
     client = Client()
     devices = client.get_devices()

@@ -49,7 +49,7 @@ This installs `homepot-client` in development mode, allowing you to make changes
 
 ```bash
 # Still in backend/ directory
-python -m homepot_client.database
+python -m homepot.database
 ```
 
 This creates the SQLite database at `backend/data/homepot.db` with demo data.
@@ -58,10 +58,10 @@ This creates the SQLite database at `backend/data/homepot.db` with demo data.
 
 ```bash
 # Option 1: Using Python module
-python -m uvicorn homepot_client.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
 
 # Option 2: Using uvicorn command directly (if in PATH)
-uvicorn homepot_client.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The `--reload` flag enables auto-restart on code changes (development mode).
@@ -113,7 +113,7 @@ Production files will be in `frontend/dist/`.
 ```
 homepot-client/
 ├── backend/
-│   ├── homepot_client/        # Application code
+│   ├── homepot/        # Application code
 │   │   ├── __init__.py
 │   │   ├── main.py            # FastAPI app entry point
 │   │   ├── cli.py             # Command-line interface
@@ -147,7 +147,7 @@ cd backend
 pytest                             # Run all tests
 pytest tests/test_client.py        # Run specific test file
 pytest -v                          # Verbose output
-pytest --cov=homepot_client        # With coverage
+pytest --cov=homepot        # With coverage
 ```
 
 #### Frontend Tests
@@ -168,11 +168,11 @@ From the repository root:
 
 # Individual checks
 cd backend
-black homepot_client tests     # Format code
-isort homepot_client tests     # Sort imports
-flake8 homepot_client tests    # Linting
-bandit -r homepot_client       # Security checks
-mypy homepot_client            # Type checking
+black homepot tests     # Format code
+isort homepot tests     # Sort imports
+flake8 homepot tests    # Linting
+bandit -r homepot       # Security checks
+mypy homepot            # Type checking
 ```
 
 ### Using Scripts
@@ -199,7 +199,7 @@ The monorepo includes helpful scripts in `scripts/`:
 
 1. Ensure virtual environment is activated: `source venv/bin/activate`
 2. Navigate to backend: `cd backend`
-3. Make your changes in `homepot_client/`
+3. Make your changes in `homepot/`
 4. Run tests: `pytest`
 5. Check code quality: `black . && flake8 .`
 6. The server will auto-reload if running with `--reload`
@@ -233,7 +233,7 @@ npm install <package>           # Adds to package.json automatically
 
 ### Backend Won't Start
 
-**Problem**: `ModuleNotFoundError: No module named 'homepot_client'`
+**Problem**: `ModuleNotFoundError: No module named 'homepot'`
 
 **Solution**: Install the package in editable mode:
 ```bash
@@ -249,7 +249,7 @@ pip install -e .
 ```bash
 cd backend
 rm -f data/homepot.db
-python -m homepot_client.database
+python -m homepot.database
 ```
 
 ### Port Already in Use
@@ -263,7 +263,7 @@ lsof -i :8000
 kill -9 <PID>
 
 # Or use a different port
-python -m uvicorn homepot_client.main:app --port 8001
+python -m uvicorn homepot.main:app --port 8001
 ```
 
 ### Frontend Can't Connect to Backend
@@ -275,7 +275,7 @@ python -m uvicorn homepot_client.main:app --port 8001
 curl http://localhost:8000/health
 ```
 
-Check `backend/homepot_client/main.py` for CORS settings.
+Check `backend/src/homepot/main.py` for CORS settings.
 
 ## Docker Setup (Alternative)
 

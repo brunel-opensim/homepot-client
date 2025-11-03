@@ -62,8 +62,8 @@ from pathlib import Path
 # Add backend to path (using current directory as we're in project root)
 sys.path.insert(0, os.path.join(os.getcwd(), "backend"))
 
-from homepot_client.database import DatabaseService
-from homepot_client.models import Base, Site, Device, Job, User, DeviceType, DeviceStatus, JobStatus
+from homepot.database import DatabaseService
+from homepot.models import Base, Site, Device, Job, User, DeviceType, DeviceStatus, JobStatus
 from sqlalchemy.ext.asyncio import create_async_engine
 
 async def init_database():

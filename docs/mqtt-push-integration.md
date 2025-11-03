@@ -207,7 +207,7 @@ MQTT_TIMEOUT=30
 **Python code:**
 
 ```python
-from homepot_client.push_notifications import get_push_provider
+from homepot.push_notifications import get_push_provider
 
 # Configure MQTT provider
 config = {
@@ -334,7 +334,7 @@ For industrial applications, use Node-RED:
 ### Send Single Notification
 
 ```python
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications.base import (
     PushNotificationPayload,
     PushPriority
 )
@@ -467,8 +467,8 @@ mosquitto_pub -h mqtt.example.com -t "devices/sensor-001/notifications" \
 
 ```python
 import asyncio
-from homepot_client.push_notifications.mqtt_push import MQTTPushProvider
-from homepot_client.push_notifications.base import PushNotificationPayload
+from homepot.push_notifications.mqtt_push import MQTTPushProvider
+from homepot.push_notifications.base import PushNotificationPayload
 
 async def test_mqtt():
     config = {
@@ -630,7 +630,7 @@ sudo systemctl restart mosquitto
 Register MQTT devices in HOMEPOT database:
 
 ```python
-from homepot_client.models import DeviceType
+from homepot.models import DeviceType
 
 # Register IoT sensor
 device = {

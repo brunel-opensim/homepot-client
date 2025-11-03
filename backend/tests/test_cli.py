@@ -3,10 +3,10 @@
 This module contains tests for the command line interface.
 """
 
-from typer.testing import CliRunner
+from click.testing import CliRunner
 
-from homepot_client import __version__
-from homepot_client.cli import app
+from homepot import __version__
+from homepot.cli import cli
 
 
 class TestCLI:
@@ -18,7 +18,7 @@ class TestCLI:
 
     def test_version_command(self) -> None:
         """Test the version command."""
-        result = self.runner.invoke(app, ["version"])
+        result = self.runner.invoke(cli, ["version"])
 
         assert result.exit_code == 0
         assert __version__ in result.stdout
@@ -26,7 +26,7 @@ class TestCLI:
 
     def test_info_command(self) -> None:
         """Test the info command."""
-        result = self.runner.invoke(app, ["info"])
+        result = self.runner.invoke(cli, ["info"])
 
         assert result.exit_code == 0
         assert "HOMEPOT Client" in result.stdout
@@ -35,7 +35,7 @@ class TestCLI:
 
     def test_help_command(self) -> None:
         """Test the help command."""
-        result = self.runner.invoke(app, ["--help"])
+        result = self.runner.invoke(cli, ["--help"])
 
         assert result.exit_code == 0
         assert "HOMEPOT Client" in result.stdout

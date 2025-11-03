@@ -22,11 +22,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from homepot_client.agents import POSAgentSimulator
+from homepot.agents import POSAgentSimulator
 
 # Import HOMEPOT components
-from homepot_client.main import app
-from homepot_client.models import Base, User
+from homepot.main import app
+from homepot.models import Base, User
 
 
 class TestPOSDummy:
@@ -109,7 +109,7 @@ class TestPOSDummy:
         issues before we attempt any actual functionality testing.
         """
         # Test core application imports  # noqa: F401
-        from homepot_client import (  # noqa: F401
+        from homepot import (  # noqa: F401
             agents,
             audit,
             client,
@@ -366,11 +366,11 @@ class TestPOSDummy:
             project_root = cwd
 
         critical_files = [
-            "backend/homepot_client/__init__.py",
-            "backend/homepot_client/main.py",
-            "backend/homepot_client/models.py",
-            "backend/homepot_client/database.py",
-            "backend/homepot_client/agents.py",
+            "backend/src/homepot/__init__.py",
+            "backend/src/homepot/main.py",
+            "backend/src/homepot/models.py",
+            "backend/src/homepot/database.py",
+            "backend/src/homepot/agents.py",
         ]
 
         for file_path in critical_files:

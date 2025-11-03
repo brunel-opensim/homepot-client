@@ -4,11 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications.base import (
     PushNotificationPayload,
     PushPriority,
 )
-from homepot_client.push_notifications.mqtt_push import MQTTPushProvider
+from homepot.push_notifications.mqtt_push import MQTTPushProvider
 
 
 @pytest.fixture
@@ -114,8 +114,8 @@ class TestMQTTPushProvider:
         assert provider.broker_port == 8883  # Default TLS port
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_provider_initialization(self, mock_mqtt, mqtt_config):
         """Test successful provider initialization."""
         # Mock MQTT client
@@ -148,8 +148,8 @@ class TestMQTTPushProvider:
         assert mock_client.on_publish is not None
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_provider_initialization_with_tls(self, mock_mqtt, mqtt_config_tls):
         """Test provider initialization with TLS/SSL."""
         mock_client = MagicMock()
@@ -173,7 +173,7 @@ class TestMQTTPushProvider:
         mock_client.tls_set.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", False)
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", False)
     async def test_initialization_without_mqtt_library(self, mqtt_config):
         """Test initialization when paho-mqtt is not installed."""
         provider = MQTTPushProvider(mqtt_config)
@@ -210,8 +210,8 @@ class TestMQTTPushProvider:
         assert provider.validate_device_token("a" * 300) is False  # Too long
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_send_notification_success(
         self, mock_mqtt, mqtt_config, sample_payload
     ):
@@ -246,8 +246,8 @@ class TestMQTTPushProvider:
         assert provider.stats["total_failed"] == 0
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_send_notification_invalid_token(
         self, mock_mqtt, mqtt_config, sample_payload
     ):
@@ -269,8 +269,8 @@ class TestMQTTPushProvider:
         assert "INVALID_TOPIC" in result.error_code
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_send_notification_not_connected(
         self, mock_mqtt, mqtt_config, sample_payload
     ):
@@ -298,8 +298,8 @@ class TestMQTTPushProvider:
         assert result.error_code in ["NOT_CONNECTED", "EXCEPTION"]
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_send_bulk_notifications(
         self, mock_mqtt, mqtt_config, sample_payload
     ):
@@ -331,8 +331,8 @@ class TestMQTTPushProvider:
         assert provider.stats["total_success"] == 3
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_send_topic_notification(
         self, mock_mqtt, mqtt_config, sample_payload
     ):
@@ -357,8 +357,8 @@ class TestMQTTPushProvider:
         assert result.success is True
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_build_mqtt_message(self, mock_mqtt, mqtt_config, sample_payload):
         """Test MQTT message building from payload."""
         mock_client = MagicMock()
@@ -390,8 +390,8 @@ class TestMQTTPushProvider:
         assert "timestamp" in message
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_build_mqtt_message_with_platform_data(self, mock_mqtt, mqtt_config):
         """Test MQTT message with platform-specific data."""
         mock_client = MagicMock()
@@ -413,8 +413,8 @@ class TestMQTTPushProvider:
         assert message["sound"] == "alert.wav"
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_get_platform_info(self, mock_mqtt, mqtt_config):
         """Test getting platform information."""
         mock_client = MagicMock()
@@ -443,8 +443,8 @@ class TestMQTTPushProvider:
         assert "statistics" in info
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_statistics_tracking(self, mock_mqtt, mqtt_config, sample_payload):
         """Test that statistics are tracked correctly."""
         mock_client = MagicMock()
@@ -477,8 +477,8 @@ class TestMQTTPushProvider:
         assert provider.stats["last_sent"] is not None
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_cleanup(self, mock_mqtt, mqtt_config):
         """Test cleanup disconnects properly."""
         mock_client = MagicMock()
@@ -535,8 +535,8 @@ class TestMQTTPushIntegration:
     """Integration tests for MQTT Push provider."""
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_full_workflow(self, mock_mqtt, mqtt_config, sample_payload):
         """Test complete workflow from initialization to cleanup."""
         mock_client = MagicMock()
@@ -575,8 +575,8 @@ class TestMQTTPushIntegration:
         assert provider._connected is False
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.mqtt_push.mqtt")
+    @patch("homepot.push_notifications.mqtt_push.MQTT_AVAILABLE", True)
+    @patch("homepot.push_notifications.mqtt_push.mqtt")
     async def test_multiple_qos_levels(self, mock_mqtt, sample_payload):
         """Test provider with different QoS levels."""
         mock_client = MagicMock()

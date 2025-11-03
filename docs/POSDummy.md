@@ -142,7 +142,7 @@ schedule: [every 6 hours]
 ./scripts/run-pos-dummy.sh --verbose
 
 # Check specific component
-python -c "from src.homepot_client import main; print('FastAPI app OK')"
+python -c "from src.homepot import main; print('FastAPI app OK')"
 ```
 
 ## Continuous Protection

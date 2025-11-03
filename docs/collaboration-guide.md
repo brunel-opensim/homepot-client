@@ -8,7 +8,7 @@ This guide outlines the collaboration workflow and access controls for the modul
 
 ### Core Architecture (Maintainer Access Required)
 ```
-backend/homepot_client/push_notifications/
+backend/src/homepot/push_notifications/
 ├── __init__.py                 # Core maintainer only
 ├── base.py                     # Core maintainer only  
 ├── factory.py                  # Core maintainer only
@@ -22,7 +22,7 @@ backend/homepot_client/push_notifications/
 
 ### Platform Implementations (Contributor Access)
 ```
-backend/homepot_client/push_notifications/
+backend/src/homepot/push_notifications/
 ├── fcm_linux.py               # Firebase/Linux specialists
 ├── simulation.py              # Testing/QA team
 ├── apns_macos.py              # Apple/macOS specialists (pending)

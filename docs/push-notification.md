@@ -30,7 +30,7 @@ Successfully implemented a modular, plugin-based push notification system for th
 ## File Structure
 
 ```
-backend/homepot_client/push_notifications/
+backend/src/homepot/push_notifications/
 ├── __init__.py                 # Package initialization
 ├── base.py                     # Abstract base classes and data models
 ├── factory.py                  # Provider factory and registration
@@ -74,8 +74,8 @@ backend/homepot_client/push_notifications/
 
 ### Direct Provider Usage
 ```python
-from homepot_client.push_notifications.factory import get_push_provider
-from homepot_client.push_notifications.base import PushNotificationPayload, PushPriority
+from homepot.push_notifications.factory import get_push_provider
+from homepot.push_notifications.base import PushNotificationPayload, PushPriority
 
 # Get a specific provider
 provider = await get_push_provider('fcm_linux', config={'service_account_path': 'path/to/creds.json'})
@@ -94,7 +94,7 @@ result = await provider.send_notification('device-token', payload)
 
 ### Factory with Fallbacks
 ```python
-from homepot_client.push_notifications.factory import get_fallback_provider
+from homepot.push_notifications.factory import get_fallback_provider
 
 # Try providers in order, use first available
 provider = await get_fallback_provider(['fcm_linux', 'apns_macos', 'simulation'])

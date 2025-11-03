@@ -9,7 +9,7 @@ The HOMEPOT monorepo follows a **stack-specific testing approach**, where each t
 ```text
 homepot-client/
 ├── backend/
-│   ├── homepot_client/          # Backend source code
+│   ├── homepot/          # Backend source code
 │   └── tests/                   # Backend tests (Python/pytest)
 │       ├── conftest.py
 │       ├── test_client.py
@@ -71,7 +71,7 @@ pytest backend/tests/ -v
 pytest backend/tests/test_database.py
 
 # Run with coverage
-pytest backend/tests/ --cov=backend/homepot_client --cov-report=html
+pytest backend/tests/ --cov=backend/homepot --cov-report=html
 ```
 
 **Frontend:**
@@ -132,7 +132,7 @@ Tests run automatically in GitHub Actions:
 ```yaml
 # Backend tests
 - name: Backend Tests
-  run: pytest backend/tests/ --cov=backend/homepot_client
+  run: pytest backend/tests/ --cov=backend/homepot
 
 # Frontend tests
 - name: Frontend Tests
@@ -162,7 +162,7 @@ Tests run automatically in GitHub Actions:
 ```python
 # backend/tests/test_feature.py
 import pytest
-from homepot_client.feature import FeatureClass
+from homepot.feature import FeatureClass
 
 class TestFeature:
     def test_basic_functionality(self):

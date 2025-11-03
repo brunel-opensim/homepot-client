@@ -45,8 +45,8 @@ rm data/homepot.db
 
 ### Tracked in Git:
 - Database initialization script (`scripts/init-database.sh`)
-- Database models/schema (`src/homepot_client/models.py`)
-- Database service layer (`src/homepot_client/database.py`)
+- Database models/schema (`src/homepot/models.py`)
+- Database service layer (`src/homepot/database.py`)
 - This README
 - Backup directory structure (`backups/.gitkeep`)
 
@@ -99,7 +99,7 @@ cp data/backups/homepot_backup_TIMESTAMP.db data/homepot.db
 
 ## Database Schema
 
-The database schema is defined in `src/homepot_client/models.py`:
+The database schema is defined in `src/homepot/models.py`:
 
 - **Sites** - Physical locations (stores, warehouses)
 - **Devices** - POS terminals, IoT devices
@@ -145,8 +145,8 @@ rm -rf data/backups/*.db
 ## Related Files
 
 - `scripts/init-database.sh` - Database initialization script
-- `src/homepot_client/models.py` - Database schema definitions
-- `src/homepot_client/database.py` - Database service layer
+- `src/homepot/models.py` - Database schema definitions
+- `src/homepot/database.py` - Database service layer
 - `.gitignore` - Excludes `*.db` files
 
 ## Migration to Alembic (Future)

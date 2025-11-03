@@ -129,13 +129,13 @@ echo "HOMEPOT_DATABASE_URL=sqlite:////opt/homepot/data/homepot.db" >> .env
 
 ```bash
 # Run database migrations
-docker-compose exec homepot-api python -m homepot_client.migrate
+docker-compose exec homepot-api python -m homepot.migrate
 
 # Backup database
-docker-compose exec homepot-api python -m homepot_client.backup
+docker-compose exec homepot-api python -m homepot.backup
 
 # Restore database
-docker-compose exec homepot-api python -m homepot_client.restore backup.sql
+docker-compose exec homepot-api python -m homepot.restore backup.sql
 ```
 
 ## Reverse Proxy Setup
@@ -330,7 +330,7 @@ DATE=$(date +%Y%m%d_%H%M%S)
 mkdir -p $BACKUP_DIR
 
 # Backup database
-docker-compose exec -T homepot-api python -m homepot_client.backup > $BACKUP_DIR/homepot_$DATE.sql
+docker-compose exec -T homepot-api python -m homepot.backup > $BACKUP_DIR/homepot_$DATE.sql
 
 # Backup configuration
 tar -czf $BACKUP_DIR/config_$DATE.tar.gz .env docker-compose.yml nginx.conf
@@ -347,7 +347,7 @@ echo "Backup completed: $BACKUP_DIR/homepot_$DATE.sql"
 ```bash
 # Recovery procedure
 # 1. Restore from backup
-docker-compose exec -T homepot-api python -m homepot_client.restore < backup.sql
+docker-compose exec -T homepot-api python -m homepot.restore < backup.sql
 
 # 2. Restart services
 docker-compose restart
@@ -502,7 +502,7 @@ docker-compose exec homepot-api /bin/bash
 ```bash
 # Test database connection
 docker-compose exec homepot-api python -c "
-from homepot_client.database import DatabaseService
+from homepot.database import DatabaseService
 import asyncio
 async def test():
     db = DatabaseService()
@@ -521,7 +521,7 @@ docker stats
 curl http://localhost:8000/metrics
 
 # Profile application
-docker-compose exec homepot-api python -m cProfile -o profile.stats -m homepot_client.main
+docker-compose exec homepot-api python -m cProfile -o profile.stats -m homepot.main
 ```
 
 ---

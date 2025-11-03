@@ -102,7 +102,7 @@ setup_environment() {
     fi
     
     # Verify we're in the right place
-    if [[ ! -d "backend/homepot_client" ]]; then
+    if [[ ! -d "backend/src/homepot" ]]; then
         log_error "Not in HOMEPOT project root directory"
         log_error "Run this script from the homepot-client directory"
         return 1

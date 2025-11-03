@@ -53,7 +53,7 @@ jobs:
       continue-on-error: true
 
     - name: Run Bandit security scan
-      run: bandit -r backend/homepot_client/ -f json -o bandit-results.json
+      run: bandit -r backend/src/homepot/ -f json -o bandit-results.json
       continue-on-error: true
 
     - name: Run pip-audit

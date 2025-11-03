@@ -9,8 +9,8 @@ from typing import Any, Dict
 
 import pytest
 
-from homepot_client import __version__
-from homepot_client.client import HomepotClient, create_client
+from homepot import __version__
+from homepot.client import HomepotClient, create_client
 
 
 class TestHomepotClient:
@@ -178,12 +178,12 @@ def test_python_version_compatibility() -> None:
 def test_imports_work() -> None:
     """Test that all main imports work correctly."""
     # Test importing main package
-    import homepot_client
+    import homepot
 
-    assert hasattr(homepot_client, "__version__")
+    assert hasattr(homepot, "__version__")
 
     # Test importing main classes
-    from homepot_client.client import HomepotClient, create_client
+    from homepot.client import HomepotClient, create_client
 
     assert HomepotClient is not None
     assert create_client is not None

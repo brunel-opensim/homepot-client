@@ -311,15 +311,15 @@ source scripts/activate-homepot.sh
 ./scripts/validate-workflows.sh
 
 # Individual quality checks
-black backend/homepot_client/ backend/tests/
-isort backend/homepot_client/ backend/tests/
-flake8 backend/homepot_client/ backend/tests/
+black backend/src/homepot/ backend/tests/
+isort backend/src/homepot/ backend/tests/
+flake8 backend/src/homepot/ backend/tests/
 ```
 
 ### Security Scanning
 ```bash
 # Run security scans (matches CI workflow)
-bandit -r backend/homepot_client/
+bandit -r backend/src/homepot/
 safety check
 pip-audit
 
@@ -333,7 +333,7 @@ pip-audit
 pytest backend/tests/ -v
 
 # Run tests with coverage
-pytest backend/tests/ --cov=backend/homepot_client --cov-report=html
+pytest backend/tests/ --cov=backend/src/homepot --cov-report=html
 
 # POSDummy infrastructure testing
 pytest backend/tests/test_pos_dummy.py -v
@@ -394,7 +394,7 @@ npm outdated
 2. **Check security:**
    ```bash
    safety check
-   bandit -r backend/homepot_client/
+   bandit -r backend/src/homepot/
    pip-audit
    ```
 
