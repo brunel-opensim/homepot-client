@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from homepot_client.audit import AuditEventType, get_audit_logger
 from homepot_client.push_notifications.factory import (
-    register_provider as PushNotificationFactory
+    register_provider as PushNotificationFactory,
 )
 
 # Configure logging
