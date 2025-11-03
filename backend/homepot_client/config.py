@@ -4,7 +4,7 @@ This module provides configuration loading from environment variables
 and settings files using Pydantic Settings.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -163,6 +163,15 @@ class Settings(BaseSettings):
     websocket: WebSocketSettings = Field(default_factory=WebSocketSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
+    # Mobivisor API settings
+    mobivisor_api_url: str = Field(
+        default="https://mydd.mobivisor.com/",
+        description="Mobivisor API endpoint URL",
+    )
+    mobivisor_api_token: Optional[str] = Field(
+        default=None, description="Mobivisor API Bearer token"
+    )
+
     class Config:
         """Pydantic configuration."""
 
@@ -210,3 +219,23 @@ def is_debug() -> bool:
 def get_secret_key() -> str:
     """Get JWT secret key."""
     return get_settings().auth.secret_key
+
+
+def get_mobivisor_api_config() -> Dict[str, Optional[str]]:
+    """Get Mobivisor API URL and token.
+
+    Returns:
+        Dict containing mobivisor_api_url and mobivisor_api_token
+    """
+    settings = get_settings()
+    return {
+        "mobivisor_api_url": settings.mobivisor_api_url,
+        "mobivisor_api_token": (
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9."
+            "eyJ1c2VybmFtZSI6ImFkbWluIiwiX2lkIjoiNjgwN2E1ODM2NDE1ZjRlZDFl"
+            "ZTA4MWVhIiwiaWQiOiI2ODA3YTU4MzY0MTVmNGVkMWVlMDgxZWEiLCJyb2xl"
+            "X2lkIjoiQWRtaW4iLCJkaXNwbGF5TmFtZSI6ImFkbWluIiwidGVuYW50Ijoib"
+            "XlkZCIsImlhdCI6MTc2MjE1NDM3NiwiZXhwIjoxNzYyNzU5MTc2fQ."
+            "Sk78nyAf4HE2yp7ZUYXz_fnsswpmLx6F8VXuwRaxMMc"
+        ),
+    }
