@@ -32,6 +32,7 @@ CHECK_POSDUMMY=true
 CHECK_CODE=true
 CHECK_PYTHON=true
 CHECK_DOCS=true
+CHECK_GIT=true
 CHECK_TESTS=true
 CHECK_FRONTEND=true
 FAIL_FAST=false
@@ -857,7 +858,97 @@ validate_documentation() {
     return 0
 }
 
-# 7. Essential test validation
+# 7. Git repository hygiene check
+validate_git_hygiene() {
+    log_info "  Checking for accidentally committed files..."
+    
+    local failed=false
+    
+    # Check for database files
+    echo -n "    Database files (.db): "
+    if git ls-files | grep -E '\.db$' >/dev/null 2>&1; then
+        echo -e "${RED}Found in git${NC}"
+        log_verbose "Database files should not be committed to version control"
+        git ls-files | grep -E '\.db$' | while read -r file; do
+            echo -e "      ${RED}✗${NC} $file"
+        done
+        echo -e "      ${YELLOW}Fix: git rm --cached <file>${NC}"
+        failed=true
+    else
+        echo -e "${GREEN}Clean${NC}"
+    fi
+    
+    # Check for environment files with secrets
+    echo -n "    Environment files (.env): "
+    if git ls-files | grep -E '^\.env$|^backend/\.env$|^frontend/\.env$' >/dev/null 2>&1; then
+        echo -e "${RED}Found in git${NC}"
+        log_verbose "Environment files with secrets should not be committed"
+        git ls-files | grep -E '^\.env$|^backend/\.env$|^frontend/\.env$' | while read -r file; do
+            echo -e "      ${RED}✗${NC} $file"
+        done
+        echo -e "      ${YELLOW}Only .env.example should be committed${NC}"
+        failed=true
+    else
+        echo -e "${GREEN}Clean${NC}"
+    fi
+    
+    # Check for log files
+    echo -n "    Log files (*.log): "
+    if git ls-files | grep -E '\.log$' >/dev/null 2>&1; then
+        echo -e "${RED}Found in git${NC}"
+        log_verbose "Log files should not be committed"
+        git ls-files | grep -E '\.log$' | while read -r file; do
+            echo -e "      ${RED}✗${NC} $file"
+        done
+        failed=true
+    else
+        echo -e "${GREEN}Clean${NC}"
+    fi
+    
+    # Check for common IDE/editor files
+    echo -n "    IDE files (.vscode/settings.json, .idea/): "
+    if git ls-files | grep -E '\.vscode/settings\.json|\.idea/workspace\.xml|\.idea/tasks\.xml' >/dev/null 2>&1; then
+        echo -e "${YELLOW}Found in git${NC}"
+        log_verbose "IDE-specific settings may cause issues for other developers"
+        git ls-files | grep -E '\.vscode/settings\.json|\.idea/workspace\.xml|\.idea/tasks\.xml' | while read -r file; do
+            echo -e "      ${YELLOW}!${NC} $file"
+        done
+        # This is a warning, not a failure
+    else
+        echo -e "${GREEN}Clean${NC}"
+    fi
+    
+    # Check for large files (>1MB)
+    if command -v du >/dev/null 2>&1; then
+        echo -n "    Large files (>1MB): "
+        local large_files=$(git ls-files | while read -r file; do
+            if [ -f "$file" ]; then
+                size=$(du -k "$file" 2>/dev/null | cut -f1)
+                if [ -n "$size" ] && [ "$size" -gt 1024 ]; then
+                    echo "$file ($((size/1024))MB)"
+                fi
+            fi
+        done)
+        
+        if [ -n "$large_files" ]; then
+            echo -e "${YELLOW}Found${NC}"
+            echo "$large_files" | while read -r line; do
+                echo -e "      ${YELLOW}!${NC} $line"
+            done
+            log_verbose "Consider using Git LFS for large files"
+        else
+            echo -e "${GREEN}Clean${NC}"
+        fi
+    fi
+    
+    if [[ "$failed" == true ]]; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# 8. Essential test validation
 validate_tests() {
     log_info "  Running essential tests..."
     
@@ -1228,7 +1319,7 @@ except Exception as e:
     return 0
 }
 
-# 8. Frontend quality checks
+# 9. Frontend quality checks
 validate_frontend() {
     log_info "  Running frontend quality checks (matching CI/CD)..."
     
@@ -1462,6 +1553,7 @@ main() {
     [[ "$CHECK_CODE" == true ]] && run_check "Code Quality" "validate_code_quality"
     [[ "$CHECK_PYTHON" == true ]] && run_check "Python Setup" "validate_python"
     [[ "$CHECK_DOCS" == true ]] && run_check "Documentation" "validate_documentation"
+    [[ "$CHECK_GIT" == true ]] && run_check "Git Repository Hygiene" "validate_git_hygiene"
     [[ "$CHECK_TESTS" == true ]] && run_check "Essential Tests" "validate_tests"
     [[ "$CHECK_FRONTEND" == true ]] && run_check "Frontend Quality" "validate_frontend"
     
