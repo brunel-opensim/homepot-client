@@ -10,7 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from homepot_client.app.main import app
+from homepot.app.main import app
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ class TestMobivisorDevicesEndpoints:
     """Test cases for Mobivisor devices endpoints."""
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -82,7 +82,7 @@ class TestMobivisorDevicesEndpoints:
         assert response.json() == devices_data
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     def test_fetch_devices_missing_url(self, mock_config, client):
@@ -98,7 +98,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Configuration Error" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     def test_fetch_devices_missing_token(self, mock_config, client):
@@ -114,7 +114,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Configuration Error" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -142,7 +142,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Unauthorized" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -164,7 +164,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Gateway Timeout" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -195,7 +195,7 @@ class TestMobivisorDevicesEndpoints:
         assert response.status_code == 200
         assert response.json() == device_data
 
-    @patch("homepot_client.config.get_mobivisor_api_config")
+    @patch("homepot.config.get_mobivisor_api_config")
     @patch("httpx.AsyncClient")
     def test_fetch_device_details_not_found(
         self,
@@ -221,7 +221,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Not Found" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -249,7 +249,7 @@ class TestMobivisorDevicesEndpoints:
         assert data["device_id"] == "123"
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -277,7 +277,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Not Found" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -305,7 +305,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Unauthorized" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
@@ -327,7 +327,7 @@ class TestMobivisorDevicesEndpoints:
         assert "Bad Gateway" in response.json()["detail"]["error"]
 
     @patch(
-        "homepot_client.app.api.API_v1.Endpoints.Mobivisor."
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")

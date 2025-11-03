@@ -36,8 +36,8 @@
 ### What's Tracked in Git
 
 **Schema and code** (versioned):
-- `backend/homepot_client/models.py` - Database schema
-- `backend/homepot_client/database.py` - Database service
+- `backend/src/homepot/models.py` - Database schema
+- `backend/src/homepot/database.py` - Database service
 - `scripts/init-database.sh` - Initialization script
 - `data/README.md` - Documentation
 - `data/backups/.gitkeep` - Directory structure
@@ -67,7 +67,7 @@ This creates a fresh database with:
 ```bash
 # Work normally - database changes are local
 pytest backend/tests/
-python -m homepot_client.main
+python -m homepot.main
 
 # No database conflicts when pulling updates!
 git pull origin main

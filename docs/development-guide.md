@@ -48,7 +48,7 @@ pytest -m "not slow"    # All tests except slow ones (faster)
 pytest -v
 
 # Run with detailed coverage report
-pytest --cov=homepot_client --cov-report=html
+pytest --cov=homepot --cov-report=html
 ```
 
 ### Test Categories
@@ -65,7 +65,7 @@ pytest --cov=homepot_client --cov-report=html
 ```python
 # Example unit test
 import pytest
-from homepot_client.database import DatabaseService
+from homepot.database import DatabaseService
 
 @pytest.mark.asyncio
 async def test_site_creation():
@@ -104,7 +104,7 @@ markers =
     api: API tests
 addopts = 
     --strict-markers
-    --cov=homepot_client
+    --cov=homepot
     --cov-report=term-missing
     --cov-fail-under=80
 ```
@@ -115,11 +115,11 @@ addopts =
 
 ```bash
 ```bash
-black backend/homepot_client/ backend/tests/    # Code formatting
-isort backend/homepot_client/ backend/tests/    # Import sorting
-flake8 backend/homepot_client/ backend/tests/   # Style linting
-mypy backend/homepot_client/                    # Type checking
-bandit -r backend/homepot_client/               # Security scanning
+black backend/src/homepot/ backend/tests/    # Code formatting
+isort backend/src/homepot/ backend/tests/    # Import sorting
+flake8 backend/src/homepot/ backend/tests/   # Style linting
+mypy backend/src/homepot/                    # Type checking
+bandit -r backend/src/homepot/               # Security scanning
 ```
 ```
 
@@ -128,17 +128,17 @@ bandit -r backend/homepot_client/               # Security scanning
 ```bash
 **Format code:**
 ```bash
-black backend/homepot_client/ backend/tests/
+black backend/src/homepot/ backend/tests/
 ```
 
 **Check formatting without modifying:**
 ```bash
-black --check backend/homepot_client/ backend/tests/
+black --check backend/src/homepot/ backend/tests/
 ```
 
 **Import sorting:**
 ```bash
-isort backend/homepot_client/ backend/tests/
+isort backend/src/homepot/ backend/tests/
 ```
 ```
 
@@ -147,16 +147,16 @@ isort backend/homepot_client/ backend/tests/
 ```bash
 **Type checking:**
 ```bash
-mypy backend/homepot_client/
+mypy backend/src/homepot/
 ```
 
 **Security scanning:**
 ```bash
 # Basic scan
-bandit -r backend/homepot_client/
+bandit -r backend/src/homepot/
 
 # Generate report
-bandit -r backend/homepot_client/ -f json -o security-report.json
+bandit -r backend/src/homepot/ -f json -o security-report.json
 ```
 ```
 
@@ -164,10 +164,10 @@ bandit -r backend/homepot_client/ -f json -o security-report.json
 
 ```bash
 # Run security analysis
-bandit -r backend/homepot_client/
+bandit -r backend/src/homepot/
 
 # Generate security report
-bandit -r backend/homepot_client/ -f json -o security-report.json
+bandit -r backend/src/homepot/ -f json -o security-report.json
 ```
 
 ## Development Workflow
@@ -252,7 +252,7 @@ export HOMEPOT_DATABASE_URL=sqlite:///./homepot_dev.db
 ```bash
 # Create development database
 python -c "
-from homepot_client.database import DatabaseService
+from homepot.database import DatabaseService
 import asyncio
 
 async def setup():
@@ -265,7 +265,7 @@ asyncio.run(setup())
 
 # Reset database
 rm homepot.db
-python -m homepot_client.main  # Will recreate on startup
+python -m homepot.main  # Will recreate on startup
 ```
 
 ## Contributing
@@ -343,13 +343,13 @@ Brief description of changes
 
 ```bash
 # Run with debug mode
-HOMEPOT_DEBUG=true python -m homepot_client.main
+HOMEPOT_DEBUG=true python -m homepot.main
 
 # Run with specific log level
-HOMEPOT_LOG_LEVEL=DEBUG python -m homepot_client.main
+HOMEPOT_LOG_LEVEL=DEBUG python -m homepot.main
 
 # Run with pdb debugger
-python -m pdb -m homepot_client.main
+python -m pdb -m homepot.main
 ```
 
 ### Database Debugging
@@ -386,7 +386,7 @@ tail -f server.log | grep -i error
 
 ```bash
 # Profile application startup
-python -m cProfile -o profile.stats -m homepot_client.main
+python -m cProfile -o profile.stats -m homepot.main
 
 # Analyze profile results
 python -c "
@@ -401,10 +401,10 @@ p.sort_stats('cumulative').print_stats(20)
 ```bash
 # Monitor memory usage
 pip install memory-profiler
-python -m memory_profiler -m homepot_client.main
+python -m memory_profiler -m homepot.main
 
 # Generate memory reports
-mprof run python -m homepot_client.main
+mprof run python -m homepot.main
 mprof plot
 ```
 
@@ -444,7 +444,7 @@ pytest backend/tests/test_specific.py::test_function --pdb
 ```bash
 # Reset development database
 rm homepot.db
-python -m homepot_client.main
+python -m homepot.main
 ```
 
 ### Getting Help

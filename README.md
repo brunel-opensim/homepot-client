@@ -34,7 +34,7 @@ It is designed as a flexible, extensible client system that enables secure, scal
 ```text
 homepot-client/
 ├── backend/                   # Python backend service
-│   ├── homepot_client/       # Main Python package
+│   ├── homepot/       # Main Python package
 │   ├── tests/                # Backend tests
 │   ├── pyproject.toml        # Python configuration
 │   └── requirements.txt      # Python dependencies

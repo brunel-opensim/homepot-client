@@ -106,8 +106,8 @@ Now you can send notifications to your devices!
 **Example 1: Send to One Device**
 
 ```python
-from homepot_client.push_notifications import get_notification_provider
-from homepot_client.push_notifications.base import PushNotificationPayload, PushPriority
+from homepot.push_notifications import get_notification_provider
+from homepot.push_notifications.base import PushNotificationPayload, PushPriority
 
 # Initialize the FCM provider
 fcm_provider = get_notification_provider("fcm_linux", {
@@ -487,8 +487,8 @@ Here's a full working example:
 
 ```python
 import asyncio
-from homepot_client.push_notifications import get_notification_provider
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications import get_notification_provider
+from homepot.push_notifications.base import (
     PushNotificationPayload, 
     PushPriority
 )

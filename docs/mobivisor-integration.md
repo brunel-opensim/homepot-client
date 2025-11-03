@@ -236,7 +236,7 @@ The Mobivisor integration includes comprehensive unit tests:
 pytest backend/tests/test_mobivisor.py -v
 
 # Run with coverage
-pytest backend/tests/test_mobivisor.py --cov=homepot_client.app.api.API_v1.Endpoints.Mobivisor
+pytest backend/tests/test_mobivisor.py --cov=homepot.app.api.API_v1.Endpoints.Mobivisor
 
 # Run specific test
 pytest backend/tests/test_mobivisor.py::TestMobivisorDevicesEndpoints::test_fetch_devices_success -v

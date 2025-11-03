@@ -7,7 +7,7 @@ This document describes the migration to a monorepo structure for better organiz
 ```
 homepot-client/
 ├── backend/                     # Python backend (FastAPI)
-│   ├── homepot_client/         # Main Python package
+│   ├── homepot/         # Main Python package
 │   ├── tests/                  # Backend tests
 │   ├── pyproject.toml         # Python project configuration
 │   └── requirements.txt       # Python dependencies
@@ -35,7 +35,7 @@ homepot-client/
 ### Directory Moves
 
 1. **Backend:**
-   - `src/` → `backend/homepot_client/`
+   - `src/` → `backend/src/homepot/`
    - `tests/` → `backend/tests/`
    - `pyproject.toml` → `backend/pyproject.toml`
    - `requirements.txt` → `backend/requirements.txt`

@@ -5,8 +5,8 @@ This module contains tests for the command line interface.
 
 from typer.testing import CliRunner
 
-from homepot_client import __version__
-from homepot_client.cli import app
+from homepot import __version__
+from homepot.cli import app
 
 
 class TestCLI:

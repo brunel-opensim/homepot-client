@@ -63,7 +63,7 @@ HOMEPOT Client is a modern, full-stack web application for managing IoT devices 
 ```
 homepot-client/
 ├── backend/                    # FastAPI backend
-│   ├── homepot_client/
+│   ├── homepot/
 │   │   ├── app/
 │   │   │   ├── api/           # API endpoints
 │   │   │   │   └── API_v1/
@@ -334,7 +334,7 @@ cp .env.example .env
 # alembic upgrade head
 
 # Start server
-uvicorn homepot_client.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Frontend:**
@@ -464,7 +464,7 @@ curl http://localhost:8000/api/v1/push/vapid-public-key
 # Option 3: Manual start
 # Terminal 1 - Backend
 cd backend && source venv/bin/activate
-uvicorn homepot_client.main:app --reload
+uvicorn homepot.main:app --reload
 
 # Terminal 2 - Frontend
 cd frontend && npm run dev
@@ -483,12 +483,12 @@ Both backend and frontend have **hot reload** enabled:
 **1. Backend - Create Endpoint:**
 
 ```python
-# backend/homepot_client/app/api/API_v1/Endpoints/AlertsEndpoint.py
+# backend/src/homepot/app/api/API_v1/Endpoints/AlertsEndpoint.py
 
 from fastapi import APIRouter, Depends
 from typing import List
-from homepot_client.models import Alert
-from homepot_client.database import get_db
+from homepot.models import Alert
+from homepot.database import get_db
 
 router = APIRouter()
 
@@ -510,7 +510,7 @@ async def create_alert(alert: Alert, db=Depends(get_db)):
 **2. Register Router:**
 
 ```python
-# backend/homepot_client/app/api/API_v1/Api.py
+# backend/src/homepot/app/api/API_v1/Api.py
 
 from .Endpoints import AlertsEndpoint
 
@@ -1314,7 +1314,7 @@ PUSH__FCM__SENDER_ID=your-sender-id
 
 ```python
 # Backend sends notification
-from homepot_client.services.push_notifications import PushNotificationFactory
+from homepot.services.push_notifications import PushNotificationFactory
 
 factory = PushNotificationFactory()
 fcm_service = factory.get_service('fcm')
@@ -1404,7 +1404,7 @@ pytest
 
 **Run with coverage:**
 ```bash
-pytest --cov=homepot_client --cov-report=html
+pytest --cov=homepot --cov-report=html
 # Open htmlcov/index.html to view report
 ```
 
@@ -1423,7 +1423,7 @@ pytest tests/test_push_notifications.py::test_send_notification
 ```python
 # tests/test_example.py
 import pytest
-from homepot_client.services import example_service
+from homepot.services import example_service
 
 def test_example_function():
     """Test example function"""
@@ -1685,7 +1685,7 @@ export DATABASE__URL=postgresql://...
 alembic upgrade head
 
 # Start with gunicorn (production WSGI server)
-gunicorn homepot_client.main:app \
+gunicorn homepot.main:app \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:8000 \
@@ -1783,7 +1783,7 @@ server {
 
 #### Backend won't start
 
-**Error:** `ModuleNotFoundError: No module named 'homepot_client'`
+**Error:** `ModuleNotFoundError: No module named 'homepot'`
 
 **Solution:**
 ```bash

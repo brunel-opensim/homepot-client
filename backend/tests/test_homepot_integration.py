@@ -35,7 +35,7 @@ class TestHOMEPOTSystem:
     @pytest.fixture(scope="class")
     def client(self) -> TestClient:
         """Create a test client for the HOMEPOT application."""
-        from homepot_client.main import app
+        from homepot.main import app
 
         return TestClient(app)
 

@@ -19,7 +19,7 @@ WORKDIR /app
 # Copy backend dependency files and source
 COPY backend/pyproject.toml ./
 COPY README.md ../README.md
-COPY backend/homepot_client/ homepot_client/
+COPY backend/src/ src/
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
@@ -48,7 +48,7 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application source
-COPY --from=builder /app/homepot_client /app/homepot_client
+COPY --from=builder /app/src /app/src
 COPY --chown=homepot:homepot backend/pyproject.toml ./
 COPY --chown=homepot:homepot README.md ../README.md
 
@@ -68,4 +68,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Use the properly installed package
-CMD ["uvicorn", "homepot_client.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
+CMD ["uvicorn", "homepot.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]

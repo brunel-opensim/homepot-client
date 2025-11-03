@@ -92,11 +92,11 @@ Issues = "https://github.com/brunel-opensim/homepot-client/issues"
 Documentation = "https://github.com/brunel-opensim/homepot-client/tree/main/docs"
 
 [project.scripts]
-homepot-client = "homepot_client.cli:main"
+homepot-client = "homepot.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["homepot_client*"]
+where = ["src"]
+include = ["homepot*"]
 
 [tool.setuptools.package-dir]
 "" = "."
@@ -125,7 +125,7 @@ extend-exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 88
-known_first_party = ["homepot_client"]
+known_first_party = ["homepot"]
 known_third_party = ["fastapi", "pydantic", "pytest"]
 
 # MyPy configuration
@@ -155,7 +155,7 @@ minversion = "7.0"
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=homepot_client",
+    "--cov=homepot",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
@@ -178,14 +178,14 @@ markers = [
 asyncio_mode = "auto"
 # Windows-specific configuration for better file handling
 filterwarnings = [
-    "ignore::Warning:homepot_client.*",
+    "ignore::Warning:homepot.*",
     "ignore:.*Database cleanup.*:UserWarning",
     "ignore:.*Could not cleanup temp database.*:UserWarning",
 ]
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["homepot_client"]
+source = ["homepot"]
 omit = [
     "*/tests/*",
     "*/test_*",
@@ -193,7 +193,7 @@ omit = [
     "*/site-packages/*",
     "*/venv/*",
     "*/.venv/*",
-    "homepot_client/main.py",  # Exclude FastAPI demo app from coverage
+    "homepot/main.py",  # Exclude FastAPI demo app from coverage
 ]
 
 [tool.coverage.report]

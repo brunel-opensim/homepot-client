@@ -25,8 +25,8 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Create a test client for the HOMEPOT application."""
-    from homepot_client.client import HomepotClient
-    from homepot_client.main import app, get_client
+    from homepot.client import HomepotClient
+    from homepot.main import app, get_client
 
     # Create a mock client for testing
     def get_test_client() -> HomepotClient:

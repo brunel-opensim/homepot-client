@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from homepot_client.push_notifications.base import (
+from homepot.push_notifications.base import (
     PushNotificationPayload,
     PushPriority,
 )
-from homepot_client.push_notifications.web_push import WebPushProvider
+from homepot.push_notifications.web_push import WebPushProvider
 
 
 @pytest.fixture
@@ -144,8 +144,8 @@ class TestWebPushProvider:
         assert data["notification"]["data"]["url"] == "/notifications"
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.web_push.WEBPUSH_AVAILABLE", True)
-    @patch("homepot_client.push_notifications.web_push.webpush")
+    @patch("homepot.push_notifications.web_push.WEBPUSH_AVAILABLE", True)
+    @patch("homepot.push_notifications.web_push.webpush")
     async def test_send_notification_success(
         self, mock_webpush, web_push_provider, sample_subscription
     ):
@@ -178,7 +178,7 @@ class TestWebPushProvider:
         assert result.error_code == "INVALID_SUBSCRIPTION"
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.web_push.WEBPUSH_AVAILABLE", False)
+    @patch("homepot.push_notifications.web_push.WEBPUSH_AVAILABLE", False)
     async def test_send_notification_without_pywebpush(
         self, web_push_provider, sample_subscription
     ):
@@ -243,7 +243,7 @@ class TestWebPushProvider:
         assert public_key == web_push_provider.vapid_public_key
 
     @pytest.mark.asyncio
-    @patch("homepot_client.push_notifications.web_push.webpush")
+    @patch("homepot.push_notifications.web_push.webpush")
     async def test_statistics_tracking(
         self, mock_webpush, web_push_provider, sample_subscription
     ):

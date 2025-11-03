@@ -451,7 +451,7 @@ source "$VENV_DIR/bin/activate"
 print_step "Launching FastAPI server on ${BACKEND_URL}..."
 
 # Start backend in background
-python -m uvicorn homepot_client.main:app \
+python -m uvicorn homepot.main:app \
   --host $BACKEND_HOST \
   --port $BACKEND_PORT \
   --reload \

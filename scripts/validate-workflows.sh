@@ -507,11 +507,11 @@ validate_code_quality() {
     # MyPy type checking (NEW - matches CI/CD)
     if command -v mypy >/dev/null 2>&1; then
         echo -n "    Type checking (mypy): "
-        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/homepot_client/"
+        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/src/homepot/"
         
         # Capture mypy output to check for specific errors
         local mypy_output
-        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/homepot_client/ 2>&1); then
+        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/src/homepot/ 2>&1); then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check for specific error types
@@ -526,7 +526,7 @@ validate_code_quality() {
                 log_verbose "This indicates missing dependencies in requirements.txt or missing type stubs"
                 log_verbose "Consider installing missing packages or type stubs (e.g., pip install types-*)"
             else
-                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/homepot_client/${NC}"
+                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/src/homepot/${NC}"
                 log_verbose "MyPy failed for other reasons"
                 if [[ "$VERBOSE" == true ]]; then
                     echo "$mypy_output" | head -10 | while read -r line; do
@@ -545,11 +545,11 @@ validate_code_quality() {
         echo -n "    Security scan (bandit): "
         log_verbose "Running: bandit -r backend/ -ll --exclude venv,.venv,htmlcov,.pytest_cache,.mypy_cache"
         # Use -ll for low severity threshold, exclude virtual env and build artifacts
-        if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot_client.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
+        if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check exit code - 0 means success, 1 means issues found
-            if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot_client.egg-info 2>/dev/null; then
+            if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>/dev/null; then
                 echo -e "${GREEN}Passed${NC}"
             else
                 echo -e "${YELLOW}Warnings found - review with: bandit -r backend/ -ll${NC}"
@@ -710,7 +710,7 @@ for py_file in src_dir.rglob('*.py'):
 # Filter out standard library and local modules
 external_imports = {imp for imp in all_imports 
                    if imp not in STDLIB_MODULES 
-                   and not imp.startswith('homepot_client')
+                   and not imp.startswith('homepot')
                    and not imp.startswith('tests')
                    and not imp.startswith('src')}
 
@@ -784,7 +784,7 @@ for py_file in src_dir.rglob('*.py'):
 
 external_imports = {imp for imp in all_imports 
                    if imp not in STDLIB_MODULES 
-                   and not imp.startswith('homepot_client')
+                   and not imp.startswith('homepot')
                    and not imp.startswith('tests')
                    and not imp.startswith('src')}
 
@@ -959,7 +959,7 @@ validate_tests() {
     fi
     
     # Check if we have essential test files
-    local essential_tests=("test_database.py" "test_models.py")
+    local essential_tests=("test_database.py" "test_models.py" "test_cli.py" "test_client.py")
     local found_tests=()
     
     for test_file in "${essential_tests[@]}"; do
@@ -1069,6 +1069,32 @@ validate_tests() {
         fi
     fi
     
+    # Run CLI tests
+    if [[ " ${found_tests[*]} " =~ " test_cli.py " ]]; then
+        echo -n "    CLI tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_cli.py -q --no-cov"
+        if python -m pytest backend/tests/test_cli.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "CLI tests failed - check CLI implementation"
+            failed=true
+        fi
+    fi
+    
+    # Run client tests
+    if [[ " ${found_tests[*]} " =~ " test_client.py " ]]; then
+        echo -n "    Client tests: "
+        log_verbose "Running: python -m pytest backend/tests/test_client.py -q --no-cov"
+        if python -m pytest backend/tests/test_client.py -q --no-cov >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "Client tests failed - check client implementation"
+            failed=true
+        fi
+    fi
+    
     # Run Push Notification Provider Tests
     echo "  Push Notification Provider Tests:"
     
@@ -1147,7 +1173,7 @@ import sys
 sys.path.insert(0, 'backend')
 try:
     # Test basic imports that integration tests need
-    from homepot_client.main import app
+    from homepot.main import app
     from fastapi.testclient import TestClient
     
     # Test that we can create a test client (basic fixture functionality)
@@ -1194,7 +1220,7 @@ except Exception as e:
 import sys
 sys.path.insert(0, 'backend')
 try:
-    from homepot_client.main import app
+    from homepot.main import app
     from fastapi.testclient import TestClient
     
     # Test that app can start
@@ -1271,8 +1297,8 @@ except Exception as e:
 import sys
 sys.path.insert(0, 'backend')
 try:
-    from homepot_client.config import get_settings
-    from homepot_client.models import Site, Device, Job
+    from homepot.config import get_settings
+    from homepot.models import Site, Device, Job
     print('Core imports successful')
 except ImportError as e:
     print(f'Import failed: {e}')

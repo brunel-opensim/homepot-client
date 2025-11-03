@@ -14,7 +14,7 @@ assignees: ''
 ## Implementation Checklist
 
 ### Core Implementation
-- [ ] Created platform provider file (`backend/homepot_client/push_notifications/[platform].py`)
+- [ ] Created platform provider file (`backend/src/homepot/push_notifications/[platform].py`)
 - [ ] Inherits from `PushNotificationProvider` base class
 - [ ] Implements all required abstract methods
 - [ ] Follows existing code patterns and style

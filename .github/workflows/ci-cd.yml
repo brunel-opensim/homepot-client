@@ -38,7 +38,7 @@ jobs:
         pip install --no-cache-dir bandit[toml] safety
 
     - name: Run Bandit security scan
-      run: bandit -r backend/homepot_client/ -f json -o bandit-results.json || true
+      run: bandit -r backend/src/homepot/ -f json -o bandit-results.json || true
 
     - name: Run Safety security scan
       run: safety check --json --output safety-results.json || true
@@ -138,16 +138,16 @@ jobs:
         pip install -e backend/
 
     - name: Run Black formatter check
-      run: black --check backend/homepot_client/ backend/tests/
+      run: black --check backend/src/homepot/ backend/tests/
 
     - name: Run isort import sorting check
-      run: isort --check-only backend/homepot_client/ backend/tests/
+      run: isort --check-only backend/src/homepot/ backend/tests/
 
     - name: Run flake8 linting
-      run: flake8 backend/homepot_client/ backend/tests/
+      run: flake8 backend/src/homepot/ backend/tests/
 
     - name: Run mypy type checking
-      run: mypy --config-file=backend/mypy.ini backend/homepot_client/
+      run: mypy --config-file=backend/mypy.ini backend/src/homepot/
 
     - name: Validate documentation files
       run: |
@@ -190,15 +190,15 @@ jobs:
         cd backend
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           # Windows-specific pytest configuration for better file handling
-          pytest tests/ -v --cov=homepot_client --cov-report=xml \
+          pytest tests/ -v --cov=homepot --cov-report=xml \
             --tb=short \
             --durations=10 \
-            -W ignore::UserWarning:homepot_client \
+            -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         else
           # Standard pytest configuration for Unix systems
-          pytest tests/ -v --cov=homepot_client --cov-report=xml
+          pytest tests/ -v --cov=homepot --cov-report=xml
         fi
 
     - name: Upload coverage reports

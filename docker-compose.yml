@@ -17,13 +17,13 @@ services:
       - ${HOMEPOT_DATA_DIR:-./data}:/app/data
       - ${HOMEPOT_LOGS_DIR:-./logs}:/app/logs
       # Mount source code in development mode only
-      - ${HOMEPOT_SOURCE_MOUNT:-/dev/null}:/app/homepot_client:ro
+      - ${HOMEPOT_SOURCE_MOUNT:-/dev/null}:/app/src:ro
     command: >
       sh -c "
       if [ \"$$HOMEPOT_ENV\" = \"development\" ]; then
-        uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000 --reload
+        uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
       else
-        uvicorn homepot_client.main:app --host 0.0.0.0 --port 8000
+        uvicorn homepot.main:app --host 0.0.0.0 --port 8000
       fi
       "
     restart: unless-stopped

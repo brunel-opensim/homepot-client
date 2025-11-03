@@ -12,8 +12,8 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from homepot_client.config import get_settings
-from homepot_client.models import Base, Device, Job, JobStatus, Site, User
+from homepot.config import get_settings
+from homepot.models import Base, Device, Job, JobStatus, Site, User
 
 
 @pytest.fixture
