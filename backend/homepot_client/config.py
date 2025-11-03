@@ -4,7 +4,7 @@ This module provides configuration loading from environment variables
 and settings files using Pydantic Settings.
 """
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -118,6 +118,24 @@ class LoggingSettings(BaseSettings):
     )
 
 
+class CorsSettings(BaseSettings):
+    """Existing fields."""
+
+    # CORS Configuration
+    cors_origins: List[str] = Field(
+        default=[
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:3001",
+            "http://127.0.0.1:3000",
+            "http://192.168.0.112:3000",
+            "http://192.168.0.112:3001",
+            "http://192.168.0.112:8080",
+        ],
+        description="Allowed CORS origins",
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -125,6 +143,7 @@ class Settings(BaseSettings):
     app_name: str = Field(default="HOMEPOT Client", description="Application name")
     app_version: str = Field(default="0.1.0", description="Application version")
     debug: bool = Field(default=False, description="Enable debug mode")
+    cors: CorsSettings = Field(default_factory=CorsSettings)
     environment: str = Field(
         default="development",
         description="Environment (development, testing, production)",
