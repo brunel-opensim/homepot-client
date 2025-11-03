@@ -2,7 +2,6 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from homepot_client.app.api.API_v1.Api import api_v1_router
 
 # App declaration
