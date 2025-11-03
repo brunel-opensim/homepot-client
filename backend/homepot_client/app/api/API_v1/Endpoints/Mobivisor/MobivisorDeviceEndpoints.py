@@ -11,8 +11,8 @@ from typing import Any, Dict
 from fastapi import APIRouter
 
 from homepot_client.app.utils.mobivisor_request import (
-    _handle_mobivisor_response,
-    _make_mobivisor_request,
+    _handle_mobivisor_response as handle_mobivisor_response,
+    _make_mobivisor_request as make_mobivisor_request,
 )
 
 # Configure logging
@@ -51,8 +51,8 @@ async def fetch_external_devices() -> Any:
         ```
     """
     logger.info("Fetching devices from Mobivisor API")
-    response = await _make_mobivisor_request("GET", "devices")
-    return _handle_mobivisor_response(response, "fetch devices")
+    response = await make_mobivisor_request("GET", "devices")
+    return handle_mobivisor_response(response, "fetch devices")
 
 
 @router.get("/devices/{device_id}", tags=["Mobivisor Devices"])
@@ -84,8 +84,8 @@ async def fetch_device_details(device_id: str) -> Dict[str, Any]:
         ```
     """
     logger.info(f"Fetching device details from Mobivisor API: {device_id}")
-    response = await _make_mobivisor_request("GET", f"devices/{device_id}")
-    return _handle_mobivisor_response(response, f"fetch device {device_id}")
+    response = await make_mobivisor_request("GET", f"devices/{device_id}")
+    return handle_mobivisor_response(response, f"fetch device {device_id}")
 
 
 @router.delete("/devices/{device_id}", tags=["Mobivisor Devices"])
@@ -115,7 +115,7 @@ async def delete_device(device_id: str) -> Dict[str, Any]:
         ```
     """
     logger.info(f"Deleting device from Mobivisor API: {device_id}")
-    response = await _make_mobivisor_request("DELETE", f"devices/{device_id}")
-    _handle_mobivisor_response(response, f"delete device {device_id}")
+    response = await make_mobivisor_request("DELETE", f"devices/{device_id}")
+    handle_mobivisor_response(response, f"delete device {device_id}")
 
     return {"message": "Device deleted successfully", "device_id": device_id}
