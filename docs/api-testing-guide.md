@@ -41,6 +41,13 @@ We'll test endpoints in this order:
 6. **Audit** - Audit logging system
 7. **Advanced Workflows** - Real-world scenarios
 
+A `job` is a structured work order that tells devices:
+- What to do (action + payload)
+- Where to get the details (config_url)
+- How urgent it is (priority)
+- Who asked for it (created_by)
+- What happened (status, result, timing)
+
 ## 1. Health & Status Endpoints
 
 ### Test Server Health
