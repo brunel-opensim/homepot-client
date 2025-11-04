@@ -104,6 +104,7 @@ nav:
     - Development Guide: development-guide.md
     - Engineering TODO: engineering-todo.md
     - Testing Guide: testing-guide.md
+    - API Testing Guide: api-testing-guide.md
     - Monorepo Migration: monorepo-migration.md
   - Frontend Development:
     - CI/CD Pipeline: frontend-ci-cd.md

@@ -45,7 +45,7 @@ class CreateSiteRequest(BaseModel):
     class Config:
         """Pydantic model configuration with example data."""
 
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "site_id": "site-123",
                 "name": "Main Retail Store",
