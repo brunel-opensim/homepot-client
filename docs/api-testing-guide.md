@@ -59,7 +59,7 @@ curl -s http://localhost:8000/health | jq .
 }
 ```
 
-✅ **Verify**: `status` is `"healthy"` and `client_connected` is `true`
+**Verify**: `status` is `"healthy"` and `client_connected` is `true`
 
 ### Check Client Status
 
@@ -77,7 +77,7 @@ curl -s http://localhost:8000/status | jq .
 }
 ```
 
-✅ **Verify**: Server is connected and uptime is increasing
+**Verify**: Server is connected and uptime is increasing
 
 ### Get Version
 
@@ -122,7 +122,7 @@ curl -s http://localhost:8000/sites | jq .
 }
 ```
 
-✅ **Verify**: At least 2 sites returned from seed data
+**Verify**: At least 2 sites returned from seed data
 
 ### Get Specific Site
 
@@ -143,7 +143,7 @@ curl -s http://localhost:8000/sites/site-001 | jq .
 }
 ```
 
-✅ **Verify**: Site details match expected values
+**Verify**: Site details match expected values
 
 ### Create New Site
 
@@ -167,7 +167,7 @@ curl -s -X POST http://localhost:8000/sites \
 }
 ```
 
-✅ **Verify**: Site created successfully, returns new site_id
+**Verify**: Site created successfully, returns new site_id
 
 ### Check Site Health
 
@@ -200,7 +200,7 @@ curl -s http://localhost:8000/sites/site-001/health | jq .
 }
 ```
 
-✅ **Verify**: Health percentage and device counts are accurate
+**Verify**: Health percentage and device counts are accurate
 
 ## 3. Agent Simulators
 
@@ -254,7 +254,7 @@ curl -s http://localhost:8000/agents | jq .
 }
 ```
 
-✅ **Verify**: 
+**Verify**: 
 - All 8 agents (pos-terminal-001 through pos-terminal-008) are present
 - Most agents show `"status": "healthy"`
 - Agents have realistic metrics (CPU, memory, transactions)
@@ -280,7 +280,7 @@ curl -s http://localhost:8000/agents/pos-terminal-001 | jq .
 }
 ```
 
-✅ **Verify**: Agent returns detailed health information
+**Verify**: Agent returns detailed health information
 
 ## 4. Device Management
 
@@ -314,7 +314,7 @@ curl -s http://localhost:8000/devices/pos-terminal-001/health | jq .
 }
 ```
 
-✅ **Verify**: All services are running/connected
+**Verify**: All services are running/connected
 
 ### Test Unhealthy Device
 
@@ -341,7 +341,7 @@ curl -s http://localhost:8000/devices/pos-terminal-006/health | jq .
 }
 ```
 
-✅ **Verify**: Device shows unhealthy status with error message
+**Verify**: Device shows unhealthy status with error message
 
 ### Restart Unhealthy Device
 
@@ -375,7 +375,7 @@ curl -s -X POST http://localhost:8000/devices/pos-terminal-006/restart \
 }
 ```
 
-✅ **Verify**: 
+**Verify**: 
 - Restart successful
 - Device is now healthy
 - All services are running
@@ -391,7 +391,7 @@ curl -s http://localhost:8000/devices/pos-terminal-006/health | jq '.health.stat
 "healthy"
 ```
 
-✅ **Verify**: Status changed from `"unhealthy"` to `"healthy"`
+**Verify**: Status changed from `"unhealthy"` to `"healthy"`
 
 ### Create New Device
 
@@ -417,7 +417,7 @@ curl -s -X POST http://localhost:8000/sites/site-test-001/devices \
 }
 ```
 
-✅ **Verify**: Device created and associated with site
+**Verify**: Device created and associated with site
 
 ## 5. Job Management
 
@@ -446,7 +446,7 @@ curl -s -X POST http://localhost:8000/sites/site-001/jobs \
 }
 ```
 
-✅ **Verify**: 
+**Verify**: 
 - Job created with unique job_id
 - Initial status is `"queued"`
 - Save the `job_id` for next step
@@ -477,7 +477,7 @@ curl -s http://localhost:8000/jobs/job-a42da035 | jq .
 }
 ```
 
-✅ **Verify**:
+**Verify**:
 - Status progressed from `"queued"` to `"sent"`
 - Has `started_at` timestamp
 - Job orchestrator processed the job
@@ -490,7 +490,7 @@ sleep 3
 curl -s http://localhost:8000/jobs/job-a42da035 | jq '.status, .completed_at'
 ```
 
-✅ **Verify**: Job may progress to `"completed"` status
+**Verify**: Job may progress to `"completed"` status
 
 ## 6. Audit System
 
@@ -530,7 +530,7 @@ curl -s http://localhost:8000/audit/events | jq '.events[:3]'
 ]
 ```
 
-✅ **Verify**: 
+**Verify**: 
 - Events are logged chronologically
 - Job creation events appear
 - System startup/shutdown events logged
@@ -559,7 +559,7 @@ curl -s http://localhost:8000/audit/statistics | jq .
 }
 ```
 
-✅ **Verify**: Statistics accurately reflect recent activity
+**Verify**: Statistics accurately reflect recent activity
 
 ## 7. Push Notifications
 
@@ -592,7 +592,7 @@ curl -s -X POST http://localhost:8000/agents/pos-terminal-001/push \
 }
 ```
 
-✅ **Verify**: 
+**Verify**: 
 - Notification sent successfully
 - Agent acknowledged receipt
 
@@ -650,7 +650,7 @@ curl -s -X POST http://localhost:8000/sites/site-new-001/jobs \
   }' | jq .
 ```
 
-✅ **Verify**:
+**Verify**:
 - Site created successfully
 - Both devices added
 - Site health shows 2 devices
@@ -676,7 +676,7 @@ curl -s http://localhost:8000/devices/pos-terminal-006/health | jq '.health.stat
 curl -s http://localhost:8000/audit/events | jq '.events[] | select(.device_id == "pos-terminal-006")'
 ```
 
-✅ **Verify**:
+**Verify**:
 - Unhealthy device detected
 - Restart successful
 - Health restored
@@ -704,7 +704,7 @@ curl -s http://localhost:8000/audit/events | \
   jq '.events[] | select(.event_type == "job_created") | {job_id, created_at}'
 ```
 
-✅ **Verify**:
+**Verify**:
 - All jobs created successfully
 - Jobs processed by orchestrator
 - Audit trail complete
@@ -794,7 +794,7 @@ if [ "$STATUS" != "healthy" ]; then
   echo "❌ Health check failed!"
   exit 1
 fi
-echo "✅ Health check passed"
+echo "Health check passed"
 
 # Test 2: Sites
 echo "✓ Testing sites endpoint..."
@@ -803,7 +803,7 @@ if [ "$SITE_COUNT" -lt 2 ]; then
   echo "❌ Expected at least 2 sites!"
   exit 1
 fi
-echo "✅ Found $SITE_COUNT sites"
+echo "Found $SITE_COUNT sites"
 
 # Test 3: Agents
 echo "✓ Testing agents endpoint..."
@@ -812,7 +812,7 @@ if [ "$AGENT_COUNT" -ne 8 ]; then
   echo "❌ Expected 8 agents, found $AGENT_COUNT!"
   exit 1
 fi
-echo "✅ All 8 agents running"
+echo "All 8 agents running"
 
 # Test 4: Create and check job
 echo "✓ Testing job creation..."
@@ -830,7 +830,7 @@ if [ -z "$JOB_ID" ]; then
 fi
 
 JOB_STATUS=$(curl -s http://localhost:8000/jobs/$JOB_ID | jq -r '.status')
-echo "✅ Job created: $JOB_ID (status: $JOB_STATUS)"
+echo "Job created: $JOB_ID (status: $JOB_STATUS)"
 
 echo
 echo "🎉 All tests passed!"
