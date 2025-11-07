@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import Dropdown from "@/components/ui/dropdown";
+import api from "@/services/api";
 
-const Login = () => {
+const Signup = () => {
   const [activeTab, setActiveTab] = useState("ENGINEER");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [sessionMsg, setSessionMsg] = useState(null);
   
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // Show session expiry message if redirected from protected route
   useEffect(() => {
@@ -27,45 +31,56 @@ const Login = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      const from = location.state?.from?.pathname || '/dashboard';
-      navigate(from, { replace: true });
+      navigate('/dashboard', { replace: true });
     }
-  }, [isAuthenticated, navigate, location]);
+  }, [isAuthenticated, navigate]);
 
-  const handleLogin = async (e) => {
+  const handleSignUp = async (e) => {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
 
     setErrorMsg(null);
-    if (!email || !password) {
-      setErrorMsg("Please provide both email and password.");
+    
+    // Validation
+    if (!email || !password || !name || !role) {
+      setErrorMsg("Please fill in all fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg("Password must be at least 6 characters long.");
       return;
     }
 
     setLoading(true);
     try {
-      const result = await login({ email, password });
+      // TODO: Implement actual signup API call
+      const result = await api.auth.signup({ email, password, name, role });
+      
+      // Placeholder for now
+      console.log("Signup attempt:", { email, password, name, role, activeTab });
 
       if (result.success) {
         // Always navigate to dashboard after successful login
-        navigate('/dashboard', { replace: true });
+        navigate('/login', { replace: true });
       } else {
-        setErrorMsg(result.error || "Failed to login. Please try again.");
+        setErrorMsg(result.error || "Failed to signup. Please try again.");
       }
+      
     } catch (err) {
       setErrorMsg(err?.message || "An unexpected error occurred.");
-      console.error("Login error:", err);
+      console.error("Signup error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleNavigateToSignUp = () => {
-    navigate("/signup");
-  }
+  const handleNavigateToSignIn = () => {
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      {/* Login Card */}
+      {/* Signup Card */}
       <div className="w-full max-w-md">
         <div className="bg-gray-900/90 backdrop-blur-sm border border-gray-700/50 rounded-lg p-8 shadow-2xl">
           {/* Header */}
@@ -109,21 +124,34 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Login Form */}
+          {/* Signup Form */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              handleLogin(e);
+              handleSignUp(e);
             }}
             action={undefined}
           >
             <div className="space-y-6">
+              {/* Name Input */}
+              <div>
+                <input
+                  name="name"
+                  autoComplete="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Full Name"
+                  className="w-full px-4 py-4 bg-gray-800/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all duration-200"
+                />
+              </div>
+
               {/* Email Input */}
               <div>
                 <input
                   name="email"
-                  autoComplete="username"
-                  type="text"
+                  autoComplete="email"
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Email"
@@ -135,7 +163,7 @@ const Login = () => {
               <div>
                 <input
                   name="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -144,6 +172,17 @@ const Login = () => {
                 />
               </div>
 
+              {/* Role Input */}
+              <Dropdown
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="Select Role"
+                options={[
+                    { label: "User", value: "User" },
+                    { label: "Admin", value: "Admin" },
+                ]}
+                />
+
               {/* Show error message */}
               {errorMsg && (
                 <div className="text-center p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
@@ -151,34 +190,34 @@ const Login = () => {
                 </div>
               )}
 
-              {/* SSO Link */}
-              <div className="text-center flex justify-center items-center mb-4 gap-2">
+              {/* SSO Link and Sign In */}
+              <div className="text-center flex justify-center items-center gap-2">
                 <button
                   type="button"
                   className="text-teal-400 hover:text-teal-300 text-sm transition-colors duration-200"
                 >
-                  Sign in with SSO
+                  Sign up with SSO
                 </button>
                 
                 {/* Vertical divider */}
                 <div className="h-4 w-px bg-gray-600"></div>
                 
                 <button
-                  onClick={handleNavigateToSignUp}
+                  onClick={handleNavigateToSignIn}
                   type="button"
                   className="text-teal-400 hover:text-teal-300 text-sm transition-colors duration-200"
                 >
-                  Sign up
+                  Sign in
                 </button>
               </div>
 
-              {/* Login Button */}
+              {/* Signup Button */}
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {loading ? "Signing in…" : "Log In"}
+                {loading ? "Creating Account…" : "Sign Up"}
               </button>
             </div>
           </form>
@@ -199,4 +238,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Signup;

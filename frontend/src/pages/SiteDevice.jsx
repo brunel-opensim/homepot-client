@@ -50,7 +50,7 @@ const sparkData = {
 };
 
 export default function SiteDeviceScreen() {
-  const { deviceId: id } = useParams();
+  const { siteId: id } = useParams();
 
   const WindowsIcon = () => (
     <img
