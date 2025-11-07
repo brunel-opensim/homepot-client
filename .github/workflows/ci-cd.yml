@@ -263,19 +263,19 @@ jobs:
     - name: Test Docker container with PostgreSQL
       run: |
         set -e
-        # Start services with docker-compose
+        # Start services with Docker Compose V2
         echo "Starting Docker services (PostgreSQL + HOMEPOT)..."
-        docker-compose up -d
+        docker compose up -d
         
         # Check if containers are running
         echo "Checking container status..."
-        docker-compose ps
+        docker compose ps
         
         # Wait for PostgreSQL to be ready
         echo "Waiting for PostgreSQL to be ready..."
         timeout=60
         elapsed=0
-        until docker-compose logs postgres | grep -q "database system is ready to accept connections" || [ $elapsed -ge $timeout ]; do
+        until docker compose logs postgres | grep -q "database system is ready to accept connections" || [ $elapsed -ge $timeout ]; do
           echo "Waiting for PostgreSQL... ${elapsed}s elapsed"
           sleep 2
           elapsed=$((elapsed + 2))
@@ -283,18 +283,18 @@ jobs:
         
         if [ $elapsed -ge $timeout ]; then
           echo "PostgreSQL failed to start within ${timeout}s!"
-          docker-compose logs postgres
+          docker compose logs postgres
           exit 1
         fi
         
         echo "PostgreSQL is ready!"
-        docker-compose logs postgres
+        docker compose logs postgres
         
         # Wait for HOMEPOT application to be ready
         echo "Waiting for HOMEPOT application to be ready..."
         sleep 20
         echo "Application logs:"
-        docker-compose logs homepot-client
+        docker compose logs homepot-client
         
         # Test health endpoint with retries
         echo "Testing health endpoint..."
@@ -307,9 +307,9 @@ jobs:
             if [ $i -eq 10 ]; then
               echo "All health check attempts failed!"
               echo "Final application logs:"
-              docker-compose logs homepot-client
+              docker compose logs homepot-client
               echo "PostgreSQL logs:"
-              docker-compose logs postgres
+              docker compose logs postgres
               exit 1
             fi
             sleep 10
@@ -322,7 +322,7 @@ jobs:
         
         # Cleanup
         echo "Stopping services..."
-        docker-compose down -v
+        docker compose down -v
 
   notify-consortium:
     name: Notify Consortium Partners
