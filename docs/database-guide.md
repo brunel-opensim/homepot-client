@@ -509,6 +509,134 @@ LEFT JOIN (
 EOF
 ```
 
+## User Management
+
+### Creating Test Users
+
+Users can be created through the API or directly in the database. For testing, you can create users with Python:
+
+#### Method 1: Using Python Script
+
+Create a file `create_user.py`:
+
+```python
+import asyncio
+import sys
+from pathlib import Path
+import bcrypt
+
+# Setup path
+backend_dir = Path(__file__).parent / "backend"
+sys.path.insert(0, str(backend_dir / "src"))
+
+from homepot.database import DatabaseService
+from homepot.models import User
+
+async def create_user(username, email, password, is_admin=False):
+    """Create a user with hashed password."""
+    # Hash password with bcrypt
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+    
+    # Create user in database
+    db = DatabaseService()
+    try:
+        async with db.get_session() as session:
+            from sqlalchemy import select
+            
+            # Check if user exists
+            result = await session.execute(
+                select(User).where(User.email == email)
+            )
+            if result.scalar_one_or_none():
+                print(f"User {email} already exists!")
+                return
+            
+            # Create new user
+            new_user = User(
+                username=username,
+                email=email,
+                hashed_password=hashed_password,
+                is_admin=is_admin,
+                is_active=True
+            )
+            session.add(new_user)
+            await session.commit()
+            print(f"Created user: {username} ({email})")
+    finally:
+        await db.close()
+
+# Run from project root
+asyncio.run(create_user("testuser", "test@homepot.com", "Test123!", is_admin=True))
+```
+
+Run it:
+```bash
+cd backend  # Important: run from backend directory for .env loading
+python ../create_user.py
+```
+
+#### Method 2: Using API Signup Endpoint
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "testuser",
+    "email": "test@homepot.com",
+    "password": "Test123!",
+    "is_admin": true
+  }'
+```
+
+#### Method 3: Direct SQL (Not Recommended)
+
+**Warning:** Direct SQL bypasses password hashing. Only use for understanding schema.
+
+```sql
+-- View users
+SELECT id, username, email, is_admin, is_active, created_at 
+FROM users;
+
+-- Check password hash format
+SELECT id, username, LEFT(hashed_password, 30) as hash_sample
+FROM users;
+```
+
+### Viewing Users
+
+```bash
+# Using psql
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db -c "
+  SELECT id, username, email, is_admin, is_active, created_at 
+  FROM users 
+  ORDER BY created_at DESC;
+"
+
+# Using query helper script
+./scripts/query-db.sh users
+```
+
+### Password Security
+
+HOMEPOT uses **bcrypt** for password hashing:
+
+- **Hashed passwords** are stored (e.g., `$2b$12$gC6leMKvDICuZ...`)
+- **Never** stored in plain text
+- **Cannot be reversed** to see original password
+- **Secure** even if database is compromised
+
+Example hashed password structure:
+```
+$2b$12$gC6leMKvDICuZ6IsAxypFuelJgy8B85ropxHhOFpsJR...
+│   │  │
+│   │  └─ Salt (22 chars)
+│   └──── Cost factor (2^12 iterations)
+└──────── Algorithm (bcrypt)
+```
+
 ### Custom Queries
 
 ```python

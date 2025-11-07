@@ -163,6 +163,11 @@ certificates/
 secrets.json
 private.json
 
+# Scripts directory - only bash scripts (.sh) should be committed
+# Python scripts (.py) in scripts/ are for local use only
+scripts/*.py
+scripts/**/*.py
+
 # Docker
 docker-compose.override.yml
 
