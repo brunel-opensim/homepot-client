@@ -32,7 +32,7 @@ class CreateDeviceRequest(BaseModel):
     class Config:
         """Pydantic model configuration with example data."""
 
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "device_id": "pos-terminal-001",
                 "name": "POS Terminal 1",
