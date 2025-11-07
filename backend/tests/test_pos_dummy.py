@@ -37,8 +37,12 @@ class TestPOSDummy:
     """
 
     @pytest.fixture(scope="class")
-    def test_client(self):
-        """Create a test client for the FastAPI application."""
+    def test_client(self, temp_db):
+        """Create a test client for the FastAPI application.
+        
+        Uses temp_db fixture to ensure SQLite database is configured
+        before the FastAPI app starts.
+        """
         with TestClient(app) as client:
             yield client
 
@@ -59,7 +63,8 @@ class TestPOSDummy:
             Base.metadata.create_all(engine)
 
             # Set environment variable for test database
-            os.environ["HOMEPOT_DATABASE_URL"] = f"sqlite:///{db_path}"
+            # Use DATABASE__URL (nested delimiter for Pydantic)
+            os.environ["DATABASE__URL"] = f"sqlite:///{db_path}"
 
             yield db_path
         finally:
@@ -74,8 +79,8 @@ class TestPOSDummy:
                     time.sleep(0.1)
 
                 # Clean up environment variable
-                if "HOMEPOT_DATABASE_URL" in os.environ:
-                    del os.environ["HOMEPOT_DATABASE_URL"]
+                if "DATABASE__URL" in os.environ:
+                    del os.environ["DATABASE__URL"]
 
                 # Try to remove the file with Windows-specific retry logic
                 if os.path.exists(db_path):
