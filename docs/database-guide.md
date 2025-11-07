@@ -90,8 +90,8 @@ Database connections are configured in `backend/.env`:
 # PostgreSQL (Production & Development)
 DATABASE__URL=postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db
 
-# For testing, you can use SQLite
-TEST_DATABASE_URL=sqlite+aiosqlite:///./data/homepot_test.db
+# For testing, tests use in-memory SQLite databases automatically
+# No TEST_DATABASE_URL configuration needed
 ```
 
 ## Database Management
@@ -136,33 +136,24 @@ psql -h localhost -U homepot_user -d homepot_db < backup.sql
 ./scripts/init-postgresql.sh
 ```
 
-```bash
-# Remove current database
-rm data/homepot.db
-
-# Restore from Git (if tracked)
-git checkout data/homepot.db
-
-# Or restore from backup
-cp data/homepot_backup.db data/homepot.db
-```
-
 ### Environment-Specific Databases
 
 #### Development
-- **File**: `data/homepot.db`
+- **Type**: PostgreSQL
+- **Database**: `homepot_db`
+- **Location**: `/var/lib/postgresql/16/main/`
 - **Purpose**: Demo data and development testing
-- **Contains**: 14 sites, 30 devices, sample jobs
+- **Contains**: 3 sites, 12 devices, 1 test user
 
 #### Testing
-- **File**: `data/homepot_test.db`
+- **Type**: SQLite (in-memory, temporary)
 - **Purpose**: Automated test isolation
-- **Contains**: Clean test data, reset per test run
+- **Contains**: Clean test data, created and destroyed per test run
 
 #### Production
-- **Type**: PostgreSQL (recommended)
+- **Type**: PostgreSQL
 - **Purpose**: Live deployment
-- **Configuration**: Via `DATABASE_URL` environment variable
+- **Configuration**: Via `DATABASE__URL` environment variable
 
 ## Testing
 
@@ -797,41 +788,47 @@ engine = create_engine(
 
 ### Common Issues
 
-**Database locked error:**
+**Cannot connect to database:**
 ```bash
-# Solution: Close all connections and restart
-pkill -f "homepot"
-rm data/homepot.db-wal data/homepot.db-shm 2>/dev/null
+# Check if PostgreSQL is running
+sudo systemctl status postgresql
+
+# Restart PostgreSQL if needed
+sudo systemctl restart postgresql
+
+# Verify connection settings
+psql -h localhost -U homepot_user -d homepot_db
 ```
 
-**Missing database file:**
+**Database doesn't exist:**
 ```bash
-# Solution: Restore from Git or backup
-git checkout data/homepot.db
-# or
-cp data/homepot_backup.db data/homepot.db
+# Solution: Initialize the database
+./scripts/init-postgresql.sh
 ```
 
 **Permission errors:**
 ```bash
-# Solution: Fix file permissions
-chmod 644 data/homepot.db
-chmod 755 data/
+# Solution: Verify PostgreSQL user permissions
+sudo -u postgres psql -c "\du homepot_user"
+
+# Re-grant permissions if needed
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE homepot_db TO homepot_user;"
 ```
 
 ### Performance Tips
 
 - Use indexes for frequently queried fields
-- Monitor query performance with `EXPLAIN QUERY PLAN`
-- Consider connection pooling for high-load scenarios
-- Regular database maintenance and analysis
+- Monitor query performance with `EXPLAIN ANALYZE`
+- Consider connection pooling for high-load scenarios (already configured in SQLAlchemy)
+- Regular database maintenance: `VACUUM ANALYZE`
+- Monitor PostgreSQL logs: `/var/log/postgresql/`
 
 ### Support
 
 For database-related issues:
-1. Check the logs in `logs/` directory
-2. Verify database file permissions
-3. Test with a fresh database copy
+1. Check PostgreSQL logs: `/var/log/postgresql/postgresql-16-main.log`
+2. Verify database configuration in `backend/.env`
+3. Test with a fresh database: `./scripts/init-postgresql.sh`
 4. Review configuration settings
 5. Check environment variables
 

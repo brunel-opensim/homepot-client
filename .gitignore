@@ -182,17 +182,9 @@ temp/
 tmp/
 logs/
 
-# Database files - DON'T track runtime databases
-# The database is created by scripts/init-database.sh
-# Tracking database files causes merge conflicts every time the DB is modified
-data/*.db
-data/*.db-wal
-data/*.db-shm
-data/*.tmp
-
-# Keep backups directory structure but not the backup files
-data/backups/*.db
-!data/backups/.gitkeep
+# PostgreSQL - Database managed by system service
+# Database location: /var/lib/postgresql/16/main/
+# Use pg_dump for backups (see docs/database-guide.md)
 
 # GitHub Workflows - Downloaded artifacts and reports
 dependency-health-report-*/

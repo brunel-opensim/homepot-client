@@ -14,8 +14,8 @@ class DatabaseSettings(BaseSettings):
     """Database configuration settings."""
 
     url: str = Field(
-        default="sqlite:///./data/homepot.db",
-        description="Database URL (SQLite or PostgreSQL)",
+        default="postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db",
+        description="Database URL (PostgreSQL)",
     )
     echo_sql: bool = Field(default=False, description="Enable SQL query logging")
     pool_size: int = Field(default=5, description="Database connection pool size")
