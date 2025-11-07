@@ -1,20 +1,45 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: homepot-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-homepot_db}
+      - POSTGRES_USER=${POSTGRES_USER:-homepot_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-homepot_dev_password}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homepot_user} -d ${POSTGRES_DB:-homepot_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - homepot-network
+
   homepot-client:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: homepot-client
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "${HOMEPOT_PORT:-8000}:8000"
     environment:
       - HOMEPOT_ENV=${HOMEPOT_ENV:-production}
       - PYTHONPATH=/app
       - HOMEPOT_DEBUG=${HOMEPOT_DEBUG:-false}
+      - DATABASE__URL=postgresql://${POSTGRES_USER:-homepot_user}:${POSTGRES_PASSWORD:-homepot_dev_password}@postgres:5432/${POSTGRES_DB:-homepot_db}
     volumes:
-      # Always mount data and logs
-      - ${HOMEPOT_DATA_DIR:-./data}:/app/data
+      # Always mount logs
       - ${HOMEPOT_LOGS_DIR:-./logs}:/app/logs
       # Mount source code in development mode only
       - ${HOMEPOT_SOURCE_MOUNT:-/dev/null}:/app/src:ro
@@ -32,7 +57,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     networks:
       - homepot-network
 
@@ -52,5 +77,5 @@ networks:
     driver: bridge
 
 volumes:
-  homepot-data:
+  postgres-data:
   homepot-logs:

@@ -260,48 +260,56 @@ jobs:
         cache-to: type=gha,mode=max
         load: true
 
-    - name: Test Docker container
+    - name: Test Docker container with PostgreSQL
       run: |
         set -e
-        # Start container in background
-        echo "Starting Docker container..."
-        container_id=$(docker run -d --name test-container -p 8000:8000 homepot-client:latest)
-        echo "Container ID: $container_id"
+        # Start services with docker-compose
+        echo "Starting Docker services (PostgreSQL + HOMEPOT)..."
+        docker-compose up -d
         
-        # Check if container is running
+        # Check if containers are running
         echo "Checking container status..."
-        docker ps -a
+        docker-compose ps
         
-        # Wait a bit and check logs early
-        echo "Waiting 10 seconds and checking initial logs..."
-        sleep 10
-        echo "Initial container logs:"
-        docker logs test-container || echo "No logs yet"
+        # Wait for PostgreSQL to be ready
+        echo "Waiting for PostgreSQL to be ready..."
+        timeout=60
+        elapsed=0
+        until docker-compose logs postgres | grep -q "database system is ready to accept connections" || [ $elapsed -ge $timeout ]; do
+          echo "Waiting for PostgreSQL... ${elapsed}s elapsed"
+          sleep 2
+          elapsed=$((elapsed + 2))
+        done
         
-        # Wait for container to be ready (total wait: 60s)
-        echo "Waiting additional 50 seconds for full initialization..."
-        sleep 50
+        if [ $elapsed -ge $timeout ]; then
+          echo "PostgreSQL failed to start within ${timeout}s!"
+          docker-compose logs postgres
+          exit 1
+        fi
         
-        # Show container status again
-        echo "Final container status:"
-        docker ps -a
+        echo "PostgreSQL is ready!"
+        docker-compose logs postgres
         
-        # Show full logs before testing
-        echo "Full container logs before testing:"
-        docker logs test-container
+        # Wait for HOMEPOT application to be ready
+        echo "Waiting for HOMEPOT application to be ready..."
+        sleep 20
+        echo "Application logs:"
+        docker-compose logs homepot-client
         
         # Test health endpoint with retries
         echo "Testing health endpoint..."
-        for i in {1..5}; do
+        for i in {1..10}; do
           if curl -f http://localhost:8000/health; then
             echo "Health check passed!"
             break
           else
-            echo "Health check failed, attempt $i/5, waiting 10s..."
-            if [ $i -eq 5 ]; then
+            echo "Health check failed, attempt $i/10, waiting 10s..."
+            if [ $i -eq 10 ]; then
               echo "All health check attempts failed!"
-              echo "Final container logs:"
-              docker logs test-container
+              echo "Final application logs:"
+              docker-compose logs homepot-client
+              echo "PostgreSQL logs:"
+              docker-compose logs postgres
               exit 1
             fi
             sleep 10
@@ -313,8 +321,8 @@ jobs:
         curl -f http://localhost:8000/ || exit 1
         
         # Cleanup
-        docker stop test-container
-        docker rm test-container
+        echo "Stopping services..."
+        docker-compose down -v
 
   notify-consortium:
     name: Notify Consortium Partners
