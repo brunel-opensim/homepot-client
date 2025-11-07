@@ -994,8 +994,8 @@ validate_tests() {
     # Run database and model tests (essential for our database organization)
     if [[ " ${found_tests[*]} " =~ " test_database.py " ]]; then
         echo -n "    Database tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_database.py -q --no-cov"
-        if python -m pytest backend/tests/test_database.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_database.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_database.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1006,8 +1006,8 @@ validate_tests() {
     
     if [[ " ${found_tests[*]} " =~ " test_models.py " ]]; then
         echo -n "    Model tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_models.py -q --no-cov"
-        if python -m pytest backend/tests/test_models.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_models.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_models.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1019,8 +1019,8 @@ validate_tests() {
     # Run configuration tests
     if [[ " ${found_tests[*]} " =~ " test_config.py " ]]; then
         echo -n "    Configuration tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_config.py -q --no-cov"
-        if python -m pytest backend/tests/test_config.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_config.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_config.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1032,8 +1032,8 @@ validate_tests() {
     # Run CLI tests
     if [[ " ${found_tests[*]} " =~ " test_cli.py " ]]; then
         echo -n "    CLI tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_cli.py -q --no-cov"
-        if python -m pytest backend/tests/test_cli.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_cli.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_cli.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1045,8 +1045,8 @@ validate_tests() {
     # Run client tests
     if [[ " ${found_tests[*]} " =~ " test_client.py " ]]; then
         echo -n "    Client tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_client.py -q --no-cov"
-        if python -m pytest backend/tests/test_client.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_client.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_client.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1061,8 +1061,8 @@ validate_tests() {
     # FCM (Firebase Cloud Messaging) - Linux/Android
     if [ -f "backend/tests/test_fcm_linux.py" ]; then
         echo -n "    FCM (Linux/Android) tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_fcm_linux.py -q --no-cov"
-        if python -m pytest backend/tests/test_fcm_linux.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_fcm_linux.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_fcm_linux.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1074,8 +1074,8 @@ validate_tests() {
     # WNS (Windows Notification Service)
     if [ -f "backend/tests/test_wns_windows.py" ]; then
         echo -n "    WNS (Windows) tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_wns_windows.py -q --no-cov"
-        if python -m pytest backend/tests/test_wns_windows.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_wns_windows.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_wns_windows.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1087,8 +1087,8 @@ validate_tests() {
     # APNs (Apple Push Notification service)
     if [ -f "backend/tests/test_apns_apple.py" ]; then
         echo -n "    APNs (Apple) tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_apns_apple.py -q --no-cov"
-        if python -m pytest backend/tests/test_apns_apple.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_apns_apple.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_apns_apple.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1100,8 +1100,8 @@ validate_tests() {
     # Web Push (Modern Browsers)
     if [ -f "backend/tests/test_web_push.py" ]; then
         echo -n "    Web Push (Browsers) tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_web_push.py -q --no-cov"
-        if python -m pytest backend/tests/test_web_push.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_web_push.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_web_push.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
@@ -1113,8 +1113,8 @@ validate_tests() {
     # MQTT (IoT/Industrial)
     if [ -f "backend/tests/test_mqtt_push.py" ]; then
         echo -n "    MQTT (IoT/Industrial) tests: "
-        log_verbose "Running: python -m pytest backend/tests/test_mqtt_push.py -q --no-cov"
-        if python -m pytest backend/tests/test_mqtt_push.py -q --no-cov >/dev/null 2>&1; then
+        log_verbose "Running: cd backend && python -m pytest tests/test_mqtt_push.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_mqtt_push.py -q --no-cov) >/dev/null 2>&1; then
             echo -e "${GREEN}Passed${NC}"
         else
             echo -e "${RED}Failed${NC}"
