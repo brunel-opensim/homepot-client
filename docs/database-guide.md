@@ -2,7 +2,9 @@
 
 ## Overview
 
-The HOMEPOT system uses SQLite for development and testing, with PostgreSQL support for production deployments. This guide covers database setup, management, and usage patterns for the POS management system.
+The HOMEPOT system uses **PostgreSQL** for production-ready performance and scalability. This guide covers database setup, management, and usage patterns for the POS management system.
+
+> **Migration Note:** HOMEPOT previously supported SQLite but has migrated to PostgreSQL for better async support, improved performance, and production readiness. See [PostgreSQL Migration Guide](postgresql-migration-complete.md) for details.
 
 ## Database Structure
 
@@ -36,23 +38,30 @@ Jobs (1) ←→ (Many) Audit Logs
    cd homepot-client
    ```
 
-2. **Activate Environment**
+2. **Install PostgreSQL**
    ```bash
-   source venv/bin/activate  # Linux/Mac
-   # or
-   venv\Scripts\activate     # Windows
+   # Ubuntu/Debian
+   sudo apt install postgresql postgresql-contrib
+   
+   # macOS
+   brew install postgresql@16
    ```
 
-3. **Database Ready!**
-   The demo database (`data/homepot.db`) contains:
-   - 14 restaurant sites
-   - 30 POS terminals
-   - Recent job history
-   - Health monitoring data
+3. **Initialize Database**
+   ```bash
+   ./scripts/init-postgresql.sh
+   ```
+   
+   This creates:
+   - PostgreSQL database `homepot_db`
+   - 3 demo sites
+   - 12 POS terminals
+   - User authentication tables
 
 4. **Test Connection**
    ```bash
-   python -c "from src.homepot.database import get_db; print('Database connected!')"
+   export PGPASSWORD='homepot_dev_password'
+   psql -h localhost -U homepot_user -d homepot_db -c "SELECT COUNT(*) FROM sites;"
    ```
 
 ## Database Organization
@@ -61,31 +70,28 @@ Jobs (1) ←→ (Many) Audit Logs
 
 ```
 homepot-client/
-├── data/                         # Database files
-│   ├── homepot.db                # Main development database
-│   ├── homepot_test.db           # Test database (auto-created)
-│   └── migrations/               # Schema changes (future)
-├── backend/src/homepot/
-│   ├── database.py               # Database connection
-│   ├── models.py                 # SQLAlchemy models
-│   └── config.py                 # Database configuration
-└── backend/tests/
-    └── test_database.py          # Database tests
+├── backend/
+│   ├── .env                      # Database connection string
+│   ├── .env.example              # Example configuration
+│   └── src/homepot/
+│       ├── database.py           # Async database connection
+│       ├── models.py             # SQLAlchemy models
+│       ├── config.py             # Configuration management
+│       └── app/db/database.py    # Sync database for API v1
+└── scripts/
+    └── init-postgresql.sh        # Database initialization
 ```
 
 ### Configuration
 
-Database connections are configured in `backend/src/homepot/config.py`:
+Database connections are configured in `backend/.env`:
 
-```python
-# Development (default)
-DATABASE_URL = "sqlite:///./data/homepot.db"
+```env
+# PostgreSQL (Production & Development)
+DATABASE__URL=postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db
 
-# Testing
-TEST_DATABASE_URL = "sqlite:///./data/homepot_test.db"
-
-# Production (environment variable)
-PRODUCTION_DATABASE_URL = os.getenv("DATABASE_URL")
+# For testing, you can use SQLite
+TEST_DATABASE_URL=sqlite+aiosqlite:///./data/homepot_test.db
 ```
 
 ## Database Management
@@ -95,25 +101,40 @@ PRODUCTION_DATABASE_URL = os.getenv("DATABASE_URL")
 #### View Database Contents
 
 ```bash
-# Using SQLite command line
-sqlite3 data/homepot.db
-.tables                    # List all tables
-.schema sites             # Show table structure
-SELECT * FROM sites LIMIT 5;  # View sample data
-.quit
+# Using psql command line
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db
+
+# List all tables
+\dt
+
+# Show table structure
+\d sites
+
+# Run queries
+SELECT * FROM sites;
+
+# Exit
+\q
 ```
 
 #### Backup Database
 
 ```bash
-# Create backup
-cp data/homepot.db data/homepot_backup_$(date +%Y%m%d).db
+# Create SQL dump
+export PGPASSWORD='homepot_dev_password'
+pg_dump -h localhost -U homepot_user homepot_db > backup_$(date +%Y%m%d).sql
 
-# Or create SQL dump
-sqlite3 data/homepot.db .dump > data/homepot_backup.sql
+# Restore from backup
+psql -h localhost -U homepot_user -d homepot_db < backup.sql
 ```
 
 #### Reset to Demo Data
+
+```bash
+# Drop and recreate database with demo data
+./scripts/init-postgresql.sh
+```
 
 ```bash
 # Remove current database
@@ -335,19 +356,19 @@ if __name__ == "__main__":
 python scripts/add_bulk_data.py
 ```
 
-#### Method 3: Modify init-database.sh
+#### Method 3: Modify init-postgresql.sh
 
 For permanent demo data changes, edit the initialization script:
 
 ```bash
-# Edit scripts/init-database.sh
-nano scripts/init-database.sh
+# Edit scripts/init-postgresql.sh
+nano scripts/init-postgresql.sh
 
 # Find the section that creates demo sites and devices
 # Add your custom sites/devices there
 
 # Then recreate the database
-./scripts/init-database.sh
+./scripts/init-postgresql.sh
 ```
 
 #### Method 4: Direct SQL (Advanced)
@@ -355,7 +376,8 @@ nano scripts/init-database.sh
 For quick testing, you can insert data directly:
 
 ```bash
-sqlite3 data/homepot.db
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db
 ```
 
 ```sql
@@ -429,7 +451,7 @@ async def create_large_dataset():
             print(f"  ✓ Created device: {device.name}")
             device_counter += 1
     
-    print(f"\n✅ Successfully created 10 sites and 50 devices!")
+    print(f"\nSuccessfully created 10 sites and 50 devices!")
     print(f"Total in database: {site_num} sites, {device_counter-1} devices")
 
 if __name__ == "__main__":
@@ -466,16 +488,17 @@ Use the built-in Swagger UI for interactive data creation:
 After adding data, verify the counts:
 
 ```bash
-# Quick check
+# Quick check via API
 curl http://localhost:8000/sites | python3 -m json.tool | grep -c "site_id"
 curl http://localhost:8000/devices | python3 -m json.tool | grep -c "device_id"
 
-# Detailed check with SQLite
-sqlite3 data/homepot.db "
+# Detailed check with psql
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db << 'EOF'
 SELECT 
   COUNT(DISTINCT s.id) as total_sites,
   COUNT(d.id) as total_devices,
-  ROUND(AVG(device_count), 2) as avg_devices_per_site
+  ROUND(AVG(device_count)::numeric, 2) as avg_devices_per_site
 FROM sites s
 LEFT JOIN devices d ON s.id = d.site_id
 LEFT JOIN (
@@ -483,7 +506,7 @@ LEFT JOIN (
   FROM devices 
   GROUP BY site_id
 ) dc ON s.id = dc.site_id;
-"
+EOF
 ```
 
 ### Custom Queries
@@ -531,11 +554,59 @@ alembic downgrade -1
 ```yaml
 # docker-compose.yml
 services:
-  homepot-client:
-    volumes:
-      - ./data:/app/data        # Database persistence
+  db:
+    image: postgres:16
     environment:
-      - HOMEPOT_DATABASE_URL=sqlite:///app/data/homepot.db
+      - POSTGRES_DB=homepot
+      - POSTGRES_USER=homepot_user
+      - POSTGRES_PASSWORD=homepot_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  homepot-api:
+    depends_on:
+      - db
+    environment:
+      - DATABASE__URL=postgresql://homepot_user:homepot_password@db:5432/homepot
+
+volumes:
+  postgres_data:
+```
+
+### Using PostgreSQL in Docker
+
+```bash
+# Start PostgreSQL container
+docker-compose up -d db
+
+# Access database
+docker-compose exec db psql -U homepot_user -d homepot
+
+# View logs
+docker-compose logs db
+```
+
+## Security Considerations
+
+### Development
+- Use local PostgreSQL with development credentials
+- Development database accessible only on localhost
+- Demo data is non-sensitive
+
+### Production
+- Use strong passwords for PostgreSQL
+- Enable SSL/TLS for database connections
+- Regular backups and monitoring
+- Network-level access controls
+- Environment-based configuration
+
+### Best Practices
+
+```python
+# Always use environment variables for sensitive data
+DATABASE__URL = os.getenv("DATABASE__URL")  # From .env file
+```
+```
 ```
 
 ### Production PostgreSQL
@@ -559,9 +630,9 @@ services:
 ## Security Considerations
 
 ### Development
-- SQLite database is included in Git for demo purposes
-- Contains only sample/demo data
-- No sensitive information stored
+- Use local PostgreSQL with development credentials
+- Development database accessible only on localhost
+- Demo data is non-sensitive
 
 ### Production
 - Use PostgreSQL with proper authentication
@@ -572,8 +643,15 @@ services:
 ### Best Practices
 
 ```python
+### Best Practices
+
+```python
 # Always use environment variables for sensitive data
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/homepot.db")
+from homepot.config import get_settings
+
+settings = get_settings()
+db_url = settings.database.url  # From DATABASE__URL
+```
 
 # Use connection pooling for production
 engine = create_engine(

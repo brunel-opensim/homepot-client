@@ -26,8 +26,8 @@ Before starting API testing:
 
 3. **Database initialized** with seed data:
    ```bash
-   cd backend
-   python -m homepot.database
+   # From project root
+   ./scripts/init-postgresql.sh
    ```
 
 ## Testing Approach
@@ -898,7 +898,8 @@ curl -X GET http://localhost:8000/health
 curl -s http://localhost:8000/agents | jq '.agents | length'
 
 # Verify database has devices
-sqlite3 backend/data/homepot.db "SELECT COUNT(*) FROM devices;"
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db -c "SELECT COUNT(*) FROM devices;"
 
 # Check server startup logs for agent initialization
 ```

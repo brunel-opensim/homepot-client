@@ -78,7 +78,7 @@ Push notification integrations for different platforms:
 HOMEPOT is a complete **four-phase enterprise POS management system**:
 
 ### Phase 1: Core Infrastructure
-- SQLite/PostgreSQL database with comprehensive models
+- PostgreSQL database with comprehensive models
 - Complete CRUD operations for sites, devices, jobs, and users
 - Robust error handling and transaction management
 
