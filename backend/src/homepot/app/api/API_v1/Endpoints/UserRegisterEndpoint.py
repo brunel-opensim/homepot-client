@@ -117,9 +117,12 @@ def assign_role(
     db: Session = Depends(get_db),
     admin: Dict = Depends(require_role("Admin")),
 ) -> dict:
-    """Assign Role Endpoint - Admin Only (DISABLED - role field not in current schema)."""
+    """Assign Role - Admin Only (DISABLED - not in schema)."""
     # TODO: Add role/permission system to schema
     raise HTTPException(
         status_code=501,
-        detail="Role assignment not implemented in current schema. Use is_admin field instead."
+        detail=(
+            "Role assignment not implemented in current schema. "
+            "Use is_admin field instead."
+        ),
     )

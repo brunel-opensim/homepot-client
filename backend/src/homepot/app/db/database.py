@@ -1,7 +1,7 @@
 """Database connection and session management for the HomePot Client application.
 
-This module provides synchronous database access using the unified configuration system.
-Supports both SQLite (development/testing) and PostgreSQL (production) via DATABASE__URL.
+This module provides synchronous database access using unified configuration.
+Supports both SQLite (development/testing) and PostgreSQL (production).
 """
 
 import logging
@@ -16,9 +16,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 
 # Add parent directory to path to import homepot.config
+# This is necessary for the synchronous API layer to access main config
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from homepot.config import get_settings
+from homepot.config import get_settings  # noqa: E402
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,30 +33,31 @@ database_url = settings.database.url
 if database_url.startswith("sqlite+aiosqlite://"):
     database_url = database_url.replace("sqlite+aiosqlite://", "sqlite:///")
 elif database_url.startswith("postgresql+asyncpg://"):
-    database_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+    database_url = database_url.replace(
+        "postgresql+asyncpg://", "postgresql+psycopg2://"
+    )
 
-logger.info(f"Configuring database connection: {database_url.split('@')[0] if '@' in database_url else database_url.split('///')[0]}")
+# Log database connection (hide credentials)
+db_display = (
+    database_url.split("@")[0] if "@" in database_url else database_url.split("///")[0]
+)
+logger.info(f"Configuring database connection: {db_display}")
 
 try:
     # Create engine with database-specific configuration
     if database_url.startswith("sqlite"):
         engine = create_engine(
-            database_url,
-            connect_args={"check_same_thread": False},
-            pool_pre_ping=True
+            database_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
         )
         logger.info("Using SQLite database (sync)")
     elif database_url.startswith("postgresql"):
         engine = create_engine(
-            database_url,
-            pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10
+            database_url, pool_pre_ping=True, pool_size=5, max_overflow=10
         )
         logger.info("Using PostgreSQL database (sync)")
     else:
         raise ValueError(f"Unsupported database URL: {database_url}")
-    
+
     SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
     Base = declarative_base()
     logger.info("Database engine created successfully.")
