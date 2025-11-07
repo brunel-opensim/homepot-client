@@ -22,7 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 
-def utc_now():
+def utc_now() -> datetime:
     """Return current UTC time using timezone-aware datetime.
 
     Replaces deprecated datetime.utcnow() with datetime.now(timezone.utc).
