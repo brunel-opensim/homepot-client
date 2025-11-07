@@ -1,8 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
-
-const AuthContext = createContext(null);
+import { AuthContext } from './auth-context';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -10,12 +9,16 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
 
-  // Check if token exists and is valid on mount
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  const handleSessionExpiry = useCallback(() => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('token_expiry');
+    localStorage.removeItem('user_data');
+    setIsAuthenticated(false);
+    setUser(null);
+    navigate('/login', { state: { message: 'Session expired. Please login again.' } });
+  }, [navigate]);
 
-  const checkAuth = () => {
+  const checkAuth = useCallback(() => {
     const token = localStorage.getItem('auth_token');
     const tokenExpiry = localStorage.getItem('token_expiry');
     const userData = localStorage.getItem('user_data');
@@ -25,10 +28,7 @@ export const AuthProvider = ({ children }) => {
       const now = Date.now();
       
       if (now < expiryTime) {
-        // Token is still valid
         setIsAuthenticated(true);
-        
-        // Restore user data
         if (userData) {
           try {
             setUser(JSON.parse(userData));
@@ -36,31 +36,21 @@ export const AuthProvider = ({ children }) => {
             console.error('Failed to parse user data:', e);
           }
         }
-        
-        // Set up auto-logout when token expires
         const timeUntilExpiry = expiryTime - now;
-        setTimeout(() => {
-          handleSessionExpiry();
-        }, timeUntilExpiry);
+        setTimeout(() => handleSessionExpiry(), timeUntilExpiry);
       } else {
-        // Token expired
         handleSessionExpiry();
       }
     } else {
       setIsAuthenticated(false);
     }
-    
     setLoading(false);
-  };
+  }, [handleSessionExpiry]);
 
-  const handleSessionExpiry = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('token_expiry');
-    localStorage.removeItem('user_data');
-    setIsAuthenticated(false);
-    setUser(null);
-    navigate('/login', { state: { message: 'Session expired. Please login again.' } });
-  };
+  // Check if token exists and is valid on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const login = async (credentials) => {
     try {
@@ -130,12 +120,4 @@ export const AuthProvider = ({ children }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
 };
