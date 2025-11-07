@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import Dropdown from '@/components/ui/dropdown';
 import api from '@/services/api';
+import { useAuth } from '@/hooks/useAuth';
 
 const Signup = () => {
   const [activeTab, setActiveTab] = useState('ENGINEER');
