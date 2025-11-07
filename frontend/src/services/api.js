@@ -8,7 +8,7 @@
 import axios from 'axios';
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.0.253:8000';
 const API_VERSION = 'v1';
 const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
 
@@ -21,11 +21,29 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor - add auth token if available
+// Request interceptor - add auth token if available and check expiry
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
-    if (token) {
+    const tokenExpiry = localStorage.getItem('token_expiry');
+
+    if (token && tokenExpiry) {
+      const expiryTime = parseInt(tokenExpiry, 10);
+      const now = Date.now();
+
+      // Check if token is expired
+      if (now >= expiryTime) {
+        // Token expired, clear storage and reject request
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('token_expiry');
+        localStorage.removeItem('user_data');
+
+        // Redirect to login
+        window.location.href = '/login';
+
+        return Promise.reject(new Error('Session expired'));
+      }
+
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -47,7 +65,13 @@ apiClient.interceptors.response.use(
         case 401:
           // Unauthorized - clear token and redirect to login
           localStorage.removeItem('auth_token');
-          window.location.href = '/login';
+          localStorage.removeItem('token_expiry');
+          localStorage.removeItem('user_data');
+
+          // Only redirect if not already on login page
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
           break;
         case 403:
           console.error('Forbidden:', data.detail || 'Access denied');
@@ -85,17 +109,17 @@ const api = {
      */
     signup: async (userData) => {
       const response = await apiClient.post('/auth/signup', userData);
+      // Return the full response to preserve the structure
       return response.data;
     },
 
     /**
      * User login
+     * Returns: { success: true, message: "Login successful", data: { access_token, username, role } }
      */
     login: async (credentials) => {
       const response = await apiClient.post('/auth/login', credentials);
-      if (response.data.access_token) {
-        localStorage.setItem('auth_token', response.data.access_token);
-      }
+      // Return the full response structure from your API
       return response.data;
     },
 
@@ -104,7 +128,8 @@ const api = {
      */
     logout: () => {
       localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      localStorage.removeItem('token_expiry');
+      localStorage.removeItem('user_data');
     },
   },
 
@@ -151,7 +176,7 @@ const api = {
      * List all sites
      */
     list: async () => {
-      const response = await apiClient.get('/sites');
+      const response = await apiClient.get('/sites/sites');
       return response.data;
     },
 
@@ -159,7 +184,7 @@ const api = {
      * Get site details
      */
     get: async (siteId) => {
-      const response = await apiClient.get(`/sites/${siteId}`);
+      const response = await apiClient.get(`/sites/sites/${siteId}`);
       return response.data;
     },
 
@@ -167,7 +192,7 @@ const api = {
      * Create new site
      */
     create: async (siteData) => {
-      const response = await apiClient.post('/sites', siteData);
+      const response = await apiClient.post('/sites/sites', siteData);
       return response.data;
     },
   },
@@ -355,7 +380,17 @@ export const apiHelpers = {
    * Check if user is authenticated
    */
   isAuthenticated: () => {
-    return !!localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
+    const tokenExpiry = localStorage.getItem('token_expiry');
+
+    if (!token || !tokenExpiry) {
+      return false;
+    }
+
+    const expiryTime = parseInt(tokenExpiry, 10);
+    const now = Date.now();
+
+    return now < expiryTime;
   },
 
   /**
@@ -363,6 +398,19 @@ export const apiHelpers = {
    */
   getAuthToken: () => {
     return localStorage.getItem('auth_token');
+  },
+
+  /**
+   * Get time remaining until session expires (in milliseconds)
+   */
+  getSessionTimeRemaining: () => {
+    const tokenExpiry = localStorage.getItem('token_expiry');
+    if (!tokenExpiry) return 0;
+
+    const expiryTime = parseInt(tokenExpiry, 10);
+    const now = Date.now();
+
+    return Math.max(0, expiryTime - now);
   },
 
   /**

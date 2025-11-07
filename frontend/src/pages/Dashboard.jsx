@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle, Apple, Package, Monitor, CheckCircle } from 'lucide-react';
+import api from '@/services/api';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -11,6 +12,7 @@ import {
   LineElement,
   Tooltip,
 } from 'chart.js';
+import { useNavigate } from 'react-router-dom';
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
@@ -44,32 +46,6 @@ export default function Dashboard() {
       style={{ filter: 'invert(80%) grayscale(100%)' }}
     />
   );
-  const sites = [
-    {
-      site: 'Site 1',
-      online: 5,
-      alert: '5m ago',
-      icon: <CheckCircle className="w-5 h-5 text-green-400" />,
-    },
-    {
-      site: 'Site 3',
-      online: 4,
-      alert: '3m ago',
-      icon: <XCircle className="w-5 h-5 text-red-500" />,
-    },
-    {
-      site: 'Site 4',
-      online: 7,
-      alert: '20m ago',
-      icon: <AppleIcon />,
-    },
-    {
-      site: 'Site 5',
-      online: 3,
-      alert: '—',
-      icon: <Package className="w-5 h-5 text-yellow-500" />,
-    },
-  ];
 
   const WindowsIcon = () => (
     <img
@@ -82,26 +58,45 @@ export default function Dashboard() {
       }}
     />
   );
-  // const sitesNew = [
-  //   {
-  //     site: "Site 1",
-  //     online: 5,
-  //     alert: "5m ago",
-  //     icon: <CheckCircle className="w-5 h-5 text-green-400" />,
-  //   },
-  //   {
-  //     site: "Site 2",
-  //     online: 8,
-  //     alert: "12m ago",
-  //     icon: <WindowsIcon className="text-blue-400" />,
-  //   },
-  // {
-  //     site: "Site 3",
-  //     online: 8,
-  //     alert: "12m ago",
-  //     icon: <WindowsIcon className="text-blue-400" />,
-  //   },
-  // ];
+
+  const [sites, setSites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchSites = async () => {
+      try {
+        const data = await api.sites.list();
+        const fetchedSites = data?.sites || [];
+
+        const icons = [<WindowsIcon />, <AppleIcon />]; // rotate between these
+
+        const sitesWithDefaults = fetchedSites.map((site, index) => ({
+          site: site.name || `Site ${index + 1}`,
+          online: Math.floor(Math.random() * 10) + 1,
+          alert: ['2m ago', '5m ago', '—'][index % 3],
+          // Alternate icons between Apple and Windows
+          icon: icons[index % icons.length],
+        }));
+
+        setSites(sitesWithDefaults);
+      } catch (err) {
+        console.error('Failed to fetch sites:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSites();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-gray-200 flex items-center justify-center">
+        <p className="text-teal-400 animate-pulse">Loading sites...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-gray-200 p-6">
@@ -133,62 +128,36 @@ export default function Dashboard() {
             {/* Main flex row: map + sitesNew strip */}
             {/* <div className="relative flex gap-4 h-64"> */}
 
-            <div className="relative flex flex-col items-end gap-6">
-              {/* sitesNew vertical strip on the right */}
-              <div className="flex flex-col items-end gap-4">
-                {[
-                  {
-                    site: 'Site 1',
-                    online: 5,
-                    alert: '5m ago',
-                    status: <CheckCircle className="w-5 h-5 text-green-400" />,
-                  },
-                  {
-                    site: 'Site 2',
-                    online: 8,
-                    alert: '12m ago',
-                    status: <WindowsIcon />,
-                  },
-                ].map((s, i) => (
-                  <div
-                    key={i}
-                    className="w-40 p-3 rounded-xl border border-secondary bg-gray-800/90"
-                  >
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-md font-semibold text-text">{s.site}</h3>
-                      <span>{s.status}</span>
-                    </div>
-                    <p className="text-sm text-green-400">{s.online} Online</p>
-                    <p className="text-xs text-gray-400">Last Alert: {s.alert}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* sites at bottom */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 z-10">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4 z-10 flex-1 justify-items-center items-center">
               {sites.map((s, i) => (
-                <div
-                  key={i}
-                  className="w-40 p-3 rounded-xl border border-secondary bg-gray-800/90"
-                  // className="p-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-green-400 transition"
-                >
+                <div key={i} className="w-40 p-3 rounded-xl border border-secondary bg-gray-800/90">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-md text-text font-semibold">{s.site}</h3>
+                    <h3 className="text-md text-text font-semibold mb-1">{s.site}</h3>
                     {s.icon}
                   </div>
-                  <p className="text-sm text-green-400">{s.online} Online</p>
-                  <p className="text-xs text-gray-400">Last Alert: {s.alert}</p>
+                  <p className="text-sm text-start text-green-400 mb-1">{s.online} Online</p>
+                  <p className="text-xs text-start text-gray-400">Last Alert: {s.alert}</p>
                 </div>
               ))}
             </div>
 
             {/* Buttons */}
             <div className="flex justify-center space-x-4 mt-8">
-              <Button className="bg-primary text-secondary border border-secondary">
+              <Button
+                onClick={() => {
+                  navigate('/site');
+                }}
+                className="bg-primary text-secondary border border-secondary"
+              >
                 View Sites
               </Button>
-              <Button className="bg-primary text-secondary border border-secondary">
+              <Button
+                onClick={() => {
+                  navigate('/device');
+                }}
+                className="bg-primary text-secondary border border-secondary"
+              >
                 View Devices
               </Button>
               <Button className="bg-primary text-secondary border border-secondary">
