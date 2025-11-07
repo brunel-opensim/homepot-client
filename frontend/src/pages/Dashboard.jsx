@@ -74,14 +74,14 @@ export default function Dashboard() {
         const sitesWithDefaults = fetchedSites.map((site, index) => ({
           site: site.name || `Site ${index + 1}`,
           online: Math.floor(Math.random() * 10) + 1,
-          alert: ["2m ago", "5m ago", "—"][index % 3],
+          alert: ['2m ago', '5m ago', '—'][index % 3],
           // Alternate icons between Apple and Windows
           icon: icons[index % icons.length],
         }));
 
         setSites(sitesWithDefaults);
       } catch (err) {
-        console.error("Failed to fetch sites:", err);
+        console.error('Failed to fetch sites:', err);
       } finally {
         setLoading(false);
       }
@@ -131,10 +131,7 @@ export default function Dashboard() {
             {/* sites at bottom */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4 z-10 flex-1 justify-items-center items-center">
               {sites.map((s, i) => (
-                <div
-                  key={i}
-                  className="w-40 p-3 rounded-xl border border-secondary bg-gray-800/90"
-                >
+                <div key={i} className="w-40 p-3 rounded-xl border border-secondary bg-gray-800/90">
                   <div className="flex justify-between items-center">
                     <h3 className="text-md text-text font-semibold mb-1">{s.site}</h3>
                     {s.icon}
@@ -147,10 +144,20 @@ export default function Dashboard() {
 
             {/* Buttons */}
             <div className="flex justify-center space-x-4 mt-8">
-              <Button onClick={() => {navigate("/site")}} className="bg-primary text-secondary border border-secondary">
+              <Button
+                onClick={() => {
+                  navigate('/site');
+                }}
+                className="bg-primary text-secondary border border-secondary"
+              >
                 View Sites
               </Button>
-              <Button onClick={() => {navigate("/device")}} className="bg-primary text-secondary border border-secondary">
+              <Button
+                onClick={() => {
+                  navigate('/device');
+                }}
+                className="bg-primary text-secondary border border-secondary"
+              >
                 View Devices
               </Button>
               <Button className="bg-primary text-secondary border border-secondary">

@@ -69,16 +69,19 @@ export default function SiteScreen() {
         // Add temporary static fields
         const withStaticValues = fetchedSites.map((site) => ({
           id: site.site_id,
-          name: site.name || "Unknown Site",
-          location: site.location || "Unknown",
+          name: site.name || 'Unknown Site',
+          location: site.location || 'Unknown',
           // Static placeholders for now
-          status: Math.random() > 0.5 ? "Online" : "Offline",
-          alert: Math.random() > 0.6 ? `${Math.floor(Math.random() * 3) + 1} asst alert: ${Math.floor(Math.random() * 5) + 1}h ago` : null,
+          status: Math.random() > 0.5 ? 'Online' : 'Offline',
+          alert:
+            Math.random() > 0.6
+              ? `${Math.floor(Math.random() * 3) + 1} asst alert: ${Math.floor(Math.random() * 5) + 1}h ago`
+              : null,
         }));
 
         setSites(withStaticValues);
       } catch (err) {
-        console.error("Failed to fetch sites:", err);
+        console.error('Failed to fetch sites:', err);
       } finally {
         setLoading(false);
       }

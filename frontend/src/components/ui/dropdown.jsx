@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 /**
  * Reusable Dropdown component
@@ -9,18 +9,10 @@ import React from "react";
  *  - onChange: function(e)
  *  - placeholder?: string
  */
-const Dropdown = ({
-  label,
-  options = [],
-  value,
-  onChange,
-  placeholder = "Select an option",
-}) => {
+const Dropdown = ({ label, options = [], value, onChange, placeholder = 'Select an option' }) => {
   return (
     <div className="relative w-full">
-      {label && (
-        <label className="block text-sm text-gray-300 mb-2">{label}</label>
-      )}
+      {label && <label className="block text-sm text-gray-300 mb-2">{label}</label>}
       <select
         value={value}
         onChange={onChange}

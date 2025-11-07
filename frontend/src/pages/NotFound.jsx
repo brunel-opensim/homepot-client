@@ -63,14 +63,12 @@ const NotFound = () => {
               />
             </svg>
 
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Page Not Found
-            </h2>
-            
+            <h2 className="text-3xl font-bold text-white mb-3">Page Not Found</h2>
+
             <p className="text-gray-400 text-lg mb-2">
               Oops! The page you're looking for doesn't exist.
             </p>
-            
+
             <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 mt-4 mb-6">
               <p className="text-gray-500 text-sm break-all">
                 <span className="text-gray-400 font-semibold">Requested URL:</span>
@@ -115,9 +113,7 @@ const NotFound = () => {
 
         {/* Footer */}
         <div className="mt-6">
-          <p className="text-gray-600 text-xs">
-            HOMEPOT Unified Client - Error 404
-          </p>
+          <p className="text-gray-600 text-xs">HOMEPOT Unified Client - Error 404</p>
         </div>
       </div>
     </div>

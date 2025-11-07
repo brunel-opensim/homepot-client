@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import Dropdown from "@/components/ui/dropdown";
-import api from "@/services/api";
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import Dropdown from '@/components/ui/dropdown';
+import api from '@/services/api';
 
 const Signup = () => {
-  const [activeTab, setActiveTab] = useState("ENGINEER");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");
+  const [activeTab, setActiveTab] = useState('ENGINEER');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [sessionMsg, setSessionMsg] = useState(null);
-  
+
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated } = useAuth();
@@ -36,18 +36,18 @@ const Signup = () => {
   }, [isAuthenticated, navigate]);
 
   const handleSignUp = async (e) => {
-    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
 
     setErrorMsg(null);
-    
+
     // Validation
     if (!email || !password || !name || !role) {
-      setErrorMsg("Please fill in all fields.");
+      setErrorMsg('Please fill in all fields.');
       return;
     }
 
     if (password.length < 6) {
-      setErrorMsg("Password must be at least 6 characters long.");
+      setErrorMsg('Password must be at least 6 characters long.');
       return;
     }
 
@@ -55,27 +55,26 @@ const Signup = () => {
     try {
       // TODO: Implement actual signup API call
       const result = await api.auth.signup({ email, password, name, role });
-      
+
       // Placeholder for now
-      console.log("Signup attempt:", { email, password, name, role, activeTab });
+      console.log('Signup attempt:', { email, password, name, role, activeTab });
 
       if (result.success) {
         // Always navigate to dashboard after successful login
         navigate('/login', { replace: true });
       } else {
-        setErrorMsg(result.error || "Failed to signup. Please try again.");
+        setErrorMsg(result.error || 'Failed to signup. Please try again.');
       }
-      
     } catch (err) {
-      setErrorMsg(err?.message || "An unexpected error occurred.");
-      console.error("Signup error:", err);
+      setErrorMsg(err?.message || 'An unexpected error occurred.');
+      console.error('Signup error:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleNavigateToSignIn = () => {
-    navigate("/login");
+    navigate('/login');
   };
 
   return (
@@ -85,9 +84,7 @@ const Signup = () => {
         <div className="bg-gray-900/90 backdrop-blur-sm border border-gray-700/50 rounded-lg p-8 shadow-2xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-6 tracking-wider">
-              HOMEPOT
-            </h1>
+            <h1 className="text-4xl font-bold text-white mb-6 tracking-wider">HOMEPOT</h1>
 
             {/* Session expiry message */}
             {sessionMsg && (
@@ -100,11 +97,11 @@ const Signup = () => {
             <div className="flex rounded-lg gap-4 overflow-hidden mb-6">
               <button
                 type="button"
-                onClick={() => setActiveTab("ENGINEER")}
+                onClick={() => setActiveTab('ENGINEER')}
                 className={`flex-1 py-3 px-6 text-sm font-semibold rounded-lg transition-all duration-200 ${
-                  activeTab === "ENGINEER"
-                    ? "bg-teal-600 text-white border border-teal-400"
-                    : "bg-gray-800 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+                  activeTab === 'ENGINEER'
+                    ? 'bg-teal-600 text-white border border-teal-400'
+                    : 'bg-gray-800 text-gray-400 hover:text-gray-300 hover:bg-gray-700'
                 }`}
               >
                 ENGINEER
@@ -112,11 +109,11 @@ const Signup = () => {
 
               <button
                 type="button"
-                onClick={() => setActiveTab("CLIENT")}
+                onClick={() => setActiveTab('CLIENT')}
                 className={`flex-1 py-3 px-6 text-sm font-semibold rounded-lg transition-all duration-200 ${
-                  activeTab === "CLIENT"
-                    ? "bg-teal-600 text-white border border-teal-400"
-                    : "bg-gray-800 text-gray-400 hover:text-gray-300 hover:bg-gray-700"
+                  activeTab === 'CLIENT'
+                    ? 'bg-teal-600 text-white border border-teal-400'
+                    : 'bg-gray-800 text-gray-400 hover:text-gray-300 hover:bg-gray-700'
                 }`}
               >
                 CLIENT
@@ -178,10 +175,10 @@ const Signup = () => {
                 onChange={(e) => setRole(e.target.value)}
                 placeholder="Select Role"
                 options={[
-                    { label: "User", value: "User" },
-                    { label: "Admin", value: "Admin" },
+                  { label: 'User', value: 'User' },
+                  { label: 'Admin', value: 'Admin' },
                 ]}
-                />
+              />
 
               {/* Show error message */}
               {errorMsg && (
@@ -198,10 +195,10 @@ const Signup = () => {
                 >
                   Sign up with SSO
                 </button>
-                
+
                 {/* Vertical divider */}
                 <div className="h-4 w-px bg-gray-600"></div>
-                
+
                 <button
                   onClick={handleNavigateToSignIn}
                   type="button"
@@ -217,7 +214,7 @@ const Signup = () => {
                 disabled={loading}
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {loading ? "Creating Account…" : "Sign Up"}
+                {loading ? 'Creating Account…' : 'Sign Up'}
               </button>
             </div>
           </form>

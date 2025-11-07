@@ -26,24 +26,24 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
     const tokenExpiry = localStorage.getItem('token_expiry');
-    
+
     if (token && tokenExpiry) {
       const expiryTime = parseInt(tokenExpiry, 10);
       const now = Date.now();
-      
+
       // Check if token is expired
       if (now >= expiryTime) {
         // Token expired, clear storage and reject request
         localStorage.removeItem('auth_token');
         localStorage.removeItem('token_expiry');
         localStorage.removeItem('user_data');
-        
+
         // Redirect to login
         window.location.href = '/login';
-        
+
         return Promise.reject(new Error('Session expired'));
       }
-      
+
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -67,7 +67,7 @@ apiClient.interceptors.response.use(
           localStorage.removeItem('auth_token');
           localStorage.removeItem('token_expiry');
           localStorage.removeItem('user_data');
-          
+
           // Only redirect if not already on login page
           if (window.location.pathname !== '/login') {
             window.location.href = '/login';
@@ -382,14 +382,14 @@ export const apiHelpers = {
   isAuthenticated: () => {
     const token = localStorage.getItem('auth_token');
     const tokenExpiry = localStorage.getItem('token_expiry');
-    
+
     if (!token || !tokenExpiry) {
       return false;
     }
-    
+
     const expiryTime = parseInt(tokenExpiry, 10);
     const now = Date.now();
-    
+
     return now < expiryTime;
   },
 
@@ -406,10 +406,10 @@ export const apiHelpers = {
   getSessionTimeRemaining: () => {
     const tokenExpiry = localStorage.getItem('token_expiry');
     if (!tokenExpiry) return 0;
-    
+
     const expiryTime = parseInt(tokenExpiry, 10);
     const now = Date.now();
-    
+
     return Math.max(0, expiryTime - now);
   },
 

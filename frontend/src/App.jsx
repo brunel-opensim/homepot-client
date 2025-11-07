@@ -17,15 +17,12 @@ function App() {
       <AuthProvider>
         <Routes>
           {/* Root route - redirect based on auth status */}
-          <Route 
-            path="/" 
-            element={<Home />}
-          />
-          
+          <Route path="/" element={<Home />} />
+
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          
+
           {/* Protected routes */}
           <Route
             path="/dashboard"
