@@ -39,11 +39,24 @@ class TestPOSDummy:
     @pytest.fixture(scope="class")
     def test_client(self, temp_db):
         """Create a test client for the FastAPI application.
-        
+
         Uses temp_db fixture to ensure SQLite database is configured
         before the FastAPI app starts.
+
+        Note: We need to reload the config module to pick up the new DATABASE__URL
+        environment variable set by temp_db fixture.
         """
-        with TestClient(app) as client:
+        # Force reload of config to pick up new DATABASE__URL environment variable
+        from importlib import reload
+
+        from homepot import config
+
+        reload(config)
+
+        # Now import app after config is reloaded
+        from homepot.main import app as reloaded_app
+
+        with TestClient(reloaded_app) as client:
             yield client
 
     @pytest.fixture(scope="class")
