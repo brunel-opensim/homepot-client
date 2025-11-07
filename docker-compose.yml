@@ -41,8 +41,8 @@ services:
     volumes:
       # Always mount logs
       - ${HOMEPOT_LOGS_DIR:-./logs}:/app/logs
-      # Mount source code in development mode only
-      - ${HOMEPOT_SOURCE_MOUNT:-/dev/null}:/app/src:ro
+      # Mount source code in development mode only (set HOMEPOT_SOURCE_MOUNT=./backend/src)
+      # - ${HOMEPOT_SOURCE_MOUNT}:/app/src:ro
     command: >
       sh -c "
       if [ \"$$HOMEPOT_ENV\" = \"development\" ]; then
