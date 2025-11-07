@@ -4,7 +4,7 @@ This module defines SQLAlchemy models for the HOMEPOT system including
 devices, jobs, users, and audit logs.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy import (
@@ -20,6 +20,14 @@ from sqlalchemy import (
     create_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
+
+
+def utc_now():
+    """Return current UTC time using timezone-aware datetime.
+
+    Replaces deprecated datetime.utcnow() with datetime.now(timezone.utc).
+    """
+    return datetime.now(timezone.utc)
 
 
 # Create declarative base for SQLAlchemy models using modern approach
@@ -82,8 +90,8 @@ class User(Base):
     api_key = Column(String(255), unique=True, index=True, nullable=True)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # Relationships
     jobs = relationship("Job", back_populates="created_by_user")
@@ -102,8 +110,8 @@ class Site(Base):
     description = Column(Text, nullable=True)
     location = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # Relationships
     devices = relationship("Device", back_populates="site")
@@ -133,8 +141,8 @@ class Device(Base):
 
     # Metadata
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # Relationships
     site = relationship("Site", back_populates="devices")
@@ -181,8 +189,8 @@ class Job(Base):
 
     # Audit
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # Relationships
     site = relationship("Site", back_populates="jobs")
@@ -210,7 +218,7 @@ class HealthCheck(Base):
     error_message = Column(Text, nullable=True)
 
     # Timing
-    checked_at = Column(DateTime, default=datetime.utcnow)
+    checked_at = Column(DateTime, default=utc_now)
 
     # Relationships
     device = relationship("Device", back_populates="health_checks")
@@ -247,7 +255,7 @@ class AuditLog(Base):
     user_agent = Column(String(500), nullable=True)
 
     # Timing
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # Relationships
     job = relationship("Job", back_populates="logs")
