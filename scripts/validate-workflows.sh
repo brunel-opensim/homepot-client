@@ -982,53 +982,13 @@ validate_tests() {
     
     local failed=false
     
-    # Check and initialize database if needed (before running database tests)
+    # Check PostgreSQL database (tests use SQLite for isolation)
     if [[ " ${found_tests[*]} " =~ " test_database.py " ]]; then
-        log_verbose "Checking database initialization..."
+        log_verbose "Checking database configuration..."
         
-        # Check if database file exists and has data
-        DB_FILE="data/homepot.db"
-        if [ -f "$DB_FILE" ]; then
-            # Check if database has data (count sites)
-            SITE_COUNT=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM sites;" 2>/dev/null || echo "0")
-            
-            if [ "$SITE_COUNT" -eq 0 ]; then
-                log_verbose "Database is empty, initializing with seed data..."
-                echo "    Database initialization: Empty database detected, running init..."
-                
-                # Create backup
-                mkdir -p data/backups
-                TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-                cp "$DB_FILE" "data/backups/homepot_backup_auto_$TIMESTAMP.db" 2>/dev/null || true
-                
-                # Initialize database by calling init-database.sh non-interactively
-                # Use 'yes' to auto-answer the prompt
-                if echo "y" | bash scripts/init-database.sh >/dev/null 2>&1; then
-                    echo -e "    Database initialization: ${GREEN}Completed${NC}"
-                    log_verbose "Database initialized successfully with seed data"
-                else
-                    echo -e "    Database initialization: ${YELLOW}Failed (tests may fail)${NC}"
-                    log_warning "Failed to initialize database automatically"
-                fi
-            else
-                log_verbose "Database has data (${SITE_COUNT} sites), skipping initialization"
-            fi
-        else
-            log_verbose "Database file not found at $DB_FILE, creating fresh database..."
-            echo "    Database initialization: No database found, creating..."
-            
-            # Create database directory
-            mkdir -p data
-            
-            # Run init-database.sh (it will create new DB without prompting since file doesn't exist)
-            if bash scripts/init-database.sh >/dev/null 2>&1; then
-                echo -e "    Database initialization: ${GREEN}Completed${NC}"
-                log_verbose "Database created successfully with seed data"
-            else
-                echo -e "    Database initialization: ${YELLOW}Failed (tests may fail)${NC}"
-                log_warning "Failed to create database automatically"
-            fi
-        fi
+        # Tests use SQLite via TEST_DATABASE_URL, no initialization needed
+        # PostgreSQL is for production, tests are isolated
+        log_verbose "Tests use isolated SQLite databases (no shared state)"
     fi
     
     # Run database and model tests (essential for our database organization)
@@ -1314,14 +1274,14 @@ except Exception as e:
         failed=true
     fi
     
-    # Database file check (our new organization)
-    echo -n "    Database file check: "
-    if [ -f "data/homepot.db" ]; then
-        echo -e "${GREEN}Found${NC}"
-        log_verbose "Database file found at data/homepot.db (new organization)"
+    # PostgreSQL database check
+    echo -n "    PostgreSQL configuration: "
+    if [ -f "backend/.env" ] && grep -q "DATABASE__URL=postgresql" backend/.env; then
+        echo -e "${GREEN}Configured${NC}"
+        log_verbose "PostgreSQL connection configured in backend/.env"
     else
-        echo -e "${YELLOW}Missing${NC}"
-        log_verbose "Database file not found at data/homepot.db - may need setup"
+        echo -e "${YELLOW}Not configured${NC}"
+        log_verbose "PostgreSQL not configured - tests use SQLite (isolated)"
     fi
     
     # NEW: Full test suite smoke test (optional but valuable)

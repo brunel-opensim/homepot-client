@@ -116,7 +116,7 @@ python -m uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
 # Start the backend server (from backend/app directory)(After restrcture the backend api main.py file in inside the app dir)
 cd backend
 python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
-'''
+```
 
 The `--reload` flag enables auto-restart on code changes (development mode).
 

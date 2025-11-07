@@ -327,7 +327,7 @@ async def add_bulk_data():
     for site_data in sites_data:
         site = await db_service.create_site(**site_data)
         created_sites.append(site)
-        print(f"✓ Created site: {site.name} (ID: {site.id})")
+        print(f"Created site: {site.name} (ID: {site.id})")
     
     # Add devices to each new site
     device_counter = 9  # Start after existing 8 devices
@@ -341,10 +341,10 @@ async def add_bulk_data():
                 ip_address=f"192.168.{site.id}.{10+i}",
                 config={"gateway_url": "https://payments.example.com"}
             )
-            print(f"  ✓ Created device: {device.name}")
+            print(f"  Created device: {device.name}")
             device_counter += 1
     
-    print(f"\n✓ Successfully added {len(created_sites)} sites and {(device_counter-9)} devices!")
+    print(f"\nSuccessfully added {len(created_sites)} sites and {(device_counter-9)} devices!")
 
 if __name__ == "__main__":
     asyncio.run(add_bulk_data())
@@ -431,7 +431,7 @@ async def create_large_dataset():
             description=f"Retail store #{site_num} with 5 POS terminals",
             location=f"{site_num * 100} Main Street, City {site_num}"
         )
-        print(f"✓ Created site: {site.name}")
+        print(f"Created site: {site.name}")
         
         # Create 5 devices per site
         for device_num in range(1, 6):
@@ -448,7 +448,7 @@ async def create_large_dataset():
                     "terminal_id": f"term-{device_counter:03d}"
                 }
             )
-            print(f"  ✓ Created device: {device.name}")
+            print(f"  Created device: {device.name}")
             device_counter += 1
     
     print(f"\nSuccessfully created 10 sites and 50 devices!")
@@ -643,15 +643,11 @@ services:
 ### Best Practices
 
 ```python
-### Best Practices
-
-```python
 # Always use environment variables for sensitive data
 from homepot.config import get_settings
 
 settings = get_settings()
 db_url = settings.database.url  # From DATABASE__URL
-```
 
 # Use connection pooling for production
 engine = create_engine(

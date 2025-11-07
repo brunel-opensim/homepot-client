@@ -790,39 +790,39 @@ Create a test script `test-api.sh`:
 #!/bin/bash
 set -e
 
-echo "🧪 HOMEPOT API Testing Suite"
+echo "HOMEPOT API Testing Suite"
 echo "=============================="
 echo
 
 # Test 1: Health check
-echo "✓ Testing health endpoint..."
+echo "Testing health endpoint..."
 STATUS=$(curl -s http://localhost:8000/health | jq -r '.status')
 if [ "$STATUS" != "healthy" ]; then
-  echo "❌ Health check failed!"
+  echo "Health check failed!"
   exit 1
 fi
 echo "Health check passed"
 
 # Test 2: Sites
-echo "✓ Testing sites endpoint..."
+echo "Testing sites endpoint..."
 SITE_COUNT=$(curl -s http://localhost:8000/sites | jq '.sites | length')
 if [ "$SITE_COUNT" -lt 2 ]; then
-  echo "❌ Expected at least 2 sites!"
+  echo "Expected at least 2 sites!"
   exit 1
 fi
 echo "Found $SITE_COUNT sites"
 
 # Test 3: Agents
-echo "✓ Testing agents endpoint..."
+echo "Testing agents endpoint..."
 AGENT_COUNT=$(curl -s http://localhost:8000/agents | jq '.agents | length')
 if [ "$AGENT_COUNT" -ne 8 ]; then
-  echo "❌ Expected 8 agents, found $AGENT_COUNT!"
+  echo "Expected 8 agents, found $AGENT_COUNT!"
   exit 1
 fi
 echo "All 8 agents running"
 
 # Test 4: Create and check job
-echo "✓ Testing job creation..."
+echo "Testing job creation..."
 JOB_ID=$(curl -s -X POST http://localhost:8000/sites/site-001/jobs \
   -H "Content-Type: application/json" \
   -d '{
@@ -832,7 +832,7 @@ JOB_ID=$(curl -s -X POST http://localhost:8000/sites/site-001/jobs \
   }' | jq -r '.job_id')
 
 if [ -z "$JOB_ID" ]; then
-  echo "❌ Job creation failed!"
+  echo "Job creation failed!"
   exit 1
 fi
 
@@ -840,7 +840,7 @@ JOB_STATUS=$(curl -s http://localhost:8000/jobs/$JOB_ID | jq -r '.status')
 echo "Job created: $JOB_ID (status: $JOB_STATUS)"
 
 echo
-echo "🎉 All tests passed!"
+echo "All tests passed!"
 ```
 
 Make it executable and run:
@@ -963,4 +963,4 @@ If you encounter problems during API testing:
 
 ---
 
-**Happy Testing! 🚀**
+**Happy Testing!**

@@ -313,21 +313,21 @@ def create_site(site_data: Dict[str, Any]) -> Dict[str, Any]:
 Brief description of changes
 
 ## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
+- Bug fix
+- New feature
+- Breaking change
+- Documentation update
 
 ## Testing
-- [ ] Tests pass locally
-- [ ] New tests added
-- [ ] Manual testing performed
+- Tests pass locally
+- New tests added
+- Manual testing performed
 
 ## Checklist
-- [ ] Code follows style guidelines
-- [ ] Self-review completed
-- [ ] Documentation updated
-- [ ] No new security vulnerabilities
+- Code follows style guidelines
+- Self-review completed
+- Documentation updated
+- No new security vulnerabilities
 ```
 
 ## Debugging
