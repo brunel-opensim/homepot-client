@@ -4,7 +4,6 @@ This module provides basic tests for database connectivity,
 model creation, and basic operations.
 """
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -281,7 +280,7 @@ def test_demo_data_exists():
     This test verifies that the database contains at least some initial data,
     whether from init-database.sh seed data (2 sites, 8 devices) or from
     POSDummy test data (1 site, 1 device).
-    
+
     Works with both SQLite and PostgreSQL databases.
     """
     settings = get_settings()
@@ -295,7 +294,9 @@ def test_demo_data_exists():
 
         # Skip if database is empty (expected for fresh installs)
         if site_count == 0:
-            pytest.skip("No sites found - database appears to be empty (expected for fresh installs)")
+            pytest.skip(
+                "No sites found - database appears to be empty (expected for fresh installs)"
+            )
 
         # If we have sites, verify we also have devices
         devices_query = text("SELECT COUNT(*) FROM devices")
