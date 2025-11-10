@@ -90,8 +90,8 @@ class User(Base):
     api_key = Column(String(255), unique=True, index=True, nullable=True)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=utc_now)
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     jobs = relationship("Job", back_populates="created_by_user")
@@ -110,8 +110,8 @@ class Site(Base):
     description = Column(Text, nullable=True)
     location = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=utc_now)
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     devices = relationship("Device", back_populates="site")
@@ -134,15 +134,15 @@ class Device(Base):
     ip_address = Column(String(45), nullable=True)  # IPv4/IPv6
     mac_address = Column(String(17), nullable=True)
     firmware_version = Column(String(50), nullable=True)
-    last_seen = Column(DateTime, nullable=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True)
 
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration
 
     # Metadata
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=utc_now)
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     site = relationship("Site", back_populates="devices")
@@ -179,9 +179,9 @@ class Job(Base):
     collapse_key = Column(String(100), nullable=True)  # For push notification grouping
 
     # Timing
-    scheduled_at = Column(DateTime, nullable=True)
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
+    scheduled_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Result
     result = Column(JSON, nullable=True)  # Job execution result
@@ -189,8 +189,8 @@ class Job(Base):
 
     # Audit
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=utc_now)
-    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     site = relationship("Site", back_populates="jobs")
@@ -218,7 +218,7 @@ class HealthCheck(Base):
     error_message = Column(Text, nullable=True)
 
     # Timing
-    checked_at = Column(DateTime, default=utc_now)
+    checked_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     device = relationship("Device", back_populates="health_checks")
@@ -255,7 +255,7 @@ class AuditLog(Base):
     user_agent = Column(String(500), nullable=True)
 
     # Timing
-    created_at = Column(DateTime, default=utc_now)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     # Relationships
     job = relationship("Job", back_populates="logs")
