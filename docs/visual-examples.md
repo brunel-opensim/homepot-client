@@ -243,14 +243,14 @@ gantt
 ### Logo Example
 
 <div align="center">
-  <p><em>📦 Logo placeholder - Add your logo to <code>docs/images/logos/homepot-logo.png</code></em></p>
+  <p><em>Logo placeholder - Add your logo to <code>docs/images/logos/homepot-logo.png</code></em></p>
   <!-- ![HOMEPOT Logo](images/logos/homepot-logo.png){ width="200" } -->
 </div>
 
 ### Screenshot Example
 
 <figure markdown>
-  <p><em>📸 Screenshot placeholder - Add screenshots to <code>docs/images/screenshots/</code></em></p>
+  <p><em>Screenshot placeholder - Add screenshots to <code>docs/images/screenshots/</code></em></p>
   <!-- ![Dashboard Screenshot](images/screenshots/dashboard.png) -->
   <figcaption>Real-time Dashboard Interface (placeholder)</figcaption>
 </figure>
@@ -258,7 +258,7 @@ gantt
 ### Diagram Example
 
 <figure markdown>
-  <p><em>📊 Diagram placeholder - Add diagrams to <code>docs/images/diagrams/</code></em></p>
+  <p><em>Diagram placeholder - Add diagrams to <code>docs/images/diagrams/</code></em></p>
   <!-- ![System Architecture](images/diagrams/system-architecture.png) -->
   <figcaption>HOMEPOT System Architecture (placeholder)</figcaption>
 </figure>
@@ -357,7 +357,7 @@ def get_db():
     Never commit API keys or credentials to version control.
 
 !!! success "Build Passed"
-    All tests passed successfully! ✅
+    All tests passed successfully!
 
 !!! example "Example Usage"
     ```bash
