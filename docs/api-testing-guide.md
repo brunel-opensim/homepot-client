@@ -962,4 +962,4 @@ If you encounter problems during API testing:
 
 ---
 
-**Happy Testing! 🚀**
+**Happy Testing!**

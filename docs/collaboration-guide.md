@@ -185,11 +185,11 @@ git push origin feature/your-feature-name
 - Regular security audits of credential handling
 
 ### 3. Code Review Security Checklist
-- [ ] No hardcoded secrets or API keys
-- [ ] Proper input validation and sanitization
-- [ ] Secure HTTP communication (TLS/SSL)
-- [ ] Error messages don't leak sensitive information
-- [ ] Authentication tokens properly managed
+- No hardcoded secrets or API keys
+- Proper input validation and sanitization
+- Secure HTTP communication (TLS/SSL)
+- Error messages don't leak sensitive information
+- Authentication tokens properly managed
 
 ## Testing Strategy
 
