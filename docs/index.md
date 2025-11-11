@@ -13,6 +13,7 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 - **[Engineering TODO](engineering-todo.md)** - Task list with priorities
 - **[Development Guide](development-guide.md)** - How to contribute
 - **[Testing Guide](testing-guide.md)** - How to test your code
+- **[API Testing Guide](api-testing-guide.md)** - Manual API testing and validation
 
 ### For Stakeholders
 - **[Project Vision](../PROJECT_VISION.md)** - Strategic roadmap

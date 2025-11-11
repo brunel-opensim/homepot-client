@@ -131,6 +131,9 @@ class CorsSettings(BaseSettings):
             "http://192.168.0.112:3000",
             "http://192.168.0.112:3001",
             "http://192.168.0.112:8080",
+            "http://localhost:5173/",
+            "http://localhost:5173",
+            "http://192.168.0.253:5173",
         ],
         description="Allowed CORS origins",
     )
@@ -179,6 +182,7 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         env_nested_delimiter = "__"
         case_sensitive = False
+        extra = "ignore"
 
 
 # Global settings instance

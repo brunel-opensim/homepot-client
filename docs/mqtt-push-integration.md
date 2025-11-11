@@ -407,7 +407,7 @@ emergency_config["qos"] = 2  # Exactly once
 emergency_provider = await get_push_provider("mqtt_push", emergency_config)
 
 payload = PushNotificationPayload(
-    title="🚨 EMERGENCY SHUTDOWN",
+    title="EMERGENCY SHUTDOWN",
     body="Gas leak detected in Building A",
     data={
         "emergency_level": "CRITICAL",

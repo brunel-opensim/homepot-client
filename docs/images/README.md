@@ -39,7 +39,7 @@ images/
 ### Images with Links
 
 ```markdown
-[![Logo](images/logos/homepot-logo.png)](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/)
+[![Logo](images/logos/homepot-logo.png)](https://homepot-client.readthedocs.io/en/latest/)
 ```
 
 ### Side-by-Side Images

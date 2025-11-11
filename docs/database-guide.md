@@ -429,7 +429,7 @@ async def create_large_dataset():
             print(f"  ✓ Created device: {device.name}")
             device_counter += 1
     
-    print(f"\n✅ Successfully created 10 sites and 50 devices!")
+    print(f"\nSuccessfully created 10 sites and 50 devices!")
     print(f"Total in database: {site_num} sites, {device_counter-1} devices")
 
 if __name__ == "__main__":

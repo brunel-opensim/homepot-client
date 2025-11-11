@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import api from '@/services/api';
 
 export default function SiteScreen() {
   const WindowsIcon = () => (
@@ -54,27 +55,40 @@ export default function SiteScreen() {
 
   const navigate = useNavigate();
 
+  const [sites, setSites] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
 
-  const sites = [
-    { id: '00001', name: 'Site - 00001', location: 'Los Angeles', status: 'Online', alert: null },
-    {
-      id: '00002',
-      name: 'Site - 00002',
-      location: 'New York',
-      status: 'Online',
-      alert: '1 asst alert: 2h ago',
-    },
-    { id: '00003', name: 'Site - 00003', location: 'Chicago', status: 'Online', alert: null },
-    {
-      id: '00004',
-      name: 'Site - 00004',
-      location: 'New York',
-      status: 'Offline',
-      alert: '2 asst alerts: 1h ago',
-    },
-  ];
+  useEffect(() => {
+    const fetchSites = async () => {
+      try {
+        const data = await api.sites.list(); // ✅ Fetch from backend
+        const fetchedSites = data?.sites || [];
+
+        // Add temporary static fields
+        const withStaticValues = fetchedSites.map((site) => ({
+          id: site.site_id,
+          name: site.name || 'Unknown Site',
+          location: site.location || 'Unknown',
+          // Static placeholders for now
+          status: Math.random() > 0.5 ? 'Online' : 'Offline',
+          alert:
+            Math.random() > 0.6
+              ? `${Math.floor(Math.random() * 3) + 1} asst alert: ${Math.floor(Math.random() * 5) + 1}h ago`
+              : null,
+        }));
+
+        setSites(withStaticValues);
+      } catch (err) {
+        console.error('Failed to fetch sites:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSites();
+  }, []);
 
   const filteredSites = sites.filter((site) => {
     const matchSearch =
@@ -82,6 +96,14 @@ export default function SiteScreen() {
     const matchLocation = locationFilter ? site.location === locationFilter : true;
     return matchSearch && matchLocation;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0b0e13] text-white flex items-center justify-center">
+        <p className="text-teal-400 animate-pulse">Loading sites...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0b0e13] text-white p-6">
