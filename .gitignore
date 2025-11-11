@@ -234,3 +234,7 @@ coverage/
 
 # VSCode
 .vscode/settings.json
+*.db
+*.sqlite3
+*.db-journal
+data/backups/
