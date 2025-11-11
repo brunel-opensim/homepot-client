@@ -49,6 +49,8 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "aiosqlite>=0.19.0",
     "alembic>=1.12.0",
+    "psycopg2-binary>=2.9.9",  # PostgreSQL driver
+    "asyncpg>=0.29.0",  # Async PostgreSQL driver
     # Background tasks
     "celery>=5.3.0",
     "redis>=5.0.0",

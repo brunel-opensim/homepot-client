@@ -94,10 +94,10 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)) -> dict:
             message="Login successful",
             data={
                 "access_token": create_access_token(
-                    {"sub": db_user.email, "role": db_user.role}
+                    {"sub": db_user.email, "is_admin": db_user.is_admin}
                 ),
-                "username": db_user.name,
-                "role": db_user.role,
+                "username": db_user.username,
+                "is_admin": db_user.is_admin,
             },
         )
 
@@ -117,27 +117,12 @@ def assign_role(
     db: Session = Depends(get_db),
     admin: Dict = Depends(require_role("Admin")),
 ) -> dict:
-    """Assign Role Endpoint - Admin Only."""
-    try:
-        db_user = db.query(models.User).filter(models.User.id == user_id).first()
-        if not db_user:
-            logger.warning(f"Role assignment failed: User {user_id} not found")
-            raise HTTPException(status_code=404, detail="User not found")
-
-        db_user.role = new_role  # type: ignore
-        db.commit()
-        db.refresh(db_user)
-
-        logger.info(f"Role updated: {db_user.email} -> {new_role}")
-
-        return response(
-            success=True,
-            message=f"Role updated to {new_role} for {db_user.email}",
-            data={"user_id": db_user.id, "email": db_user.email, "role": db_user.role},
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Role assignment error for user_id {user_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    """Assign Role - Admin Only (DISABLED - not in schema)."""
+    # TODO: Add role/permission system to schema
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Role assignment not implemented in current schema. "
+            "Use is_admin field instead."
+        ),
+    )

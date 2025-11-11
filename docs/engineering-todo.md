@@ -25,7 +25,7 @@ Build a complete, production-ready **HOMEPOT Client web application** that enabl
 - Complete REST API endpoints for all resources
 - Push notification integration (5 platforms: FCM, WNS, APNs, Web Push, MQTT)
 - VAPID key generation and management for Web Push
-- SQLite database with SQLAlchemy ORM
+- PostgreSQL database with SQLAlchemy ORM
 - JWT authentication and authorization
 - WebSocket support for real-time updates
 - Audit logging system
