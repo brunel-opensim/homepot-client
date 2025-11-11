@@ -10,7 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from src.homepot.app.main import app
+from homepot.app.main import app
 
 
 @pytest.fixture
