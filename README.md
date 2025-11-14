@@ -58,14 +58,36 @@ homepot-client/
 
 ## Quick Start
 
+### For Frontend Developers
+
+Working on the UI? Here's the fastest way to get started:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/brunel-opensim/homepot-client.git
+cd homepot-client
+
+# 2. Start both backend and frontend
+./scripts/start-complete-website.sh
+```
+
+This will start:
+- **Backend API**: http://localhost:8000 (with API docs at `/docs`)
+- **Frontend**: http://localhost:5173
+- **Test Account**: `test@homepot.com` / `Test123!`
+
+**See [Complete Website Setup Guide](docs/complete-website-setup.md) and [Website Testing Guide](docs/website-testing-guide.md)**
+
 ### Prerequisites
 
-- **Python**: >= 3.9
+- **Python**: >= 3.9 (3.12.3 recommended)
+- **Node.js**: >= 18 (22+ recommended)
+- **PostgreSQL**: 13+ (for database)
 - **pip**: Latest version  
 - **Git**: Latest version
 - **Access**: HOMEPOT consortium membership required
 
-### Basic Installation
+### Full Installation
 
 ```bash
 # Clone the repository (consortium members only)
@@ -120,7 +142,7 @@ We welcome contributions from consortium members! Please see our [Contributing G
 
 ## Complete Documentation
 
-**📚 Full Documentation: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
+**Full Documentation: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
 
 Key documentation sections:
 

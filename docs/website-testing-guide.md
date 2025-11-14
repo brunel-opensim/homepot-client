@@ -4,12 +4,17 @@ This guide will help you manually test the complete HOMEPOT website integration.
 
 ## Current Status
 
-**✅ Running:**
+**Running:**
 - Backend: `http://localhost:8000` (API v1 structure)
 - Frontend: `http://localhost:5173` (React + Vite)
 - Database: PostgreSQL (homepot_db)
 
-**📝 Note:** The authentication system has a bcrypt password hashing issue. We'll test the UI flow and other integrated features.
+**Authentication:** Fully working with bcrypt 4.1.3
+
+**Test Credentials:**
+- Email: `test@homepot.com`
+- Password: `Test123!`
+- Role: ENGINEER
 
 ## Testing Checklist
 
@@ -21,9 +26,9 @@ URL: http://localhost:5173
 ```
 
 **Expected Behavior:**
-- ✅ Should automatically redirect to `/login` (since not authenticated)
-- ✅ Login page should load without errors
-- ✅ No console errors in browser DevTools
+- Should automatically redirect to `/login` (since not authenticated)
+- Login page should load without errors
+- No console errors in browser DevTools
 
 **How to Verify:**
 1. Open browser DevTools (F12)
@@ -37,13 +42,13 @@ URL: http://localhost:5173
 **Test:** Examine the login page
 
 **Expected Elements:**
-- ✅ "HOMEPOT" title/logo
-- ✅ Tab selector: "ENGINEER" and "USER"
-- ✅ Email input field
-- ✅ Password input field
-- ✅ "Login" button
-- ✅ "Sign up" link
-- ✅ Dark theme with teal/cyan accents
+- "HOMEPOT" title/logo
+- Tab selector: "ENGINEER" and "USER"
+- Email input field
+- Password input field
+- "Login" button
+- "Sign up" link
+- Dark theme with teal/cyan accents
 
 **How to Verify:**
 1. Visual inspection of all elements
@@ -60,11 +65,11 @@ URL: http://localhost:5173
 1. Click "Sign up" link on login page
 
 **Expected Behavior:**
-- ✅ URL changes to `/signup`
-- ✅ Signup form loads
-- ✅ Shows fields: Email, Password, Name, Role dropdown
-- ✅ "Create Account" button visible
-- ✅ "Sign in" link visible
+- URL changes to `/signup`
+- Signup form loads
+- Shows fields: Email, Password, Name, Role dropdown
+- "Create Account" button visible
+- "Sign in" link visible
 
 **How to Verify:**
 1. Check URL bar shows `/signup`
@@ -81,9 +86,9 @@ URL: http://localhost:5173
 1. On signup page, click "Create Account" without filling fields
 
 **Expected Behavior:**
-- ✅ Error message: "Please fill in all fields"
-- ✅ Error displayed in red/warning color
-- ✅ Form doesn't submit
+- Error message: "Please fill in all fields"
+- Error displayed in red/warning color
+- Form doesn't submit
 
 **Additional Tests:**
 - Try password < 6 characters → Should show "Password must be at least 6 characters long"
@@ -128,8 +133,8 @@ fetch('http://localhost:8000/api/v1/sites/sites')
 1. Manually navigate to: `http://localhost:5173/dashboard`
 
 **Expected Behavior:**
-- ✅ Should automatically redirect to `/login`
-- ✅ Protected route guard is working
+- Should automatically redirect to `/login`
+- Protected route guard is working
 
 **How to Verify:**
 1. URL bar should show `/login` (not `/dashboard`)
@@ -179,8 +184,8 @@ http://localhost:8000/docs
 ```
 
 **Expected:**
-- ✅ FastAPI Swagger UI loads
-- ✅ All API v1 endpoints visible:
+- FastAPI Swagger UI loads
+- All API v1 endpoints visible:
   - /api/v1/auth
   - /api/v1/sites
   - /api/v1/devices
@@ -227,16 +232,16 @@ http://localhost:8000/docs
 **Test:** UI Components and Interactions
 
 **On Login Page:**
-- ✅ Tab switching (ENGINEER ↔ USER) works smoothly
-- ✅ Input fields have focus states
-- ✅ Button hover effects work
-- ✅ Responsive design (resize browser window)
+- Tab switching (ENGINEER ↔ USER) works smoothly
+- Input fields have focus states
+- Button hover effects work
+- Responsive design (resize browser window)
 
 **On Signup Page:**
-- ✅ Role dropdown opens and closes
-- ✅ Tab switching works
-- ✅ All form fields functional
-- ✅ Error messages display correctly
+- Role dropdown opens and closes
+- Tab switching works
+- All form fields functional
+- Error messages display correctly
 
 ---
 
@@ -250,9 +255,9 @@ http://localhost:8000/docs
 3. Navigate through all pages: `/`, `/login`, `/signup`, `/dashboard`, `/site`, `/device`
 
 **Expected:**
-- ✅ No red errors (errors allowed: auth redirects are normal)
-- ✅ May see warnings about authentication (expected)
-- ✅ Network requests should be successful (200 status)
+- No red errors (errors allowed: auth redirects are normal)
+- May see warnings about authentication (expected)
+- Network requests should be successful (200 status)
 
 **Acceptable Warnings:**
 - "Session expired" or "Unauthorized" when trying protected routes
@@ -270,10 +275,10 @@ http://localhost:8000/docs
 3. Navigate to different pages
 
 **Check for:**
-- ✅ XHR/Fetch requests to `localhost:8000`
-- ✅ All requests have proper headers
-- ✅ No CORS errors
-- ✅ Status codes: 200 (success) or 401 (unauthorized, expected)
+- XHR/Fetch requests to `localhost:8000`
+- All requests have proper headers
+- No CORS errors
+- Status codes: 200 (success) or 401 (unauthorized, expected)
 
 ---
 
@@ -382,31 +387,31 @@ location.reload()
 
 ## Success Criteria
 
-### ✅ Phase 1: UI & Navigation (Can Test Now)
-- [x] Frontend loads without errors
-- [x] Login page renders correctly
-- [x] Signup page renders correctly
-- [x] Tab switching works
-- [x] Form validation works
-- [x] Protected routes redirect to login
-- [x] Page transitions are smooth
-- [x] No console errors
-- [x] Responsive design works
+### Phase 1: UI & Navigation (Can Test Now)
+- Frontend loads without errors
+- Login page renders correctly
+- Signup page renders correctly
+- Tab switching works
+- Form validation works
+- Protected routes redirect to login
+- Page transitions are smooth
+- No console errors
+- Responsive design works
 
-### ⏳ Phase 2: Backend Integration (Needs DB Fix)
-- [ ] Signup creates user account
-- [ ] Login returns JWT token
-- [ ] Token stored in localStorage
-- [ ] Dashboard loads with real sites data
-- [ ] Site list displays correctly
-- [ ] Logout clears session
+### Phase 2: Backend Integration (Needs DB Fix)
+- Signup creates user account
+- Login returns JWT token
+- Token stored in localStorage
+- Dashboard loads with real sites data
+- Site list displays correctly
+- Logout clears session
 
-### ⏳ Phase 3: Full Features (Future)
-- [ ] Device management UI
-- [ ] Job creation/monitoring
-- [ ] Real-time updates (WebSocket)
-- [ ] Push notifications
-- [ ] User profile management
+### Phase 3: Full Features (Future)
+- Device management UI
+- Job creation/monitoring
+- Real-time updates (WebSocket)
+- Push notifications
+- User profile management
 
 ---
 
