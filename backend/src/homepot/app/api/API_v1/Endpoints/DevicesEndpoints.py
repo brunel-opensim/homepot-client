@@ -127,16 +127,18 @@ async def list_device() -> Dict[str, List[Dict]]:
 
 
 @router.get("/device/{device_id}", tags=["Devices"])
-async def get_site(device_id: str) -> Dict[str, Any]:
-    """Get a specific site by site_id."""
+async def get_device(device_id: str) -> Dict[str, Any]:
+    """Get a specific Device by device_id."""
     try:
         db_service = await get_database_service()
 
-        # Look up site by site_id
+        # Look up site by device_id
         device = await db_service.get_device_by_device_id(device_id)
 
         if not device:
-            raise HTTPException(status_code=404, detail=f"Site '{device_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
 
         return {
             "site_id": device.site_id,
@@ -151,6 +153,41 @@ async def get_site(device_id: str) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Failed to get Device {device_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get Device. Please check server logs."
+        )
+
+
+@router.get("/devices/{site_id}", tags=["Devices"])
+async def get_device_site_id(site_id: int) -> List[Dict[str, Any]]:
+    """Get a specific Device by site_id."""
+    try:
+        db_service = await get_database_service()
+
+        # Look up site by device_id
+        device = await db_service.get_device_by_site_id(site_id)
+
+        if not device:
+            raise HTTPException(
+                status_code=404, detail=f"site_id '{site_id}' not found"
+            )
+
+        return [
+            {
+                "site_id": d.site_id,
+                "device_id": d.device_id,
+                "name": d.name,
+                "ip_address": d.ip_address,
+                # "created_at": d.created_at.isoformat() if device.created_at else None,
+                # "updated_at": d.updated_at.isoformat() if device.updated_at else None,
+            }
+            for d in device
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get Device {site_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to get Device. Please check server logs."
         )

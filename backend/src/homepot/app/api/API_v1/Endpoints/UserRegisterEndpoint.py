@@ -17,9 +17,9 @@ from homepot.app.db.database import SessionLocal
 from homepot.app.models import UserRegisterModel as models
 from homepot.app.schemas import schemas
 
-# Setup Logger
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 router = APIRouter()
 
@@ -45,16 +45,17 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
         if db_user:
             logger.warning(f"Signup failed: Email {user.email} already registered")
-            raise HTTPException(status_code=400, detail="Email already registered")
+            # raise HTTPException(status_code=400, detail="Email already registered")
+            return {"status_code": 400, "detail": "Email already registered"}
 
         new_user = models.User(
             email=user.email,
-            name=user.name,
+            username=user.username,
             hashed_password=hash_password(user.password),
-            role=user.role if user.role else "User",
-            created_date=datetime.now(timezone.utc),
-            updated_date=datetime.now(timezone.utc),
-            last_login=datetime.now(timezone.utc),
+            # role=user.role if user.role else "User",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            # last_login=datetime.now(timezone.utc),
         )
 
         db.add(new_user)
