@@ -1,7 +1,7 @@
 """API endpoints for managing Device in the HomePot system."""
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -81,4 +81,78 @@ async def create_device(
         logger.error(f"Failed to create device: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to create device. Please check server logs."
+        )
+
+
+@router.get("/device", tags=["Devices"])
+async def list_device() -> Dict[str, List[Dict]]:
+    """List all devices."""
+    try:
+        db_service = await get_database_service()
+
+        # For demo, we'll create a simple query (in real app, add pagination)
+        from sqlalchemy import select
+
+        from homepot.models import Device
+
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(Device)
+                .where(Device.is_active.is_(True))
+                .order_by(Device.created_at.desc())
+            )
+            devices = result.scalars().all()
+
+            device_list = []
+            for device in devices:
+                device_list.append(
+                    {
+                        "site_id": device.site_id,
+                        "device_id": device.device_id,
+                        "name": device.name,
+                        "ip_address": device.ip_address,
+                        "created_at": (
+                            device.created_at.isoformat() if device.created_at else None
+                        ),
+                    }
+                )
+
+            return {"devices": device_list}
+
+    except Exception as e:
+        logger.error(f"Failed to list device: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to list device. Please check server logs."
+        )
+
+
+@router.get("/device/{device_id}", tags=["Devices"])
+async def get_device(device_id: str) -> Dict[str, Any]:
+    """Get a specific device by device_id."""
+    try:
+        db_service = await get_database_service()
+
+        # Look up device by device_id
+        device = await db_service.get_device_by_device_id(device_id)
+
+        if not device:
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
+
+        return {
+            "site_id": device.site_id,
+            "device_id": device.device_id,
+            "name": device.name,
+            "ip_address": device.ip_address,
+            "created_at": device.created_at.isoformat() if device.created_at else None,
+            "updated_at": device.updated_at.isoformat() if device.updated_at else None,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get Device {device_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get Device. Please check server logs."
         )
