@@ -86,7 +86,7 @@ async def create_device(
 
 @router.get("/device", tags=["Devices"])
 async def list_device() -> Dict[str, List[Dict]]:
-    """List all devics."""
+    """List all devices."""
     try:
         db_service = await get_database_service()
 
@@ -127,16 +127,16 @@ async def list_device() -> Dict[str, List[Dict]]:
 
 
 @router.get("/device/{device_id}", tags=["Devices"])
-async def get_site(device_id: str) -> Dict[str, Any]:
-    """Get a specific site by site_id."""
+async def get_device(device_id: str) -> Dict[str, Any]:
+    """Get a specific device by device_id."""
     try:
         db_service = await get_database_service()
 
-        # Look up site by site_id
+        # Look up device by device_id
         device = await db_service.get_device_by_device_id(device_id)
 
         if not device:
-            raise HTTPException(status_code=404, detail=f"Site '{device_id}' not found")
+            raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
 
         return {
             "site_id": device.site_id,
