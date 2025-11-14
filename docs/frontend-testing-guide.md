@@ -349,11 +349,11 @@ describe('LoginForm', () => {
 ## Next Steps
 
 1. Add tests for existing components:
-   - [ ] Button component (started)
-   - [ ] Card component
-   - [ ] Dashboard page
-   - [ ] Login page
-   - [ ] Site management pages
+   - Button component (started)
+   - Card component
+   - Dashboard page
+   - Login page
+   - Site management pages
 
 2. Set up pre-commit hooks to run tests
 

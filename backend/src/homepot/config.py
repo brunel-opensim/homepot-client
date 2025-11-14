@@ -7,15 +7,18 @@ and settings files using Pydantic Settings.
 from typing import Dict, List, Optional
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class DatabaseSettings(BaseSettings):
     """Database configuration settings."""
 
     url: str = Field(
-        default="sqlite:///./data/homepot.db",
-        description="Database URL (SQLite or PostgreSQL)",
+        default=(
+            "postgresql://homepot_user:homepot_dev_password@"
+            "localhost:5432/homepot_db"
+        ),
+        description="Database URL (PostgreSQL)",
     )
     echo_sql: bool = Field(default=False, description="Enable SQL query logging")
     pool_size: int = Field(default=5, description="Database connection pool size")
@@ -131,6 +134,9 @@ class CorsSettings(BaseSettings):
             "http://192.168.0.112:3000",
             "http://192.168.0.112:3001",
             "http://192.168.0.112:8080",
+            "http://localhost:5173/",
+            "http://localhost:5173",
+            "http://192.168.0.253:5173",
         ],
         description="Allowed CORS origins",
     )
@@ -172,13 +178,13 @@ class Settings(BaseSettings):
         default=None, description="Mobivisor API Bearer token"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        env_nested_delimiter = "__"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 # Global settings instance

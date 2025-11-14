@@ -8,9 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Install system dependencies including PostgreSQL client libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create and set the working directory
@@ -34,9 +35,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HOMEPOT_ENV=production \
     PYTHONPATH=/app
 
-# Install runtime dependencies
+# Install runtime dependencies including PostgreSQL client
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libpq5 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r homepot && useradd -r -g homepot homepot
 
@@ -53,9 +55,9 @@ COPY --chown=homepot:homepot backend/pyproject.toml ./
 COPY --chown=homepot:homepot README.md ../README.md
 
 # Create necessary directories and set permissions
-RUN mkdir -p /app/data /app/logs && \
+RUN mkdir -p /app/logs && \
     chown -R homepot:homepot /app && \
-    chmod -R 755 /app/data /app/logs
+    chmod -R 755 /app/logs
 
 # Switch to non-root user
 USER homepot
