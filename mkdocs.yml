@@ -102,6 +102,7 @@ nav:
       - Quick Start: getting-started.md
       - Running Locally: running-locally.md
       - Complete Setup: complete-website-setup.md
+      - Website Testing: website-testing-guide.md
       - Integration Guide: integration-guide.md
   
   - User Guides:
