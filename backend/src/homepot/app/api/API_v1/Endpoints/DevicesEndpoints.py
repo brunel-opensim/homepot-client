@@ -136,7 +136,9 @@ async def get_device(device_id: str) -> Dict[str, Any]:
         device = await db_service.get_device_by_device_id(device_id)
 
         if not device:
-            raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
 
         return {
             "site_id": device.site_id,
