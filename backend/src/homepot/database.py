@@ -168,6 +168,18 @@ class DatabaseService:
             )
             return result.scalar_one_or_none()
 
+    async def get_device_by_device_id(self, device_id: str) -> Optional[Device]:
+        """Get site by site_id."""
+        from sqlalchemy import select
+
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(Device).where(
+                    Device.device_id == device_id, Device.is_active.is_(True)
+                )
+            )
+            return result.scalar_one_or_none()
+
     # Device operations
     async def create_device(
         self,
