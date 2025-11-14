@@ -187,7 +187,8 @@ mkdir -p "$REPO_ROOT/logs"
 # Start backend in background
 print_info "Starting backend server on http://localhost:8000..."
 cd "$REPO_ROOT/backend"
-nohup python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload \
+# Use bash -c to activate venv in the subshell
+nohup bash -c "source $REPO_ROOT/venv/bin/activate && python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload" \
     > "$REPO_ROOT/logs/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"
