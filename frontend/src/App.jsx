@@ -56,6 +56,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/site/:siteId/:deviceId"
+            element={
+              <ProtectedRoute>
+                <Device />
+              </ProtectedRoute>
+            }
+          />
 
           {/* 404 - Catch all unmatched routes */}
           <Route path="*" element={<NotFound />} />
