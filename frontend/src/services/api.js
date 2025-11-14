@@ -8,7 +8,7 @@
 import axios from 'axios';
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.0.253:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.73:8000';
 const API_VERSION = 'v1';
 const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
 
@@ -200,6 +200,10 @@ const api = {
   // ==================== Devices ====================
 
   devices: {
+    list: async () => {
+      const response = await apiClient.get('/devices/device');
+      return response.data;
+    },
     /**
      * Create device
      */
