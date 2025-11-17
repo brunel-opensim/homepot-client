@@ -86,7 +86,7 @@ async def create_device(
 
 @router.get("/device", tags=["Devices"])
 async def list_device() -> Dict[str, List[Dict]]:
-    """List all devics."""
+    """List all devices."""
     try:
         db_service = await get_database_service()
 
