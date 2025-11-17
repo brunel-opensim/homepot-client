@@ -175,6 +175,7 @@ async def get_device_site_id(site_id: int) -> List[Dict[str, Any]]:
         return [
             {
                 "site_id": d.site_id,
+                "id": d.id,
                 "device_id": d.device_id,
                 "name": d.name,
                 "ip_address": d.ip_address,
