@@ -17,6 +17,7 @@ This guide provides step-by-step instructions to run the complete HOMEPOT websit
 
 - **Python**: 3.11+ (3.12.3 recommended)
 - **Node.js**: 22.12+ (22.21.1 recommended)
+- **PostgreSQL**: 13+ (for production database)
 - **Operating System**: Linux, macOS, or Windows with WSL
 
 ### Installed Tools
@@ -25,6 +26,11 @@ This guide provides step-by-step instructions to run the complete HOMEPOT websit
 - Python virtual environment support
 - Node Version Manager (nvm) - recommended
 - curl (for testing)
+- PostgreSQL server and client
+
+### Important Dependencies
+
+⚠️ **bcrypt Version:** The project requires `bcrypt==4.1.3` for compatibility with `passlib`. Version 5.x has breaking changes that cause authentication failures. This is already pinned in `backend/requirements.txt`.
 
 ## Quick Start
 
