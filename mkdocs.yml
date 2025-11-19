@@ -110,6 +110,7 @@ nav:
       - Real-time Dashboard: real-time-dashboard.md
       - Agent Simulation: agent-simulation.md
       - API Testing: api-testing-guide.md
+      - Device Metrics Collection: device-metrics-collection.md
   
   - Development:
       - Development Guide: development-guide.md
