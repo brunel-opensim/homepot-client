@@ -205,7 +205,7 @@ async def fetch_managed_apps_from_device(device_id: str) -> Any:
     """Fetch list of managed apps for a specific devices from Mobivisor API.
 
     Args:
-        device_id: The unique identifier of the device
+        device_id: The unique identifier of the devices
 
     Returns:
         List: JSON response from Mobivisor API with device apps
