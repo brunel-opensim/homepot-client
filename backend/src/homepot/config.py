@@ -236,13 +236,5 @@ def get_mobivisor_api_config() -> Dict[str, Optional[str]]:
     settings = get_settings()
     return {
         "mobivisor_api_url": settings.mobivisor_api_url,
-        "mobivisor_api_token": (
-            "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9."
-            "eyJ1c2VybmFtZSI6ImFkbWluIiwiX2lkIjoiNjg"
-            "wN2E1ODM2NDE1ZjRlZDFlZTA4MWVhIiwiaWQiOiI2ODA3YT"
-            "U4MzY0MTVmNGVkMWVlMDgxZWEiLCJyb2xlX2lkIjoiQWRtaW4i"
-            "LCJkaXNwbGF5TmFtZSI6ImFkbWluIiwidGVuYW50IjoibXlkZCI"
-            "sImlhdCI6MTc2MzM3MDg5OSwiZXhwIjoxNzk0NDc0ODk5fQ."
-            "s8PPULn31vQQKyfiKTB0vKV4ncCUYaV6nttnQuhfcs0"
-        ),
+        "mobivisor_api_token": settings.mobivisor_api_token,
     }
