@@ -7,7 +7,7 @@ for the HOMEPOT system.
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from sqlalchemy import Result
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -180,17 +180,20 @@ class DatabaseService:
             )
             return result.scalar_one_or_none()
 
-    async def get_device_by_site_id(self, site_id: int) -> Sequence[Device]:
+    async def get_device_by_site_id(self, site_id: str) -> List[Device]:
         """Get Device by site_id."""
         from sqlalchemy import select
 
         async with self.get_session() as session:
+            site = await self.get_site_by_site_id(site_id)
+            if not site:
+                return []
             result = await session.execute(
                 select(Device).where(
                     Device.site_id == site_id, Device.is_active.is_(True)
                 )
             )
-            return result.scalars().all()
+            return list(result.scalars().all())
 
     # Device operations
     async def create_device(
@@ -198,7 +201,7 @@ class DatabaseService:
         device_id: str,
         name: str,
         device_type: str,
-        site_id: int,
+        site_id: str,
         ip_address: Optional[str] = None,
         config: Optional[dict] = None,
     ) -> Device:

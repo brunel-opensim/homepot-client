@@ -439,7 +439,7 @@ async def create_device(
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=int(site.id),
+            site_id=site_id,
             ip_address=device_request.ip_address,
             config=device_request.config,
         )

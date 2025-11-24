@@ -63,7 +63,7 @@ async def create_device(
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=int(site.id),
+            site_id=site_id,
             ip_address=device_request.ip_address,
             config=device_request.config,
         )
@@ -158,8 +158,8 @@ async def get_device(device_id: str) -> Dict[str, Any]:
         )
 
 
-@router.get("/devices/{site_id}", tags=["Devices"])
-async def get_device_site_id(site_id: int) -> List[Dict[str, Any]]:
+@router.get("/site/{site_id}/devices", tags=["Devices"])
+async def get_device_site_id(site_id: str) -> List[Dict[str, Any]]:
     """Get a specific Device by site_id."""
     try:
         db_service = await get_database_service()
@@ -175,9 +175,10 @@ async def get_device_site_id(site_id: int) -> List[Dict[str, Any]]:
         return [
             {
                 "site_id": d.site_id,
-                "id": d.id,
                 "device_id": d.device_id,
                 "name": d.name,
+                "device_type": d.device_type,
+                "status": d.status,
                 "ip_address": d.ip_address,
                 # "created_at": d.created_at.isoformat() if device.created_at else None,
                 # "updated_at": d.updated_at.isoformat() if device.updated_at else None,
