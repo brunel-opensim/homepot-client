@@ -25,7 +25,6 @@ from sqlalchemy.orm import sessionmaker
 from homepot.agents import POSAgentSimulator
 
 # Import HOMEPOT components
-from homepot.main import app
 from homepot.models import Base, User
 
 
@@ -183,7 +182,8 @@ class TestPOSDummy:
 
         This tests that the database layer can create, read, and manage entities.
         """
-        # Test basic database operations (we'll use synchronous operations for simplicity)
+        # Test basic database operations
+        # We'll use synchronous operations for simplicity
         engine = create_engine(f"sqlite:///{temp_db}")
         Session = sessionmaker(bind=engine)
         session = Session()
@@ -231,7 +231,8 @@ class TestPOSDummy:
         }
 
         response = test_client.post("/sites", json=dummy_site_data)
-        # Accept various response codes - we're testing infrastructure, not perfect functionality
+        # Accept various response codes
+        # We're testing infrastructure, not perfect functionality
         assert response.status_code in [
             200,
             201,

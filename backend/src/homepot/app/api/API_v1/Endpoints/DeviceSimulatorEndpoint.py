@@ -3,7 +3,7 @@
 import logging
 import random
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict
 
 from fastapi import APIRouter, HTTPException
 
@@ -189,7 +189,9 @@ async def simulate_site_metrics(
         logger.info(f"Simulated metrics for {len(results)} devices in site {site_id}")
 
         return {
-            "message": f"Simulated metrics for {len(results)} devices in site {site_id}",
+            "message": (
+                f"Simulated metrics for {len(results)} devices in site " f"{site_id}"
+            ),
             "site_id": site_id,
             "total_devices": len(results),
             "scenarios_distribution": {

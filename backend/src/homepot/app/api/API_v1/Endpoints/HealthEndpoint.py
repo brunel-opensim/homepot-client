@@ -238,7 +238,10 @@ async def trigger_health_check(device_id: str) -> Dict[str, Any]:
 async def submit_device_health_check(
     device_id: str, health_check: HealthCheckRequest
 ) -> Dict[str, Any]:
-    """Submit device health check with enhanced metrics (alias for /metrics endpoint)."""
+    """Submit device health check with enhanced metrics.
+
+    Alias for /metrics endpoint.
+    """
     return await submit_device_metrics(device_id, health_check)
 
 
@@ -319,10 +322,11 @@ async def submit_device_metrics(
                 f"(ID: {health_check_id})"
             )
         except Exception as db_error:
-            # Log metrics even if database storage fails (e.g., device not registered yet)
+            # Log metrics even if database storage fails
+            # (e.g., device not registered yet)
             logger.warning(
-                f"Could not store health check for {device_id} in database: {db_error}. "
-                f"Metrics logged but not persisted."
+                f"Could not store health check for {device_id} in database: "
+                f"{db_error}. Metrics logged but not persisted."
             )
 
         # Log metrics if present for monitoring
