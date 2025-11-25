@@ -57,6 +57,19 @@ async def simulate_device_metrics(
 
         # Generate metrics based on scenario
         metrics = _generate_metrics_for_scenario(scenario)
+        system_metrics = SystemMetrics(**metrics["system"])
+        app_metrics_obj = ApplicationMetrics(**metrics["app_metrics"])
+        network_metrics = NetworkMetrics(**metrics["network"])
+
+        enhanced_data = EnhancedHealthCheckData(
+            status=metrics["status"],
+            timestamp=datetime.utcnow().isoformat(),
+            system=system_metrics,
+            app_metrics=app_metrics_obj,
+            network=network_metrics,
+            environmental=None,
+            custom=None,
+        )
 
         # Create health check request
         health_check = HealthCheckRequest(
@@ -64,24 +77,27 @@ async def simulate_device_metrics(
             response_time_ms=metrics["response_time_ms"],
             status_code=200,
             endpoint="/health",
-            response_data=EnhancedHealthCheckData(
-                status=metrics["status"],
-                timestamp=datetime.utcnow().isoformat(),
-                system=SystemMetrics(**metrics["system"]),
-                app_metrics=ApplicationMetrics(**metrics["app_metrics"]),
-                network=NetworkMetrics(**metrics["network"]),
-            ),
+            response_data=enhanced_data.model_dump(exclude_none=True),
+            error_message=None,
+            system=system_metrics,
+            app_metrics=app_metrics_obj,
+            network=network_metrics,
         )
 
         # Store in database
+        response_data_dict = (
+            health_check.response_data
+            if isinstance(health_check.response_data, dict)
+            else enhanced_data.model_dump(exclude_none=True)
+        )
         health_check_record = await db_service.create_health_check(
-            device_id=device.id,
-            device_name=device_id,
+            device_id=int(device.id),
+            device_name=str(device_id),
             is_healthy=health_check.is_healthy,
             response_time_ms=health_check.response_time_ms or 0,
             status_code=health_check.status_code or 200,
             endpoint=health_check.endpoint,
-            response_data=health_check.response_data.model_dump(exclude_none=True),
+            response_data=response_data_dict,
         )
 
         logger.info(
@@ -162,8 +178,8 @@ async def simulate_site_metrics(
             metrics = _generate_metrics_for_scenario(device_scenario)
 
             health_check_record = await db_service.create_health_check(
-                device_id=device.id,
-                device_name=device.device_id,
+                device_id=int(device.id),
+                device_name=str(device.device_id),
                 is_healthy=metrics["is_healthy"],
                 response_time_ms=metrics["response_time_ms"],
                 status_code=200,

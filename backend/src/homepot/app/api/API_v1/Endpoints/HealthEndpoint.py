@@ -308,7 +308,7 @@ async def submit_device_metrics(
         health_check_id = None
         try:
             health_check_record = await db_service.create_health_check(
-                device_id=device.id if device else None,
+                device_id=int(device.id) if device and device.id is not None else None,
                 device_name=device_id,
                 is_healthy=health_check.is_healthy,
                 response_time_ms=health_check.response_time_ms or 0,
@@ -459,6 +459,10 @@ async def simulate_device_metrics(
             status_code=200 if is_healthy else 500,
             endpoint="/health",
             response_data=enhanced_data,
+            error_message=None,
+            system=system_metrics,
+            app_metrics=app_metrics,
+            network=network_metrics,
         )
 
         # Submit via the metrics endpoint
