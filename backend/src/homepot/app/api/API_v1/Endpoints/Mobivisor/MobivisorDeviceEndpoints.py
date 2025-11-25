@@ -70,7 +70,7 @@ async def fetch_external_devices() -> Any:
             },
         )
     logger.info("Fetching devices from Mobivisor API")
-    response = await make_mobivisor_request("GET", "devices")
+    response = await make_mobivisor_request("GET", "devices", config=config)
     return handle_mobivisor_response(response, "fetch devices")
 
 
@@ -103,7 +103,10 @@ async def fetch_device_details(device_id: str) -> Dict[str, Any]:
         ```
     """
     logger.info(f"Fetching device details from Mobivisor API: {device_id}")
-    response = await make_mobivisor_request("GET", f"devices/{device_id}")
+    config = get_mobivisor_api_config()
+    response = await make_mobivisor_request(
+        "GET", f"devices/{device_id}", config=config
+    )
     return handle_mobivisor_response(response, f"fetch device {device_id}")
 
 
@@ -134,7 +137,10 @@ async def delete_device(device_id: str) -> Dict[str, Any]:
         ```
     """
     logger.info(f"Deleting device from Mobivisor API: {device_id}")
-    response = await make_mobivisor_request("DELETE", f"devices/{device_id}")
+    config = get_mobivisor_api_config()
+    response = await make_mobivisor_request(
+        "DELETE", f"devices/{device_id}", config=config
+    )
     handle_mobivisor_response(response, f"delete device {device_id}")
 
     return {"message": "Device deleted successfully", "device_id": device_id}
@@ -169,8 +175,11 @@ async def fetch_device_installed_packages(device_id: str) -> Any:
         ```
     """
     logger.info(f"Fetching device details from Mobivisor API: {device_id}")
+    config = get_mobivisor_api_config()
     response = await make_mobivisor_request(
-        "GET", f"devices/{device_id}/" "allInstalledPackages"
+        "GET",
+        f"devices/{device_id}/" "allInstalledPackages",
+        config=config,
     )
     return handle_mobivisor_response(response, f"fetch device {device_id}")
 
@@ -192,8 +201,9 @@ async def delete_device_installed_packages(device_id: str, package_id: str) -> A
 
     """
     logger.info(f"Delete device installed packages from Mobivisor API: {device_id}")
+    config = get_mobivisor_api_config()
     response = await make_mobivisor_request(
-        "DELETE", f"devices/{device_id}/enterpriseApp/{package_id}"
+        "DELETE", f"devices/{device_id}/enterpriseApp/{package_id}", config=config
     )
     return handle_mobivisor_response(
         response, f"delete installed package {device_id} {package_id}"
@@ -213,7 +223,8 @@ async def fetch_managed_apps_from_device(device_id: str) -> Any:
 
     """
     logger.info(f"Fetching device details from Mobivisor API: {device_id}")
+    config = get_mobivisor_api_config()
     response = await make_mobivisor_request(
-        "GET", f"devices/{device_id}/" "managedApps"
+        "GET", f"devices/{device_id}/" "managedApps", config=config
     )
     return handle_mobivisor_response(response, f"fetch device {device_id}")

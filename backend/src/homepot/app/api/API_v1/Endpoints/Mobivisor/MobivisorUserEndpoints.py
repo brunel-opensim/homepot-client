@@ -70,7 +70,7 @@ async def fetch_mobivisor_users() -> Any:
             },
         )
     logger.info("Fetching users from Mobivisor API")
-    response = await make_mobivisor_request("GET", "users")
+    response = await make_mobivisor_request("GET", "users", config=config)
     return handle_mobivisor_response(response, "fetch users")
 
 
@@ -103,7 +103,8 @@ async def fetch_user_details(user_id: str) -> Dict[str, Any]:
         ```
     """
     logger.info(f"Fetching user details from Mobivisor API: {user_id}")
-    response = await make_mobivisor_request("GET", f"users/{user_id}")
+    config = get_mobivisor_api_config()
+    response = await make_mobivisor_request("GET", f"users/{user_id}", config=config)
     return handle_mobivisor_response(response, f"fetch user {user_id}")
 
 
@@ -134,7 +135,8 @@ async def delete_user(user_id: str) -> Dict[str, Any]:
         ```
     """
     logger.info(f"Deleting user from Mobivisor API: {user_id}")
-    response = await make_mobivisor_request("DELETE", f"users/{user_id}")
+    config = get_mobivisor_api_config()
+    response = await make_mobivisor_request("DELETE", f"users/{user_id}", config=config)
     handle_mobivisor_response(response, f"delete user {user_id}")
 
     return {"message": "User deleted successfully", "user_id": user_id}

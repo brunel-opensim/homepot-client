@@ -195,7 +195,10 @@ class TestMobivisorDevicesEndpoints:
         assert response.status_code == 200
         assert response.json() == device_data
 
-    @patch("homepot.config.get_mobivisor_api_config")
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
     @patch("httpx.AsyncClient")
     def test_fetch_device_details_not_found(
         self,
