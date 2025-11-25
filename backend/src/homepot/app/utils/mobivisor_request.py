@@ -6,7 +6,7 @@ including request handling, authentication, and error mapping.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import HTTPException
@@ -23,7 +23,7 @@ DEFAULT_TIMEOUT_CONNECT = 5.0
 
 
 async def _make_mobivisor_request(
-    method: str, endpoint: str, config: Dict[str, Any] | None = None, **kwargs: Any
+    method: str, endpoint: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
 ) -> httpx.Response:
     """Make HTTP request to Mobivisor API with proper authentication.
 
