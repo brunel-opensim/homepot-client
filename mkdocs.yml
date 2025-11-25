@@ -111,6 +111,10 @@ nav:
       - Agent Simulation: agent-simulation.md
       - API Testing: api-testing-guide.md
   
+  - API Reference:
+      - Devices:
+          - Get Devices by Site: devices-by-site-endpoint.md
+  
   - Development:
       - Development Guide: development-guide.md
       - Testing Guide: testing-guide.md
