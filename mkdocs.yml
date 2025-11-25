@@ -140,6 +140,10 @@ nav:
       - Deployment Guide: deployment-guide.md
       - Frontend CI/CD: frontend-ci-cd.md
   
+  - AI & Analytics:
+      - Executive Summary: ai-roadmap-executive-summary.md
+      - Full Roadmap: ai-roadmap.md
+  
   - Reference:
       - Visual Examples: visual-examples.md
       - Audit & Compliance: audit-compliance.md

@@ -33,25 +33,25 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ```text
 homepot-client/
-├── backend/                   # Python backend service
-│   ├── homepot/       # Main Python package
-│   ├── tests/                # Backend tests
-│   ├── pyproject.toml        # Python configuration
-│   └── requirements.txt      # Python dependencies
-├── frontend/                  # React frontend application
-│   ├── src/                  # Frontend source code
-│   ├── public/               # Static assets
-│   └── package.json          # npm dependencies
-├── ai/                        # AI/LLM services (future)
-│   └── README.md             # AI service documentation
-├── docs/                      # Documentation
-├── scripts/                   # Development and automation scripts
-├── data/                      # Database storage
-├── .github/                   # GitHub workflows
-├── docker-compose.yml         # Multi-service orchestration
-├── CONTRIBUTING.md            # Contribution guidelines
-├── LICENSE                    # Apache 2.0 license
-└── README.md                  # This file
+├── backend/                 # Python backend service
+│   ├── homepot/             # Main Python package
+│   ├── tests/               # Backend tests
+│   ├── pyproject.toml       # Python configuration
+│   └── requirements.txt     # Python dependencies
+├── frontend/                # React frontend application
+│   ├── src/                 # Frontend source code
+│   ├── public/              # Static assets
+│   └── package.json         # npm dependencies
+├── ai/                      # AI/LLM services (future)
+│   └── README.md            # AI service documentation
+├── docs/                    # Documentation
+├── scripts/                 # Development and automation scripts
+├── data/                    # Database storage
+├── .github/                 # GitHub workflows
+├── docker-compose.yml       # Multi-service orchestration
+├── CONTRIBUTING.md          # Contribution guidelines
+├── LICENSE                  # Apache 2.0 license
+└── README.md                # This file
 ```
 
 > See [Monorepo Migration Guide](docs/monorepo-migration.md) for details on the new structure

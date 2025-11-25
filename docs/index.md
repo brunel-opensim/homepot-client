@@ -21,6 +21,11 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 
 ## Recent Documentation Updates (November 2025)
 
+### 🚀 NEW: AI Integration Roadmap
+**Strategic 9-month plan** - Complete roadmap from current website integration to AI-powered data analysis platform with anomaly detection, predictive maintenance, and natural language queries.
+
+[Read AI Roadmap →](ai-roadmap.md) | [Executive Summary →](ai-roadmap-executive-summary.md)
+
 ### Integration Guide
 **2000+ lines** - Your complete technical reference covering architecture, installation, API reference, frontend guide, push notifications (all 5 platforms), testing, deployment, and troubleshooting.
 
