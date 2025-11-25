@@ -10,8 +10,8 @@ class UserCreate(BaseModel):
 
     email: EmailStr
     password: str
-    name: Optional[str] = None
-    role: Optional[str] = "User"  # Default role
+    username: Optional[str] = None
+    # role: Optional[str] = "User"  # Default role
 
 
 class UserLogin(BaseModel):
