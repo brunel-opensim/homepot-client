@@ -74,7 +74,7 @@ async def fetch_mobivisor_users() -> Any:
     return handle_mobivisor_response(response, "fetch users")
 
 
-@router.get("/users/{user_id}", tags=["Mobivisor users"])
+@router.get("/users/{user_id}", tags=["Mobivisor Users"])
 async def fetch_user_details(user_id: str) -> Dict[str, Any]:
     """Fetch details for a specific User from Mobivisor API.
 
