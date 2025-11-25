@@ -101,9 +101,7 @@ async def simulate_device_metrics(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Failed to simulate metrics for {device_id}: {e}", exc_info=True
-        )
+        logger.error(f"Failed to simulate metrics for {device_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Failed to simulate device metrics. Please check server logs.",
@@ -188,9 +186,7 @@ async def simulate_site_metrics(
                 }
             )
 
-        logger.info(
-            f"Simulated metrics for {len(results)} devices in site {site_id}"
-        )
+        logger.info(f"Simulated metrics for {len(results)} devices in site {site_id}")
 
         return {
             "message": f"Simulated metrics for {len(results)} devices in site {site_id}",
@@ -206,7 +202,9 @@ async def simulate_site_metrics(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to simulate site metrics for {site_id}: {e}", exc_info=True)
+        logger.error(
+            f"Failed to simulate site metrics for {site_id}: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail="Failed to simulate site metrics. Please check server logs.",

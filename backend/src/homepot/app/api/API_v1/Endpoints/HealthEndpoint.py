@@ -296,7 +296,9 @@ async def submit_device_metrics(
             logger.warning(f"Could not find device {device_id}: {e}")
 
         # Convert response_data to dict if present
-        response_data_dict = health_check.response_data if health_check.response_data else None
+        response_data_dict = (
+            health_check.response_data if health_check.response_data else None
+        )
 
         # Store health check in database (with or without device_id link)
         health_check_record = None
@@ -365,32 +367,31 @@ async def submit_device_metrics(
 
 @device_metrics_router.post("/simulator/device-metrics", tags=["Health", "Simulator"])
 async def simulate_device_metrics(
-    device_id: str = "simulated-pos-001",
-    is_healthy: bool = True
+    device_id: str = "simulated-pos-001", is_healthy: bool = True
 ) -> Dict[str, Any]:
     """Generate and submit realistic simulated device metrics for testing.
-    
+
     This endpoint generates realistic device metrics without requiring actual devices.
     Useful for testing, demonstrations, and development.
-    
+
     Args:
         device_id: Device identifier to simulate (default: "simulated-pos-001")
         is_healthy: Whether to simulate a healthy (true) or unhealthy (false) device
-        
+
     Returns:
         Confirmation with simulated metrics and health check ID
-        
+
     Example:
         POST /api/v1/simulator/device-metrics?device_id=test-pos-001&is_healthy=false
     """
     import random
+
     from homepot.app.schemas.schemas import (
-        SystemMetrics,
         ApplicationMetrics,
         NetworkMetrics,
-        EnhancedHealthCheckData
+        SystemMetrics,
     )
-    
+
     try:
         # Generate realistic metrics based on health status
         if is_healthy:
@@ -405,7 +406,7 @@ async def simulate_device_metrics(
             disk = round(random.uniform(70, 95), 1)
             errors = random.randint(5, 20)
             response_time = random.randint(500, 2000)
-        
+
         # Create metrics objects
         system_metrics = SystemMetrics(
             cpu_percent=cpu,
@@ -415,63 +416,69 @@ async def simulate_device_metrics(
             memory_total_mb=2048,
             disk_used_gb=round(disk * 2.0, 2),  # Assuming 200GB total
             disk_total_gb=200,
-            uptime_seconds=random.randint(3600, 864000)  # 1 hour to 10 days
+            uptime_seconds=random.randint(3600, 864000),  # 1 hour to 10 days
         )
-        
+
         app_metrics = ApplicationMetrics(
             app_version="1.2.3",
-            transactions_count=random.randint(100, 500) if is_healthy else random.randint(0, 50),
+            transactions_count=(
+                random.randint(100, 500) if is_healthy else random.randint(0, 50)
+            ),
             errors_count=errors,
             warnings_count=random.randint(0, 10),
             avg_response_time_ms=round(random.uniform(100, 500), 2),
-            active_connections=random.randint(1, 10) if is_healthy else 0
+            active_connections=random.randint(1, 10) if is_healthy else 0,
         )
-        
+
         network_metrics = NetworkMetrics(
-            latency_ms=round(random.uniform(10, 100) if is_healthy else random.uniform(200, 1000), 2),
+            latency_ms=round(
+                random.uniform(10, 100) if is_healthy else random.uniform(200, 1000), 2
+            ),
             rx_bytes=random.randint(100000, 10000000),
             tx_bytes=random.randint(50000, 5000000),
-            connection_quality="good" if is_healthy else "poor"
+            connection_quality="good" if is_healthy else "poor",
         )
-        
+
         # Create enhanced health check data as dict
         enhanced_data = {
             "status": "healthy" if is_healthy else "degraded",
             "timestamp": datetime.utcnow().isoformat(),
             "system": system_metrics.model_dump(exclude_none=True),
             "app_metrics": app_metrics.model_dump(exclude_none=True),
-            "network": network_metrics.model_dump(exclude_none=True)
+            "network": network_metrics.model_dump(exclude_none=True),
         }
-        
+
         # Create health check request
         health_check = HealthCheckRequest(
             is_healthy=is_healthy,
             response_time_ms=response_time,
             status_code=200 if is_healthy else 500,
             endpoint="/health",
-            response_data=enhanced_data
+            response_data=enhanced_data,
         )
-        
+
         # Submit via the metrics endpoint
         result = await submit_device_metrics(device_id, health_check)
-        
+
         # Add simulated metrics to response
         result["simulated_metrics"] = {
             "system": system_metrics.model_dump(),
             "app_metrics": app_metrics.model_dump(),
-            "network": network_metrics.model_dump()
+            "network": network_metrics.model_dump(),
         }
         result["simulation_note"] = "This data was generated for testing purposes"
-        
-        logger.info(f"Generated simulated metrics for {device_id} (healthy={is_healthy})")
-        
+
+        logger.info(
+            f"Generated simulated metrics for {device_id} (healthy={is_healthy})"
+        )
+
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to simulate device metrics: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Failed to simulate device metrics. Please check server logs."
+            detail="Failed to simulate device metrics. Please check server logs.",
         )

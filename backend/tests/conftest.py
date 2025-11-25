@@ -75,8 +75,9 @@ def invalid_config() -> Dict[str, Any]:
 async def async_client():
     """Create an async test client for the HOMEPOT application."""
     from httpx import ASGITransport, AsyncClient
+
     from homepot.app.main import app
-    
+
     # Create async client with ASGI transport
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

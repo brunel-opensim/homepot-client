@@ -1,4 +1,4 @@
-"""Pydantic schemas for user registration, authentication, and device metrics in the HOMEPOT system."""
+"""Pydantic schemas for user registration, authentication, and device metrics."""
 
 from typing import Any, Dict, Optional, TypedDict
 
@@ -237,7 +237,9 @@ class HealthCheckRequest(BaseModel):
     )
     error_message: Optional[str] = Field(None, description="Error message if unhealthy")
     system: Optional[SystemMetrics] = Field(None, description="System metrics")
-    app_metrics: Optional[ApplicationMetrics] = Field(None, description="Application metrics")
+    app_metrics: Optional[ApplicationMetrics] = Field(
+        None, description="Application metrics"
+    )
     network: Optional[NetworkMetrics] = Field(None, description="Network metrics")
 
     class Config:
