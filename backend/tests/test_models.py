@@ -77,7 +77,7 @@ def test_device_model_creation(memory_db):
         name="Main POS Terminal",
         device_type=DeviceType.POS_TERMINAL,
         status=DeviceStatus.ONLINE,
-        site_id=site.id,
+        site_id=site.site_id,
         ip_address="192.168.1.100",
         mac_address="00:11:22:33:44:55",
         firmware_version="v2.1.0",
@@ -92,7 +92,7 @@ def test_device_model_creation(memory_db):
     assert device.name == "Main POS Terminal"
     assert device.device_type == DeviceType.POS_TERMINAL
     assert device.status == DeviceStatus.ONLINE
-    assert device.site_id == site.id
+    assert device.site_id == site.site_id
     assert device.ip_address == "192.168.1.100"
     assert device.mac_address == "00:11:22:33:44:55"
     assert device.firmware_version == "v2.1.0"
@@ -189,19 +189,19 @@ def test_site_device_relationship(memory_db):
         device_id="pos-001",
         name="Register 1",
         device_type=DeviceType.POS_TERMINAL,
-        site_id=site.id,
+        site_id=site.site_id,
     )
     device2 = Device(
         device_id="pos-002",
         name="Register 2",
         device_type=DeviceType.POS_TERMINAL,
-        site_id=site.id,
+        site_id=site.site_id,
     )
     device3 = Device(
         device_id="sensor-001",
         name="Temperature Sensor",
         device_type=DeviceType.IOT_SENSOR,
-        site_id=site.id,
+        site_id=site.site_id,
     )
 
     db.add_all([device1, device2, device3])

@@ -112,6 +112,10 @@ nav:
       - API Testing: api-testing-guide.md
       - Device Metrics Collection: device-metrics-collection.md
   
+  - API Reference:
+      - Devices:
+          - Get Devices by Site: devices-by-site-endpoint.md
+  
   - Development:
       - Development Guide: development-guide.md
       - Testing Guide: testing-guide.md
@@ -140,6 +144,10 @@ nav:
   - Deployment:
       - Deployment Guide: deployment-guide.md
       - Frontend CI/CD: frontend-ci-cd.md
+  
+  - AI & Analytics:
+      - Executive Summary: ai-roadmap-executive-summary.md
+      - Full Roadmap: ai-roadmap.md
   
   - Reference:
       - Visual Examples: visual-examples.md

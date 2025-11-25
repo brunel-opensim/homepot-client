@@ -63,7 +63,7 @@ async def create_device(
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=int(site.id),
+            site_id=site_id,
             ip_address=device_request.ip_address,
             config=device_request.config,
         )
@@ -128,11 +128,11 @@ async def list_device() -> Dict[str, List[Dict]]:
 
 @router.get("/device/{device_id}", tags=["Devices"])
 async def get_device(device_id: str) -> Dict[str, Any]:
-    """Get a specific device by device_id."""
+    """Get a specific Device by device_id."""
     try:
         db_service = await get_database_service()
 
-        # Look up device by device_id
+        # Look up site by device_id
         device = await db_service.get_device_by_device_id(device_id)
 
         if not device:
@@ -155,4 +155,51 @@ async def get_device(device_id: str) -> Dict[str, Any]:
         logger.error(f"Failed to get Device {device_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to get Device. Please check server logs."
+        )
+
+
+@router.get("/sites/{site_id}/devices", tags=["Devices"])
+async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
+    """Get all devices for a specific site.
+
+    Args:
+        site_id: The site's business ID (e.g., 'site-123')
+
+    Returns:
+        List of devices belonging to the site
+
+    Raises:
+        HTTPException: 404 if site not found
+    """
+    try:
+        db_service = await get_database_service()
+
+        # Verify site exists
+        site = await db_service.get_site_by_site_id(site_id)
+        if not site:
+            raise HTTPException(status_code=404, detail=f"Site '{site_id}' not found")
+
+        # Get devices for this site
+        devices = await db_service.get_devices_by_site_id(site_id)
+
+        return [
+            {
+                "site_id": d.site_id,
+                "device_id": d.device_id,
+                "name": d.name,
+                "device_type": d.device_type,
+                "status": d.status,
+                "ip_address": d.ip_address,
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+                "updated_at": d.updated_at.isoformat() if d.updated_at else None,
+            }
+            for d in devices
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get devices for site {site_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to get devices. Please check server logs."
         )

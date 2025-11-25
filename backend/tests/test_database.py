@@ -120,7 +120,7 @@ def test_device_creation(temp_db):
         device_id="pos-terminal-test-001",
         name="pos-terminal-test",
         device_type="pos_terminal",
-        site_id=site.id,
+        site_id=site.site_id,
     )
 
     db.add(device)
@@ -130,7 +130,7 @@ def test_device_creation(temp_db):
     assert device.id is not None
     assert device.device_id == "pos-terminal-test-001"
     assert device.name == "pos-terminal-test"
-    assert device.site_id == site.id
+    assert device.site_id == site.site_id
     assert device.created_at is not None
 
     db.close()
@@ -191,10 +191,16 @@ def test_site_device_relationship(temp_db):
 
     # Create multiple devices for the site
     device1 = Device(
-        device_id="pos-1", name="pos-1", device_type="pos_terminal", site_id=site.id
+        device_id="pos-1",
+        name="pos-1",
+        device_type="pos_terminal",
+        site_id=site.site_id,
     )
     device2 = Device(
-        device_id="pos-2", name="pos-2", device_type="pos_terminal", site_id=site.id
+        device_id="pos-2",
+        name="pos-2",
+        device_type="pos_terminal",
+        site_id=site.site_id,
     )
 
     db.add_all([device1, device2])
@@ -202,7 +208,7 @@ def test_site_device_relationship(temp_db):
 
     # Test the relationship
     db.refresh(site)  # Refresh to load relationships
-    site_with_devices = db.query(Site).filter_by(id=site.id).first()
+    site_with_devices = db.query(Site).filter_by(site_id=site.site_id).first()
 
     assert site_with_devices is not None
     assert len(site_with_devices.devices) == 2
@@ -284,7 +290,7 @@ def test_demo_data_exists(temp_db):
         device_id="demo-device-001",
         name="Demo POS Terminal",
         device_type=DeviceType.POS_TERMINAL.value,
-        site_id=site.id,
+        site_id=site.site_id,
     )
     db.add(device)
     db.commit()
@@ -299,4 +305,4 @@ def test_demo_data_exists(temp_db):
     # Verify the device is properly linked to the site
     test_device = db.query(Device).filter_by(device_id="demo-device-001").first()
     assert test_device is not None, "Test device not found"
-    assert test_device.site_id == site.id, "Device not properly linked to site"
+    assert test_device.site_id == site.site_id, "Device not properly linked to site"

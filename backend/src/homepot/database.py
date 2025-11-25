@@ -169,7 +169,7 @@ class DatabaseService:
             return result.scalar_one_or_none()
 
     async def get_device_by_device_id(self, device_id: str) -> Optional[Device]:
-        """Get device by device_id."""
+        """Get Device by device_id."""
         from sqlalchemy import select
 
         async with self.get_session() as session:
@@ -180,13 +180,38 @@ class DatabaseService:
             )
             return result.scalar_one_or_none()
 
+    async def get_devices_by_site_id(self, site_id: str) -> List[Device]:
+        """Get all devices for a site by site_id string (e.g., 'site-123').
+
+        Args:
+            site_id: Business ID of the site (string like 'site-123')
+
+        Returns:
+            List of Device objects for the site (empty if site not found)
+        """
+        from sqlalchemy import select
+
+        async with self.get_session() as session:
+            # Verify site exists first
+            site = await self.get_site_by_site_id(site_id)
+            if not site:
+                return []
+
+            # Query devices using string site_id FK
+            result = await session.execute(
+                select(Device)
+                .where(Device.site_id == site_id, Device.is_active.is_(True))
+                .order_by(Device.created_at.desc())
+            )
+            return list(result.scalars().all())
+
     # Device operations
     async def create_device(
         self,
         device_id: str,
         name: str,
         device_type: str,
-        site_id: int,
+        site_id: str,
         ip_address: Optional[str] = None,
         config: Optional[dict] = None,
     ) -> Device:
