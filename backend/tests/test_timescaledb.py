@@ -167,10 +167,13 @@ async def test_setup_aggregates_handles_unavailability():
 
 @pytest.mark.asyncio
 @pytest.mark.timescaledb
+@pytest.mark.skip(
+    reason="Requires PostgreSQL with TimescaleDB extension. Run with: pytest tests/test_timescaledb.py -m timescaledb"
+)
 async def test_timescaledb_hypertable_creation():
     """Integration test: Create hypertable with TimescaleDB available.
 
-    Run with: pytest tests/test_timescaledb.py --run-timescaledb
+    Run with: pytest tests/test_timescaledb.py -m timescaledb
     Requires: PostgreSQL with TimescaleDB extension installed
     """
     db_service = await get_database_service()
@@ -199,10 +202,13 @@ async def test_timescaledb_hypertable_creation():
 
 @pytest.mark.asyncio
 @pytest.mark.timescaledb
+@pytest.mark.skip(
+    reason="Requires PostgreSQL with TimescaleDB extension. Run with: pytest tests/test_timescaledb.py -m timescaledb"
+)
 async def test_timescaledb_continuous_aggregates():
     """Integration test: Create continuous aggregates with TimescaleDB.
 
-    Run with: pytest tests/test_timescaledb.py --run-timescaledb
+    Run with: pytest tests/test_timescaledb.py -m timescaledb
     Requires: PostgreSQL with TimescaleDB extension and health_checks hypertable
     """
     db_service = await get_database_service()
@@ -227,10 +233,13 @@ async def test_timescaledb_continuous_aggregates():
 
 @pytest.mark.asyncio
 @pytest.mark.timescaledb
+@pytest.mark.skip(
+    reason="Requires PostgreSQL with TimescaleDB extension. Run with: pytest tests/test_timescaledb.py -m timescaledb"
+)
 async def test_timescaledb_retention_policy():
     """Integration test: Add retention policy with TimescaleDB.
 
-    Run with: pytest tests/test_timescaledb.py --run-timescaledb
+    Run with: pytest tests/test_timescaledb.py -m timescaledb
     Requires: PostgreSQL with TimescaleDB extension and health_checks hypertable
     """
     db_service = await get_database_service()
