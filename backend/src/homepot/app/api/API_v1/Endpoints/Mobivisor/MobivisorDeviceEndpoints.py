@@ -148,33 +148,38 @@ async def delete_device(device_id: str) -> Dict[str, Any]:
 
 @router.get("/devices/{device_id}/installed-packages", tags=["Mobivisor Devices"])
 async def fetch_device_installed_packages(device_id: str) -> Any:
-    """Fetch details for a specific device from Mobivisor API.
+    """Fetch installed packages for a specific device from Mobivisor API.
 
     Args:
         device_id: The unique identifier of the device
 
     Returns:
-        Dict[str, Any]: JSON response from Mobivisor API with device details
+        Dict[str, Any]: JSON response from Mobivisor API with installed packages
 
     Raises:
         HTTPException: If configuration missing, device not found, or request fails
 
     Example:
         ```python
-        GET /api/v1/mobivisor/devices/123
+        GET /api/v1/mobivisor/devices/123/installed-packages
         ```
 
         Response:
         ```json
-        {
-            "id": "123",
-            "name": "Device 1",
-            "status": "online",
-            "last_seen": "2025-10-18T10:30:00Z"
-        }
+        [
+            {
+                "installTime": "2023-08-03T16:01:14.664Z",
+                "versionName": "1.285.822202599",
+                "versionCode": "601746",
+                "isSystemApp": false,
+                "name": "Google One",
+                "package": "com.google.android.apps.subscriptions.red",
+                "_id": "6903d2b05aec0b9fd9e18ad0"
+            }
+        ]
         ```
     """
-    logger.info(f"Fetching device details from Mobivisor API: {device_id}")
+    logger.info(f"Fetching installed-packages from Mobivisor API: {device_id}")
     config = get_mobivisor_api_config()
     response = await make_mobivisor_request(
         "GET",
@@ -196,8 +201,24 @@ async def delete_device_installed_packages(device_id: str, package_id: str) -> A
         package_id: The unique identifier of the package to delete
 
     Returns:
-        List: JSON response from Mobivisor API with device details
+        Dict[str, Any]: Success message with other installed packages
 
+    Raises:
+        HTTPException: If configuration missing, device not found, or request fails
+
+    Example:
+        ```python
+        DELETE /api/v1/mobivisor/devices/123/delete-installed-package/com.example.app
+        ```
+
+        Response:
+        ```json
+        {
+            "message": "Installed package deleted successfully",
+            "device_id": "123",
+            "package_id": "com.example.app"
+        }
+        ```
 
     """
     logger.info(f"Delete device installed packages from Mobivisor API: {device_id}")
@@ -220,7 +241,28 @@ async def fetch_managed_apps_from_device(device_id: str) -> Any:
     Returns:
         List: JSON response from Mobivisor API with device apps
 
+    Raises:
+        HTTPException: If configuration missing, device not found, or request fails
+    Example:
+        ```python
+        GET /api/v1/mobivisor/devices/123/get-managed-apps
+        ```
 
+        Response:
+        ```json
+        [
+            {
+                "appName": "App 1",
+                "packageName": "com.example.app1",
+                "version": "1.0.0"
+            },
+            {
+                "appName": "App 2",
+                "packageName": "com.example.app2",
+                "version": "2.3.4"
+            }
+        ]
+        ```
     """
     logger.info(f"Fetching device details from Mobivisor API: {device_id}")
     config = get_mobivisor_api_config()
