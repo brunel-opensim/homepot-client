@@ -55,6 +55,7 @@ class DatabaseService:
         )
 
         self._initialized = False
+        self._timescaledb_enabled = False
 
     async def initialize(self) -> None:
         """Initialize database schema."""
@@ -80,11 +81,68 @@ class DatabaseService:
                 await conn.run_sync(Base.metadata.create_all)
 
             logger.info("Database initialized successfully")
+
+            # Initialize TimescaleDB if using PostgreSQL
+            if db_url.startswith("postgresql://") or db_url.startswith("postgresql+asyncpg://"):
+                await self._initialize_timescaledb()
+
             self._initialized = True
 
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise
+
+    async def _initialize_timescaledb(self) -> None:
+        """Initialize TimescaleDB extension and hypertables."""
+        try:
+            from homepot.timescale import TimescaleDBManager
+
+            async with self.get_session() as session:
+                ts_manager = TimescaleDBManager(session)
+
+                # Check if TimescaleDB is available
+                if not await ts_manager.is_timescaledb_available():
+                    logger.info("TimescaleDB not available - using standard PostgreSQL")
+                    return
+
+                # Enable extension (requires superuser or database owner)
+                await ts_manager.enable_extension()
+
+                # Convert health_checks to hypertable (1 week chunks)
+                success = await ts_manager.create_hypertable(
+                    table_name="health_checks",
+                    time_column="timestamp",
+                    chunk_time_interval="1 week",
+                    if_not_exists=True,
+                )
+
+                if success:
+                    logger.info("TimescaleDB hypertable created: health_checks")
+
+                    # Add compression policy (compress data older than 7 days)
+                    await ts_manager.add_compression_policy(
+                        hypertable="health_checks",
+                        compress_after="7 days",
+                        if_not_exists=True,
+                    )
+
+                    # Add retention policy (keep data for 90 days)
+                    await ts_manager.add_retention_policy(
+                        hypertable="health_checks",
+                        retention_period="90 days",
+                        if_not_exists=True,
+                    )
+
+                    self._timescaledb_enabled = True
+                    logger.info("TimescaleDB initialization completed successfully")
+
+        except Exception as e:
+            logger.warning(f"TimescaleDB initialization failed: {e}")
+            logger.info("Continuing with standard PostgreSQL")
+
+    def is_timescaledb_enabled(self) -> bool:
+        """Check if TimescaleDB is enabled for this database."""
+        return self._timescaledb_enabled
 
     async def close(self) -> None:
         """Close database connections."""

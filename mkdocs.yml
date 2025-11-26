@@ -126,6 +126,7 @@ nav:
   - Database:
       - Database Guide: database-guide.md
       - PostgreSQL Migration: postgresql-migration-complete.md
+      - TimescaleDB Integration: timescaledb-integration.md
   
   - Push Notifications:
       - Overview: push-notification.md
