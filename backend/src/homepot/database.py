@@ -83,7 +83,9 @@ class DatabaseService:
             logger.info("Database initialized successfully")
 
             # Initialize TimescaleDB if using PostgreSQL
-            if db_url.startswith("postgresql://") or db_url.startswith("postgresql+asyncpg://"):
+            if db_url.startswith("postgresql://") or db_url.startswith(
+                "postgresql+asyncpg://"
+            ):
                 await self._initialize_timescaledb()
 
             self._initialized = True

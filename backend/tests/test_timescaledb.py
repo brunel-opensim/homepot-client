@@ -12,7 +12,6 @@ from sqlalchemy import text
 
 from homepot.database import get_database_service
 from homepot.migrations.timescaledb_aggregates import (
-    create_daily_device_metrics,
     create_hourly_device_metrics,
     setup_timescaledb_aggregates,
 )

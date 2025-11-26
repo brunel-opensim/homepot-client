@@ -26,16 +26,16 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
-def timescaledb():
+def timescaledb() -> None:
     """TimescaleDB management commands."""
     pass
 
 
 @timescaledb.command()
-def status():
+def status() -> None:
     """Check TimescaleDB availability and status."""
 
-    async def check_status():
+    async def check_status() -> None:
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:
@@ -84,10 +84,10 @@ def status():
     is_flag=True,
     help="Force recreation of hypertables (destructive)",
 )
-def setup(force: bool):
+def setup(force: bool) -> None:
     """Set up TimescaleDB extension and hypertables."""
 
-    async def run_setup():
+    async def run_setup() -> int:
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:
@@ -153,10 +153,10 @@ def setup(force: bool):
 
 
 @timescaledb.command()
-def create_aggregates():
+def create_aggregates() -> None:
     """Create continuous aggregates for pre-computed metrics."""
 
-    async def run_aggregates():
+    async def run_aggregates() -> int:
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:
@@ -197,10 +197,10 @@ def create_aggregates():
 
 @timescaledb.command()
 @click.argument("hypertable", default="health_checks")
-def chunks(hypertable: str):
+def chunks(hypertable: str) -> None:
     """List chunks for a hypertable."""
 
-    async def list_chunks():
+    async def list_chunks() -> None:
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:

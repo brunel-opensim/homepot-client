@@ -5,7 +5,7 @@ for significantly faster dashboard and analytics performance.
 """
 
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 from homepot.timescale import TimescaleDBManager
 
@@ -116,7 +116,7 @@ async def create_site_metrics_hourly(ts_manager: TimescaleDBManager) -> bool:
     )
 
 
-async def setup_timescaledb_aggregates(session) -> Dict[str, bool]:
+async def setup_timescaledb_aggregates(session: Any) -> Dict[str, bool]:
     """Set up all continuous aggregates for device metrics.
 
     Args:
