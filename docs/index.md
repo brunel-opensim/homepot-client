@@ -26,6 +26,11 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 
 [Read AI Roadmap →](ai-roadmap.md) | [Executive Summary →](ai-roadmap-executive-summary.md)
 
+### Device Metrics Collection 🆕
+**Comprehensive metrics API** - Monitor device health with system resources (CPU, memory, disk), application metrics (transactions, errors), and network stats. Includes testing simulator and Python implementation examples.
+
+[Read Device Metrics Guide →](device-metrics-collection.md)
+
 ### Integration Guide
 **2000+ lines** - Your complete technical reference covering architecture, installation, API reference, frontend guide, push notifications (all 5 platforms), testing, deployment, and troubleshooting.
 

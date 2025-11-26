@@ -7,6 +7,10 @@ ignore =
     S104,
     # S110: Try/except/pass (acceptable for cleanup code)
     S110,
+    # S311: Standard pseudo-random generators (acceptable for simulation)
+    S311,
+    # D106: Missing docstring in nested class (Pydantic Config classes)
+    D106,
     # W503: Line break before binary operator (conflicts with W504, we prefer W503 style)
     W503,
     # E203: Whitespace before ':' (conflicts with black formatter)

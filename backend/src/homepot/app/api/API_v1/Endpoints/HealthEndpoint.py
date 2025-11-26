@@ -1,4 +1,4 @@
-"""API endpoints for managing Health in the HomePot system."""
+"""API endpoints for managing Health in the HOMEPOT system."""
 
 import asyncio
 import logging
@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from homepot.app.schemas.schemas import HealthCheckRequest
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
 
@@ -16,6 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+device_metrics_router = APIRouter()  # Separate router for device metrics endpoints
 client_instance: Optional[HomepotClient] = None
 
 
@@ -229,4 +231,262 @@ async def trigger_health_check(device_id: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500,
             detail="Failed to trigger health check. Please check server logs.",
+        )
+
+
+@device_metrics_router.post("/devices/{device_id}/health", tags=["Health"])
+async def submit_device_health_check(
+    device_id: str, health_check: HealthCheckRequest
+) -> Dict[str, Any]:
+    """Submit device health check with enhanced metrics.
+
+    Alias for /metrics endpoint.
+    """
+    return await submit_device_metrics(device_id, health_check)
+
+
+@device_metrics_router.post("/devices/{device_id}/metrics", tags=["Health"])
+async def submit_device_metrics(
+    device_id: str, health_check: HealthCheckRequest
+) -> Dict[str, Any]:
+    """Submit device health check with enhanced metrics.
+
+    This endpoint allows devices to report their health status including:
+    - System metrics (CPU, memory, disk usage)
+    - Application metrics (transactions, errors, performance)
+    - Network metrics (latency, bandwidth)
+    - Environmental metrics (temperature, humidity)
+
+    All metric fields are optional to support gradual adoption.
+
+    Args:
+        device_id: Device identifier (e.g., "pos-terminal-001")
+        health_check: Health check data with optional enhanced metrics
+
+    Returns:
+        Confirmation with stored health check ID
+
+    Example:
+        POST /api/v1/devices/pos-terminal-001/metrics
+        {
+            "is_healthy": true,
+            "response_time_ms": 150,
+            "status_code": 200,
+            "endpoint": "/health",
+            "response_data": {
+                "status": "healthy",
+                "timestamp": "2025-11-19T10:00:00Z",
+                "system": {
+                    "cpu_percent": 65.5,
+                    "memory_percent": 80.0,
+                    "disk_percent": 60.0
+                },
+                "app_metrics": {
+                    "transactions_count": 150,
+                    "errors_count": 2
+                }
+            }
+        }
+    """
+    try:
+        db_service = await get_database_service()
+
+        # Try to find device (optional - devices can report before being registered)
+        device = None
+        try:
+            device = await db_service.get_device_by_device_id(device_id)
+        except Exception as e:
+            logger.warning(f"Could not find device {device_id}: {e}")
+
+        # Convert response_data to dict if present
+        response_data_dict = (
+            health_check.response_data if health_check.response_data else None
+        )
+
+        # Store health check in database (with or without device_id link)
+        health_check_record = None
+        health_check_id = None
+        try:
+            health_check_record = await db_service.create_health_check(
+                device_id=int(device.id) if device and device.id is not None else None,
+                device_name=device_id,
+                is_healthy=health_check.is_healthy,
+                response_time_ms=health_check.response_time_ms or 0,
+                status_code=health_check.status_code or 200,
+                endpoint=health_check.endpoint,
+                response_data=response_data_dict,
+            )
+            health_check_id = health_check_record.id
+            logger.info(
+                f"Stored health check for device {device_id} "
+                f"(ID: {health_check_id})"
+            )
+        except Exception as db_error:
+            # Log metrics even if database storage fails
+            # (e.g., device not registered yet)
+            logger.warning(
+                f"Could not store health check for {device_id} in database: "
+                f"{db_error}. Metrics logged but not persisted."
+            )
+
+        # Log metrics if present for monitoring
+        if response_data_dict:
+            metrics_summary = []
+            if "system" in response_data_dict:
+                system = response_data_dict["system"]
+                if "cpu_percent" in system:
+                    metrics_summary.append(f"CPU: {system['cpu_percent']}%")
+                if "memory_percent" in system:
+                    metrics_summary.append(f"MEM: {system['memory_percent']}%")
+                if "disk_percent" in system:
+                    metrics_summary.append(f"DISK: {system['disk_percent']}%")
+
+            if "app_metrics" in response_data_dict:
+                app = response_data_dict["app_metrics"]
+                if "errors_count" in app and app["errors_count"] > 0:
+                    metrics_summary.append(f"ERRORS: {app['errors_count']}")
+
+            if metrics_summary:
+                logger.info(f"Device {device_id} metrics: {', '.join(metrics_summary)}")
+
+        return {
+            "message": "Health check recorded successfully",
+            "device_id": device_id,
+            "health_check_id": health_check_id,
+            "is_healthy": health_check.is_healthy,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Failed to submit device metrics for {device_id}: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to submit device metrics. Please check server logs.",
+        )
+
+
+@device_metrics_router.post("/simulator/device-metrics", tags=["Health", "Simulator"])
+async def simulate_device_metrics(
+    device_id: str = "simulated-pos-001", is_healthy: bool = True
+) -> Dict[str, Any]:
+    """Generate and submit realistic simulated device metrics for testing.
+
+    This endpoint generates realistic device metrics without requiring actual devices.
+    Useful for testing, demonstrations, and development.
+
+    Args:
+        device_id: Device identifier to simulate (default: "simulated-pos-001")
+        is_healthy: Whether to simulate a healthy (true) or unhealthy (false) device
+
+    Returns:
+        Confirmation with simulated metrics and health check ID
+
+    Example:
+        POST /api/v1/simulator/device-metrics?device_id=test-pos-001&is_healthy=false
+    """
+    import random
+
+    from homepot.app.schemas.schemas import (
+        ApplicationMetrics,
+        NetworkMetrics,
+        SystemMetrics,
+    )
+
+    try:
+        # Generate realistic metrics based on health status
+        if is_healthy:
+            cpu = round(random.uniform(20, 70), 1)
+            memory = round(random.uniform(40, 75), 1)
+            disk = round(random.uniform(30, 60), 1)
+            errors = random.randint(0, 2)
+            response_time = random.randint(50, 200)
+        else:
+            cpu = round(random.uniform(80, 98), 1)
+            memory = round(random.uniform(85, 99), 1)
+            disk = round(random.uniform(70, 95), 1)
+            errors = random.randint(5, 20)
+            response_time = random.randint(500, 2000)
+
+        # Create metrics objects
+        system_metrics = SystemMetrics(
+            cpu_percent=cpu,
+            memory_percent=memory,
+            disk_percent=disk,
+            memory_used_mb=int(memory * 20.48),  # Assuming 2GB total
+            memory_total_mb=2048,
+            disk_used_gb=round(disk * 2.0, 2),  # Assuming 200GB total
+            disk_total_gb=200,
+            uptime_seconds=random.randint(3600, 864000),  # 1 hour to 10 days
+        )
+
+        app_metrics = ApplicationMetrics(
+            app_version="1.2.3",
+            transactions_count=(
+                random.randint(100, 500) if is_healthy else random.randint(0, 50)
+            ),
+            errors_count=errors,
+            warnings_count=random.randint(0, 10),
+            avg_response_time_ms=round(random.uniform(100, 500), 2),
+            active_connections=random.randint(1, 10) if is_healthy else 0,
+        )
+
+        network_metrics = NetworkMetrics(
+            latency_ms=round(
+                random.uniform(10, 100) if is_healthy else random.uniform(200, 1000), 2
+            ),
+            rx_bytes=random.randint(100000, 10000000),
+            tx_bytes=random.randint(50000, 5000000),
+            connection_quality="good" if is_healthy else "poor",
+        )
+
+        # Create enhanced health check data as dict
+        enhanced_data = {
+            "status": "healthy" if is_healthy else "degraded",
+            "timestamp": datetime.utcnow().isoformat(),
+            "system": system_metrics.model_dump(exclude_none=True),
+            "app_metrics": app_metrics.model_dump(exclude_none=True),
+            "network": network_metrics.model_dump(exclude_none=True),
+        }
+
+        # Create health check request
+        health_check = HealthCheckRequest(
+            is_healthy=is_healthy,
+            response_time_ms=response_time,
+            status_code=200 if is_healthy else 500,
+            endpoint="/health",
+            response_data=enhanced_data,
+            error_message=None,
+            system=system_metrics,
+            app_metrics=app_metrics,
+            network=network_metrics,
+        )
+
+        # Submit via the metrics endpoint
+        result = await submit_device_metrics(device_id, health_check)
+
+        # Add simulated metrics to response
+        result["simulated_metrics"] = {
+            "system": system_metrics.model_dump(),
+            "app_metrics": app_metrics.model_dump(),
+            "network": network_metrics.model_dump(),
+        }
+        result["simulation_note"] = "This data was generated for testing purposes"
+
+        logger.info(
+            f"Generated simulated metrics for {device_id} (healthy={is_healthy})"
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to simulate device metrics: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to simulate device metrics. Please check server logs.",
         )
