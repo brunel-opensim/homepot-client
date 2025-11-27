@@ -177,6 +177,7 @@ markers = [
     "performance: marks tests as performance tests",
     "live: marks tests that require live services",
     "api: marks tests for API functionality",
+    "timescaledb: marks tests requiring TimescaleDB extension (run with -m timescaledb)",
 ]
 asyncio_mode = "auto"
 # Windows-specific configuration for better file handling
