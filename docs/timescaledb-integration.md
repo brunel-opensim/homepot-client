@@ -177,7 +177,7 @@ docker run -d \
 
 ```bash
 # Connect to PostgreSQL
-psql -U postgres -d homepot
+psql -U homepot_user -d homepot_db
 
 # Check TimescaleDB version
 SELECT * FROM pg_available_extensions WHERE name = 'timescaledb';
@@ -191,7 +191,7 @@ TimescaleDB is automatically initialized when HOMEPOT starts with a PostgreSQL d
 
 ```python
 # In your .env or config
-DATABASE_URL=postgresql://user:password@localhost/homepot
+DATABASE_URL=postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db
 
 # Start HOMEPOT - TimescaleDB is configured automatically
 python -m homepot.main
@@ -427,7 +427,7 @@ SELECT * FROM timescaledb_information.job_stats;
 psql -U postgres -c "SELECT * FROM pg_available_extensions WHERE name = 'timescaledb';"
 
 # 2. Enable extension manually
-psql -U postgres -d homepot -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+psql -U homepot_user -d homepot_db -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 
 # 3. Check HOMEPOT logs
 tail -f logs/homepot.log | grep -i timescale
