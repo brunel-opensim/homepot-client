@@ -20,7 +20,6 @@ export default function RoutesIndex() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <Routes>
-
         {/* Auth routes (login/signup) */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login />} />

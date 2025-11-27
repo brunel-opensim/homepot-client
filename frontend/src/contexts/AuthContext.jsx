@@ -1,10 +1,11 @@
 // src/contexts/AuthContext.jsx
-import React, { createContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
+import { AuthContext } from './authContextDef';
 
-// named export - the hook & other modules should import this exact object
-export const AuthContext = createContext(null);
+// Re-export AuthContext for backwards compatibility
+export { AuthContext };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -32,18 +33,24 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user_data');
     setIsAuthenticated(false);
     setUser(null);
-    navigate('/login', { state: { message: 'Session expired. Please login again.' }, replace: true });
+    navigate('/login', {
+      state: { message: 'Session expired. Please login again.' },
+      replace: true,
+    });
   }, [navigate]);
 
-  const scheduleAutoLogout = (expiryTs) => {
-    clearTimer();
-    const ms = expiryTs - Date.now();
-    if (ms > 0) {
-      logoutTimerRef.current = setTimeout(handleSessionExpiry, ms);
-    } else {
-      handleSessionExpiry();
-    }
-  };
+  const scheduleAutoLogout = useCallback(
+    (expiryTs) => {
+      clearTimer();
+      const ms = expiryTs - Date.now();
+      if (ms > 0) {
+        logoutTimerRef.current = setTimeout(handleSessionExpiry, ms);
+      } else {
+        handleSessionExpiry();
+      }
+    },
+    [handleSessionExpiry]
+  );
 
   const checkAuth = useCallback(() => {
     const token = localStorage.getItem('auth_token');
@@ -70,7 +77,7 @@ export function AuthProvider({ children }) {
       setUser(null);
     }
     setLoading(false);
-  }, [handleSessionExpiry]);
+  }, [handleSessionExpiry, scheduleAutoLogout]);
 
   useEffect(() => {
     checkAuth();
@@ -85,7 +92,9 @@ export function AuthProvider({ children }) {
         const { access_token } = response.data;
         localStorage.setItem('auth_token', access_token);
 
-        const expiryDuration = response.data.expires_in ? response.data.expires_in * 1000 : 24 * 60 * 60 * 1000;
+        const expiryDuration = response.data.expires_in
+          ? response.data.expires_in * 1000
+          : 24 * 60 * 60 * 1000;
         const expiryTime = Date.now() + expiryDuration;
         localStorage.setItem('token_expiry', expiryTime.toString());
 
