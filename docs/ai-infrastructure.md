@@ -48,77 +48,77 @@ Phase 3 adapts the proven **Personal AI Companion** architecture for HOMEPOT's d
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     HOMEPOT Frontend                         │
-│              (React + Dashboard Components)                  │
+│                      HOMEPOT Frontend                       │ 
+│               (React + Dashboard Components)                │ 
 └────────────────────┬────────────────────────────────────────┘
                      │ HTTPS/REST
 ┌────────────────────▼────────────────────────────────────────┐
-│                  HOMEPOT Backend API                         │
-│              (FastAPI + PostgreSQL + TimescaleDB)            │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │           AI Service Module (NEW)                     │  │
-│  │  ┌────────────────────────────────────────────────┐  │  │
-│  │  │  AI Router (/api/ai/*)                         │  │  │
-│  │  │  - /query    (natural language queries)        │  │  │
-│  │  │  - /analyze  (device analysis)                  │  │  │
-│  │  │  - /predict  (anomaly prediction)               │  │  │
-│  │  │  - /report   (health report generation)         │  │  │
-│  │  │  - /status   (Ollama health check)              │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  │                                                        │  │
-│  │  ┌────────────────────────────────────────────────┐  │  │
-│  │  │  LLM Service (llm.py)                          │  │  │
-│  │  │  - Ollama integration                          │  │  │
-│  │  │  - Prompt engineering                          │  │  │
-│  │  │  - Response generation                         │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  │                                                        │  │
-│  │  ┌────────────────────────────────────────────────┐  │  │
-│  │  │  Device Memory (device_memory.py)              │  │  │
-│  │  │  - ChromaDB integration                        │  │  │
-│  │  │  - Vector embeddings (SentenceTransformer)     │  │  │
-│  │  │  - Semantic pattern matching                   │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  │                                                        │  │
-│  │  ┌────────────────────────────────────────────────┐  │  │
-│  │  │  Event Store (event_store.py)                  │  │  │
-│  │  │  - Recent device events caching                │  │  │
-│  │  │  - PostgreSQL query optimization               │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  │                                                        │  │
-│  │  ┌────────────────────────────────────────────────┐  │  │
-│  │  │  Anomaly Detection (anomaly_detection.py)      │  │  │
-│  │  │  - Device health scoring                       │  │  │
-│  │  │  - Pattern deviation detection                 │  │  │
-│  │  │  - Alert severity classification               │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  │                                                        │  │
-│  │  ┌────────────────────────────────────────────────┐  │  │
-│  │  │  Analysis Modes (analysis_modes.py)            │  │  │
-│  │  │  - Maintenance mode                            │  │  │
-│  │  │  - Predictive analysis mode                    │  │  │
-│  │  │  - Executive reporting mode                    │  │  │
-│  │  └────────────────────────────────────────────────┘  │  │
-│  └────────────────────────────────────────────────────────┘  │
+│                  HOMEPOT Backend API                        │
+│              (FastAPI + PostgreSQL + TimescaleDB)           │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │           AI Service Module (NEW)                    │   │
+│  │  ┌────────────────────────────────────────────────┐  │   │
+│  │  │  AI Router (/api/ai/*)                         │  │   │
+│  │  │  - /query    (natural language queries)        │  │   │
+│  │  │  - /analyze  (device analysis)                 │  │   │
+│  │  │  - /predict  (anomaly prediction)              │  │   │
+│  │  │  - /report   (health report generation)        │  │   │
+│  │  │  - /status   (Ollama health check)             │  │   │
+│  │  └────────────────────────────────────────────────┘  │   │
+│  │                                                      │   │
+│  │  ┌────────────────────────────────────────────────┐  │   │
+│  │  │  LLM Service (llm.py)                          │  │   │
+│  │  │  - Ollama integration                          │  │   │
+│  │  │  - Prompt engineering                          │  │   │
+│  │  │  - Response generation                         │  │   │
+│  │  └────────────────────────────────────────────────┘  │   │
+│  │                                                      │   │
+│  │  ┌────────────────────────────────────────────────┐  │   │
+│  │  │  Device Memory (device_memory.py)              │  │   │
+│  │  │  - ChromaDB integration                        │  │   │
+│  │  │  - Vector embeddings (SentenceTransformer)     │  │   │
+│  │  │  - Semantic pattern matching                   │  │   │
+│  │  └────────────────────────────────────────────────┘  │   │
+│  │                                                      │   │
+│  │  ┌────────────────────────────────────────────────┐  │   │
+│  │  │  Event Store (event_store.py)                  │  │   │
+│  │  │  - Recent device events caching                │  │   │
+│  │  │  - PostgreSQL query optimization               │  │   │
+│  │  └────────────────────────────────────────────────┘  │   │
+│  │                                                      │   │
+│  │  ┌────────────────────────────────────────────────┐  │   │
+│  │  │  Anomaly Detection (anomaly_detection.py)      │  │   │
+│  │  │  - Device health scoring                       │  │   │
+│  │  │  - Pattern deviation detection                 │  │   │
+│  │  │  - Alert severity classification               │  │   │
+│  │  └────────────────────────────────────────────────┘  │   │
+│  │                                                      │   │
+│  │  ┌────────────────────────────────────────────────┐  │   │
+│  │  │  Analysis Modes (analysis_modes.py)            │  │   │
+│  │  │  - Maintenance mode                            │  │   │
+│  │  │  - Predictive analysis mode                    │  │   │
+│  │  │  - Executive reporting mode                    │  │   │
+│  │  └────────────────────────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   PostgreSQL + TimescaleDB                   │
-│          (Device metrics, events, audit logs)                │
+│                   PostgreSQL + TimescaleDB                  │
+│          (Device metrics, events, audit logs)               │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│                  Ollama (Local LLM Service)                  │
-│                  http://localhost:11434                       │
-│          Models: Llama 3.2 3B, Mistral 7B, Phi 3.5           │
+│                  Ollama (Local LLM Service)                 │
+│                  http://localhost:11434                     │
+│          Models: Llama 3.2 3B, Mistral 7B, Phi 3.5          │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│            ChromaDB (Vector Database - Local)                │
-│              ./chroma_db (persistent storage)                │
-│        Collections: device_patterns, incident_history        │
+│            ChromaDB (Vector Database - Local)               │
+│              ./chroma_db (persistent storage)               │
+│        Collections: device_patterns, incident_history       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
