@@ -47,7 +47,13 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
             logger.warning(f"Signup failed: Email {user.email} already registered")
             # raise HTTPException(status_code=400, detail="Email already registered")
             return {"status_code": 400, "detail": "Email already registered"}
-
+        db_username = (
+            db.query(models.User).filter(models.User.username == user.username).first()
+        )
+        if db_username:
+            logger.warning(f"Signup failed: Username {user.username} already taken")
+            # raise HTTPException(status_code=400, detail="Username already taken")
+            return {"status_code": 400, "detail": "Username already taken"}
         new_user = models.User(
             email=user.email,
             username=user.username,
@@ -80,6 +86,9 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)) -> dict:
     """User Login Endpoint."""
     try:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
+        if not db_user:
+            logger.warning(f"Login failed: User {user.email} not found")
+            raise HTTPException(status_code=401, detail="Invalid email")
         hashed_pw: str = db_user.hashed_password  # type: ignore
         if not db_user or not verify_password(user.password, hashed_pw):
             logger.warning(f"Login failed for {user.email}")
@@ -127,3 +136,30 @@ def assign_role(
             "Use is_admin field instead."
         ),
     )
+
+
+@router.delete("/users/{email}", response_model=dict)
+def delete_user(email: str, db: Session = Depends(get_db)) -> dict:
+    """Delete a user by email."""
+    try:
+        user = db.query(models.User).filter(models.User.email == email).first()
+        # Case 1: User does NOT exist
+        if not user:
+            logger.warning(f"Delete failed - user not found: {email}")
+            raise HTTPException(status_code=401, detail="Invalid email")
+        # Delete the user
+        db.delete(user)
+        db.commit()
+
+        logger.info(f"User deleted successfully: {email}")
+
+        return response(
+            success=True, message="User deleted successfully.", data={"email": email}
+        )
+    except HTTPException:
+        # Re-raise original intended errors (401, 404, etc.)
+        raise
+
+    except Exception as e:
+        logger.error(f"Internal server error while deleting user {email}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
