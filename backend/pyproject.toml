@@ -38,7 +38,8 @@ dependencies = [
     "asyncio-mqtt>=0.16.0",
     "cryptography>=41.0.0",
     "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
+    "passlib[argon2]>=1.7.4",
+    "bcrypt==4.1.3",  # Pinned for passlib compatibility (v5.x has breaking changes)
     "python-multipart>=0.0.6",
     "structlog>=23.2.0",
     "rich>=13.7.0",
@@ -49,6 +50,8 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "aiosqlite>=0.19.0",
     "alembic>=1.12.0",
+    "psycopg2-binary>=2.9.9",  # PostgreSQL driver
+    "asyncpg>=0.29.0",  # Async PostgreSQL driver
     # Background tasks
     "celery>=5.3.0",
     "redis>=5.0.0",
@@ -174,6 +177,7 @@ markers = [
     "performance: marks tests as performance tests",
     "live: marks tests that require live services",
     "api: marks tests for API functionality",
+    "timescaledb: marks tests requiring TimescaleDB extension (run with -m timescaledb)",
 ]
 asyncio_mode = "auto"
 # Windows-specific configuration for better file handling

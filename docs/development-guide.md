@@ -244,28 +244,21 @@ pre-commit run --all-files
 export HOMEPOT_ENV=development
 export HOMEPOT_DEBUG=true
 export HOMEPOT_LOG_LEVEL=DEBUG
-export HOMEPOT_DATABASE_URL=sqlite:///./homepot_dev.db
+export DATABASE__URL=postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db
 ```
 
 ### Development Database
 
 ```bash
 # Create development database
-python -c "
-from homepot.database import DatabaseService
-import asyncio
+./scripts/init-postgresql.sh
 
-async def setup():
-    db = DatabaseService()
-    await db.initialize()
-    print('Development database created')
-
-asyncio.run(setup())
-"
+# Verify database
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db -c "SELECT COUNT(*) FROM sites;"
 
 # Reset database
-rm homepot.db
-python -m homepot.main  # Will recreate on startup
+./scripts/init-postgresql.sh
 ```
 
 ## Contributing
@@ -320,21 +313,21 @@ def create_site(site_data: Dict[str, Any]) -> Dict[str, Any]:
 Brief description of changes
 
 ## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
+- Bug fix
+- New feature
+- Breaking change
+- Documentation update
 
 ## Testing
-- [ ] Tests pass locally
-- [ ] New tests added
-- [ ] Manual testing performed
+- Tests pass locally
+- New tests added
+- Manual testing performed
 
 ## Checklist
-- [ ] Code follows style guidelines
-- [ ] Self-review completed
-- [ ] Documentation updated
-- [ ] No new security vulnerabilities
+- Code follows style guidelines
+- Self-review completed
+- Documentation updated
+- No new security vulnerabilities
 ```
 
 ## Debugging
@@ -355,15 +348,20 @@ python -m pdb -m homepot.main
 ### Database Debugging
 
 ```bash
-# Access SQLite database directly
-sqlite3 homepot.db
+# Access PostgreSQL database directly
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db
 
 # View table schemas
-.schema
+\dt  # List tables
+\d sites  # Describe sites table
 
 # Query data
 SELECT * FROM sites LIMIT 5;
 SELECT * FROM devices WHERE site_id = 'RESTAURANT_001';
+
+# Exit
+\q
 ```
 
 ### API Debugging

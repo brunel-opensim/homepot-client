@@ -6,6 +6,7 @@ from .Endpoints import (
     AgentsEndpoints,
     ClientEndpoint,
     DevicesEndpoints,
+    DeviceSimulatorEndpoint,
     HealthEndpoint,
     JobsEndpoints,
     PushNotificationEndpoint,
@@ -14,10 +15,14 @@ from .Endpoints import (
     UserRegisterEndpoint,
 )
 from .Endpoints.Mobivisor import MobivisorDeviceEndpoints as MobivisorDevice
+from .Endpoints.Mobivisor import MobivisorUserEndpoints as MobivisorUserEndpoints
 
 api_v1_router = APIRouter()
 
 api_v1_router.include_router(HealthEndpoint.router, prefix="/health", tags=["Health"])
+api_v1_router.include_router(
+    HealthEndpoint.device_metrics_router, tags=["Health", "Device Metrics"]
+)
 api_v1_router.include_router(UIEndpoint.router, prefix="/ui", tags=["UI"])
 api_v1_router.include_router(ClientEndpoint.router, prefix="/client", tags=["Client"])
 api_v1_router.include_router(SitesEndpoint.router, prefix="/sites", tags=["Sites"])
@@ -35,5 +40,13 @@ api_v1_router.include_router(
     tags=["Mobivisor Devices"],
 )
 api_v1_router.include_router(
+    MobivisorUserEndpoints.router,
+    prefix="/mobivisor",
+    tags=["Mobivisor Users"],
+)
+api_v1_router.include_router(
     PushNotificationEndpoint.router, prefix="/push", tags=["Push Notifications"]
+)
+api_v1_router.include_router(
+    DeviceSimulatorEndpoint.router, prefix="/testing", tags=["Testing"]
 )

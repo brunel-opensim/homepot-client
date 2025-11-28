@@ -17,9 +17,9 @@ from homepot.app.db.database import SessionLocal
 from homepot.app.models import UserRegisterModel as models
 from homepot.app.schemas import schemas
 
-# Setup Logger
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 router = APIRouter()
 
@@ -45,16 +45,17 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
         if db_user:
             logger.warning(f"Signup failed: Email {user.email} already registered")
-            raise HTTPException(status_code=400, detail="Email already registered")
+            # raise HTTPException(status_code=400, detail="Email already registered")
+            return {"status_code": 400, "detail": "Email already registered"}
 
         new_user = models.User(
             email=user.email,
-            name=user.name,
+            username=user.username,
             hashed_password=hash_password(user.password),
-            role=user.role if user.role else "User",
-            created_date=datetime.now(timezone.utc),
-            updated_date=datetime.now(timezone.utc),
-            last_login=datetime.now(timezone.utc),
+            # role=user.role if user.role else "User",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            # last_login=datetime.now(timezone.utc),
         )
 
         db.add(new_user)
@@ -94,10 +95,10 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)) -> dict:
             message="Login successful",
             data={
                 "access_token": create_access_token(
-                    {"sub": db_user.email, "role": db_user.role}
+                    {"sub": db_user.email, "is_admin": db_user.is_admin}
                 ),
-                "username": db_user.name,
-                "role": db_user.role,
+                "username": db_user.username,
+                "is_admin": db_user.is_admin,
             },
         )
 
@@ -117,27 +118,12 @@ def assign_role(
     db: Session = Depends(get_db),
     admin: Dict = Depends(require_role("Admin")),
 ) -> dict:
-    """Assign Role Endpoint - Admin Only."""
-    try:
-        db_user = db.query(models.User).filter(models.User.id == user_id).first()
-        if not db_user:
-            logger.warning(f"Role assignment failed: User {user_id} not found")
-            raise HTTPException(status_code=404, detail="User not found")
-
-        db_user.role = new_role  # type: ignore
-        db.commit()
-        db.refresh(db_user)
-
-        logger.info(f"Role updated: {db_user.email} -> {new_role}")
-
-        return response(
-            success=True,
-            message=f"Role updated to {new_role} for {db_user.email}",
-            data={"user_id": db_user.id, "email": db_user.email, "role": db_user.role},
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Role assignment error for user_id {user_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    """Assign Role - Admin Only (DISABLED - not in schema)."""
+    # TODO: Add role/permission system to schema
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Role assignment not implemented in current schema. "
+            "Use is_admin field instead."
+        ),
+    )

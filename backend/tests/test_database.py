@@ -4,7 +4,6 @@ This module provides basic tests for database connectivity,
 model creation, and basic operations.
 """
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -13,7 +12,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from homepot.config import get_settings
-from homepot.models import Base, Device, Job, JobStatus, Site, User
+from homepot.models import Base, Device, DeviceType, Job, JobStatus, Site, User
 
 
 @pytest.fixture
@@ -121,7 +120,7 @@ def test_device_creation(temp_db):
         device_id="pos-terminal-test-001",
         name="pos-terminal-test",
         device_type="pos_terminal",
-        site_id=site.id,
+        site_id=site.site_id,
     )
 
     db.add(device)
@@ -131,7 +130,7 @@ def test_device_creation(temp_db):
     assert device.id is not None
     assert device.device_id == "pos-terminal-test-001"
     assert device.name == "pos-terminal-test"
-    assert device.site_id == site.id
+    assert device.site_id == site.site_id
     assert device.created_at is not None
 
     db.close()
@@ -192,10 +191,16 @@ def test_site_device_relationship(temp_db):
 
     # Create multiple devices for the site
     device1 = Device(
-        device_id="pos-1", name="pos-1", device_type="pos_terminal", site_id=site.id
+        device_id="pos-1",
+        name="pos-1",
+        device_type="pos_terminal",
+        site_id=site.site_id,
     )
     device2 = Device(
-        device_id="pos-2", name="pos-2", device_type="pos_terminal", site_id=site.id
+        device_id="pos-2",
+        name="pos-2",
+        device_type="pos_terminal",
+        site_id=site.site_id,
     )
 
     db.add_all([device1, device2])
@@ -203,7 +208,7 @@ def test_site_device_relationship(temp_db):
 
     # Test the relationship
     db.refresh(site)  # Refresh to load relationships
-    site_with_devices = db.query(Site).filter_by(id=site.id).first()
+    site_with_devices = db.query(Site).filter_by(site_id=site.site_id).first()
 
     assert site_with_devices is not None
     assert len(site_with_devices.devices) == 2
@@ -240,84 +245,64 @@ def test_database_query(temp_db):
     db.close()
 
 
-def test_database_tables_exist():
-    """Test that required database tables exist in the demo database."""
-    settings = get_settings()
+def test_database_tables_exist(temp_db):
+    """Test that required database tables exist in the test database."""
+    # Get a session from the fixture
+    db = temp_db()
 
-    # Skip if not using SQLite (production might use PostgreSQL)
-    if "sqlite" not in settings.database.url:
-        pytest.skip("Test only runs with SQLite database")
+    # Create a test query to verify tables exist by trying to query them
+    # If tables don't exist, these queries will fail
+    try:
+        # Check sites table
+        db.execute(text("SELECT COUNT(*) FROM sites")).scalar()
 
-    # Extract database path from URL
-    db_path = settings.database.url.replace("sqlite:///", "")
-    if not db_path.startswith("/"):
-        db_path = f"./{db_path}"
+        # Check devices table
+        db.execute(text("SELECT COUNT(*) FROM devices")).scalar()
 
-    # Check if database file exists
-    if not os.path.exists(db_path):
-        pytest.skip(f"Database file not found: {db_path}")
+        # Check jobs table
+        db.execute(text("SELECT COUNT(*) FROM jobs")).scalar()
 
-    # Connect and check tables
-    engine = create_engine(settings.database.url)
+        # Check users table
+        db.execute(text("SELECT COUNT(*) FROM users")).scalar()
 
-    with engine.connect() as conn:
-        # Check that main tables exist
-        tables_query = text(
-            """
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name NOT LIKE 'sqlite_%'
-        """
-        )
-
-        result = conn.execute(tables_query)
-        table_names = [row[0] for row in result]
-
-        # Verify core tables exist
-        expected_tables = ["sites", "devices", "jobs", "users"]
-        for table in expected_tables:
-            assert table in table_names, f"Table '{table}' not found in database"
+        # If we get here, all tables exist
+        assert True
+    except Exception as e:
+        pytest.fail(f"Database table check failed: {e}")
 
 
-def test_demo_data_exists():
-    """Test that demo data exists in the database.
+def test_demo_data_exists(temp_db):
+    """Test that data can be created in the test database.
 
-    This test verifies that the database contains at least some initial data,
-    whether from init-database.sh seed data (2 sites, 8 devices) or from
-    POSDummy test data (1 site, 1 device).
+    This test verifies that the database schema is properly set up
+    by creating test data and verifying relationships work correctly.
     """
-    settings = get_settings()
+    db = temp_db()
 
-    # Skip if not using SQLite
-    if "sqlite" not in settings.database.url:
-        pytest.skip("Test only runs with SQLite database")
+    # Create a test site
+    site = Site(site_id="test-demo-site", name="Demo Restaurant", location="Demo City")
+    db.add(site)
+    db.commit()
+    db.refresh(site)
 
-    db_path = settings.database.url.replace("sqlite:///", "")
-    if not db_path.startswith("/"):
-        db_path = f"./{db_path}"
+    # Create a test device linked to the site
+    device = Device(
+        device_id="demo-device-001",
+        name="Demo POS Terminal",
+        device_type=DeviceType.POS_TERMINAL.value,
+        site_id=site.site_id,
+    )
+    db.add(device)
+    db.commit()
 
-    if not os.path.exists(db_path):
-        pytest.skip(f"Database file not found: {db_path}")
+    # Verify the data exists and relationships work
+    sites_count = db.query(Site).count()
+    devices_count = db.query(Device).count()
 
-    engine = create_engine(settings.database.url)
+    assert sites_count > 0, "No sites found in test database"
+    assert devices_count > 0, "No devices found in test database"
 
-    with engine.connect() as conn:
-        # Check that we have at least one site
-        sites_query = text("SELECT COUNT(*) FROM sites")
-        site_count = conn.execute(sites_query).scalar()
-
-        assert (
-            site_count > 0
-        ), "No sites found in database - database may not be initialized"
-
-        # Check that we have at least one device
-        devices_query = text("SELECT COUNT(*) FROM devices")
-        device_count = conn.execute(devices_query).scalar()
-
-        assert (
-            device_count > 0
-        ), "No devices found in database - database may not be initialized"
-
-        # Verify data consistency - devices should be linked to sites
-        assert (
-            device_count >= site_count
-        ), f"Data inconsistency: found {device_count} devices but {site_count} sites"
+    # Verify the device is properly linked to the site
+    test_device = db.query(Device).filter_by(device_id="demo-device-001").first()
+    assert test_device is not None, "Test device not found"
+    assert test_device.site_id == site.site_id, "Device not properly linked to site"

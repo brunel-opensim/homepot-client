@@ -13,12 +13,23 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 - **[Engineering TODO](engineering-todo.md)** - Task list with priorities
 - **[Development Guide](development-guide.md)** - How to contribute
 - **[Testing Guide](testing-guide.md)** - How to test your code
+- **[API Testing Guide](api-testing-guide.md)** - Manual API testing and validation
 
 ### For Stakeholders
-- **[Project Vision](../PROJECT_VISION.md)** - Strategic roadmap
-- **[Integration Summary](../INTEGRATION_SUMMARY.md)** - What's accomplished
+- **[Visual Examples](visual-examples.md)** - Screenshots and diagrams
+- **[Audit & Compliance](audit-compliance.md)** - Enterprise logging and compliance
 
-## New Documentation (October 2025)
+## Recent Documentation Updates (November 2025)
+
+### 🚀 NEW: AI Integration Roadmap
+**Strategic 9-month plan** - Complete roadmap from current website integration to AI-powered data analysis platform with anomaly detection, predictive maintenance, and natural language queries.
+
+[Read AI Roadmap →](ai-roadmap.md) | [Executive Summary →](ai-roadmap-executive-summary.md)
+
+### Device Metrics Collection 🆕
+**Comprehensive metrics API** - Monitor device health with system resources (CPU, memory, disk), application metrics (transactions, errors), and network stats. Includes testing simulator and Python implementation examples.
+
+[Read Device Metrics Guide →](device-metrics-collection.md)
 
 ### Integration Guide
 **2000+ lines** - Your complete technical reference covering architecture, installation, API reference, frontend guide, push notifications (all 5 platforms), testing, deployment, and troubleshooting.
@@ -30,10 +41,10 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 
 [Read Engineering TODO →](engineering-todo.md)
 
-### Project Vision
-**900+ lines** - Strategic overview with executive summary, 8-phase roadmap, timelines, success metrics, and team information.
+### PostgreSQL Migration
+**Complete migration from SQLite to PostgreSQL** - Production-ready database with async performance, proper timezone handling, and enterprise features.
 
-[Read Project Vision →](../PROJECT_VISION.md)
+[Read PostgreSQL Migration Guide →](postgresql-migration-complete.md)
 
 ## Quick Start
 
@@ -77,7 +88,7 @@ Push notification integrations for different platforms:
 HOMEPOT is a complete **four-phase enterprise POS management system**:
 
 ### Phase 1: Core Infrastructure
-- SQLite/PostgreSQL database with comprehensive models
+- PostgreSQL database with comprehensive models
 - Complete CRUD operations for sites, devices, jobs, and users
 - Robust error handling and transaction management
 

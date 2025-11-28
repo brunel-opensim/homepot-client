@@ -155,7 +155,7 @@ class CreateJobRequest(BaseModel):
     class Config:
         """Pydantic model configuration with example data."""
 
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "action": "Update POS payment config",
                 "description": "Fix payment gateway configuration for site-123",
@@ -207,7 +207,7 @@ class CreateSiteRequest(BaseModel):
     class Config:
         """Pydantic model configuration with example data."""
 
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "site_id": "site-123",
                 "name": "Main Retail Store",
@@ -229,7 +229,7 @@ class CreateDeviceRequest(BaseModel):
     class Config:
         """Pydantic model configuration with example data."""
 
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "device_id": "pos-terminal-001",
                 "name": "POS Terminal 1",
@@ -439,7 +439,7 @@ async def create_device(
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=int(site.id),
+            site_id=site_id,
             ip_address=device_request.ip_address,
             config=device_request.config,
         )

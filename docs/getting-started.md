@@ -43,37 +43,50 @@ The database will be empty when you first clone the repository. You need to init
 ```bash
 # From project root (not backend/)
 cd ..  # Go back to homepot-client/
-./scripts/init-database.sh
+./scripts/init-postgresql.sh
 ```
 
 This creates:
-- `data/homepot.db` - SQLite database with all tables
-- **2 demo sites** (Main Store Downtown, West Branch)  
-- **8 demo devices** (POS terminals)
+- PostgreSQL database `homepot_db` with all tables
+- **3 demo sites** (Main Store Downtown, West Branch, East Side Mall)  
+- **12 demo devices** (POS terminals)
 
-#### **Option 2: Using Python module**
+#### **Option 2: Using Python directly**
 
 ```bash
 # From backend/ directory
-python -m homepot.database
+python -c "
+import asyncio
+import sys
+sys.path.insert(0, 'src')
+from homepot.database import DatabaseService
+
+async def init():
+    db = DatabaseService()
+    await db.initialize()
+    await db.close()
+
+asyncio.run(init())
+"
 ```
 
 #### **What Gets Created**
 
 After initialization, you'll have:
-- **Sites table**: 2 demo retail locations
-- **Devices table**: 8 POS terminals (5 at site 1, 3 at site 2)
+- **Sites table**: 3 demo retail locations
+- **Devices table**: 12 POS terminals distributed across sites
 - **Jobs table**: Empty (ready for configuration updates)
 - **Users table**: Empty (ready for user management)
 
 You can verify the database:
 ```bash
 # From project root
-sqlite3 data/homepot.db "SELECT COUNT(*) as sites FROM sites; SELECT COUNT(*) as devices FROM devices;"
-# Expected: 2 sites, 8 devices
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db -c "SELECT COUNT(*) as sites FROM sites; SELECT COUNT(*) as devices FROM devices;"
+# Expected: 3 sites, 12 devices
 ```
 
-> **Why not in git?** Database files are excluded to prevent merge conflicts and keep the repository clean. Each developer/environment creates their own database. See [data/README.md](../data/README.md) for details.
+> **PostgreSQL Required:** HOMEPOT now uses PostgreSQL for production-ready performance. See [docs/postgresql-migration-complete.md](postgresql-migration-complete.md) for details.
 
 ### Verify Installation
 
@@ -97,6 +110,12 @@ When ready to start the client:
 # Start the backend server (from backend/ directory)
 cd backend
 python -m uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+```bash
+# Start the backend server (from backend/app directory)(After restrcture the backend api main.py file in inside the app dir)
+cd backend
+python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 The `--reload` flag enables auto-restart on code changes (development mode).
@@ -140,14 +159,14 @@ Expected output for health check:
 
 Congratulations! You now have a complete enterprise POS management system with:
 
-- **2 Demo Sites** (Main Store Downtown, West Branch)
-- **8 POS Devices** (realistic terminal configuration)
+- **3 Demo Sites** (Main Store Downtown, West Branch, East Side Mall)
+- **12 POS Devices** (realistic terminal configuration)
 - **Real-time Dashboard** (live monitoring with WebSocket updates)
 - **Enterprise Audit Logging** (compliance-ready event tracking)
 - **Complete REST API** (comprehensive device management)
-- **SQLite Database** (ready for development and testing)
+- **PostgreSQL Database** (production-ready with async performance)
 
-> **Need more data?** You can create additional sites and devices using the REST API at [http://localhost:8000/docs](http://localhost:8000/docs) or modify `scripts/init-database.sh` to add more demo data.
+> **Need more data?** You can create additional sites and devices using the REST API at [http://localhost:8000/docs](http://localhost:8000/docs) or modify `scripts/init-postgresql.sh` to add more demo data.
 
 ## Next Steps
 
@@ -167,22 +186,27 @@ Congratulations! You now have a complete enterprise POS management system with:
 
 ### Common Issues
 
-**Database Not Found Error:**
+**Database Connection Error:**
 ```bash
-# If you get "no such table" or "database not found" errors
-# Initialize the database:
-./scripts/init-database.sh
-# Or from backend/:
-cd backend && python -m homepot.database
+# If you get "database connection" errors:
+# 1. Ensure PostgreSQL is running:
+sudo systemctl status postgresql
+
+# 2. Check database exists:
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db -c "SELECT 1;"
+
+# 3. If needed, reinitialize:
+./scripts/init-postgresql.sh
 ```
 
 **Database Schema Mismatch (After git pull):**
 ```bash
 # If someone updated the database schema (models.py)
 # You need to recreate your database:
-./scripts/init-database.sh
-# Answer 'y' to backup and recreate
-# Your old data will be backed up to data/backups/
+./scripts/init-postgresql.sh
+# Answer 'y' to drop and recreate
+# This will reset all data to demo state
 ```
 
 **"Address already in use" Error:**
@@ -207,10 +231,9 @@ python -m uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
 
 **Want to Start Fresh?**
 ```bash
-# Remove database and recreate
-rm data/homepot.db
-./scripts/init-database.sh
-# You'll get clean demo data (2 sites, 8 devices)
+# Drop and recreate PostgreSQL database
+./scripts/init-postgresql.sh
+# You'll get clean demo data (3 sites, 12 devices)
 ```
 
 ### Getting Help
@@ -218,6 +241,7 @@ rm data/homepot.db
 - **[GitHub Issues](https://github.com/brunel-opensim/homepot-client/issues)** - Bug reports and feature requests
 - **[Collaboration Guide](collaboration-guide.md)** - Development and contribution guidelines
 - **[Development Guide](development-guide.md)** - Testing and code quality
+- **[PostgreSQL Migration](postgresql-migration-complete.md)** - Database architecture details
 
 ---
 

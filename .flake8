@@ -7,6 +7,10 @@ ignore =
     S104,
     # S110: Try/except/pass (acceptable for cleanup code)
     S110,
+    # S311: Standard pseudo-random generators (acceptable for simulation)
+    S311,
+    # D106: Missing docstring in nested class (Pydantic Config classes)
+    D106,
     # W503: Line break before binary operator (conflicts with W504, we prefer W503 style)
     W503,
     # E203: Whitespace before ':' (conflicts with black formatter)
@@ -17,7 +21,11 @@ per-file-ignores =
     tests/*:S106,S105,
     # POSDummy specific exceptions for integration testing
     backend/tests/test_pos_dummy.py:S106,S105,S404,S603,F401,F811,E501,
-    tests/test_pos_dummy.py:S106,S105,S404,S603,F401,F811,E501
+    tests/test_pos_dummy.py:S106,S105,S404,S603,F401,F811,E501,
+    # TimescaleDB migrations: SQL queries can be long, f-strings without placeholders are SQL
+    backend/src/homepot/migrations/timescaledb_aggregates.py:E501,
+    backend/src/homepot/timescale.py:E501,F541,
+    backend/src/homepot/cli_timescaledb.py:F541,E501,F401,D403
 exclude = 
     .git,
     __pycache__,

@@ -45,9 +45,21 @@ services:
     environment:
       - HOMEPOT_ENV=production
       - HOMEPOT_DEBUG=false
-      - HOMEPOT_DATABASE_URL=sqlite:///app/data/homepot.db
+      - DATABASE__URL=postgresql://homepot_user:homepot_password@db:5432/homepot
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=homepot
+      - POSTGRES_USER=homepot_user
+      - POSTGRES_PASSWORD=homepot_password
     volumes:
-      - ./data:/app/data
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
@@ -114,15 +126,32 @@ GRANT ALL PRIVILEGES ON DATABASE homepot TO homepot_user;
 echo "HOMEPOT_DATABASE_URL=postgresql://homepot_user:secure_password@localhost/homepot" >> .env
 ```
 
-### SQLite (Development/Small Deployments)
+### Production Database Setup
+
+**HOMEPOT uses PostgreSQL** for production deployments:
 
 ```bash
-# SQLite is included by default
-mkdir -p /opt/homepot/data
-chown homepot:homepot /opt/homepot/data
+# Install PostgreSQL
+sudo apt install postgresql postgresql-contrib
+
+# Create database and user
+sudo -u postgres psql
+CREATE DATABASE homepot;
+CREATE USER homepot_user WITH PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE homepot TO homepot_user;
+\q
 
 # Update environment
-echo "HOMEPOT_DATABASE_URL=sqlite:////opt/homepot/data/homepot.db" >> .env
+echo "DATABASE__URL=postgresql://homepot_user:secure_password@localhost:5432/homepot" >> .env
+```
+
+### Development/Local Setup
+
+For local development, you can use the initialization script:
+
+```bash
+# Initialize PostgreSQL database
+./scripts/init-postgresql.sh
 ```
 
 ### Database Migration

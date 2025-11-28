@@ -87,7 +87,7 @@ homepot-client/
 │   │   └── main.py            # Application entry point
 │   ├── tests/                 # Backend tests
 │   ├── requirements.txt       # Python dependencies
-│   └── pyproject.toml        # Project metadata
+│   └── pyproject.toml         # Project metadata
 │
 ├── frontend/                  # React frontend
 │   ├── src/

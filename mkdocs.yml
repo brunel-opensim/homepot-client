@@ -3,7 +3,7 @@
 site_name: HOMEPOT Client
 site_description: Homogenous Cyber Management of End-Points and OT - Gateway Management System
 site_author: Brunel OpenSim
-site_url: https://brunel-opensimhomepot-client.readthedocs.io/en/latest/
+site_url: https://homepot-client.readthedocs.io/en/latest/
 
 # Repository
 repo_name: brunel-opensim/homepot-client
@@ -97,41 +97,65 @@ plugins:
 # Page tree
 nav:
   - Home: index.md
+  
   - Getting Started:
-    - Quick Start: getting-started.md
-    - Running Locally: running-locally.md
-    - Integration Guide: integration-guide.md
-    - Development Guide: development-guide.md
-    - Engineering TODO: engineering-todo.md
-    - Testing Guide: testing-guide.md
-    - Monorepo Migration: monorepo-migration.md
-  - Frontend Development:
-    - CI/CD Pipeline: frontend-ci-cd.md
-    - Testing Guide: frontend-testing-guide.md
-  - Features:
-    - POS Management: pos-management.md
-    - Real-time Dashboard: real-time-dashboard.md
-    - Agent Simulation: agent-simulation.md
-    - Audit & Compliance: audit-compliance.md
+      - Quick Start: getting-started.md
+      - Running Locally: running-locally.md
+      - Complete Setup: complete-website-setup.md
+      - Website Testing: website-testing-guide.md
+      - Integration Guide: integration-guide.md
+  
+  - User Guides:
+      - POS Management: pos-management.md
+      - Real-time Dashboard: real-time-dashboard.md
+      - Agent Simulation: agent-simulation.md
+      - API Testing: api-testing-guide.md
+      - Device Metrics Collection: device-metrics-collection.md
+  
+  - API Reference:
+      - Devices:
+          - Get Devices by Site: devices-by-site-endpoint.md
+  
+  - Development:
+      - Development Guide: development-guide.md
+      - Testing Guide: testing-guide.md
+      - Frontend Testing: frontend-testing-guide.md
+      - Collaboration: collaboration-guide.md
+      - Monorepo Structure: monorepo-migration.md
+  
+  - Database:
+      - Database Guide: database-guide.md
+      - PostgreSQL Migration: postgresql-migration-complete.md
+      - TimescaleDB Integration: timescaledb-integration.md
+  
   - Push Notifications:
-    - Overview: push-notification.md
-    - FCM Linux Integration: fcm-linux-integration.md
-    - WNS Windows Integration: wns-windows-integration.md
-    - APNs Apple Integration: apns-apple-integration.md
-    - Web Push Integration: web-push-integration.md
-    - MQTT Push Integration: mqtt-push-integration.md
-  - Technical Guides:
-    - Database Guide: database-guide.md
-    - Database Management: database-management.md
-    - Mobivisor Integration: mobivisor-integration.md
-    - Collaboration Guide: collaboration-guide.md
-    - GitHub Permissions: github-permissions-guide.md
-    - Repository Health: repository-health.md
+      - Overview: push-notification.md
+      - FCM (Linux/Android): fcm-linux-integration.md
+      - WNS (Windows): wns-windows-integration.md
+      - APNs (Apple): apns-apple-integration.md
+      - Web Push: web-push-integration.md
+      - MQTT (IoT): mqtt-push-integration.md
+  
+  - Integrations:
+      - Mobivisor Integration: mobivisor-integration.md
+      - Mobivisor Diagram: HomepotMobivisor.md
+      - POS Dummy: POSDummy.md
+      - POS Dummy Integration: POSDummy-Integration.md
+  
   - Deployment:
-    - Deployment Guide: deployment-guide.md
-  - POS Dummy:
-    - Overview: POSDummy.md
-    - Integration: POSDummy-Integration.md
+      - Deployment Guide: deployment-guide.md
+      - Frontend CI/CD: frontend-ci-cd.md
+  
+  - AI & Analytics:
+      - Executive Summary: ai-roadmap-executive-summary.md
+      - Full Roadmap: ai-roadmap.md
+  
+  - Reference:
+      - Visual Examples: visual-examples.md
+      - Audit & Compliance: audit-compliance.md
+      - GitHub Permissions: github-permissions-guide.md
+      - Repository Health: repository-health.md
+      - Engineering TODO: engineering-todo.md
 
 # Extra
 extra:
