@@ -6,6 +6,7 @@ with proper authentication and error handling.
 """
 
 import logging
+import re
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
@@ -140,3 +141,102 @@ async def delete_user(user_id: str) -> Dict[str, Any]:
     handle_mobivisor_response(response, f"delete user {user_id}")
 
     return {"message": "User deleted successfully", "user_id": user_id}
+
+
+@router.post("/users", tags=["Mobivisor Users"])
+async def create_user(payload: Dict[str, Any]) -> Any:
+    """Create a new user in Mobivisor.
+
+    Proxies a POST to the Mobivisor `/users` endpoint. The request body should
+    include a `user` object and optionally `groupInfoOfTheUser` as shown below.
+
+    Args:
+        payload: The JSON body to forward to Mobivisor. Expected shape:
+
+        {
+            "user": {
+                "email": "jr.kothiya@gmail.com",
+                "displayName": "Kothiya Yogesh",
+                "username": "jr.kothiya",
+                "phone": "7567407883",
+                "password": "1234567890",
+                "notes": "Test",
+                "role": {"_id": "Admin", "rights": [], "displayedRights": []}
+            },
+            "groupInfoOfTheUser": [{"_id": "6895b47e634b34c01c2d69c4"}]
+        }
+
+    Returns:
+        Any: The JSON response from Mobivisor (typically the created user or
+        an acknowledgement).
+
+    Raises:
+        HTTPException: If configuration is missing or the upstream request
+        fails; upstream errors are mapped to appropriate HTTP status codes.
+
+    Example:
+        ```bash
+        curl -X POST "http://localhost:8000/api/v1/mobivisor/users" \
+          -H "Content-Type: application/json" \
+          -d '{"user": {...}, "groupInfoOfTheUser": [...] }'
+        ```
+    """
+    logger.info("Creating user in Mobivisor API")
+    config = get_mobivisor_api_config()
+
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    # Validate required user fields
+    user = payload.get("user") if isinstance(payload, dict) else None
+    if not user or not isinstance(user, dict):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Validation Error",
+                "message": "Missing 'user' object in payload",
+            },
+        )
+
+    required_fields = ["email", "displayName", "username", "phone", "password"]
+    missing = [f for f in required_fields if not user.get(f)]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Validation Error",
+                "message": "Missing required user fields",
+                "missing": missing,
+            },
+        )
+
+    # Validate email format (simple check)
+    email_val = user.get("email")
+    email_pattern = r"[^@]+@[^@]+\.[^@]+"
+    if not re.fullmatch(email_pattern, email_val or ""):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Validation Error",
+                "message": "Invalid email format",
+                "field": "email",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "POST", "users", json=payload, config=config
+    )
+    return handle_mobivisor_response(response, "create user")

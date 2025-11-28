@@ -116,7 +116,8 @@ def _handle_mobivisor_response(
     Raises:
         HTTPException: If the response indicates an error
     """
-    if response.status_code in (200, 204):
+    # Treat any 2xx response as success (including 200, 201, 204, etc.)
+    if 200 <= response.status_code < 300:
         try:
             return response.json() if response.content else {}
         except Exception:
