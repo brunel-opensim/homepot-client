@@ -82,3 +82,105 @@ async def async_client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+def temp_db():
+    """Create a temporary database for testing."""
+    import logging
+
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+    from sqlalchemy.orm import sessionmaker
+
+    from homepot.config import get_settings
+    from homepot.models import Base
+
+    logger = logging.getLogger(__name__)
+
+    # Get database URL from config
+    settings = get_settings()
+    database_url = settings.database.url
+
+    # Convert async URLs to sync for testing
+    if database_url.startswith("sqlite+aiosqlite://"):
+        database_url = database_url.replace("sqlite+aiosqlite://", "sqlite:///")
+    elif database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace(
+            "postgresql+asyncpg://", "postgresql+psycopg2://"
+        )
+
+    engine = None
+    use_postgresql = "postgresql" in database_url
+
+    # Handle PostgreSQL test database creation
+    if use_postgresql:
+        # Extract and modify database name for testing
+        parts = database_url.rsplit("/", 1)
+        if len(parts) == 2:
+            base_url, db_name = parts
+            # Remove any query parameters
+            db_name = db_name.split("?")[0]
+            test_db_name = f"{db_name}_test"
+            test_database_url = f"{base_url}/{test_db_name}"
+
+            # Try to create test database if it doesn't exist
+            try:
+                # Connect to default 'postgres' database to create test database
+                admin_url = f"{base_url}/postgres"
+                admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+
+                with admin_engine.connect() as conn:
+                    # Check if test database exists
+                    result = conn.execute(
+                        text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
+                        {"dbname": test_db_name},
+                    )
+                    exists = result.fetchone() is not None
+
+                    if not exists:
+                        logger.info(f"Creating test database: {test_db_name}")
+                        conn.execute(text(f'CREATE DATABASE "{test_db_name}"'))
+                        logger.info(
+                            f"Test database created successfully: {test_db_name}"
+                        )
+
+                admin_engine.dispose()
+
+                # Now connect to the test database
+                engine = create_engine(
+                    test_database_url, pool_pre_ping=True, pool_size=5, max_overflow=10
+                )
+
+            except (OperationalError, ProgrammingError) as e:
+                logger.warning(
+                    f"PostgreSQL not available or error creating test DB: {e}"
+                )
+                logger.info("Falling back to SQLite in-memory database for testing")
+                use_postgresql = False
+
+    # Fallback to SQLite if PostgreSQL failed or not configured
+    if not use_postgresql or engine is None:
+        logger.info("Using SQLite in-memory database for testing")
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            pool_pre_ping=True,
+        )
+
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
+
+    # Create session maker
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    def get_test_db():
+        """Get test database session."""
+        db = TestingSessionLocal()
+        return db
+
+    yield get_test_db
+
+    # Cleanup - drop all tables after tests
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
