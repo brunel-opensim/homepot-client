@@ -1,123 +1,113 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
-import { AuthContext } from './auth-context';
+import { AuthContext } from './AuthContextDef';
 
-export const AuthProvider = ({ children }) => {
+// Re-export for backward compatibility
+export { AuthContext };
+
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const handleSessionExpiry = useCallback(() => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('token_expiry');
-    localStorage.removeItem('user_data');
-    setIsAuthenticated(false);
-    setUser(null);
-    navigate('/login', { state: { message: 'Session expired. Please login again.' } });
-  }, [navigate]);
-
-  const checkAuth = useCallback(() => {
-    const token = localStorage.getItem('auth_token');
-    const tokenExpiry = localStorage.getItem('token_expiry');
-    const userData = localStorage.getItem('user_data');
-
-    if (token && tokenExpiry) {
-      const expiryTime = parseInt(tokenExpiry, 10);
-      const now = Date.now();
-
-      if (now < expiryTime) {
-        setIsAuthenticated(true);
-        if (userData) {
-          try {
-            setUser(JSON.parse(userData));
-          } catch (e) {
-            console.error('Failed to parse user data:', e);
-          }
-        }
-        const timeUntilExpiry = expiryTime - now;
-        setTimeout(() => handleSessionExpiry(), timeUntilExpiry);
-      } else {
-        handleSessionExpiry();
-      }
-    } else {
+  const handleSessionExpiry = useCallback(
+    (opts = {}) => {
+      // called when server says 401 or logout
       setIsAuthenticated(false);
-    }
-    setLoading(false);
-  }, [handleSessionExpiry]);
+      setUser(null);
+      navigate('/login', {
+        state: { message: opts.message || 'Session expired. Please login again.' },
+        replace: true,
+      });
+    },
+    [navigate]
+  );
 
-  // Check if token exists and is valid on mount
+  // Check session by calling /auth/me (uses httpOnly cookie automatically)
+  const checkAuth = useCallback(async () => {
+    setLoading(true);
+    try {
+      const resp = await api.auth.me();
+      if (resp?.success && resp?.data) {
+        setUser({
+          username: resp.data.username,
+          email: resp.data.email,
+          isAdmin: resp.data.is_admin,
+        });
+        setIsAuthenticated(true);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    } catch {
+      // 401 means not authenticated (no valid cookie)
+      setUser(null);
+      setIsAuthenticated(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+    // Setup global 401 handler via interceptor
+    const interceptor = api.raw.interceptors.response.use(
+      (r) => r,
+      (error) => {
+        // Only handle 401 for non-auth endpoints to avoid redirect loops
+        const isAuthEndpoint = error?.config?.url?.includes('/auth/');
+        if (error?.response?.status === 401 && !isAuthEndpoint) {
+          handleSessionExpiry({ message: 'Session expired. Please login again.' });
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      api.raw.interceptors.response.eject(interceptor);
+    };
+  }, [checkAuth, handleSessionExpiry]);
 
   const login = async (credentials) => {
     try {
-      const response = await api.auth.login(credentials);
+      // Server sets httpOnly cookie (XSS protected - not accessible via JS)
+      const resp = await api.auth.login(credentials);
 
-      // Handle the nested response structure: response.data.access_token
-      if (response.success && response.data?.access_token) {
-        const { access_token, username, role } = response.data;
-
-        // Store token
-        localStorage.setItem('auth_token', access_token);
-
-        // Calculate expiry time (default 24 hours if not provided)
-        const expiryDuration = response.data.expires_in
-          ? response.data.expires_in * 1000
-          : 24 * 60 * 60 * 1000; // 24 hours
-        const expiryTime = Date.now() + expiryDuration;
-        localStorage.setItem('token_expiry', expiryTime.toString());
-
-        // Store user data
+      if (resp?.success && resp?.data) {
+        // Set user from response data (token is in httpOnly cookie)
         const userData = {
-          username,
-          role,
-          email: credentials.email,
+          username: resp.data.username,
+          isAdmin: resp.data.is_admin,
         };
-        localStorage.setItem('user_data', JSON.stringify(userData));
         setUser(userData);
-
         setIsAuthenticated(true);
 
-        // Set up auto-logout timer
-        setTimeout(() => {
-          handleSessionExpiry();
-        }, expiryDuration);
-
-        return { success: true, data: response.data };
+        return { success: true, data: resp };
       }
 
-      return {
-        success: false,
-        error: response.message || 'No token received',
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.response?.data?.message || error.response?.data?.detail || error.message,
-      };
+      return { success: false, error: resp?.message || 'Login failed' };
+    } catch (err) {
+      return { success: false, error: err?.response?.data?.detail || err.message };
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('token_expiry');
-    localStorage.removeItem('user_data');
-    setIsAuthenticated(false);
-    setUser(null);
-    navigate('/login');
+  const logout = async () => {
+    try {
+      await api.auth.logout(); // Server clears the httpOnly cookie
+    } catch {
+      // ignore errors from logout call, still clear client state
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+      navigate('/login', { replace: true });
+    }
   };
 
-  const value = {
-    user,
-    isAuthenticated,
-    loading,
-    login,
-    logout,
-    checkAuth,
-  };
+  const value = { user, isAuthenticated, loading, login, logout, checkAuth };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+}
+
+export default AuthProvider;
