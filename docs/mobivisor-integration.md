@@ -288,6 +288,95 @@ curl -X DELETE "http://localhost:8000/api/v1/mobivisor/users/u1"
 
 Refer to the "Error Handling" section above for example error payloads and suggested remediation steps.
 
+### 7. Get Device Applications
+
+Fetch the list of applications associated with a specific device. This endpoint was recently added and proxies to Mobivisor's `devices/{device_id}/applications` endpoint.
+
+**Endpoint**: `GET /api/v1/mobivisor/devices/{device_id}/applications`
+
+**Parameters**:
+- `device_id` (path): The unique identifier of the device
+
+**Response** (200 OK):
+```json
+{
+  "applications": [
+    {
+      "app_id": "com.example.app1",
+      "name": "Example App",
+      "version": "1.0.0",
+      "installed": true
+    }
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/applications"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: Device not present in Mobivisor.
+- `403/401 Unauthorized`: Authentication/authorization issue.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+### Mobivisor Users (Additional)
+
+#### 4. Create User
+
+Create a new user in Mobivisor by proxying a POST to the Mobivisor `/users` endpoint. This endpoint was recently added and performs server-side validation for required fields before forwarding the request upstream.
+
+**Endpoint**: `POST /api/v1/mobivisor/users`
+
+**Request Body** (JSON):
+```json
+{
+  "user": {
+    "email": "jr.kothiya@gmail.com",
+    "displayName": "Kothiya Yogesh",
+    "username": "jr.kothiya",
+    "phone": "7567407883",
+    "password": "1234567890",
+    "notes": "Test",
+    "role": {"_id": "Admin", "rights": [], "displayedRights": []}
+  },
+  "groupInfoOfTheUser": [{"_id": "6895b47e634b34c01c2d69c4"}]
+}
+```
+
+**Validation**:
+- The `user` object is required.
+- Required fields inside `user`: `email`, `displayName`, `username`, `phone`, `password`.
+- The endpoint performs a simple email format validation and will return `400 Bad Request` if the email is invalid.
+
+**Response** (201 Created / 2xx):
+```json
+{
+  "user": {
+    "id": "new_user_id",
+    "email": "jr.kothiya@gmail.com",
+    "username": "jr.kothiya",
+    "displayName": "Kothiya Yogesh"
+  }
+}
+```
+
+**Example**:
+```bash
+curl -X POST "http://localhost:8000/api/v1/mobivisor/users" \
+  -H "Content-Type: application/json" \
+  -d '{"user": {"email": "jr.kothiya@gmail.com", "displayName": "Kothiya Yogesh", "username": "jr.kothiya", "phone": "7567407883", "password": "1234567890"}}'
+```
+
+**Notes & Errors**:
+- `400 Bad Request`: Missing `user` object or required fields, or invalid email format.
+- `401/403 Unauthorized`: Upstream authentication/authorization error; token missing/invalid.
+- `502 Bad Gateway`: Mobivisor returned an upstream error; the response includes `upstream_status`.
+- `504 Gateway Timeout`: Mobivisor did not respond in time.
+
+Refer to the "Error Handling" section for example error payloads and remediation steps.
+
 ## Configuration
 
 ### Environment Variables
