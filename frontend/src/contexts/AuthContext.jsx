@@ -1,10 +1,10 @@
-// src/contexts/AuthContext.jsx
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
+import { AuthContext } from './AuthContextDef';
 
-// Create and export the AuthContext
-export const AuthContext = createContext(null);
+// Re-export for backward compatibility
+export { AuthContext };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
         setUser(null);
         setIsAuthenticated(false);
       }
-    } catch (err) {
+    } catch {
       // 401 means not authenticated (no valid cookie)
       setUser(null);
       setIsAuthenticated(false);
@@ -96,7 +96,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.auth.logout(); // Server clears the httpOnly cookie
-    } catch (e) {
+    } catch {
       // ignore errors from logout call, still clear client state
     } finally {
       setUser(null);
