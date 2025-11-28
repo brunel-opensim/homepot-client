@@ -10,6 +10,7 @@ export default function LoginForm({
   setPassword,
   loading,
   errorMsg,
+  successMsg,
   onSubmit, // () => Promise<{success: boolean}>
   onNavigateToSignUp,
 }) {
@@ -80,6 +81,12 @@ export default function LoginForm({
           {errorMsg && (
             <div className="text-center p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
               {errorMsg}
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="text-center p-3 bg-green-900/50 border border-green-700 rounded-lg text-green-300 text-sm">
+              {successMsg}
             </div>
           )}
 

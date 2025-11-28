@@ -3,6 +3,11 @@
  *
  * Centralized API client for all backend communications.
  * Handles authentication, error handling, and request/response formatting.
+ *
+ * SECURITY: Authentication uses httpOnly cookies (set by the backend)
+ * - Tokens are NOT stored in localStorage (XSS protection)
+ * - Cookies are automatically sent with requests (withCredentials: true)
+ * - Cookies are httpOnly (not accessible via JavaScript)
  */
 
 import axios from 'axios';
@@ -15,43 +20,12 @@ const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
 // Create axios instance with default config
 const apiClient = axios.create({
   baseURL: `${API_BASE_URL}/api/${API_VERSION}`,
+  withCredentials: true, // Required for httpOnly cookies
   timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
 });
-
-// Request interceptor - add auth token if available and check expiry
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('auth_token');
-    const tokenExpiry = localStorage.getItem('token_expiry');
-
-    if (token && tokenExpiry) {
-      const expiryTime = parseInt(tokenExpiry, 10);
-      const now = Date.now();
-
-      // Check if token is expired
-      if (now >= expiryTime) {
-        // Token expired, clear storage and reject request
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('token_expiry');
-        localStorage.removeItem('user_data');
-
-        // Redirect to login
-        window.location.href = '/login';
-
-        return Promise.reject(new Error('Session expired'));
-      }
-
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 // Response interceptor - handle errors globally
 apiClient.interceptors.response.use(
@@ -63,15 +37,8 @@ apiClient.interceptors.response.use(
 
       switch (status) {
         case 401:
-          // Unauthorized - clear token and redirect to login
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('token_expiry');
-          localStorage.removeItem('user_data');
-
-          // Only redirect if not already on login page
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
+          // Unauthorized - handled by AuthContext interceptor
+          // Don't redirect here to avoid conflicts
           break;
         case 403:
           console.error('Forbidden:', data.detail || 'Access denied');
@@ -101,6 +68,9 @@ apiClient.interceptors.response.use(
  * API Service Object
  */
 const api = {
+  // Expose raw axios instance for interceptor access
+  raw: apiClient,
+
   // ==================== Authentication ====================
 
   auth: {
@@ -109,27 +79,33 @@ const api = {
      */
     signup: async (userData) => {
       const response = await apiClient.post('/auth/signup', userData);
-      // Return the full response to preserve the structure
       return response.data;
     },
 
     /**
      * User login
-     * Returns: { success: true, message: "Login successful", data: { access_token, username, role } }
+     * Server sets httpOnly cookie (XSS protected)
+     * Returns: { success: true, message: "Login successful", data: { username, is_admin } }
      */
     login: async (credentials) => {
       const response = await apiClient.post('/auth/login', credentials);
-      // Return the full response structure from your API
       return response.data;
     },
 
     /**
-     * Logout
+     * Logout - clears httpOnly cookie on server
      */
-    logout: () => {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('token_expiry');
-      localStorage.removeItem('user_data');
+    logout: async () => {
+      const response = await apiClient.post('/auth/logout');
+      return response.data;
+    },
+
+    /**
+     * Get current user info (from httpOnly cookie)
+     */
+    me: async () => {
+      const response = await apiClient.get('/auth/me');
+      return response.data;
     },
   },
 
@@ -380,43 +356,6 @@ const api = {
  * Helper functions for common operations
  */
 export const apiHelpers = {
-  /**
-   * Check if user is authenticated
-   */
-  isAuthenticated: () => {
-    const token = localStorage.getItem('auth_token');
-    const tokenExpiry = localStorage.getItem('token_expiry');
-
-    if (!token || !tokenExpiry) {
-      return false;
-    }
-
-    const expiryTime = parseInt(tokenExpiry, 10);
-    const now = Date.now();
-
-    return now < expiryTime;
-  },
-
-  /**
-   * Get stored auth token
-   */
-  getAuthToken: () => {
-    return localStorage.getItem('auth_token');
-  },
-
-  /**
-   * Get time remaining until session expires (in milliseconds)
-   */
-  getSessionTimeRemaining: () => {
-    const tokenExpiry = localStorage.getItem('token_expiry');
-    if (!tokenExpiry) return 0;
-
-    const expiryTime = parseInt(tokenExpiry, 10);
-    const now = Date.now();
-
-    return Math.max(0, expiryTime - now);
-  },
-
   /**
    * Format error message from API response
    */

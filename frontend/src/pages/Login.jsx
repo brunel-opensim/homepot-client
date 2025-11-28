@@ -10,6 +10,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
   const [sessionMsg, setSessionMsg] = useState(null);
 
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ const Login = () => {
 
   const handleLogin = async (credentials) => {
     setErrorMsg(null);
+    setSuccessMsg(null);
 
     if (!credentials.email || !credentials.password) {
       setErrorMsg('Please provide both email and password.');
@@ -46,7 +48,11 @@ const Login = () => {
       const result = await login(credentials);
 
       if (result.success) {
-        navigate('/dashboard', { replace: true });
+        setSuccessMsg('Login successful! Redirecting...');
+        // Short delay to show success message before redirect
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 500);
         return { success: true };
       } else {
         setErrorMsg(result.error || 'Failed to login. Please try again.');
@@ -88,6 +94,7 @@ const Login = () => {
             setPassword={setPassword}
             loading={loading}
             errorMsg={errorMsg}
+            successMsg={successMsg}
             onSubmit={() => handleLogin({ email, password })}
             onNavigateToSignUp={handleNavigateToSignUp}
           />
