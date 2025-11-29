@@ -149,6 +149,7 @@ nav:
   - AI & Analytics:
       - Executive Summary: ai-roadmap-executive-summary.md
       - Full Roadmap: ai-roadmap.md
+      - Phase 3 Implementation: ai-infrastructure.md
   
   - Reference:
       - Visual Examples: visual-examples.md
