@@ -22,14 +22,18 @@ jobs:
     name: Dependency Health Check
     runs-on: ubuntu-latest
     if: github.repository == 'brunel-opensim/homepot-client'
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.12']
+      fail-fast: false
     
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: '3.11'
+        python-version: ${{ matrix.python-version }}
 
     - name: Install project dependencies
       run: |
@@ -48,6 +52,7 @@ jobs:
         echo "**Generated on:** $(date)" >> dependency-report.md
         echo "**Repository:** ${{ github.repository }}" >> dependency-report.md
         echo "**Branch:** ${{ github.ref_name }}" >> dependency-report.md
+        echo "**Python Version:** ${{ matrix.python-version }}" >> dependency-report.md
         echo "" >> dependency-report.md
         
         echo "### Outdated Packages" >> dependency-report.md
@@ -230,7 +235,8 @@ jobs:
         echo "" >> dependency-report.md
         echo "### Python Version Compatibility" >> dependency-report.md
         echo "**Current Python:** $(python --version)" >> dependency-report.md
-        echo "**Supported versions:** 3.9, 3.11 (as per backend/pyproject.toml)" >> dependency-report.md
+        echo "**Supported versions:** 3.9, 3.10, 3.11, 3.12 (as per backend/pyproject.toml)" >> dependency-report.md
+        echo "**Testing on:** ${{ matrix.python-version }}" >> dependency-report.md
         echo "Python $(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') compatibility verified" >> dependency-report.md
 
     - name: Generate actionable recommendations
@@ -314,7 +320,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: dependency-health-report-${{ github.run_id }}
+        name: dependency-health-report-py${{ matrix.python-version }}-${{ github.run_id }}
         path: |
           dependency-report.md
           outdated.txt
@@ -376,10 +382,11 @@ jobs:
     - name: Summary
       if: always()
       run: |
-        echo "## Dependency Health Check Summary"
+        echo "## Dependency Health Check Summary (Python ${{ matrix.python-version }})"
+        echo "- **Python version:** ${{ matrix.python-version }}"
         echo "- **Outdated packages:** ${{ steps.outdated.outputs.outdated_count || 'Unknown' }}"
         echo "- **Security vulnerabilities:** ${{ steps.security.outputs.vulnerability_count || 'Unknown' }}"
-        echo "- **Report artifact:** dependency-health-report-${{ github.run_id }}"
+        echo "- **Report artifact:** dependency-health-report-py${{ matrix.python-version }}-${{ github.run_id }}"
         
         if [ "${{ steps.security.outputs.has_vulnerabilities }}" == "true" ]; then
           echo "**Action required:** Security vulnerabilities detected!"

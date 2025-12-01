@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
@@ -29,10 +29,8 @@ class CreateDeviceRequest(BaseModel):
     ip_address: Optional[str] = None
     config: Optional[Dict] = None
 
-    class Config:
-        """Pydantic model configuration with example data."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "device_id": "pos-terminal-001",
                 "name": "POS Terminal 1",
@@ -41,6 +39,7 @@ class CreateDeviceRequest(BaseModel):
                 "config": {"gateway_url": "https://payments.example.com"},
             }
         }
+    )
 
 
 @router.post(

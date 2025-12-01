@@ -150,6 +150,7 @@ nav:
       - Executive Summary: ai-roadmap-executive-summary.md
       - Full Roadmap: ai-roadmap.md
       - Phase 3 Implementation: ai-infrastructure.md
+      - Backend Analytics: backend-analytics.md
   
   - Reference:
       - Visual Examples: visual-examples.md

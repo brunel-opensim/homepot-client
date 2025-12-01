@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, Optional, TypedDict
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
@@ -24,15 +24,12 @@ class UserLogin(BaseModel):
 class UserOut(BaseModel):
     """Schema for user output (response)."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: EmailStr
     name: Optional[str] = None
     role: str
-
-    class Config:
-        """Enable ORM mode for compatibility with SQLAlchemy models."""
-
-        orm_mode = True
 
 
 class Token(BaseModel):
@@ -80,8 +77,8 @@ class SystemMetrics(BaseModel):
         None, ge=0, description="System uptime in seconds"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "cpu_percent": 65.5,
                 "memory_percent": 80.0,
@@ -93,6 +90,7 @@ class SystemMetrics(BaseModel):
                 "uptime_seconds": 86400,
             }
         }
+    )
 
 
 class ApplicationMetrics(BaseModel):
@@ -115,8 +113,8 @@ class ApplicationMetrics(BaseModel):
         None, ge=0, description="Number of active connections"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "app_version": "1.2.3",
                 "transactions_count": 150,
@@ -126,6 +124,7 @@ class ApplicationMetrics(BaseModel):
                 "active_connections": 3,
             }
         }
+    )
 
 
 class NetworkMetrics(BaseModel):
@@ -144,8 +143,8 @@ class NetworkMetrics(BaseModel):
         None, description="Connection quality: good, fair, poor"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "latency_ms": 45.5,
                 "rx_bytes": 1024000,
@@ -153,6 +152,7 @@ class NetworkMetrics(BaseModel):
                 "connection_quality": "good",
             }
         }
+    )
 
 
 class EnvironmentalMetrics(BaseModel):
@@ -165,10 +165,11 @@ class EnvironmentalMetrics(BaseModel):
         None, ge=0, le=100, description="Relative humidity percentage"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"temperature_celsius": 28.5, "humidity_percent": 65.0}
         }
+    )
 
 
 class EnhancedHealthCheckData(BaseModel):
@@ -197,8 +198,8 @@ class EnhancedHealthCheckData(BaseModel):
         None, description="Custom device-specific metrics"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "healthy",
                 "timestamp": "2025-11-19T10:00:00Z",
@@ -219,6 +220,7 @@ class EnhancedHealthCheckData(BaseModel):
                 "network": {"latency_ms": 45.5, "connection_quality": "good"},
             }
         }
+    )
 
 
 class HealthCheckRequest(BaseModel):
@@ -242,8 +244,8 @@ class HealthCheckRequest(BaseModel):
     )
     network: Optional[NetworkMetrics] = Field(None, description="Network metrics")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "is_healthy": True,
                 "response_time_ms": 150,
@@ -261,6 +263,7 @@ class HealthCheckRequest(BaseModel):
                 },
             }
         }
+    )
 
 
 # Alias for backward compatibility

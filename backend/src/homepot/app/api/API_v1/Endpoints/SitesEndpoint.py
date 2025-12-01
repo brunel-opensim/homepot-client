@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
@@ -42,10 +42,8 @@ class CreateSiteRequest(BaseModel):
     description: Optional[str] = None
     location: Optional[str] = None
 
-    class Config:
-        """Pydantic model configuration with example data."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "site_id": "site-123",
                 "name": "Main Retail Store",
@@ -53,6 +51,7 @@ class CreateSiteRequest(BaseModel):
                 "location": "London, UK",
             }
         }
+    )
 
 
 def get_client() -> HomepotClient:

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from homepot.app.api.API_v1.Api import api_v1_router
+from homepot.app.middleware.analytics import AnalyticsMiddleware
 from homepot.config import get_settings
 
 cors_origins = get_settings().cors.cors_origins
@@ -31,6 +32,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Analytics middleware for automatic API request logging
+app.add_middleware(AnalyticsMiddleware, enable_logging=True)
 
 
 # Add to openAPI documentation
