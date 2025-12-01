@@ -129,7 +129,8 @@ def login(
             value=access_token,
             httponly=True,  # Prevents JavaScript access (XSS protection)
             secure=COOKIE_SECURE,  # Only send over HTTPS in production
-            samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),  # CSRF protection
+            # CSRF protection
+            samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
             max_age=ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,  # Cookie expiry in seconds
             path="/",  # Cookie available for all paths
         )
@@ -151,9 +152,7 @@ def login(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.put(
-    "/users/{email}/role", response_model=dict, status_code=status.HTTP_200_OK
-)
+@router.put("/users/{email}/role", response_model=dict, status_code=status.HTTP_200_OK)
 def assign_role(
     email: str,
     new_role: str,
@@ -167,15 +166,15 @@ def assign_role(
             raise HTTPException(status_code=404, detail="User not found")
 
         if new_role.lower() == "admin":
-            user.is_admin = True
+            user.is_admin = True  # type: ignore
         elif new_role.lower() == "user":
-            user.is_admin = False
+            user.is_admin = False  # type: ignore
         else:
             raise HTTPException(
                 status_code=400, detail="Invalid role. Allowed roles: Admin, User"
             )
 
-        user.updated_at = datetime.now(timezone.utc)
+        user.updated_at = datetime.now(timezone.utc)  # type: ignore
         db.commit()
 
         logger.info(f"Role updated for user {email}: {new_role}")
