@@ -440,6 +440,39 @@ tail -f logs/homepot.log
 
 ---
 
+## Creating an Admin User
+
+Admin users have elevated privileges, such as the ability to delete other users. For security reasons, admin users cannot be created directly via the public API.
+
+### Option 1: Using the CLI Script (Recommended)
+
+A utility script is provided to create a new admin user or promote an existing user to admin status.
+
+1.  Navigate to the project root directory.
+2.  Run the script:
+
+```bash
+python3 backend/scripts/create_admin.py
+```
+
+3.  Follow the interactive prompts:
+    *   Enter the **email** address.
+    *   If the user exists, you will be asked to confirm promotion to Admin.
+    *   If the user does not exist, you will be asked to provide a **username** and **password** to create a new Admin account.
+
+### Option 2: Manual Database Update
+
+If you have access to the database, you can manually promote a user by updating the `is_admin` flag.
+
+1.  Connect to your PostgreSQL database.
+2.  Run the following SQL command:
+
+```sql
+UPDATE users SET is_admin = true WHERE email = 'user@example.com';
+```
+
+---
+
 ## Additional Resources
 
 - **FastAPI Documentation**: https://fastapi.tiangolo.com/

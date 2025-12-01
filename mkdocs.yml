@@ -113,6 +113,7 @@ nav:
       - Device Metrics Collection: device-metrics-collection.md
   
   - API Reference:
+      - Authentication: user-authentication-api.md
       - Devices:
           - Get Devices by Site: devices-by-site-endpoint.md
   
