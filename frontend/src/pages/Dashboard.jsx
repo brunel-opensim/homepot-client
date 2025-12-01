@@ -13,6 +13,7 @@ import {
   Tooltip,
 } from 'chart.js';
 import { useNavigate } from 'react-router-dom';
+import MetricCard from '@/components/Dashboard/MetricCard';
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
@@ -125,22 +126,7 @@ export default function Dashboard() {
           <CardContent className="p-4 relative z-10 flex flex-col h-full">
             <h2 className="text-lg font-semibold text-white mb-4">Connected Sites</h2>
 
-            {/* Main flex row: map + sitesNew strip */}
-            {/* <div className="relative flex gap-4 h-64"> */}
-
-            {/* sites at bottom */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4 z-10 flex-1 justify-items-center items-center">
-              {sites.map((s, i) => (
-                <div key={i} className="w-40 p-3 rounded-xl border border-secondary bg-gray-800/90">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-md text-text font-semibold mb-1">{s.site}</h3>
-                    {s.icon}
-                  </div>
-                  <p className="text-sm text-start text-green-400 mb-1">{s.online} Online</p>
-                  <p className="text-xs text-start text-gray-400">Last Alert: {s.alert}</p>
-                </div>
-              ))}
-            </div>
+            <MetricCard sites={sites} />
 
             {/* Buttons */}
             <div className="flex justify-center space-x-4 mt-8">
