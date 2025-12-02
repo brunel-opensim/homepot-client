@@ -43,11 +43,6 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def response_fmt(success: bool, message: str, data: Optional[dict] = None) -> dict:
-    """Unified Response Formatter."""
-    return {"success": success, "message": message, "data": data or {}}
-
-
 def response(success: bool, message: str, data: Optional[dict] = None) -> dict:
     """Unified Response Formatter."""
     return {"success": success, "message": message, "data": data or {}}
@@ -60,15 +55,15 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
         if db_user:
             logger.warning(f"Signup failed: Email {user.email} already registered")
-            # raise HTTPException(status_code=400, detail="Email already registered")
-            return {"status_code": 400, "detail": "Email already registered"}
+            raise HTTPException(status_code=400, detail="Email already registered")
+            # return {"status_code": 400, "detail": "Email already registered"}
         db_username = (
             db.query(models.User).filter(models.User.username == user.username).first()
         )
         if db_username:
             logger.warning(f"Signup failed: Username {user.username} already taken")
-            # raise HTTPException(status_code=400, detail="Username already taken")
-            return {"status_code": 400, "detail": "Username already taken"}
+            raise HTTPException(status_code=400, detail="Username already taken")
+            # return {"status_code": 400, "detail": "Username already taken"}
         new_user = models.User(
             email=user.email,
             username=user.username,
@@ -90,6 +85,9 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
             message="User registered successfully",
             data={"access_token": create_access_token({"sub": new_user.email})},
         )
+    except HTTPException as e:
+        # re-raise without modifying it
+        raise e
 
     except Exception as e:
         logger.error(f"Signup error for {user.email}: {str(e)}")
@@ -224,15 +222,15 @@ def delete_user(
 
 
 @router.post("/logout", response_model=dict, status_code=status.HTTP_200_OK)
-def logout(response: Response) -> dict:
+def logout(logout_response: Response) -> dict:
     """Logout user by clearing the httpOnly cookie."""
-    response.delete_cookie(
+    logout_response.delete_cookie(
         key=COOKIE_NAME,
         path="/",
         secure=COOKIE_SECURE,
         samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
     )
-    return response_fmt(
+    return response(
         success=True,
         message="Logged out successfully",
     )
@@ -253,7 +251,7 @@ def get_me(
         if not db_user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        return response_fmt(
+        return response(
             success=True,
             message="User info retrieved",
             data={
