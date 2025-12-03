@@ -6,10 +6,10 @@ with proper authentication and error handling.
 """
 
 import logging
-import re
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, EmailStr
 
 from homepot.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
@@ -24,6 +24,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class MobivisorUserModel(BaseModel):
+    """Pydantic model describing a Mobivisor user payload.
+
+    Fields mirror the expected Mobivisor `/users` `user` object and are used
+    to perform automatic request validation and parsing.
+    """
+
+    email: EmailStr
+    displayName: str
+    username: str
+    phone: str
+    password: str
+    notes: Optional[str] = None
+    role: Optional[Dict[str, Any]] = None
+
+
+class CreateUserPayload(BaseModel):
+    """Top-level payload model for creating a Mobivisor user.
+
+    Contains the required `user` object and optional `groupInfoOfTheUser`.
+    """
+
+    user: MobivisorUserModel
+    groupInfoOfTheUser: Optional[List[Dict[str, Any]]] = None
 
 
 @router.get("/users", tags=["Mobivisor Users"])
@@ -58,7 +84,10 @@ async def fetch_mobivisor_users() -> Any:
     if not config.get("mobivisor_api_url"):
         raise HTTPException(
             status_code=500,
-            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
         )
 
     auth_token = config.get("mobivisor_api_token")
@@ -144,7 +173,7 @@ async def delete_user(user_id: str) -> Dict[str, Any]:
 
 
 @router.post("/users", tags=["Mobivisor Users"])
-async def create_user(payload: Dict[str, Any]) -> Any:
+async def create_user(payload: CreateUserPayload) -> Any:
     """Create a new user in Mobivisor.
 
     Proxies a POST to the Mobivisor `/users` endpoint. The request body should
@@ -187,7 +216,10 @@ async def create_user(payload: Dict[str, Any]) -> Any:
     if not config.get("mobivisor_api_url"):
         raise HTTPException(
             status_code=500,
-            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
         )
 
     auth_token = config.get("mobivisor_api_token")
@@ -200,43 +232,7 @@ async def create_user(payload: Dict[str, Any]) -> Any:
             },
         )
 
-    # Validate required user fields
-    user = payload.get("user") if isinstance(payload, dict) else None
-    if not user or not isinstance(user, dict):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "Validation Error",
-                "message": "Missing 'user' object in payload",
-            },
-        )
-
-    required_fields = ["email", "displayName", "username", "phone", "password"]
-    missing = [f for f in required_fields if not user.get(f)]
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "Validation Error",
-                "message": "Missing required user fields",
-                "missing": missing,
-            },
-        )
-
-    # Validate email format (simple check)
-    email_val = user.get("email")
-    email_pattern = r"[^@]+@[^@]+\.[^@]+"
-    if not re.fullmatch(email_pattern, email_val or ""):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "Validation Error",
-                "message": "Invalid email format",
-                "field": "email",
-            },
-        )
-
     response = await make_mobivisor_request(
-        "POST", "users", json=payload, config=config
+        "POST", "users", json=payload.model_dump(), config=config
     )
     return handle_mobivisor_response(response, "create user")

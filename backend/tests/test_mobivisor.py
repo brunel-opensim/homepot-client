@@ -658,6 +658,43 @@ class TestMobivisorUserEndpoints:
         "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
     )
     @patch("httpx.AsyncClient")
+    def test_create_user_accepts_short_tld_email(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Ensure emails with short TLDs like `a1@b.c` are accepted by EmailStr."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {
+            "user": {
+                "email": "a1@b.c",
+                "displayName": "Short TLD",
+                "username": "shorttld",
+                "phone": "1234567890",
+                "password": "secret",
+            }
+        }
+
+        created_user = {"id": "u_short", "email": payload["user"]["email"]}
+        mock_response = mock_httpx_response(status_code=201, json_data=created_user)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+
+        assert response.status_code in (200, 201)
+        assert response.json() == created_user
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
     def test_create_user_unauthorized(
         self,
         mock_async_client,
@@ -758,12 +795,55 @@ class TestMobivisorUserEndpoints:
 
         response = client.post("/api/v1/mobivisor/users", json=payload)
 
-        assert response.status_code == 400
+        # Pydantic validation should produce a 422 Unprocessable Entity
+        assert response.status_code == 422
         body = response.json()
-        assert body["detail"]["error"] == "Validation Error"
-        assert (
-            "missing" in body["detail"]
-            or "Missing required user fields" in body["detail"]["message"]
+        assert isinstance(body["detail"], list)
+        assert len(body["detail"]) > 0
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_create_user_empty_email(self, mock_config, client, mock_mobivisor_config):
+        """Validate empty email returns a 422 and points to the email field."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {
+            "user": {
+                "email": "",
+                "displayName": "Test User",
+                "username": "testuser",
+                "phone": "1234567890",
+                "password": "secret",
+            }
+        }
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+        assert response.status_code == 422
+        body = response.json()
+        assert isinstance(body["detail"], list)
+        # Ensure at least one validation error references the email field
+        assert any(
+            any(isinstance(loc, str) and "email" in loc for loc in err.get("loc", []))
+            for err in body["detail"]
+        )
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_create_user_null_fields(self, mock_config, client, mock_mobivisor_config):
+        """Validate null user object yields 422 pointing to user."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {"user": None}
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+        assert response.status_code == 422
+        body = response.json()
+        assert isinstance(body["detail"], list)
+        assert any(
+            any(isinstance(loc, str) and "user" in loc for loc in err.get("loc", []))
+            for err in body["detail"]
         )
 
 

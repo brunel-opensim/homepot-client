@@ -57,7 +57,10 @@ async def fetch_external_devices() -> Any:
     if not config.get("mobivisor_api_url"):
         raise HTTPException(
             status_code=500,
-            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
         )
 
     auth_token = config.get("mobivisor_api_token")
@@ -313,7 +316,10 @@ async def fetch_device_applications(device_id: str) -> Any:
     if not config.get("mobivisor_api_url"):
         raise HTTPException(
             status_code=500,
-            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
         )
 
     auth_token = config.get("mobivisor_api_token")
