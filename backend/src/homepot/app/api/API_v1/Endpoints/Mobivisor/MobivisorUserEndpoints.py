@@ -6,9 +6,10 @@ with proper authentication and error handling.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, EmailStr
 
 from homepot.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
@@ -23,6 +24,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class MobivisorUserModel(BaseModel):
+    """Pydantic model describing a Mobivisor user payload.
+
+    Fields mirror the expected Mobivisor `/users` `user` object and are used
+    to perform automatic request validation and parsing.
+    """
+
+    email: EmailStr
+    displayName: str
+    username: str
+    phone: str
+    password: str
+    notes: Optional[str] = None
+    role: Optional[Dict[str, Any]] = None
+
+
+class CreateUserPayload(BaseModel):
+    """Top-level payload model for creating a Mobivisor user.
+
+    Contains the required `user` object and optional `groupInfoOfTheUser`.
+    """
+
+    user: MobivisorUserModel
+    groupInfoOfTheUser: Optional[List[Dict[str, Any]]] = None
 
 
 @router.get("/users", tags=["Mobivisor Users"])
@@ -57,7 +84,10 @@ async def fetch_mobivisor_users() -> Any:
     if not config.get("mobivisor_api_url"):
         raise HTTPException(
             status_code=500,
-            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
         )
 
     auth_token = config.get("mobivisor_api_token")
@@ -140,3 +170,69 @@ async def delete_user(user_id: str) -> Dict[str, Any]:
     handle_mobivisor_response(response, f"delete user {user_id}")
 
     return {"message": "User deleted successfully", "user_id": user_id}
+
+
+@router.post("/users", tags=["Mobivisor Users"])
+async def create_user(payload: CreateUserPayload) -> Any:
+    """Create a new user in Mobivisor.
+
+    Proxies a POST to the Mobivisor `/users` endpoint. The request body should
+    include a `user` object and optionally `groupInfoOfTheUser` as shown below.
+
+    Args:
+        payload: The JSON body to forward to Mobivisor. Expected shape:
+
+        {
+            "user": {
+                "email": "jr.kothiya@gmail.com",
+                "displayName": "Kothiya Yogesh",
+                "username": "jr.kothiya",
+                "phone": "7567407883",
+                "password": "1234567890",
+                "notes": "Test",
+                "role": {"_id": "Admin", "rights": [], "displayedRights": []}
+            },
+            "groupInfoOfTheUser": [{"_id": "6895b47e634b34c01c2d69c4"}]
+        }
+
+    Returns:
+        Any: The JSON response from Mobivisor (typically the created user or
+        an acknowledgement).
+
+    Raises:
+        HTTPException: If configuration is missing or the upstream request
+        fails; upstream errors are mapped to appropriate HTTP status codes.
+
+    Example:
+        ```bash
+        curl -X POST "http://localhost:8000/api/v1/mobivisor/users" \
+          -H "Content-Type: application/json" \
+          -d '{"user": {...}, "groupInfoOfTheUser": [...] }'
+        ```
+    """
+    logger.info("Creating user in Mobivisor API")
+    config = get_mobivisor_api_config()
+
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "POST", "users", json=payload.model_dump(), config=config
+    )
+    return handle_mobivisor_response(response, "create user")

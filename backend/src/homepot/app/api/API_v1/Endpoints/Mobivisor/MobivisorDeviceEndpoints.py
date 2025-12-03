@@ -57,7 +57,10 @@ async def fetch_external_devices() -> Any:
     if not config.get("mobivisor_api_url"):
         raise HTTPException(
             status_code=500,
-            detail={"error": "Configuration Error: Missing Mobivisor API URL."},
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
         )
 
     auth_token = config.get("mobivisor_api_token")
@@ -270,3 +273,66 @@ async def fetch_managed_apps_from_device(device_id: str) -> Any:
         "GET", f"devices/{device_id}/" "managedApps", config=config
     )
     return handle_mobivisor_response(response, f"fetch device {device_id}")
+
+
+@router.get("/devices/{device_id}/applications", tags=["Mobivisor Devices"])
+async def fetch_device_applications(device_id: str) -> Any:
+    """Fetch the applications installed or available for a device in Mobivisor.
+
+    This endpoint proxies the request to the Mobivisor API's
+    `/devices/{device_id}/applications` endpoint and returns the applications
+    associated with the specified device.
+
+    Args:
+        device_id: The unique identifier of the device
+
+    Returns:
+        Any: JSON response from Mobivisor API containing application data
+
+    Raises:
+        HTTPException: If configuration is missing, device not found, or the
+        upstream request fails (mapped to appropriate HTTP status codes)
+
+    Example:
+        ```python
+        GET /api/v1/mobivisor/devices/123/applications
+        ```
+
+        Response (200 OK):
+        ```json
+        [
+            {
+                "appName": "Example App",
+                "packageName": "com.example.app",
+                "version": "1.0.0",
+                "managed": true
+            }
+        ]
+        ```
+    """
+    logger.info(f"Fetching device applications from Mobivisor API: {device_id}")
+    config = get_mobivisor_api_config()
+
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "GET", f"devices/{device_id}/applications", config=config
+    )
+    return handle_mobivisor_response(response, f"fetch device applications {device_id}")

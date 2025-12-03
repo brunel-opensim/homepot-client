@@ -224,6 +224,87 @@ class TestMobivisorDevicesEndpoints:
         assert "Not Found" in response.json()["detail"]["error"]
 
     @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_device_applications_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful fetch of device applications."""
+        mock_config.return_value = mock_mobivisor_config
+        apps_data = [
+            {
+                "appName": "Example App",
+                "packageName": "com.example.app",
+                "version": "1.0.0",
+                "managed": True,
+            }
+        ]
+        mock_response = mock_httpx_response(status_code=200, json_data=apps_data)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/devices/123/applications")
+
+        assert response.status_code == 200
+        assert response.json() == apps_data
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_device_applications_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test fetching device applications when device not found."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"error": "Device not found"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/devices/999/applications")
+
+        assert response.status_code == 404
+        assert "Not Found" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_device_applications_timeout(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test device applications fetch with timeout."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/devices/123/applications")
+
+        assert response.status_code == 504
+        assert "Gateway Timeout" in response.json()["detail"]["error"]
+
+    @patch(
         "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
     )
@@ -532,6 +613,238 @@ class TestMobivisorUserEndpoints:
 
         assert response.status_code == 404
         assert "Not Found" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_create_user_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful user creation forwarded to Mobivisor."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {
+            "user": {
+                "email": "jr.kothiya@gmail.com",
+                "displayName": "Kothiya Yogesh",
+                "username": "jr.kothiya",
+                "phone": "7567407883",
+                "password": "1234567890",
+                "notes": "Test",
+                "role": {"_id": "Admin", "rights": [], "displayedRights": []},
+            },
+            "groupInfoOfTheUser": [{"_id": "6895b47e634b34c01c2d69c4"}],
+        }
+
+        created_user = {"id": "u123", "email": payload["user"]["email"]}
+        mock_response = mock_httpx_response(status_code=201, json_data=created_user)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+
+        assert response.status_code == 201 or response.status_code == 200
+        assert response.json() == created_user
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_create_user_accepts_short_tld_email(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Ensure emails with short TLDs like `a1@b.c` are accepted by EmailStr."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {
+            "user": {
+                "email": "a1@b.c",
+                "displayName": "Short TLD",
+                "username": "shorttld",
+                "phone": "1234567890",
+                "password": "secret",
+            }
+        }
+
+        created_user = {"id": "u_short", "email": payload["user"]["email"]}
+        mock_response = mock_httpx_response(status_code=201, json_data=created_user)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+
+        assert response.status_code in (200, 201)
+        assert response.json() == created_user
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_create_user_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test create user when Mobivisor returns unauthorized."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=401, json_data={"error": "Invalid token"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test User",
+                "username": "testuser",
+                "phone": "1234567890",
+                "password": "secret",
+            }
+        }
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+
+        assert response.status_code == 401
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_create_user_missing_config(self, mock_config, client):
+        """Test create user with missing Mobivisor configuration."""
+        mock_config.return_value = {
+            "mobivisor_api_url": None,
+            "mobivisor_api_token": "token",
+        }
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test User",
+                "username": "testuser",
+                "phone": "1234567890",
+                "password": "secret",
+            }
+        }
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+
+        assert response.status_code == 500
+        assert "Configuration Error" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_create_user_timeout(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test create user when upstream times out."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test User",
+                "username": "testuser",
+                "phone": "1234567890",
+                "password": "secret",
+            }
+        }
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+
+        assert response.status_code == 504
+        assert "Gateway Timeout" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_create_user_missing_required_fields(
+        self, mock_config, client, mock_mobivisor_config
+    ):
+        """Validate server returns 400 when required user fields are missing."""
+        mock_config.return_value = mock_mobivisor_config
+
+        # Only provide email, missing displayName, username, phone, password
+        payload = {"user": {"email": "a@b.com"}}
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+
+        # Pydantic validation should produce a 422 Unprocessable Entity
+        assert response.status_code == 422
+        body = response.json()
+        assert isinstance(body["detail"], list)
+        assert len(body["detail"]) > 0
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_create_user_empty_email(self, mock_config, client, mock_mobivisor_config):
+        """Validate empty email returns a 422 and points to the email field."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {
+            "user": {
+                "email": "",
+                "displayName": "Test User",
+                "username": "testuser",
+                "phone": "1234567890",
+                "password": "secret",
+            }
+        }
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+        assert response.status_code == 422
+        body = response.json()
+        assert isinstance(body["detail"], list)
+        # Ensure at least one validation error references the email field
+        assert any(
+            any(isinstance(loc, str) and "email" in loc for loc in err.get("loc", []))
+            for err in body["detail"]
+        )
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_create_user_null_fields(self, mock_config, client, mock_mobivisor_config):
+        """Validate null user object yields 422 pointing to user."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {"user": None}
+
+        response = client.post("/api/v1/mobivisor/users", json=payload)
+        assert response.status_code == 422
+        body = response.json()
+        assert isinstance(body["detail"], list)
+        assert any(
+            any(isinstance(loc, str) and "user" in loc for loc in err.get("loc", []))
+            for err in body["detail"]
+        )
 
 
 class TestMobivisorDeviceAdditionalEndpoints:
