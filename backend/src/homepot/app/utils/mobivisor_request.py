@@ -6,12 +6,12 @@ including request handling, authentication, and error mapping.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import HTTPException
 
-from homepot.config import get_mobivisor_api_config
+import homepot.config as config_module
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +23,7 @@ DEFAULT_TIMEOUT_CONNECT = 5.0
 
 
 async def _make_mobivisor_request(
-    method: str, endpoint: str, **kwargs: Any
+    method: str, endpoint: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
 ) -> httpx.Response:
     """Make HTTP request to Mobivisor API with proper authentication.
 
@@ -38,7 +38,12 @@ async def _make_mobivisor_request(
     Raises:
         HTTPException: If configuration is missing or request fails
     """
-    mobivisor_config = get_mobivisor_api_config()
+    # Allow callers to provide a pre-fetched config to make unit-testing/mocking
+    # easier and avoid calling the global `get_mobivisor_api_config` twice.
+    # Prefer an explicitly provided config (useful for tests). If not provided
+    # call through the `homepot.config` module so that tests which patch
+    # `homepot.config.get_mobivisor_api_config` will be effective.
+    mobivisor_config = config or config_module.get_mobivisor_api_config()
     base_url = mobivisor_config.get("mobivisor_api_url")
     auth_token = mobivisor_config.get("mobivisor_api_token")
 
@@ -111,7 +116,8 @@ def _handle_mobivisor_response(
     Raises:
         HTTPException: If the response indicates an error
     """
-    if response.status_code in (200, 204):
+    # Treat any 2xx response as success (including 200, 201, 204, etc.)
+    if 200 <= response.status_code < 300:
         try:
             return response.json() if response.content else {}
         except Exception:

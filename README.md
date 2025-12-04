@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-brightgreen.svg)](https://python.org/)
-[![Documentation](https://readthedocs.org/projects/brunel-opensimhomepot-client/badge/?version=latest)](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/)
+[![Documentation](https://readthedocs.org/projects/homepot-client/badge/?version=latest)](https://homepot-client.readthedocs.io/en/latest/)
 [![Code Style](https://img.shields.io/badge/code%20style-black%20%7C%20flake8-000000.svg)](https://github.com/psf/black)
 [![Security](https://img.shields.io/badge/security-audit%20passing-green.svg)](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
 
@@ -16,9 +16,9 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ## Documentation
 
-**📚 Complete documentation is available at: [https://brunel-opensimhomepot-client.readthedocs.io/en/latest/](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/)**
+**📚 Complete documentation is available at: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
 
-- **[Getting Started Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
+- **[Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
 
 ## Key Goals
 
@@ -33,39 +33,61 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ```text
 homepot-client/
-├── backend/                   # Python backend service
-│   ├── homepot/       # Main Python package
-│   ├── tests/                # Backend tests
-│   ├── pyproject.toml        # Python configuration
-│   └── requirements.txt      # Python dependencies
-├── frontend/                  # React frontend application
-│   ├── src/                  # Frontend source code
-│   ├── public/               # Static assets
-│   └── package.json          # npm dependencies
-├── ai/                        # AI/LLM services (future)
-│   └── README.md             # AI service documentation
-├── docs/                      # Documentation
-├── scripts/                   # Development and automation scripts
-├── data/                      # Database storage
-├── .github/                   # GitHub workflows
-├── docker-compose.yml         # Multi-service orchestration
-├── CONTRIBUTING.md            # Contribution guidelines
-├── LICENSE                    # Apache 2.0 license
-└── README.md                  # This file
+├── backend/                 # Python backend service
+│   ├── homepot/             # Main Python package
+│   ├── tests/               # Backend tests
+│   ├── pyproject.toml       # Python configuration
+│   └── requirements.txt     # Python dependencies
+├── frontend/                # React frontend application
+│   ├── src/                 # Frontend source code
+│   ├── public/              # Static assets
+│   └── package.json         # npm dependencies
+├── ai/                      # AI/LLM services (future)
+│   └── README.md            # AI service documentation
+├── docs/                    # Documentation
+├── scripts/                 # Development and automation scripts
+├── data/                    # Database storage
+├── .github/                 # GitHub workflows
+├── docker-compose.yml       # Multi-service orchestration
+├── CONTRIBUTING.md          # Contribution guidelines
+├── LICENSE                  # Apache 2.0 license
+└── README.md                # This file
 ```
 
 > See [Monorepo Migration Guide](docs/monorepo-migration.md) for details on the new structure
 
 ## Quick Start
 
+### For Frontend Developers
+
+Working on the UI? Here's the fastest way to get started:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/brunel-opensim/homepot-client.git
+cd homepot-client
+
+# 2. Start both backend and frontend
+./scripts/start-complete-website.sh
+```
+
+This will start:
+- **Backend API**: http://localhost:8000 (with API docs at `/docs`)
+- **Frontend**: http://localhost:5173
+- **Test Account**: `test@homepot.com` / `Test123!`
+
+**See [Complete Website Setup Guide](docs/complete-website-setup.md) and [Website Testing Guide](docs/website-testing-guide.md)**
+
 ### Prerequisites
 
-- **Python**: >= 3.9
+- **Python**: >= 3.9 (3.12.3 recommended)
+- **Node.js**: >= 18 (22+ recommended)
+- **PostgreSQL**: 13+ (for database)
 - **pip**: Latest version  
 - **Git**: Latest version
 - **Access**: HOMEPOT consortium membership required
 
-### Basic Installation
+### Full Installation
 
 ```bash
 # Clone the repository (consortium members only)
@@ -76,7 +98,7 @@ cd homepot-client
 ./scripts/install.sh --dev
 ```
 
-**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)**
+**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
 
 ## Development
 
@@ -88,7 +110,7 @@ cd homepot-client
 | `homepot-client version` | Display version information |
 | `homepot-client info` | Display project information |
 
-**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)**
+**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
 
 ### Code Quality Standards
 
@@ -120,15 +142,15 @@ We welcome contributions from consortium members! Please see our [Contributing G
 
 ## Complete Documentation
 
-**📚 Full Documentation: [https://brunel-opensimhomepot-client.readthedocs.io/en/latest/](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/)**
+**Full Documentation: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
 
 Key documentation sections:
 
-- **[Getting Started](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
-- **[Development Guide](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/development-guide/)** - Development workflow and best practices
-- **[Push Notifications](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/push-notification/)** - FCM, WNS, and APNs integration guides
-- **[Database Management](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/database-management/)** - Database setup and workflow
-- **[POS Management](https://brunel-opensimhomepot-client.readthedocs.io/en/latest/pos-management/)** - Point-of-sale device management
+- **[Getting Started](https://homepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
+- **[Development Guide](https://homepot-client.readthedocs.io/en/latest/development-guide/)** - Development workflow and best practices
+- **[Push Notifications](https://homepot-client.readthedocs.io/en/latest/push-notification/)** - FCM, WNS, and APNs integration guides
+- **[Database Management](https://homepot-client.readthedocs.io/en/latest/database-management/)** - Database setup and workflow
+- **[POS Management](https://homepot-client.readthedocs.io/en/latest/pos-management/)** - Point-of-sale device management
 
 *Local documentation is also available in the [`docs/`](docs/) directory and can be built using `mkdocs serve`*
 

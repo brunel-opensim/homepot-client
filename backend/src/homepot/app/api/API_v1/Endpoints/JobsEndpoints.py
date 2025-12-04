@@ -52,7 +52,7 @@ class CreateJobRequest(BaseModel):
     class Config:
         """Pydantic model configuration with example data."""
 
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "action": "Update POS payment config",
                 "description": "Fix payment gateway configuration for site-123",

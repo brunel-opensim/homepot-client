@@ -48,11 +48,11 @@ This installs `homepot-client` in development mode, allowing you to make changes
 ### 4. Initialize Database
 
 ```bash
-# Still in backend/ directory
-python -m homepot.database
+# From repository root
+./scripts/init-postgresql.sh
 ```
 
-This creates the SQLite database at `backend/data/homepot.db` with demo data.
+This creates the PostgreSQL database `homepot_db` with demo data (3 sites, 12 devices).
 
 ### 5. Start the Backend Server
 
@@ -122,7 +122,6 @@ homepot-client/
 │   │   ├── config.py          # Configuration
 │   │   └── app/               # FastAPI app components
 │   ├── tests/                 # Backend tests
-│   ├── data/                  # SQLite database
 │   ├── pyproject.toml         # Python package config
 │   ├── requirements.txt       # Dependencies
 │   └── README.md              # Backend-specific docs
@@ -180,8 +179,8 @@ mypy homepot            # Type checking
 The monorepo includes helpful scripts in `scripts/`:
 
 ```bash
-# Initialize database
-./scripts/init-database.sh
+# Initialize PostgreSQL database
+./scripts/init-postgresql.sh
 
 # Run POSDummy simulator
 ./scripts/run-pos-dummy.sh
@@ -243,13 +242,15 @@ pip install -e .
 
 ### Database Issues
 
-**Problem**: Database not found or corrupted
+**Problem**: Database connection errors
 
-**Solution**: Reinitialize the database:
+**Solution**: Ensure PostgreSQL is running and database exists:
 ```bash
-cd backend
-rm -f data/homepot.db
-python -m homepot.database
+# Check PostgreSQL status
+sudo systemctl status postgresql
+
+# Reinitialize if needed
+./scripts/init-postgresql.sh
 ```
 
 ### Port Already in Use
@@ -294,7 +295,7 @@ Create a `.env` file in the backend directory:
 
 ```env
 # Backend Configuration
-DATABASE_URL=sqlite+aiosqlite:///./data/homepot.db
+DATABASE__URL=postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db
 SECRET_KEY=your-secret-key-here
 DEBUG=true
 

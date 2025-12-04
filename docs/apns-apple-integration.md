@@ -554,15 +554,15 @@ if result.error_code == "PAYLOAD_TOO_LARGE":
 
 ### Test Checklist
 
-- [ ] Device token is exactly 64 hexadecimal characters
-- [ ] `.p8` file path is correct and file exists
-- [ ] Team ID is correct (10 characters)
-- [ ] Key ID is correct (10 characters)
-- [ ] Bundle ID matches your app
-- [ ] Environment matches your app (sandbox vs production)
-- [ ] Topic matches your bundle ID
-- [ ] Notification permissions granted on device
-- [ ] Device is connected to internet
+- Device token is exactly 64 hexadecimal characters
+- `.p8` file path is correct and file exists
+- Team ID is correct (10 characters)
+- Key ID is correct (10 characters)
+- Bundle ID matches your app
+- Environment matches your app (sandbox vs production)
+- Topic matches your bundle ID
+- Notification permissions granted on device
+- Device is connected to internet
 
 ### Testing with cURL
 
@@ -905,7 +905,7 @@ class POSNotificationSystem:
         elif result.error_code == "UNREGISTERED":
             # Device uninstalled app - remove from database
             await self.remove_device(device_token)
-            print(f"🗑️ Removed unregistered device")
+            print(f"Removed unregistered device")
             return False
         else:
             print(f"Notification failed: {result.message}")
