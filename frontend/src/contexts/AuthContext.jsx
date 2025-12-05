@@ -1,9 +1,7 @@
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
-
-// Single source of truth for the Auth context (keeps React Fast Refresh happy)
-export const AuthContext = createContext(null);
+import { AuthContext } from './AuthContextDef';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
