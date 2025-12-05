@@ -210,6 +210,62 @@ curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/get-managed-apps
 - `403/401 Unauthorized`: Authentication/authorization issue.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
+### 8. Mobivisor Groups
+
+These endpoints provide group management proxying to the Mobivisor API.
+
+#### 1. List All Groups
+
+Fetch all groups from Mobivisor.
+
+**Endpoint**: `GET /api/v1/mobivisor/groups`
+
+**Response** (200 OK):
+```json
+{
+  "groups": [
+    {"id": "g1", "name": "Stores - Region A"},
+    {"id": "g2", "name": "Kiosk Devices"}
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/groups"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: No groups found for the environment (or group-level resource missing).
+- `401/403 Unauthorized`: Authentication/authorization issue.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+#### 2. Delete Group
+
+Delete a specific group from Mobivisor.
+
+**Endpoint**: `DELETE /api/v1/mobivisor/groups/{group_id}`
+
+**Parameters**:
+- `group_id` (path): The unique identifier of the group to delete.
+
+**Response** (200 OK):
+```json
+{}
+```
+
+> Note: The endpoint proxies the Mobivisor delete and returns the proxied response. When Mobivisor returns a 204 No Content, the proxy will return an empty JSON object.
+
+**Example**:
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/mobivisor/groups/g1"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: Group does not exist on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502/504`: Upstream errors/timeouts.
+
 ### Mobivisor Users
 
 The following endpoints provide basic user management proxying to the Mobivisor API.

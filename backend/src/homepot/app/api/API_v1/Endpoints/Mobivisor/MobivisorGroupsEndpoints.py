@@ -6,7 +6,7 @@ with proper authentication and error handling.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -77,38 +77,44 @@ async def fetch_groups() -> Any:
     return handle_mobivisor_response(response, "fetch groups")
 
 
-@router.get("/groups/{group_id}", tags=["Mobivisor Groups"])
-async def fetch_group_details(group_id: str) -> Dict[str, Any]:
-    """Fetch details for a specific group from Mobivisor API.
+@router.delete("/groups/{group_id}", tags=["Mobivisor Groups"])
+async def delete_group(group_id: str) -> Any:
+    """Delete a specific group from the Mobivisor API.
 
     Args:
-        group_id: The unique identifier of the group
+        group_id (str): The unique identifier of the group to delete.
 
     Returns:
-        Dict[str, Any]: JSON response from Mobivisor API with device details
+        Dict[str, Any]: JSON response from the Mobivisor API confirming the deletion.
 
     Raises:
-        HTTPException: If configuration missing, group not found, or request fails
+        HTTPException: If configuration is missing, the group is not found,
+                       or the delete request fails.
 
     Example:
         ```python
-        GET /api/v1/mobivisor/groups/123
+        DELETE /api/v1/mobivisor/groups/123
         ```
 
         Response:
         ```json
-        {
-            "id": "123",
-            "name": "Group 1",
-            "status": "active",
-            "last_seen": "2025-10-18T10:30:00Z"
-        }
+        [
+            {
+                "ok": 1,
+                "n": 1,
+                "opTime": {
+                    "ts": "7580234308091117575",
+                    "t": 185
+                },
+                "electionId": "7fffffff00000000000000b9"
+            }
+        ]
         ```
     """
-    logger.info(f"Fetching group details from Mobivisor API: {group_id}")
+    logger.info(f"Deleting group from Mobivisor API: {group_id}")
     config = get_mobivisor_api_config()
     response = await make_mobivisor_request(
-        "GET", f"groups/{group_id}", config=config
+        "DELETE", f"groups/{group_id}", config=config
     )
-    return handle_mobivisor_response(response, f"fetch group {group_id}")
-
+    print(response.text, "response")
+    return handle_mobivisor_response(response, f"delete group {group_id}")

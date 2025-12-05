@@ -15,8 +15,8 @@ from .Endpoints import (
     UserRegisterEndpoint,
 )
 from .Endpoints.Mobivisor import MobivisorDeviceEndpoints as MobivisorDevice
-from .Endpoints.Mobivisor import MobivisorUserEndpoints as MobivisorUserEndpoints
 from .Endpoints.Mobivisor import MobivisorGroupsEndpoints as MobivisorGroupsEndpoints
+from .Endpoints.Mobivisor import MobivisorUserEndpoints as MobivisorUserEndpoints
 
 api_v1_router = APIRouter()
 
