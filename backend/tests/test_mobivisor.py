@@ -439,6 +439,112 @@ class TestMobivisorDevicesEndpoints:
         assert "Bad Gateway" in response.json()["detail"]["error"]
         assert response.json()["detail"]["upstream_status"] == 500
 
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_trigger_device_action_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successfully triggering a device action."""
+        mock_config.return_value = mock_mobivisor_config
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": device_id,
+            "commandType": "update_settings",
+            "commandData": {"sendApps": False},
+        }
+        response_payload = {
+            "__v": 0,
+            "user": device_id,
+            "userName": "admin",
+            "commandData": "{}",
+            "commandType": "Fetch System Apps",
+            "commandTypeOldFormat": "fetch_system_apps",
+            "environment": "Android Enterprise",
+            "_id": "69328eb219a2fefab2e0d64b",
+            "status": "Not Sent",
+            "timeCreated": "2025-12-05T07:50:10.232Z",
+        }
+        mock_response = mock_httpx_response(status_code=200, json_data=response_payload)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 200
+        assert response.json() == response_payload
+
+    def test_trigger_device_action_device_id_mismatch(self, client):
+        """Test payload device ID must match path parameter."""
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": "mismatch",
+            "commandType": "refresh_kiosk",
+            "commandData": {},
+        }
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "Validation Error"
+
+    def test_trigger_device_action_missing_password(self, client):
+        """Test validation error when password is missing for password change."""
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": device_id,
+            "commandType": "change_password_now",
+            "commandData": {},
+        }
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 422
+        assert any("password" in error["msg"] for error in response.json()["detail"])
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_trigger_device_action_missing_token(self, mock_config, client):
+        """Test configuration error when token missing for device actions."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": None,
+        }
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": device_id,
+            "commandType": "refresh_kiosk",
+            "commandData": {},
+        }
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
 
 class TestMobivisorUserEndpoints:
     """Test cases for Mobivisor user endpoints."""
@@ -1335,6 +1441,335 @@ class TestMobivisorDevicePackagesExtended:
         mock_async_client.return_value.__aenter__.return_value = mock_client_instance
 
         response = client.get("/api/v1/mobivisor/devices/123/get-managed-apps")
+
+        assert response.status_code == 502
+        assert "Bad Gateway" in response.json()["detail"]["error"]
+
+
+class TestMobivisorGroupsEndpoints:
+    """Test cases for Mobivisor groups endpoints."""
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_groups_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful groups list fetch."""
+        mock_config.return_value = mock_mobivisor_config
+        groups_data = {
+            "groups": [
+                {"id": "g1", "name": "Group 1", "device_count": 5},
+                {"id": "g2", "name": "Group 2", "device_count": 3},
+            ]
+        }
+        mock_response = mock_httpx_response(status_code=200, json_data=groups_data)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups")
+
+        assert response.status_code == 200
+        assert response.json() == groups_data
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    def test_fetch_groups_missing_url(self, mock_config, client):
+        """Test groups fetch with missing URL configuration."""
+        mock_config.return_value = {
+            "mobivisor_api_url": None,
+            "mobivisor_api_token": "test-token",
+        }
+
+        response = client.get("/api/v1/mobivisor/groups")
+
+        assert response.status_code == 500
+        assert "Configuration Error" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    def test_fetch_groups_missing_token(self, mock_config, client):
+        """Test groups fetch with missing token configuration."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": None,
+        }
+
+        response = client.get("/api/v1/mobivisor/groups")
+
+        assert response.status_code == 500
+        assert "Configuration Error" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_groups_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test groups fetch with unauthorized response."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=401, json_data={"error": "Unauthorized"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups")
+
+        assert response.status_code == 401
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_groups_timeout(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+    ):
+        """Test groups fetch with timeout error."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Request timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups")
+
+        assert response.status_code == 504
+        assert "Gateway Timeout" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_groups_network_error(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test groups fetch with network error."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.RequestError("Network error")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups")
+
+        assert response.status_code == 502
+        assert "Bad Gateway" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_group_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful group deletion."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(status_code=204, json_data={}, text="")
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 204 or response.status_code == 200
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    def test_delete_group_missing_url(self, mock_config, client):
+        """Test group deletion with missing URL configuration."""
+        mock_config.return_value = {
+            "mobivisor_api_url": None,
+            "mobivisor_api_token": "test-token",
+        }
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 500
+        assert "Configuration Error" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    def test_delete_group_missing_token(self, mock_config, client):
+        """Test group deletion with missing token configuration."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": None,
+        }
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 500
+        assert "Configuration Error" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_group_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group deletion with not found response."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"error": "Not Found"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 404
+        assert "Not Found" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_group_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group deletion with unauthorized response."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=401, json_data={"error": "Unauthorized"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 401
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_group_forbidden(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group deletion with forbidden response."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=403, json_data={"error": "Forbidden"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 403
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_group_timeout(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+    ):
+        """Test group deletion with timeout error."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Request timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 504
+        assert "Gateway Timeout" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_group_network_error(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test group deletion with network error."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.RequestError("Network error")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/groups/g1")
 
         assert response.status_code == 502
         assert "Bad Gateway" in response.json()["detail"]["error"]

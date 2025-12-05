@@ -210,6 +210,62 @@ curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/get-managed-apps
 - `403/401 Unauthorized`: Authentication/authorization issue.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
+### 8. Mobivisor Groups
+
+These endpoints provide group management proxying to the Mobivisor API.
+
+#### 1. List All Groups
+
+Fetch all groups from Mobivisor.
+
+**Endpoint**: `GET /api/v1/mobivisor/groups`
+
+**Response** (200 OK):
+```json
+{
+  "groups": [
+    {"id": "g1", "name": "Stores - Region A"},
+    {"id": "g2", "name": "Kiosk Devices"}
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/groups"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: No groups found for the environment (or group-level resource missing).
+- `401/403 Unauthorized`: Authentication/authorization issue.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+#### 2. Delete Group
+
+Delete a specific group from Mobivisor.
+
+**Endpoint**: `DELETE /api/v1/mobivisor/groups/{group_id}`
+
+**Parameters**:
+- `group_id` (path): The unique identifier of the group to delete.
+
+**Response** (200 OK):
+```json
+{}
+```
+
+> Note: The endpoint proxies the Mobivisor delete and returns the proxied response. When Mobivisor returns a 204 No Content, the proxy will return an empty JSON object.
+
+**Example**:
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/mobivisor/groups/g1"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: Group does not exist on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502/504`: Upstream errors/timeouts.
+
 ### Mobivisor Users
 
 The following endpoints provide basic user management proxying to the Mobivisor API.
@@ -320,6 +376,64 @@ curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/applications"
 - `404 Not Found`: Device not present in Mobivisor.
 - `403/401 Unauthorized`: Authentication/authorization issue.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+### Trigger Device Actions
+
+Issue commands such as password resets, kiosk refreshes, and telemetry updates to a Mobivisor-managed device.
+
+**Endpoint**: `PUT /api/v1/mobivisor/devices/{device_id}/actions`
+
+**Request Body** (JSON):
+```json
+{
+  "deviceId": "6895b35f73796d4ff80a57a0",
+  "commandType": "update_settings",
+  "commandData": {
+    "sendApps": false
+  }
+}
+```
+
+**Supported commandType values**:
+
+| commandType | Purpose | Required commandData keys |
+| --- | --- | --- |
+| `change_password_now` | Force a password rotation | `password` (string) |
+| `update_settings` | Toggle telemetry flags | `sendApps` (boolean) |
+| `refresh_kiosk` | Refresh kiosk launcher config | _(none)_ |
+| `pref_update` | Update cached preferences / user state | Optional `userId`, `userSwitched` |
+| `location_request` | Request latest GPS ping | _(none)_ |
+| `status_request` | Request a status snapshot | _(none)_ |
+| `password_token_request` | Generate a temporary password token | _(none)_ |
+| `fetch_system_apps` | Ask device to enumerate system apps | _(none)_ |
+
+**Response** (200 OK):
+```json
+{
+  "__v": 0,
+  "user": "6895b35f73796d4ff80a57a0",
+  "userName": "admin",
+  "commandData": "{}",
+  "commandType": "Fetch System Apps",
+  "commandTypeOldFormat": "fetch_system_apps",
+  "environment": "Android Enterprise",
+  "_id": "69328eb219a2fefab2e0d64b",
+  "status": "Not Sent",
+  "timeCreated": "2025-12-05T07:50:10.232Z"
+}
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/actions" \
+  -H "Content-Type: application/json" \
+  -d '{"deviceId":"6895b35f73796d4ff80a57a0","commandType":"fetch_system_apps","commandData":{}}'
+```
+
+**Notes & Errors**:
+- The `deviceId` inside the payload must match the `{device_id}` in the URL path or a `400 Validation Error` is returned.
+- Field-level validation ensures `commandData.password` exists for `change_password_now` and `commandData.sendApps` exists for `update_settings`.
+- Upstream Mobivisor errors (401/403/404/5xx) are proxied with the original status embedded in the `detail.upstream_status` field when available.
 
 ### Mobivisor Users (Additional)
 

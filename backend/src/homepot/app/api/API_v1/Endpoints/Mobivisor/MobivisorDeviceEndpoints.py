@@ -6,9 +6,10 @@ with proper authentication and error handling.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field, model_validator
 
 from homepot.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
@@ -23,6 +24,51 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class DeviceCommandData(BaseModel):
+    """Represents the dynamic payload Mobivisor expects for device actions."""
+
+    password: Optional[str] = Field(default=None, min_length=1)
+    sendApps: Optional[bool] = None
+    userId: Optional[str] = None
+    userSwitched: Optional[bool] = None
+
+
+CommandTypeLiteral = Literal[
+    "change_password_now",
+    "update_settings",
+    "refresh_kiosk",
+    "pref_update",
+    "location_request",
+    "status_request",
+    "password_token_request",
+    "fetch_system_apps",
+]
+
+
+class DeviceCommandPayload(BaseModel):
+    """Top level payload for triggering downstream Mobivisor device actions."""
+
+    deviceId: str = Field(..., min_length=1)
+    commandType: CommandTypeLiteral
+    commandData: DeviceCommandData
+
+    @model_validator(mode="after")
+    def validate_command_requirements(self) -> "DeviceCommandPayload":
+        """Ensure commandData contains the required keys per command type."""
+        if self.commandType == "change_password_now" and not self.commandData.password:
+            raise ValueError(
+                "commandData.password is required when commandType"
+                "is change_password_now"
+            )
+
+        if self.commandType == "update_settings" and self.commandData.sendApps is None:
+            raise ValueError(
+                "commandData.sendApps is required when commandType is update_settings"
+            )
+
+        return self
 
 
 @router.get("/devices", tags=["Mobivisor Devices"])
@@ -336,3 +382,73 @@ async def fetch_device_applications(device_id: str) -> Any:
         "GET", f"devices/{device_id}/applications", config=config
     )
     return handle_mobivisor_response(response, f"fetch device applications {device_id}")
+
+
+@router.put("/devices/{device_id}/actions", tags=["Mobivisor Devices"])
+async def trigger_device_action(
+    device_id: str, payload: DeviceCommandPayload
+) -> Dict[str, Any]:
+    """Trigger a Mobivisor command for a specific device.
+
+    This endpoint proxies a PUT request to `/devices/{device_id}/actions` and
+    supports the following `commandType` values: `change_password_now`,
+    `update_settings`, `refresh_kiosk`, `pref_update`, `location_request`,
+    `status_request`, `password_token_request`, and `fetch_system_apps`.
+    Validation ensures required fields exist in `commandData` before the
+    request is forwarded to Mobivisor.
+
+    Args:
+        device_id: The device path parameter targeted by the command.
+        payload: Validated request body forwarded to Mobivisor.
+
+    Returns:
+        Dict[str, Any]: Mobivisor response describing the command status.
+
+    Raises:
+        HTTPException: On configuration issues, validation errors, or errors
+        returned from Mobivisor (translated by `handle_mobivisor_response`).
+    """
+    if payload.deviceId != device_id:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Validation Error",
+                "message": "deviceId in payload must match the path parameter",
+            },
+        )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    logger.info(
+        "Triggering '%s' command for device %s via Mobivisor API",
+        payload.commandType,
+        device_id,
+    )
+
+    response = await make_mobivisor_request(
+        "PUT",
+        f"devices/{device_id}/actions",
+        json=payload.model_dump(),
+        config=config,
+    )
+    return handle_mobivisor_response(
+        response, f"trigger {payload.commandType} for device {device_id}"
+    )

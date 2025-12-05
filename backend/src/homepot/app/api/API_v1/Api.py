@@ -16,6 +16,7 @@ from .Endpoints import (
     UserRegisterEndpoint,
 )
 from .Endpoints.Mobivisor import MobivisorDeviceEndpoints as MobivisorDevice
+from .Endpoints.Mobivisor import MobivisorGroupsEndpoints as MobivisorGroupsEndpoints
 from .Endpoints.Mobivisor import MobivisorUserEndpoints as MobivisorUserEndpoints
 
 api_v1_router = APIRouter()
@@ -44,6 +45,11 @@ api_v1_router.include_router(
     MobivisorUserEndpoints.router,
     prefix="/mobivisor",
     tags=["Mobivisor Users"],
+)
+api_v1_router.include_router(
+    MobivisorGroupsEndpoints.router,
+    prefix="/mobivisor",
+    tags=["Mobivisor Groups"],
 )
 api_v1_router.include_router(
     PushNotificationEndpoint.router, prefix="/push", tags=["Push Notifications"]
