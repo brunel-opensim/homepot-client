@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Script to create an admin user or promote an existing user to admin.
 
-Usage: python create_admin.py
+Usage: python backend/utils/create_admin.py
 """
 
 import sys
@@ -10,8 +10,7 @@ from getpass import getpass
 from pathlib import Path
 
 # Add the src directory to the python path
-current_dir = Path(__file__).resolve().parent
-src_dir = current_dir.parent / "src"
+src_dir = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(src_dir))
 
 from homepot.app.auth_utils import hash_password  # noqa: E402
