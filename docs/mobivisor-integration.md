@@ -491,6 +491,57 @@ curl -X POST "http://localhost:8000/api/v1/mobivisor/users" \
 
 Refer to the "Error Handling" section for example error payloads and remediation steps.
 
+#### 5. Update User
+
+Update an existing user in Mobivisor by proxying a `PUT` to the Mobivisor `/users/{user_id}` endpoint.
+
+**Endpoint**: `PUT /api/v1/mobivisor/users/{user_id}`
+
+**Request Body** (JSON):
+```json
+{
+  "user": {
+    "email": "a11@b.c",
+    "username": "jr11b.kothiya",
+    "displayName": "Kothiya Yogesh",
+    "password": "1234567890",
+    "notes": "Test",
+    "phone": "7567407883",
+    "_id": "6930491019a2fefab2e0b300",
+    "role": {"_id": "Admin", "rights": [], "displayedRights": []}
+  },
+  "groupInfoOfTheUser": [
+    {"admin": true, "_id": "6895b47e634b34c01c2d69c4"}
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/users/6930491019a2fefab2e0b300" \
+  -H "Content-Type: application/json" \
+  -d '@update_user_payload.json'
+```
+
+**Response** (200 OK):
+```json
+{
+  "id": "6930491019a2fefab2e0b300",
+  "email": "a11@b.c",
+  "username": "jr11b.kothiya",
+  "displayName": "Kothiya Yogesh"
+}
+```
+
+**Notes & Errors**:
+- Partial updates are supported: all `user` fields are optional for `PUT` and only provided fields are forwarded to Mobivisor.
+- `422 Validation Error`: Invalid field values (for example, malformed `email`) will return a 422.
+- `401/403 Unauthorized`: Upstream authentication/authorization error; token missing/invalid.
+- `404 Not Found`: User does not exist on Mobivisor.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+Use the same `MOBIVISOR_API_URL` and `MOBIVISOR_API_TOKEN` configuration described above.
+
 ## Configuration
 
 ### Environment Variables
