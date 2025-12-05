@@ -1,10 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
 import { AuthContext } from './AuthContextDef';
-
-// Re-export for backward compatibility
-export { AuthContext };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -14,7 +11,7 @@ export function AuthProvider({ children }) {
 
   const handleSessionExpiry = useCallback(
     (opts = {}) => {
-      // called when server says 401 or logout
+      // called when server says 401 or on logout
       setIsAuthenticated(false);
       setUser(null);
       navigate('/login', {
@@ -42,7 +39,7 @@ export function AuthProvider({ children }) {
         setIsAuthenticated(false);
       }
     } catch {
-      // 401 means not authenticated (no valid cookie)
+      // 401 or network issue -> not authenticated
       setUser(null);
       setIsAuthenticated(false);
     } finally {
@@ -52,7 +49,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     checkAuth();
-    // Setup global 401 handler via interceptor
+
+    // Setup global 401 handler via axios interceptor
     const interceptor = api.raw.interceptors.response.use(
       (r) => r,
       (error) => {
@@ -97,7 +95,7 @@ export function AuthProvider({ children }) {
     try {
       await api.auth.logout(); // Server clears the httpOnly cookie
     } catch {
-      // ignore errors from logout call, still clear client state
+      // ignore logout errors, still clear client state
     } finally {
       setUser(null);
       setIsAuthenticated(false);
