@@ -439,6 +439,112 @@ class TestMobivisorDevicesEndpoints:
         assert "Bad Gateway" in response.json()["detail"]["error"]
         assert response.json()["detail"]["upstream_status"] == 500
 
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_trigger_device_action_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successfully triggering a device action."""
+        mock_config.return_value = mock_mobivisor_config
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": device_id,
+            "commandType": "update_settings",
+            "commandData": {"sendApps": False},
+        }
+        response_payload = {
+            "__v": 0,
+            "user": device_id,
+            "userName": "admin",
+            "commandData": "{}",
+            "commandType": "Fetch System Apps",
+            "commandTypeOldFormat": "fetch_system_apps",
+            "environment": "Android Enterprise",
+            "_id": "69328eb219a2fefab2e0d64b",
+            "status": "Not Sent",
+            "timeCreated": "2025-12-05T07:50:10.232Z",
+        }
+        mock_response = mock_httpx_response(status_code=200, json_data=response_payload)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 200
+        assert response.json() == response_payload
+
+    def test_trigger_device_action_device_id_mismatch(self, client):
+        """Test payload device ID must match path parameter."""
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": "mismatch",
+            "commandType": "refresh_kiosk",
+            "commandData": {},
+        }
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "Validation Error"
+
+    def test_trigger_device_action_missing_password(self, client):
+        """Test validation error when password is missing for password change."""
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": device_id,
+            "commandType": "change_password_now",
+            "commandData": {},
+        }
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 422
+        assert any("password" in error["msg"] for error in response.json()["detail"])
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_trigger_device_action_missing_token(self, mock_config, client):
+        """Test configuration error when token missing for device actions."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": None,
+        }
+        device_id = "6895b35f73796d4ff80a57a0"
+        payload = {
+            "deviceId": device_id,
+            "commandType": "refresh_kiosk",
+            "commandData": {},
+        }
+
+        response = client.put(
+            f"/api/v1/mobivisor/devices/{device_id}/actions",
+            json=payload,
+        )
+
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
 
 class TestMobivisorUserEndpoints:
     """Test cases for Mobivisor user endpoints."""

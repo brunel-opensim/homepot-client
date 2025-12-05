@@ -377,6 +377,64 @@ curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/applications"
 - `403/401 Unauthorized`: Authentication/authorization issue.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
+### Trigger Device Actions
+
+Issue commands such as password resets, kiosk refreshes, and telemetry updates to a Mobivisor-managed device.
+
+**Endpoint**: `PUT /api/v1/mobivisor/devices/{device_id}/actions`
+
+**Request Body** (JSON):
+```json
+{
+  "deviceId": "6895b35f73796d4ff80a57a0",
+  "commandType": "update_settings",
+  "commandData": {
+    "sendApps": false
+  }
+}
+```
+
+**Supported commandType values**:
+
+| commandType | Purpose | Required commandData keys |
+| --- | --- | --- |
+| `change_password_now` | Force a password rotation | `password` (string) |
+| `update_settings` | Toggle telemetry flags | `sendApps` (boolean) |
+| `refresh_kiosk` | Refresh kiosk launcher config | _(none)_ |
+| `pref_update` | Update cached preferences / user state | Optional `userId`, `userSwitched` |
+| `location_request` | Request latest GPS ping | _(none)_ |
+| `status_request` | Request a status snapshot | _(none)_ |
+| `password_token_request` | Generate a temporary password token | _(none)_ |
+| `fetch_system_apps` | Ask device to enumerate system apps | _(none)_ |
+
+**Response** (200 OK):
+```json
+{
+  "__v": 0,
+  "user": "6895b35f73796d4ff80a57a0",
+  "userName": "admin",
+  "commandData": "{}",
+  "commandType": "Fetch System Apps",
+  "commandTypeOldFormat": "fetch_system_apps",
+  "environment": "Android Enterprise",
+  "_id": "69328eb219a2fefab2e0d64b",
+  "status": "Not Sent",
+  "timeCreated": "2025-12-05T07:50:10.232Z"
+}
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/actions" \
+  -H "Content-Type: application/json" \
+  -d '{"deviceId":"6895b35f73796d4ff80a57a0","commandType":"fetch_system_apps","commandData":{}}'
+```
+
+**Notes & Errors**:
+- The `deviceId` inside the payload must match the `{device_id}` in the URL path or a `400 Validation Error` is returned.
+- Field-level validation ensures `commandData.password` exists for `change_password_now` and `commandData.sendApps` exists for `update_settings`.
+- Upstream Mobivisor errors (401/403/404/5xx) are proxied with the original status embedded in the `detail.upstream_status` field when available.
+
 ### Mobivisor Users (Additional)
 
 #### 4. Create User
