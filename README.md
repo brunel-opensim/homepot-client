@@ -78,6 +78,30 @@ This will start:
 
 **See [Complete Website Setup Guide](docs/complete-website-setup.md) and [Website Testing Guide](docs/website-testing-guide.md)**
 
+### Analytics Demo (Data Collection for AI)
+
+Ready to demonstrate analytics data collection? Run the demo to verify the infrastructure is working:
+
+```bash
+# 1. Create analytics tables (one-time setup)
+python backend/utils/create_analytics_tables.py
+
+# 2. Start the backend server (in a new terminal)
+cd backend
+uvicorn homepot.app.main:app --reload
+
+# 3. Run the demo (in a new terminal)
+python backend/utils/demo_analytics.py
+```
+
+This will:
+- Verify backend server is running
+- Generate test API calls
+- Show collected analytics data
+- Demonstrate automatic request logging
+
+**See [Backend Analytics Documentation](docs/backend-analytics.md) for details on what data is collected and how to query it.**
+
 ### Prerequisites
 
 - **Python**: >= 3.9 (3.12.3 recommended)

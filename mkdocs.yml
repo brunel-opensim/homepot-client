@@ -150,7 +150,9 @@ nav:
   - AI & Analytics:
       - Executive Summary: ai-roadmap-executive-summary.md
       - Full Roadmap: ai-roadmap.md
-      - Phase 3 Implementation: ai-infrastructure.md
+      - Infrastructure Implementation: ai-infrastructure.md
+      - Data Collection: analytics-data-collection.md
+      - Example Data: analytics-example-data.md
       - Backend Analytics: backend-analytics.md
       - Frontend Analytics Integration: frontend-analytics-integration.md
   
