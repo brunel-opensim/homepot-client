@@ -185,6 +185,7 @@ filterwarnings = [
     "ignore::Warning:homepot.*",
     "ignore:.*Database cleanup.*:UserWarning",
     "ignore:.*Could not cleanup temp database.*:UserWarning",
+    "ignore:'crypt' is deprecated:DeprecationWarning",
 ]
 
 # Coverage configuration

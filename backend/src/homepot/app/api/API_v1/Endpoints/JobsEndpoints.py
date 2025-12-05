@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
@@ -49,16 +49,15 @@ class CreateJobRequest(BaseModel):
     config_version: Optional[str] = None
     priority: str = JobPriority.HIGH
 
-    class Config:
-        """Pydantic model configuration with example data."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "action": "Update POS payment config",
                 "description": "Fix payment gateway configuration for site-123",
                 "priority": "high",
             }
         }
+    )
 
 
 @router.post("/sites/{site_id}/jobs", tags=["Jobs"], response_model=Dict[str, str])
