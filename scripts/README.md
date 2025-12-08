@@ -171,17 +171,16 @@ Comprehensive validation of the analytics infrastructure. Automatically starts t
 - Demonstrating analytics functionality
 - Continuous integration testing
 
-### `validate_analytics.py`
+**Python Utility:**
+The actual validation logic is in `backend/utils/validate_analytics.py` (Python utility).
+The bash script `run_validation_test.sh` handles starting/stopping the backend and calling the Python script.
 
-Python script for standalone analytics validation (called by `run_validation_test.sh`).
-
-**Usage:**
+**Manual usage** (if backend is already running):
 ```bash
-# Assumes backend is already running on port 8000
-python3 scripts/validate_analytics.py <email> <password>
+python3 backend/utils/validate_analytics.py <email> <password>
 
 # Example:
-python3 scripts/validate_analytics.py analytics-test@example.com testpass123
+python3 backend/utils/validate_analytics.py analytics-test@example.com testpass123
 ```
 
 ## See Also

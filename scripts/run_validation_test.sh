@@ -19,7 +19,7 @@ echo -e "\n============================================"
 echo "Running Analytics Validation"
 echo "============================================\n"
 
-python3 "$SCRIPT_DIR/validate_analytics.py" analytics-test@example.com testpass123
+python3 "$BACKEND_DIR/utils/validate_analytics.py" analytics-test@example.com testpass123
 
 VALIDATION_EXIT=$?
 
