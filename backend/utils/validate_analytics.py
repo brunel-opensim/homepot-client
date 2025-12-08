@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Analytics Infrastructure Validation Script
+Analytics Infrastructure Validation Script.
 
 This script validates that the analytics infrastructure is working correctly
 by simulating frontend tracking calls and verifying data collection.
@@ -54,20 +54,20 @@ def print_error(text):
     print(f"✗ {text}")
 
 
-def authenticate(email="test@example.com", password="testpass123"):
+def authenticate(email="test@example.com", password="testpass123"):  # noqa: S107
     """Authenticate and get access token."""
     global AUTH_TOKEN, AUTH_HEADERS
-    
+
     print_header("1. Authentication")
-    
+
     # Try to login
     try:
         response = requests.post(
             f"{API_BASE}/auth/login",
             json={"email": email, "password": password},
-            timeout=10
+            timeout=10,
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             # Token is in data.data.access_token based on the response structure
@@ -151,9 +151,7 @@ def test_user_activity_tracking():
                     f"on {activity['page_url']}"
                 )
             else:
-                print_error(
-                    f"Activity {i}/3 failed with status {response.status_code}"
-                )
+                print_error(f"Activity {i}/3 failed with status {response.status_code}")
                 print(f"  Response: {response.text[:200]}")
                 return False
         except requests.exceptions.RequestException as e:
@@ -170,20 +168,29 @@ def test_api_request_logging():
     print_header("4. Automatic API Request Logging")
 
     # Make some API calls that should be automatically logged
-    # Note: Some endpoints may return 404 if they don't exist yet (expected during development)
+    # Note: Some endpoints may return 404 if they don't exist yet
+    # (expected during development)
     endpoints_to_test = [
-        ("/api/v1/sites", "Sites list", [200, 404]),  # 404 if no list endpoint exists
-        ("/api/v1/devices", "Devices list", [200, 404]),  # 404 if no list endpoint exists
-        ("/api/v1/jobs", "Jobs list", [200, 404]),  # 404 if no list endpoint exists
+        # Trailing slash required by FastAPI
+        ("/api/v1/sites/", "Sites list", [200]),
+        # 404 if no list endpoint exists
+        ("/api/v1/devices", "Devices list", [200, 404]),
+        # 404 if no list endpoint exists
+        ("/api/v1/jobs", "Jobs list", [200, 404]),
     ]
 
     print("Making test API calls (these should be auto-logged):")
     for endpoint, description, expected_codes in endpoints_to_test:
         try:
-            response = requests.get(f"{BASE_URL}{endpoint}", headers=AUTH_HEADERS, timeout=10)
+            response = requests.get(
+                f"{BASE_URL}{endpoint}", headers=AUTH_HEADERS, timeout=10
+            )
             if response.status_code in expected_codes:
-                status_note = " (endpoint not implemented)" if response.status_code == 404 else ""
-                print_success(f"{description}: {response.status_code}{status_note}")
+                status_note = ""
+                if response.status_code == 404:
+                    status_note = " (endpoint not implemented)"
+                result = f"{description}: {response.status_code}{status_note}"
+                print_success(result)
             else:
                 print_error(f"{description}: {response.status_code} (unexpected)")
         except requests.exceptions.RequestException as e:
@@ -203,14 +210,12 @@ def query_collected_data():
         response = requests.get(
             f"{API_BASE}/analytics/user-activities?limit=10",
             headers=AUTH_HEADERS,
-            timeout=10
+            timeout=10,
         )
         if response.status_code == 200:
             data = response.json()
             activities = data.get("activities", [])
-            print_success(
-                f"Retrieved {len(activities)} user activity records"
-            )
+            print_success(f"Retrieved {len(activities)} user activity records")
 
             if activities:
                 print("\nRecent activities:")
@@ -233,14 +238,12 @@ def query_collected_data():
         response = requests.get(
             f"{API_BASE}/analytics/api-requests?limit=10",
             headers=AUTH_HEADERS,
-            timeout=10
+            timeout=10,
         )
         if response.status_code == 200:
             data = response.json()
             requests_data = data.get("requests", [])
-            print_success(
-                f"Retrieved {len(requests_data)} API request log records"
-            )
+            print_success(f"Retrieved {len(requests_data)} API request log records")
 
             if requests_data:
                 print("\nRecent API requests:")
@@ -271,16 +274,17 @@ def display_summary():
 
     print("Analytics Infrastructure Status:")
     print()
-    print("✓ Backend API: Running")
-    print("✓ Analytics Endpoints: Functional")
-    print("✓ User Activity Tracking: Working")
-    print("✓ Automatic API Logging: Working")
-    print("✓ Data Query Endpoints: Working")
+    print("  Backend API: Running")
+    print("  Analytics Endpoints: Functional")
+    print("  User Activity Tracking: Working")
+    print("  Automatic API Logging: Working")
+    print("  Data Query Endpoints: Working")
     print()
     print("RESULT: Analytics infrastructure is READY")
     print()
     print("Next Steps:")
-    print("  1. Frontend team implements tracking (docs/frontend-analytics-integration.md)")  # noqa: E501
+    print("  1. Frontend team implements tracking")
+    print("     (docs/frontend-analytics-integration.md)")
     print("  2. Backend team adds device state & job logging")
     print("  3. Run system for 3-5 days to collect real usage data")
     print("  4. Demonstrate AI-ready dataset")
