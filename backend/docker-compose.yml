@@ -1,0 +1,44 @@
+name: homepot
+version: '3.8'
+
+services:
+  homePot:
+    build: .
+    image: homepot_python:latest
+    container_name: homePot
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE__URL=postgresql+asyncpg://homepot_user:homepot_dev_password@db:5432/homepot_db
+      - REDIS__URL=redis://redis:6379/0
+      - SECRET_KEY=homepot-dev-secret-change-in-production
+      - ALLOWED_HOSTS=*
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+    command: uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  db:
+    image: postgres:15-alpine
+    container_name: homepot_db
+    environment:
+      - POSTGRES_USER=homepot_user
+      - POSTGRES_PASSWORD=homepot_dev_password
+      - POSTGRES_DB=homepot_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Uncomment the following line to mount initialization scripts
+      # - ./init-scripts:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:alpine
+    container_name: homepot_redis
+    ports:
+      - "6380:6379"
+
+volumes:
+  postgres_data:
