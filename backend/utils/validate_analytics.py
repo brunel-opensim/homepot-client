@@ -170,17 +170,22 @@ def test_api_request_logging():
     print_header("4. Automatic API Request Logging")
 
     # Make some API calls that should be automatically logged
+    # Note: Some endpoints may return 404 if they don't exist yet (expected during development)
     endpoints_to_test = [
-        ("/api/v1/sites", "Sites list"),
-        ("/api/v1/devices", "Devices list"),
-        ("/api/v1/jobs", "Jobs list"),
+        ("/api/v1/sites", "Sites list", [200, 404]),  # 404 if no list endpoint exists
+        ("/api/v1/devices", "Devices list", [200, 404]),  # 404 if no list endpoint exists
+        ("/api/v1/jobs", "Jobs list", [200, 404]),  # 404 if no list endpoint exists
     ]
 
     print("Making test API calls (these should be auto-logged):")
-    for endpoint, description in endpoints_to_test:
+    for endpoint, description, expected_codes in endpoints_to_test:
         try:
             response = requests.get(f"{BASE_URL}{endpoint}", headers=AUTH_HEADERS, timeout=10)
-            print_success(f"{description}: {response.status_code}")
+            if response.status_code in expected_codes:
+                status_note = " (endpoint not implemented)" if response.status_code == 404 else ""
+                print_success(f"{description}: {response.status_code}{status_note}")
+            else:
+                print_error(f"{description}: {response.status_code} (unexpected)")
         except requests.exceptions.RequestException as e:
             print_error(f"{description} failed: {e}")
 
