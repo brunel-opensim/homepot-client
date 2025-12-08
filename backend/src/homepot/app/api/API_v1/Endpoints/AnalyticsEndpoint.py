@@ -47,7 +47,7 @@ async def log_user_activity(
             page_url=activity.get("page_url"),
             element_id=activity.get("element_id"),
             search_query=activity.get("search_query"),
-            metadata=activity.get("metadata"),
+            extra_data=activity.get("extra_data") or activity.get("metadata"),
             duration_ms=activity.get("duration_ms"),
             timestamp=datetime.now(timezone.utc),
         )

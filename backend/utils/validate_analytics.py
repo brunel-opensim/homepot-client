@@ -12,6 +12,9 @@ Usage:
     # Then run this script:
     python backend/utils/validate_analytics.py
 
+    # Or with test credentials:
+    python backend/utils/validate_analytics.py test@example.com testpass123
+
 Purpose:
     - Proves backend analytics endpoints work
     - Demonstrates automatic API request logging
@@ -28,6 +31,10 @@ import requests
 # Configuration
 BASE_URL = "http://localhost:8000"
 API_BASE = f"{BASE_URL}/api/v1"
+
+# Authentication - will be set after login
+AUTH_TOKEN = None
+AUTH_HEADERS = {}
 
 
 def print_header(text):
@@ -47,11 +54,48 @@ def print_error(text):
     print(f"✗ {text}")
 
 
+def authenticate(email="test@example.com", password="testpass123"):
+    """Authenticate and get access token."""
+    global AUTH_TOKEN, AUTH_HEADERS
+    
+    print_header("1. Authentication")
+    
+    # Try to login
+    try:
+        response = requests.post(
+            f"{API_BASE}/auth/login",
+            json={"email": email, "password": password},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            # Token is in data.data.access_token based on the response structure
+            token_data = data.get("data", {})
+            AUTH_TOKEN = token_data.get("access_token")
+            if not AUTH_TOKEN:
+                print_error(f"No access token in response: {data}")
+                return False
+            AUTH_HEADERS = {"Authorization": f"Bearer {AUTH_TOKEN}"}
+            print_success(f"Authenticated as {email}")
+            return True
+        else:
+            print_error(f"Login failed with status {response.status_code}")
+            print("\nNote: Analytics endpoints require authentication.")
+            print("Please ensure a test user exists or provide credentials:")
+            print("  python backend/utils/validate_analytics.py <email> <password>")
+            return False
+    except requests.exceptions.RequestException as e:
+        print_error(f"Authentication failed: {e}")
+        return False
+
+
 def check_backend_running():
     """Verify backend server is accessible."""
-    print_header("1. Backend Health Check")
+    print_header("2. Backend Health Check")
     try:
-        response = requests.get(f"{BASE_URL}/health", timeout=5)
+        # Use docs endpoint as a simple connectivity check (no auth required)
+        response = requests.get(f"{BASE_URL}/docs", timeout=5)
         if response.status_code == 200:
             print_success("Backend is running and accessible")
             return True
@@ -68,29 +112,28 @@ def check_backend_running():
 
 def test_user_activity_tracking():
     """Test user activity tracking endpoint."""
-    print_header("2. User Activity Tracking")
+    print_header("3. User Activity Tracking")
 
     test_activities = [
         {
             "activity_type": "page_view",
             "page_url": "/devices",
+            "duration_ms": 1500,
             "extra_data": {"test": "validation", "source": "validation_script"},
         },
         {
-            "activity_type": "button_click",
+            "activity_type": "click",
             "page_url": "/devices",
-            "extra_data": {
-                "button_id": "add-device-btn",
-                "source": "validation_script",
-            },
+            "element_id": "add-device-btn",
+            "duration_ms": 250,
+            "extra_data": {"source": "validation_script"},
         },
         {
             "activity_type": "search",
             "page_url": "/devices",
-            "extra_data": {
-                "search_query": "temperature sensor",
-                "source": "validation_script",
-            },
+            "search_query": "temperature sensor",
+            "duration_ms": 800,
+            "extra_data": {"source": "validation_script"},
         },
     ]
 
@@ -99,9 +142,10 @@ def test_user_activity_tracking():
             response = requests.post(
                 f"{API_BASE}/analytics/user-activity",
                 json=activity,
+                headers=AUTH_HEADERS,
                 timeout=10,
             )
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 print_success(
                     f"Activity {i}/3 logged: {activity['activity_type']} "
                     f"on {activity['page_url']}"
@@ -110,6 +154,7 @@ def test_user_activity_tracking():
                 print_error(
                     f"Activity {i}/3 failed with status {response.status_code}"
                 )
+                print(f"  Response: {response.text[:200]}")
                 return False
         except requests.exceptions.RequestException as e:
             print_error(f"Activity {i}/3 failed: {e}")
@@ -122,19 +167,19 @@ def test_user_activity_tracking():
 
 def test_api_request_logging():
     """Test that API requests are automatically logged."""
-    print_header("3. Automatic API Request Logging")
+    print_header("4. Automatic API Request Logging")
 
     # Make some API calls that should be automatically logged
     endpoints_to_test = [
-        ("/api/v1/health", "Health check"),
         ("/api/v1/sites", "Sites list"),
         ("/api/v1/devices", "Devices list"),
+        ("/api/v1/jobs", "Jobs list"),
     ]
 
     print("Making test API calls (these should be auto-logged):")
     for endpoint, description in endpoints_to_test:
         try:
-            response = requests.get(f"{BASE_URL}{endpoint}", timeout=10)
+            response = requests.get(f"{BASE_URL}{endpoint}", headers=AUTH_HEADERS, timeout=10)
             print_success(f"{description}: {response.status_code}")
         except requests.exceptions.RequestException as e:
             print_error(f"{description} failed: {e}")
@@ -146,12 +191,14 @@ def test_api_request_logging():
 
 def query_collected_data():
     """Query and display collected analytics data."""
-    print_header("4. Query Collected Data")
+    print_header("5. Query Collected Data")
 
     # Query user activities
     try:
         response = requests.get(
-            f"{API_BASE}/analytics/user-activities?limit=10", timeout=10
+            f"{API_BASE}/analytics/user-activities?limit=10",
+            headers=AUTH_HEADERS,
+            timeout=10
         )
         if response.status_code == 200:
             data = response.json()
@@ -179,7 +226,9 @@ def query_collected_data():
     # Query API request logs
     try:
         response = requests.get(
-            f"{API_BASE}/analytics/api-requests?limit=10", timeout=10
+            f"{API_BASE}/analytics/api-requests?limit=10",
+            headers=AUTH_HEADERS,
+            timeout=10
         )
         if response.status_code == 200:
             data = response.json()
@@ -213,7 +262,7 @@ def query_collected_data():
 
 def display_summary():
     """Display validation summary."""
-    print_header("5. Validation Summary")
+    print_header("6. Validation Summary")
 
     print("Analytics Infrastructure Status:")
     print()
@@ -239,7 +288,16 @@ def main():
     print("  " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     print("=" * 60)
 
+    # Get credentials from command line if provided
+    email = sys.argv[1] if len(sys.argv) > 1 else "test@example.com"
+    password = sys.argv[2] if len(sys.argv) > 2 else "testpass123"
+
     # Run validation steps
+    if not authenticate(email, password):
+        sys.exit(1)
+
+    time.sleep(0.5)
+
     if not check_backend_running():
         sys.exit(1)
 
