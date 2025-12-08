@@ -1,7 +1,11 @@
 #!/bin/bash
 # Script to run analytics validation test
 
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BACKEND_DIR="$PROJECT_ROOT/backend"
+
+cd "$BACKEND_DIR"
 source venv/bin/activate
 
 echo "Starting backend server..."
@@ -15,7 +19,7 @@ echo -e "\n============================================"
 echo "Running Analytics Validation"
 echo "============================================\n"
 
-python3 utils/validate_analytics.py analytics-test@example.com testpass123
+python3 "$SCRIPT_DIR/validate_analytics.py" analytics-test@example.com testpass123
 
 VALIDATION_EXIT=$?
 
