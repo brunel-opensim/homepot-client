@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from .Endpoints import (
     AgentsEndpoints,
+    AnalyticsEndpoint,
     ClientEndpoint,
     DevicesEndpoints,
     DeviceSimulatorEndpoint,
@@ -56,3 +57,4 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     DeviceSimulatorEndpoint.router, prefix="/testing", tags=["Testing"]
 )
+api_v1_router.include_router(AnalyticsEndpoint.router, tags=["Analytics"])

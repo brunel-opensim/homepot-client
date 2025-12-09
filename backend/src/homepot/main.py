@@ -21,7 +21,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from homepot.agents import get_agent_manager, stop_agent_manager
 from homepot.audit import AuditEventType, get_audit_logger
@@ -152,16 +152,15 @@ class CreateJobRequest(BaseModel):
     config_version: Optional[str] = None
     priority: str = JobPriority.HIGH
 
-    class Config:
-        """Pydantic model configuration with example data."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "action": "Update POS payment config",
                 "description": "Fix payment gateway configuration for site-123",
                 "priority": "high",
             }
         }
+    )
 
 
 class JobStatusResponse(BaseModel):
@@ -204,10 +203,8 @@ class CreateSiteRequest(BaseModel):
     description: Optional[str] = None
     location: Optional[str] = None
 
-    class Config:
-        """Pydantic model configuration with example data."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "site_id": "site-123",
                 "name": "Main Retail Store",
@@ -215,6 +212,7 @@ class CreateSiteRequest(BaseModel):
                 "location": "London, UK",
             }
         }
+    )
 
 
 class CreateDeviceRequest(BaseModel):
@@ -226,10 +224,8 @@ class CreateDeviceRequest(BaseModel):
     ip_address: Optional[str] = None
     config: Optional[Dict] = None
 
-    class Config:
-        """Pydantic model configuration with example data."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "device_id": "pos-terminal-001",
                 "name": "POS Terminal 1",
@@ -238,6 +234,7 @@ class CreateDeviceRequest(BaseModel):
                 "config": {"gateway_url": "https://payments.example.com"},
             }
         }
+    )
 
 
 # Create FastAPI application
