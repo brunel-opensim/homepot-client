@@ -118,3 +118,37 @@ async def delete_group(group_id: str) -> Any:
     )
     print(response.text, "response")
     return handle_mobivisor_response(response, f"delete group {group_id}")
+
+
+@router.get("/groups/{group_id}", tags=["Mobivisor Groups"])
+async def fetch_group_details(group_id: str) -> Any:
+    """Fetch details for a specific group from Mobivisor API.
+
+    Args:
+        group_id: The unique identifier of the group
+
+    Returns:
+        Any: JSON response from Mobivisor API with group details
+
+    Raises:
+        HTTPException: If configuration missing, group not found, or request fails
+
+    Example:
+        ```python
+        GET /api/v1/mobivisor/groups/g1
+        ```
+
+        Response:
+        ```json
+        {
+            "id": "g1",
+            "name": "Store A - Devices",
+            "device_count": 15,
+            "created_at": "2025-10-01T12:00:00Z"
+        }
+        ```
+    """
+    logger.info(f"Fetching group details from Mobivisor API: {group_id}")
+    config = get_mobivisor_api_config()
+    response = await make_mobivisor_request("GET", f"groups/{group_id}", config=config)
+    return handle_mobivisor_response(response, f"fetch group {group_id}")

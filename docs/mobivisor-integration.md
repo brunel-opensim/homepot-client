@@ -266,6 +266,35 @@ curl -X DELETE "http://localhost:8000/api/v1/mobivisor/groups/g1"
 - `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
 - `502/504`: Upstream errors/timeouts.
 
+#### 3. Get Group Details
+
+Fetch details for a specific group managed by Mobivisor.
+
+**Endpoint**: `GET /api/v1/mobivisor/groups/{group_id}`
+
+**Parameters**:
+- `group_id` (path): The unique identifier of the group
+
+**Response** (200 OK):
+```json
+{
+  "id": "g1",
+  "name": "Stores - Region A",
+  "device_count": 42,
+  "description": "Retail stores in Region A"
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/groups/g1"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: Group does not exist on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
 ### Mobivisor Users
 
 The following endpoints provide basic user management proxying to the Mobivisor API.

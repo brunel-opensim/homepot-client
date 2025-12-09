@@ -1178,7 +1178,9 @@ class TestMobivisorUserEndpoints:
 
                 mock_client_instance = AsyncMock()
                 mock_client_instance.request = AsyncMock(return_value=mock_response)
-                mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+                mock_async_client.return_value.__aenter__.return_value = (
+                    mock_client_instance
+                )
 
                 response = client.put("/api/v1/mobivisor/users/6930", json=payload)
 
@@ -2030,3 +2032,58 @@ class TestMobivisorGroupsEndpoints:
 
         assert response.status_code == 502
         assert "Bad Gateway" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful group details fetch."""
+        mock_config.return_value = mock_mobivisor_config
+        group_data = {"id": "g1", "name": "Store A", "device_count": 15}
+        mock_response = mock_httpx_response(status_code=200, json_data=group_data)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 200
+        assert response.json() == group_data
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group details fetch with not found response."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"error": "Not Found"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/nonexistent")
+
+        assert response.status_code == 404
+        assert "Not Found" in response.json()["detail"]["error"]

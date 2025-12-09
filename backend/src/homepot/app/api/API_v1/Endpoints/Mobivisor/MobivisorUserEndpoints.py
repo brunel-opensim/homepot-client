@@ -6,11 +6,14 @@ with proper authentication and error handling.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
 
+from homepot.app.models.mobivisor_models import (
+    CreateUserPayload,
+    UpdateUserPayload,
+)
 from homepot.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
 )
@@ -26,53 +29,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class MobivisorUserModel(BaseModel):
-    """Pydantic model describing a Mobivisor user payload.
-
-    Fields mirror the expected Mobivisor `/users` `user` object and are used
-    to perform automatic request validation and parsing.
-    """
-
-    email: EmailStr
-    displayName: str
-    username: str
-    phone: str
-    password: str
-    notes: Optional[str] = None
-    role: Optional[Dict[str, Any]] = None
-    _id: Optional[str] = None
-
-
-class CreateUserPayload(BaseModel):
-    """Top-level payload model for creating a Mobivisor user.
-
-    Contains the required `user` object and optional `groupInfoOfTheUser`.
-    """
-
-    user: MobivisorUserModel
-    groupInfoOfTheUser: Optional[List[Dict[str, Any]]] = None
-
-
-class MobivisorUserUpdateModel(BaseModel):
-    """Pydantic model for partial updates to a Mobivisor user.
-
-    All fields are optional to allow partial updates (clients may update one
-    or more fields without resending the entire user object).
-    """
-
-    email: Optional[EmailStr] = None
-    displayName: Optional[str] = None
-    username: Optional[str] = None
-    phone: Optional[str] = None
-    password: Optional[str] = None
-    notes: Optional[str] = None
-    role: Optional[Dict[str, Any]] = None
-    _id: Optional[str] = None
-
-
-class UpdateUserPayload(BaseModel):
-    user: MobivisorUserUpdateModel
-    groupInfoOfTheUser: Optional[List[Dict[str, Any]]] = None
+# Models moved to `homepot.app.models.mobivisor_models` to keep them
+# separate from the application's DB model definitions (no SQLAlchemy here).
 
 
 @router.get("/users", tags=["Mobivisor Users"])
