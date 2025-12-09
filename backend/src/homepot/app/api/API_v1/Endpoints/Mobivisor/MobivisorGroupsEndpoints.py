@@ -46,9 +46,9 @@ async def fetch_groups() -> Any:
         Response:
         ```json
         {
-            "devices": [
-                {"id": "123", "name": "Device 1", "status": "online"},
-                {"id": "456", "name": "Device 2", "status": "offline"}
+            "groups": [
+                {"id": "123", "name": "Group 1"},
+                {"id": "456", "name": "Group 2"}
             ]
         }
         ```
@@ -116,7 +116,6 @@ async def delete_group(group_id: str) -> Any:
     response = await make_mobivisor_request(
         "DELETE", f"groups/{group_id}", config=config
     )
-    print(response.text, "response")
     return handle_mobivisor_response(response, f"delete group {group_id}")
 
 

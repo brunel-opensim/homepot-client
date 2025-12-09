@@ -2087,3 +2087,102 @@ class TestMobivisorGroupsEndpoints:
 
         assert response.status_code == 404
         assert "Not Found" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group details fetch with unauthorized response (401)."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=401, json_data={"error": "Unauthorized"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 401
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_forbidden(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group details fetch with forbidden response (403)."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=403, json_data={"error": "Forbidden"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 403
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_timeout(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test group details fetch with timeout (504)."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Request timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 504
+        assert "Gateway Timeout" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_network_error(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test group details fetch with network error (502)."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.RequestError("Network error")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 502
+        assert "Bad Gateway" in response.json()["detail"]["error"]
