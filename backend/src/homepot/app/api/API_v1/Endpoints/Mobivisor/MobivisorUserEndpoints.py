@@ -6,11 +6,14 @@ with proper authentication and error handling.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
 
+from homepot.app.models.mobivisor_models import (
+    CreateUserPayload,
+    UpdateUserPayload,
+)
 from homepot.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
 )
@@ -26,30 +29,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class MobivisorUserModel(BaseModel):
-    """Pydantic model describing a Mobivisor user payload.
-
-    Fields mirror the expected Mobivisor `/users` `user` object and are used
-    to perform automatic request validation and parsing.
-    """
-
-    email: EmailStr
-    displayName: str
-    username: str
-    phone: str
-    password: str
-    notes: Optional[str] = None
-    role: Optional[Dict[str, Any]] = None
-
-
-class CreateUserPayload(BaseModel):
-    """Top-level payload model for creating a Mobivisor user.
-
-    Contains the required `user` object and optional `groupInfoOfTheUser`.
-    """
-
-    user: MobivisorUserModel
-    groupInfoOfTheUser: Optional[List[Dict[str, Any]]] = None
+# Models moved to `homepot.app.models.mobivisor_models` to keep them
+# separate from the application's DB model definitions (no SQLAlchemy here).
 
 
 @router.get("/users", tags=["Mobivisor Users"])
@@ -236,3 +217,52 @@ async def create_user(payload: CreateUserPayload) -> Any:
         "POST", "users", json=payload.model_dump(), config=config
     )
     return handle_mobivisor_response(response, "create user")
+
+
+@router.put("/users/{user_id}", tags=["Mobivisor Users"])
+async def update_user(user_id: str, payload: UpdateUserPayload) -> Any:
+    """Update an existing user in Mobivisor.
+
+    This endpoint proxies a PUT to the Mobivisor `/users/{user_id}` endpoint.
+    The request body should include a `user` object and optionally
+    `groupInfoOfTheUser` (same shape as the create endpoint).
+
+    Args:
+        user_id: The user's unique identifier to update.
+        payload: The JSON body to forward to Mobivisor.
+
+    Returns:
+        Any: The JSON response from Mobivisor (typically the updated user).
+
+    Raises:
+        HTTPException: If configuration is missing or the upstream request
+        fails; upstream errors are mapped to appropriate HTTP status codes.
+    """
+    logger.info(f"Updating user in Mobivisor API: {user_id}")
+    config = get_mobivisor_api_config()
+
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    # Only forward fields provided by the client to the upstream API.
+    body = payload.model_dump(exclude_none=True)
+    response = await make_mobivisor_request(
+        "PUT", f"users/{user_id}", json=body, config=config
+    )
+    return handle_mobivisor_response(response, f"update user {user_id}")

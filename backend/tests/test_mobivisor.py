@@ -952,6 +952,265 @@ class TestMobivisorUserEndpoints:
             for err in body["detail"]
         )
 
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_user_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful user update forwarded to Mobivisor."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {
+            "user": {
+                "email": "a11@b.c",
+                "displayName": "Kothiya Yogesh",
+                "username": "jr11b.kothiya",
+                "phone": "7567407883",
+                "password": "1234567890",
+                "notes": "Test",
+                "_id": "6930491019a2fefab2e0b300",
+                "role": {"_id": "Admin", "rights": [], "displayedRights": []},
+            },
+            "groupInfoOfTheUser": [{"admin": True, "_id": "6895b47e634b34c01c2d69c4"}],
+        }
+
+        updated_user = {
+            "id": "6930491019a2fefab2e0b300",
+            "email": payload["user"]["email"],
+        }
+        mock_response = mock_httpx_response(status_code=200, json_data=updated_user)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.put(
+            "/api/v1/mobivisor/users/6930491019a2fefab2e0b300", json=payload
+        )
+
+        assert response.status_code == 200
+        assert response.json() == updated_user
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_user_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test update user when Mobivisor returns unauthorized."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=401, json_data={"error": "Invalid token"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test",
+                "username": "t",
+                "phone": "1",
+                "password": "p",
+            }
+        }
+        response = client.put("/api/v1/mobivisor/users/6930", json=payload)
+
+        assert response.status_code == 401
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_update_user_missing_config(self, mock_config, client):
+        """Test update user with missing Mobivisor configuration."""
+        mock_config.return_value = {
+            "mobivisor_api_url": None,
+            "mobivisor_api_token": "token",
+        }
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test",
+                "username": "t",
+                "phone": "1",
+                "password": "p",
+            }
+        }
+        response = client.put("/api/v1/mobivisor/users/6930", json=payload)
+
+        assert response.status_code == 500
+        assert "Configuration Error" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_user_timeout(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test update user when upstream times out."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test",
+                "username": "t",
+                "phone": "1",
+                "password": "p",
+            }
+        }
+        response = client.put("/api/v1/mobivisor/users/6930", json=payload)
+
+        assert response.status_code == 504
+        assert "Gateway Timeout" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_user_network_error(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test update user with network error."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.RequestError("Network error")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test",
+                "username": "t",
+                "phone": "1",
+                "password": "p",
+            }
+        }
+        response = client.put("/api/v1/mobivisor/users/6930", json=payload)
+
+        assert response.status_code == 502
+        assert "Bad Gateway" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_user_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test update user when user not found upstream."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"error": "Not Found"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        payload = {
+            "user": {
+                "email": "a@b.com",
+                "displayName": "Test",
+                "username": "t",
+                "phone": "1",
+                "password": "p",
+            }
+        }
+        response = client.put("/api/v1/mobivisor/users/6930", json=payload)
+
+        assert response.status_code == 404
+        assert "Not Found" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_update_user_validation_errors(
+        self, mock_config, client, mock_mobivisor_config
+    ):
+        """Validate update user payload missing required fields returns 422."""
+        mock_config.return_value = mock_mobivisor_config
+
+        # With partial-update semantics the request with only email is valid; mock upstream success.
+        payload = {"user": {"email": "a@b.com"}}
+
+        # Patch httpx AsyncClient to return success for the forwarded request
+        with patch(
+            "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config",
+        ) as mock_cfg:
+            mock_cfg.return_value = mock_mobivisor_config
+            with patch("httpx.AsyncClient") as mock_async_client:
+                updated_user = {"id": "6930", "email": "a@b.com"}
+                mock_response = MagicMock(spec=httpx.Response)
+                mock_response.status_code = 200
+                mock_response.json.return_value = updated_user
+
+                mock_client_instance = AsyncMock()
+                mock_client_instance.request = AsyncMock(return_value=mock_response)
+                mock_async_client.return_value.__aenter__.return_value = (
+                    mock_client_instance
+                )
+
+                response = client.put("/api/v1/mobivisor/users/6930", json=payload)
+
+        assert response.status_code == 200
+        assert response.json() == updated_user
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor.MobivisorUserEndpoints.get_mobivisor_api_config"
+    )
+    def test_update_user_invalid_email(
+        self, mock_config, client, mock_mobivisor_config
+    ):
+        """Invalid email should produce 422 from Pydantic."""
+        mock_config.return_value = mock_mobivisor_config
+
+        payload = {
+            "user": {
+                "email": "not-an-email",
+                "displayName": "T",
+                "username": "u",
+                "phone": "1",
+                "password": "p",
+            }
+        }
+        response = client.put("/api/v1/mobivisor/users/6930", json=payload)
+
+        assert response.status_code == 422
+        body = response.json()
+        assert isinstance(body["detail"], list)
+
 
 class TestMobivisorDeviceAdditionalEndpoints:
     """Tests for additional device endpoints not covered above."""
@@ -1770,6 +2029,160 @@ class TestMobivisorGroupsEndpoints:
         mock_async_client.return_value.__aenter__.return_value = mock_client_instance
 
         response = client.delete("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 502
+        assert "Bad Gateway" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful group details fetch."""
+        mock_config.return_value = mock_mobivisor_config
+        group_data = {"id": "g1", "name": "Store A", "device_count": 15}
+        mock_response = mock_httpx_response(status_code=200, json_data=group_data)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 200
+        assert response.json() == group_data
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group details fetch with not found response."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"error": "Not Found"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/nonexistent")
+
+        assert response.status_code == 404
+        assert "Not Found" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group details fetch with unauthorized response (401)."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=401, json_data={"error": "Unauthorized"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 401
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_forbidden(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test group details fetch with forbidden response (403)."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=403, json_data={"error": "Forbidden"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 403
+        assert "Unauthorized" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_timeout(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test group details fetch with timeout (504)."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("Request timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
+
+        assert response.status_code == 504
+        assert "Gateway Timeout" in response.json()["detail"]["error"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorGroupsEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_group_details_network_error(
+        self, mock_async_client, mock_config, client, mock_mobivisor_config
+    ):
+        """Test group details fetch with network error (502)."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.RequestError("Network error")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/groups/g1")
 
         assert response.status_code == 502
         assert "Bad Gateway" in response.json()["detail"]["error"]

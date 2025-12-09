@@ -60,7 +60,7 @@ class DeviceCommandPayload(BaseModel):
         if self.commandType == "change_password_now" and not self.commandData.password:
             raise ValueError(
                 "commandData.password is required when commandType"
-                "is change_password_now"
+                " is change_password_now"
             )
 
         if self.commandType == "update_settings" and self.commandData.sendApps is None:
