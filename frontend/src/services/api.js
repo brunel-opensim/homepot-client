@@ -13,9 +13,16 @@
 import axios from 'axios';
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const API_VERSION = 'v1';
 const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
+
+console.log('API Service Config:', {
+  mode: import.meta.env.MODE,
+  dev: import.meta.env.DEV,
+  baseUrl: API_BASE_URL,
+  finalUrl: `${API_BASE_URL}/api/${API_VERSION}`,
+});
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -171,6 +178,22 @@ const api = {
       const response = await apiClient.post('/sites/sites', siteData);
       return response.data;
     },
+
+    /**
+     * Update site
+     */
+    update: async (siteId, siteData) => {
+      const response = await apiClient.put(`/sites/sites/${siteId}`, siteData);
+      return response.data;
+    },
+
+    /**
+     * Delete site
+     */
+    delete: async (siteId) => {
+      const response = await apiClient.delete(`/sites/sites/${siteId}`);
+      return response.data;
+    },
   },
 
   // ==================== Devices ====================
@@ -185,6 +208,11 @@ const api = {
      */
     create: async (siteId, deviceData) => {
       const response = await apiClient.post(`/sites/${siteId}/devices`, deviceData);
+      return response.data;
+    },
+
+    getSiteId: async (siteId) => {
+      const response = await apiClient.get(`/devices/sites/${siteId}/devices`);
       return response.data;
     },
 

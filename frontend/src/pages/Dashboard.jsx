@@ -132,7 +132,7 @@ export default function Dashboard() {
             <div className="flex justify-center space-x-4 mt-8">
               <Button
                 onClick={() => {
-                  navigate('/site');
+                  navigate('/sites');
                 }}
                 className="bg-primary text-secondary border border-secondary"
               >

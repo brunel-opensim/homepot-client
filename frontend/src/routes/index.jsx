@@ -12,9 +12,13 @@ const Login = lazy(() => import('../pages/Login'));
 const Signup = lazy(() => import('../pages/Signup'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const Device = lazy(() => import('../pages/Device'));
-const SiteScreen = lazy(() => import('../pages/Site'));
-const SiteDeviceScreen = lazy(() => import('../pages/SiteDevice'));
+
 const NotFound = lazy(() => import('../pages/NotFound'));
+
+// New Sites Management Pages
+const SitesList = lazy(() => import('../pages/Sites/SitesList'));
+const SiteForm = lazy(() => import('../pages/Sites/SiteForm'));
+const SiteDetail = lazy(() => import('../pages/Sites/SiteDetail'));
 
 export default function RoutesIndex() {
   return (
@@ -40,9 +44,12 @@ export default function RoutesIndex() {
 
           {/* Device & Site routes (protected) */}
           <Route path="device" element={<Device />} />
-          <Route path="site" element={<SiteScreen />} />
-          <Route path="site/:siteId" element={<SiteDeviceScreen />} />
-          <Route path="site/:siteId/:deviceId" element={<Device />} />
+
+          {/* New Sites Management Routes */}
+          <Route path="sites" element={<SitesList />} />
+          <Route path="sites/new" element={<SiteForm />} />
+          <Route path="sites/:id" element={<SiteDetail />} />
+          <Route path="sites/:id/edit" element={<SiteForm />} />
 
           {/* If you want / (root after login) to go to /dashboard */}
           <Route index element={<Navigate to="dashboard" replace />} />
