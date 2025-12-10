@@ -37,7 +37,7 @@ export default function SiteDeleteDialog({ isOpen, onClose, onConfirm, siteName,
             variant="destructive"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="bg-red-600 hover:bg-red-700 text-white"
+            className="bg-transparent text-red-500 border border-red-500 hover:bg-red-500/10"
           >
             {isDeleting ? 'Deleting...' : 'Delete Site'}
           </Button>

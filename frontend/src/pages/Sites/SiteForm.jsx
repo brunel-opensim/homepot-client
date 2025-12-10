@@ -80,7 +80,7 @@ export default function SiteForm() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0e13] text-white py-6 px-4">
+    <div className="min-h-screen bg-background text-foreground py-6 px-4">
       <div className="container mx-auto max-w-2xl">
         <Button
           variant="ghost"
@@ -108,7 +108,7 @@ export default function SiteForm() {
           </div>
         )}
 
-        <Card className="p-6 bg-[#141a24] border-[#1f2735]">
+        <Card className="p-6 bg-card border-border">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <label htmlFor="name" className="text-sm font-medium leading-none text-gray-300">
@@ -119,7 +119,7 @@ export default function SiteForm() {
                 name="name"
                 type="text"
                 required
-                className="flex h-10 w-full rounded-md border border-[#1f2735] bg-[#0b0e13] px-3 py-2 text-sm text-white shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:border-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="e.g. Main Office, Warehouse A"
                 value={formData.name}
                 onChange={handleChange}
@@ -135,7 +135,7 @@ export default function SiteForm() {
                 name="site_id"
                 type="text"
                 required
-                className="flex h-10 w-full rounded-md border border-[#1f2735] bg-[#0b0e13] px-3 py-2 text-sm text-white shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:border-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="e.g. site-123"
                 value={formData.site_id}
                 onChange={handleChange}
@@ -151,7 +151,7 @@ export default function SiteForm() {
                 id="location"
                 name="location"
                 type="text"
-                className="flex h-10 w-full rounded-md border border-[#1f2735] bg-[#0b0e13] px-3 py-2 text-sm text-white shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:border-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="e.g. New York, NY"
                 value={formData.location}
                 onChange={handleChange}
@@ -168,7 +168,7 @@ export default function SiteForm() {
               <textarea
                 id="description"
                 name="description"
-                className="flex min-h-[80px] w-full rounded-md border border-[#1f2735] bg-[#0b0e13] px-3 py-2 text-sm text-white shadow-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:border-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Optional description of this site..."
                 value={formData.description}
                 onChange={handleChange}

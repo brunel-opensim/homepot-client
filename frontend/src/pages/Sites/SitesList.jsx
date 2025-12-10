@@ -145,7 +145,7 @@ export default function SitesList() {
         <div className="flex gap-3">
           <Button
             onClick={() => navigate('/sites/new')}
-            className="bg-primary text-textPrimary border border-borderPrimary hover:bg-primary/90"
+            className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Site
@@ -170,7 +170,7 @@ export default function SitesList() {
 
         {/* Location dropdown */}
         <select
-          className="bg-[#141a24] border border-[#1f2735] text-textPrimary w-full md:w-80 px-4 py-[10px] rounded-lg focus:outline-none focus:border-teal-500 transition-colors"
+          className="bg-[#141a24] border border-[#1f2735] text-white w-full md:w-80 px-4 py-[10px] rounded-lg focus:outline-none focus:border-teal-500 transition-colors"
           value={locationFilter}
           onChange={(e) => setLocationFilter(e.target.value)}
         >
@@ -184,7 +184,7 @@ export default function SitesList() {
         </select>
 
         {/* Status box placeholder */}
-        <div className="bg-[#141a24] border border-[#1f2735] text-textPrimary px-4 py-[10px] rounded-lg hidden md:block">
+        <div className="bg-[#141a24] border border-[#1f2735] text-white px-4 py-[10px] rounded-lg hidden md:block">
           <p className="text-sm">Status</p>
         </div>
       </div>
@@ -215,10 +215,10 @@ export default function SitesList() {
             </div>
 
             <div className="mb-6 cursor-pointer">
-              <h2 className="text-lg font-semibold text-text text-start truncate pr-16">
+              <h2 className="text-lg font-semibold text-white text-start truncate pr-16">
                 {site.name}
               </h2>
-              <p className="text-sm text-textPrimary mb-2 text-start truncate">
+              <p className="text-sm text-gray-400 mb-2 text-start truncate">
                 {site.location || 'No location'}
               </p>
             </div>
@@ -253,7 +253,7 @@ export default function SitesList() {
                 e.stopPropagation();
                 navigate(`/sites/${site.id}`);
               }}
-              className="mt-auto w-full border border-borderPrimary py-2 rounded-lg text-sm hover:bg-[#1f2735] text-textPrimary transition"
+              className="mt-auto w-full border border-[#1f2735] py-2 rounded-lg text-sm hover:bg-[#1f2735] text-gray-300 transition"
             >
               View Details
             </button>

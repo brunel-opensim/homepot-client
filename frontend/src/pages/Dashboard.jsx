@@ -119,7 +119,7 @@ export default function Dashboard() {
       {/* Main Content: Two columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Connected Sites */}
-        <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover">
+        <Card className="col-span-2 relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover">
           {/* Overlay for opacity */}
           <div className="absolute inset-0 bg-black/40 rounded-xl"></div>
 
@@ -134,7 +134,7 @@ export default function Dashboard() {
                 onClick={() => {
                   navigate('/sites');
                 }}
-                className="bg-primary text-secondary border border-secondary"
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
               >
                 View Sites
               </Button>
@@ -142,14 +142,14 @@ export default function Dashboard() {
                 onClick={() => {
                   navigate('/device');
                 }}
-                className="bg-primary text-secondary border border-secondary"
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
               >
                 View Devices
               </Button>
-              <Button className="bg-primary text-secondary border border-secondary">
+              <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
                 Send Notification
               </Button>
-              <Button className="bg-primary text-secondary border border-secondary">
+              <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
                 Run Troubleshoot
               </Button>
             </div>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Server, Activity, Loader2, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Server, Activity, Loader2, Edit, Trash2, Plus } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import SiteDeleteDialog from '@/components/Sites/SiteDeleteDialog';
+import DeviceAddDialog from '@/components/Devices/DeviceAddDialog';
 
 export default function SiteDetail() {
   const { id } = useParams();
@@ -13,7 +14,9 @@ export default function SiteDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addDeviceOpen, setAddDeviceOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isAddingDevice, setIsAddingDevice] = useState(false);
   const [devices, setDevices] = useState([]);
 
   useEffect(() => {
@@ -66,6 +69,25 @@ export default function SiteDetail() {
     }
   };
 
+  const handleAddDevice = async (deviceData) => {
+    try {
+      setIsAddingDevice(true);
+      await api.devices.create(id, deviceData);
+
+      // Refresh devices
+      const devicesData = await api.devices.getSiteId(id);
+      const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
+      setDevices(devicesList);
+
+      setAddDeviceOpen(false);
+    } catch (err) {
+      console.error('Failed to add device:', err);
+      throw new Error(api.apiHelpers?.formatError(err) || 'Failed to add device');
+    } finally {
+      setIsAddingDevice(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -85,7 +107,7 @@ export default function SiteDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0e13] text-white py-6 px-4">
+    <div className="min-h-screen bg-background text-foreground py-6 px-4">
       <div className="container mx-auto max-w-7xl">
         <Button
           variant="ghost"
@@ -106,6 +128,13 @@ export default function SiteDetail() {
           </div>
           <div className="flex gap-2">
             <Button
+              onClick={() => setAddDeviceOpen(true)}
+              className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Device
+            </Button>
+            <Button
               variant="outline"
               onClick={() => navigate(`/sites/${id}/edit`)}
               className="border-[#1f2735] bg-transparent text-gray-300 hover:bg-[#1f2735] hover:text-white"
@@ -116,7 +145,7 @@ export default function SiteDetail() {
             <Button
               variant="destructive"
               onClick={() => setDeleteDialogOpen(true)}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-transparent text-red-500 border border-red-500 hover:bg-red-500/10"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
@@ -125,7 +154,7 @@ export default function SiteDetail() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="p-6 bg-[#141a24] border-[#1f2735]">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-teal-500/10 rounded-full">
                 <Server className="h-6 w-6 text-teal-500" />
@@ -139,7 +168,7 @@ export default function SiteDetail() {
             </div>
           </Card>
 
-          <Card className="p-6 bg-[#141a24] border-[#1f2735]">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-green-500/10 rounded-full">
                 <Activity className="h-6 w-6 text-green-500" />
@@ -154,7 +183,7 @@ export default function SiteDetail() {
 
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-4 text-white">Description</h2>
-          <Card className="p-6 bg-[#141a24] border-[#1f2735]">
+          <Card className="p-6 bg-card border-border">
             <p className="text-gray-300">
               {site.description || 'No description provided for this site.'}
             </p>
@@ -164,11 +193,11 @@ export default function SiteDetail() {
         <div>
           <h2 className="text-xl font-semibold mb-4 text-white">Associated Devices</h2>
           {devices.length > 0 ? (
-            <div className="rounded-md border border-[#1f2735] bg-[#141a24]">
+            <div className="rounded-md border border-border bg-card">
               <div className="relative w-full overflow-auto">
                 <table className="w-full caption-bottom text-sm text-left">
-                  <thead className="[&_tr]:border-b border-[#1f2735]">
-                    <tr className="border-b border-[#1f2735] transition-colors hover:bg-[#1f2735]/50">
+                  <thead className="[&_tr]:border-b border-border">
+                    <tr className="border-b border-border transition-colors hover:bg-muted/50">
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Name</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Type</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Status</th>
@@ -181,7 +210,7 @@ export default function SiteDetail() {
                     {devices.map((device) => (
                       <tr
                         key={device.id}
-                        className="border-b border-[#1f2735] transition-colors hover:bg-[#1f2735]/50"
+                        className="border-b border-border transition-colors hover:bg-muted/50"
                       >
                         <td className="p-4 align-middle font-medium text-white">{device.name}</td>
                         <td className="p-4 align-middle text-gray-300">
@@ -208,7 +237,7 @@ export default function SiteDetail() {
               </div>
             </div>
           ) : (
-            <Card className="p-8 text-center text-gray-400 border-dashed border-[#1f2735] bg-[#141a24]">
+            <Card className="p-8 text-center text-gray-400 border-dashed border-border bg-card">
               <Server className="h-8 w-8 mx-auto mb-3 opacity-50" />
               <p>No devices found for this site.</p>
             </Card>
@@ -221,6 +250,13 @@ export default function SiteDetail() {
           onConfirm={handleDelete}
           siteName={site.name}
           isDeleting={isDeleting}
+        />
+
+        <DeviceAddDialog
+          isOpen={addDeviceOpen}
+          onClose={() => setAddDeviceOpen(false)}
+          onAdd={handleAddDevice}
+          isAdding={isAddingDevice}
         />
       </div>
     </div>

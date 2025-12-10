@@ -207,7 +207,7 @@ const api = {
      * Create device
      */
     create: async (siteId, deviceData) => {
-      const response = await apiClient.post(`/sites/${siteId}/devices`, deviceData);
+      const response = await apiClient.post(`/devices/sites/${siteId}/devices`, deviceData);
       return response.data;
     },
 
