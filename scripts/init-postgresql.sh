@@ -111,11 +111,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / "backend" / "src"))
 
 from homepot.database import DatabaseService
-from homepot.models import DeviceType
+from homepot.models import DeviceType, Device, Job, JobStatus, JobPriority, HealthCheck, AuditLog
 from homepot.app.models.UserModel import User, Base as AppBase
 from homepot.app.models import AnalyticsModel  # Import module to register models
 from passlib.context import CryptContext
 from datetime import datetime
+from sqlalchemy import select
 
 async def init_database():
     """Initialize PostgreSQL database with schema and seed data."""
@@ -203,6 +204,7 @@ async def init_database():
             print(f"✓ Created device: {device.name} at {site2.name}")
         
         # Create demo devices for site 3
+        devices = []
         for i in range(9, 13):
             device = await db_service.create_device(
                 device_id=f"pos-terminal-{i:03d}",
@@ -212,7 +214,59 @@ async def init_database():
                 ip_address=f"192.168.3.{i-8}",
                 config={"gateway_url": "https://payments.example.com"}
             )
+            devices.append(device)
             print(f"✓ Created device: {device.name} at {site3.name}")
+        
+        # Get first device for sample data
+        async with db_service.get_session() as session:
+            result = await session.execute(select(Device).limit(1))
+            first_device = result.scalar_one()
+            
+            # Create sample job
+            sample_job = Job(
+                job_id="job-sample-001",
+                action="Update POS payment config",
+                description="Sample job for schema validation",
+                priority=JobPriority.NORMAL,
+                status=JobStatus.COMPLETED,
+                site_id=site1.id,
+                device_id=first_device.id,
+                payload={"config_version": "1.0.0"},
+                created_by=test_user.id,
+                completed_at=datetime.utcnow()
+            )
+            session.add(sample_job)
+            await session.commit()
+            await session.refresh(sample_job)
+            print("✓ Created sample job")
+            
+            # Create sample health check (provide id explicitly for composite PK)
+            sample_health = HealthCheck(
+                id=1,
+                device_id=first_device.id,
+                is_healthy=True,
+                response_time_ms=45,
+                status_code=200,
+                endpoint="/health",
+                timestamp=datetime.utcnow()
+            )
+            session.add(sample_health)
+            await session.commit()
+            print("✓ Created sample health check")
+            
+            # Create sample audit log
+            sample_audit = AuditLog(
+                event_type="job_created",
+                description=f"Job {sample_job.job_id} created for site {site1.site_id}",
+                user_id=test_user.id,
+                job_id=sample_job.id,
+                device_id=first_device.id,
+                site_id=site1.id,
+                event_metadata={"action": "Update POS payment config"}
+            )
+            session.add(sample_audit)
+            await session.commit()
+            print("✓ Created sample audit log")
         
         print("")
         print("✓ Database initialized successfully!")
@@ -222,6 +276,7 @@ async def init_database():
         print(f"Database: homepot_db")
         print(f"Sites created: 3")
         print(f"Devices created: 12")
+        print(f"Sample records: 1 job, 1 health check, 1 audit log")
         
     except Exception as e:
         print(f"Error creating seed data: {e}")
