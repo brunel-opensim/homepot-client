@@ -267,6 +267,75 @@ async def init_database():
             session.add(sample_audit)
             await session.commit()
             print("✓ Created sample audit log")
+            
+            # Create sample analytics records
+            from homepot.app.models.AnalyticsModel import (
+                APIRequestLog, UserActivity, DeviceStateHistory, 
+                JobOutcome, ErrorLog
+            )
+            
+            # Sample API request log
+            sample_api_log = APIRequestLog(
+                endpoint="/api/v1/sites/site-001/jobs",
+                method="POST",
+                status_code=200,
+                response_time_ms=125.5,
+                user_id=str(test_user.id),
+                ip_address="192.168.1.100",
+                user_agent="HOMEPOT-Client/1.0"
+            )
+            session.add(sample_api_log)
+            print("✓ Created sample API request log")
+            
+            # Sample user activity
+            sample_activity = UserActivity(
+                user_id=str(test_user.id),
+                activity_type="page_view",
+                page_url="/dashboard/sites/site-001",
+                duration_ms=3500,
+                extra_data={"action": "viewed_job_list"}
+            )
+            session.add(sample_activity)
+            print("✓ Created sample user activity")
+            
+            # Sample device state history
+            sample_state = DeviceStateHistory(
+                device_id=first_device.device_id,
+                previous_state="offline",
+                new_state="online",
+                changed_by="system",
+                reason="Device came online after reboot"
+            )
+            session.add(sample_state)
+            print("✓ Created sample device state history")
+            
+            # Sample job outcome
+            sample_outcome = JobOutcome(
+                job_id=sample_job.job_id,
+                job_type="config_update",
+                device_id=first_device.device_id,
+                status="success",
+                duration_ms=2340,
+                initiated_by=str(test_user.id),
+                extra_data={"config_applied": True, "restart_required": False}
+            )
+            session.add(sample_outcome)
+            print("✓ Created sample job outcome")
+            
+            # Sample error log
+            sample_error = ErrorLog(
+                category="validation",
+                severity="warning",
+                error_code="VAL001",
+                error_message="Invalid configuration parameter detected",
+                stack_trace="Traceback (most recent call last):\n  File example.py line 42",
+                endpoint="/api/v1/config/validate",
+                user_id=str(test_user.id),
+                context={"param": "invalid_value", "expected": "integer"}
+            )
+            session.add(sample_error)
+            await session.commit()
+            print("✓ Created sample error log")
         
         print("")
         print("✓ Database initialized successfully!")
@@ -276,7 +345,7 @@ async def init_database():
         print(f"Database: homepot_db")
         print(f"Sites created: 3")
         print(f"Devices created: 12")
-        print(f"Sample records: 1 job, 1 health check, 1 audit log")
+        print(f"Sample records created in all 11 tables")
         
     except Exception as e:
         print(f"Error creating seed data: {e}")
