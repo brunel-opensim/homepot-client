@@ -153,7 +153,7 @@ async def init_database():
                 device_id=f"pos-terminal-{i:03d}",
                 name=f"POS Terminal {i}",
                 device_type=DeviceType.POS_TERMINAL,
-                site_id=site1.id,
+                site_id=site1.site_id,
                 ip_address=f"192.168.1.{10+i}",
                 config={"gateway_url": "https://payments.example.com"}
             )
@@ -165,7 +165,7 @@ async def init_database():
                 device_id=f"pos-terminal-{i:03d}",
                 name=f"POS Terminal {i}",
                 device_type=DeviceType.POS_TERMINAL,
-                site_id=site2.id,
+                site_id=site2.site_id,
                 ip_address=f"192.168.2.{i}",
                 config={"gateway_url": "https://payments.example.com"}
             )
@@ -177,7 +177,7 @@ async def init_database():
                 device_id=f"pos-terminal-{i:03d}",
                 name=f"POS Terminal {i}",
                 device_type=DeviceType.POS_TERMINAL,
-                site_id=site3.id,
+                site_id=site3.site_id,
                 ip_address=f"192.168.3.{i-8}",
                 config={"gateway_url": "https://payments.example.com"}
             )
