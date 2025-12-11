@@ -1,5 +1,28 @@
 # TimescaleDB Integration
 
+## Quick Start
+
+**For Ubuntu 24.04 with PostgreSQL 16:**
+```bash
+# 1. Add repository and install
+sudo sh -c "echo 'deb [signed-by=/usr/share/keyrings/timescaledb.keyring] https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main' > /etc/apt/sources.list.d/timescaledb.list"
+wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/timescaledb.keyring > /dev/null
+sudo apt update
+sudo apt install timescaledb-2-postgresql-16
+
+# 2. Configure and restart
+sudo timescaledb-tune --quiet --yes
+sudo systemctl restart postgresql
+
+# 3. Enable in database (or use init-postgresql.sh)
+sudo -u postgres psql -d homepot_db -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"
+```
+
+**Then run the database initialization script - it will automatically use TimescaleDB:**
+```bash
+bash scripts/init-postgresql.sh
+```
+
 ## Overview
 
 TimescaleDB is a powerful PostgreSQL extension that transforms PostgreSQL into a high-performance time-series database. HOMEPOT Client uses TimescaleDB to optimize storage and querying of device health metrics, providing **10-50x faster query performance** for time-series data analysis.
@@ -99,27 +122,40 @@ Aggregates metrics across all devices per site:
 
 ### Prerequisites
 
-- PostgreSQL 12 or later
+- PostgreSQL 16 (as used in HOMEPOT Client)
 - HOMEPOT Client configured for PostgreSQL (not SQLite)
 
 ### Option 1: Package Manager (Recommended)
 
-#### Ubuntu/Debian
+#### Ubuntu/Debian (Ubuntu 24.04 / PostgreSQL 16)
 
 ```bash
 # Add TimescaleDB repository
-sudo sh -c "echo 'deb https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main' > /etc/apt/sources.list.d/timescaledb.list"
-wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | sudo apt-key add -
+sudo sh -c "echo 'deb [signed-by=/usr/share/keyrings/timescaledb.keyring] https://packagecloud.io/timescale/timescaledb/ubuntu/ $(lsb_release -c -s) main' > /etc/apt/sources.list.d/timescaledb.list"
 
-# Install TimescaleDB
+# Add GPG key
+wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey | \
+  gpg --dearmor | \
+  sudo tee /usr/share/keyrings/timescaledb.keyring > /dev/null
+
+# Update and install TimescaleDB for PostgreSQL 16
 sudo apt update
-sudo apt install timescaledb-2-postgresql-14
+sudo apt install timescaledb-2-postgresql-16
 
 # Configure PostgreSQL
 sudo timescaledb-tune --quiet --yes
 
 # Restart PostgreSQL
 sudo systemctl restart postgresql
+
+# Verify installation
+psql --version
+dpkg -l | grep timescale
+```
+
+**For PostgreSQL 14 (older systems):**
+```bash
+sudo apt install timescaledb-2-postgresql-14
 ```
 
 #### macOS (Homebrew)
@@ -176,12 +212,38 @@ docker run -d \
 ### Verify Installation
 
 ```bash
+# Check if TimescaleDB package is installed
+dpkg -l | grep timescale
+
 # Connect to PostgreSQL
 psql -U homepot_user -d homepot_db
 
-# Check TimescaleDB version
+# Check if extension is available
 SELECT * FROM pg_available_extensions WHERE name = 'timescaledb';
+
+# Check if extension is enabled in your database
+SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';
 ```
+
+### Enable TimescaleDB Extension
+
+After installing the TimescaleDB package, you need to enable it in your database:
+
+```bash
+# Connect to your database
+sudo -u postgres psql -d homepot_db
+
+# Enable the extension
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
+# Verify it's enabled
+\dx timescaledb
+
+# Exit
+\q
+```
+
+**Note:** The `init-postgresql.sh` script automatically enables TimescaleDB if the package is installed, so you typically don't need to do this manually when using the initialization script.
 
 ## Setup in HOMEPOT
 

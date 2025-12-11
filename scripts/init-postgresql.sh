@@ -92,6 +92,11 @@ echo -e "${GREEN}✓ Privileges granted${NC}"
 export PGPASSWORD="$DB_PASSWORD"
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "GRANT ALL ON SCHEMA public TO $DB_USER;" 2>/dev/null || true
 
+# Enable TimescaleDB extension if available
+sudo -u postgres psql -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;" 2>/dev/null && \
+    echo -e "${GREEN}✓ TimescaleDB extension enabled${NC}" || \
+    echo -e "${YELLOW}! TimescaleDB not available (using standard PostgreSQL)${NC}"
+
 echo ""
 echo "Initializing database schema and seed data..."
 
