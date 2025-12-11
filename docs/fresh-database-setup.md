@@ -152,7 +152,7 @@ uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
 ### Run Validation Tests
 ```bash
 cd /home/mghorbani/workspace/homepot-client
-bash scripts/run_validation_test.sh
+bash scripts/run-validation-test.sh
 ```
 
 ### Verify Data
@@ -213,7 +213,7 @@ created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezo
    - Include code examples from this document
 
 3. **Validation:**
-   - Run `bash scripts/run_validation_test.sh`
+   - Run `bash scripts/run-validation-test.sh`
    - Verify all tests pass with fresh database
    - Report any failures
 
@@ -267,7 +267,7 @@ created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezo
 
 **Scripts:**
 - Database Init: `scripts/init-postgresql.sh`
-- Validation: `scripts/run_validation_test.sh`
+- Validation: `scripts/run-validation-test.sh`
 
 ## Summary
 

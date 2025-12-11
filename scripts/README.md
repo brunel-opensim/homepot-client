@@ -138,7 +138,7 @@ If you're working on the frontend UI/UX:
 
 ## Analytics Validation
 
-### `run_validation_test.sh`
+### `run-validation-test.sh`
 
 Comprehensive validation of the analytics infrastructure. Automatically starts the backend, runs validation tests, and reports results.
 
@@ -173,7 +173,7 @@ Comprehensive validation of the analytics infrastructure. Automatically starts t
 
 **Python Utility:**
 The actual validation logic is in `backend/utils/validate_analytics.py` (Python utility).
-The bash script `run_validation_test.sh` handles starting/stopping the backend and calling the Python script.
+The bash script `run-validation-test.sh` handles starting/stopping the backend and calling the Python script.
 
 **Manual usage** (if backend is already running):
 ```bash
