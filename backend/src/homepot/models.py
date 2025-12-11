@@ -203,11 +203,12 @@ class HealthCheck(Base):
     """Health check model for device monitoring.
     
     Note: Uses composite primary key (id, timestamp) for TimescaleDB hypertable support.
+    SQLite compatibility: autoincrement removed as it's not supported for composite primary keys.
     """
 
     __tablename__ = "health_checks"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
 
     # Health status
