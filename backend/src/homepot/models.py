@@ -201,9 +201,10 @@ class Job(Base):
 
 class HealthCheck(Base):
     """Health check model for device monitoring.
-    
-    Note: Uses composite primary key (id, timestamp) for TimescaleDB hypertable support.
-    SQLite compatibility: autoincrement removed as it's not supported for composite primary keys.
+
+    Note: Uses composite primary key (id, timestamp) for TimescaleDB
+    hypertable support. SQLite compatibility: autoincrement removed as
+    it's not supported for composite primary keys.
     """
 
     __tablename__ = "health_checks"
@@ -222,7 +223,12 @@ class HealthCheck(Base):
     error_message = Column(Text, nullable=True)
 
     # Timing - primary key component for TimescaleDB partitioning
-    timestamp = Column(DateTime(timezone=True), primary_key=True, default=utc_now, nullable=False)
+    timestamp = Column(
+        DateTime(timezone=True),
+        primary_key=True,
+        default=utc_now,
+        nullable=False,
+    )
 
     # Relationships
     device = relationship("Device", back_populates="health_checks")
