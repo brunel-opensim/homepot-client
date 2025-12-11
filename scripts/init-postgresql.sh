@@ -107,6 +107,10 @@ sys.path.insert(0, str(Path.cwd() / "backend" / "src"))
 
 from homepot.database import DatabaseService
 from homepot.models import DeviceType
+from homepot.app.models.UserModel import User, Base as AppBase
+from homepot.app.models import AnalyticsModel  # Import module to register models
+from passlib.context import CryptContext
+from datetime import datetime
 
 async def init_database():
     """Initialize PostgreSQL database with schema and seed data."""
@@ -119,7 +123,29 @@ async def init_database():
     print("✓ Creating database schema...")
     await db_service.initialize()
     
+    # Create analytics tables (uses same Base as User models)
+    print("✓ Creating analytics tables...")
+    async with db_service.engine.begin() as conn:
+        await conn.run_sync(AppBase.metadata.create_all)
+    
     print("✓ Database schema created")
+    
+    # Create test user for analytics validation
+    print("✓ Creating test user...")
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    async with db_service.get_session() as session:
+        test_user = User(
+            email="analytics-test@example.com",
+            username="analyticstest",
+            hashed_password=pwd_context.hash("testpass123"),
+            is_admin=False,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        session.add(test_user)
+        await session.commit()
+    
+    print("✓ Test user created")
     
     # Create demo sites
     try:
