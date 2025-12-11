@@ -203,7 +203,7 @@ sudo systemctl restart postgresql
 # Use TimescaleDB Docker image instead of standard PostgreSQL
 docker run -d \
   --name homepot-postgres \
-  -e POSTGRES_PASSWORD=your_password \
+  -e POSTGRES_PASSWORD=homepot_dev_password \
   -e POSTGRES_DB=homepot \
   -p 5432:5432 \
   timescale/timescaledb:latest-pg14
