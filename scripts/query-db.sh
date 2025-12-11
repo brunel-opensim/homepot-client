@@ -18,6 +18,9 @@ if [ $# -eq 0 ]; then
     echo "  api_request_logs    - Show recent API requests"
     echo "  user_activities     - Show recent user activities"
     echo "  device_state_history - Show device state changes"
+    echo "  device_metrics      - Show device performance metrics"
+    echo "  configuration_history - Show configuration changes"
+    echo "  site_operating_schedules - Show site schedules"
     echo "  job_outcomes        - Show job execution outcomes"
     echo "  error_logs          - Show recent errors"
     echo "  count               - Count rows in all tables"
@@ -119,16 +122,45 @@ ORDER BY timestamp DESC
 LIMIT 10;
 EOF
         ;;
+    device_metrics)
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+SELECT id, device_id, cpu_percent, memory_percent, disk_percent, 
+       transaction_count, error_rate, timestamp 
+FROM device_metrics 
+ORDER BY timestamp DESC 
+LIMIT 10;
+EOF
+        ;;
+    configuration_history)
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+SELECT id, entity_type, entity_id, parameter_name, 
+       old_value, new_value, was_successful, timestamp 
+FROM configuration_history 
+ORDER BY timestamp DESC 
+LIMIT 10;
+EOF
+        ;;
+    site_operating_schedules)
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+SELECT id, site_id, day_of_week, open_time, close_time, 
+       is_maintenance_window, expected_transaction_volume 
+FROM site_operating_schedules 
+ORDER BY site_id, day_of_week;
+EOF
+        ;;
     count)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
 SELECT 'api_request_logs' as table_name, COUNT(*) as rows FROM api_request_logs
 UNION ALL SELECT 'audit_logs', COUNT(*) FROM audit_logs
+UNION ALL SELECT 'configuration_history', COUNT(*) FROM configuration_history
+UNION ALL SELECT 'device_metrics', COUNT(*) FROM device_metrics
 UNION ALL SELECT 'device_state_history', COUNT(*) FROM device_state_history
 UNION ALL SELECT 'devices', COUNT(*) FROM devices
 UNION ALL SELECT 'error_logs', COUNT(*) FROM error_logs
 UNION ALL SELECT 'health_checks', COUNT(*) FROM health_checks
 UNION ALL SELECT 'job_outcomes', COUNT(*) FROM job_outcomes
 UNION ALL SELECT 'jobs', COUNT(*) FROM jobs
+UNION ALL SELECT 'site_operating_schedules', COUNT(*) FROM site_operating_schedules
 UNION ALL SELECT 'sites', COUNT(*) FROM sites
 UNION ALL SELECT 'user_activities', COUNT(*) FROM user_activities
 UNION ALL SELECT 'users', COUNT(*) FROM users

@@ -271,7 +271,8 @@ async def init_database():
             # Create sample analytics records
             from homepot.app.models.AnalyticsModel import (
                 APIRequestLog, UserActivity, DeviceStateHistory, 
-                JobOutcome, ErrorLog
+                JobOutcome, ErrorLog, DeviceMetrics, ConfigurationHistory,
+                SiteOperatingSchedule
             )
             
             # Sample API request log
@@ -336,6 +337,78 @@ async def init_database():
             session.add(sample_error)
             await session.commit()
             print("✓ Created sample error log")
+            
+            # Sample device metrics (AI training data)
+            sample_metrics = DeviceMetrics(
+                device_id=first_device.device_id,
+                cpu_percent=45.2,
+                memory_percent=62.8,
+                disk_percent=38.5,
+                network_latency_ms=12.3,
+                transaction_count=156,
+                transaction_volume=2847.50,
+                error_rate=0.64,
+                active_connections=8,
+                queue_depth=2,
+                extra_metrics={"temperature_celsius": 42, "uptime_hours": 168}
+            )
+            session.add(sample_metrics)
+            print("✓ Created sample device metrics")
+            
+            # Sample configuration history (AI learning)
+            from datetime import timedelta
+            sample_config = ConfigurationHistory(
+                entity_type="device",
+                entity_id=first_device.device_id,
+                parameter_name="max_connections",
+                old_value={"value": 10},
+                new_value={"value": 15},
+                changed_by=str(test_user.id),
+                change_reason="Increased load during peak hours",
+                change_type="manual",
+                performance_before={"avg_response_time": 145, "error_rate": 1.2},
+                performance_after={"avg_response_time": 98, "error_rate": 0.3},
+                was_successful=True,
+                was_rolled_back=False,
+                timestamp=datetime.utcnow() - timedelta(hours=2)
+            )
+            session.add(sample_config)
+            print("✓ Created sample configuration history")
+            
+            # Sample site operating schedule (for intelligent job scheduling)
+            from datetime import time as dt_time
+            # Monday schedule
+            sample_schedule_mon = SiteOperatingSchedule(
+                site_id=site1.site_id,
+                day_of_week=0,  # Monday
+                open_time=dt_time(8, 0),
+                close_time=dt_time(22, 0),
+                is_closed=False,
+                is_maintenance_window=False,
+                expected_transaction_volume=500,
+                peak_hours_start=dt_time(12, 0),
+                peak_hours_end=dt_time(14, 0),
+                notes="Regular business day"
+            )
+            session.add(sample_schedule_mon)
+            
+            # Sunday schedule (maintenance window)
+            sample_schedule_sun = SiteOperatingSchedule(
+                site_id=site1.site_id,
+                day_of_week=6,  # Sunday
+                open_time=dt_time(10, 0),
+                close_time=dt_time(18, 0),
+                is_closed=False,
+                is_maintenance_window=True,
+                expected_transaction_volume=200,
+                peak_hours_start=dt_time(13, 0),
+                peak_hours_end=dt_time(15, 0),
+                notes="Preferred maintenance window: 6am-9am",
+                special_considerations={"can_interrupt_service": True, "backup_required": True}
+            )
+            session.add(sample_schedule_sun)
+            await session.commit()
+            print("✓ Created sample site operating schedules")
         
         print("")
         print("✓ Database initialized successfully!")
@@ -345,7 +418,7 @@ async def init_database():
         print(f"Database: homepot_db")
         print(f"Sites created: 3")
         print(f"Devices created: 12")
-        print(f"Sample records created in all 11 tables")
+        print(f"Sample records created in all 14 tables")
         
     except Exception as e:
         print(f"Error creating seed data: {e}")
