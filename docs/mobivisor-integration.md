@@ -290,7 +290,132 @@ Fetch details for a specific group managed by Mobivisor.
 curl -X GET "http://localhost:8000/api/v1/mobivisor/groups/g1"
 ```
 
+### 7. Device Commands
+
+Fetch device command records (audit/commands) from Mobivisor with pagination
+and search support. This proxies the Mobivisor endpoint
+`GET /devicescommands` and accepts the common query parameters.
+
+**Endpoint**: `GET /api/v1/mobivisor/devices/commands`
+
+**Query Parameters**:
+- `order` (string, optional): sort field (example: `timeCreated`)
+- `page` (int, optional): page number (default 0)
+- `per_page` (int, optional): items per page (default 20)
+- `reverse` (bool|string, optional): `true`/`false` (default `true`)
+- `search` (string, optional): JSON encoded search/filter object (default `{}`)
+
+**Response** (200 OK):
+```json
+{
+  "commands": [
+    {"id": "c1", "command": "refresh", "timeCreated": "2025-12-01T12:00:00Z"}
+  ],
+  "page": 0,
+  "per_page": 20
+}
+```
+
+**Example**:
+```bash
+curl -G "http://localhost:8000/api/v1/mobivisor/devices/commands" \
+  --data-urlencode "order=timeCreated" \
+  --data-urlencode "page=0" \
+  --data-urlencode "per_page=20" \
+  --data-urlencode "reverse=true" \
+  --data-urlencode "search={}" 
+```
+
 **Notes & Errors**:
+- `500 Configuration Error`: Missing `MOBIVISOR_API_URL` or other config issues.
+- `401/403 Unauthorized`: Authentication/authorization issue.
+- `502 Bad Gateway`: Upstream Mobivisor errors.
+- `504 Gateway Timeout`: Upstream did not respond in time.
+
+**Notes & Errors**:
+- `404 Not Found`: Group does not exist on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+
+#### 4. Add Applications To Group
+
+Add one or more applications to a specific group in Mobivisor.
+
+**Endpoint**: `PUT /api/v1/mobivisor/groups/{group_id}/applications`
+
+**Path Parameters**:
+- `group_id` (path, required): The unique identifier of the group
+
+**Request Body** (JSON):
+```json
+{
+  "appIds": [
+    "6895b52aefdcda141d3a8da5",
+    "689c7d4e40257462671afcfc"
+  ],
+  "appConfigs": []
+}
+```
+
+**Validation**:
+- `appIds` is required and must be a non-empty array of application IDs.
+- `appConfigs` is optional and should be an array of configuration objects.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/groups/g1/applications" \
+  -H "Content-Type: application/json" \
+  -d '{"appIds":["6895b52aefdcda141d3a8da5"], "appConfigs": []}'
+```
+
+**Notes & Errors**:
+- `422 Validation Error`: Missing or invalid `appIds`.
+- `404 Not Found`: Group does not exist on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+#### 5. Add Users To Group
+
+Add one or more existing users to a specific group in Mobivisor.
+
+**Endpoint**: `PUT /api/v1/mobivisor/groups/{group_id}/users`
+
+**Path Parameters**:
+- `group_id` (path, required): The unique identifier of the group
+
+**Request Body** (JSON):
+```json
+{
+  "users": [
+    "6807a5836415f4ed1ee081ea",
+    "680a4cb660e6a191fc7e1d15"
+  ]
+}
+```
+
+**Validation**:
+- `users` is required and must be a non-empty array of user IDs.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/groups/g1/users" \
+  -H "Content-Type: application/json" \
+  -d '{"users":["6807a5836415f4ed1ee081ea","680a4cb660e6a191fc7e1d15"]}'
+```
+
+**Notes & Errors**:
+- `422 Validation Error`: Missing or invalid `users`.
 - `404 Not Found`: Group does not exist on Mobivisor.
 - `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.

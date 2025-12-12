@@ -66,3 +66,29 @@ class UpdateUserPayload(BaseModel):
 
     user: MobivisorUserUpdateModel
     groupInfoOfTheUser: Optional[List[Dict[str, Any]]] = None
+
+
+class CreateGroupPayload(BaseModel):
+    """Payload for creating a Mobivisor group.
+
+    Fields:
+    - name: required name of the group
+    - description: optional description
+    - metadata: optional arbitrary key/value metadata
+    """
+
+    name: str
+    description: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class UpdateGroupPayload(BaseModel):
+    """Payload for updating a Mobivisor group.
+
+    All fields are optional to allow partial updates. Use
+    `model_dump(exclude_none=True)` before forwarding to the upstream API.
+    """
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
