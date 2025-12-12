@@ -1,9 +1,40 @@
-:root {
-  --color-primary: #70868640; /* Teal with transparency */
-  --color-secondary: #33e2d6; /* Teal-400 */
-  --color-accent: #116f6f; /* Amber-500 */
-  --color-background: #111827; /* Gray-900 */
-  --color-borderPrimary: #0b3b3f;
-  --color-text: #f9fafb; /* Gray-50 */
-  --color-textPrimary: #99f6e4; /* Teal-200 */
+@layer base {
+  :root {
+    /* Dark Theme (Default) */
+    --background: 220 30% 6%;
+    /* #0b0e13 */
+    --foreground: 0 0% 100%;
+    /* white */
+
+    --card: 220 30% 11%;
+    /* #141a24 */
+    --card-foreground: 0 0% 100%;
+
+    --popover: 220 30% 11%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 175 84% 32%;
+    /* Teal 600 - keeping this for now as it was requested */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 26% 16%;
+    /* #1f2735 */
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 26% 16%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 220 26% 16%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 26% 16%;
+    /* #1f2735 */
+    --input: 220 26% 16%;
+    --ring: 175 84% 32%;
+
+    --radius: 0.5rem;
+  }
 }
