@@ -120,7 +120,7 @@ async def create_pos_config_job(
         )
 
 
-@router.get("/jobs/{job_id}", tags=["Jobs"], response_model=JobStatusResponse)
+@router.get("/{job_id}", tags=["Jobs"], response_model=JobStatusResponse)
 async def get_job_status(job_id: str) -> JobStatusResponse:
     """Get job status and details (real-time tracking)."""
     try:

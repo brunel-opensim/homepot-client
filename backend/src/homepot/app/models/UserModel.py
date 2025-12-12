@@ -13,7 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import DeclarativeBase
 
 
 # Create declarative base for SQLAlchemy models using modern approach
@@ -39,4 +39,5 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    jobs = relationship("Job", back_populates="created_by_user")
+    # TODO: Fix relationship - Job is in homepot.models with different Base class
+    # jobs = relationship("Job", back_populates="created_by_user")

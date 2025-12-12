@@ -61,7 +61,7 @@ def get_client() -> HomepotClient:
     return client_instance
 
 
-@router.post("/sites", tags=["Sites"], response_model=Dict[str, str])
+@router.post("/", tags=["Sites"], response_model=Dict[str, str])
 async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
     """Create a new site for device management."""
     try:
@@ -112,7 +112,7 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
         )
 
 
-@router.get("/sites", tags=["Sites"])
+@router.get("/", tags=["Sites"])
 async def list_sites() -> Dict[str, List[Dict]]:
     """List all sites."""
     try:
@@ -154,7 +154,7 @@ async def list_sites() -> Dict[str, List[Dict]]:
         )
 
 
-@router.get("/sites/{site_id}", tags=["Sites"])
+@router.get("/{site_id}", tags=["Sites"])
 async def get_site(site_id: str) -> Dict[str, Any]:
     """Get a specific site by site_id."""
     try:

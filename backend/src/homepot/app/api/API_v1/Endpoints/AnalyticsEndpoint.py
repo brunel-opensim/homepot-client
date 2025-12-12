@@ -47,7 +47,7 @@ async def log_user_activity(
             page_url=activity.get("page_url"),
             element_id=activity.get("element_id"),
             search_query=activity.get("search_query"),
-            metadata=activity.get("metadata"),
+            extra_data=activity.get("extra_data") or activity.get("metadata"),
             duration_ms=activity.get("duration_ms"),
             timestamp=datetime.now(timezone.utc),
         )
@@ -191,6 +191,93 @@ async def log_job_outcome(
 
 
 # ==================== Analytics Query Endpoints ====================
+
+
+@router.get("/analytics/user-activities")
+async def get_user_activities(
+    limit: int = Query(100, ge=1, le=1000),
+    user_id: Optional[str] = None,
+    activity_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Query user activities."""
+    try:
+        query = db.query(models.UserActivity).order_by(
+            models.UserActivity.timestamp.desc()
+        )
+
+        if user_id:
+            query = query.filter(models.UserActivity.user_id == user_id)
+        if activity_type:
+            query = query.filter(models.UserActivity.activity_type == activity_type)
+
+        activities = query.limit(limit).all()
+
+        return {
+            "success": True,
+            "count": len(activities),
+            "activities": [
+                {
+                    "id": a.id,
+                    "timestamp": a.timestamp.isoformat(),
+                    "user_id": a.user_id,
+                    "activity_type": a.activity_type,
+                    "page_url": a.page_url,
+                    "element_id": a.element_id,
+                    "search_query": a.search_query,
+                    "duration_ms": a.duration_ms,
+                }
+                for a in activities
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error querying user activities: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to query activities")
+
+
+@router.get("/analytics/api-requests")
+async def get_api_requests(
+    limit: int = Query(100, ge=1, le=1000),
+    endpoint: Optional[str] = None,
+    min_response_time: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Query API request logs."""
+    try:
+        query = db.query(models.APIRequestLog).order_by(
+            models.APIRequestLog.timestamp.desc()
+        )
+
+        if endpoint:
+            query = query.filter(models.APIRequestLog.endpoint == endpoint)
+        if min_response_time:
+            query = query.filter(
+                models.APIRequestLog.response_time_ms >= min_response_time
+            )
+
+        requests_data = query.limit(limit).all()
+
+        return {
+            "success": True,
+            "count": len(requests_data),
+            "requests": [
+                {
+                    "id": r.id,
+                    "timestamp": r.timestamp.isoformat(),
+                    "method": r.method,
+                    "endpoint": r.endpoint,
+                    "status_code": r.status_code,
+                    "response_time_ms": r.response_time_ms,
+                    "user_id": r.user_id,
+                }
+                for r in requests_data
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error querying API requests: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to query requests")
 
 
 @router.get("/metrics/api-performance")

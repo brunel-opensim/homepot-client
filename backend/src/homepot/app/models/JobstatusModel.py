@@ -16,14 +16,9 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import relationship
 
-
-# Create declarative base for SQLAlchemy models using modern approach
-class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy models."""
-
-    pass
+from .UserModel import Base
 
 
 class JobStatus(str, Enum):
