@@ -9,8 +9,6 @@ export default function Device() {
   const { id } = useParams();
 
   const [device, setDevice] = useState(null);
-  const [setLoading] = useState(true);
-  const [setError] = useState(null);
 
   const [commandInput, setCommandInput] = useState('');
 
@@ -70,15 +68,12 @@ export default function Device() {
         console.log('deviceData:', deviceData);
 
         if (!deviceData) {
-          setError('Device not found.');
+          console.error('Device not found.');
         } else {
           setDevice(deviceData); // just use the object
         }
       } catch (err) {
         console.error('Failed to fetch device:', err);
-        setError('Failed to load device details.');
-      } finally {
-        setLoading(false);
       }
     };
 

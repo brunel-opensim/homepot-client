@@ -118,11 +118,8 @@ export default function SiteDetail() {
     } catch (err) {
       console.error('Failed to create job:', err);
       const message = err.response?.data?.detail || err.message || 'Failed to create job';
-      toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive',
-      });
+      // TODO: Add toast notification
+      alert(`Error: ${message}`);
     }
   };
 

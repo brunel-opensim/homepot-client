@@ -5,10 +5,8 @@ import { getUserActivities } from '@/utils/analytics';
 import { Button } from '@/components/ui/button';
 
 export default function UserActivityDashboard() {
-  const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState([]);
   const [mostVisited, setMostVisited] = useState([]);
-  const [topSearches, setTopSearches] = useState([]);
 
   console.log('mostVisited', mostVisited);
   const firstLoad = React.useRef(false);
@@ -46,8 +44,6 @@ export default function UserActivityDashboard() {
         );
       } catch (err) {
         console.error('Failed to load analytics:', err);
-      } finally {
-        setLoading(false);
       }
     };
 
