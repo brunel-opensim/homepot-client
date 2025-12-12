@@ -2585,7 +2585,7 @@ class TestMobivisorGroupsEndpoints:
         mock_async_client.return_value.__aenter__.return_value = mock_client_instance
 
         payload = {"appIds": ["6895b52aefdcda141d3a8da5"], "appConfigs": []}
-        response = client.post("/api/v1/mobivisor/groups/g1/applications", json=payload)
+        response = client.put("/api/v1/mobivisor/groups/g1/applications", json=payload)
 
         assert response.status_code == 502
         assert "Bad Gateway" in response.json()["detail"]["error"]
