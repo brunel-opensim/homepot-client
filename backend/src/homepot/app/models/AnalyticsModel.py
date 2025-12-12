@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Time,
 )
 
 from .UserModel import Base
@@ -133,3 +134,98 @@ class UserActivity(Base):
         Index("idx_user_timestamp", "user_id", "timestamp"),
         Index("idx_activity_type", "activity_type"),
     )
+
+
+class DeviceMetrics(Base):
+    """Track detailed device performance metrics over time for AI analysis."""
+
+    __tablename__ = "device_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    device_id = Column(String(255), nullable=False, index=True)
+
+    # Performance metrics
+    cpu_percent = Column(Float, nullable=True)
+    memory_percent = Column(Float, nullable=True)
+    disk_percent = Column(Float, nullable=True)
+    network_latency_ms = Column(Float, nullable=True)
+
+    # Business metrics
+    transaction_count = Column(Integer, nullable=True)
+    transaction_volume = Column(Float, nullable=True)  # Dollar amount
+    error_rate = Column(Float, nullable=True)  # Percentage
+
+    # Additional context
+    active_connections = Column(Integer, nullable=True)
+    queue_depth = Column(Integer, nullable=True)
+    extra_metrics = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_device_metrics_device_timestamp", "device_id", "timestamp"),
+        Index("idx_device_metrics_timestamp", "timestamp"),
+    )
+
+
+class ConfigurationHistory(Base):
+    """Track configuration changes and their impact for AI learning."""
+
+    __tablename__ = "configuration_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+
+    # What was changed
+    entity_type = Column(
+        String(50), nullable=False, index=True
+    )  # 'device', 'site', 'system'
+    entity_id = Column(String(255), nullable=False, index=True)
+    parameter_name = Column(String(255), nullable=False)
+    old_value = Column(JSON, nullable=True)
+    new_value = Column(JSON, nullable=False)
+
+    # Change context
+    changed_by = Column(String(255), nullable=False)
+    change_reason = Column(Text, nullable=True)
+    change_type = Column(
+        String(50), nullable=True
+    )  # 'manual', 'automated', 'ai_recommended'
+
+    # Impact tracking for AI
+    performance_before = Column(JSON, nullable=True)  # Metrics before
+    performance_after = Column(JSON, nullable=True)  # Metrics after
+    was_successful = Column(Boolean, nullable=True)
+    was_rolled_back = Column(Boolean, default=False)
+    rollback_reason = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_entity_timestamp", "entity_type", "entity_id", "timestamp"),
+        Index("idx_change_type", "change_type"),
+    )
+
+
+class SiteOperatingSchedule(Base):
+    """Define site operating hours for intelligent job scheduling."""
+
+    __tablename__ = "site_operating_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(String(255), nullable=False, index=True)
+
+    # Schedule definition
+    day_of_week = Column(Integer, nullable=False)  # 0=Monday, 6=Sunday
+    open_time = Column(Time, nullable=True)
+    close_time = Column(Time, nullable=True)
+    is_closed = Column(Boolean, default=False)  # Holiday or special closure
+
+    # Operational context
+    is_maintenance_window = Column(Boolean, default=False)
+    expected_transaction_volume = Column(Integer, nullable=True)
+    peak_hours_start = Column(Time, nullable=True)
+    peak_hours_end = Column(Time, nullable=True)
+
+    # Additional context for AI
+    notes = Column(Text, nullable=True)
+    special_considerations = Column(JSON, nullable=True)
+
+    __table_args__ = (Index("idx_site_day", "site_id", "day_of_week"),)
