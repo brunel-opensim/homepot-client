@@ -115,7 +115,7 @@ from homepot.models import DeviceType, Device, Job, JobStatus, JobPriority, Heal
 from homepot.app.models.UserModel import User, Base as AppBase
 from homepot.app.models import AnalyticsModel  # Import module to register models
 from passlib.context import CryptContext
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 
 async def init_database():
@@ -139,14 +139,15 @@ async def init_database():
     # Create test user for analytics validation
     print("✓ Creating test user...")
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    now = datetime.now(timezone.utc).replace(tzinfo=None)  # Database uses naive datetime
     async with db_service.get_session() as session:
         test_user = User(
             email="analytics-test@example.com",
             username="analyticstest",
             hashed_password=pwd_context.hash("testpass123"),
             is_admin=False,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=now,
+            updated_at=now
         )
         session.add(test_user)
         await session.commit()
@@ -233,7 +234,7 @@ async def init_database():
                 device_id=first_device.id,
                 payload={"config_version": "1.0.0"},
                 created_by=test_user.id,
-                completed_at=datetime.utcnow()
+                completed_at=datetime.now(timezone.utc).replace(tzinfo=None)
             )
             session.add(sample_job)
             await session.commit()
@@ -248,7 +249,7 @@ async def init_database():
                 response_time_ms=45,
                 status_code=200,
                 endpoint="/health",
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
             )
             session.add(sample_health)
             await session.commit()
@@ -356,7 +357,6 @@ async def init_database():
             print("✓ Created sample device metrics")
             
             # Sample configuration history (AI learning)
-            from datetime import timedelta
             sample_config = ConfigurationHistory(
                 entity_type="device",
                 entity_id=first_device.device_id,
@@ -370,7 +370,7 @@ async def init_database():
                 performance_after={"avg_response_time": 98, "error_rate": 0.3},
                 was_successful=True,
                 was_rolled_back=False,
-                timestamp=datetime.utcnow() - timedelta(hours=2)
+                timestamp=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)
             )
             session.add(sample_config)
             print("✓ Created sample configuration history")

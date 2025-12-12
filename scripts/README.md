@@ -57,6 +57,74 @@ source scripts/activate-homepot.sh
 2. Sets environment variables for development
 3. Prepares the shell for backend development
 
+## Database Password Management
+
+### `setup-pgpass.sh`
+
+Sets up PostgreSQL `.pgpass` file for password-free database access.
+
+**Usage:**
+```bash
+./scripts/setup-pgpass.sh
+```
+
+**What it does:**
+1. Creates `~/.pgpass` file in your home directory
+2. Adds HOMEPOT database credentials
+3. Sets correct permissions (600 - owner read/write only)
+4. Allows all `psql` commands to run without password prompts
+
+**After running this script:**
+```bash
+# No password prompt! ✓
+psql -h localhost -U homepot_user -d homepot_db
+
+# Scripts work seamlessly
+./scripts/query-db.sh count
+./scripts/init-postgresql.sh
+```
+
+**Security:**
+- The `.pgpass` file is only readable by you (chmod 600)
+- Standard PostgreSQL password file (used by all psql tools)
+- Alternative to typing passwords or storing in scripts
+
+**Credentials stored:**
+- Host: `localhost`
+- Port: `5432`
+- Database: `homepot_db`
+- User: `homepot_user`
+- Password: `homepot_dev_password`
+
+**To remove:**
+```bash
+sed -i '/homepot_db/d' ~/.pgpass
+```
+
+### Password Approaches in Scripts
+
+All scripts use standardized password handling:
+
+1. **`.pgpass` file** (Recommended for developers):
+   - Run `./scripts/setup-pgpass.sh` once
+   - All future psql commands work without prompts
+   - Most convenient for daily development
+
+2. **`PGPASSWORD` environment variable** (Used in scripts):
+   - Scripts automatically set: `export PGPASSWORD='homepot_dev_password'`
+   - Works in CI/CD environments
+   - No manual setup required
+
+3. **Connection string** (Alternative):
+   ```bash
+   psql "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
+   ```
+
+**All three methods use the same credentials:**
+- User: `homepot_user`
+- Password: `homepot_dev_password`
+- Database: `homepot_db`
+
 ## Important Notes
 
 ### Virtual Environment
@@ -73,6 +141,7 @@ source scripts/activate-homepot.sh
 - Backend requires PostgreSQL to be running
 - Connection details in `backend/.env` or environment variables
 - Default: `postgresql://homepot_user:homepot_dev_password@localhost/homepot_db`
+- **Setup once:** Run `./scripts/setup-pgpass.sh` for password-free access
 
 ## Troubleshooting
 
