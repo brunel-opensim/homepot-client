@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Server, Activity, Loader2, Edit, Trash2, Plus } from 'lucide-react';
+import {
+  ArrowLeft,
+  MapPin,
+  Server,
+  Activity,
+  Loader2,
+  Edit,
+  Trash2,
+  Plus,
+  Briefcase,
+} from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -18,6 +28,8 @@ export default function SiteDetail() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAddingDevice, setIsAddingDevice] = useState(false);
   const [devices, setDevices] = useState([]);
+
+  console.log('devices', devices);
 
   useEffect(() => {
     const fetchSiteAndDevices = async () => {
@@ -88,6 +100,32 @@ export default function SiteDetail() {
     }
   };
 
+  // ====== New Function for Creating Job ======
+  const handleCreateJob = async () => {
+    try {
+      const defaultJob = {
+        name: `Job for ${site.name}`,
+        description: 'Automatically created job',
+      };
+      console.log('id', id);
+
+      await api.jobs.create(id, defaultJob);
+      // toast({
+      //   title: 'Job Created',
+      //   description: `Job created successfully for site ${site.name}`,
+      //   variant: 'success',
+      // });
+    } catch (err) {
+      console.error('Failed to create job:', err);
+      const message = err.response?.data?.detail || err.message || 'Failed to create job';
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -134,6 +172,16 @@ export default function SiteDetail() {
               <Plus className="h-4 w-4 mr-2" />
               Add Device
             </Button>
+
+            {/* Create Job */}
+            <Button
+              onClick={handleCreateJob}
+              className="bg-transparent text-blue-400 border border-blue-400 hover:bg-blue-400/10"
+            >
+              <Briefcase className="h-4 w-4 mr-2" />
+              Create Job
+            </Button>
+
             <Button
               variant="outline"
               onClick={() => navigate(`/sites/${id}/edit`)}
@@ -212,7 +260,13 @@ export default function SiteDetail() {
                         key={device.id}
                         className="border-b border-border transition-colors hover:bg-muted/50"
                       >
-                        <td className="p-4 align-middle font-medium text-white">{device.name}</td>
+                        <td
+                          className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
+                          // onClick={() => navigate(`/device/${device.device_id}`)}
+                          onClick={() => navigate(`/device/${device.id || device.device_id}`)}
+                        >
+                          {device.name}
+                        </td>
                         <td className="p-4 align-middle text-gray-300">
                           {device.type || 'Unknown'}
                         </td>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { trackActivity } from '@/utils/analytics';
 
 export default function DeviceAddDialog({ isOpen, onClose, onAdd, isAdding }) {
   const [formData, setFormData] = useState({
@@ -12,10 +13,26 @@ export default function DeviceAddDialog({ isOpen, onClose, onAdd, isAdding }) {
   });
   const [error, setError] = useState(null);
 
+  // Track dialog open
+  useEffect(() => {
+    if (isOpen) {
+      trackActivity('modal_open', '/devices/add', {
+        modal: 'add_device_dialog',
+      });
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Track typing
+    trackActivity('input_change', '/devices/add', {
+      field: name,
+      value: value,
+    });
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -23,12 +40,21 @@ export default function DeviceAddDialog({ isOpen, onClose, onAdd, isAdding }) {
     e.preventDefault();
     setError(null);
 
-    // Validate JSON config
+    trackActivity('form_submit', '/devices/add', {
+      action: 'submit_device',
+    });
+
     let parsedConfig = {};
     try {
       parsedConfig = JSON.parse(formData.config);
     } catch {
       setError('Invalid JSON in Config field');
+
+      trackActivity('validation_error', '/devices/add', {
+        field: 'config',
+        error: 'invalid_json',
+      });
+
       return;
     }
 
@@ -37,13 +63,28 @@ export default function DeviceAddDialog({ isOpen, onClose, onAdd, isAdding }) {
         ...formData,
         config: parsedConfig,
       });
+
+      trackActivity('device_added', '/devices/add', {
+        device_id: formData.device_id,
+        device_type: formData.device_type,
+      });
     } catch (err) {
-      // Parent should handle the error and maybe throw it back if it wants the dialog to show it?
-      // Or parent sets a prop?
-      // Let's assume onAdd throws if it fails.
       console.error(err);
-      setError(err.message || 'Failed to add device');
+      const msg = err.message || 'Failed to add device';
+      setError(msg);
+
+      trackActivity('submit_failed', '/devices/add', {
+        error: msg,
+      });
     }
+  };
+
+  const handleClose = () => {
+    trackActivity('modal_close', '/devices/add', {
+      modal: 'add_device_dialog',
+    });
+
+    onClose();
   };
 
   return (
@@ -54,7 +95,10 @@ export default function DeviceAddDialog({ isOpen, onClose, onAdd, isAdding }) {
             <Plus className="h-5 w-5 text-teal-500" />
             Add New Device
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button
+            onClick={handleClose}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -152,7 +196,8 @@ export default function DeviceAddDialog({ isOpen, onClose, onAdd, isAdding }) {
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              // onClick={onClose}
+              onClick={handleClose}
               disabled={isAdding}
               className="border-[#1f2735] bg-transparent text-gray-300 hover:bg-[#1f2735] hover:text-white"
             >

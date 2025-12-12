@@ -20,6 +20,11 @@ const SitesList = lazy(() => import('../pages/Sites/SitesList'));
 const SiteForm = lazy(() => import('../pages/Sites/SiteForm'));
 const SiteDetail = lazy(() => import('../pages/Sites/SiteDetail'));
 
+const Devices = lazy(() => import('../pages/Device/DeviceDetail'));
+const UserActivity = lazy(() => import('../pages/UserActivity'));
+
+const Agent = lazy(() => import('../pages/Agent'));
+
 export default function RoutesIndex() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
@@ -50,6 +55,9 @@ export default function RoutesIndex() {
           <Route path="sites/new" element={<SiteForm />} />
           <Route path="sites/:id" element={<SiteDetail />} />
           <Route path="sites/:id/edit" element={<SiteForm />} />
+          <Route path="device/:id" element={<Devices />} />
+          <Route path="useractivity" element={<UserActivity />} />
+          <Route path="/agents" element={<Agent />} />
 
           {/* If you want / (root after login) to go to /dashboard */}
           <Route index element={<Navigate to="dashboard" replace />} />

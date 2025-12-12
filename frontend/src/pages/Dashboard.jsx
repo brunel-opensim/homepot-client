@@ -91,6 +91,16 @@ export default function Dashboard() {
     fetchSites();
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      const response = await api.auth.logout(); // calling your API logout
+      console.log('Logged out:', response);
+      window.location.href = '/login'; // redirect
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-gray-200 flex items-center justify-center">
@@ -114,6 +124,14 @@ export default function Dashboard() {
           <span className="w-2 h-2 bg-green-400 rounded-full"></span>
           <span>Operational</span>
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="py-2 px-4 text-sm font-semibold rounded-lg bg-red-500 hover:bg-red-600 text-white transition"
+        >
+          Logout
+        </button>
       </div>
 
       {/* Main Content: Two columns */}
@@ -140,17 +158,22 @@ export default function Dashboard() {
               </Button>
               <Button
                 onClick={() => {
-                  navigate('/device');
+                  navigate('/useractivity');
                 }}
                 className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
               >
-                View Devices
+                User Activity
+              </Button>
+              <Button
+                onClick={() => {
+                  navigate('/agents');
+                }}
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+              >
+                Agent
               </Button>
               <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
                 Send Notification
-              </Button>
-              <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
-                Run Troubleshoot
               </Button>
             </div>
           </CardContent>

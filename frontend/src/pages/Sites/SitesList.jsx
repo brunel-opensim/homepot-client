@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Edit, Trash2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/services/api';
 import SiteDeleteDialog from '@/components/Sites/SiteDeleteDialog';
+import { trackActivity, trackSearch } from '@/utils/analytics';
 
 export default function SitesList() {
   const navigate = useNavigate();
@@ -66,6 +67,16 @@ export default function SitesList() {
 
   useEffect(() => {
     fetchSites();
+
+    // Track PAGE VIEW
+    trackActivity(
+      'page_view',
+      '/sites',
+      {}, // extra_data
+      null, // elementId
+      null, // searchQuery
+      0 // duration_ms (optional now)
+    );
   }, []);
 
   const fetchSites = async () => {
@@ -140,11 +151,30 @@ export default function SitesList() {
 
   return (
     <div className="min-h-screen bg-[#0b0e13] text-white p-6">
+      <Button
+        variant="ghost"
+        onClick={() => navigate('/dashboard')}
+        className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Dashboard
+      </Button>
+
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-3">
         <h1 className="text-2xl font-semibold">Manage Sites</h1>
         <div className="flex gap-3">
           <Button
-            onClick={() => navigate('/sites/new')}
+            // onClick={() => navigate('/sites/new')}
+            onClick={() => {
+              trackActivity(
+                'click',
+                '/sites',
+                {}, // extra data
+                'add_site_btn' // element id
+              );
+
+              navigate('/sites/new');
+            }}
             className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -164,7 +194,13 @@ export default function SitesList() {
             placeholder="Search by site ID or name"
             className="bg-[#141a24] border border-[#1f2735] text-white px-10 py-2 rounded-lg w-full focus:outline-none focus:border-teal-500 transition-colors"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            // onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+
+              // Track Search
+              trackSearch(e.target.value, '/sites', 0);
+            }}
           />
         </div>
 
@@ -172,7 +208,17 @@ export default function SitesList() {
         <select
           className="bg-[#141a24] border border-[#1f2735] text-white w-full md:w-80 px-4 py-[10px] rounded-lg focus:outline-none focus:border-teal-500 transition-colors"
           value={locationFilter}
-          onChange={(e) => setLocationFilter(e.target.value)}
+          // onChange={(e) => setLocationFilter(e.target.value)}
+          onChange={(e) => {
+            setLocationFilter(e.target.value);
+
+            trackActivity(
+              'interaction',
+              '/sites',
+              { selected_location: e.target.value }, // extra_data
+              'location_filter' // element id
+            );
+          }}
         >
           <option value="">All Locations</option>
           {/* Extract unique locations from sites */}
@@ -199,14 +245,28 @@ export default function SitesList() {
             {/* Edit/Delete Actions - Visible on hover or always visible on mobile */}
             <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
-                onClick={(e) => handleEditClick(e, site)}
+                // onClick={(e) => handleEditClick(e, site)}
+                onClick={(e) => {
+                  e.stopPropagation();
+
+                  trackActivity('click', '/sites', { site_id: site.id }, 'edit_site_btn');
+
+                  handleEditClick(e, site);
+                }}
                 className="p-1.5 rounded-md bg-[#1f2735] hover:bg-[#2a3441] text-gray-400 hover:text-white transition-colors"
                 title="Edit"
               >
                 <Edit size={14} />
               </button>
               <button
-                onClick={(e) => handleDeleteClick(e, site)}
+                // onClick={(e) => handleDeleteClick(e, site)}
+                onClick={(e) => {
+                  e.stopPropagation();
+
+                  trackActivity('click', '/sites', { site_id: site.id }, 'delete_site_btn');
+
+                  handleDeleteClick(e, site);
+                }}
                 className="p-1.5 rounded-md bg-[#1f2735] hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors"
                 title="Delete"
               >
@@ -249,8 +309,15 @@ export default function SitesList() {
 
             {/* View Details button */}
             <button
+              // onClick={(e) => {
+              //   e.stopPropagation();
+              //   navigate(`/sites/${site.id}`);
+              // }}
               onClick={(e) => {
                 e.stopPropagation();
+
+                trackActivity('click', '/sites', { site_id: site.id }, 'view_site_details_btn');
+
                 navigate(`/sites/${site.id}`);
               }}
               className="mt-auto w-full border border-[#1f2735] py-2 rounded-lg text-sm hover:bg-[#1f2735] text-gray-300 transition"

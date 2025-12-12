@@ -159,7 +159,7 @@ const api = {
      * List all sites
      */
     list: async () => {
-      const response = await apiClient.get('/sites/sites');
+      const response = await apiClient.get('/sites');
       return response.data;
     },
 
@@ -167,7 +167,7 @@ const api = {
      * Get site details
      */
     get: async (siteId) => {
-      const response = await apiClient.get(`/sites/sites/${siteId}`);
+      const response = await apiClient.get(`/sites/${siteId}`);
       return response.data;
     },
 
@@ -175,7 +175,7 @@ const api = {
      * Create new site
      */
     create: async (siteData) => {
-      const response = await apiClient.post('/sites/sites', siteData);
+      const response = await apiClient.post('/sites', siteData);
       return response.data;
     },
 
@@ -183,7 +183,7 @@ const api = {
      * Update site
      */
     update: async (siteId, siteData) => {
-      const response = await apiClient.put(`/sites/sites/${siteId}`, siteData);
+      const response = await apiClient.put(`/sites${siteId}`, siteData);
       return response.data;
     },
 
@@ -216,6 +216,11 @@ const api = {
       return response.data;
     },
 
+    getDeviceById: async (deviceId) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}`);
+      return response.data;
+    },
+
     /**
      * Restart device
      */
@@ -232,7 +237,7 @@ const api = {
      * Create job
      */
     create: async (siteId, jobData) => {
-      const response = await apiClient.post(`/sites/${siteId}/jobs`, jobData);
+      const response = await apiClient.post(`/jobs/sites/${siteId}/jobs`, jobData);
       return response.data;
     },
 
@@ -264,11 +269,15 @@ const api = {
       return response.data;
     },
 
+    getListAgents: async () => {
+      const response = await apiClient.get(`/agents/agents`);
+      return response.data;
+    },
     /**
      * Send push notification to agent
      */
     sendPush: async (deviceId, notificationData) => {
-      const response = await apiClient.post(`/agents/${deviceId}/push`, notificationData);
+      const response = await apiClient.post(`/agents/agents/${deviceId}/push`, notificationData);
       return response.data;
     },
   },
