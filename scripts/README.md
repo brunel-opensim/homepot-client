@@ -1,7 +1,5 @@
 # HOMEPOT Scripts
 
-Utility scripts for development and testing.
-
 ## Website Management
 
 ### `start-complete-website.sh`
@@ -137,6 +135,53 @@ If you're working on the frontend UI/UX:
    - Email: `test@homepot.com`
    - Password: `Test123!`
    - Role: ENGINEER
+
+## Analytics Validation
+
+### `run_validation_test.sh`
+
+Comprehensive validation of the analytics infrastructure. Automatically starts the backend, runs validation tests, and reports results.
+
+**Usage:**
+```bash
+./scripts/run_validation_test.sh
+```
+
+**What it does:**
+1. Starts backend server on http://localhost:8000
+2. Authenticates test user
+3. Tests user activity tracking (page views, clicks, searches)
+4. Verifies automatic API request logging
+5. Queries and displays collected analytics data
+6. Shows summary of infrastructure status
+7. Displays backend logs
+8. Cleans up (stops backend)
+
+**Validates:**
+- Authentication endpoint
+- User activity logging (`POST /api/v1/analytics/user-activity`)
+- Automatic API request logging (middleware)
+- Query endpoints (`GET /api/v1/analytics/user-activities`, `/api/v1/analytics/api-requests`)
+- Database write operations
+- JSON response formatting
+
+**Use cases:**
+- Pre-deployment verification
+- Bug hunting and debugging
+- Demonstrating analytics functionality
+- Continuous integration testing
+
+**Python Utility:**
+The actual validation logic is in `backend/utils/validate_analytics.py` (Python utility).
+The bash script `run_validation_test.sh` handles starting/stopping the backend and calling the Python script.
+
+**Manual usage** (if backend is already running):
+```bash
+python3 backend/utils/validate_analytics.py <email> <password>
+
+# Example:
+python3 backend/utils/validate_analytics.py analytics-test@example.com testpass123
+```
 
 ## See Also
 
