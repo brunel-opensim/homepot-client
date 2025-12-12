@@ -41,7 +41,7 @@ if ! sudo systemctl is-active --quiet postgresql 2>/dev/null && ! pg_isready -q 
     }
 fi
 
-echo -e "${GREEN}✓ PostgreSQL is installed and running${NC}"
+echo -e "${GREEN}PostgreSQL is installed and running${NC}"
 echo ""
 
 # Check if database exists
@@ -61,7 +61,7 @@ if [ "$DB_EXISTS" = "1" ]; then
         
         # Drop database
         sudo -u postgres psql -c "DROP DATABASE IF EXISTS $DB_NAME;"
-        echo -e "${GREEN}✓ Database dropped${NC}"
+        echo -e "${GREEN}Database dropped${NC}"
     else
         echo "Aborted. Database not modified."
         exit 0
@@ -75,18 +75,18 @@ echo "Creating PostgreSQL database and user..."
 USER_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'")
 if [ "$USER_EXISTS" != "1" ]; then
     sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';"
-    echo -e "${GREEN}✓ User '$DB_USER' created${NC}"
+    echo -e "${GREEN}User '$DB_USER' created${NC}"
 else
     echo -e "${YELLOW}! User '$DB_USER' already exists${NC}"
 fi
 
 # Create database
 sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;"
-echo -e "${GREEN}✓ Database '$DB_NAME' created${NC}"
+echo -e "${GREEN}Database '$DB_NAME' created${NC}"
 
 # Grant privileges
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;"
-echo -e "${GREEN}✓ Privileges granted${NC}"
+echo -e "${GREEN}Privileges granted${NC}"
 
 # PostgreSQL 15+ requires additional schema permissions
 export PGPASSWORD="$DB_PASSWORD"
@@ -94,7 +94,7 @@ psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "GRANT ALL ON SCHEMA public TO $DB_U
 
 # Enable TimescaleDB extension if available
 sudo -u postgres psql -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;" 2>/dev/null && \
-    echo -e "${GREEN}✓ TimescaleDB extension enabled${NC}" || \
+    echo -e "${GREEN}TimescaleDB extension enabled${NC}" || \
     echo -e "${YELLOW}! TimescaleDB not available (using standard PostgreSQL)${NC}"
 
 echo ""
@@ -121,23 +121,23 @@ from sqlalchemy import select
 async def init_database():
     """Initialize PostgreSQL database with schema and seed data."""
     
-    print("✓ Importing database service...")
+    print("Importing database service...")
     
     # Create database service (will use DATABASE__URL from .env)
     db_service = DatabaseService()
     
-    print("✓ Creating database schema...")
+    print("Creating database schema...")
     await db_service.initialize()
     
     # Create analytics tables (uses same Base as User models)
-    print("✓ Creating analytics tables...")
+    print("Creating analytics tables...")
     async with db_service.engine.begin() as conn:
         await conn.run_sync(AppBase.metadata.create_all)
     
-    print("✓ Database schema created")
+    print("Database schema created")
     
     # Create test user for analytics validation
-    print("✓ Creating test user...")
+    print("Creating test user...")
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     now = datetime.now(timezone.utc).replace(tzinfo=None)  # Database uses naive datetime
     async with db_service.get_session() as session:
@@ -152,7 +152,7 @@ async def init_database():
         session.add(test_user)
         await session.commit()
     
-    print("✓ Test user created")
+    print("Test user created")
     
     # Create demo sites
     try:
@@ -162,7 +162,7 @@ async def init_database():
             description="Primary retail location with 5 POS terminals",
             location="123 Main St, Downtown"
         )
-        print(f"✓ Created demo site: {site1.name}")
+        print(f"Created demo site: {site1.name}")
         
         site2 = await db_service.create_site(
             site_id="site-002", 
@@ -170,7 +170,7 @@ async def init_database():
             description="Secondary location with 3 POS terminals",
             location="456 West Ave, West Side"
         )
-        print(f"✓ Created demo site: {site2.name}")
+        print(f"Created demo site: {site2.name}")
         
         site3 = await db_service.create_site(
             site_id="site-003",
@@ -178,7 +178,7 @@ async def init_database():
             description="Shopping mall location with 4 POS terminals",
             location="789 East Blvd, Mall District"
         )
-        print(f"✓ Created demo site: {site3.name}")
+        print(f"Created demo site: {site3.name}")
         
         # Create demo devices for site 1
         for i in range(1, 6):
@@ -190,7 +190,7 @@ async def init_database():
                 ip_address=f"192.168.1.{10+i}",
                 config={"gateway_url": "https://payments.example.com"}
             )
-            print(f"✓ Created device: {device.name} at {site1.name}")
+            print(f"Created device: {device.name} at {site1.name}")
         
         # Create demo devices for site 2
         for i in range(6, 9):
@@ -202,7 +202,7 @@ async def init_database():
                 ip_address=f"192.168.2.{i}",
                 config={"gateway_url": "https://payments.example.com"}
             )
-            print(f"✓ Created device: {device.name} at {site2.name}")
+            print(f"Created device: {device.name} at {site2.name}")
         
         # Create demo devices for site 3
         devices = []
@@ -216,7 +216,7 @@ async def init_database():
                 config={"gateway_url": "https://payments.example.com"}
             )
             devices.append(device)
-            print(f"✓ Created device: {device.name} at {site3.name}")
+            print(f"Created device: {device.name} at {site3.name}")
         
         # Get first device for sample data
         async with db_service.get_session() as session:
@@ -239,7 +239,7 @@ async def init_database():
             session.add(sample_job)
             await session.commit()
             await session.refresh(sample_job)
-            print("✓ Created sample job")
+            print("Created sample job")
             
             # Create sample health check (provide id explicitly for composite PK)
             sample_health = HealthCheck(
@@ -253,7 +253,7 @@ async def init_database():
             )
             session.add(sample_health)
             await session.commit()
-            print("✓ Created sample health check")
+            print("Created sample health check")
             
             # Create sample audit log
             sample_audit = AuditLog(
@@ -267,7 +267,7 @@ async def init_database():
             )
             session.add(sample_audit)
             await session.commit()
-            print("✓ Created sample audit log")
+            print("Created sample audit log")
             
             # Create sample analytics records
             from homepot.app.models.AnalyticsModel import (
@@ -287,7 +287,7 @@ async def init_database():
                 user_agent="HOMEPOT-Client/1.0"
             )
             session.add(sample_api_log)
-            print("✓ Created sample API request log")
+            print("Created sample API request log")
             
             # Sample user activity
             sample_activity = UserActivity(
@@ -298,7 +298,7 @@ async def init_database():
                 extra_data={"action": "viewed_job_list"}
             )
             session.add(sample_activity)
-            print("✓ Created sample user activity")
+            print("Created sample user activity")
             
             # Sample device state history
             sample_state = DeviceStateHistory(
@@ -309,7 +309,7 @@ async def init_database():
                 reason="Device came online after reboot"
             )
             session.add(sample_state)
-            print("✓ Created sample device state history")
+            print("Created sample device state history")
             
             # Sample job outcome
             sample_outcome = JobOutcome(
@@ -322,7 +322,7 @@ async def init_database():
                 extra_data={"config_applied": True, "restart_required": False}
             )
             session.add(sample_outcome)
-            print("✓ Created sample job outcome")
+            print("Created sample job outcome")
             
             # Sample error log
             sample_error = ErrorLog(
@@ -337,7 +337,7 @@ async def init_database():
             )
             session.add(sample_error)
             await session.commit()
-            print("✓ Created sample error log")
+            print("Created sample error log")
             
             # Sample device metrics (AI training data)
             sample_metrics = DeviceMetrics(
@@ -354,7 +354,7 @@ async def init_database():
                 extra_metrics={"temperature_celsius": 42, "uptime_hours": 168}
             )
             session.add(sample_metrics)
-            print("✓ Created sample device metrics")
+            print("Created sample device metrics")
             
             # Sample configuration history (AI learning)
             sample_config = ConfigurationHistory(
@@ -373,7 +373,7 @@ async def init_database():
                 timestamp=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)
             )
             session.add(sample_config)
-            print("✓ Created sample configuration history")
+            print("Created sample configuration history")
             
             # Sample site operating schedule (for intelligent job scheduling)
             from datetime import time as dt_time
@@ -408,10 +408,10 @@ async def init_database():
             )
             session.add(sample_schedule_sun)
             await session.commit()
-            print("✓ Created sample site operating schedules")
+            print("Created sample site operating schedules")
         
         print("")
-        print("✓ Database initialized successfully!")
+        print("Database initialized successfully!")
         print("")
         print("Database: PostgreSQL")
         print(f"Host: localhost:5432")

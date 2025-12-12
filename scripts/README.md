@@ -76,7 +76,7 @@ Sets up PostgreSQL `.pgpass` file for password-free database access.
 
 **After running this script:**
 ```bash
-# No password prompt! ✓
+# No password prompt!
 psql -h localhost -U homepot_user -d homepot_db
 
 # Scripts work seamlessly

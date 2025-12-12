@@ -61,7 +61,7 @@ echo -e "${GREEN}[OK]${NC} Set permissions to 600 (owner read/write only)"
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✓ Setup Complete!${NC}"
+echo -e "${GREEN}Setup Complete!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo "You can now run psql commands without password prompts:"

@@ -332,7 +332,7 @@ This interrupts scripts and requires manual input. Here are three solutions:
 
 **After setup:**
 ```bash
-# No password prompt! ✓
+# No password prompt!
 psql -h localhost -U homepot_user -d homepot_db
 ./scripts/query-db.sh count
 ./scripts/init-postgresql.sh
@@ -389,9 +389,9 @@ psql "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
 
 | Method | Setup | Security | Convenience | CI/CD |
 |--------|-------|----------|-------------|-------|
-| `.pgpass` | Once | ✓ High | ✓ Best | ❌ No |
-| `PGPASSWORD` | Each session | ✓ Medium | ✓ Good | ✓ Yes |
-| Connection String | None | ❌ Low | ✓ OK | ✓ Yes |
+| `.pgpass` | Once | High | Best | No |
+| `PGPASSWORD` | Each session | Medium | Good | Yes |
+| Connection String | None | Low | OK | Yes |
 
 ### Recommendation
 
