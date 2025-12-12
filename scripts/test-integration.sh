@@ -106,7 +106,7 @@ print_warning() {
 }
 
 print_info() {
-  echo -e "${CYAN}ℹ${NC} $1"
+  echo -e "${CYAN}⚠${NC} $1"
 }
 
 show_help() {

@@ -45,18 +45,18 @@ def status() -> None:
             is_available = await ts_manager.is_timescaledb_available()
 
             if not is_available:
-                click.echo("❌ TimescaleDB: Not available")
+                click.echo("TimescaleDB: Not available")
                 click.echo(
                     "\nTo install TimescaleDB, follow: https://docs.timescale.com/install/latest/"
                 )
                 return
 
-            click.echo("✅ TimescaleDB: Available")
+            click.echo("TimescaleDB: Available")
 
             # Get hypertable stats
             stats = await ts_manager.get_hypertable_stats("health_checks")
             if stats:
-                click.echo("\n📊 Hypertable: health_checks")
+                click.echo("\nHypertable: health_checks")
                 click.echo(f"  Schema: {stats.get('hypertable_schema')}")
                 click.echo(f"  Chunks: {stats.get('num_chunks', 'N/A')}")
                 click.echo(f"  Compression: {stats.get('compression_enabled', False)}")
@@ -71,7 +71,7 @@ def status() -> None:
                             f"{chunk.get('range_start')} to {chunk.get('range_end')}"
                         )
             else:
-                click.echo("\n⚠️  health_checks is not a hypertable")
+                click.echo("\n  health_checks is not a hypertable")
 
         await db_service.close()
 
@@ -95,24 +95,24 @@ def setup(force: bool) -> None:
 
             # Check availability
             if not await ts_manager.is_timescaledb_available():
-                click.echo("❌ TimescaleDB extension not available")
+                click.echo("TimescaleDB extension not available")
                 click.echo(
                     "Please install TimescaleDB: https://docs.timescale.com/install/latest/"
                 )
                 return 1
 
-            click.echo("✅ TimescaleDB extension is available")
+            click.echo("TimescaleDB extension is available")
 
             # Enable extension
-            click.echo("\n📦 Enabling TimescaleDB extension...")
+            click.echo("\nEnabling TimescaleDB extension...")
             if await ts_manager.enable_extension():
-                click.echo("✅ TimescaleDB extension enabled")
+                click.echo("TimescaleDB extension enabled")
             else:
-                click.echo("❌ Failed to enable TimescaleDB extension")
+                click.echo("Failed to enable TimescaleDB extension")
                 return 1
 
             # Create hypertable
-            click.echo("\n📊 Creating hypertable: health_checks...")
+            click.echo("\nCreating hypertable: health_checks...")
             success = await ts_manager.create_hypertable(
                 table_name="health_checks",
                 time_column="timestamp",
@@ -121,30 +121,30 @@ def setup(force: bool) -> None:
             )
 
             if success:
-                click.echo("✅ Hypertable created: health_checks")
+                click.echo("Hypertable created: health_checks")
 
                 # Add compression
-                click.echo("\n🗜️  Adding compression policy...")
+                click.echo("\n  Adding compression policy...")
                 if await ts_manager.add_compression_policy(
                     hypertable="health_checks",
                     compress_after="7 days",
                     if_not_exists=True,
                 ):
-                    click.echo("✅ Compression policy added (compress after 7 days)")
+                    click.echo("Compression policy added (compress after 7 days)")
 
                 # Add retention
-                click.echo("\n🗑️  Adding retention policy...")
+                click.echo("\n  Adding retention policy...")
                 if await ts_manager.add_retention_policy(
                     hypertable="health_checks",
                     retention_period="90 days",
                     if_not_exists=True,
                 ):
-                    click.echo("✅ Retention policy added (keep 90 days)")
+                    click.echo("Retention policy added (keep 90 days)")
 
-                click.echo("\n✅ TimescaleDB setup completed successfully!")
+                click.echo("\nTimescaleDB setup completed successfully!")
                 return 0
             else:
-                click.echo("❌ Failed to create hypertable")
+                click.echo("Failed to create hypertable")
                 return 1
 
         await db_service.close()
@@ -164,30 +164,30 @@ def create_aggregates() -> None:
 
             # Check availability
             if not await ts_manager.is_timescaledb_available():
-                click.echo("❌ TimescaleDB not available")
+                click.echo("TimescaleDB not available")
                 return 1
 
-            click.echo("📊 Creating continuous aggregates...")
+            click.echo("Creating continuous aggregates...")
             results = await setup_timescaledb_aggregates(session)
 
             if not results:
-                click.echo("❌ No aggregates created")
+                click.echo("No aggregates created")
                 return 1
 
             # Display results
             click.echo("\nResults:")
             for name, success in results.items():
-                status = "✅" if success else "❌"
+                status = "✓" if success else "✗"
                 click.echo(f"  {status} {name}")
 
             successful = sum(1 for s in results.values() if s)
             total = len(results)
 
             if successful == total:
-                click.echo(f"\n✅ All {total} aggregates created successfully!")
+                click.echo(f"\nAll {total} aggregates created successfully!")
                 return 0
             else:
-                click.echo(f"\n⚠️  Created {successful}/{total} aggregates")
+                click.echo(f"\nCreated {successful}/{total} aggregates")
                 return 1
 
         await db_service.close()
@@ -207,7 +207,7 @@ def chunks(hypertable: str) -> None:
             ts_manager = TimescaleDBManager(session)
 
             if not await ts_manager.is_timescaledb_available():
-                click.echo("❌ TimescaleDB not available")
+                click.echo("TimescaleDB not available")
                 return
 
             chunks = await ts_manager.get_chunk_stats(hypertable)
@@ -216,7 +216,7 @@ def chunks(hypertable: str) -> None:
                 click.echo(f"No chunks found for hypertable: {hypertable}")
                 return
 
-            click.echo(f"\n📦 Chunks for {hypertable}:\n")
+            click.echo(f"\nChunks for {hypertable}:\n")
             for i, chunk in enumerate(chunks, 1):
                 click.echo(f"{i}. {chunk.get('chunk_name')}")
                 click.echo(
