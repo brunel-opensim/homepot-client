@@ -678,7 +678,7 @@ services:
     environment:
       - POSTGRES_DB=homepot
       - POSTGRES_USER=homepot_user
-      - POSTGRES_PASSWORD=homepot_password
+      - POSTGRES_PASSWORD=homepot_dev_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -686,7 +686,7 @@ services:
     depends_on:
       - db
     environment:
-      - DATABASE__URL=postgresql://homepot_user:homepot_password@db:5432/homepot
+      - DATABASE__URL=postgresql://homepot_user:homepot_dev_password@db:5432/homepot
 
 volumes:
   postgres_data:

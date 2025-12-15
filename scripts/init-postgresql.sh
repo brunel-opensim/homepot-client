@@ -92,6 +92,11 @@ echo -e "${GREEN}✓ Privileges granted${NC}"
 export PGPASSWORD="$DB_PASSWORD"
 psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "GRANT ALL ON SCHEMA public TO $DB_USER;" 2>/dev/null || true
 
+# Enable TimescaleDB extension if available
+sudo -u postgres psql -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;" 2>/dev/null && \
+    echo -e "${GREEN}✓ TimescaleDB extension enabled${NC}" || \
+    echo -e "${YELLOW}! TimescaleDB not available (using standard PostgreSQL)${NC}"
+
 echo ""
 echo "Initializing database schema and seed data..."
 
@@ -106,7 +111,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / "backend" / "src"))
 
 from homepot.database import DatabaseService
-from homepot.models import DeviceType
+from homepot.models import DeviceType, Device, Job, JobStatus, JobPriority, HealthCheck, AuditLog
+from homepot.app.models.UserModel import User, Base as AppBase
+from homepot.app.models import AnalyticsModel  # Import module to register models
+from passlib.context import CryptContext
+from datetime import datetime
+from sqlalchemy import select
 
 async def init_database():
     """Initialize PostgreSQL database with schema and seed data."""
@@ -119,7 +129,29 @@ async def init_database():
     print("✓ Creating database schema...")
     await db_service.initialize()
     
+    # Create analytics tables (uses same Base as User models)
+    print("✓ Creating analytics tables...")
+    async with db_service.engine.begin() as conn:
+        await conn.run_sync(AppBase.metadata.create_all)
+    
     print("✓ Database schema created")
+    
+    # Create test user for analytics validation
+    print("✓ Creating test user...")
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    async with db_service.get_session() as session:
+        test_user = User(
+            email="analytics-test@example.com",
+            username="analyticstest",
+            hashed_password=pwd_context.hash("testpass123"),
+            is_admin=False,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        session.add(test_user)
+        await session.commit()
+    
+    print("✓ Test user created")
     
     # Create demo sites
     try:
@@ -153,7 +185,7 @@ async def init_database():
                 device_id=f"pos-terminal-{i:03d}",
                 name=f"POS Terminal {i}",
                 device_type=DeviceType.POS_TERMINAL,
-                site_id=site1.id,
+                site_id=site1.site_id,
                 ip_address=f"192.168.1.{10+i}",
                 config={"gateway_url": "https://payments.example.com"}
             )
@@ -165,23 +197,218 @@ async def init_database():
                 device_id=f"pos-terminal-{i:03d}",
                 name=f"POS Terminal {i}",
                 device_type=DeviceType.POS_TERMINAL,
-                site_id=site2.id,
+                site_id=site2.site_id,
                 ip_address=f"192.168.2.{i}",
                 config={"gateway_url": "https://payments.example.com"}
             )
             print(f"✓ Created device: {device.name} at {site2.name}")
         
         # Create demo devices for site 3
+        devices = []
         for i in range(9, 13):
             device = await db_service.create_device(
                 device_id=f"pos-terminal-{i:03d}",
                 name=f"POS Terminal {i}",
                 device_type=DeviceType.POS_TERMINAL,
-                site_id=site3.id,
+                site_id=site3.site_id,
                 ip_address=f"192.168.3.{i-8}",
                 config={"gateway_url": "https://payments.example.com"}
             )
+            devices.append(device)
             print(f"✓ Created device: {device.name} at {site3.name}")
+        
+        # Get first device for sample data
+        async with db_service.get_session() as session:
+            result = await session.execute(select(Device).limit(1))
+            first_device = result.scalar_one()
+            
+            # Create sample job
+            sample_job = Job(
+                job_id="job-sample-001",
+                action="Update POS payment config",
+                description="Sample job for schema validation",
+                priority=JobPriority.NORMAL,
+                status=JobStatus.COMPLETED,
+                site_id=site1.id,
+                device_id=first_device.id,
+                payload={"config_version": "1.0.0"},
+                created_by=test_user.id,
+                completed_at=datetime.utcnow()
+            )
+            session.add(sample_job)
+            await session.commit()
+            await session.refresh(sample_job)
+            print("✓ Created sample job")
+            
+            # Create sample health check (provide id explicitly for composite PK)
+            sample_health = HealthCheck(
+                id=1,
+                device_id=first_device.id,
+                is_healthy=True,
+                response_time_ms=45,
+                status_code=200,
+                endpoint="/health",
+                timestamp=datetime.utcnow()
+            )
+            session.add(sample_health)
+            await session.commit()
+            print("✓ Created sample health check")
+            
+            # Create sample audit log
+            sample_audit = AuditLog(
+                event_type="job_created",
+                description=f"Job {sample_job.job_id} created for site {site1.site_id}",
+                user_id=test_user.id,
+                job_id=sample_job.id,
+                device_id=first_device.id,
+                site_id=site1.id,
+                event_metadata={"action": "Update POS payment config"}
+            )
+            session.add(sample_audit)
+            await session.commit()
+            print("✓ Created sample audit log")
+            
+            # Create sample analytics records
+            from homepot.app.models.AnalyticsModel import (
+                APIRequestLog, UserActivity, DeviceStateHistory, 
+                JobOutcome, ErrorLog, DeviceMetrics, ConfigurationHistory,
+                SiteOperatingSchedule
+            )
+            
+            # Sample API request log
+            sample_api_log = APIRequestLog(
+                endpoint="/api/v1/sites/site-001/jobs",
+                method="POST",
+                status_code=200,
+                response_time_ms=125.5,
+                user_id=str(test_user.id),
+                ip_address="192.168.1.100",
+                user_agent="HOMEPOT-Client/1.0"
+            )
+            session.add(sample_api_log)
+            print("✓ Created sample API request log")
+            
+            # Sample user activity
+            sample_activity = UserActivity(
+                user_id=str(test_user.id),
+                activity_type="page_view",
+                page_url="/dashboard/sites/site-001",
+                duration_ms=3500,
+                extra_data={"action": "viewed_job_list"}
+            )
+            session.add(sample_activity)
+            print("✓ Created sample user activity")
+            
+            # Sample device state history
+            sample_state = DeviceStateHistory(
+                device_id=first_device.device_id,
+                previous_state="offline",
+                new_state="online",
+                changed_by="system",
+                reason="Device came online after reboot"
+            )
+            session.add(sample_state)
+            print("✓ Created sample device state history")
+            
+            # Sample job outcome
+            sample_outcome = JobOutcome(
+                job_id=sample_job.job_id,
+                job_type="config_update",
+                device_id=first_device.device_id,
+                status="success",
+                duration_ms=2340,
+                initiated_by=str(test_user.id),
+                extra_data={"config_applied": True, "restart_required": False}
+            )
+            session.add(sample_outcome)
+            print("✓ Created sample job outcome")
+            
+            # Sample error log
+            sample_error = ErrorLog(
+                category="validation",
+                severity="warning",
+                error_code="VAL001",
+                error_message="Invalid configuration parameter detected",
+                stack_trace="Traceback (most recent call last):\n  File example.py line 42",
+                endpoint="/api/v1/config/validate",
+                user_id=str(test_user.id),
+                context={"param": "invalid_value", "expected": "integer"}
+            )
+            session.add(sample_error)
+            await session.commit()
+            print("✓ Created sample error log")
+            
+            # Sample device metrics (AI training data)
+            sample_metrics = DeviceMetrics(
+                device_id=first_device.device_id,
+                cpu_percent=45.2,
+                memory_percent=62.8,
+                disk_percent=38.5,
+                network_latency_ms=12.3,
+                transaction_count=156,
+                transaction_volume=2847.50,
+                error_rate=0.64,
+                active_connections=8,
+                queue_depth=2,
+                extra_metrics={"temperature_celsius": 42, "uptime_hours": 168}
+            )
+            session.add(sample_metrics)
+            print("✓ Created sample device metrics")
+            
+            # Sample configuration history (AI learning)
+            from datetime import timedelta
+            sample_config = ConfigurationHistory(
+                entity_type="device",
+                entity_id=first_device.device_id,
+                parameter_name="max_connections",
+                old_value={"value": 10},
+                new_value={"value": 15},
+                changed_by=str(test_user.id),
+                change_reason="Increased load during peak hours",
+                change_type="manual",
+                performance_before={"avg_response_time": 145, "error_rate": 1.2},
+                performance_after={"avg_response_time": 98, "error_rate": 0.3},
+                was_successful=True,
+                was_rolled_back=False,
+                timestamp=datetime.utcnow() - timedelta(hours=2)
+            )
+            session.add(sample_config)
+            print("✓ Created sample configuration history")
+            
+            # Sample site operating schedule (for intelligent job scheduling)
+            from datetime import time as dt_time
+            # Monday schedule
+            sample_schedule_mon = SiteOperatingSchedule(
+                site_id=site1.site_id,
+                day_of_week=0,  # Monday
+                open_time=dt_time(8, 0),
+                close_time=dt_time(22, 0),
+                is_closed=False,
+                is_maintenance_window=False,
+                expected_transaction_volume=500,
+                peak_hours_start=dt_time(12, 0),
+                peak_hours_end=dt_time(14, 0),
+                notes="Regular business day"
+            )
+            session.add(sample_schedule_mon)
+            
+            # Sunday schedule (maintenance window)
+            sample_schedule_sun = SiteOperatingSchedule(
+                site_id=site1.site_id,
+                day_of_week=6,  # Sunday
+                open_time=dt_time(10, 0),
+                close_time=dt_time(18, 0),
+                is_closed=False,
+                is_maintenance_window=True,
+                expected_transaction_volume=200,
+                peak_hours_start=dt_time(13, 0),
+                peak_hours_end=dt_time(15, 0),
+                notes="Preferred maintenance window: 6am-9am",
+                special_considerations={"can_interrupt_service": True, "backup_required": True}
+            )
+            session.add(sample_schedule_sun)
+            await session.commit()
+            print("✓ Created sample site operating schedules")
         
         print("")
         print("✓ Database initialized successfully!")
@@ -191,6 +418,7 @@ async def init_database():
         print(f"Database: homepot_db")
         print(f"Sites created: 3")
         print(f"Devices created: 12")
+        print(f"Sample records created in all 14 tables")
         
     except Exception as e:
         print(f"Error creating seed data: {e}")

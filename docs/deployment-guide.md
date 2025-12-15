@@ -45,7 +45,7 @@ services:
     environment:
       - HOMEPOT_ENV=production
       - HOMEPOT_DEBUG=false
-      - DATABASE__URL=postgresql://homepot_user:homepot_password@db:5432/homepot
+      - DATABASE__URL=postgresql://homepot_user:homepot_dev_password@db:5432/homepot
     depends_on:
       - db
 
@@ -54,7 +54,7 @@ services:
     environment:
       - POSTGRES_DB=homepot
       - POSTGRES_USER=homepot_user
-      - POSTGRES_PASSWORD=homepot_password
+      - POSTGRES_PASSWORD=homepot_dev_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
