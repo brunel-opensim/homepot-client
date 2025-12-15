@@ -5,10 +5,11 @@ import { getUserActivities } from '@/utils/analytics';
 import { Button } from '@/components/ui/button';
 
 export default function UserActivityDashboard() {
+  const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState([]);
   const [mostVisited, setMostVisited] = useState([]);
+  // const [topSearches, setTopSearches] = useState([]);
 
-  console.log('mostVisited', mostVisited);
   const firstLoad = React.useRef(false);
 
   useEffect(() => {
@@ -44,19 +45,21 @@ export default function UserActivityDashboard() {
         );
       } catch (err) {
         console.error('Failed to load analytics:', err);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchData();
   }, []);
 
-  //   if (loading) {
-  //   return (
-  //     <div className="flex justify-center items-center min-h-screen">
-  //       <Loader2 className="h-10 w-10 animate-spin text-teal-400" />
-  //     </div>
-  //   );
-  // }
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-10 w-10 animate-spin text-teal-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground py-8 px-4">

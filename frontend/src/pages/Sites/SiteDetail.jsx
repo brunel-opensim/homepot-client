@@ -29,11 +29,8 @@ export default function SiteDetail() {
   const [isAddingDevice, setIsAddingDevice] = useState(false);
   const [devices, setDevices] = useState([]);
 
-  console.log('devices', devices);
-
   useEffect(() => {
     const fetchSiteAndDevices = async () => {
-      console.log('fetchSiteAndDevices called with id:', id);
       if (!id) {
         console.error('No ID provided to fetch');
         return;
@@ -107,7 +104,6 @@ export default function SiteDetail() {
         name: `Job for ${site.name}`,
         description: 'Automatically created job',
       };
-      console.log('id', id);
 
       await api.jobs.create(id, defaultJob);
       // toast({
@@ -117,9 +113,6 @@ export default function SiteDetail() {
       // });
     } catch (err) {
       console.error('Failed to create job:', err);
-      const message = err.response?.data?.detail || err.message || 'Failed to create job';
-      // TODO: Add toast notification
-      alert(`Error: ${message}`);
     }
   };
 
