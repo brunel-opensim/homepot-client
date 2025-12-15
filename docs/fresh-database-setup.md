@@ -67,6 +67,36 @@ postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db
 
 **Important:** The backend uses credentials from `backend/.env` file, which is configured with `homepot_dev_password`. If the `.env` file is missing, the backend falls back to default credentials in `config.py`.
 
+### Password-Free Access Setup (Recommended)
+
+To avoid password prompts when working with the database, run:
+
+```bash
+./scripts/setup-pgpass.sh
+```
+
+This creates a `~/.pgpass` file with your credentials, allowing seamless database access:
+
+```bash
+# No password prompt needed!
+psql -h localhost -U homepot_user -d homepot_db
+./scripts/query-db.sh count
+```
+
+**Alternative approaches:**
+1. **Set environment variable** (temporary for current session):
+   ```bash
+   export PGPASSWORD='homepot_dev_password'
+   psql -h localhost -U homepot_user -d homepot_db
+   ```
+
+2. **Use connection string**:
+   ```bash
+   psql "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
+   ```
+
+See [Database Password Management](#database-password-management) section below for details.
+
 ## Issues Resolved
 
 ### Issue 1: Site ID Type Mismatch 
@@ -258,6 +288,7 @@ created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezo
 - Analytics: `docs/backend-analytics.md`
 - Database: `docs/database-guide.md`
 - Testing: `docs/api-testing-guide.md`
+- **Password Management: See [Database Password Management](#database-password-management) below**
 
 **Code Files:**
 - Analytics Endpoint: `backend/src/homepot/app/api/API_v1/Endpoints/AnalyticsEndpoint.py`
@@ -268,6 +299,114 @@ created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezo
 **Scripts:**
 - Database Init: `scripts/init-postgresql.sh`
 - Validation: `scripts/run-validation-test.sh`
+- **Password Setup: `scripts/setup-pgpass.sh`**
+
+---
+
+## Database Password Management
+
+### Problem: Password Prompts
+
+When running `psql` commands, you may encounter password prompts:
+
+```bash
+$ psql -h localhost -U homepot_user -d homepot_db
+Password for user homepot_user: _
+```
+
+This interrupts scripts and requires manual input. Here are three solutions:
+
+### Solution 1: `.pgpass` File (RECOMMENDED for developers)
+
+**Setup once, works forever:**
+
+```bash
+# Run the setup script
+./scripts/setup-pgpass.sh
+```
+
+**What it does:**
+- Creates `~/.pgpass` file in your home directory
+- Adds: `localhost:5432:homepot_db:homepot_user:homepot_dev_password`
+- Sets permissions to 600 (owner read/write only)
+
+**After setup:**
+```bash
+# No password prompt!
+psql -h localhost -U homepot_user -d homepot_db
+./scripts/query-db.sh count
+./scripts/init-postgresql.sh
+```
+
+**Security:**
+- Standard PostgreSQL password file
+- Only readable by you (chmod 600)
+- Used by all PostgreSQL client tools
+
+**To remove:**
+```bash
+sed -i '/homepot_db/d' ~/.pgpass
+# Or delete the entire file:
+rm ~/.pgpass
+```
+
+### Solution 2: PGPASSWORD Environment Variable
+
+**For temporary sessions:**
+
+```bash
+# Set for current terminal session
+export PGPASSWORD='homepot_dev_password'
+psql -h localhost -U homepot_user -d homepot_db
+```
+
+**For single command:**
+
+```bash
+PGPASSWORD='homepot_dev_password' psql -h localhost -U homepot_user -d homepot_db -c "SELECT COUNT(*) FROM users;"
+```
+
+**Note:** All project scripts automatically set `PGPASSWORD`, so they work without manual setup.
+
+### Solution 3: Connection String
+
+**Include password in URL:**
+
+```bash
+psql "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
+```
+
+**Pros:**
+- Works everywhere
+- No setup needed
+- Explicit credentials
+
+**Cons:**
+- Password visible in command history
+- Longer to type
+
+### Comparison
+
+| Method | Setup | Security | Convenience | CI/CD |
+|--------|-------|----------|-------------|-------|
+| `.pgpass` | Once | High | Best | No |
+| `PGPASSWORD` | Each session | Medium | Good | Yes |
+| Connection String | None | Low | OK | Yes |
+
+### Recommendation
+
+**For developers:**
+1. Run `./scripts/setup-pgpass.sh` once
+2. Enjoy password-free database access forever
+
+**For CI/CD:**
+- Scripts automatically use `PGPASSWORD`
+- No manual setup needed
+
+**For quick testing:**
+- Use connection string for one-off commands
+
+---
 
 ## Summary
 
@@ -276,6 +415,7 @@ created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezo
 - **Seed data added (1 user, 3 sites, 12 devices)**  
 - **Both developer issues analyzed and resolved**  
 - **Authentication flow documented with examples**  
+- **Password management simplified with `.pgpass` setup**
 - **Ready for validation testing and data collection**
 
 **Database is clean and ready for new user validation!**
