@@ -252,7 +252,6 @@ export default function SiteDetail() {
                       >
                         <td
                           className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
-                          // onClick={() => navigate(`/device/${device.device_id}`)}
                           onClick={() => navigate(`/device/${device.id || device.device_id}`)}
                         >
                           {device.name}
