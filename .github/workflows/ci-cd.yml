@@ -159,7 +159,7 @@ jobs:
         echo "Documentation files validated"
 
   test:
-    timeout-minutes: 15
+    timeout-minutes: 20
     name: Test Suite
     runs-on: ${{ matrix.os }}
     if: github.repository == 'brunel-opensim/homepot-client'

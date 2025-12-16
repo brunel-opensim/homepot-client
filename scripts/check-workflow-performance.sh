@@ -24,7 +24,7 @@ echo ""
 
 # Get workflow runs with timing data
 RUNS=$(gh run list --workflow "${WORKFLOW_NAME}" --limit "${LIMIT}" \
-  --json conclusion,startedAt,updatedAt,databaseId,displayTitle,event 2>/dev/null)
+  --json conclusion,startedAt,updatedAt,databaseId,displayTitle,event,headSha 2>/dev/null)
 
 if [ -z "$RUNS" ] || [ "$RUNS" = "[]" ]; then
   echo -e "${RED}No workflow runs found for '${WORKFLOW_NAME}'${NC}"
@@ -42,6 +42,7 @@ echo "$RUNS" | jq -r '
     title: .displayTitle[0:60],
     conclusion: .conclusion,
     event: .event,
+    commit: .headSha[0:7],
     duration: ((.updatedAt | fromdateiso8601) - (.startedAt | fromdateiso8601))
   }) |
   
@@ -83,11 +84,11 @@ echo "$RUNS" | jq -r '
   "Recent Runs:",
   "─────────────────────────────────────────────────────────",
   (.runs[0:10] | .[] | 
-    if .conclusion == "success" then "OK" 
-    elif .conclusion == "failure" then "FAIL" 
-    elif .conclusion == "cancelled" then "WARNING "
-    else "PAUSE " end + 
-    " \(.duration / 60 | floor)m \(.duration % 60 | floor)s - \(.title)"
+    if .conclusion == "success" then "✓" 
+    elif .conclusion == "failure" then "✗" 
+    elif .conclusion == "cancelled" then "⊘"
+    else "◷" end + 
+    " [\(.commit)] \(.duration / 60 | floor)m \(.duration % 60 | floor)s - \(.title)"
   )
 ' 
 
@@ -120,14 +121,14 @@ fi
 echo ""
 
 # Show trend
-echo -e "${BLUE}Trend Analysis:${NC}"
+echo -e "${BLUE}Trend Analysis (Successful Runs):${NC}"
 echo "$RUNS" | jq -r '
   map(select(.conclusion == "success")) |
   reverse |
   .[0:10] |
   to_entries |
   .[] |
-  "\(.key + 1). \(.value.displayTitle[0:40]): \((.value.updatedAt | fromdateiso8601) - (.value.startedAt | fromdateiso8601) / 60 | floor)m"
+  "\(.key + 1). [\(.value.headSha[0:7])] \(((.value.updatedAt | fromdateiso8601) - (.value.startedAt | fromdateiso8601)) / 60 | floor)m \(((.value.updatedAt | fromdateiso8601) - (.value.startedAt | fromdateiso8601)) % 60 | floor)s - \(.value.displayTitle[0:40])"
 '
 
 echo ""
