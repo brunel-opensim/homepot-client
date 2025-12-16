@@ -47,6 +47,7 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-mock>=3.12.0
+pytest-xdist>=3.5.0  # For parallel test execution
 factory-boy>=3.3.0
 faker>=20.1.0
 greenlet>=2.0.0  # Required for async testing
