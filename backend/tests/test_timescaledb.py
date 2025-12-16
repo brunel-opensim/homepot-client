@@ -19,7 +19,6 @@ from homepot.migrations.timescaledb_aggregates import (
 )
 from homepot.timescale import TimescaleDBManager
 
-
 # Skip all tests if PostgreSQL URL is not set (e.g., in CI without postgres service)
 pytestmark = pytest.mark.skipif(
     not os.getenv("DATABASE__URL") or "sqlite" in os.getenv("DATABASE__URL", ""),

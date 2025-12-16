@@ -104,17 +104,17 @@ AVG_DURATION=$(echo "$RUNS" | jq -r '
 AVG_MINUTES=$(echo "$AVG_DURATION / 60" | bc)
 
 if [ "$AVG_MINUTES" -gt 10 ]; then
-  echo -e "${RED}  PERFORMANCE WARNING${NC}"
-  echo -e "  Average duration: ${AVG_MINUTES}m (threshold: 10m)"
-  echo "Consider optimizing slow tests or CI configuration"
+  echo -e "${RED}PERFORMANCE WARNING${NC}"
+  echo -e "  - Average duration: ${AVG_MINUTES}m (threshold: 10m)"
+  echo "  - Consider optimizing slow tests or CI configuration"
 elif [ "$AVG_MINUTES" -gt 5 ]; then
-  echo -e "${YELLOW}  PERFORMANCE NOTICE${NC}"
-  echo -e "  Average duration: ${AVG_MINUTES}m (target: <5m)"
-  echo "Room for optimization exists"
+  echo -e "${YELLOW}  - PERFORMANCE NOTICE${NC}"
+  echo -e "  - Average duration: ${AVG_MINUTES}m (target: <5m)"
+  echo "  - Room for optimization exists"
 else
-  echo -e "${GREEN}  EXCELLENT PERFORMANCE${NC}"
-  echo -e "  Average duration: ${AVG_MINUTES}m"
-  echo "Workflow is well optimized!"
+  echo -e "${GREEN}  - EXCELLENT PERFORMANCE${NC}"
+  echo -e "  - Average duration: ${AVG_MINUTES}m"
+  echo "  - Workflow is well optimized!"
 fi
 
 echo ""
