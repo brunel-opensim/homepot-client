@@ -2,6 +2,7 @@
 
 from . import (
     AgentsEndpoints,
+    AIEndpoint,
     AnalyticsEndpoint,
     ClientEndpoint,
     DeviceSimulatorEndpoint,
@@ -17,6 +18,7 @@ from . import (
 
 __all__ = [
     "AgentsEndpoints",
+    "AIEndpoint",
     "AnalyticsEndpoint",
     "ClientEndpoint",
     "DeviceSimulatorEndpoint",
