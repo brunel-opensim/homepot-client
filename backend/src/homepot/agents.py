@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from homepot.app.models.AnalyticsModel import DeviceMetrics
 from homepot.database import get_database_service
 from homepot.models import DeviceStatus
 
@@ -317,21 +318,61 @@ class POSAgentSimulator:
         # Update device status in database
         try:
             db_service = await get_database_service()
-            new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
-            await db_service.update_device_status(self.device_id, new_status)
-
-            # Create health check record
-            await db_service.create_health_check(
-                device_name=self.device_id,  # Use device_name for lookup
-                is_healthy=is_healthy,
-                response_time_ms=self.response_time_ms,
-                status_code=200 if is_healthy else 500,
-                endpoint="/health",
-                response_data=health_data,
-            )
+            
+            # Use a single session for all database operations
+            async with db_service.get_session() as db:
+                # Update device status
+                new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
+                from sqlalchemy import select, update
+                from homepot.models import Device
+                
+                # Update device status
+                stmt = (
+                    update(Device)
+                    .where(Device.device_id == self.device_id)
+                    .values(status=new_status)
+                )
+                await db.execute(stmt)
+                
+                # Get device database ID for health check
+                device_result = await db.execute(
+                    select(Device).where(Device.device_id == self.device_id)
+                )
+                device = device_result.scalar_one_or_none()
+                
+                if device:
+                    # Create health check record
+                    from homepot.models import HealthCheck
+                    
+                    health_check = HealthCheck(
+                        device_id=int(device.id),  # type: ignore[arg-type]
+                        is_healthy=is_healthy,
+                        response_time_ms=self.response_time_ms,
+                        status_code=200 if is_healthy else 500,
+                        endpoint="/health",
+                        response_data=health_data,
+                    )
+                    db.add(health_check)
+                    
+                    # Save device metrics to database for AI training
+                    device_metrics = DeviceMetrics(
+                        timestamp=datetime.utcnow(),  # Use timezone-naive for compatibility
+                        device_id=self.device_id,
+                        cpu_percent=health_data["metrics"]["cpu_usage_percent"],
+                        memory_percent=health_data["metrics"]["memory_usage_percent"],
+                        disk_percent=health_data["metrics"]["disk_usage_percent"],
+                        transaction_count=health_data["metrics"]["transactions_today"],
+                        extra_metrics={
+                            "uptime_seconds": health_data["metrics"]["uptime_seconds"],
+                            "services": health_data["services"],
+                            "device_info": health_data["device_info"],
+                        },
+                    )
+                    db.add(device_metrics)
+                    logger.info(f"Saved device metrics for {self.device_id}")
 
         except Exception as e:
-            logger.error(f"Failed to update device status for {self.device_id}: {e}")
+            logger.error(f"Failed to save device metrics for {self.device_id}: {e}")
 
         return health_data
 
