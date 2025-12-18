@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from homepot.app.models.AnalyticsModel import DeviceMetrics
+from homepot.app.models.AnalyticsModel import DeviceMetrics, DeviceStateHistory
 from homepot.database import get_database_service
 from homepot.models import DeviceStatus
 
@@ -321,24 +321,45 @@ class POSAgentSimulator:
             
             # Use a single session for all database operations
             async with db_service.get_session() as db:
-                # Update device status
+                # Determine new status based on health
                 new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
                 from sqlalchemy import select, update
                 from homepot.models import Device
                 
-                # Update device status
-                stmt = (
-                    update(Device)
-                    .where(Device.device_id == self.device_id)
-                    .values(status=new_status)
-                )
-                await db.execute(stmt)
-                
-                # Get device database ID for health check
+                # Get device and its current status before updating
                 device_result = await db.execute(
                     select(Device).where(Device.device_id == self.device_id)
                 )
                 device = device_result.scalar_one_or_none()
+                
+                if device:
+                    previous_status = device.status
+                    
+                    # Update device status only if changed
+                    if previous_status != new_status:
+                        stmt = (
+                            update(Device)
+                            .where(Device.device_id == self.device_id)
+                            .values(status=new_status)
+                        )
+                        await db.execute(stmt)
+                        
+                        # Log state transition for AI training
+                        reason = "Health check: healthy" if is_healthy else f"Health check: {health_data.get('error', 'unhealthy')}"
+                        state_history = DeviceStateHistory(
+                            timestamp=datetime.utcnow(),
+                            device_id=self.device_id,
+                            previous_state=previous_status,
+                            new_state=new_status,
+                            changed_by="system",
+                            reason=reason,
+                            extra_data={
+                                "response_time_ms": self.response_time_ms,
+                                "health_status": "healthy" if is_healthy else "unhealthy",
+                            },
+                        )
+                        db.add(state_history)
+                        logger.info(f"Device {self.device_id} state changed: {previous_status} → {new_status}")
                 
                 if device:
                     # Create health check record
