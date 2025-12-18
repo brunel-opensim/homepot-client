@@ -37,7 +37,26 @@ Run this command to see what data has been collected:
 ```bash
 cd backend
 source venv/bin/activate
-python utils/validate_data_collection.py
+python -W ignore::DeprecationWarning utils/validate_data_collection.py
+```
+
+**Note:** The `-W ignore::DeprecationWarning` flag suppresses datetime warnings (database uses timezone-naive timestamps for compatibility).
+
+### Validation Options
+
+**Check with minimum days requirement:**
+```bash
+python -W ignore::DeprecationWarning utils/validate_data_collection.py --min-days 3
+```
+
+**Export validation report to JSON:**
+```bash
+python -W ignore::DeprecationWarning utils/validate_data_collection.py --report collection_report.json
+```
+
+**Quick check (0 days minimum):**
+```bash
+python -W ignore::DeprecationWarning utils/validate_data_collection.py --min-days 0
 ```
 
 ### Sample Output:
@@ -152,12 +171,12 @@ tail -f backend/backend.log
 
 **Run with verbose output:**
 ```bash
-python backend/utils/validate_data_collection.py --min-days 5
+python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py --min-days 5
 ```
 
 **Save report for analysis:**
 ```bash
-python backend/utils/validate_data_collection.py --report collection_report.json
+python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py --report collection_report.json
 ```
 
 ## When You're Done (After 3-5 Days)
@@ -166,7 +185,7 @@ python backend/utils/validate_data_collection.py --report collection_report.json
 
 2. **Run final validation:**
 ```bash
-python backend/utils/validate_data_collection.py --min-days 3 --report final_report.json
+python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py --min-days 3 --report final_report.json
 ```
 
 3. **Check you have:**
@@ -219,7 +238,7 @@ The AI uses this data to:
 **Issues?** Contact the backend team or check:
 - Backend logs: `backend/backend.log`
 - Database logs: `docker logs postgres` (if using Docker)
-- Validation report: `python backend/utils/validate_data_collection.py`
+- Validation report: `python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py`
 
 ## Success Criteria
 
