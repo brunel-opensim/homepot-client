@@ -7,6 +7,7 @@ exposing REST API endpoints for device management and monitoring.
 
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -256,6 +257,94 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Add API request logging middleware
+@app.middleware("http")
+async def log_api_requests(request: Request, call_next):
+    """Log all API requests for analytics and performance monitoring."""
+    # Skip logging for health checks and static files
+    if request.url.path in ["/", "/docs", "/redoc", "/openapi.json"]:
+        return await call_next(request)
+    
+    start_time = time.time()
+    
+    # Get request size
+    request_size = 0
+    if request.headers.get("content-length"):
+        try:
+            request_size = int(request.headers["content-length"])
+        except ValueError:
+            pass
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Calculate response time
+    response_time_ms = int((time.time() - start_time) * 1000)
+    
+    # Get response size from content-length header if available
+    response_size = 0
+    if response.headers.get("content-length"):
+        try:
+            response_size = int(response.headers["content-length"])
+        except ValueError:
+            pass
+    
+    # Log to database asynchronously (don't block response)
+    asyncio.create_task(_log_request_to_db(
+        endpoint=request.url.path,
+        method=request.method,
+        status_code=response.status_code,
+        response_time_ms=response_time_ms,
+        user_id=None,  # TODO: Extract from auth token if present
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        request_size=request_size,
+        response_size=response_size,
+        error_message=None if response.status_code < 400 else f"HTTP {response.status_code}",
+    ))
+    
+    return response
+
+
+async def _log_request_to_db(
+    endpoint: str,
+    method: str,
+    status_code: int,
+    response_time_ms: int,
+    user_id: Optional[str],
+    ip_address: Optional[str],
+    user_agent: Optional[str],
+    request_size: int,
+    response_size: int,
+    error_message: Optional[str],
+):
+    """Log API request to database."""
+    try:
+        from homepot.app.models.AnalyticsModel import APIRequestLog
+        from homepot.database import get_database_service
+        
+        db_service = await get_database_service()
+        async with db_service.get_session() as db:
+            log_entry = APIRequestLog(
+                endpoint=endpoint,
+                method=method,
+                status_code=status_code,
+                response_time_ms=response_time_ms,
+                user_id=user_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                request_size_bytes=request_size,
+                response_size_bytes=response_size,
+                error_message=error_message,
+            )
+            db.add(log_entry)
+            await db.commit()
+    except Exception as e:
+        logger.error(f"Failed to log API request: {e}")
+        # Don't raise - logging shouldn't break requests
+
 
 # Include API v1 router
 app.include_router(api_v1_router, prefix="/api/v1")

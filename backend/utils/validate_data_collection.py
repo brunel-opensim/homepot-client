@@ -41,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from sqlalchemy import func, select
 
 from homepot.app.models.AnalyticsModel import (
+    APIRequestLog,
     ConfigurationHistory,
     DeviceMetrics,
     DeviceStateHistory,
@@ -100,6 +101,7 @@ class DataCollectionValidator:
         await self._check_error_logs()
         await self._check_configuration_history()
         await self._check_site_schedules()
+        await self._check_api_request_logs()
         
         # Check 4: Data quality
         await self._check_data_quality()
@@ -244,6 +246,16 @@ class DataCollectionValidator:
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
             print(f"{Colors.RED}✗{Colors.END} {check_name}: {str(e)}")
+
+    async def _check_api_request_logs(self):
+        """Validate api_request_logs table."""
+        await self._check_table(
+            "API Request Logs",
+            APIRequestLog,
+            APIRequestLog.timestamp,
+            expected_per_day=100,  # At least some API activity
+            critical=False  # Not critical for AI, but useful for monitoring
+        )
 
     async def _check_table(
         self,

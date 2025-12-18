@@ -65,7 +65,7 @@
 
 ---
 
-### 4. Error Logs 
+### 4. Error Logs ✓
 **Implementation:** [utils.py#L50-L100](../backend/src/homepot/utils.py) `log_error()` helper  
 **Status:** **PRODUCTION READY**
 
@@ -190,14 +190,14 @@ async def log_api_requests(request: Request, call_next):
 
 | Table | Status | Records | Collection Method | AI Ready? |
 |-------|--------|---------|-------------------|-----------|
-| **device_metrics** | Implemented | 538 | Every 30s background task | YES |
+| **device_metrics** | Implemented | 586 | Every 30s background task | YES |
 | **job_outcomes** | Implemented | 4 | On job completion | YES |
-| **device_state_history** | Implemented | 116 | On state change | YES |
+| **device_state_history** | Implemented | 126 | On state change | YES |
 | **error_logs** | Implemented | 10 | Real-time errors | YES |
 | **configuration_history** | Implemented | 4 | On config change | YES |
 | **site_operating_schedules** | Manual | 7 | Static reference data | YES |
-| **user_activity** | Not Implemented | 0 | Frontend integration needed | NO |
-| **api_request_logs** | Partial | 0 | Middleware needed | Optional |
+| **api_request_logs** | Implemented | 130+ | FastAPI middleware | Optional |
+| **user_activity** | Not Implemented | 0 | Frontend integration needed | Optional |
 
 ## AI Training Data Readiness
 
@@ -221,8 +221,7 @@ All 6 required data sources for AI are collecting:
 ## Recommendations
 
 ### Short Term (Optional)
-1. **API Request Logging:** Add middleware for complete request tracking
-2. **Frontend Analytics:** Integrate user behavior tracking
+1. **Frontend Analytics:** Integrate user behavior tracking for UX insights
 
 ### Medium Term (Data Quality)
 1. **Monitor collection gaps:** Alert if device_metrics stop for >5 minutes
@@ -236,4 +235,4 @@ All 6 required data sources for AI are collecting:
 
 ---
 
-**Conclusion:** All critical data collection mechanisms are implemented and working. The system is ready for 3-5 day data collection runs to train AI models. User activity tracking is the only missing piece, but it's not required for device management AI features.
+**Conclusion:** **7 out of 8 analytics tables are fully implemented and collecting data.** All critical data collection mechanisms for device management AI are working. The system is ready for 3-5 day data collection runs. User activity tracking is the only remaining piece, useful for UX analytics but not required for core AI features.
