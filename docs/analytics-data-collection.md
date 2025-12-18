@@ -644,11 +644,15 @@ This will:
    - Fixed site_id resolution for string-based security identifiers
    - Verified: Successfully logging all 4 outcome scenarios (success, failed, exception, no devices)
 
-**Remaining Tasks:**
-3. **Device State History**
-   - Add hooks in DeviceEndpoint.py to log state transitions
-   - Estimated time: 2-3 hours
+3. **Device State History** (Implemented: Dec 18, 2025)
+   - Added state transition tracking in agents.py health checks
+   - Logs state changes: online↔error↔offline↔maintenance
+   - Captures previous_state, new_state, reason, and changed_by
+   - Stores response time and health status in extra_data JSON
+   - Optimized: Only logs when state actually changes
+   - Verified: Successfully tracking transitions with descriptive reasons
 
+**Remaining Tasks:**
 4. **Error Logging**
    - Add backend exception handlers to log errors
    - Estimated time: 3 hours
