@@ -1,6 +1,6 @@
 """Analytics models for tracking system metrics and user behavior."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     JSON,
@@ -18,13 +18,22 @@ from sqlalchemy import (
 from .UserModel import Base
 
 
+def utc_now():
+    """Get current UTC time (timezone-naive for database compatibility).
+    
+    Note: Uses timezone-naive datetime for compatibility with existing
+    database schema. For new projects, consider using timezone-aware datetimes.
+    """
+    return datetime.utcnow()
+
+
 class APIRequestLog(Base):
     """Track API requests for performance analysis."""
 
     __tablename__ = "api_request_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
     endpoint = Column(String(255), nullable=False, index=True)
     method = Column(String(10), nullable=False)  # GET, POST, PUT, DELETE
     status_code = Column(Integer, nullable=False)
@@ -48,7 +57,7 @@ class DeviceStateHistory(Base):
     __tablename__ = "device_state_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
     device_id = Column(String(255), nullable=False, index=True)
     previous_state = Column(String(50), nullable=True)
     new_state = Column(String(50), nullable=False)
@@ -65,7 +74,7 @@ class JobOutcome(Base):
     __tablename__ = "job_outcomes"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
     job_id = Column(String(255), nullable=False, index=True)
     job_type = Column(String(100), nullable=False, index=True)
     device_id = Column(String(255), nullable=True, index=True)
@@ -89,7 +98,7 @@ class ErrorLog(Base):
     __tablename__ = "error_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
     category = Column(
         String(50), nullable=False, index=True
     )  # api, database, external_service, validation
@@ -118,7 +127,7 @@ class UserActivity(Base):
     __tablename__ = "user_activities"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
     user_id = Column(String(255), nullable=False, index=True)
     session_id = Column(String(255), nullable=True, index=True)
     activity_type = Column(
@@ -142,7 +151,7 @@ class DeviceMetrics(Base):
     __tablename__ = "device_metrics"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
     device_id = Column(String(255), nullable=False, index=True)
 
     # Performance metrics
@@ -173,7 +182,7 @@ class ConfigurationHistory(Base):
     __tablename__ = "configuration_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False, index=True, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
 
     # What was changed
     entity_type = Column(

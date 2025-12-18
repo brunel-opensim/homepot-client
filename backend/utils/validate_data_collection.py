@@ -48,9 +48,14 @@ from homepot.app.models.AnalyticsModel import (
     ErrorLog,
     JobOutcome,
     SiteOperatingSchedule,
+    UserActivity,
 )
 from homepot.database import get_database_service
 
+
+def utc_now():
+    """Get current UTC time (timezone-naive for database compatibility)."""
+    return datetime.utcnow()
 
 class Colors:
     """ANSI color codes for terminal output."""
@@ -73,10 +78,10 @@ class DataCollectionValidator:
         """
         self.min_days = min_days
         self.results = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "min_days_required": min_days,
             "checks": [],
-            "overall_status": "unknown",
+                "overall_status": "unknown",
             "issues": [],
             "recommendations": []
         }
@@ -102,6 +107,7 @@ class DataCollectionValidator:
         await self._check_configuration_history()
         await self._check_site_schedules()
         await self._check_api_request_logs()
+        await self._check_user_activities()
         
         # Check 4: Data quality
         await self._check_data_quality()
@@ -257,6 +263,16 @@ class DataCollectionValidator:
             critical=False  # Not critical for AI, but useful for monitoring
         )
 
+    async def _check_user_activities(self):
+        """Validate user_activities table."""
+        await self._check_table(
+            "User Activities",
+            UserActivity,
+            UserActivity.timestamp,
+            expected_per_day=50,  # Some user interactions
+            critical=False  # Not critical for device AI, useful for UX analytics
+        )
+
     async def _check_table(
         self,
         name: str,
@@ -274,7 +290,7 @@ class DataCollectionValidator:
                 total_count = result.scalar()
 
                 # Recent count (last 24h)
-                cutoff = datetime.utcnow() - timedelta(hours=24)
+                cutoff = utc_now() - timedelta(hours=24)
                 result = await session.execute(
                     select(func.count()).select_from(model).where(
                         timestamp_field >= cutoff
@@ -389,7 +405,7 @@ class DataCollectionValidator:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 # Check for gaps longer than 1 hour in device metrics
-                cutoff = datetime.utcnow() - timedelta(days=self.min_days)
+                cutoff = utc_now() - timedelta(days=self.min_days)
                 result = await session.execute(
                     select(DeviceMetrics.timestamp)
                     .where(DeviceMetrics.timestamp >= cutoff)
