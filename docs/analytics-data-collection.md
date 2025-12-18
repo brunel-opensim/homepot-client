@@ -637,10 +637,12 @@ This will:
    - Stores in device_metrics table with proper TimescaleDB compatibility
    - Verified: All 12 devices saving metrics successfully
 
-**In Progress:**
-2. **Job Outcomes Logging**
-   - Add logging in orchestrator.py for job execution results
-   - Estimated time: 2 hours
+2. **Job Outcomes Logging** (Implemented: Dec 18, 2025)
+   - Added logging in orchestrator.py at all job completion points
+   - Captures job duration, status (success/failed/completed), and error messages
+   - Logs device counts, push notification results, and execution metadata
+   - Fixed site_id resolution for string-based security identifiers
+   - Verified: Successfully logging all 4 outcome scenarios (success, failed, exception, no devices)
 
 **Remaining Tasks:**
 3. **Device State History**
