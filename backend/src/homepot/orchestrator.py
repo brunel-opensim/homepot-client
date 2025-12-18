@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from homepot.app.models.AnalyticsModel import JobOutcome
 from homepot.config import get_settings
 from homepot.database import get_database_service
+from homepot.error_logger import log_error
 from homepot.models import Device, Job, JobPriority, JobStatus
 
 logger = logging.getLogger(__name__)
@@ -238,6 +239,14 @@ class JobOrchestrator:
                 continue
             except Exception as e:
                 logger.error(f"Worker {worker_name} error: {e}")
+                # Log error for AI training
+                await log_error(
+                    category="external_service",
+                    severity="error",
+                    error_message=f"Job worker {worker_name} encountered an error",
+                    exception=e,
+                    context={"worker": worker_name, "action": "process_job_worker"},
+                )
                 await asyncio.sleep(1)
 
         logger.info(f"Job worker {worker_name} stopped")
@@ -354,6 +363,19 @@ class JobOrchestrator:
                     logger.error(
                         f"Failed to send push to device {device.device_id}: {e}"
                     )
+                    # Log error for AI training
+                    await log_error(
+                        category="external_service",
+                        severity="error",
+                        error_message=f"Failed to send push notification to device",
+                        exception=e,
+                        device_id=str(device.device_id),
+                        context={
+                            "job_id": str(job.job_id),
+                            "action": job.action,
+                            "device_name": device.name,
+                        },
+                    )
 
             # Update job with results
             result = {
@@ -428,6 +450,20 @@ class JobOrchestrator:
 
         except Exception as e:
             logger.error(f"Job {job.job_id} processing failed: {e}")
+
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="critical",
+                error_message=f"Job processing failed critically",
+                exception=e,
+                context={
+                    "job_id": str(job.job_id),
+                    "action": job.action,
+                    "site_id": job.site_id,
+                    "segment": job.segment,
+                },
+            )
 
             # Mark job as failed
             db_service = await get_database_service()
@@ -513,6 +549,18 @@ class JobOrchestrator:
 
         except Exception as e:
             logger.error(f"Failed to send push to {device.device_id}: {e}")
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message=f"Failed to send push notification",
+                exception=e,
+                device_id=str(device.device_id),
+                context={
+                    "notification_data": notification_data,
+                    "device_name": device.name,
+                },
+            )
             return False
 
     async def get_recent_jobs_status(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -549,6 +597,14 @@ class JobOrchestrator:
 
         except Exception as e:
             logger.error(f"Failed to get recent jobs: {e}")
+            # Log error for AI training
+            await log_error(
+                category="database",
+                severity="warning",
+                error_message="Failed to retrieve recent jobs status",
+                exception=e,
+                context={"action": "get_recent_jobs_status", "limit": limit},
+            )
             return []
 
 

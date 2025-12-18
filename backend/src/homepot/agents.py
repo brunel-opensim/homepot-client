@@ -20,6 +20,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from homepot.app.models.AnalyticsModel import DeviceMetrics, DeviceStateHistory
+from homepot.error_logger import log_error
 from homepot.database import get_database_service
 from homepot.models import DeviceStatus
 
@@ -132,6 +133,15 @@ class POSAgentSimulator:
             logger.error(
                 f"Agent {self.device_id} error handling push notification: {e}"
             )
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message=f"Agent {self.device_id} failed to handle push notification",
+                exception=e,
+                device_id=self.device_id,
+                context={"action": action, "notification_data": notification_data},
+            )
             return {
                 "status": "error",
                 "message": str(e),
@@ -205,6 +215,20 @@ class POSAgentSimulator:
             await asyncio.sleep(1.0)  # Error recovery time
             self.state = AgentState.IDLE
 
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message=f"Agent {self.device_id} failed to apply configuration update",
+                exception=e,
+                device_id=self.device_id,
+                context={
+                    "config_url": config_url,
+                    "config_version": config_version,
+                    "current_version": self.current_config_version,
+                },
+            )
+
             return {
                 "status": "error",
                 "message": str(e),
@@ -239,6 +263,16 @@ class POSAgentSimulator:
             self.state = AgentState.ERROR
             await asyncio.sleep(2.0)
             self.state = AgentState.IDLE
+
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message=f"Agent {self.device_id} failed to restart application",
+                exception=e,
+                device_id=self.device_id,
+                context={"action": "restart_application"},
+            )
 
             return {
                 "status": "error",
@@ -394,6 +428,15 @@ class POSAgentSimulator:
 
         except Exception as e:
             logger.error(f"Failed to save device metrics for {self.device_id}: {e}")
+            # Log error for AI training
+            await log_error(
+                category="database",
+                severity="warning",
+                error_message=f"Failed to save device metrics for {self.device_id}",
+                exception=e,
+                device_id=self.device_id,
+                context={"action": "save_device_metrics"},
+            )
 
         return health_data
 
@@ -406,6 +449,15 @@ class POSAgentSimulator:
                     await self._run_health_check()
             except Exception as e:
                 logger.error(f"Health check loop error for {self.device_id}: {e}")
+                # Log error for AI training
+                await log_error(
+                    category="external_service",
+                    severity="warning",
+                    error_message=f"Health check loop error for {self.device_id}",
+                    exception=e,
+                    device_id=self.device_id,
+                    context={"action": "health_check_loop"},
+                )
                 await asyncio.sleep(5)  # Short retry delay
 
 
@@ -466,6 +518,14 @@ class AgentManager:
 
         except Exception as e:
             logger.error(f"Failed to discover devices: {e}")
+            # Log error for AI training
+            await log_error(
+                category="database",
+                severity="error",
+                error_message="Failed to discover active POS devices",
+                exception=e,
+                context={"action": "discover_devices"},
+            )
 
     async def _start_agent_for_device(self, device_id: str, device_name: str) -> None:
         """Start an agent for a specific device."""
@@ -483,6 +543,14 @@ class AgentManager:
                 await self._discover_and_start_agents()
             except Exception as e:
                 logger.error(f"Device monitor loop error: {e}")
+                # Log error for AI training
+                await log_error(
+                    category="external_service",
+                    severity="warning",
+                    error_message="Device monitor loop encountered an error",
+                    exception=e,
+                    context={"action": "device_monitor_loop"},
+                )
                 await asyncio.sleep(5)
 
     async def send_push_notification(

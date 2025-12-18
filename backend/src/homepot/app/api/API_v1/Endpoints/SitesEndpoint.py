@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
+from homepot.error_logger import log_error
 
 client_instance: Optional[HomepotClient] = None
 
@@ -107,6 +108,15 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
         raise
     except Exception as e:
         logger.error(f"Failed to create site: {e}", exc_info=True)
+        # Log error for AI training
+        await log_error(
+            category="api",
+            severity="error",
+            error_message="Failed to create site",
+            exception=e,
+            endpoint="/api/v1/sites",
+            context={"site_data": site_data.model_dump()},
+        )
         raise HTTPException(
             status_code=500, detail="Failed to create site. Please check server logs."
         )
@@ -149,6 +159,15 @@ async def list_sites() -> Dict[str, List[Dict]]:
 
     except Exception as e:
         logger.error(f"Failed to list sites: {e}", exc_info=True)
+        # Log error for AI training
+        await log_error(
+            category="api",
+            severity="error",
+            error_message="Failed to list sites",
+            exception=e,
+            endpoint="/api/v1/sites",
+            context={"action": "list_sites"},
+        )
         raise HTTPException(
             status_code=500, detail="Failed to list sites. Please check server logs."
         )
@@ -180,6 +199,15 @@ async def get_site(site_id: str) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Failed to get site {site_id}: {e}", exc_info=True)
+        # Log error for AI training
+        await log_error(
+            category="api",
+            severity="error",
+            error_message=f"Failed to get site {site_id}",
+            exception=e,
+            endpoint=f"/api/v1/sites/{site_id}",
+            context={"site_id": site_id, "action": "get_site"},
+        )
         raise HTTPException(
             status_code=500, detail="Failed to get site. Please check server logs."
         )

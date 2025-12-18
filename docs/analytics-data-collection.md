@@ -183,7 +183,7 @@ db.commit()
 ## 4. Error Logs
 
 **Table:** `error_logs`  
-**Collection Status:** Needs manual logging when errors occur
+**Collection Status:** Implemented (Dec 18, 2025)
 
 ### What It Stores
 
@@ -202,42 +202,78 @@ Categorized error tracking for system health:
 - `resolved`: Whether error is resolved
 - `resolved_at`: Resolution timestamp
 
+### Implementation Details
+
+**Files Modified:**
+- `backend/src/homepot/error_logger.py` - Centralized error logging utility
+- `backend/src/homepot/agents.py` - 7 exception handlers
+- `backend/src/homepot/orchestrator.py` - 6 exception handlers
+- `backend/src/homepot/app/api/API_v1/Endpoints/SitesEndpoint.py` - 3 exception handlers
+
+**Error Categories:**
+- **api**: API request failures, validation errors
+- **database**: Database connection/query failures
+- **external_service**: Agent errors, job processing failures, push notification errors
+- **validation**: Configuration validation warnings
+
+**Error Severity Levels:**
+- **critical**: Job processing failures, payment gateway timeouts
+- **error**: Database failures, API errors, device errors
+- **warning**: Health check loop errors, device monitor errors, validation warnings
+- **info**: Configuration warnings, non-critical validations
+
 ### Example Data
 
 ```
-timestamp           | category | severity | error_code    | message              | resolved
---------------------|----------|----------|---------------|----------------------|----------
-2025-12-05 14:30:00 | database | error    | E_DB_TIMEOUT  | Connection timeout   | false
-2025-12-05 14:35:00 | api      | warning  | E_RATE_LIMIT  | Rate limit exceeded  | true
-2025-12-05 14:40:00 | external | critical | E_MQTT_DOWN   | MQTT broker offline  | false
+timestamp           | category          | severity | error_code         | message                          | device_id
+--------------------|-------------------|----------|--------------------|----------------------------------|-------------------
+2025-12-18 16:22:00 | external_service  | critical | EXT_SERVICE_TIMEOUT| Payment gateway timeout          | pos-terminal-001
+2025-12-18 16:22:00 | database          | error    | DB_CONN_001        | Database connection failed       | null
+2025-12-18 16:22:00 | api               | warning  | API_VALIDATION_001 | Invalid parameter in request     | null
+2025-12-18 16:22:00 | validation        | info     | CONFIG_VAL_001     | Configuration validation warning | null
 ```
 
 ### Use Cases for AI
 
-- Predict system failures
-- Identify recurring error patterns
-- Recommend preventive actions
-- Prioritize critical issues
+- Predict system failures before they occur
+- Identify recurring error patterns by category
+- Recommend preventive actions based on error history
+- Prioritize critical issues based on severity
+- Correlate device errors with maintenance schedules
+- Analyze failure rates by time of day/week
 
-### Implementation Required
+### Verification
 
-Add error logging in exception handlers:
+Tested with simulated errors:
+- Database connection failures logged correctly
+- API validation errors captured with context
+- External service timeouts logged with stack traces
+- Configuration warnings stored as info level
+- Error context includes exception type and relevant data
+- Stack traces captured for debugging
+
+### Implementation Reference
+
+Use the centralized error logger in exception handlers:
 
 ```python
-from homepot.app.models.AnalyticsModel import ErrorLog
+from homepot.error_logger import log_error
 
 try:
     # Your code
     pass
 except Exception as e:
-    db.add(ErrorLog(
+    await log_error(
         category="database",
         severity="error",
-        error_code="E_DB_TIMEOUT",
-        error_message=str(e),
-        stack_trace=traceback.format_exc(),
-        endpoint=request.url.path,
-        user_id=current_user.id if current_user else None
+        error_code="DB_CONN_001",
+        error_message="Database connection failed",
+        exception=e,  # Automatically extracts stack trace
+        endpoint="/api/v1/example" if request else None,
+        user_id=current_user.id if current_user else None,
+        device_id=device_id if device_id else None,
+        context={"additional": "context", "data": "here"}
+````
     ))
     db.commit()
     raise
