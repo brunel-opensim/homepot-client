@@ -1642,8 +1642,8 @@ services:
     image: postgres:14
     environment:
       - POSTGRES_DB=homepot
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=secure_password
+      - POSTGRES_USER=homepot_user
+      - POSTGRES_PASSWORD=homepot_dev_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always

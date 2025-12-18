@@ -15,7 +15,7 @@ not for cryptographic operations. S311 warnings are expected and acceptable here
 import asyncio
 import logging
 import random  # nosec - Used for POS device simulation, not cryptographic purposes
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -124,7 +124,7 @@ class POSAgentSimulator:
                     "status": "error",
                     "message": f"Unknown action: {action}",
                     "device_id": self.device_id,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
         except Exception as e:
@@ -135,7 +135,7 @@ class POSAgentSimulator:
                 "status": "error",
                 "message": str(e),
                 "device_id": self.device_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def _handle_config_update(
@@ -195,7 +195,7 @@ class POSAgentSimulator:
                 "device_id": self.device_id,
                 "config_version": config_version,
                 "health_check": health_result,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "processing_time_ms": random.randint(2000, 6000),
             }
 
@@ -209,7 +209,7 @@ class POSAgentSimulator:
                 "message": str(e),
                 "device_id": self.device_id,
                 "config_version": self.current_config_version,  # Keep old version
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def _handle_restart(self) -> Dict[str, Any]:
@@ -231,7 +231,7 @@ class POSAgentSimulator:
                 "message": "Application restarted successfully",
                 "device_id": self.device_id,
                 "health_check": health_result,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -243,7 +243,7 @@ class POSAgentSimulator:
                 "status": "error",
                 "message": str(e),
                 "device_id": self.device_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     async def _handle_health_check(self) -> Dict[str, Any]:
@@ -255,7 +255,7 @@ class POSAgentSimulator:
             "message": "Health check completed",
             "device_id": self.device_id,
             "health_check": health_result,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     async def _run_health_check(self) -> Dict[str, Any]:
@@ -289,7 +289,7 @@ class POSAgentSimulator:
             "status": "healthy" if is_healthy else "unhealthy",
             "config_version": self.current_config_version,
             "last_restart": (
-                datetime.utcnow() - timedelta(hours=random.randint(1, 48))
+                datetime.now(timezone.utc) - timedelta(hours=random.randint(1, 48))
             ).isoformat(),
             "response_time_ms": self.response_time_ms,
             "device_info": self.device_info,

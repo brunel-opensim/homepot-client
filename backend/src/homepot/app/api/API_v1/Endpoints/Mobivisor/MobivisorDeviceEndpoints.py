@@ -321,6 +321,46 @@ async def fetch_managed_apps_from_device(device_id: str) -> Any:
     return handle_mobivisor_response(response, f"fetch device {device_id}")
 
 
+@router.get("/devicescommands", tags=["Mobivisor Devices"])
+async def fetch_device_commands(
+    order: str = "timeCreated",
+    page: int = 0,
+    per_page: int = 20,
+    reverse: bool = True,
+    search: str = "{}",
+) -> Any:
+    """Fetch device commands from Mobivisor with pagination and search.
+
+    The endpoint proxies requests to the Mobivisor `/devicescommands` API and
+    accepts common query parameters: `order`, `page`, `per_page`, `reverse`,
+    and `search` (JSON string).
+    """
+    logger.info("Fetching device commands from Mobivisor API")
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    # Format params for upstream request
+    params = {
+        "order": order,
+        "page": page,
+        "per_page": per_page,
+        "reverse": str(reverse).lower(),
+        "search": search,
+    }
+
+    response = await make_mobivisor_request(
+        "GET", "devicescommands", params=params, config=config
+    )
+    return handle_mobivisor_response(response, "fetch device commands")
+
+
 @router.get("/devices/{device_id}/applications", tags=["Mobivisor Devices"])
 async def fetch_device_applications(device_id: str) -> Any:
     """Fetch the applications installed or available for a device in Mobivisor.

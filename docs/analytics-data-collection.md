@@ -4,11 +4,20 @@ This document explains what data HOMEPOT collects for AI integration and where i
 
 ## Overview
 
-HOMEPOT Client automatically collects operational data to enable AI-powered insights and recommendations. The system uses 5 PostgreSQL tables to store different types of analytics data.
+HOMEPOT Client automatically collects operational data to enable AI-powered insights and recommendations. The system uses 8 PostgreSQL tables to store different types of analytics data:
+
+- **5 operational analytics tables**: API requests, device states, job outcomes, errors, user activities
+- **3 AI-focused tables**: Device metrics, configuration history, site schedules
+
+- **5 Core Analytics Tables:** API requests, device states, job outcomes, errors, user activities
+- **3 AI-Focused Tables:** Device performance metrics, configuration history, site schedules
 
 **Current Status:**
-- Database tables created
+- Database tables created (all 8 tables)
 - API request logging (automatic via middleware)
+- Device performance metrics collection (needs implementation)
+- Configuration change tracking (needs implementation)
+- Site operating schedules (needs manual setup)
 - Device state tracking (needs implementation)
 - Job outcome tracking (needs implementation)
 - Error logging (needs implementation)
@@ -278,6 +287,227 @@ Frontend developers need to add tracking calls. See [Frontend Analytics Integrat
 
 ---
 
+## 6. Device Performance Metrics
+
+**Table:** `device_metrics`  
+**Collection Status:** Needs periodic collection (recommended: every 5 minutes)
+
+### What It Stores
+
+Tracks device performance metrics over time for predictive maintenance and optimization:
+
+- `timestamp`: When metrics were collected
+- `device_id`: Device identifier
+- `cpu_percent`: CPU usage percentage
+- `memory_percent`: Memory usage percentage
+- `disk_percent`: Disk usage percentage
+- `network_latency_ms`: Network latency in milliseconds
+- `transaction_count`: Number of transactions processed
+- `transaction_volume`: Dollar amount of transactions
+- `error_rate`: Error rate percentage
+- `active_connections`: Number of active connections
+- `queue_depth`: Number of queued items
+- `extra_metrics`: Additional JSON metrics
+
+### Example Data
+
+```
+timestamp           | device_id | cpu% | mem% | disk% | trans | error_rate
+--------------------|-----------|------|------|-------|-------|------------
+2025-12-11 14:00:00 | dev_001   | 45.2 | 62.8 | 38.5  | 156   | 0.64
+2025-12-11 14:05:00 | dev_001   | 48.1 | 65.2 | 38.6  | 162   | 0.71
+2025-12-11 14:10:00 | dev_001   | 52.3 | 68.5 | 38.7  | 178   | 0.85
+```
+
+### Use Cases for AI
+
+- Predict device performance degradation
+- Identify resource bottlenecks before they cause issues
+- Recommend hardware upgrades based on usage patterns
+- Correlate performance with transaction volume
+- Detect anomalous behavior patterns
+
+### Implementation Required
+
+Add periodic metrics collection (e.g., in a background task):
+
+```python
+from homepot.app.models.AnalyticsModel import DeviceMetrics
+
+# Every 5 minutes
+async def collect_device_metrics(device_id: str):
+    metrics = await get_device_performance(device_id)
+    
+    db.add(DeviceMetrics(
+        device_id=device_id,
+        cpu_percent=metrics.cpu,
+        memory_percent=metrics.memory,
+        disk_percent=metrics.disk,
+        network_latency_ms=metrics.latency,
+        transaction_count=metrics.transactions,
+        transaction_volume=metrics.volume,
+        error_rate=metrics.error_rate
+    ))
+    await db.commit()
+```
+
+---
+
+## 7. Configuration History
+
+**Table:** `configuration_history`  
+**Collection Status:** Needs logging on all config changes
+
+### What It Stores
+
+Tracks configuration changes and their impact for AI learning:
+
+- `timestamp`: When configuration was changed
+- `entity_type`: Type of entity (device, site, system)
+- `entity_id`: Identifier of the entity
+- `parameter_name`: Name of the parameter changed
+- `old_value`: Previous value (JSON)
+- `new_value`: New value (JSON)
+- `changed_by`: User who made the change
+- `change_reason`: Why the change was made
+- `change_type`: manual, automated, ai_recommended
+- `performance_before`: Performance metrics before change (JSON)
+- `performance_after`: Performance metrics after change (JSON)
+- `was_successful`: Whether change achieved desired result
+- `was_rolled_back`: Whether change was reverted
+- `rollback_reason`: Why it was rolled back
+
+### Example Data
+
+```
+timestamp           | entity  | entity_id | parameter       | old   | new   | success | rolled_back
+--------------------|---------|-----------|-----------------|-------|-------|---------|-------------
+2025-12-11 14:00:00 | device  | dev_001   | max_connections | 10    | 15    | true    | false
+2025-12-11 14:30:00 | device  | dev_002   | timeout_ms      | 5000  | 10000 | false   | true
+2025-12-11 15:00:00 | site    | site_001  | peak_hours      | 12-14 | 11-15 | true    | false
+```
+
+### Use Cases for AI
+
+- Learn which configuration changes improve performance
+- Recommend optimal settings based on historical data
+- Identify failed configuration patterns to avoid
+- Predict impact of configuration changes before applying
+- Automatically suggest rollback for degraded performance
+
+### Implementation Required
+
+Add logging whenever configuration is changed:
+
+```python
+from homepot.app.models.AnalyticsModel import ConfigurationHistory
+
+# Before change
+before_metrics = await measure_performance(device_id)
+
+# Apply change
+await update_device_config(device_id, "max_connections", 15)
+
+# After change (wait a bit for metrics)
+await asyncio.sleep(60)
+after_metrics = await measure_performance(device_id)
+
+# Log the change
+db.add(ConfigurationHistory(
+    entity_type="device",
+    entity_id=device_id,
+    parameter_name="max_connections",
+    old_value={"value": 10},
+    new_value={"value": 15},
+    changed_by=current_user.id,
+    change_reason="Increased load during peak hours",
+    change_type="manual",
+    performance_before={"avg_response_time": 145, "error_rate": 1.2},
+    performance_after={"avg_response_time": 98, "error_rate": 0.3},
+    was_successful=True
+))
+await db.commit()
+```
+
+---
+
+## 8. Site Operating Schedules
+
+**Table:** `site_operating_schedules`  
+**Collection Status:** Needs manual configuration per site
+
+### What It Stores
+
+Defines site operating hours and maintenance windows for intelligent job scheduling:
+
+- `site_id`: Site identifier
+- `day_of_week`: Day (0=Monday, 6=Sunday)
+- `open_time`: Store opening time
+- `close_time`: Store closing time
+- `is_closed`: Whether site is closed (holiday, etc.)
+- `is_maintenance_window`: Whether maintenance is preferred
+- `expected_transaction_volume`: Expected number of transactions
+- `peak_hours_start`: Peak period start time
+- `peak_hours_end`: Peak period end time
+- `notes`: Additional notes
+- `special_considerations`: JSON with special rules
+
+### Example Data
+
+```
+site_id  | day | open_time | close_time | maintenance | peak_start | peak_end | trans_volume
+---------|-----|-----------|------------|-------------|------------|----------|-------------
+site_001 | 0   | 08:00:00  | 22:00:00   | false       | 12:00:00   | 14:00:00 | 500
+site_001 | 1   | 08:00:00  | 22:00:00   | false       | 12:00:00   | 14:00:00 | 550
+site_001 | 6   | 10:00:00  | 18:00:00   | true        | 13:00:00   | 15:00:00 | 200
+```
+
+### Use Cases for AI
+
+- Schedule maintenance jobs during low-traffic periods
+- Avoid disrupting operations during peak hours
+- Predict optimal times for firmware updates
+- Recommend maintenance windows based on traffic patterns
+- Alert when maintenance is overdue
+
+### Implementation Required
+
+Configure schedules through admin interface or API:
+
+```python
+from homepot.app.models.AnalyticsModel import SiteOperatingSchedule
+from datetime import time
+
+# Monday schedule
+db.add(SiteOperatingSchedule(
+    site_id="site_001",
+    day_of_week=0,  # Monday
+    open_time=time(8, 0),
+    close_time=time(22, 0),
+    is_maintenance_window=False,
+    expected_transaction_volume=500,
+    peak_hours_start=time(12, 0),
+    peak_hours_end=time(14, 0),
+    notes="Regular business day"
+))
+
+# Sunday - preferred maintenance
+db.add(SiteOperatingSchedule(
+    site_id="site_001",
+    day_of_week=6,  # Sunday
+    open_time=time(10, 0),
+    close_time=time(18, 0),
+    is_maintenance_window=True,
+    expected_transaction_volume=200,
+    peak_hours_start=time(13, 0),
+    peak_hours_end=time(15, 0),
+    notes="Preferred maintenance window: 6am-9am"
+))
+await db.commit()
+```
+
+---
+
 ## Query Endpoints
 
 The backend provides API endpoints to query collected analytics data:
@@ -287,6 +517,9 @@ The backend provides API endpoints to query collected analytics data:
 - `GET /api/v1/analytics/jobs` - Query job outcomes
 - `GET /api/v1/analytics/errors` - Query error logs
 - `GET /api/v1/analytics/user-activities` - Query user activities
+- `GET /api/v1/analytics/device-metrics` - Query device performance metrics
+- `GET /api/v1/analytics/config-history` - Query configuration changes
+- `GET /api/v1/analytics/site-schedules` - Query site operating schedules
 
 All endpoints support filtering by:
 - `start_date` / `end_date`: Time range
@@ -295,19 +528,48 @@ All endpoints support filtering by:
 Example:
 ```bash
 curl "http://localhost:8000/api/v1/analytics/requests?start_date=2025-12-01&end_date=2025-12-05"
+curl "http://localhost:8000/api/v1/analytics/device-metrics?device_id=dev_001&start_date=2025-12-11"
+```
+
+## Command-Line Query Tool
+
+Use the query-db.sh script to inspect analytics data:
+
+```bash
+# Show counts for all tables
+./scripts/query-db.sh count
+
+# Query specific analytics tables
+./scripts/query-db.sh api_request_logs
+./scripts/query-db.sh device_state_history
+./scripts/query-db.sh job_outcomes
+./scripts/query-db.sh error_logs
+./scripts/query-db.sh user_activities
+
+# Query AI-focused tables
+./scripts/query-db.sh device_metrics
+./scripts/query-db.sh configuration_history
+./scripts/query-db.sh site_operating_schedules
 ```
 
 ---
 
 ## Database Setup
 
-Create the analytics tables by running:
+All analytics tables are created automatically when you initialize the database:
 
 ```bash
-python backend/utils/create_analytics_tables.py
+./scripts/init-postgresql.sh
 ```
 
-This script is idempotent - safe to run multiple times.
+This creates:
+- 6 core tables (sites, devices, users, jobs, health_checks, audit_logs)
+- 5 analytics tables (api_request_logs, user_activities, device_state_history, job_outcomes, error_logs)
+- 3 AI-focused tables (device_metrics, configuration_history, site_operating_schedules)
+
+**Total: 14 tables** with sample data for each.
+
+The script is idempotent - safe to run multiple times.
 
 ---
 
@@ -330,9 +592,14 @@ This will:
 ## Data Collection Timeline
 
 **Phase 1 (Current):**
-- API request logging (automatic)
+- ✅ API request logging (automatic)
+- ✅ Database tables created (all 14 tables)
+- ✅ Sample data populated
 
 **Phase 2 (This Week):**
+- Add device performance metrics collection (periodic background task)
+- Add configuration change logging to all config update endpoints
+- Add site operating schedules through admin interface
 - Add device state logging to backend
 - Add job outcome logging to backend
 - Add error logging to exception handlers
@@ -341,7 +608,7 @@ This will:
 **Phase 3 (Next Week):**
 - Let system run for 3-5 days
 - Collect real usage patterns
-- Validate data quality
+- Validate data quality for all 8 analytics tables
 - Prepare for AI integration
 
 ---
@@ -357,11 +624,28 @@ This will:
 
 ## Next Steps
 
-1. **Backend Team:** Add logging for device states, job outcomes, and errors
-2. **Frontend Team:** Implement user activity tracking
-3. **DevOps:** Run system for 3-5 days to collect real data
-4. **AI Team:** Review collected data and define training requirements
+1. **Backend Team:** 
+   - Add periodic device metrics collection (every 5 minutes)
+   - Add configuration history logging to all config changes
+   - Add logging for device states, job outcomes, and errors
+   
+2. **Admin Team:**
+   - Configure site operating schedules for all locations
+   - Define maintenance windows
+   
+3. **Frontend Team:** 
+   - Implement user activity tracking
+   
+4. **DevOps:** 
+   - Run system for 3-5 days to collect real data
+   - Monitor database growth and performance
+   
+5. **AI Team:** 
+   - Review collected data from all 8 analytics tables
+   - Define training requirements
+   - Develop initial predictive models
 
 For implementation guides, see:
 - [Frontend Analytics Integration](frontend-analytics-integration.md)
 - [Backend Analytics Guide](backend-analytics.md)
+- [Fresh Database Setup](fresh-database-setup.md)

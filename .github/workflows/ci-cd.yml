@@ -159,15 +159,21 @@ jobs:
         echo "Documentation files validated"
 
   test:
-    timeout-minutes: 15
+    timeout-minutes: 20
     name: Test Suite
     runs-on: ${{ matrix.os }}
     if: github.repository == 'brunel-opensim/homepot-client'
     needs: [pos-dummy]
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ['3.9', '3.11']
+        include:
+          # Only test Python 3.11 on Windows/macOS to reduce CI time
+          - os: windows-latest
+            python-version: '3.11'
+          - os: macos-latest
+            python-version: '3.11'
     steps:
     - uses: actions/checkout@v4
 
@@ -188,20 +194,23 @@ jobs:
       shell: bash
       run: |
         cd backend
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          # Windows-specific pytest configuration for better file handling
-          pytest tests/ -v --cov=homepot --cov-report=xml \
-            --tb=short \
-            --durations=10 \
+        # Run with parallel execution using all available cores
+        # Only generate coverage on Ubuntu + Python 3.11 to save time
+        if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.11" ]]; then
+          pytest tests/ -n auto --cov=homepot --cov-report=xml --tb=short --durations=10
+        elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          # Windows-specific configuration with parallel execution
+          pytest tests/ -n auto --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         else
-          # Standard pytest configuration for Unix systems
-          pytest tests/ -v --cov=homepot --cov-report=xml
+          # Standard parallel execution for other platforms
+          pytest tests/ -n auto --tb=short --durations=10
         fi
 
     - name: Upload coverage reports
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       uses: codecov/codecov-action@v4
       with:
         file: ./backend/coverage.xml
