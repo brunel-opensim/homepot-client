@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React from 'react';
+import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import api from '@/services/api';
 
-// Sparkline component (unchanged, small improvement: guard for length 1)
+// Sparkline component
 function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 48, animated = false }) {
-  const width = Math.max(1, data.length) * 20;
+  const width = data.length * 20;
   const max = Math.max(...data) || 1;
   const min = Math.min(...data) || 0;
 
@@ -50,76 +50,8 @@ const sparkData = {
 };
 
 export default function SiteDeviceScreen() {
-  // removed siteId dependency — showing overall devices
-  const [devices, setDevices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { deviceId: id } = useParams();
 
-  // fetch devices once on mount
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchDevicesData = async () => {
-      setLoading(true);
-      try {
-        const data = await api.devices.list();
-        if (cancelled) return;
-        const fetchedDevices = data?.devices || [];
-        console.log('fetchedDevices: ', fetchedDevices);
-        setDevices(fetchedDevices);
-      } catch (error) {
-        console.error('Error from fetchDevicesData:', error?.message ?? error);
-        setDevices([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchDevicesData();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Show all devices (no filtering by site)
-  const allDevices = useMemo(() => devices, [devices]);
-
-  // Basic "site" info for header (now reflects overall view)
-  const site = useMemo(() => {
-    return {
-      id: 'all',
-      name: 'All Sites',
-      location: 'Multiple',
-      lastPing: '—',
-      lastAlert: '—',
-      devices: allDevices.map((d) => {
-        return {
-          id:
-            d.device_id ??
-            d.id ??
-            `${d.name ?? 'device'}-${Math.random().toString(36).slice(2, 7)}`,
-          name: d.name ?? d.device_id ?? 'Unnamed device',
-          healthy: d.healthy ?? true,
-          uptime: d.uptime ?? null,
-          icon: null,
-          created_at: d.created_at ?? null,
-          raw: d,
-        };
-      }),
-    };
-  }, [allDevices]);
-
-  // helper for formatting created_at into Asia/Kolkata locale
-  const formatDateIST = (isoString) => {
-    if (!isoString) return '—';
-    try {
-      const dt = new Date(isoString);
-      return dt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    } catch {
-      return isoString;
-    }
-  };
-
-  // Simple Icon components kept but unused unless you map them
   const WindowsIcon = () => (
     <img
       src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/windows.svg"
@@ -131,6 +63,8 @@ export default function SiteDeviceScreen() {
       }}
     />
   );
+
+  // Apple Icon (light grey)
   const AppleIcon = () => (
     <img
       src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/apple.svg"
@@ -142,6 +76,19 @@ export default function SiteDeviceScreen() {
       }}
     />
   );
+
+  const LinuxIcon = () => (
+    <img
+      src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/linux.svg"
+      alt="Linux"
+      className="w-5 h-5"
+      style={{
+        filter:
+          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
+      }}
+    />
+  );
+
   const AndroidIcon = () => (
     <img
       src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/android.svg"
@@ -154,6 +101,28 @@ export default function SiteDeviceScreen() {
     />
   );
 
+  const site = {
+    id,
+    name: `SITE-${id}`,
+    location: 'New York',
+    lastPing: '1m ago',
+    lastAlert: '5m ago',
+    devices: [
+      { id: '00002', name: 'Device-00002', healthy: true, uptime: '12h', icon: <WindowsIcon /> },
+      { id: '00003', name: 'Device-00003', healthy: true, uptime: '10h', icon: <AppleIcon /> },
+      { id: '00004', name: 'Device-00004', healthy: true, uptime: '8h', icon: <LinuxIcon /> },
+      { id: '00005', name: 'Device-00005', healthy: true, uptime: '6h', icon: <AndroidIcon /> },
+      { id: '00006', name: 'Device-00006', healthy: true, uptime: '9h', icon: <WindowsIcon /> },
+      { id: '00007', name: 'Device-00007', healthy: true, uptime: '5h', icon: <AppleIcon /> },
+    ],
+    alerts: [
+      { time: '5 min ago', event: 'Notifications Sent', color: 'text-textPrimary' },
+      { time: '10 min ago', event: 'Device Offline', color: 'text-red-400' },
+      { time: '30 min ago', event: 'Device Offline', color: 'text-red-400' },
+      { time: '1 hour ago', event: 'Error', color: 'text-red-400' },
+    ],
+  };
+
   return (
     <div className="min-h-screen bg-[#0b0e13] text-white px-4 sm:px-6 lg:px-10 py-6">
       {/* Header Section */}
@@ -161,18 +130,9 @@ export default function SiteDeviceScreen() {
         <div className="text-start">
           <h1 className="text-2xl sm:text-3xl font-semibold">{site.name}</h1>
           <p className="text-lg sm:text-xl text-textPrimary">{site.location}</p>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 gap-44">
-            <div className="flex flex-wrap gap-4 text-xs sm:text-sm text-textPrimary">
-              <span>Last Ping: {site.lastPing}</span>
-              <span>Last Alert: {site.lastAlert}</span>
-            </div>
-
-            <div className="flex items-center gap-5 border border-[#1f2735] rounded-md p-2 mt-2 sm:mt-0">
-              <WindowsIcon />
-              <AppleIcon />
-              <AndroidIcon />
-            </div>
+          <div className="flex flex-wrap gap-4 text-xs sm:text-sm text-textPrimary mt-2">
+            <span>Last Ping: {site.lastPing}</span>
+            <span>Last Alert: {site.lastAlert}</span>
           </div>
         </div>
 
@@ -186,56 +146,42 @@ export default function SiteDeviceScreen() {
         </div>
       </div>
 
-      <div className="border-b border-[#1f2735] mb-6"></div>
-
       {/* Main Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Device Overview (uses API data) */}
-        <div className="lg:col-span-2 space-y-4 border-r border-[#1f2735] pr-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Device Overview */}
+        <div className="lg:col-span-2 space-y-4">
           <h2 className="text-lg sm:text-xl font-semibold mb-2 text-start">Device Overview</h2>
-
-          {loading ? (
-            <div className="text-textPrimary">Loading devices...</div>
-          ) : site.devices.length === 0 ? (
-            <div className="text-textPrimary">No devices found.</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {site.devices.map((device) => (
-                <div
-                  key={device.id}
-                  className="bg-[#141a24] border border-[#1f2735] rounded-xl p-4 hover:border-teal-400 transition"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-md font-medium">{device.name}</h3>
-                    {device.icon ? device.icon : null}
-                  </div>
-
-                  <p
-                    className={`text-md mb-2 text-start ${device.healthy ? 'text-textPrimary' : 'text-red-400'}`}
-                  >
-                    {device.healthy ? 'Healthy' : 'Offline'}
-                  </p>
-
-                  <p className="text-start text-textPrimary text-xs mt-1">
-                    {device.uptime
-                      ? `Uptime ${device.uptime}`
-                      : device.created_at
-                        ? `Created: ${formatDateIST(device.created_at)}`
-                        : '—'}
-                  </p>
-
-                  <p className="text-start text-textPrimary text-xs mt-1">
-                    {device.raw?.ip_address ? `IP: ${device.raw.ip_address}` : null}
-                  </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {site.devices.map((device) => (
+              <div
+                key={device.id}
+                className="bg-[#141a24] border border-[#1f2735] rounded-xl p-4 hover:border-teal-400 transition"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-md font-medium">{device.name}</h3>
+                  {device.icon}
                 </div>
-              ))}
-            </div>
-          )}
+                <p
+                  className={`text-md mb-2 text-start ${
+                    device.healthy ? 'text-textPrimary' : 'text-red-400'
+                  }`}
+                >
+                  {device.healthy ? 'Healthy' : 'Offline'}
+                </p>
+                <p className="text-start text-textPrimary text-xs mt-1">Uptime {device.uptime}</p>
+                <p className="text-start text-textPrimary text-xs mt-1">
+                  2025-09-15&nbsp;&nbsp;07:30
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Live Metrics + Alerts (keeps UI but uses generic data) */}
+        {/* Live Metrics + Alerts */}
         <div className="space-y-4">
           <h2 className="text-lg sm:text-xl font-semibold mb-2 text-start">Live Metrics</h2>
+
+          {/* Make metrics horizontally scrollable on small screens */}
           <div className="flex flex-col sm:flex-row sm:overflow-x-auto gap-4">
             <div className="bg-[#141a24] flex-1 min-w-[220px] border border-[#1f2735] rounded-xl p-4">
               <p className="text-sm mb-2 text-textPrimary flex items-center gap-2">CPU Usage</p>
@@ -249,11 +195,12 @@ export default function SiteDeviceScreen() {
 
           <h2 className="text-lg sm:text-xl font-semibold mt-6 mb-2 text-start">Alerts & Events</h2>
           <div className="bg-[#141a24] border border-[#1f2735] rounded-xl p-4 space-y-3">
-            <div className="text-textPrimary text-sm">No alerts available from API.</div>
-          </div>
-
-          <div className="bg-[#141a24] border border-[#1f2735] rounded-xl p-4 space-y-3">
-            <div className="text-textPrimary text-sm">No errors reported.</div>
+            {site.alerts.map((alert, index) => (
+              <div key={index} className="flex flex-wrap justify-between text-sm sm:text-base">
+                <span className="text-textPrimary">{alert.time}</span>
+                <span className={alert.color}>{alert.event}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

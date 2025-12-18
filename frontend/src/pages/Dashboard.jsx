@@ -91,6 +91,15 @@ export default function Dashboard() {
     fetchSites();
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      await api.auth.logout(); // calling your API logout
+      window.location.href = '/login'; // redirect
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-gray-200 flex items-center justify-center">
@@ -114,12 +123,20 @@ export default function Dashboard() {
           <span className="w-2 h-2 bg-green-400 rounded-full"></span>
           <span>Operational</span>
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="py-2 px-4 text-sm font-semibold rounded-lg bg-red-500 hover:bg-red-600 text-white transition"
+        >
+          Logout
+        </button>
       </div>
 
       {/* Main Content: Two columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Connected Sites */}
-        <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover">
+        <Card className="col-span-2 relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover">
           {/* Overlay for opacity */}
           <div className="absolute inset-0 bg-black/40 rounded-xl"></div>
 
@@ -132,25 +149,30 @@ export default function Dashboard() {
             <div className="flex justify-center space-x-4 mt-8">
               <Button
                 onClick={() => {
-                  navigate('/site');
+                  navigate('/sites');
                 }}
-                className="bg-primary text-secondary border border-secondary"
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
               >
                 View Sites
               </Button>
               <Button
                 onClick={() => {
-                  navigate('/device');
+                  navigate('/useractivity');
                 }}
-                className="bg-primary text-secondary border border-secondary"
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
               >
-                View Devices
+                User Activity
               </Button>
-              <Button className="bg-primary text-secondary border border-secondary">
+              <Button
+                onClick={() => {
+                  navigate('/agents');
+                }}
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+              >
+                Agent
+              </Button>
+              <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
                 Send Notification
-              </Button>
-              <Button className="bg-primary text-secondary border border-secondary">
-                Run Troubleshoot
               </Button>
             </div>
           </CardContent>
