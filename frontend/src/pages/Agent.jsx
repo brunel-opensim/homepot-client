@@ -3,12 +3,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
 import api from '@/services/api';
+// import { useNavigate } from 'react-router-dom';
 
 export default function AgentList() {
+  //   const navigate = useNavigate();
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  console.log('agents..', agents);
 
   //   const handleOpenAgent = (deviceId) => {
   //     navigate(`/agent/${deviceId}`);

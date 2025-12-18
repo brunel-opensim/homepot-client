@@ -2,13 +2,32 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+/**
+ * @typedef {Object} AnalyticsPayload
+ * @property {string} activity_type - Type of activity (click, page_view, etc.)
+ * @property {string} page_url - URL where activity occurred
+ * @property {string|null} [element_id] - ID of the interacted element
+ * @property {string|null} [search_query] - Search query text
+ * @property {Object} [extra_data] - Additional context data
+ * @property {number|null} [duration_ms] - Duration of action
+ */
+
+/**
+ * Track generic user activity
+ * @param {string} activityType - "page_view", "click", "search", etc.
+ * @param {string} pageUrl - Current page URL
+ * @param {Object} [extraData={}] - Extra info objects
+ * @param {string|null} [elementId=null] - ID of clicked element
+ * @param {string|null} [searchQuery=null] - Search text
+ * @param {number|null} [durationMs=null] - Duration in milliseconds
+ */
 export const trackActivity = async (
-  activityType, // "page_view", "click", "search", etc.
-  pageUrl, // current page
-  extraData = {}, // extra info
-  elementId = null, // optional: id of clicked element
-  searchQuery = null, // optional: search text
-  durationMs = null // optional: duration in milliseconds
+  activityType,
+  pageUrl,
+  extraData = {},
+  elementId = null,
+  searchQuery = null,
+  durationMs = null
 ) => {
   try {
     const payload = {
@@ -32,12 +51,44 @@ export const trackActivity = async (
   }
 };
 
-// Helper for search events
-export const trackSearch = async (query, pageUrl, durationMs = null) => {
-  await trackActivity('search', pageUrl, {}, null, query, durationMs);
+/**
+ * Simple debounce implementation
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in ms
+ * @returns {Function} - Debounced function
+ */
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
 };
 
-//  Track user activity get method of by users
+// Internal debounced function for search
+const debouncedSearch = debounce(async (query, pageUrl, durationMs) => {
+  await trackActivity('search', pageUrl, {}, null, query, durationMs);
+}, 500);
+
+/**
+ * Track search queries (Debounced by 500ms)
+ * @param {string} query - Search text
+ * @param {string} pageUrl - Current page URL
+ * @param {number|null} [durationMs=null] - Duration
+ */
+export const trackSearch = (query, pageUrl, durationMs = null) => {
+  debouncedSearch(query, pageUrl, durationMs);
+};
+
+/**
+ * Fetch user activities
+ * @param {number} [limit=20] - Number of activities to fetch
+ * @returns {Promise<Object>} - API response data
+ */
 export const getUserActivities = async (limit = 20) => {
   try {
     const res = await axios.get(`${API_BASE_URL}/api/v1/analytics/user-activities`, {

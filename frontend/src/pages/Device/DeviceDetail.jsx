@@ -1,14 +1,17 @@
 import { Button } from '@/components/ui/button';
 import api from '@/services/api';
 import { trackActivity } from '@/utils/analytics';
-import { ArrowLeft } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { debounce } from '@/utils/debounce';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 export default function Device() {
   const { id } = useParams();
 
   const [device, setDevice] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [commandInput, setCommandInput] = useState('');
 
@@ -17,63 +20,20 @@ export default function Device() {
   const [showModal, setShowModal] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  console.log('device...aaa', device);
-
-  //   useEffect(() => {
-  //     const fetchDevice = async () => {
-  //       try {
-  //         const devices = await api.devices.getDeviceById(id); // returns an array
-
-  //         console.log("devicesdevices",devices);
-
-  //         if (devices.length === 0) {
-  //           setError('No devices found for this site.');
-  //         } else {
-  //           setDevice(devices[0]); // show the first device
-  //         }
-  //       } catch (err) {
-  //         console.error('Failed to fetch devices:', err);
-  //         setError('Failed to load device details.');
-  //       } finally {
-  //         setLoading(false);
-  //       }
-  //     };
-
-  //     fetchDevice();
-  //   }, [id]);
-
-  //   if (loading) {
-  //     return (
-  //       <div className="flex justify-center items-center h-64">
-  //         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-  //       </div>
-  //     );
-  //   }
-
-  //   if (!device) {
-  //     return (
-  //       <div className="p-10 text-center">
-  //         <p className="text-red-400">Device not found</p>
-  //         <button className="mt-4 px-4 py-2 bg-teal-600 rounded" onClick={() => navigate(-1)}>
-  //           Go Back
-  //         </button>
-  //       </div>
-  //     );
-  //   }
-
   useEffect(() => {
     const fetchDevice = async () => {
       try {
         const deviceData = await api.devices.getDeviceById(id); // returns an object, not array
-        console.log('deviceData:', deviceData);
-
         if (!deviceData) {
-          console.error('Device not found.');
+          setError('Device not found.');
         } else {
           setDevice(deviceData); // just use the object
         }
       } catch (err) {
         console.error('Failed to fetch device:', err);
+        setError('Failed to load device details.');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -86,14 +46,23 @@ export default function Device() {
     trackActivity('page_view', `/devices/${id}`, { device_id: id });
   }, [id]);
 
+  /* ===================== DEBOUNCED INPUT TRACKER ===================== */
+  const debouncedTrackInput = useRef(
+    debounce((value) => {
+      trackActivity('input', `/devices/${id}`, {
+        action: 'typing_command',
+        command: value,
+        device_id: id,
+      });
+    }, 600)
+  ).current;
+
   /** Track header button clicks */
   const handleButtonClick = async (action) => {
     await trackActivity('click', `/devices/${id}`, {
       action,
       device_id: id,
     });
-
-    console.log(`Action tracked: ${action}`);
   };
 
   /** Tracks command submissions */
@@ -106,20 +75,28 @@ export default function Device() {
       device_id: id,
     });
 
-    console.log(`Command tracked: ${commandInput}`);
     setCommandInput('');
   };
 
-  const handleCmdInputChange = async (e) => {
-    setCmdInput(e.target.value);
+  // const handleCmdInputChange = async (e) => {
+  //   setCmdInput(e.target.value);
 
-    // Track input activity
-    if (e.target.value.trim() !== '') {
-      await trackActivity('input', `/devices/${id}`, {
-        action: 'typing_command',
-        command: e.target.value.trim(),
-        device_id: id,
-      });
+  //   // Track input activity
+  //   if (e.target.value.trim() !== '') {
+  //     await trackActivity('input', `/devices/${id}`, {
+  //       action: 'typing_command',
+  //       command: e.target.value.trim(),
+  //       device_id: id,
+  //     });
+  //   }
+  // };
+
+  const handleCmdInputChange = (e) => {
+    const value = e.target.value;
+    setCmdInput(value);
+
+    if (value.trim()) {
+      debouncedTrackInput(value.trim());
     }
   };
 
@@ -166,6 +143,24 @@ export default function Device() {
       setShowModal(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-400" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-10 text-center text-red-400">
+        {error}
+        <br />
+        <Button onClick={() => window.history.back()}>Go Back</Button>
+      </div>
+    );
+  }
 
   const stats = {
     cpu: { label: 'CPU', value: '3,4rh', subtitle: 'avg 3.4%' },
