@@ -7,7 +7,7 @@ device management tasks as shown in the POS payment gateway scenario.
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from homepot.config import get_settings
@@ -42,7 +42,7 @@ class PushNotification:
         self.ttl_sec = ttl_sec
         self.collapse_key = collapse_key or f"homepot-config-{version}"
         self.priority = priority
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
 
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization."""
@@ -57,7 +57,9 @@ class PushNotification:
 
     def is_expired(self) -> bool:
         """Check if notification has expired."""
-        return datetime.utcnow() > self.created_at + timedelta(seconds=self.ttl_sec)
+        return datetime.now(timezone.utc) > self.created_at + timedelta(
+            seconds=self.ttl_sec
+        )
 
 
 class JobOrchestrator:
@@ -141,7 +143,7 @@ class JobOrchestrator:
         # Generate job ID and configuration details
         job_id = f"job-{uuid.uuid4().hex[:8]}"
         config_version = (
-            config_version or f"v{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+            config_version or f"v{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
         )
         config_url = (
             config_url
@@ -296,7 +298,7 @@ class JobOrchestrator:
                             {
                                 "device_id": device.device_id,
                                 "status": "push_sent",
-                                "timestamp": datetime.utcnow().isoformat(),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
                             }
                         )
                     else:
@@ -305,7 +307,7 @@ class JobOrchestrator:
                             {
                                 "device_id": device.device_id,
                                 "status": "push_failed",
-                                "timestamp": datetime.utcnow().isoformat(),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
                             }
                         )
 
@@ -316,7 +318,7 @@ class JobOrchestrator:
                             "device_id": device.device_id,
                             "status": "push_error",
                             "error": str(e),
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                     logger.error(
