@@ -15,6 +15,7 @@ from .Endpoints import (
     UIEndpoint,
     UserRegisterEndpoint,
 )
+from .Endpoints import SiteSchedulesEndpoint
 from .Endpoints.Mobivisor import MobivisorDeviceEndpoints as MobivisorDevice
 from .Endpoints.Mobivisor import MobivisorGroupsEndpoints as MobivisorGroupsEndpoints
 from .Endpoints.Mobivisor import MobivisorUserEndpoints as MobivisorUserEndpoints
@@ -28,6 +29,9 @@ api_v1_router.include_router(
 api_v1_router.include_router(UIEndpoint.router, prefix="/ui", tags=["UI"])
 api_v1_router.include_router(ClientEndpoint.router, prefix="/client", tags=["Client"])
 api_v1_router.include_router(SitesEndpoint.router, prefix="/sites", tags=["Sites"])
+api_v1_router.include_router(
+    SiteSchedulesEndpoint.router, prefix="/sites", tags=["Site Schedules"]
+)
 api_v1_router.include_router(
     DevicesEndpoints.router, prefix="/devices", tags=["Devices"]
 )

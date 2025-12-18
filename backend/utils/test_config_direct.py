@@ -60,7 +60,7 @@ async def test_direct_config_history():
         print(f"\n   Found {len(config_logs)} configuration changes:\n")
 
         if not config_logs:
-            print("   ⚠ No configuration history entries found!")
+            print("    No configuration history entries found!")
             print(
                 "   This might mean the job hasn't processed yet or tracking failed."
             )
@@ -79,7 +79,7 @@ async def test_direct_config_history():
                 print(f"      Performance before: {log.performance_before}")
             print()
 
-    print("\n✅ Configuration history tracking verified!")
+    print("\nConfiguration history tracking verified!")
     print("\nSummary:")
     print(f"  - Total config changes logged: {len(config_logs)}")
     site_changes = [l for l in config_logs if l.entity_type == "site"]

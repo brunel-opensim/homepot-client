@@ -24,6 +24,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from homepot.agents import get_agent_manager, stop_agent_manager
+from homepot.app.api.API_v1.Api import api_v1_router
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import close_database_service, get_database_service
@@ -255,6 +256,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API v1 router
+app.include_router(api_v1_router, prefix="/api/v1")
 
 
 def get_client() -> HomepotClient:
