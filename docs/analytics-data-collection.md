@@ -627,8 +627,38 @@ This will:
 
 ## Next Steps
 
+### Phase 2: Data Collection Implementation (In Progress)
+
+**Completed:**
+1. **Device Metrics Collection** (Implemented: Dec 18, 2025)
+   - Added automatic collection in agents.py _run_health_check()
+   - Collects CPU, memory, disk usage, and transaction counts
+   - Runs every 30 seconds for all 12 POS agents
+   - Stores in device_metrics table with proper TimescaleDB compatibility
+   - Verified: All 12 devices saving metrics successfully
+
+**In Progress:**
+2. **Job Outcomes Logging**
+   - Add logging in orchestrator.py for job execution results
+   - Estimated time: 2 hours
+
+**Remaining Tasks:**
+3. **Device State History**
+   - Add hooks in DeviceEndpoint.py to log state transitions
+   - Estimated time: 2-3 hours
+
+4. **Error Logging**
+   - Add backend exception handlers to log errors
+   - Estimated time: 3 hours
+
+5. **Configuration History**
+   - Add hooks in config endpoints to track changes
+   - Estimated time: 3 hours
+
+### Original Next Steps
+
 1. **Backend Team:** 
-   - Add periodic device metrics collection (every 5 minutes)
+   - ~~Add periodic device metrics collection (every 5 minutes)~~ DONE (every 30s)
    - Add configuration history logging to all config changes
    - Add logging for device states, job outcomes, and errors
    
