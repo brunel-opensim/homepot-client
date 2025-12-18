@@ -10,13 +10,14 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 
 from fastapi import (
     Depends,
     FastAPI,
     HTTPException,
     Request,
+    Response,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -261,7 +262,10 @@ app.add_middleware(
 
 # Add API request logging middleware
 @app.middleware("http")
-async def log_api_requests(request: Request, call_next):
+async def log_api_requests(
+    request: Request,
+    call_next: "Callable[[Request], Awaitable[Response]]",
+) -> Response:
     """Log all API requests for analytics and performance monitoring."""
     # Skip logging for health checks and static files
     if request.url.path in ["/", "/docs", "/redoc", "/openapi.json"]:
@@ -323,7 +327,7 @@ async def _log_request_to_db(
     request_size: int,
     response_size: int,
     error_message: Optional[str],
-):
+) -> None:
     """Log API request to database."""
     try:
         from homepot.app.models.AnalyticsModel import APIRequestLog
@@ -648,7 +652,7 @@ async def get_site_health(site_id: str) -> SiteHealthResponse:
             raise HTTPException(status_code=404, detail=f"Site {site_id} not found")
 
         # Get all devices for the site
-        devices = await db_service.get_devices_by_site_and_segment(int(site.id))
+        devices = await db_service.get_devices_by_site_and_segment(str(site.site_id))
 
         if not devices:
             return SiteHealthResponse(

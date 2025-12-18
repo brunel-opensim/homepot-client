@@ -282,7 +282,7 @@ class JobOrchestrator:
                 site = site_result.scalar_one_or_none()
                 if not site:
                     raise ValueError(f"Site not found: {job.site_id}")
-                site_string_id = site.site_id
+                site_string_id = str(site.site_id)
 
             # Get target devices for this job using the site's string identifier
             devices = await db_service.get_devices_by_site_and_segment(
@@ -463,7 +463,7 @@ class JobOrchestrator:
             logger.error(f"Job {job.job_id} processing failed: {e}")
 
             # Log error for AI training
-            await log_error(  # noqa: F823  # noqa: F823
+            await log_error(
                 category="external_service",
                 severity="critical",
                 error_message="Job processing failed critically",
@@ -500,8 +500,8 @@ class JobOrchestrator:
                     )
                     session.add(job_outcome)
                     logger.debug(f"Logged exception job outcome for {job.job_id}")
-            except Exception as log_error:
-                logger.error(f"Failed to log job outcome: {log_error}")
+            except Exception as log_exc:
+                logger.error(f"Failed to log job outcome: {log_exc}")
 
     async def _send_push_notification(
         self, device: Device, push_notification: PushNotification

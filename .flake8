@@ -1,5 +1,5 @@
 [flake8]
-max-line-length = 88
+max-line-length = 110
 ignore = 
     # S101: Use of assert detected (normal in tests)
     S101,
@@ -25,7 +25,9 @@ per-file-ignores =
     # TimescaleDB migrations: SQL queries can be long, f-strings without placeholders are SQL
     backend/src/homepot/migrations/timescaledb_aggregates.py:E501,
     backend/src/homepot/timescale.py:E501,F541,
-    backend/src/homepot/cli_timescaledb.py:F541,E501,F401,D403
+    backend/src/homepot/cli_timescaledb.py:F541,E501,F401,D403,
+    # Utility scripts: allow relaxed style rules for developer tooling
+    backend/utils/*:E501,E402,F841,F541,E226,E712,E741,D400,D401
 exclude = 
     .git,
     __pycache__,

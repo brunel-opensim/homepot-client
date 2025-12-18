@@ -18,7 +18,7 @@ from sqlalchemy import (
 from .UserModel import Base
 
 
-def utc_now():
+def utc_now() -> datetime:
     """Get current UTC time (timezone-naive for database compatibility).
 
     Note: Uses timezone-naive datetime for compatibility with existing

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class FailurePredictor:
     """Predicts device failures using pattern analysis."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the failure predictor."""
         self.analytics = AIAnalyticsService()
 
@@ -145,7 +145,9 @@ class FailurePredictor:
                 }.get(min_risk_level, 0.5)
 
                 for device in devices:
-                    prediction = await self.predict_device_failure(device.device_id)
+                    prediction = await self.predict_device_failure(
+                        str(device.device_id)
+                    )
 
                     if prediction.get("failure_probability", 0) >= risk_threshold:
                         at_risk_devices.append(
@@ -262,7 +264,9 @@ class FailurePredictor:
                             "category": "resource",
                             "issue": "critical_memory_usage",
                             "severity": 3,
-                            "description": f"Memory usage critically high: {avg_memory:.1f}%",
+                            "description": (
+                                f"Memory usage critically high: {avg_memory:.1f}%"
+                            ),
                             "metric_value": avg_memory,
                         }
                     )
@@ -384,10 +388,10 @@ class FailurePredictor:
                     .where(
                         and_(
                             DeviceStateHistory.device_id == device_id,
-                            DeviceStateHistory.changed_at >= cutoff,
+                            DeviceStateHistory.timestamp >= cutoff,
                         )
                     )
-                    .order_by(DeviceStateHistory.changed_at.asc())
+                    .order_by(DeviceStateHistory.timestamp.asc())
                 )
                 transitions = result.scalars().all()
 

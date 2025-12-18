@@ -487,14 +487,16 @@ class DataCollectionValidator:
                         f"  {Colors.YELLOW}⚠{Colors.END} {len(gaps)} gap(s) > 1 hour detected"
                     )
                     self.results["recommendations"].append(
-                        "Collection gaps detected. Ensure backend stays running continuously."
+                        "Collection gaps detected. Ensure backend stays running "
+                        "continuously."
                     )
                 else:
                     self._add_check_result(
                         check_name, "passed", "No significant gaps detected"
                     )
                     print(
-                        f"  {Colors.GREEN}✓{Colors.END} Continuous data collection confirmed"
+                        f"  {Colors.GREEN}✓{Colors.END} "
+                        "Continuous data collection confirmed"
                     )
 
         except Exception as e:
@@ -562,7 +564,8 @@ class DataCollectionValidator:
             message = "Critical issues found. Fix issues before AI training."
 
         print(
-            f"\n{color}{Colors.BOLD}{symbol} Overall Status: {status.upper()}{Colors.END}"
+            f"\n{color}{Colors.BOLD}{symbol} "
+            f"Overall Status: {status.upper()}{Colors.END}"
         )
         print(f"{message}")
 

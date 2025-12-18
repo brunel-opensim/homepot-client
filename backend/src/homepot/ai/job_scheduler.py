@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class PredictiveJobScheduler:
     """AI-powered job scheduler that optimizes execution timing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the predictive scheduler."""
         self.analytics = AIAnalyticsService()
 
@@ -353,7 +353,7 @@ class PredictiveJobScheduler:
 
     def _get_alternative_times(
         self, day_recommendation: Dict[str, Any], earliest_start: datetime
-    ) -> List[str]:
+    ) -> List[Dict[str, Any]]:
         """Get list of alternative execution times."""
         alternatives = []
 
@@ -423,7 +423,7 @@ class PredictiveJobScheduler:
     ) -> Dict[str, Any]:
         """Find best execution window in the next 7 days."""
         current_day = earliest_start.weekday()
-        best_score = 0
+        best_score = 0.0
         best_recommendation = None
 
         for offset in range(7):

@@ -67,9 +67,13 @@ class AIAnalyticsService:
                     }
 
                 # Calculate aggregates
-                avg_cpu = sum(m.cpu_percent or 0 for m in metrics) / len(metrics)
-                avg_memory = sum(m.memory_percent or 0 for m in metrics) / len(metrics)
-                avg_disk = sum(m.disk_percent or 0 for m in metrics) / len(metrics)
+                avg_cpu = float(sum(m.cpu_percent or 0 for m in metrics) / len(metrics))
+                avg_memory = float(
+                    sum(m.memory_percent or 0 for m in metrics) / len(metrics)
+                )
+                avg_disk = float(
+                    sum(m.disk_percent or 0 for m in metrics) / len(metrics)
+                )
 
                 # Detect trends (simple linear regression on recent data)
                 recent_cpu = [m.cpu_percent or 0 for m in metrics[:100]]
@@ -121,9 +125,9 @@ class AIAnalyticsService:
                 cutoff_date = datetime.utcnow() - timedelta(days=days)
 
                 # Build query
-                query = select(JobOutcome).where(JobOutcome.completed_at >= cutoff_date)
-                if site_id:
-                    query = query.where(JobOutcome.site_id == site_id)
+                query = select(JobOutcome).where(JobOutcome.timestamp >= cutoff_date)
+                # if site_id:
+                #     query = query.where(JobOutcome.site_id == site_id)
 
                 result = await session.execute(query)
                 outcomes = result.scalars().all()
@@ -139,7 +143,7 @@ class AIAnalyticsService:
                 # Analyze by hour of day
                 hourly_success = {}
                 for outcome in outcomes:
-                    hour = outcome.started_at.hour
+                    hour = outcome.timestamp.hour
                     if hour not in hourly_success:
                         hourly_success[hour] = {"total": 0, "success": 0}
                     hourly_success[hour]["total"] += 1
@@ -164,9 +168,9 @@ class AIAnalyticsService:
 
                 # Analyze failure reasons
                 failed_jobs = [o for o in outcomes if o.status == "failed"]
-                failure_patterns = {}
+                failure_patterns: Dict[str, int] = {}
                 for job in failed_jobs:
-                    reason = job.failure_reason or "unknown"
+                    reason = str(job.error_message or "unknown")
                     failure_patterns[reason] = failure_patterns.get(reason, 0) + 1
 
                 return {
@@ -298,8 +302,12 @@ class AIAnalyticsService:
                             "day": day_names[schedule.day_of_week],
                             "day_of_week": schedule.day_of_week,
                             "status": "open",
-                            "operating_hours": f"{schedule.open_time} - {schedule.close_time}",
-                            "peak_hours": f"{schedule.peak_hours_start} - {schedule.peak_hours_end}",
+                            "operating_hours": (
+                                f"{schedule.open_time} - {schedule.close_time}"
+                            ),
+                            "peak_hours": (
+                                f"{schedule.peak_hours_start} - {schedule.peak_hours_end}"
+                            ),
                             "expected_volume": schedule.expected_transaction_volume,
                             "is_maintenance_window": schedule.is_maintenance_window,
                             "optimal_windows": optimal_windows,
@@ -357,16 +365,16 @@ class AIAnalyticsService:
                     }
 
                 # Categorize by type
-                by_category = {}
-                by_severity = {}
+                by_category: Dict[str, int] = {}
+                by_severity: Dict[str, int] = {}
 
                 for error in errors:
                     # By category
-                    category = error.category or "unknown"
+                    category = str(error.category or "unknown")
                     by_category[category] = by_category.get(category, 0) + 1
 
                     # By severity
-                    severity = error.severity or "error"
+                    severity = str(error.severity or "error")
                     by_severity[severity] = by_severity.get(severity, 0) + 1
 
                 # Calculate error rate per day
@@ -412,13 +420,13 @@ class AIAnalyticsService:
 
                 # Get configuration changes
                 query = select(ConfigurationHistory).where(
-                    ConfigurationHistory.changed_at >= cutoff_date
+                    ConfigurationHistory.timestamp >= cutoff_date
                 )
                 if site_id:
                     query = query.join(Device).where(Device.site_id == site_id)
 
                 result = await session.execute(
-                    query.order_by(ConfigurationHistory.changed_at.desc())
+                    query.order_by(ConfigurationHistory.timestamp.desc())
                 )
                 changes = result.scalars().all()
 
@@ -433,9 +441,9 @@ class AIAnalyticsService:
                 change_rate = change_count / days
 
                 # Group by change type
-                by_field = {}
+                by_field: Dict[str, int] = {}
                 for change in changes:
-                    field = change.field_changed or "unknown"
+                    field = str(change.parameter_name or "unknown")
                     by_field[field] = by_field.get(field, 0) + 1
 
                 return {

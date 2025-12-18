@@ -121,7 +121,7 @@ async def create_site_schedule(
                     SiteOperatingSchedule.day_of_week == schedule.day_of_week,
                 )
             )
-            existing = result.scalar_one_or_none()
+            existing: Any = result.scalar_one_or_none()
 
             if existing:
                 # Update existing schedule
@@ -278,7 +278,7 @@ async def delete_site_schedule(site_id: str, day_of_week: int) -> Dict[str, str]
             )
             await session.commit()
 
-            if result.rowcount == 0:
+            if getattr(result, "rowcount", 0) == 0:
                 raise HTTPException(
                     status_code=404,
                     detail=f"No schedule found for {site_id} on day {day_of_week}",
