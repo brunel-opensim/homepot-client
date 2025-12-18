@@ -17,13 +17,6 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const API_VERSION = 'v1';
 const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
 
-console.log('API Service Config:', {
-  mode: import.meta.env.MODE,
-  dev: import.meta.env.DEV,
-  baseUrl: API_BASE_URL,
-  finalUrl: `${API_BASE_URL}/api/${API_VERSION}`,
-});
-
 // Create axios instance with default config
 const apiClient = axios.create({
   baseURL: `${API_BASE_URL}/api/${API_VERSION}`,

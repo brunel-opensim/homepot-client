@@ -94,7 +94,6 @@ export default function Dashboard() {
   const handleLogout = async () => {
     try {
       const response = await api.auth.logout(); // calling your API logout
-      console.log('Logged out:', response);
       window.location.href = '/login'; // redirect
     } catch (err) {
       console.error('Logout failed:', err);
