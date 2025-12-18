@@ -139,11 +139,13 @@ async def populate_schedules():
             day = day_names[schedule_data["day_of_week"]]
             status = "CLOSED" if schedule_data["is_closed"] else "OPEN"
             hours = f"{schedule_data['open_time']} - {schedule_data['close_time']}"
-            
+
             print(f"✓ {action} {day}: {status} {hours}")
             if schedule_data["is_maintenance_window"]:
                 print(f"       Maintenance window scheduled")
-            print(f"    Expected volume: {schedule_data['expected_transaction_volume']} txn/day")
+            print(
+                f"    Expected volume: {schedule_data['expected_transaction_volume']} txn/day"
+            )
 
         await session.commit()
 
@@ -179,12 +181,16 @@ async def verify_via_api():
                 if schedule["is_closed"]:
                     print("  Status: CLOSED")
                 else:
-                    print(f"  Hours: {schedule['open_time']} - {schedule['close_time']}")
+                    print(
+                        f"  Hours: {schedule['open_time']} - {schedule['close_time']}"
+                    )
                     if schedule["peak_hours_start"]:
                         print(
                             f"  Peak: {schedule['peak_hours_start']} - {schedule['peak_hours_end']}"
                         )
-                    print(f"  Expected Volume: {schedule['expected_transaction_volume']}")
+                    print(
+                        f"  Expected Volume: {schedule['expected_transaction_volume']}"
+                    )
                 if schedule["is_maintenance_window"]:
                     print("     Maintenance Window")
                 print()

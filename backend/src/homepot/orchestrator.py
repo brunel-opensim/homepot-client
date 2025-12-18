@@ -272,8 +272,9 @@ class JobOrchestrator:
             # Get the site's string identifier from the integer ID for security
             # (we use string identifiers like "site-001" instead of exposing internal IDs)
             from sqlalchemy import select
+
             from homepot.models import Site
-            
+
             async with db_service.get_session() as session:
                 site_result = await session.execute(
                     select(Site).where(Site.id == job.site_id)
@@ -302,7 +303,7 @@ class JobOrchestrator:
                 logger.warning(
                     f"Job {job.job_id}: No devices found for segment {job.segment}"
                 )
-                
+
                 # Log job outcome for AI training
                 async with db_service.get_session() as session:
                     job_outcome = JobOutcome(
@@ -316,7 +317,7 @@ class JobOrchestrator:
                     )
                     session.add(job_outcome)
                     logger.debug(f"Logged job outcome for {job.job_id}")
-                
+
                 return
 
             # Send push notifications to all devices
@@ -394,7 +395,7 @@ class JobOrchestrator:
                     f"Job {job.job_id} completed successfully: "
                     f"{successful_pushes}/{len(devices)} devices"
                 )
-                
+
                 # Log successful job outcome for AI training
                 async with db_service.get_session() as session:
                     job_outcome = JobOutcome(
@@ -402,7 +403,12 @@ class JobOrchestrator:
                         job_id=str(job.job_id),
                         job_type=str(job.action),
                         status="success",
-                        duration_ms=int((datetime.now(timezone.utc) - job.created_at).total_seconds() * 1000),
+                        duration_ms=int(
+                            (
+                                datetime.now(timezone.utc) - job.created_at
+                            ).total_seconds()
+                            * 1000
+                        ),
                         initiated_by="orchestrator",
                         extra_data={
                             "total_devices": len(devices),
@@ -426,7 +432,7 @@ class JobOrchestrator:
                     f"Job {job.job_id} completed with errors: "
                     f"{successful_pushes}/{len(devices)} devices successful"
                 )
-                
+
                 # Log failed job outcome for AI training
                 async with db_service.get_session() as session:
                     job_outcome = JobOutcome(
@@ -434,7 +440,12 @@ class JobOrchestrator:
                         job_id=str(job.job_id),
                         job_type=str(job.action),
                         status="failed",
-                        duration_ms=int((datetime.now(timezone.utc) - job.created_at).total_seconds() * 1000),
+                        duration_ms=int(
+                            (
+                                datetime.now(timezone.utc) - job.created_at
+                            ).total_seconds()
+                            * 1000
+                        ),
                         error_message=f"Failed to send push to {failed_pushes}/{len(devices)} devices",
                         initiated_by="orchestrator",
                         extra_data={
@@ -472,7 +483,7 @@ class JobOrchestrator:
                 JobStatus.FAILED,
                 error_message=str(e),
             )
-            
+
             # Log exception job outcome for AI training
             try:
                 async with db_service.get_session() as session:

@@ -61,9 +61,7 @@ async def test_direct_config_history():
 
         if not config_logs:
             print("    No configuration history entries found!")
-            print(
-                "   This might mean the job hasn't processed yet or tracking failed."
-            )
+            print("   This might mean the job hasn't processed yet or tracking failed.")
             return
 
         for log in config_logs:

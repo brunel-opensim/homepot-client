@@ -12,11 +12,11 @@ from .Endpoints import (
     HealthEndpoint,
     JobsEndpoints,
     PushNotificationEndpoint,
+    SiteSchedulesEndpoint,
     SitesEndpoint,
     UIEndpoint,
     UserRegisterEndpoint,
 )
-from .Endpoints import SiteSchedulesEndpoint
 from .Endpoints.Mobivisor import MobivisorDeviceEndpoints as MobivisorDevice
 from .Endpoints.Mobivisor import MobivisorGroupsEndpoints as MobivisorGroupsEndpoints
 from .Endpoints.Mobivisor import MobivisorUserEndpoints as MobivisorUserEndpoints
@@ -63,4 +63,6 @@ api_v1_router.include_router(
     DeviceSimulatorEndpoint.router, prefix="/testing", tags=["Testing"]
 )
 api_v1_router.include_router(AnalyticsEndpoint.router, tags=["Analytics"])
-api_v1_router.include_router(AIEndpoint.router, prefix="/ai", tags=["AI & Machine Learning"])
+api_v1_router.include_router(
+    AIEndpoint.router, prefix="/ai", tags=["AI & Machine Learning"]
+)

@@ -20,14 +20,28 @@ class ScheduleCreate(BaseModel):
     """Model for creating a site operating schedule."""
 
     site_id: str = Field(..., description="Site identifier")
-    day_of_week: int = Field(..., ge=0, le=6, description="Day of week (0=Monday, 6=Sunday)")
-    open_time: Optional[str] = Field(None, description="Opening time (HH:MM:SS or HH:MM)")
-    close_time: Optional[str] = Field(None, description="Closing time (HH:MM:SS or HH:MM)")
+    day_of_week: int = Field(
+        ..., ge=0, le=6, description="Day of week (0=Monday, 6=Sunday)"
+    )
+    open_time: Optional[str] = Field(
+        None, description="Opening time (HH:MM:SS or HH:MM)"
+    )
+    close_time: Optional[str] = Field(
+        None, description="Closing time (HH:MM:SS or HH:MM)"
+    )
     is_closed: bool = Field(False, description="Is the site closed this day")
-    is_maintenance_window: bool = Field(False, description="Is this a maintenance window")
-    expected_transaction_volume: Optional[int] = Field(None, description="Expected daily transactions")
-    peak_hours_start: Optional[str] = Field(None, description="Peak hours start (HH:MM:SS or HH:MM)")
-    peak_hours_end: Optional[str] = Field(None, description="Peak hours end (HH:MM:SS or HH:MM)")
+    is_maintenance_window: bool = Field(
+        False, description="Is this a maintenance window"
+    )
+    expected_transaction_volume: Optional[int] = Field(
+        None, description="Expected daily transactions"
+    )
+    peak_hours_start: Optional[str] = Field(
+        None, description="Peak hours start (HH:MM:SS or HH:MM)"
+    )
+    peak_hours_end: Optional[str] = Field(
+        None, description="Peak hours end (HH:MM:SS or HH:MM)"
+    )
     notes: Optional[str] = Field(None, description="Additional notes")
 
     class Config:
@@ -42,7 +56,7 @@ class ScheduleCreate(BaseModel):
                 "expected_transaction_volume": 500,
                 "peak_hours_start": "12:00:00",
                 "peak_hours_end": "14:00:00",
-                "notes": "Regular weekday schedule"
+                "notes": "Regular weekday schedule",
             }
         }
 
@@ -64,7 +78,7 @@ def parse_time(time_str: Optional[str]) -> Optional[time]:
     """Parse time string to time object."""
     if not time_str:
         return None
-    
+
     # Handle HH:MM or HH:MM:SS formats
     parts = time_str.split(":")
     if len(parts) == 2:
@@ -80,7 +94,7 @@ async def create_site_schedule(
     site_id: str, schedule: ScheduleCreate
 ) -> Dict[str, Any]:
     """Create or update a site operating schedule for a specific day.
-    
+
     This endpoint helps AI understand when sites are operational for intelligent
     job scheduling and workload prediction.
     """
@@ -89,7 +103,7 @@ async def create_site_schedule(
         if schedule.site_id != site_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"site_id in path ({site_id}) must match site_id in body ({schedule.site_id})"
+                detail=f"site_id in path ({site_id}) must match site_id in body ({schedule.site_id})",
             )
 
         # Parse times
@@ -104,7 +118,7 @@ async def create_site_schedule(
             result = await session.execute(
                 select(SiteOperatingSchedule).where(
                     SiteOperatingSchedule.site_id == site_id,
-                    SiteOperatingSchedule.day_of_week == schedule.day_of_week
+                    SiteOperatingSchedule.day_of_week == schedule.day_of_week,
                 )
             )
             existing = result.scalar_one_or_none()
@@ -115,11 +129,13 @@ async def create_site_schedule(
                 existing.close_time = close_time
                 existing.is_closed = schedule.is_closed
                 existing.is_maintenance_window = schedule.is_maintenance_window
-                existing.expected_transaction_volume = schedule.expected_transaction_volume
+                existing.expected_transaction_volume = (
+                    schedule.expected_transaction_volume
+                )
                 existing.peak_hours_start = peak_start
                 existing.peak_hours_end = peak_end
                 existing.notes = schedule.notes
-                
+
                 message = "Schedule updated successfully"
             else:
                 # Create new schedule
@@ -141,16 +157,28 @@ async def create_site_schedule(
             await session.commit()
 
         logger.info(f"{message} for {site_id}, day {schedule.day_of_week}")
-        
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        
+
+        day_names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
+
         return {
             "message": message,
             "site_id": site_id,
             "day": day_names[schedule.day_of_week],
             "day_of_week": schedule.day_of_week,
             "is_closed": schedule.is_closed,
-            "hours": f"{schedule.open_time} - {schedule.close_time}" if not schedule.is_closed else "Closed"
+            "hours": (
+                f"{schedule.open_time} - {schedule.close_time}"
+                if not schedule.is_closed
+                else "Closed"
+            ),
         }
 
     except ValueError as e:
@@ -159,14 +187,14 @@ async def create_site_schedule(
         logger.error(f"Failed to create/update schedule: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Failed to create/update schedule. Please check server logs."
+            detail="Failed to create/update schedule. Please check server logs.",
         )
 
 
 @router.get("/{site_id}/schedules", tags=["Site Schedules"])
 async def get_site_schedules(site_id: str) -> Dict[str, Any]:
     """Get all operating schedules for a site.
-    
+
     Returns the weekly schedule including operating hours, peak times,
     and expected transaction volumes for AI analysis.
     """
@@ -180,23 +208,45 @@ async def get_site_schedules(site_id: str) -> Dict[str, Any]:
             )
             schedules = result.scalars().all()
 
-            day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-            
+            day_names = [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ]
+
             schedule_list = []
             for schedule in schedules:
-                schedule_list.append({
-                    "id": schedule.id,
-                    "day_of_week": schedule.day_of_week,
-                    "day_name": day_names[schedule.day_of_week],
-                    "open_time": str(schedule.open_time) if schedule.open_time else None,
-                    "close_time": str(schedule.close_time) if schedule.close_time else None,
-                    "is_closed": schedule.is_closed,
-                    "is_maintenance_window": schedule.is_maintenance_window,
-                    "expected_transaction_volume": schedule.expected_transaction_volume,
-                    "peak_hours_start": str(schedule.peak_hours_start) if schedule.peak_hours_start else None,
-                    "peak_hours_end": str(schedule.peak_hours_end) if schedule.peak_hours_end else None,
-                    "notes": schedule.notes,
-                })
+                schedule_list.append(
+                    {
+                        "id": schedule.id,
+                        "day_of_week": schedule.day_of_week,
+                        "day_name": day_names[schedule.day_of_week],
+                        "open_time": (
+                            str(schedule.open_time) if schedule.open_time else None
+                        ),
+                        "close_time": (
+                            str(schedule.close_time) if schedule.close_time else None
+                        ),
+                        "is_closed": schedule.is_closed,
+                        "is_maintenance_window": schedule.is_maintenance_window,
+                        "expected_transaction_volume": schedule.expected_transaction_volume,
+                        "peak_hours_start": (
+                            str(schedule.peak_hours_start)
+                            if schedule.peak_hours_start
+                            else None
+                        ),
+                        "peak_hours_end": (
+                            str(schedule.peak_hours_end)
+                            if schedule.peak_hours_end
+                            else None
+                        ),
+                        "notes": schedule.notes,
+                    }
+                )
 
             return {"site_id": site_id, "schedules": schedule_list}
 
@@ -204,7 +254,7 @@ async def get_site_schedules(site_id: str) -> Dict[str, Any]:
         logger.error(f"Failed to get schedules for {site_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Failed to retrieve schedules. Please check server logs."
+            detail="Failed to retrieve schedules. Please check server logs.",
         )
 
 
@@ -215,7 +265,7 @@ async def delete_site_schedule(site_id: str, day_of_week: int) -> Dict[str, str]
         if day_of_week < 0 or day_of_week > 6:
             raise HTTPException(
                 status_code=400,
-                detail="day_of_week must be between 0 (Monday) and 6 (Sunday)"
+                detail="day_of_week must be between 0 (Monday) and 6 (Sunday)",
             )
 
         db_service = await get_database_service()
@@ -223,7 +273,7 @@ async def delete_site_schedule(site_id: str, day_of_week: int) -> Dict[str, str]
             result = await session.execute(
                 delete(SiteOperatingSchedule).where(
                     SiteOperatingSchedule.site_id == site_id,
-                    SiteOperatingSchedule.day_of_week == day_of_week
+                    SiteOperatingSchedule.day_of_week == day_of_week,
                 )
             )
             await session.commit()
@@ -231,16 +281,24 @@ async def delete_site_schedule(site_id: str, day_of_week: int) -> Dict[str, str]
             if result.rowcount == 0:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"No schedule found for {site_id} on day {day_of_week}"
+                    detail=f"No schedule found for {site_id} on day {day_of_week}",
                 )
 
         logger.info(f"Deleted schedule for {site_id}, day {day_of_week}")
-        
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+        day_names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         return {
             "message": "Schedule deleted successfully",
             "site_id": site_id,
-            "day": day_names[day_of_week]
+            "day": day_names[day_of_week],
         }
 
     except HTTPException:
@@ -249,5 +307,5 @@ async def delete_site_schedule(site_id: str, day_of_week: int) -> Dict[str, str]
         logger.error(f"Failed to delete schedule: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Failed to delete schedule. Please check server logs."
+            detail="Failed to delete schedule. Please check server logs.",
         )

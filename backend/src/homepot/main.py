@@ -266,9 +266,9 @@ async def log_api_requests(request: Request, call_next):
     # Skip logging for health checks and static files
     if request.url.path in ["/", "/docs", "/redoc", "/openapi.json"]:
         return await call_next(request)
-    
+
     start_time = time.time()
-    
+
     # Get request size
     request_size = 0
     if request.headers.get("content-length"):
@@ -276,13 +276,13 @@ async def log_api_requests(request: Request, call_next):
             request_size = int(request.headers["content-length"])
         except ValueError:
             pass
-    
+
     # Process request
     response = await call_next(request)
-    
+
     # Calculate response time
     response_time_ms = int((time.time() - start_time) * 1000)
-    
+
     # Get response size from content-length header if available
     response_size = 0
     if response.headers.get("content-length"):
@@ -290,21 +290,25 @@ async def log_api_requests(request: Request, call_next):
             response_size = int(response.headers["content-length"])
         except ValueError:
             pass
-    
+
     # Log to database asynchronously (don't block response)
-    asyncio.create_task(_log_request_to_db(
-        endpoint=request.url.path,
-        method=request.method,
-        status_code=response.status_code,
-        response_time_ms=response_time_ms,
-        user_id=None,  # TODO: Extract from auth token if present
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-        request_size=request_size,
-        response_size=response_size,
-        error_message=None if response.status_code < 400 else f"HTTP {response.status_code}",
-    ))
-    
+    asyncio.create_task(
+        _log_request_to_db(
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=response.status_code,
+            response_time_ms=response_time_ms,
+            user_id=None,  # TODO: Extract from auth token if present
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_size=request_size,
+            response_size=response_size,
+            error_message=(
+                None if response.status_code < 400 else f"HTTP {response.status_code}"
+            ),
+        )
+    )
+
     return response
 
 
@@ -324,7 +328,7 @@ async def _log_request_to_db(
     try:
         from homepot.app.models.AnalyticsModel import APIRequestLog
         from homepot.database import get_database_service
-        
+
         db_service = await get_database_service()
         async with db_service.get_session() as db:
             log_entry = APIRequestLog(

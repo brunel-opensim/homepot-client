@@ -64,7 +64,9 @@ async def test_config_history():
         )
         config_logs = result.scalars().all()
 
-        print(f"\n   Found {len(config_logs)} configuration changes in last 5 minutes:\n")
+        print(
+            f"\n   Found {len(config_logs)} configuration changes in last 5 minutes:\n"
+        )
 
         for log in config_logs:
             print(f"   [{log.timestamp}] {log.entity_type.upper()}: {log.entity_id}")

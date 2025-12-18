@@ -8,7 +8,7 @@ Purpose: Automated validation of analytics data collection for 3-5 day runs.
 
 Usage:
     python scripts/validate_data_collection.py
-    
+
     # Or with custom parameters:
     python scripts/validate_data_collection.py --min-days 3 --report report.json
 
@@ -57,14 +57,16 @@ def utc_now():
     """Get current UTC time (timezone-naive for database compatibility)."""
     return datetime.utcnow()
 
+
 class Colors:
     """ANSI color codes for terminal output."""
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BLUE = '\033[94m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
+
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BLUE = "\033[94m"
+    BOLD = "\033[1m"
+    END = "\033[0m"
 
 
 class DataCollectionValidator:
@@ -72,7 +74,7 @@ class DataCollectionValidator:
 
     def __init__(self, min_days: int = 3):
         """Initialize validator.
-        
+
         Args:
             min_days: Minimum days of data required
         """
@@ -81,9 +83,9 @@ class DataCollectionValidator:
             "timestamp": utc_now().isoformat(),
             "min_days_required": min_days,
             "checks": [],
-                "overall_status": "unknown",
+            "overall_status": "unknown",
             "issues": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
     async def run_validation(self) -> Dict[str, Any]:
@@ -108,7 +110,7 @@ class DataCollectionValidator:
         await self._check_site_schedules()
         await self._check_api_request_logs()
         await self._check_user_activities()
-        
+
         # Check 4: Data quality
         await self._check_data_quality()
 
@@ -131,8 +133,10 @@ class DataCollectionValidator:
             async with db_service.get_session() as session:
                 # Simple query to test connection
                 await session.execute(select(1))
-            
-            self._add_check_result(check_name, "passed", "Database connection successful")
+
+            self._add_check_result(
+                check_name, "passed", "Database connection successful"
+            )
             print(f"{Colors.GREEN}✓{Colors.END} {check_name}: Connected")
         except Exception as e:
             self._add_check_result(check_name, "failed", f"Cannot connect: {str(e)}")
@@ -149,23 +153,29 @@ class DataCollectionValidator:
             async with db_service.get_session() as session:
                 # Check device count
                 from homepot.models import Device
+
                 result = await session.execute(
                     select(func.count(Device.device_id)).where(Device.is_active == True)
                 )
                 active_devices = result.scalar()
 
                 if active_devices == 0:
-                    self._add_check_result(check_name, "warning", "No active devices found")
+                    self._add_check_result(
+                        check_name, "warning", "No active devices found"
+                    )
                     self.results["issues"].append(
                         "No active devices. Start agents with: uvicorn homepot.main:app"
                     )
-                    print(f"{Colors.YELLOW}⚠{Colors.END} {check_name}: No active devices")
+                    print(
+                        f"{Colors.YELLOW}⚠{Colors.END} {check_name}: No active devices"
+                    )
                 else:
                     self._add_check_result(
-                        check_name, "passed", 
-                        f"{active_devices} active devices found"
+                        check_name, "passed", f"{active_devices} active devices found"
                     )
-                    print(f"{Colors.GREEN}✓{Colors.END} {check_name}: {active_devices} devices active")
+                    print(
+                        f"{Colors.GREEN}✓{Colors.END} {check_name}: {active_devices} devices active"
+                    )
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
             print(f"{Colors.RED}✗{Colors.END} {check_name}: {str(e)}")
@@ -177,7 +187,7 @@ class DataCollectionValidator:
             DeviceMetrics,
             DeviceMetrics.timestamp,
             expected_per_day=17280,  # 24h * 60min * 12 (every 5 seconds)
-            critical=True
+            critical=True,
         )
 
     async def _check_job_outcomes(self):
@@ -187,7 +197,7 @@ class DataCollectionValidator:
             JobOutcome,
             JobOutcome.timestamp,
             expected_per_day=5,  # At least a few jobs per day
-            critical=True
+            critical=True,
         )
 
     async def _check_device_state_history(self):
@@ -197,7 +207,7 @@ class DataCollectionValidator:
             DeviceStateHistory,
             DeviceStateHistory.timestamp,
             expected_per_day=2,  # At least some state changes
-            critical=True
+            critical=True,
         )
 
     async def _check_error_logs(self):
@@ -207,7 +217,7 @@ class DataCollectionValidator:
             ErrorLog,
             ErrorLog.timestamp,
             expected_per_day=1,  # May have errors
-            critical=False  # Not critical if no errors
+            critical=False,  # Not critical if no errors
         )
 
     async def _check_configuration_history(self):
@@ -217,7 +227,7 @@ class DataCollectionValidator:
             ConfigurationHistory,
             ConfigurationHistory.timestamp,
             expected_per_day=1,  # Config changes
-            critical=False
+            critical=False,
         )
 
     async def _check_site_schedules(self):
@@ -232,23 +242,29 @@ class DataCollectionValidator:
                 count = result.scalar()
 
                 if count == 0:
-                    self._add_check_result(check_name, "warning", "No schedules configured")
+                    self._add_check_result(
+                        check_name, "warning", "No schedules configured"
+                    )
                     self.results["recommendations"].append(
                         "Configure site schedules using: python utils/populate_schedules.py"
                     )
-                    print(f"{Colors.YELLOW}⚠{Colors.END} {check_name}: No schedules (run populate_schedules.py)")
+                    print(
+                        f"{Colors.YELLOW}⚠{Colors.END} {check_name}: No schedules (run populate_schedules.py)"
+                    )
                 elif count < 7:
                     self._add_check_result(
-                        check_name, "warning", 
-                        f"Only {count}/7 days configured"
+                        check_name, "warning", f"Only {count}/7 days configured"
                     )
-                    print(f"{Colors.YELLOW}⚠{Colors.END} {check_name}: {count}/7 days configured")
+                    print(
+                        f"{Colors.YELLOW}⚠{Colors.END} {check_name}: {count}/7 days configured"
+                    )
                 else:
                     self._add_check_result(
-                        check_name, "passed", 
-                        f"{count} schedules configured"
+                        check_name, "passed", f"{count} schedules configured"
                     )
-                    print(f"{Colors.GREEN}✓{Colors.END} {check_name}: {count} schedules configured")
+                    print(
+                        f"{Colors.GREEN}✓{Colors.END} {check_name}: {count} schedules configured"
+                    )
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
             print(f"{Colors.RED}✗{Colors.END} {check_name}: {str(e)}")
@@ -260,7 +276,7 @@ class DataCollectionValidator:
             APIRequestLog,
             APIRequestLog.timestamp,
             expected_per_day=100,  # At least some API activity
-            critical=False  # Not critical for AI, but useful for monitoring
+            critical=False,  # Not critical for AI, but useful for monitoring
         )
 
     async def _check_user_activities(self):
@@ -270,7 +286,7 @@ class DataCollectionValidator:
             UserActivity,
             UserActivity.timestamp,
             expected_per_day=50,  # Some user interactions
-            critical=False  # Not critical for device AI, useful for UX analytics
+            critical=False,  # Not critical for device AI, useful for UX analytics
         )
 
     async def _check_table(
@@ -279,7 +295,7 @@ class DataCollectionValidator:
         model,
         timestamp_field,
         expected_per_day: int,
-        critical: bool = True
+        critical: bool = True,
     ):
         """Generic table validation."""
         try:
@@ -292,17 +308,16 @@ class DataCollectionValidator:
                 # Recent count (last 24h)
                 cutoff = utc_now() - timedelta(hours=24)
                 result = await session.execute(
-                    select(func.count()).select_from(model).where(
-                        timestamp_field >= cutoff
-                    )
+                    select(func.count())
+                    .select_from(model)
+                    .where(timestamp_field >= cutoff)
                 )
                 recent_count = result.scalar()
 
                 # Oldest and newest entries
                 result = await session.execute(
                     select(
-                        func.min(timestamp_field),
-                        func.max(timestamp_field)
+                        func.min(timestamp_field), func.max(timestamp_field)
                     ).select_from(model)
                 )
                 oldest, newest = result.one()
@@ -321,32 +336,52 @@ class DataCollectionValidator:
                     self.results["issues"].append(
                         f"{name}: No data found. Ensure backend is running and agents are active."
                     )
-                    print(f"{Colors.RED if critical else Colors.YELLOW}{'✗' if critical else '⚠'}{Colors.END} {name}: No data")
+                    print(
+                        f"{Colors.RED if critical else Colors.YELLOW}{'✗' if critical else '⚠'}{Colors.END} {name}: No data"
+                    )
                 elif collection_days < self.min_days:
                     status = "warning"
                     message = f"Only {collection_days:.1f} days of data (need {self.min_days})"
-                    self._add_check_result(name, status, message, {
-                        "total_records": total_count,
-                        "recent_24h": recent_count,
-                        "collection_days": round(collection_days, 1)
-                    })
-                    print(f"{Colors.YELLOW}⚠{Colors.END} {name}: {collection_days:.1f}/{self.min_days} days")
+                    self._add_check_result(
+                        name,
+                        status,
+                        message,
+                        {
+                            "total_records": total_count,
+                            "recent_24h": recent_count,
+                            "collection_days": round(collection_days, 1),
+                        },
+                    )
+                    print(
+                        f"{Colors.YELLOW}⚠{Colors.END} {name}: {collection_days:.1f}/{self.min_days} days"
+                    )
                 else:
                     # Check collection rate
                     actual_per_day = total_count / max(collection_days, 1)
-                    rate_percentage = (actual_per_day / expected_per_day) * 100 if expected_per_day > 0 else 100
+                    rate_percentage = (
+                        (actual_per_day / expected_per_day) * 100
+                        if expected_per_day > 0
+                        else 100
+                    )
 
                     status = "passed"
                     message = f"{total_count} records over {collection_days:.1f} days"
-                    self._add_check_result(name, status, message, {
-                        "total_records": total_count,
-                        "recent_24h": recent_count,
-                        "collection_days": round(collection_days, 1),
-                        "records_per_day": round(actual_per_day, 1),
-                        "expected_per_day": expected_per_day,
-                        "rate_percentage": round(rate_percentage, 1)
-                    })
-                    print(f"{Colors.GREEN}✓{Colors.END} {name}: {total_count} records ({collection_days:.1f} days)")
+                    self._add_check_result(
+                        name,
+                        status,
+                        message,
+                        {
+                            "total_records": total_count,
+                            "recent_24h": recent_count,
+                            "collection_days": round(collection_days, 1),
+                            "records_per_day": round(actual_per_day, 1),
+                            "expected_per_day": expected_per_day,
+                            "rate_percentage": round(rate_percentage, 1),
+                        },
+                    )
+                    print(
+                        f"{Colors.GREEN}✓{Colors.END} {name}: {total_count} records ({collection_days:.1f} days)"
+                    )
 
         except Exception as e:
             self._add_check_result(name, "failed", str(e))
@@ -356,9 +391,9 @@ class DataCollectionValidator:
         """Check data quality metrics."""
         check_name = "Data Quality"
         print(f"\n{Colors.BOLD}Data Quality Checks:{Colors.END}")
-        
+
         quality_issues = []
-        
+
         try:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
@@ -369,10 +404,12 @@ class DataCollectionValidator:
                     )
                 )
                 null_cpu = result.scalar()
-                
+
                 if null_cpu > 0:
                     quality_issues.append(f"{null_cpu} device metrics with null CPU")
-                    print(f"  {Colors.YELLOW}⚠{Colors.END} {null_cpu} records with null CPU values")
+                    print(
+                        f"  {Colors.YELLOW}⚠{Colors.END} {null_cpu} records with null CPU values"
+                    )
 
                 # Check for unreasonable values (CPU > 100%)
                 result = await session.execute(
@@ -381,15 +418,21 @@ class DataCollectionValidator:
                     )
                 )
                 invalid_cpu = result.scalar()
-                
+
                 if invalid_cpu > 0:
-                    quality_issues.append(f"{invalid_cpu} metrics with invalid CPU (>100%)")
-                    print(f"  {Colors.RED}✗{Colors.END} {invalid_cpu} records with CPU > 100%")
+                    quality_issues.append(
+                        f"{invalid_cpu} metrics with invalid CPU (>100%)"
+                    )
+                    print(
+                        f"  {Colors.RED}✗{Colors.END} {invalid_cpu} records with CPU > 100%"
+                    )
 
             if quality_issues:
                 self._add_check_result(check_name, "warning", "; ".join(quality_issues))
             else:
-                self._add_check_result(check_name, "passed", "No quality issues detected")
+                self._add_check_result(
+                    check_name, "passed", "No quality issues detected"
+                )
                 print(f"  {Colors.GREEN}✓{Colors.END} All data within expected ranges")
 
         except Exception as e:
@@ -400,7 +443,7 @@ class DataCollectionValidator:
         """Check for gaps in data collection."""
         check_name = "Collection Continuity"
         print(f"\n{Colors.BOLD}Collection Continuity:{Colors.END}")
-        
+
         try:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
@@ -415,52 +458,61 @@ class DataCollectionValidator:
                 timestamps = [row[0] for row in result.fetchall()]
 
                 if len(timestamps) < 2:
-                    print(f"  {Colors.YELLOW}⚠{Colors.END} Insufficient data for gap analysis")
+                    print(
+                        f"  {Colors.YELLOW}⚠{Colors.END} Insufficient data for gap analysis"
+                    )
                     return
 
                 # Find gaps
                 gaps = []
                 for i in range(1, len(timestamps)):
-                    gap = (timestamps[i] - timestamps[i-1]).total_seconds() / 60
+                    gap = (timestamps[i] - timestamps[i - 1]).total_seconds() / 60
                     if gap > 60:  # Gap > 1 hour
-                        gaps.append({
-                            "start": timestamps[i-1].isoformat(),
-                            "end": timestamps[i].isoformat(),
-                            "duration_minutes": gap
-                        })
+                        gaps.append(
+                            {
+                                "start": timestamps[i - 1].isoformat(),
+                                "end": timestamps[i].isoformat(),
+                                "duration_minutes": gap,
+                            }
+                        )
 
                 if gaps:
                     self._add_check_result(
-                        check_name, "warning", 
+                        check_name,
+                        "warning",
                         f"{len(gaps)} collection gap(s) detected",
-                        {"gaps": gaps[:5]}  # First 5 gaps
+                        {"gaps": gaps[:5]},  # First 5 gaps
                     )
-                    print(f"  {Colors.YELLOW}⚠{Colors.END} {len(gaps)} gap(s) > 1 hour detected")
+                    print(
+                        f"  {Colors.YELLOW}⚠{Colors.END} {len(gaps)} gap(s) > 1 hour detected"
+                    )
                     self.results["recommendations"].append(
                         "Collection gaps detected. Ensure backend stays running continuously."
                     )
                 else:
-                    self._add_check_result(check_name, "passed", "No significant gaps detected")
-                    print(f"  {Colors.GREEN}✓{Colors.END} Continuous data collection confirmed")
+                    self._add_check_result(
+                        check_name, "passed", "No significant gaps detected"
+                    )
+                    print(
+                        f"  {Colors.GREEN}✓{Colors.END} Continuous data collection confirmed"
+                    )
 
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
             print(f"  {Colors.RED}✗{Colors.END} {str(e)}")
 
     def _add_check_result(
-        self, 
-        name: str, 
-        status: str, 
-        message: str,
-        details: Optional[Dict] = None
+        self, name: str, status: str, message: str, details: Optional[Dict] = None
     ):
         """Add a check result."""
-        self.results["checks"].append({
-            "name": name,
-            "status": status,
-            "message": message,
-            "details": details or {}
-        })
+        self.results["checks"].append(
+            {
+                "name": name,
+                "status": status,
+                "message": message,
+                "details": details or {},
+            }
+        )
 
     def _determine_overall_status(self):
         """Determine overall validation status."""
@@ -479,7 +531,7 @@ class DataCollectionValidator:
             "passed": passed,
             "warnings": warnings,
             "failed": failed,
-            "total": passed + warnings + failed
+            "total": passed + warnings + failed,
         }
 
     def _print_summary(self):
@@ -509,7 +561,9 @@ class DataCollectionValidator:
             symbol = "✗"
             message = "Critical issues found. Fix issues before AI training."
 
-        print(f"\n{color}{Colors.BOLD}{symbol} Overall Status: {status.upper()}{Colors.END}")
+        print(
+            f"\n{color}{Colors.BOLD}{symbol} Overall Status: {status.upper()}{Colors.END}"
+        )
         print(f"{message}")
 
         # Issues
@@ -536,13 +590,9 @@ async def main():
         "--min-days",
         type=int,
         default=3,
-        help="Minimum days of data required (default: 3)"
+        help="Minimum days of data required (default: 3)",
     )
-    parser.add_argument(
-        "--report",
-        type=str,
-        help="Output JSON report to file"
-    )
+    parser.add_argument("--report", type=str, help="Output JSON report to file")
 
     args = parser.parse_args()
 
@@ -552,7 +602,7 @@ async def main():
 
     # Save report if requested
     if args.report:
-        with open(args.report, 'w') as f:
+        with open(args.report, "w") as f:
             json.dump(results, f, indent=2)
         print(f"Report saved to: {args.report}")
 

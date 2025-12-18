@@ -20,7 +20,7 @@ from .UserModel import Base
 
 def utc_now():
     """Get current UTC time (timezone-naive for database compatibility).
-    
+
     Note: Uses timezone-naive datetime for compatibility with existing
     database schema. For new projects, consider using timezone-aware datetimes.
     """

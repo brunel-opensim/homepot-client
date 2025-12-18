@@ -24,8 +24,8 @@ from homepot.app.models.AnalyticsModel import (
     DeviceMetrics,
     DeviceStateHistory,
 )
-from homepot.error_logger import log_error
 from homepot.database import get_database_service
+from homepot.error_logger import log_error
 from homepot.models import DeviceStatus
 
 logger = logging.getLogger(__name__)
@@ -385,23 +385,24 @@ class POSAgentSimulator:
         # Update device status in database
         try:
             db_service = await get_database_service()
-            
+
             # Use a single session for all database operations
             async with db_service.get_session() as db:
                 # Determine new status based on health
                 new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
                 from sqlalchemy import select, update
+
                 from homepot.models import Device
-                
+
                 # Get device and its current status before updating
                 device_result = await db.execute(
                     select(Device).where(Device.device_id == self.device_id)
                 )
                 device = device_result.scalar_one_or_none()
-                
+
                 if device:
                     previous_status = device.status
-                    
+
                     # Update device status only if changed
                     if previous_status != new_status:
                         stmt = (
@@ -410,9 +411,13 @@ class POSAgentSimulator:
                             .values(status=new_status)
                         )
                         await db.execute(stmt)
-                        
+
                         # Log state transition for AI training
-                        reason = "Health check: healthy" if is_healthy else f"Health check: {health_data.get('error', 'unhealthy')}"
+                        reason = (
+                            "Health check: healthy"
+                            if is_healthy
+                            else f"Health check: {health_data.get('error', 'unhealthy')}"
+                        )
                         state_history = DeviceStateHistory(
                             timestamp=datetime.utcnow(),
                             device_id=self.device_id,
@@ -422,16 +427,20 @@ class POSAgentSimulator:
                             reason=reason,
                             extra_data={
                                 "response_time_ms": self.response_time_ms,
-                                "health_status": "healthy" if is_healthy else "unhealthy",
+                                "health_status": (
+                                    "healthy" if is_healthy else "unhealthy"
+                                ),
                             },
                         )
                         db.add(state_history)
-                        logger.info(f"Device {self.device_id} state changed: {previous_status} → {new_status}")
-                
+                        logger.info(
+                            f"Device {self.device_id} state changed: {previous_status} → {new_status}"
+                        )
+
                 if device:
                     # Create health check record
                     from homepot.models import HealthCheck
-                    
+
                     health_check = HealthCheck(
                         device_id=int(device.id),  # type: ignore[arg-type]
                         is_healthy=is_healthy,
@@ -441,7 +450,7 @@ class POSAgentSimulator:
                         response_data=health_data,
                     )
                     db.add(health_check)
-                    
+
                     # Save device metrics to database for AI training
                     device_metrics = DeviceMetrics(
                         timestamp=datetime.utcnow(),  # Use timezone-naive for compatibility
