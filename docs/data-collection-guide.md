@@ -35,8 +35,8 @@ This script will:
 Run this command to see what data has been collected:
 
 ```bash
-cd backend
 source venv/bin/activate
+cd backend
 python -W ignore::DeprecationWarning utils/validate_data_collection.py
 ```
 

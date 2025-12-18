@@ -7,17 +7,13 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$SCRIPT_DIR/backend"
-
-echo "=============================================="
-echo "HOMEPOT Data Collection - Startup Script"
-echo "=============================================="
-echo ""
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BACKEND_DIR="$PROJECT_ROOT/backend"
 
 # Check if virtual environment exists
-if [ ! -d "$BACKEND_DIR/venv" ]; then
+if [ ! -d "$PROJECT_ROOT/venv" ]; then
     echo "Virtual environment not found!"
-    echo "   Run: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+    echo "   Run: python3 -m venv venv && source venv/bin/activate && pip install -r backend/requirements.txt"
     exit 1
 fi
 
@@ -32,22 +28,21 @@ if [ ! -f "$BACKEND_DIR/.env" ]; then
 fi
 
 # Activate virtual environment
-source "$BACKEND_DIR/venv/bin/activate"
+source "$PROJECT_ROOT/venv/bin/activate"
 
-# Check database connectivity
-echo "Checking database connection..."
+# Check database connectivity (silent)
 python3 -c "
 import sys
 sys.path.insert(0, '$BACKEND_DIR/src')
 import asyncio
 from homepot.database import get_database_service
+from sqlalchemy import text
 
 async def check():
     try:
         db = await get_database_service()
         async with db.get_session() as session:
-            await session.execute('SELECT 1')
-        print('✓ Database connected')
+            await session.execute(text('SELECT 1'))
         return True
     except Exception as e:
         print(f'✗ Database connection failed: {e}')
@@ -55,15 +50,22 @@ async def check():
 
 if not asyncio.run(check()):
     sys.exit(1)
-"
+" 2>/dev/null
 
 if [ $? -ne 0 ]; then
-    echo ""
     echo "✗ Cannot connect to database!"
     echo "   1. Ensure PostgreSQL is running"
     echo "   2. Check credentials in .env file"
     echo "   3. Run: python scripts/setup_database.py"
     exit 1
+fi
+
+# Check if port 8000 is in use
+if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "Port 8000 is in use. Stopping existing process..."
+    kill -9 $(lsof -t -i:8000) 2>/dev/null || true
+    sleep 1
+    echo "✓ Port 8000 is now available"
 fi
 
 echo ""
