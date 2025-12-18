@@ -368,7 +368,7 @@ class JobOrchestrator:
                     await log_error(
                         category="external_service",
                         severity="error",
-                        error_message=f"Failed to send push notification to device",
+                        error_message="Failed to send push notification to device",
                         exception=e,
                         device_id=str(device.device_id),
                         context={
@@ -463,10 +463,10 @@ class JobOrchestrator:
             logger.error(f"Job {job.job_id} processing failed: {e}")
 
             # Log error for AI training
-            await log_error(
+            await log_error(  # noqa: F823  # noqa: F823
                 category="external_service",
                 severity="critical",
-                error_message=f"Job processing failed critically",
+                error_message="Job processing failed critically",
                 exception=e,
                 context={
                     "job_id": str(job.job_id),
@@ -564,11 +564,12 @@ class JobOrchestrator:
             await log_error(
                 category="external_service",
                 severity="error",
-                error_message=f"Failed to send push notification",
+                error_message="Failed to send push notification",
                 exception=e,
                 device_id=str(device.device_id),
                 context={
-                    "notification_data": notification_data,
+                    "config_url": push_notification.config_url,
+                    "config_version": push_notification.version,
                     "device_name": device.name,
                 },
             )

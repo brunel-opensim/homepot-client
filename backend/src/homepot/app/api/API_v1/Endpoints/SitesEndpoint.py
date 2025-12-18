@@ -115,7 +115,7 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
             error_message="Failed to create site",
             exception=e,
             endpoint="/api/v1/sites",
-            context={"site_data": site_data.model_dump()},
+            context={"site_data": site_request.model_dump()},
         )
         raise HTTPException(
             status_code=500, detail="Failed to create site. Please check server logs."

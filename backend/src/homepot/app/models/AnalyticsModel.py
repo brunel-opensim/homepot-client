@@ -1,6 +1,6 @@
 """Analytics models for tracking system metrics and user behavior."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import (
     JSON,

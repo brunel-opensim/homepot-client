@@ -142,7 +142,7 @@ async def populate_schedules():
 
             print(f"✓ {action} {day}: {status} {hours}")
             if schedule_data["is_maintenance_window"]:
-                print(f"       Maintenance window scheduled")
+                print("       Maintenance window scheduled")
             print(
                 f"    Expected volume: {schedule_data['expected_transaction_volume']} txn/day"
             )

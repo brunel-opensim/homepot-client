@@ -81,7 +81,7 @@ async def test_config_history():
 
     print("\nConfiguration history tracking test complete!")
     print("\nSummary:")
-    print(f"  - Job creation logged: Yes (site-level)")
+    print("  - Job creation logged: Yes (site-level)")
     print(f"  - Device updates logged: {'Yes' if len(config_logs) > 1 else 'Pending'}")
     print(f"  - Total config changes: {len(config_logs)}")
 

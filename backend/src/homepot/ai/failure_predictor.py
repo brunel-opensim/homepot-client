@@ -14,7 +14,6 @@ from homepot.ai.analytics_service import AIAnalyticsService
 from homepot.app.models.AnalyticsModel import (
     DeviceMetrics,
     DeviceStateHistory,
-    ErrorLog,
 )
 from homepot.database import get_database_service
 

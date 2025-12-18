@@ -6,15 +6,13 @@ for ML models and predictive features.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, select
 
 from homepot.app.models.AnalyticsModel import (
     ConfigurationHistory,
     DeviceMetrics,
-    DeviceStateHistory,
     ErrorLog,
     JobOutcome,
     SiteOperatingSchedule,
