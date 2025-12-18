@@ -19,7 +19,11 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from homepot.app.models.AnalyticsModel import DeviceMetrics, DeviceStateHistory
+from homepot.app.models.AnalyticsModel import (
+    ConfigurationHistory,
+    DeviceMetrics,
+    DeviceStateHistory,
+)
 from homepot.error_logger import log_error
 from homepot.database import get_database_service
 from homepot.models import DeviceStatus
@@ -196,8 +200,37 @@ class POSAgentSimulator:
             health_result = await self._run_health_check()
 
             # Update current config version
+            old_version = self.current_config_version
             self.current_config_version = config_version
             self.state = AgentState.IDLE
+
+            # Log configuration change for AI training
+            try:
+                db_service = await get_database_service()
+                async with db_service.get_session() as session:
+                    config_history = ConfigurationHistory(
+                        timestamp=datetime.utcnow(),
+                        entity_type="device",
+                        entity_id=self.device_id,
+                        parameter_name="config_version",
+                        old_value={"version": old_version},
+                        new_value={"version": config_version, "url": config_url},
+                        changed_by="system",
+                        change_reason="Push notification config update",
+                        change_type="automated",
+                        performance_before={
+                            "status": health_result.get("status"),
+                            "response_time_ms": health_result.get("response_time_ms"),
+                        },
+                    )
+                    session.add(config_history)
+                    logger.info(
+                        f"Logged config change for {self.device_id}: {old_version} → {config_version}"
+                    )
+            except Exception as log_err:
+                logger.error(
+                    f"Failed to log configuration history: {log_err}", exc_info=True
+                )
 
             # Step 6: Send success ACK
             return {

@@ -393,7 +393,7 @@ async def collect_device_metrics(device_id: str):
 ## 7. Configuration History
 
 **Table:** `configuration_history`  
-**Collection Status:** Needs logging on all config changes
+**Collection Status:** Implemented (Dec 18, 2025)
 
 ### What It Stores
 
@@ -414,14 +414,30 @@ Tracks configuration changes and their impact for AI learning:
 - `was_rolled_back`: Whether change was reverted
 - `rollback_reason`: Why it was rolled back
 
+### Implementation Details
+
+**Files Modified:**
+- `backend/src/homepot/agents.py` - Logs device-level config changes after successful updates
+- `backend/src/homepot/app/api/API_v1/Endpoints/JobsEndpoints.py` - Logs site-level config update jobs
+
+**Entity Types:**
+- **device**: Individual POS terminal config updates (config_version, URL)
+- **site**: Site-wide config update jobs
+- **system**: System-level configuration (future)
+
+**Change Types:**
+- **automated**: Config changes pushed via orchestrator/push notifications
+- **manual**: Config jobs created by API users
+- **ai_recommended**: AI-suggested configurations (future)
+
 ### Example Data
 
 ```
-timestamp           | entity  | entity_id | parameter       | old   | new   | success | rolled_back
---------------------|---------|-----------|-----------------|-------|-------|---------|-------------
-2025-12-11 14:00:00 | device  | dev_001   | max_connections | 10    | 15    | true    | false
-2025-12-11 14:30:00 | device  | dev_002   | timeout_ms      | 5000  | 10000 | false   | true
-2025-12-11 15:00:00 | site    | site_001  | peak_hours      | 12-14 | 11-15 | true    | false
+timestamp           | entity  | entity_id        | parameter       | old_value                    | new_value                                      | changed_by | change_type
+--------------------|---------|------------------|-----------------|------------------------------|------------------------------------------------|------------|-------------
+2025-12-18 16:41:27 | device  | pos-terminal-005 | config_version  | {"version": "1.0.0"}         | {"version": "2.6.0", "url": "https://..."}     | system     | automated
+2025-12-18 16:41:21 | device  | pos-terminal-002 | config_version  | {"version": "1.0.0"}         | {"version": "2.6.0", "url": "https://..."}     | system     | automated
+2025-12-18 16:41:13 | device  | pos-terminal-003 | config_version  | {"version": "1.0.0"}         | {"version": "2.6.0", "url": "https://..."}     | system     | automated
 ```
 
 ### Use Cases for AI
@@ -431,16 +447,75 @@ timestamp           | entity  | entity_id | parameter       | old   | new   | su
 - Identify failed configuration patterns to avoid
 - Predict impact of configuration changes before applying
 - Automatically suggest rollback for degraded performance
+- Correlate config changes with device metrics/errors
+- Identify which config versions have best stability
 
-### Implementation Required
+### Verification
 
-Add logging whenever configuration is changed:
+Tested with job orchestrator creating config update jobs:
+- ✅ Device-level changes logged after successful config application
+- ✅ Old and new config versions captured
+- ✅ Performance metrics (status, response_time_ms) stored before change
+- ✅ Change reason and type properly categorized
+- ✅ 3 devices successfully logged config changes to v2.6.0
 
+### Implementation Reference
+
+Configuration history is automatically logged when:
+
+**1. Agents apply config updates:**
 ```python
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 
-# Before change
-before_metrics = await measure_performance(device_id)
+# In agents.py _handle_config_update()
+config_history = ConfigurationHistory(
+    timestamp=datetime.utcnow(),
+    entity_type="device",
+    entity_id=self.device_id,
+    parameter_name="config_version",
+    old_value={"version": old_version},
+    new_value={"version": config_version, "url": config_url},
+    changed_by="system",
+    change_reason="Push notification config update",
+    change_type="automated",
+    performance_before={
+        "status": health_result.get("status"),
+        "response_time_ms": health_result.get("response_time_ms"),
+    },
+)
+session.add(config_history)
+```
+
+**2. API jobs create config updates:**
+```python
+# In JobsEndpoints.py create_pos_config_job()
+config_history = ConfigurationHistory(
+    timestamp=datetime.utcnow(),
+    entity_type="site",
+    entity_id=site_id,
+    parameter_name="config_update_job",
+    old_value=None,
+    new_value={
+        "job_id": job_id,
+        "action": job_request.action,
+        "config_url": job_request.config_url,
+        "config_version": job_request.config_version,
+    },
+    changed_by="api_user",
+    change_reason=job_request.description,
+    change_type="manual",
+)
+session.add(config_history)
+```
+
+---
+
+## 5. User Activities
+
+**Table:** `user_activities`  
+**Collection Status:** Needs frontend implementation
+
+### What It Stores
 
 # Apply change
 await update_device_config(device_id, "max_connections", 15)
