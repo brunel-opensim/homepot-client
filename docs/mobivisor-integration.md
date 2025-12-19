@@ -749,6 +749,46 @@ curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a
 - `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
+### Update Device Extra Variables
+
+Update custom key/value variables for a device in Mobivisor. This proxies the
+Mobivisor endpoint `PUT /devices/{device_id}/extraVariables` and allows adding
+or updating arbitrary device-scoped metadata.
+
+**Endpoint**: `PUT /api/v1/mobivisor/devices/{device_id}/extraVariables`
+
+**Request Body** (JSON):
+```json
+{
+  "extraVariables": {
+    "test_com": "1",
+    "test_com2": "2"
+  }
+}
+```
+
+**Validation**:
+- `extraVariables` is required and must be a JSON object/dictionary.
+- At least one key/value pair is required inside `extraVariables`.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/extraVariables" \
+  -H "Content-Type: application/json" \
+  -d '{"extraVariables":{"test_com":"1","test_com2":"2"}}'
+```
+
+**Notes & Errors**:
+- `422 Validation Error`: Missing `extraVariables`, non-object `extraVariables`, or empty `extraVariables`.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
 ### Mobivisor Users (Additional)
 
 #### 4. Create User

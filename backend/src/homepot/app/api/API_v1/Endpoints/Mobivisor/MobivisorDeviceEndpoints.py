@@ -792,6 +792,83 @@ async def update_device_imei(device_id: str, payload: dict) -> Any:
     return handle_mobivisor_response(response, f"update imei for device {device_id}")
 
 
+@router.put("/devices/{device_id}/extraVariables", tags=["Mobivisor Devices"])
+async def update_device_extra_variables(device_id: str, payload: dict) -> Any:
+    """Update device extra variables in Mobivisor.
+
+    Proxies a PUT to Mobivisor's `/devices/{device_id}/extraVariables` endpoint.
+
+    Validation:
+        - `extraVariables` must be present and be an object/dictionary with at
+          least one key/value pair.
+
+    Args:
+        device_id: The unique identifier of the device (path parameter).
+        payload: JSON body containing `extraVariables` key.
+
+    Returns:
+        Any: JSON response from the proxied Mobivisor API.
+
+    Raises:
+        HTTPException: For validation, configuration, or upstream errors.
+    """
+    # Basic payload validation before contacting upstream
+    if not isinstance(payload, dict) or "extraVariables" not in payload:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "Missing 'extraVariables' field",
+            },
+        )
+
+    vars_val = payload.get("extraVariables")
+    if not isinstance(vars_val, dict):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "'extraVariables' must be an object/dictionary",
+            },
+        )
+
+    if len(vars_val) == 0:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "At least one extra variable is required",
+            },
+        )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    if not config.get("mobivisor_api_token"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    logger.info("Updating extra variables for device %s via Mobivisor", device_id)
+    response = await make_mobivisor_request(
+        "PUT", f"devices/{device_id}/extraVariables", json=payload, config=config
+    )
+    return handle_mobivisor_response(
+        response, f"update extra variables for device {device_id}"
+    )
+
+
 @router.put("/devices/{device_id}/actions", tags=["Mobivisor Devices"])
 async def trigger_device_action(
     device_id: str, payload: DeviceCommandPayload
