@@ -679,6 +679,41 @@ curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a
 - Field-level validation ensures `commandData.password` exists for `change_password_now` and `commandData.sendApps` exists for `update_settings`.
 - Upstream Mobivisor errors (401/403/404/5xx) are proxied with the original status embedded in the `detail.upstream_status` field when available.
 
+### Update Device Description
+
+Update the human-readable description for a device in Mobivisor. This proxies
+the Mobivisor endpoint `PUT /devices/{device_id}/description`.
+
+**Endpoint**: `PUT /api/v1/mobivisor/devices/{device_id}/description`
+
+**Request Body** (JSON):
+```json
+{
+  "description": "Test"
+}
+```
+
+**Validation**:
+- `description` is required and must be a non-empty string.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/description" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Test"}'
+```
+
+**Notes & Errors**:
+- `422 Validation Error`: Missing or invalid `description` value.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
 ### Mobivisor Users (Additional)
 
 #### 4. Create User
