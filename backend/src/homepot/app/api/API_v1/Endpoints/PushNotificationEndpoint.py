@@ -372,7 +372,7 @@ async def list_platforms() -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Platform {platform} unavailable: {e}")
             platforms_info.append(
-                {"platform": platform, "available": False, "error": str(e)}
+                {"platform": platform, "available": False, "error": "Platform unavailable"}
             )
 
     return {

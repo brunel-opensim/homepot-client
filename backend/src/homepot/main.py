@@ -393,7 +393,7 @@ async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str,
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
-            "error": str(e),
+            "error": "Health check failed",
             "timestamp": asyncio.get_event_loop().time(),
         }
 
