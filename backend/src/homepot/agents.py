@@ -17,7 +17,7 @@ import logging
 import random  # nosec - Used for POS device simulation, not cryptographic purposes
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from homepot.app.models.AnalyticsModel import (
     ConfigurationHistory,
@@ -225,10 +225,12 @@ class POSAgentSimulator:
                     )
                     session.add(config_history)
                     await session.flush()  # Get ID
-                    
+
                     # Schedule post-update performance monitoring
                     asyncio.create_task(
-                        self._monitor_post_update_performance(config_history.id)
+                        self._monitor_post_update_performance(
+                            cast(int, config_history.id)
+                        )
                     )
 
                     logger.info(
@@ -299,13 +301,11 @@ class POSAgentSimulator:
                 config_history = result.scalar_one_or_none()
 
                 if config_history:
-                    config_history.performance_after = {
+                    config_history.performance_after = {  # type: ignore
                         "status": health_result.get("status"),
                         "response_time_ms": health_result.get("response_time_ms"),
                     }
-                    config_history.was_successful = (
-                        health_result.get("status") == "healthy"
-                    )
+                    config_history.was_successful = health_result.get("status") == "healthy"  # type: ignore
                     session.add(config_history)
                     logger.info(
                         f"Updated post-change performance for config history {config_history_id}"

@@ -15,10 +15,10 @@ from sqlalchemy import (
     Engine,
     ForeignKey,
     Integer,
+    Sequence,
     String,
     Text,
     create_engine,
-    Sequence,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 

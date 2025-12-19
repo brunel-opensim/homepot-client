@@ -5,13 +5,13 @@ import time
 from typing import Callable, Optional
 
 from fastapi import Request, Response
+from jose import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from jose import jwt
 
+from homepot.app.auth_utils import ALGORITHM, COOKIE_NAME, SECRET_KEY
 from homepot.app.db.database import SessionLocal
 from homepot.app.models.AnalyticsModel import APIRequestLog
-from homepot.app.auth_utils import SECRET_KEY, ALGORITHM, COOKIE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
             auth_header = request.headers.get("authorization")
             if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header.split(" ")[1]
-            
+
             if not token:
                 token = request.cookies.get(COOKIE_NAME)
 
