@@ -210,6 +210,67 @@ curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/get-managed-apps
 - `403/401 Unauthorized`: Authentication/authorization issue.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
+### Get Device Policies
+
+Fetch the policies currently applied to a specific device in Mobivisor.
+
+**Endpoint**: `GET /api/v1/mobivisor/devices/{device_id}/policies`
+
+**Parameters**:
+- `device_id` (path): The unique identifier of the device (required)
+
+**Response** (200 OK):
+```json
+{
+  "policies": [
+    {"id": "p1", "name": "KioskPolicy", "enabled": true}
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/policies"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: Device does not exist or no policies found on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+### Fetch System Apps by Model & Version
+
+Fetch the list of system (system-level) apps for a device model and specific
+version. This proxies Mobivisor's
+`GET /devices/fetchSystemApps/model/{model_number}/version/{version_number}`
+endpoint.
+
+**Endpoint**: `GET /api/v1/mobivisor/devices/fetchSystemApps/model/{model_number}/version/{version_number}`
+
+**Path Parameters**:
+- `model_number` (path): Device model identifier (required)
+- `version_number` (path): Device software/firmware version (required)
+
+**Response** (200 OK):
+```json
+{
+  "systemApps": [
+    {"package": "com.example.app", "name": "Example App", "version": "1.0"}
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/fetchSystemApps/model/SM-G998/version/1.2.3"
+```
+
+**Notes & Errors**:
+- `400 Bad Request`: Malformed model or version values (path parameters are required).
+- `404 Not Found`: No system apps found for the provided model/version on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
 ### 8. Mobivisor Groups
 
 These endpoints provide group management proxying to the Mobivisor API.
@@ -289,6 +350,35 @@ Fetch details for a specific group managed by Mobivisor.
 ```bash
 curl -X GET "http://localhost:8000/api/v1/mobivisor/groups/g1"
 ```
+
+## Debug Logs
+
+Fetch debug logs from the Mobivisor service. This proxies the external
+`GET https://mydd.mobivisor.com/debuglogs` endpoint so support teams can
+retrieve diagnostic log output via the HOMEPOT API. Access to this endpoint
+requires a properly configured `mobivisor_api_token` with sufficient
+privileges.
+
+**Endpoint**: `GET /api/v1/mobivisor/debuglogs`
+
+**Response** (200 OK):
+```json
+{
+  "logs": ["line1", "line2", "..."]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/debuglogs"
+```
+
+**Notes & Errors**:
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
+- `502 Bad Gateway`: Network or upstream error.
+- `504 Gateway Timeout`: Upstream did not respond in time.
+
 
 ### 7. Device Commands
 
@@ -588,6 +678,116 @@ curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a
 - The `deviceId` inside the payload must match the `{device_id}` in the URL path or a `400 Validation Error` is returned.
 - Field-level validation ensures `commandData.password` exists for `change_password_now` and `commandData.sendApps` exists for `update_settings`.
 - Upstream Mobivisor errors (401/403/404/5xx) are proxied with the original status embedded in the `detail.upstream_status` field when available.
+
+### Update Device Description
+
+Update the human-readable description for a device in Mobivisor. This proxies
+the Mobivisor endpoint `PUT /devices/{device_id}/description`.
+
+**Endpoint**: `PUT /api/v1/mobivisor/devices/{device_id}/description`
+
+**Request Body** (JSON):
+```json
+{
+  "description": "Test"
+}
+```
+
+**Validation**:
+- `description` is required and must be a non-empty string.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/description" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Test"}'
+```
+
+**Notes & Errors**:
+- `422 Validation Error`: Missing or invalid `description` value.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+### Update Device IMEI
+
+Update the device IMEI value for a device in Mobivisor. This proxies the
+Mobivisor endpoint `PUT /devices/{device_id}/imei`.
+
+**Endpoint**: `PUT /api/v1/mobivisor/devices/{device_id}/imei`
+
+**Request Body** (JSON):
+```json
+{
+  "imei": "234test"
+}
+```
+
+**Validation**:
+- `imei` is required and must be a non-empty string.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/imei" \
+  -H "Content-Type: application/json" \
+  -d '{"imei":"234test"}'
+```
+
+**Notes & Errors**:
+- `422 Validation Error`: Missing or invalid `imei` value.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+### Update Device Extra Variables
+
+Update custom key/value variables for a device in Mobivisor. This proxies the
+Mobivisor endpoint `PUT /devices/{device_id}/extraVariables` and allows adding
+or updating arbitrary device-scoped metadata.
+
+**Endpoint**: `PUT /api/v1/mobivisor/devices/{device_id}/extraVariables`
+
+**Request Body** (JSON):
+```json
+{
+  "extraVariables": {
+    "test_com": "1",
+    "test_com2": "2"
+  }
+}
+```
+
+**Validation**:
+- `extraVariables` is required and must be a JSON object/dictionary.
+- At least one key/value pair is required inside `extraVariables`.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/extraVariables" \
+  -H "Content-Type: application/json" \
+  -d '{"extraVariables":{"test_com":"1","test_com2":"2"}}'
+```
+
+**Notes & Errors**:
+- `422 Validation Error`: Missing `extraVariables`, non-object `extraVariables`, or empty `extraVariables`.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
 ### Mobivisor Users (Additional)
 

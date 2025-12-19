@@ -11,6 +11,10 @@ from typing import Any, Dict, Literal, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from homepot.app.models.mobivisor_models import (
+    FeatureControlItem,
+    FeatureControlsPayload,
+)
 from homepot.app.utils.mobivisor_request import (
     _handle_mobivisor_response as handle_mobivisor_response,
 )
@@ -20,7 +24,6 @@ from homepot.app.utils.mobivisor_request import (
 from homepot.config import get_mobivisor_api_config
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -422,6 +425,447 @@ async def fetch_device_applications(device_id: str) -> Any:
         "GET", f"devices/{device_id}/applications", config=config
     )
     return handle_mobivisor_response(response, f"fetch device applications {device_id}")
+
+
+@router.get("/devices/{device_id}/policies", tags=["Mobivisor Devices"])
+async def fetch_device_policies(device_id: str) -> Any:
+    """Fetch policies applied to a specific device from Mobivisor API.
+
+    This endpoint proxies to the Mobivisor `/devices/{device_id}/policies`
+    endpoint and returns the policy objects associated with the provided
+    device id.
+
+    Args:
+        device_id: The unique identifier of the device
+
+    Returns:
+        Any: JSON response from Mobivisor API with device policies
+
+    Raises:
+        HTTPException: If configuration is missing, device not found, or the
+        upstream request fails (mapped to appropriate HTTP status codes)
+
+    Example:
+        ```python
+        GET /api/v1/mobivisor/devices/123/policies
+        ```
+
+        Response (200 OK):
+        ```json
+        {
+            "policies": [
+                {"id": "p1", "name": "KioskPolicy", "enabled": true}
+            ]
+        }
+        ```
+    """
+    logger.info(f"Fetching device policies from Mobivisor API: {device_id}")
+    config = get_mobivisor_api_config()
+
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "GET", f"devices/{device_id}/policies", config=config
+    )
+    return handle_mobivisor_response(response, f"fetch device policies {device_id}")
+
+
+@router.get(
+    "/devices/fetchSystemApps/model/{model_number}/version/{version_number}",
+    tags=["Mobivisor Devices"],
+)
+async def fetch_system_apps_by_model_version(
+    model_number: str, version_number: str
+) -> Any:
+    """Fetch system apps for a specific device model and version from Mobivisor.
+
+    This endpoint proxies to Mobivisor's
+    `/devices/fetchSystemApps/model/{model_number}/version/{version_number}`
+    endpoint and returns the list of system apps for the given model/version.
+
+    Args:
+        model_number: The device model identifier (required)
+        version_number: The device version identifier (required)
+
+    Returns:
+        Any: JSON response from Mobivisor API with system apps
+
+    Raises:
+        HTTPException: If configuration is missing, resource not found, or the
+        upstream request fails (mapped to appropriate HTTP status codes)
+
+    Example:
+        ```python
+        GET /api/v1/mobivisor/devices/fetchSystemApps/model/SM-G998/version/1.2.3
+        ```
+
+        Response (200 OK):
+        ```json
+        {
+            "systemApps": [
+                {"package": "com.example.app", "name": "Example App", "version": "1.0"}
+            ]
+        }
+        ```
+    """
+    logger.info(
+        "Fetching system apps from Mobivisor for model=%s version=%s",
+        model_number,
+        version_number,
+    )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "GET",
+        f"devices/fetchSystemApps/model/{model_number}/version/{version_number}",
+        config=config,
+    )
+    return handle_mobivisor_response(
+        response, f"fetch system apps for model {model_number} version {version_number}"
+    )
+
+
+@router.put("/devices/{device_id}/featureControls", tags=["Mobivisor Devices"])
+async def update_device_feature_controls(device_id: str, payload: list[dict]) -> Any:
+    """Update feature controls for a specific device in Mobivisor.
+
+    This endpoint accepts a JSON array of feature control objects and proxies
+    the PUT request to Mobivisor's `/devices/{device_id}/featureControls`
+    endpoint. Each item must contain a `feature` key and at least one of
+    `booleanValue` or `numberValue`.
+
+    Args:
+        device_id: The unique identifier of the device
+        payload: JSON array of feature control objects
+
+    Returns:
+        Any: JSON response from Mobivisor API
+
+    Raises:
+        HTTPException: For configuration issues, validation errors, or mapped
+        upstream errors.
+
+    Example:
+        ```bash
+        PUT /api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/featureControls
+        [
+          {"feature": "camera", "booleanValue": true},
+          {"feature": "screen_brightness", "numberValue": 100}
+        ]
+        ```
+    """
+    # Validate payload shape (expecting a non-empty array) before checking config
+    try:
+        wrapper = FeatureControlsPayload(
+            items=[FeatureControlItem(**it) for it in payload]
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=422, detail={"error": "Validation Error", "message": str(e)}
+        )
+
+    if not wrapper.is_non_empty:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "At least one feature control is required",
+            },
+        )
+
+    # Ensure each item has at least one value
+    for item in wrapper.items:
+        if not item.has_value:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "Validation Error",
+                    "message": (
+                        f"Feature '{item.feature}' must include booleanValue or "
+                        "numberValue"
+                    ),
+                },
+            )
+
+    # Validate config after payload validation so clients receive validation
+    # errors even when the upstream configuration is missing.
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    if not config.get("mobivisor_api_token"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "PUT",
+        f"devices/{device_id}/featureControls",
+        json=payload,
+        config=config,
+    )
+    return handle_mobivisor_response(
+        response, f"update feature controls for device {device_id}"
+    )
+
+
+@router.put("/devices/{device_id}/description", tags=["Mobivisor Devices"])
+async def update_device_description(device_id: str, payload: dict) -> Any:
+    """Update the device description in Mobivisor.
+
+    This endpoint accepts a JSON object with a single `description` field and
+    proxies a PUT request to Mobivisor's
+    `/devices/{device_id}/description` endpoint.
+
+    Validation:
+        - `description` must be present and be a non-empty string.
+
+    Args:
+        device_id: The unique identifier of the device.
+        payload: JSON body containing `description` key.
+
+    Returns:
+        Any: JSON response from the proxied Mobivisor API.
+
+    Raises:
+        HTTPException: For validation, configuration, or upstream errors.
+
+    Example:
+        ```bash
+        PUT /api/v1/mobivisor/devices/6895b35f73796d4ff80a57a0/description
+        {"description": "Test"}
+        ```
+    """
+    # Basic payload validation before contacting upstream
+    if not isinstance(payload, dict) or "description" not in payload:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "Missing 'description' field",
+            },
+        )
+
+    desc = payload.get("description")
+    if not isinstance(desc, str) or not desc.strip():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "'description' must be a non-empty string",
+            },
+        )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    if not config.get("mobivisor_api_token"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    logger.info("Updating description for device %s via Mobivisor", device_id)
+    response = await make_mobivisor_request(
+        "PUT", f"devices/{device_id}/description", json=payload, config=config
+    )
+    return handle_mobivisor_response(
+        response, f"update description for device {device_id}"
+    )
+
+
+@router.put("/devices/{device_id}/imei", tags=["Mobivisor Devices"])
+async def update_device_imei(device_id: str, payload: dict) -> Any:
+    """Update the device IMEI in Mobivisor.
+
+    Proxies a PUT to Mobivisor's `/devices/{device_id}/imei` endpoint. The
+    request body must be a JSON object with an `imei` field containing a
+    non-empty string.
+
+    Args:
+        device_id: The unique identifier of the device.
+        payload: JSON body containing `imei` key.
+
+    Returns:
+        Any: JSON response from the proxied Mobivisor API.
+
+    Raises:
+        HTTPException: For validation, configuration, or upstream errors.
+    """
+    # Basic payload validation before contacting upstream
+    if not isinstance(payload, dict) or "imei" not in payload:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "Validation Error", "message": "Missing 'imei' field"},
+        )
+
+    imei_val = payload.get("imei")
+    if not isinstance(imei_val, str) or not imei_val.strip():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "'imei' must be a non-empty string",
+            },
+        )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    if not config.get("mobivisor_api_token"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    logger.info("Updating IMEI for device %s via Mobivisor", device_id)
+    response = await make_mobivisor_request(
+        "PUT", f"devices/{device_id}/imei", json=payload, config=config
+    )
+    return handle_mobivisor_response(response, f"update imei for device {device_id}")
+
+
+@router.put("/devices/{device_id}/extraVariables", tags=["Mobivisor Devices"])
+async def update_device_extra_variables(device_id: str, payload: dict) -> Any:
+    """Update device extra variables in Mobivisor.
+
+    Proxies a PUT to Mobivisor's `/devices/{device_id}/extraVariables` endpoint.
+
+    Validation:
+        - `extraVariables` must be present and be an object/dictionary with at
+          least one key/value pair.
+
+    Args:
+        device_id: The unique identifier of the device (path parameter).
+        payload: JSON body containing `extraVariables` key.
+
+    Returns:
+        Any: JSON response from the proxied Mobivisor API.
+
+    Raises:
+        HTTPException: For validation, configuration, or upstream errors.
+    """
+    # Basic payload validation before contacting upstream
+    if not isinstance(payload, dict) or "extraVariables" not in payload:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "Missing 'extraVariables' field",
+            },
+        )
+
+    vars_val = payload.get("extraVariables")
+    if not isinstance(vars_val, dict):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "'extraVariables' must be an object/dictionary",
+            },
+        )
+
+    if len(vars_val) == 0:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "At least one extra variable is required",
+            },
+        )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    if not config.get("mobivisor_api_token"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    logger.info("Updating extra variables for device %s via Mobivisor", device_id)
+    response = await make_mobivisor_request(
+        "PUT", f"devices/{device_id}/extraVariables", json=payload, config=config
+    )
+    return handle_mobivisor_response(
+        response, f"update extra variables for device {device_id}"
+    )
 
 
 @router.put("/devices/{device_id}/actions", tags=["Mobivisor Devices"])
