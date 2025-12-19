@@ -351,6 +351,35 @@ Fetch details for a specific group managed by Mobivisor.
 curl -X GET "http://localhost:8000/api/v1/mobivisor/groups/g1"
 ```
 
+## Debug Logs
+
+Fetch debug logs from the Mobivisor service. This proxies the external
+`GET https://mydd.mobivisor.com/debuglogs` endpoint so support teams can
+retrieve diagnostic log output via the HOMEPOT API. Access to this endpoint
+requires a properly configured `mobivisor_api_token` with sufficient
+privileges.
+
+**Endpoint**: `GET /api/v1/mobivisor/debuglogs`
+
+**Response** (200 OK):
+```json
+{
+  "logs": ["line1", "line2", "..."]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/debuglogs"
+```
+
+**Notes & Errors**:
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Upstream returned unauthorized (token invalid or insufficient scope).
+- `502 Bad Gateway`: Network or upstream error.
+- `504 Gateway Timeout`: Upstream did not respond in time.
+
+
 ### 7. Device Commands
 
 Fetch device command records (audit/commands) from Mobivisor with pagination
