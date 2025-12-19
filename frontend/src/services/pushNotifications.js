@@ -60,8 +60,6 @@ class PushNotificationManager {
         scope: '/',
       });
 
-      console.log('Service Worker registered:', this.swRegistration);
-
       // Wait for service worker to be ready
       await navigator.serviceWorker.ready;
 
@@ -79,7 +77,6 @@ class PushNotificationManager {
     try {
       const response = await api.push.getVapidKey();
       this.vapidPublicKey = response.publicKey;
-      console.log('VAPID public key retrieved');
       return this.vapidPublicKey;
     } catch (error) {
       console.error('Failed to get VAPID key:', error);
@@ -99,7 +96,6 @@ class PushNotificationManager {
       this.subscription = await this.swRegistration.pushManager.getSubscription();
 
       if (this.subscription) {
-        console.log('Existing push subscription found');
         return this.subscription;
       }
 
@@ -119,7 +115,6 @@ class PushNotificationManager {
     }
 
     const permission = await Notification.requestPermission();
-    console.log('Notification permission:', permission);
 
     return permission === 'granted';
   }
@@ -156,8 +151,6 @@ class PushNotificationManager {
         applicationServerKey,
       });
 
-      console.log('Push subscription created:', this.subscription);
-
       // Send subscription to server
       await this.sendSubscriptionToServer(this.subscription);
 
@@ -174,14 +167,12 @@ class PushNotificationManager {
   async unsubscribe() {
     try {
       if (!this.subscription) {
-        console.log('No active subscription to unsubscribe');
         return true;
       }
 
       const success = await this.subscription.unsubscribe();
 
       if (success) {
-        console.log('Push subscription removed');
         this.subscription = null;
 
         // TODO: Notify server about unsubscription
@@ -212,8 +203,6 @@ class PushNotificationManager {
         user_id: localStorage.getItem('user_id'),
         device_id: this.getDeviceId(),
       });
-
-      console.log('Subscription sent to server:', response);
 
       // Store subscription locally
       localStorage.setItem('push_subscription', JSON.stringify(subscriptionJson));
@@ -300,7 +289,6 @@ class PushNotificationManager {
 
       const response = await api.push.sendTest('web_push', JSON.stringify(subscriptionJson));
 
-      console.log('Test notification sent:', response);
       return response;
     } catch (error) {
       console.error('Failed to send test notification:', error);

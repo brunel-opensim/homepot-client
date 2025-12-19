@@ -16,7 +16,7 @@ It is designed as a flexible, extensible client system that enables secure, scal
 
 ## Documentation
 
-**📚 Complete documentation is available at: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
+**Complete documentation is available at: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
 
 - **[Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)** - Installation, configuration, and first steps
 
@@ -204,7 +204,7 @@ This project involves multiple consortium partners working collaboratively on de
 For support and questions:
 
 1. **Issues**: Use GitHub Issues for bug reports and feature requests
-2. **Security**: Follow our [Security Policy](SECURITY.md) for security-related matters
+2. **Security**: Follow our [Security Recommendations](CONTRIBUTING.md) for security-related matters
 3. **Consortium Channels**: Use official consortium communication channels for general inquiries
 
 ## License
@@ -216,3 +216,5 @@ Copyright 2025 HOMEPOT Consortium
 ---
 
 **Important**: This repository contains proprietary consortium information. Access is restricted to authorized HOMEPOT consortium members only.
+CI/CD pile failed on git but passed on local so this commit if only for testing purpose to push and check on git .
+

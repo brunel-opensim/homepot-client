@@ -5,6 +5,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 
+# Initialize database with test data
+echo "============================================"
+echo "Setting up fresh database..."
+echo "============================================"
+bash "$SCRIPT_DIR/init-postgresql.sh"
+INIT_EXIT=$?
+
+if [ $INIT_EXIT -ne 0 ]; then
+    echo "  Database initialization failed!"
+    exit 1
+fi
+
+echo "  Database initialized successfully"
+echo ""
+
 cd "$BACKEND_DIR"
 source venv/bin/activate
 

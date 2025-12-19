@@ -1,0 +1,147 @@
+name: Workflow Performance Metrics
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline", "Frontend Checks", "Repository Health Check"]
+    types: [completed]
+  schedule:
+    # Run weekly summary every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  track-metrics:
+    name: Track Workflow Metrics
+    runs-on: ubuntu-latest
+    if: github.repository == 'brunel-opensim/homepot-client'
+    
+    steps:
+    - name: Collect Workflow Metrics
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const workflows = ['CI/CD Pipeline', 'Frontend Checks', 'Repository Health Check'];
+          
+          console.log('HOMEPOT Workflow Performance Report');
+          console.log('═'.repeat(80));
+          console.log(`Generated: ${new Date().toISOString()}`);
+          console.log('');
+          
+          for (const workflowName of workflows) {
+            console.log(`\n${workflowName}`);
+            console.log('─'.repeat(80));
+            
+            // Get recent runs for this workflow
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 20,
+              status: 'completed'
+            });
+            
+            const workflowRuns = runs.data.workflow_runs.filter(
+              run => run.name === workflowName
+            ).slice(0, 10);
+            
+            if (workflowRuns.length === 0) {
+              console.log('  No recent runs found');
+              continue;
+            }
+            
+            let totalDuration = 0;
+            let successCount = 0;
+            let failureCount = 0;
+            let durations = [];
+            
+            console.log('\n  Recent Runs:');
+            workflowRuns.forEach((run, index) => {
+              const duration = Math.round(
+                (new Date(run.updated_at) - new Date(run.created_at)) / 1000
+              );
+              durations.push(duration);
+              totalDuration += duration;
+              
+              if (run.conclusion === 'success') successCount++;
+              else if (run.conclusion === 'failure') failureCount++;
+              
+              const minutes = Math.floor(duration / 60);
+              const seconds = duration % 60;
+              const status = run.conclusion === 'success' ? 'OK' : 'FAIL';
+              
+              console.log(
+                `  ${index + 1}. ${status} ${minutes}m ${seconds}s - ${run.head_commit?.message?.split('\n')[0]?.slice(0, 50) || 'N/A'}`
+              );
+            });
+            
+            // Calculate statistics
+            const avgDuration = totalDuration / workflowRuns.length;
+            const avgMinutes = Math.floor(avgDuration / 60);
+            const avgSeconds = Math.round(avgDuration % 60);
+            
+            durations.sort((a, b) => a - b);
+            const median = durations[Math.floor(durations.length / 2)];
+            const medianMinutes = Math.floor(median / 60);
+            const medianSeconds = median % 60;
+            
+            const min = Math.min(...durations);
+            const max = Math.max(...durations);
+            const minMinutes = Math.floor(min / 60);
+            const minSeconds = min % 60;
+            const maxMinutes = Math.floor(max / 60);
+            const maxSeconds = max % 60;
+            
+            const successRate = Math.round((successCount / workflowRuns.length) * 100);
+            
+            console.log('\n  Statistics (last 10 runs):');
+            console.log(`     Average Duration: ${avgMinutes}m ${avgSeconds}s`);
+            console.log(`     Median Duration:  ${medianMinutes}m ${medianSeconds}s`);
+            console.log(`     Min Duration:     ${minMinutes}m ${minSeconds}s`);
+            console.log(`     Max Duration:     ${maxMinutes}m ${maxSeconds}s`);
+            console.log(`     Success Rate:     ${successRate}% (${successCount}/${workflowRuns.length})`);
+            console.log(`     Failures:         ${failureCount}`);
+          }
+          
+          console.log('\n' + '═'.repeat(80));
+          console.log('Tip: Monitor these metrics to identify performance degradation');
+          console.log('   Target: CI/CD Pipeline should complete in < 5 minutes');
+
+    - name: Check for Performance Regression
+      uses: actions/github-script@v7
+      with:
+        script: |
+          // Get recent CI/CD Pipeline runs
+          const runs = await github.rest.actions.listWorkflowRunsForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'ci-cd.yml',
+            per_page: 10,
+            status: 'completed'
+          });
+          
+          const recentRuns = runs.data.workflow_runs.slice(0, 5);
+          
+          if (recentRuns.length < 5) {
+            console.log('Not enough data for regression analysis');
+            return;
+          }
+          
+          const durations = recentRuns.map(run => 
+            Math.round((new Date(run.updated_at) - new Date(run.created_at)) / 1000)
+          );
+          
+          const avgRecent = durations.reduce((a, b) => a + b, 0) / durations.length;
+          const avgMinutes = Math.floor(avgRecent / 60);
+          
+          // Alert if average is over 10 minutes
+          if (avgRecent > 600) {
+            console.log('WARNING: Performance Regression Detected!');
+            console.log(`   Average duration: ${avgMinutes}m (threshold: 10m)`);
+            console.log('   Consider investigating slow tests or CI configuration');
+            core.warning(`CI/CD performance regression: ${avgMinutes}m average (threshold: 10m)`);
+          } else {
+            console.log(`Performance OK: ${avgMinutes}m average`);
+          }
