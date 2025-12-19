@@ -731,6 +731,67 @@ async def update_device_description(device_id: str, payload: dict) -> Any:
     )
 
 
+@router.put("/devices/{device_id}/imei", tags=["Mobivisor Devices"])
+async def update_device_imei(device_id: str, payload: dict) -> Any:
+    """Update the device IMEI in Mobivisor.
+
+    Proxies a PUT to Mobivisor's `/devices/{device_id}/imei` endpoint. The
+    request body must be a JSON object with an `imei` field containing a
+    non-empty string.
+
+    Args:
+        device_id: The unique identifier of the device.
+        payload: JSON body containing `imei` key.
+
+    Returns:
+        Any: JSON response from the proxied Mobivisor API.
+
+    Raises:
+        HTTPException: For validation, configuration, or upstream errors.
+    """
+    # Basic payload validation before contacting upstream
+    if not isinstance(payload, dict) or "imei" not in payload:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "Validation Error", "message": "Missing 'imei' field"},
+        )
+
+    imei_val = payload.get("imei")
+    if not isinstance(imei_val, str) or not imei_val.strip():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Validation Error",
+                "message": "'imei' must be a non-empty string",
+            },
+        )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    if not config.get("mobivisor_api_token"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    logger.info("Updating IMEI for device %s via Mobivisor", device_id)
+    response = await make_mobivisor_request(
+        "PUT", f"devices/{device_id}/imei", json=payload, config=config
+    )
+    return handle_mobivisor_response(response, f"update imei for device {device_id}")
+
+
 @router.put("/devices/{device_id}/actions", tags=["Mobivisor Devices"])
 async def trigger_device_action(
     device_id: str, payload: DeviceCommandPayload
