@@ -22,11 +22,12 @@ cd backend
 ./scripts/start_data_collection.sh
 ```
 
-This script will:
-- Check database connectivity
-- Verify environment setup
-- Start backend with 10+ simulated agents
-- Begin automatic data collection
+Once running, the backend automatically:
+
+- Spawns 10+ simulated POS agents at startup
+- Collects device metrics every 5 seconds
+- Records job outcomes and state transitions
+- Logs errors and configuration changes
 
 **Just leave it running for 3-5 days!**
 
