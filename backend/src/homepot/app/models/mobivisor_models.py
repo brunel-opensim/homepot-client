@@ -92,3 +92,46 @@ class UpdateGroupPayload(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+class FeatureControlItem(BaseModel):
+    """Represents a single feature control item for a device.
+
+    Fields:
+    - feature: name of the feature (required)
+    - booleanValue: optional boolean value for boolean features
+    - numberValue: optional numeric value for numeric features
+
+    At least one of `booleanValue` or `numberValue` must be present.
+    """
+
+    feature: str
+    booleanValue: Optional[bool] = None
+    numberValue: Optional[int] = None
+
+    @property
+    def has_value(self) -> bool:  # helper used in endpoint validation
+        """Return True if either `booleanValue` or `numberValue` is set.
+
+        This helper is used by endpoint validation to ensure each feature
+        control item includes at least one concrete value.
+        """
+        return self.booleanValue is not None or self.numberValue is not None
+
+
+class FeatureControlsPayload(BaseModel):
+    """Top-level payload wrapper for feature controls update.
+
+    `items` must contain at least one `FeatureControlItem`.
+    """
+
+    items: List[FeatureControlItem]
+
+    @property
+    def is_non_empty(self) -> bool:
+        """Return True when the payload contains at least one item.
+
+        This is a convenience used by endpoints to validate that the
+        `FeatureControlsPayload.items` list is not empty.
+        """
+        return bool(self.items)
