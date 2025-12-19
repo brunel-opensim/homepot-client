@@ -148,7 +148,7 @@ class POSAgentSimulator:
             )
             return {
                 "status": "error",
-                "message": str(e),
+                "message": "Internal agent error occurred",
                 "device_id": self.device_id,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
@@ -224,6 +224,13 @@ class POSAgentSimulator:
                         },
                     )
                     session.add(config_history)
+                    await session.flush()  # Get ID
+                    
+                    # Schedule post-update performance monitoring
+                    asyncio.create_task(
+                        self._monitor_post_update_performance(config_history.id)
+                    )
+
                     logger.info(
                         f"Logged config change for {self.device_id}: {old_version} → {config_version}"
                     )
@@ -264,11 +271,48 @@ class POSAgentSimulator:
 
             return {
                 "status": "error",
-                "message": str(e),
+                "message": "Configuration update failed",
                 "device_id": self.device_id,
                 "config_version": self.current_config_version,  # Keep old version
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
+
+    async def _monitor_post_update_performance(self, config_history_id: int) -> None:
+        """Monitor performance after a configuration update."""
+        try:
+            # Wait for a simulated "settling period" (e.g., 5 seconds in simulation time)
+            await asyncio.sleep(5)
+
+            # Run a new health check
+            health_result = await self._run_health_check()
+
+            # Update the configuration history record
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                from sqlalchemy import select
+
+                result = await session.execute(
+                    select(ConfigurationHistory).where(
+                        ConfigurationHistory.id == config_history_id
+                    )
+                )
+                config_history = result.scalar_one_or_none()
+
+                if config_history:
+                    config_history.performance_after = {
+                        "status": health_result.get("status"),
+                        "response_time_ms": health_result.get("response_time_ms"),
+                    }
+                    config_history.was_successful = (
+                        health_result.get("status") == "healthy"
+                    )
+                    session.add(config_history)
+                    logger.info(
+                        f"Updated post-change performance for config history {config_history_id}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Failed to monitor post-update performance: {e}")
 
     async def _handle_restart(self) -> Dict[str, Any]:
         """Simulate POS application restart."""
@@ -309,7 +353,7 @@ class POSAgentSimulator:
 
             return {
                 "status": "error",
-                "message": str(e),
+                "message": "Application restart failed",
                 "device_id": self.device_id,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
@@ -373,6 +417,12 @@ class POSAgentSimulator:
                 "disk_usage_percent": random.randint(20, 60),
                 "transactions_today": random.randint(50, 300),
                 "uptime_seconds": random.randint(3600, 86400 * 7),
+                # New metrics for AI training
+                "network_latency_ms": random.uniform(10.0, 150.0),
+                "transaction_volume": random.uniform(1000.0, 50000.0),
+                "error_rate": random.uniform(0.0, 2.0),
+                "active_connections": random.randint(1, 50),
+                "queue_depth": random.randint(0, 20),
             },
         }
 
@@ -459,6 +509,11 @@ class POSAgentSimulator:
                         memory_percent=health_data["metrics"]["memory_usage_percent"],
                         disk_percent=health_data["metrics"]["disk_usage_percent"],
                         transaction_count=health_data["metrics"]["transactions_today"],
+                        network_latency_ms=health_data["metrics"]["network_latency_ms"],
+                        transaction_volume=health_data["metrics"]["transaction_volume"],
+                        error_rate=health_data["metrics"]["error_rate"],
+                        active_connections=health_data["metrics"]["active_connections"],
+                        queue_depth=health_data["metrics"]["queue_depth"],
                         extra_metrics={
                             "uptime_seconds": health_data["metrics"]["uptime_seconds"],
                             "services": health_data["services"],

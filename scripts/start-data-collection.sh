@@ -31,7 +31,7 @@ fi
 source "$PROJECT_ROOT/venv/bin/activate"
 
 # Check database connectivity (silent)
-python3 -c "
+python -c "
 import sys
 sys.path.insert(0, '$BACKEND_DIR/src')
 import asyncio
@@ -70,7 +70,7 @@ fi
 
 echo ""
 echo "Checking current data collection status..."
-python3 "$BACKEND_DIR/utils/validate_data_collection.py" --min-days 0 || true
+python "$BACKEND_DIR/utils/validate_data_collection.py" --min-days 0 || true
 
 echo ""
 echo "=============================================="

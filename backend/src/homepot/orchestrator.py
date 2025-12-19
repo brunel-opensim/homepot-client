@@ -357,7 +357,7 @@ class JobOrchestrator:
                         {
                             "device_id": device.device_id,
                             "status": "push_error",
-                            "error": str(e),
+                            "error": "Failed to send push notification",
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )

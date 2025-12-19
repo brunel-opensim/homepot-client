@@ -18,8 +18,7 @@ Collect 3-5 days of analytics data to train AI models for:
 ## Quick Start (One Command)
 
 ```bash
-cd backend
-./scripts/start_data_collection.sh
+./scripts/start-data-collection.sh
 ```
 
 Once running, the backend automatically:
@@ -37,8 +36,7 @@ Run this command to see what data has been collected:
 
 ```bash
 source venv/bin/activate
-cd backend
-python -W ignore::DeprecationWarning utils/validate_data_collection.py
+python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py
 ```
 
 **Note:** The `-W ignore::DeprecationWarning` flag suppresses datetime warnings (database uses timezone-naive timestamps for compatibility).
@@ -47,17 +45,17 @@ python -W ignore::DeprecationWarning utils/validate_data_collection.py
 
 **Check with minimum days requirement:**
 ```bash
-python -W ignore::DeprecationWarning utils/validate_data_collection.py --min-days 3
+python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py --min-days 3
 ```
 
 **Export validation report to JSON:**
 ```bash
-python -W ignore::DeprecationWarning utils/validate_data_collection.py --report collection_report.json
+python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py --report collection_report.json
 ```
 
 **Quick check (0 days minimum):**
 ```bash
-python -W ignore::DeprecationWarning utils/validate_data_collection.py --min-days 0
+python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py --min-days 0
 ```
 
 ### Sample Output:
@@ -118,14 +116,13 @@ The system automatically collects data across **8 analytics tables**:
 ### 1. Setup Database
 
 ```bash
-cd backend
 python scripts/setup_database.py
 ```
 
 ### 2. Configure Site Schedules
 
 ```bash
-python utils/populate_schedules.py
+python backend/utils/populate_schedules.py
 ```
 
 ### 3. Start Backend
@@ -153,7 +150,43 @@ Expected: 10-12 active agents
 
 **Check 3: Database connectivity**
 ```bash
-psql -h localhost -U postgres -d homepot_client -c "SELECT COUNT(*) FROM device_metrics;"
+./scripts/query-db.sh
+```
+
+This command provides an interface to query the PostgreSQL database. Available commands include:
+
+```bash
+Usage: ./scripts/query-db.sh [command]
+
+(e.g., ./scripts/query-db.sh schema health_checks)
+
+Available commands:
+  tables              - List all tables
+  users               - Show all users
+  sites               - Show all sites
+  devices             - Show all devices
+  jobs                - Show all jobs
+  health_checks       - Show recent health checks
+  audit_logs          - Show recent audit logs
+  api_request_logs    - Show recent API requests
+  user_activities     - Show recent user activities
+  device_state_history - Show device state changes
+  device_metrics      - Show device performance metrics
+  configuration_history - Show configuration changes
+  site_operating_schedules - Show site schedules
+  job_outcomes        - Show job execution outcomes
+  error_logs          - Show recent errors
+  count               - Count rows in all tables
+  schema [table]      - Show table structure
+  where               - Show where PostgreSQL stores data
+  sql 'query'         - Run custom SQL query
+
+Examples:
+  ./scripts/query-db.sh count
+  ./scripts/query-db.sh jobs
+  ./scripts/query-db.sh audit_logs
+  ./scripts/query-db.sh schema health_checks
+  ./scripts/query-db.sh sql 'SELECT * FROM sites LIMIT 1;'
 ```
 
 ### Backend Crashes
@@ -244,6 +277,7 @@ The AI uses this data to:
 ## Success Criteria
 
 You're done when validation shows:
+
 ```
 ✓ Overall Status: PASSED
 All checks passed! Data collection is healthy.
@@ -252,3 +286,5 @@ All checks passed! Data collection is healthy.
 **Expected timeline:** 3-5 days of continuous running
 **Storage needed:** ~500MB per day (varies by activity)
 **CPU usage:** 5-10% (background collection)
+
+If you hit any roadblocks, please reach out for assistance or preferably create a GitHub Issue!
