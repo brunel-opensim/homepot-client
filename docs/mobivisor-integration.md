@@ -210,6 +210,67 @@ curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/get-managed-apps
 - `403/401 Unauthorized`: Authentication/authorization issue.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
+### Get Device Policies
+
+Fetch the policies currently applied to a specific device in Mobivisor.
+
+**Endpoint**: `GET /api/v1/mobivisor/devices/{device_id}/policies`
+
+**Parameters**:
+- `device_id` (path): The unique identifier of the device (required)
+
+**Response** (200 OK):
+```json
+{
+  "policies": [
+    {"id": "p1", "name": "KioskPolicy", "enabled": true}
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/policies"
+```
+
+**Notes & Errors**:
+- `404 Not Found`: Device does not exist or no policies found on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
+### Fetch System Apps by Model & Version
+
+Fetch the list of system (system-level) apps for a device model and specific
+version. This proxies Mobivisor's
+`GET /devices/fetchSystemApps/model/{model_number}/version/{version_number}`
+endpoint.
+
+**Endpoint**: `GET /api/v1/mobivisor/devices/fetchSystemApps/model/{model_number}/version/{version_number}`
+
+**Path Parameters**:
+- `model_number` (path): Device model identifier (required)
+- `version_number` (path): Device software/firmware version (required)
+
+**Response** (200 OK):
+```json
+{
+  "systemApps": [
+    {"package": "com.example.app", "name": "Example App", "version": "1.0"}
+  ]
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/fetchSystemApps/model/SM-G998/version/1.2.3"
+```
+
+**Notes & Errors**:
+- `400 Bad Request`: Malformed model or version values (path parameters are required).
+- `404 Not Found`: No system apps found for the provided model/version on Mobivisor.
+- `401/403 Unauthorized`: Missing or invalid token or insufficient permissions.
+- `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
+
 ### 8. Mobivisor Groups
 
 These endpoints provide group management proxying to the Mobivisor API.

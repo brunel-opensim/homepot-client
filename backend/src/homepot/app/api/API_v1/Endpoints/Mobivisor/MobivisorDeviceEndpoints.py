@@ -424,6 +424,140 @@ async def fetch_device_applications(device_id: str) -> Any:
     return handle_mobivisor_response(response, f"fetch device applications {device_id}")
 
 
+@router.get("/devices/{device_id}/policies", tags=["Mobivisor Devices"])
+async def fetch_device_policies(device_id: str) -> Any:
+    """Fetch policies applied to a specific device from Mobivisor API.
+
+    This endpoint proxies to the Mobivisor `/devices/{device_id}/policies`
+    endpoint and returns the policy objects associated with the provided
+    device id.
+
+    Args:
+        device_id: The unique identifier of the device
+
+    Returns:
+        Any: JSON response from Mobivisor API with device policies
+
+    Raises:
+        HTTPException: If configuration is missing, device not found, or the
+        upstream request fails (mapped to appropriate HTTP status codes)
+
+    Example:
+        ```python
+        GET /api/v1/mobivisor/devices/123/policies
+        ```
+
+        Response (200 OK):
+        ```json
+        {
+            "policies": [
+                {"id": "p1", "name": "KioskPolicy", "enabled": true}
+            ]
+        }
+        ```
+    """
+    logger.info(f"Fetching device policies from Mobivisor API: {device_id}")
+    config = get_mobivisor_api_config()
+
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "GET", f"devices/{device_id}/policies", config=config
+    )
+    return handle_mobivisor_response(response, f"fetch device policies {device_id}")
+
+
+@router.get(
+    "/devices/fetchSystemApps/model/{model_number}/version/{version_number}",
+    tags=["Mobivisor Devices"],
+)
+async def fetch_system_apps_by_model_version(
+    model_number: str, version_number: str
+) -> Any:
+    """Fetch system apps for a specific device model and version from Mobivisor.
+
+    This endpoint proxies to Mobivisor's
+    `/devices/fetchSystemApps/model/{model_number}/version/{version_number}`
+    endpoint and returns the list of system apps for the given model/version.
+
+    Args:
+        model_number: The device model identifier (required)
+        version_number: The device version identifier (required)
+
+    Returns:
+        Any: JSON response from Mobivisor API with system apps
+
+    Raises:
+        HTTPException: If configuration is missing, resource not found, or the
+        upstream request fails (mapped to appropriate HTTP status codes)
+
+    Example:
+        ```python
+        GET /api/v1/mobivisor/devices/fetchSystemApps/model/SM-G998/version/1.2.3
+        ```
+
+        Response (200 OK):
+        ```json
+        {
+            "systemApps": [
+                {"package": "com.example.app", "name": "Example App", "version": "1.0"}
+            ]
+        }
+        ```
+    """
+    logger.info(
+        "Fetching system apps from Mobivisor for model=%s version=%s",
+        model_number,
+        version_number,
+    )
+
+    config = get_mobivisor_api_config()
+    if not config.get("mobivisor_api_url"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Missing Mobivisor API URL.",
+            },
+        )
+
+    auth_token = config.get("mobivisor_api_token")
+    if not auth_token:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Configuration Error",
+                "message": "Mobivisor API token is not configured",
+            },
+        )
+
+    response = await make_mobivisor_request(
+        "GET",
+        f"devices/fetchSystemApps/model/{model_number}/version/{version_number}",
+        config=config,
+    )
+    return handle_mobivisor_response(
+        response, f"fetch system apps for model {model_number} version {version_number}"
+    )
+
+
 @router.put("/devices/{device_id}/actions", tags=["Mobivisor Devices"])
 async def trigger_device_action(
     device_id: str, payload: DeviceCommandPayload
