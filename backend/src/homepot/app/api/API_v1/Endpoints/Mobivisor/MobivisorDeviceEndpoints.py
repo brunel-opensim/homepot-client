@@ -24,7 +24,6 @@ from homepot.app.utils.mobivisor_request import (
 from homepot.config import get_mobivisor_api_config
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
