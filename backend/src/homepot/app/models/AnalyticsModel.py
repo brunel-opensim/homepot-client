@@ -242,7 +242,7 @@ class PushNotificationLog(Base):
     # Context
     device_id = Column(String(100), index=True, nullable=True)
     job_id = Column(String(100), index=True, nullable=True)
-    provider = Column(String(20), nullable=False)  # fcm, apns, mqtt, wns
+    provider = Column(String(20), nullable=False)  # fcm, apns, mqtt, wns, web_push
 
     # Timestamps
     sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
