@@ -186,22 +186,66 @@ class PushNotificationManager {
   }
 
   /**
+   * Get or create device ID from IndexedDB
+   */
+  async getDeviceId() {
+    const DB_NAME = 'homepot-db';
+    const STORE_NAME = 'settings';
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+
+      request.onsuccess = (event) => {
+        const db = event.target.result;
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const getRequest = store.get('device_id');
+
+        getRequest.onsuccess = () => {
+          if (getRequest.result) {
+            resolve(getRequest.result);
+          } else {
+            // Generate new ID if not found
+            const newId = crypto.randomUUID();
+            const writeTransaction = db.transaction(STORE_NAME, 'readwrite');
+            const writeStore = writeTransaction.objectStore(STORE_NAME);
+            writeStore.put(newId, 'device_id');
+            resolve(newId);
+          }
+        };
+
+        getRequest.onerror = () => reject(getRequest.error);
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
    * Send subscription details to server
    */
   async sendSubscriptionToServer(subscription) {
     try {
       const subscriptionJson = subscription.toJSON();
+      const deviceId = await this.getDeviceId();
 
       const response = await api.push.subscribe({
         platform: 'web_push',
         device_token: JSON.stringify(subscriptionJson),
+        device_id: deviceId,
         device_info: {
           userAgent: navigator.userAgent,
           platform: navigator.platform,
           language: navigator.language,
         },
         user_id: localStorage.getItem('user_id'),
-        device_id: this.getDeviceId(),
       });
 
       // Store subscription locally
@@ -212,20 +256,6 @@ class PushNotificationManager {
       console.error('Failed to send subscription to server:', error);
       throw error;
     }
-  }
-
-  /**
-   * Get or create device ID
-   */
-  getDeviceId() {
-    let deviceId = localStorage.getItem('device_id');
-
-    if (!deviceId) {
-      deviceId = `web_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem('device_id', deviceId);
-    }
-
-    return deviceId;
   }
 
   /**

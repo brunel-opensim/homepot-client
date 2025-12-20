@@ -369,6 +369,7 @@ class MQTTPushProvider(PushNotificationProvider):
                     message="MQTT notification sent successfully",
                     platform=self.platform_name,
                     device_token=device_token[:50] + "...",
+                    message_id=mqtt_message.get("message_id"),
                 )
             else:
                 self.stats["total_sent"] += 1
@@ -408,6 +409,7 @@ class MQTTPushProvider(PushNotificationProvider):
             "body": payload.body,
             "timestamp": datetime.utcnow().isoformat(),
             "platform": self.platform_name,
+            "message_id": str(uuid.uuid4()),
         }
 
         # Add optional fields

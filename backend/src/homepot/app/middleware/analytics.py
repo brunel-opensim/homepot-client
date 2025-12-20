@@ -8,8 +8,8 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from homepot.app.db.database import SessionLocal
 from homepot.app.models.AnalyticsModel import APIRequestLog
+from homepot.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 

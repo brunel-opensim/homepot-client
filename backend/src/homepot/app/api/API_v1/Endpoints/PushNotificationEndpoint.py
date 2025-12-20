@@ -86,6 +86,18 @@ class TopicNotificationRequest(BaseModel):
     retain: Optional[bool] = Field(default=False, description="Retain message flag")
 
 
+class PushAckRequest(BaseModel):
+    """Request model for push notification acknowledgment."""
+
+    message_id: str = Field(..., description="Unique message ID from the push payload")
+    device_id: str = Field(..., description="Device ID acknowledging receipt")
+    received_at: Optional[str] = Field(
+        None, description="ISO timestamp when device received message"
+    )
+    status: str = Field(default="delivered", description="Status (delivered, failed)")
+    error_message: Optional[str] = Field(None, description="Error details if failed")
+
+
 # Get push notification provider instance
 async def get_push_provider(platform: str):
     """Get push notification provider for the specified platform."""
@@ -451,3 +463,69 @@ async def send_test_notification(platform: str, device_token: str) -> Dict[str, 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send test notification: {str(e)}",
         )
+
+
+@router.post("/ack", tags=["Push Notifications"])
+async def acknowledge_push_notification(ack_request: PushAckRequest) -> Dict[str, str]:
+    """
+    Acknowledge receipt of a push notification from a device.
+
+    This endpoint is called by the client SDK immediately upon receiving a push.
+    It updates the PushNotificationLog with the delivery timestamp and calculates
+    latency.
+    """
+    try:
+        from homepot.app.models.AnalyticsModel import PushNotificationLog
+        from homepot.database import get_database_service
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            from sqlalchemy import select
+
+            # Find the log entry
+            result = await session.execute(
+                select(PushNotificationLog).where(
+                    PushNotificationLog.message_id == ack_request.message_id
+                )
+            )
+            log_entry = result.scalar_one_or_none()
+
+            if log_entry:
+                # Update delivery status
+                log_entry.status = ack_request.status
+                if ack_request.received_at:
+                    log_entry.received_at = datetime.fromisoformat(
+                        ack_request.received_at
+                    )
+                else:
+                    log_entry.received_at = datetime.utcnow()
+
+                # Calculate latency
+                if log_entry.sent_at and log_entry.received_at:
+                    latency = (
+                        log_entry.received_at - log_entry.sent_at
+                    ).total_seconds() * 1000
+                    log_entry.latency_ms = int(latency)
+
+                if ack_request.error_message:
+                    log_entry.error_message = ack_request.error_message
+
+                session.add(log_entry)
+                await session.commit()
+
+                logger.info(
+                    f"Push Ack: {ack_request.message_id} "
+                    f"delivered in {log_entry.latency_ms}ms"
+                )
+            else:
+                logger.warning(
+                    f"Push Ack received for unknown message_id: "
+                    f"{ack_request.message_id}"
+                )
+
+        return {"status": "acknowledged"}
+
+    except Exception as e:
+        logger.error(f"Failed to process push ack: {e}", exc_info=True)
+        # Do not fail the request, just log error
+        return {"status": "error", "message": str(e)}
