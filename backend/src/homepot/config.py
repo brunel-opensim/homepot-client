@@ -68,7 +68,7 @@ class PushNotificationSettings(BaseSettings):
     collapse_key_prefix: str = Field(
         default="homepot", description="Prefix for push notification collapse keys"
     )
-    
+
     # Web Push (VAPID) Configuration
     vapid_private_key: Optional[str] = Field(
         default=None, description="VAPID private key for Web Push"
