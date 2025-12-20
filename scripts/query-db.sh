@@ -22,6 +22,7 @@ if [ $# -eq 0 ]; then
     echo "  configuration_history - Show configuration changes"
     echo "  site_operating_schedules - Show site schedules"
     echo "  job_outcomes        - Show job execution outcomes"
+    echo "  push_logs           - Show push notification logs"
     echo "  error_logs          - Show recent errors"
     echo "  count               - Count rows in all tables"
     echo "  schema [table]      - Show table structure"
@@ -114,6 +115,14 @@ ORDER BY timestamp DESC
 LIMIT 10;
 EOF
         ;;
+    push_logs)
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+SELECT id, message_id, provider, status, latency_ms, sent_at, received_at 
+FROM push_notification_logs 
+ORDER BY sent_at DESC 
+LIMIT 10;
+EOF
+        ;;
     error_logs)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
 SELECT id, category, severity, error_code, error_message, endpoint, timestamp 
@@ -160,6 +169,7 @@ UNION ALL SELECT 'error_logs', COUNT(*) FROM error_logs
 UNION ALL SELECT 'health_checks', COUNT(*) FROM health_checks
 UNION ALL SELECT 'job_outcomes', COUNT(*) FROM job_outcomes
 UNION ALL SELECT 'jobs', COUNT(*) FROM jobs
+UNION ALL SELECT 'push_notification_logs', COUNT(*) FROM push_notification_logs
 UNION ALL SELECT 'site_operating_schedules', COUNT(*) FROM site_operating_schedules
 UNION ALL SELECT 'sites', COUNT(*) FROM sites
 UNION ALL SELECT 'user_activities', COUNT(*) FROM user_activities
