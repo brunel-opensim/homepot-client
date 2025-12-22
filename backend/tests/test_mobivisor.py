@@ -93,7 +93,6 @@ class TestMobivisorDevicesEndpoints:
         }
 
         response = client.get("/api/v1/mobivisor/devices")
-        print(response.status_code, response.json(), "-------------")
         assert response.status_code == 500
         assert "Configuration Error" in response.json()["detail"]["error"]
 
