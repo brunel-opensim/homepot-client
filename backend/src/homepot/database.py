@@ -305,9 +305,9 @@ class DatabaseService:
             return device
 
     async def get_devices_by_site_and_segment(
-        self, site_id: int, segment: Optional[str] = None
+        self, site_id: str, segment: Optional[str] = None
     ) -> List[Device]:
-        """Get devices by site and optional segment."""
+        """Get devices by site (using string identifier) and optional segment."""
         from sqlalchemy import select
 
         async with self.get_session() as session:

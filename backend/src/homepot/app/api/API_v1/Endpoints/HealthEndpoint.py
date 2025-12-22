@@ -59,7 +59,7 @@ async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str,
         logger.error(f"Health check failed: {e}", exc_info=True)
         return {
             "status": "unhealthy",
-            "error": str(e),
+            "error": "Health check failed",
             "timestamp": asyncio.get_event_loop().time(),
         }
 
@@ -78,7 +78,7 @@ async def get_site_health(site_id: str) -> SiteHealthResponse:
             raise HTTPException(status_code=404, detail=f"Site {site_id} not found")
 
         # Get all devices for the site
-        devices = await db_service.get_devices_by_site_and_segment(int(site.id))
+        devices = await db_service.get_devices_by_site_and_segment(str(site.site_id))
 
         if not devices:
             return SiteHealthResponse(

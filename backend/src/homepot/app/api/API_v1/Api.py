@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from .Endpoints import (
     AgentsEndpoints,
+    AIEndpoint,
     AnalyticsEndpoint,
     ClientEndpoint,
     DevicesEndpoints,
@@ -11,6 +12,7 @@ from .Endpoints import (
     HealthEndpoint,
     JobsEndpoints,
     PushNotificationEndpoint,
+    SiteSchedulesEndpoint,
     SitesEndpoint,
     UIEndpoint,
     UserRegisterEndpoint,
@@ -29,6 +31,9 @@ api_v1_router.include_router(
 api_v1_router.include_router(UIEndpoint.router, prefix="/ui", tags=["UI"])
 api_v1_router.include_router(ClientEndpoint.router, prefix="/client", tags=["Client"])
 api_v1_router.include_router(SitesEndpoint.router, prefix="/sites", tags=["Sites"])
+api_v1_router.include_router(
+    SiteSchedulesEndpoint.router, prefix="/sites", tags=["Site Schedules"]
+)
 api_v1_router.include_router(
     DevicesEndpoints.router, prefix="/devices", tags=["Devices"]
 )
@@ -64,3 +69,6 @@ api_v1_router.include_router(
     DeviceSimulatorEndpoint.router, prefix="/testing", tags=["Testing"]
 )
 api_v1_router.include_router(AnalyticsEndpoint.router, tags=["Analytics"])
+api_v1_router.include_router(
+    AIEndpoint.router, prefix="/ai", tags=["AI & Machine Learning"]
+)
