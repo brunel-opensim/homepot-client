@@ -5,9 +5,11 @@ import time
 from typing import Callable, Optional
 
 from fastapi import Request, Response
+from jose import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+from homepot.app.auth_utils import ALGORITHM, COOKIE_NAME, SECRET_KEY
 from homepot.app.db.database import SessionLocal
 from homepot.app.models.AnalyticsModel import APIRequestLog
 
@@ -49,12 +51,21 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
         user_id: Optional[str] = None
         try:
             # Try to extract user from authorization header or cookie
+            token = None
             auth_header = request.headers.get("authorization")
-            cookie_token = request.cookies.get("access_token")
-            if auth_header or cookie_token:
-                # User is authenticated (we'll get email from token later if needed)
-                user_id = "authenticated"  # Placeholder
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+
+            if not token:
+                token = request.cookies.get(COOKIE_NAME)
+
+            if token:
+                # Decode token to get user email
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id = payload.get("sub")
         except Exception:
+            # If token is invalid or expired, we just don't log the user_id
+            # We don't want to block the request here (auth middleware handles 401s)
             pass
 
         # Process request

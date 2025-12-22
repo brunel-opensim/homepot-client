@@ -153,6 +153,7 @@ nav:
       - Full Roadmap: ai-roadmap.md
       - Infrastructure Implementation: ai-infrastructure.md
       - Data Collection: analytics-data-collection.md
+      - Data Collection Guide: data-collection-guide.md
       - Example Data: analytics-example-data.md
       - Backend Analytics: backend-analytics.md
       - Frontend Analytics Integration: frontend-analytics-integration.md
