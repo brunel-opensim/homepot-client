@@ -6,7 +6,8 @@ from typing import Any, Optional, cast
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
@@ -65,7 +66,7 @@ def verify_token(
         if email is None:
             raise HTTPException(status_code=401, detail="Invalid token: no email")
         return TokenData(email=email, role=role)
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
@@ -94,7 +95,7 @@ def get_current_user(
         email: str = payload.get("sub")  # type: ignore
         is_admin: bool = payload.get("is_admin", False)  # type: ignore
         return TokenData(email=email, role="Admin" if is_admin else "User")
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
         )

@@ -14,7 +14,6 @@ psycopg2-binary==2.9.9  # PostgreSQL sync driver (backup)
 # Authentication and Security
 passlib[bcrypt]>=1.7.4
 bcrypt==3.2.2  # Downgraded for passlib compatibility (v4.0+ removed __about__)
-python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.6
 
 # Background Tasks and Queues
@@ -88,8 +87,7 @@ pydantic[email]==2.11.7
 psycopg2-binary==2.9.9
 
 # Type stubs for mypy
-types-python-jose
 types-passlib
 types-requests
 types-psutil
-# types-pyjwt>=2.0
+types-pyjwt>=2.0
