@@ -140,6 +140,7 @@ nav:
   
   - Integrations:
       - Mobivisor Integration: mobivisor-integration.md
+      - Mobivisor Roadmap: mobivisor-integration-roadmap.md
       - Mobivisor Diagram: HomepotMobivisor.md
       - POS Dummy: POSDummy.md
       - POS Dummy Integration: POSDummy-Integration.md
