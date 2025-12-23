@@ -532,4 +532,7 @@ async def acknowledge_push_notification(ack_request: PushAckRequest) -> Dict[str
     except Exception as e:
         logger.error(f"Failed to process push ack: {e}", exc_info=True)
         # Do not fail the request, just log error
-        return {"status": "error", "message": "An internal error occurred processing the acknowledgment"}
+        return {
+            "status": "error",
+            "message": "An internal error occurred processing the acknowledgment",
+        }
