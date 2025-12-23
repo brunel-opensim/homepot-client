@@ -59,7 +59,7 @@ jobs:
         echo "   To enable code scanning, contact your GitHub organization admin."
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always() && github.repository_owner == 'brunel-opensim'
       continue-on-error: true
       with:
