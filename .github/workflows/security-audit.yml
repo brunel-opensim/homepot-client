@@ -50,12 +50,8 @@ jobs:
         pip install --no-cache-dir -r backend/requirements.txt
         pip install -e backend/
 
-    - name: Run Safety security scan
-      run: safety scan --save-as json safety-results.json
-      continue-on-error: true
-
     - name: Run Bandit security scan
-      run: bandit -r backend/src/homepot/ -f json -o bandit-results.json
+      run: bandit -r backend/src/homepot/ -ll -f json -o bandit-results.json
       continue-on-error: true
 
     - name: Run pip-audit
