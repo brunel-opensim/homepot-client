@@ -298,6 +298,9 @@ async def submit_device_metrics(
         except Exception as e:
             logger.warning(f"Could not find device {device_id}: {e}")
 
+        if not device:
+            raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+
         # Convert response_data to dict if present
         response_data_dict = (
             health_check.response_data if health_check.response_data else None

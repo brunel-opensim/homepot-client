@@ -4,10 +4,57 @@ import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
-async def test_submit_health_check_with_full_metrics(async_client: AsyncClient):
-    """Test submitting health check with all metrics."""
+@pytest.fixture
+async def setup_device(async_client: AsyncClient):
+    """Create a test site and device for metrics tests."""
+    site_id = "test-site-001"
     device_id = "test-pos-001"
+
+    # Create site
+    response = await async_client.post(
+        "/api/v1/sites/",
+        json={
+            "site_id": site_id,
+            "name": "Test Site",
+            "description": "Test Site Description",
+            "location": "Test Location",
+        },
+    )
+    # Accept 200 (created) or 400 (already exists) or 409 (conflict)
+    assert response.status_code in [
+        200,
+        201,
+        400,
+        409,
+    ], f"Failed to create site: {response.text}"
+
+    # Create device
+    response = await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Test Device",
+            "device_type": "POS",
+            "ip_address": "192.168.1.100",
+        },
+    )
+    # Accept 200 (created) or 400 (already exists) or 409 (conflict)
+    assert response.status_code in [
+        200,
+        201,
+        400,
+        409,
+    ], f"Failed to create device: {response.text}"
+
+    return device_id
+
+
+@pytest.mark.asyncio
+async def test_submit_health_check_with_full_metrics(
+    async_client: AsyncClient, setup_device
+):
+    """Test submitting health check with all metrics."""
+    device_id = setup_device
 
     payload = {
         "is_healthy": True,
@@ -50,9 +97,29 @@ async def test_submit_health_check_with_full_metrics(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_submit_health_check_minimal_data(async_client: AsyncClient):
+async def test_submit_health_check_minimal_data(
+    async_client: AsyncClient, setup_device
+):
     """Test submitting health check with only required fields."""
+    # Use the device created by fixture, or create another one if needed
+    # For simplicity, let's reuse the fixture's device or create a new one if we want isolation
+    # But since we just need existence, reusing is fine.
+    # However, the original test used "test-pos-002". Let's create that too.
+
+    site_id = "test-site-001"
     device_id = "test-pos-002"
+
+    # Ensure site exists (setup_device runs before this, so site exists)
+    # Create device 2
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Test Device 2",
+            "device_type": "POS",
+            "ip_address": "192.168.1.101",
+        },
+    )
 
     payload = {
         "is_healthy": True,
@@ -72,9 +139,21 @@ async def test_submit_health_check_minimal_data(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_submit_health_check_unhealthy(async_client: AsyncClient):
+async def test_submit_health_check_unhealthy(async_client: AsyncClient, setup_device):
     """Test submitting unhealthy device status."""
+    site_id = "test-site-001"
     device_id = "test-pos-003"
+
+    # Create device 3
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Test Device 3",
+            "device_type": "POS",
+            "ip_address": "192.168.1.102",
+        },
+    )
 
     payload = {
         "is_healthy": False,
@@ -112,12 +191,26 @@ async def test_submit_health_check_invalid_device(async_client: AsyncClient):
 
     # Should still accept but create health check without device_id link
     # Or return 404 if strict validation
-    assert response.status_code in [200, 404]
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_simulate_device_metrics_default(async_client: AsyncClient):
+async def test_simulate_device_metrics_default(async_client: AsyncClient, setup_device):
     """Test device metrics simulator with default parameters."""
+    # The simulator uses "simulated-pos-001" by default. We need to create it.
+    site_id = "test-site-001"
+    device_id = "simulated-pos-001"
+
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Simulated Device",
+            "device_type": "POS",
+            "ip_address": "192.168.1.200",
+        },
+    )
+
     response = await async_client.post("/api/v1/simulator/device-metrics")
 
     assert response.status_code == 200
@@ -145,9 +238,22 @@ async def test_simulate_device_metrics_default(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_simulate_device_metrics_custom_device(async_client: AsyncClient):
+async def test_simulate_device_metrics_custom_device(
+    async_client: AsyncClient, setup_device
+):
     """Test device metrics simulator with custom device ID."""
     custom_device_id = "custom-pos-123"
+    site_id = "test-site-001"
+
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": custom_device_id,
+            "name": "Custom Simulated Device",
+            "device_type": "POS",
+            "ip_address": "192.168.1.201",
+        },
+    )
 
     response = await async_client.post(
         f"/api/v1/simulator/device-metrics?device_id={custom_device_id}"
@@ -159,8 +265,25 @@ async def test_simulate_device_metrics_custom_device(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_simulate_unhealthy_device(async_client: AsyncClient):
+async def test_simulate_unhealthy_device(async_client: AsyncClient, setup_device):
     """Test simulating unhealthy device metrics."""
+    # Simulator uses "simulated-pos-001" by default.
+    # We need to ensure it exists (setup_device creates test-pos-001, but we need simulated-pos-001)
+    # Actually, test_simulate_device_metrics_default already created it if running in same session,
+    # but tests should be isolated.
+    site_id = "test-site-001"
+    device_id = "simulated-pos-001"
+
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Simulated Device",
+            "device_type": "POS",
+            "ip_address": "192.168.1.200",
+        },
+    )
+
     response = await async_client.post(
         "/api/v1/simulator/device-metrics?is_healthy=false"
     )
@@ -178,9 +301,20 @@ async def test_simulate_unhealthy_device(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_metrics_data_structure(async_client: AsyncClient):
+async def test_metrics_data_structure(async_client: AsyncClient, setup_device):
     """Test that metrics follow the expected data structure."""
     device_id = "test-pos-structure"
+    site_id = "test-site-001"
+
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Structure Test Device",
+            "device_type": "POS",
+            "ip_address": "192.168.1.202",
+        },
+    )
 
     payload = {
         "is_healthy": True,
@@ -211,9 +345,20 @@ async def test_metrics_data_structure(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_multiple_metrics_submissions(async_client: AsyncClient):
+async def test_multiple_metrics_submissions(async_client: AsyncClient, setup_device):
     """Test submitting multiple health checks for the same device."""
     device_id = "test-pos-multi"
+    site_id = "test-site-001"
+
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Multi Test Device",
+            "device_type": "POS",
+            "ip_address": "192.168.1.203",
+        },
+    )
 
     # Submit first check
     payload1 = {
@@ -270,8 +415,24 @@ async def test_metrics_validation_ranges(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_simulator_generates_realistic_data(async_client: AsyncClient):
+async def test_simulator_generates_realistic_data(
+    async_client: AsyncClient, setup_device
+):
     """Test that simulator generates realistic metric values."""
+    # Simulator uses "simulated-pos-001" by default.
+    site_id = "test-site-001"
+    device_id = "simulated-pos-001"
+
+    await async_client.post(
+        f"/api/v1/devices/sites/{site_id}/devices",
+        json={
+            "device_id": device_id,
+            "name": "Simulated Device",
+            "device_type": "POS",
+            "ip_address": "192.168.1.200",
+        },
+    )
+
     response = await async_client.post("/api/v1/simulator/device-metrics")
 
     assert response.status_code == 200

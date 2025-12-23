@@ -49,6 +49,15 @@ def client() -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+async def reset_db_service():
+    """Reset the database service singleton after each test."""
+    from homepot.database import close_database_service
+
+    yield
+    await close_database_service()
+
+
 @pytest.fixture
 def sample_config() -> Dict[str, Any]:
     """Provide a sample configuration for testing."""
@@ -161,9 +170,15 @@ def temp_db():
 
     # Fallback to SQLite if PostgreSQL failed or not configured
     if not use_postgresql or engine is None:
-        logger.info("Using SQLite in-memory database for testing")
+        target_url = "sqlite:///:memory:"
+
+        # If we are here because it's configured as SQLite (not because Postgres failed)
+        if not use_postgresql and database_url.startswith("sqlite"):
+            target_url = database_url
+
+        logger.info(f"Using SQLite database for testing: {target_url}")
         engine = create_engine(
-            "sqlite:///:memory:",
+            target_url,
             connect_args={"check_same_thread": False},
             pool_pre_ping=True,
         )
