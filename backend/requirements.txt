@@ -90,4 +90,3 @@ psycopg2-binary==2.9.9
 types-passlib
 types-requests
 types-psutil
-types-pyjwt>=2.0
