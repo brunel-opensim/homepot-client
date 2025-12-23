@@ -7,6 +7,7 @@ including request handling, authentication, and error mapping.
 
 import logging
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 from fastapi import HTTPException
@@ -20,6 +21,17 @@ logger = logging.getLogger(__name__)
 # Constants
 DEFAULT_TIMEOUT_TOTAL = 10.0
 DEFAULT_TIMEOUT_CONNECT = 5.0
+
+
+def _sanitize_url(url: str) -> str:
+    """Remove query parameters from URL for safe logging."""
+    try:
+        parsed = urlparse(url)
+        # Keep scheme, netloc, path. Redact query and params.
+        clean = parsed._replace(query="[REDACTED]", params="", fragment="")
+        return urlunparse(clean)
+    except Exception:
+        return "URL_REDACTED"
 
 
 async def _make_mobivisor_request(
@@ -82,7 +94,7 @@ async def _make_mobivisor_request(
         return response
 
     except httpx.TimeoutException:
-        logger.error(f"Timeout contacting Mobivisor API: {upstream_url}")
+        logger.error(f"Timeout contacting Mobivisor API: {_sanitize_url(upstream_url)}")
         raise HTTPException(
             status_code=504,
             detail={
@@ -91,7 +103,9 @@ async def _make_mobivisor_request(
             },
         )
     except httpx.RequestError as e:
-        logger.error(f"Network error contacting Mobivisor API: {e}")
+        logger.error(
+            f"Network error contacting Mobivisor API: {type(e).__name__} - {_sanitize_url(upstream_url)}"
+        )
         raise HTTPException(
             status_code=502,
             detail={
