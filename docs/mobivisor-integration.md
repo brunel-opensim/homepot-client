@@ -272,6 +272,72 @@ curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/get-managed-apps
 - `403/401 Unauthorized`: Authentication/authorization issue.
 - `502 Bad Gateway` / `504 Gateway Timeout`: Upstream errors or timeouts.
 
+### 6.1 Update Mobile App (Mobile Apps)
+
+Update a Mobivisor mobile app entry.
+
+This endpoint proxies Mobivisor's `PUT /mobileapps/{application_id}` API.
+
+**Endpoint**: `PUT /api/v1/mobivisor/mobileapps/{application_id}`
+
+**Path Parameters**:
+- `application_id` (path, required): The unique identifier of the application
+
+**Request Body** (JSON):
+```json
+{
+  "app": {
+    "_id": "689c7d4e40257462671afcfc",
+    "appName": "DDCheckout",
+    "appSize": 33175454,
+    "fileOrStore": "File",
+    "environment": "Android",
+    "image_url": "img/mydd/uploadedAppImages/com.myddfoodapp/1755086158402/7c.png",
+    "appPackageName": "com.myddfoodapp",
+    "versionCode": "1",
+    "versionName": "1.0",
+    "silentInstallAfterSignin": false,
+    "autoInstall": false,
+    "localFilePath": "private/mydd/applicationAPKs/PackageNameNotGiven/1755086158186/1755086158193_17._DDCheckout10secsplashscreen.apk",
+    "managedConfig": [],
+    "__v": 0,
+    "managementFlags": {
+      "removeAppOnMDMRemoval": true
+    },
+    "createdAtStamp": 1755086158000,
+    "createdAt": "08/13/2025 17:25",
+    "environmentEnhanced": "Android",
+    "isChecked": false,
+    "description": "Test"
+  }
+}
+```
+
+> Note: This proxy also accepts the same payload without the outer `app` wrapper
+> (i.e., fields at the root). The proxy forwards the payload to Mobivisor in the
+> same shape it was received.
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+**Example**:
+```bash
+curl -X PUT "http://localhost:8000/api/v1/mobivisor/mobileapps/689c7d4e40257462671afcfc" \
+  -H "Content-Type: application/json" \
+  -d '{"app":{"_id":"689c7d4e40257462671afcfc","appName":"DDCheckout","appSize":33175454,"fileOrStore":"File","environment":"Android","image_url":"img/mydd/uploadedAppImages/com.myddfoodapp/1755086158402/7c.png","appPackageName":"com.myddfoodapp","versionCode":"1","versionName":"1.0","silentInstallAfterSignin":false,"autoInstall":false,"localFilePath":"private/mydd/applicationAPKs/PackageNameNotGiven/1755086158186/1755086158193_17._DDCheckout10secsplashscreen.apk","managedConfig":[],"__v":0,"managementFlags":{"removeAppOnMDMRemoval":true},"createdAtStamp":1755086158000,"createdAt":"08/13/2025 17:25","environmentEnhanced":"Android","isChecked":false,"description":"Test"}}'
+```
+
+**Notes & Errors**:
+- `400 Validation Error`: Returned when `application_id` is missing/blank.
+- `422 Validation Error`: Returned when the request body is missing required fields.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Token is missing/invalid or insufficient permissions.
+- `404 Not Found`: Application not found on Mobivisor.
+- `502 Bad Gateway`: Upstream Mobivisor error or network error.
+- `504 Gateway Timeout`: Mobivisor did not respond in time.
+
 ### Get Device Policies
 
 Fetch the policies currently applied to a specific device in Mobivisor.
