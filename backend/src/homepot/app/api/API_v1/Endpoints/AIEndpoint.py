@@ -77,7 +77,8 @@ async def get_device_insights(
     except Exception as e:
         logger.error(f"Failed to get device insights: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="Failed to generate device insights due to an internal error."
+            status_code=500,
+            detail="Failed to generate device insights due to an internal error.",
         )
 
 
@@ -116,7 +117,8 @@ async def get_site_insights(
     except Exception as e:
         logger.error(f"Failed to get site insights: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="Failed to generate site insights due to an internal error."
+            status_code=500,
+            detail="Failed to generate site insights due to an internal error.",
         )
 
 
@@ -143,7 +145,8 @@ async def predict_device_failure(
     except Exception as e:
         logger.error(f"Failed to predict device failure: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="Failed to predict device failure due to an internal error."
+            status_code=500,
+            detail="Failed to predict device failure due to an internal error.",
         )
 
 
@@ -169,7 +172,8 @@ async def get_at_risk_devices(
     except Exception as e:
         logger.error(f"Failed to identify at-risk devices: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="Failed to identify at-risk devices due to an internal error."
+            status_code=500,
+            detail="Failed to identify at-risk devices due to an internal error.",
         )
 
 
@@ -247,7 +251,8 @@ async def calculate_success_probability(
     except Exception as e:
         logger.error(f"Failed to calculate success probability: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="Failed to calculate success probability due to an internal error."
+            status_code=500,
+            detail="Failed to calculate success probability due to an internal error.",
         )
 
 
@@ -340,7 +345,8 @@ async def get_health_forecast(
     except Exception as e:
         logger.error(f"Failed to generate health forecast: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500, detail="Failed to generate health forecast due to an internal error."
+            status_code=500,
+            detail="Failed to generate health forecast due to an internal error.",
         )
 
 

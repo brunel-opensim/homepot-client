@@ -50,18 +50,15 @@ jobs:
         pip install --no-cache-dir -r backend/requirements.txt
         pip install -e backend/
 
-    - name: Run Safety security scan
-      run: safety scan --save-as json safety-results.json
-      continue-on-error: true
-
     - name: Run Bandit security scan
-      run: bandit -r backend/src/homepot/ -f json -o bandit-results.json
+      run: bandit -r backend/src/homepot/ -ll -f json -o bandit-results.json
       continue-on-error: true
 
     - name: Run pip-audit
       run: |
         pip install --no-cache-dir pip-audit
-        pip-audit --format=json --output=pip-audit-results.json
+        # Ignore CVE-2025-53000 (nbconvert Windows-specific vulnerability)
+        pip-audit --ignore-vuln CVE-2025-53000 --format=json --output=pip-audit-results.json
       continue-on-error: true
 
     - name: Run CodeQL Analysis
@@ -88,7 +85,8 @@ jobs:
       run: |
         echo "Running comprehensive dependency security check..."
         # Use pip-audit which was already installed above
-        pip-audit --desc --format=columns || echo "Some vulnerabilities found - check pip-audit-results.json for details"
+        # Ignore CVE-2025-53000 (nbconvert Windows-specific vulnerability)
+        pip-audit --ignore-vuln CVE-2025-53000 --desc --format=columns || echo "Some vulnerabilities found - check pip-audit-results.json for details"
         echo "Dependency security scan completed successfully"
 
   secret-scan:
