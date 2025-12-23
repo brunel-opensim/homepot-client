@@ -5,7 +5,7 @@ import time
 from typing import Callable, Optional
 
 from fastapi import Request, Response
-from jose import jwt
+import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
