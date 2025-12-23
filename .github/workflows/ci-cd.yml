@@ -41,7 +41,7 @@ jobs:
       run: bandit -r backend/src/homepot/ -f json -o bandit-results.json || true
 
     - name: Run Safety security scan
-      run: safety check --json --output safety-results.json || true
+      run: safety check --save-json safety-results.json || true
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -59,7 +59,7 @@ jobs:
         echo "   To enable code scanning, contact your GitHub organization admin."
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always() && github.repository_owner == 'brunel-opensim'
       continue-on-error: true
       with:
@@ -103,16 +103,6 @@ jobs:
         echo "Running POSDummy Integration Gate..."
         ./scripts/run-pos-dummy.sh --verbose
         echo "POSDummy gate passed - HOMEPOT infrastructure verified!"
-
-    - name: Upload POSDummy test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: pos-dummy-results
-        path: |
-          pytest-results.xml
-          pos-dummy-report.txt
-        retention-days: 7
 
   code-quality:
     name: Code Quality
