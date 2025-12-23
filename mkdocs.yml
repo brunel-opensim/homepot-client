@@ -155,6 +155,7 @@ nav:
       - Infrastructure Implementation: ai-infrastructure.md
       - Data Collection: analytics-data-collection.md
       - Data Collection Guide: data-collection-guide.md
+      - Data Collection Suite: data-collection-suite.md
       - Example Data: analytics-example-data.md
       - Backend Analytics: backend-analytics.md
       - Frontend Analytics Integration: frontend-analytics-integration.md
