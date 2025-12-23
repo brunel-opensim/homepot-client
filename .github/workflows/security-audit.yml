@@ -10,12 +10,14 @@ on:
     paths:
       - 'backend/pyproject.toml'
       - 'backend/requirements*.txt'
+      - 'backend/**/*.py'
       - '.github/workflows/security-audit.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'backend/pyproject.toml'
       - 'backend/requirements*.txt'
+      - 'backend/**/*.py'
       - '.github/workflows/security-audit.yml'
 
 # Default permissions
@@ -63,14 +65,14 @@ jobs:
       continue-on-error: true
 
     - name: Run CodeQL Analysis
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4
       if: github.repository_owner == 'brunel-opensim'
       continue-on-error: true
       with:
         languages: python
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4
       if: github.repository_owner == 'brunel-opensim'
       continue-on-error: true
 
