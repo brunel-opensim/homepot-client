@@ -43,6 +43,7 @@ jobs:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
+        version: 'v0.68.2'
         scan-type: 'fs'
         scan-ref: '.'
         format: 'sarif'
