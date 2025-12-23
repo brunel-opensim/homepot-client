@@ -104,16 +104,6 @@ jobs:
         ./scripts/run-pos-dummy.sh --verbose
         echo "POSDummy gate passed - HOMEPOT infrastructure verified!"
 
-    - name: Upload POSDummy test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: pos-dummy-results
-        path: |
-          pytest-results.xml
-          pos-dummy-report.txt
-        retention-days: 7
-
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
