@@ -147,7 +147,7 @@ async def simulate_site_metrics(
             raise HTTPException(status_code=404, detail=f"Site '{site_id}' not found")
 
         # Get all devices for the site
-        devices = await db_service.get_devices_by_site_and_segment(int(site.id))
+        devices = await db_service.get_devices_by_site_and_segment(str(site.site_id))
 
         if not devices:
             raise HTTPException(

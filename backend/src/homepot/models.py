@@ -15,6 +15,7 @@ from sqlalchemy import (
     Engine,
     ForeignKey,
     Integer,
+    Sequence,
     String,
     Text,
     create_engine,
@@ -209,7 +210,7 @@ class HealthCheck(Base):
 
     __tablename__ = "health_checks"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, Sequence("health_checks_id_seq"), primary_key=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
 
     # Health status

@@ -17,9 +17,15 @@ import logging
 import random  # nosec - Used for POS device simulation, not cryptographic purposes
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
+from homepot.app.models.AnalyticsModel import (
+    ConfigurationHistory,
+    DeviceMetrics,
+    DeviceStateHistory,
+)
 from homepot.database import get_database_service
+from homepot.error_logger import log_error
 from homepot.models import DeviceStatus
 
 logger = logging.getLogger(__name__)
@@ -131,9 +137,18 @@ class POSAgentSimulator:
             logger.error(
                 f"Agent {self.device_id} error handling push notification: {e}"
             )
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message=f"Agent {self.device_id} failed to handle push notification",
+                exception=e,
+                device_id=self.device_id,
+                context={"action": action, "notification_data": notification_data},
+            )
             return {
                 "status": "error",
-                "message": str(e),
+                "message": "Internal agent error occurred",
                 "device_id": self.device_id,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
@@ -185,8 +200,46 @@ class POSAgentSimulator:
             health_result = await self._run_health_check()
 
             # Update current config version
+            old_version = self.current_config_version
             self.current_config_version = config_version
             self.state = AgentState.IDLE
+
+            # Log configuration change for AI training
+            try:
+                db_service = await get_database_service()
+                async with db_service.get_session() as session:
+                    config_history = ConfigurationHistory(
+                        timestamp=datetime.utcnow(),
+                        entity_type="device",
+                        entity_id=self.device_id,
+                        parameter_name="config_version",
+                        old_value={"version": old_version},
+                        new_value={"version": config_version, "url": config_url},
+                        changed_by="system",
+                        change_reason="Push notification config update",
+                        change_type="automated",
+                        performance_before={
+                            "status": health_result.get("status"),
+                            "response_time_ms": health_result.get("response_time_ms"),
+                        },
+                    )
+                    session.add(config_history)
+                    await session.flush()  # Get ID
+
+                    # Schedule post-update performance monitoring
+                    asyncio.create_task(
+                        self._monitor_post_update_performance(
+                            cast(int, config_history.id)
+                        )
+                    )
+
+                    logger.info(
+                        f"Logged config change for {self.device_id}: {old_version} → {config_version}"
+                    )
+            except Exception as log_err:
+                logger.error(
+                    f"Failed to log configuration history: {log_err}", exc_info=True
+                )
 
             # Step 6: Send success ACK
             return {
@@ -204,13 +257,62 @@ class POSAgentSimulator:
             await asyncio.sleep(1.0)  # Error recovery time
             self.state = AgentState.IDLE
 
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message=f"Agent {self.device_id} failed to apply configuration update",
+                exception=e,
+                device_id=self.device_id,
+                context={
+                    "config_url": config_url,
+                    "config_version": config_version,
+                    "current_version": self.current_config_version,
+                },
+            )
+
             return {
                 "status": "error",
-                "message": str(e),
+                "message": "Configuration update failed",
                 "device_id": self.device_id,
                 "config_version": self.current_config_version,  # Keep old version
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
+
+    async def _monitor_post_update_performance(self, config_history_id: int) -> None:
+        """Monitor performance after a configuration update."""
+        try:
+            # Wait for a simulated "settling period" (e.g., 5 seconds in simulation time)
+            await asyncio.sleep(5)
+
+            # Run a new health check
+            health_result = await self._run_health_check()
+
+            # Update the configuration history record
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                from sqlalchemy import select
+
+                result = await session.execute(
+                    select(ConfigurationHistory).where(
+                        ConfigurationHistory.id == config_history_id
+                    )
+                )
+                config_history = result.scalar_one_or_none()
+
+                if config_history:
+                    config_history.performance_after = {  # type: ignore
+                        "status": health_result.get("status"),
+                        "response_time_ms": health_result.get("response_time_ms"),
+                    }
+                    config_history.was_successful = health_result.get("status") == "healthy"  # type: ignore
+                    session.add(config_history)
+                    logger.info(
+                        f"Updated post-change performance for config history {config_history_id}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Failed to monitor post-update performance: {e}")
 
     async def _handle_restart(self) -> Dict[str, Any]:
         """Simulate POS application restart."""
@@ -239,9 +341,19 @@ class POSAgentSimulator:
             await asyncio.sleep(2.0)
             self.state = AgentState.IDLE
 
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message=f"Agent {self.device_id} failed to restart application",
+                exception=e,
+                device_id=self.device_id,
+                context={"action": "restart_application"},
+            )
+
             return {
                 "status": "error",
-                "message": str(e),
+                "message": "Application restart failed",
                 "device_id": self.device_id,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
@@ -305,6 +417,12 @@ class POSAgentSimulator:
                 "disk_usage_percent": random.randint(20, 60),
                 "transactions_today": random.randint(50, 300),
                 "uptime_seconds": random.randint(3600, 86400 * 7),
+                # New metrics for AI training
+                "network_latency_ms": random.uniform(10.0, 150.0),
+                "transaction_volume": random.uniform(1000.0, 50000.0),
+                "error_rate": random.uniform(0.0, 2.0),
+                "active_connections": random.randint(1, 50),
+                "queue_depth": random.randint(0, 20),
             },
         }
 
@@ -317,21 +435,105 @@ class POSAgentSimulator:
         # Update device status in database
         try:
             db_service = await get_database_service()
-            new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
-            await db_service.update_device_status(self.device_id, new_status)
 
-            # Create health check record
-            await db_service.create_health_check(
-                device_name=self.device_id,  # Use device_name for lookup
-                is_healthy=is_healthy,
-                response_time_ms=self.response_time_ms,
-                status_code=200 if is_healthy else 500,
-                endpoint="/health",
-                response_data=health_data,
-            )
+            # Use a single session for all database operations
+            async with db_service.get_session() as db:
+                # Determine new status based on health
+                new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
+                from sqlalchemy import select, update
+
+                from homepot.models import Device
+
+                # Get device and its current status before updating
+                device_result = await db.execute(
+                    select(Device).where(Device.device_id == self.device_id)
+                )
+                device = device_result.scalar_one_or_none()
+
+                if device:
+                    previous_status = device.status
+
+                    # Update device status only if changed
+                    if previous_status != new_status:
+                        stmt = (
+                            update(Device)
+                            .where(Device.device_id == self.device_id)
+                            .values(status=new_status)
+                        )
+                        await db.execute(stmt)
+
+                        # Log state transition for AI training
+                        reason = (
+                            "Health check: healthy"
+                            if is_healthy
+                            else f"Health check: {health_data.get('error', 'unhealthy')}"
+                        )
+                        state_history = DeviceStateHistory(
+                            timestamp=datetime.utcnow(),
+                            device_id=self.device_id,
+                            previous_state=previous_status,
+                            new_state=new_status,
+                            changed_by="system",
+                            reason=reason,
+                            extra_data={
+                                "response_time_ms": self.response_time_ms,
+                                "health_status": (
+                                    "healthy" if is_healthy else "unhealthy"
+                                ),
+                            },
+                        )
+                        db.add(state_history)
+                        logger.info(
+                            f"Device {self.device_id} state changed: {previous_status} → {new_status}"
+                        )
+
+                if device:
+                    # Create health check record
+                    from homepot.models import HealthCheck
+
+                    health_check = HealthCheck(
+                        device_id=int(device.id),  # type: ignore[arg-type]
+                        is_healthy=is_healthy,
+                        response_time_ms=self.response_time_ms,
+                        status_code=200 if is_healthy else 500,
+                        endpoint="/health",
+                        response_data=health_data,
+                    )
+                    db.add(health_check)
+
+                    # Save device metrics to database for AI training
+                    device_metrics = DeviceMetrics(
+                        timestamp=datetime.utcnow(),  # Use timezone-naive for compatibility
+                        device_id=self.device_id,
+                        cpu_percent=health_data["metrics"]["cpu_usage_percent"],
+                        memory_percent=health_data["metrics"]["memory_usage_percent"],
+                        disk_percent=health_data["metrics"]["disk_usage_percent"],
+                        transaction_count=health_data["metrics"]["transactions_today"],
+                        network_latency_ms=health_data["metrics"]["network_latency_ms"],
+                        transaction_volume=health_data["metrics"]["transaction_volume"],
+                        error_rate=health_data["metrics"]["error_rate"],
+                        active_connections=health_data["metrics"]["active_connections"],
+                        queue_depth=health_data["metrics"]["queue_depth"],
+                        extra_metrics={
+                            "uptime_seconds": health_data["metrics"]["uptime_seconds"],
+                            "services": health_data["services"],
+                            "device_info": health_data["device_info"],
+                        },
+                    )
+                    db.add(device_metrics)
+                    logger.info(f"Saved device metrics for {self.device_id}")
 
         except Exception as e:
-            logger.error(f"Failed to update device status for {self.device_id}: {e}")
+            logger.error(f"Failed to save device metrics for {self.device_id}: {e}")
+            # Log error for AI training
+            await log_error(
+                category="database",
+                severity="warning",
+                error_message=f"Failed to save device metrics for {self.device_id}",
+                exception=e,
+                device_id=self.device_id,
+                context={"action": "save_device_metrics"},
+            )
 
         return health_data
 
@@ -344,6 +546,15 @@ class POSAgentSimulator:
                     await self._run_health_check()
             except Exception as e:
                 logger.error(f"Health check loop error for {self.device_id}: {e}")
+                # Log error for AI training
+                await log_error(
+                    category="external_service",
+                    severity="warning",
+                    error_message=f"Health check loop error for {self.device_id}",
+                    exception=e,
+                    device_id=self.device_id,
+                    context={"action": "health_check_loop"},
+                )
                 await asyncio.sleep(5)  # Short retry delay
 
 
@@ -404,6 +615,14 @@ class AgentManager:
 
         except Exception as e:
             logger.error(f"Failed to discover devices: {e}")
+            # Log error for AI training
+            await log_error(
+                category="database",
+                severity="error",
+                error_message="Failed to discover active POS devices",
+                exception=e,
+                context={"action": "discover_devices"},
+            )
 
     async def _start_agent_for_device(self, device_id: str, device_name: str) -> None:
         """Start an agent for a specific device."""
@@ -421,6 +640,14 @@ class AgentManager:
                 await self._discover_and_start_agents()
             except Exception as e:
                 logger.error(f"Device monitor loop error: {e}")
+                # Log error for AI training
+                await log_error(
+                    category="external_service",
+                    severity="warning",
+                    error_message="Device monitor loop encountered an error",
+                    exception=e,
+                    context={"action": "device_monitor_loop"},
+                )
                 await asyncio.sleep(5)
 
     async def send_push_notification(

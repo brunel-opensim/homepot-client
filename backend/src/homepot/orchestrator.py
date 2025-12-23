@@ -10,8 +10,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from homepot.app.models.AnalyticsModel import JobOutcome
 from homepot.config import get_settings
 from homepot.database import get_database_service
+from homepot.error_logger import log_error
 from homepot.models import Device, Job, JobPriority, JobStatus
 
 logger = logging.getLogger(__name__)
@@ -237,6 +239,14 @@ class JobOrchestrator:
                 continue
             except Exception as e:
                 logger.error(f"Worker {worker_name} error: {e}")
+                # Log error for AI training
+                await log_error(
+                    category="external_service",
+                    severity="error",
+                    error_message=f"Job worker {worker_name} encountered an error",
+                    exception=e,
+                    context={"worker": worker_name, "action": "process_job_worker"},
+                )
                 await asyncio.sleep(1)
 
         logger.info(f"Job worker {worker_name} stopped")
@@ -259,9 +269,24 @@ class JobOrchestrator:
                 priority="high",
             )
 
-            # Get target devices for this job
+            # Get the site's string identifier from the integer ID for security
+            # (we use string identifiers like "site-001" instead of exposing internal IDs)
+            from sqlalchemy import select
+
+            from homepot.models import Site
+
+            async with db_service.get_session() as session:
+                site_result = await session.execute(
+                    select(Site).where(Site.id == job.site_id)
+                )
+                site = site_result.scalar_one_or_none()
+                if not site:
+                    raise ValueError(f"Site not found: {job.site_id}")
+                site_string_id = str(site.site_id)
+
+            # Get target devices for this job using the site's string identifier
             devices = await db_service.get_devices_by_site_and_segment(
-                site_id=int(job.site_id),
+                site_id=site_string_id,
                 segment=str(job.segment) if job.segment else None,
             )
 
@@ -278,6 +303,21 @@ class JobOrchestrator:
                 logger.warning(
                     f"Job {job.job_id}: No devices found for segment {job.segment}"
                 )
+
+                # Log job outcome for AI training
+                async with db_service.get_session() as session:
+                    job_outcome = JobOutcome(
+                        timestamp=datetime.utcnow(),
+                        job_id=str(job.job_id),
+                        job_type=str(job.action),
+                        status="completed",
+                        duration_ms=0,
+                        initiated_by="orchestrator",
+                        extra_data={"reason": "no_devices", "segment": job.segment},
+                    )
+                    session.add(job_outcome)
+                    logger.debug(f"Logged job outcome for {job.job_id}")
+
                 return
 
             # Send push notifications to all devices
@@ -317,12 +357,25 @@ class JobOrchestrator:
                         {
                             "device_id": device.device_id,
                             "status": "push_error",
-                            "error": str(e),
+                            "error": "Failed to send push notification",
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                     logger.error(
                         f"Failed to send push to device {device.device_id}: {e}"
+                    )
+                    # Log error for AI training
+                    await log_error(
+                        category="external_service",
+                        severity="error",
+                        error_message="Failed to send push notification to device",
+                        exception=e,
+                        device_id=str(device.device_id),
+                        context={
+                            "job_id": str(job.job_id),
+                            "action": job.action,
+                            "device_name": device.name,
+                        },
                     )
 
             # Update job with results
@@ -342,6 +395,30 @@ class JobOrchestrator:
                     f"Job {job.job_id} completed successfully: "
                     f"{successful_pushes}/{len(devices)} devices"
                 )
+
+                # Log successful job outcome for AI training
+                async with db_service.get_session() as session:
+                    job_outcome = JobOutcome(
+                        timestamp=datetime.utcnow(),
+                        job_id=str(job.job_id),
+                        job_type=str(job.action),
+                        status="success",
+                        duration_ms=int(
+                            (
+                                datetime.now(timezone.utc) - job.created_at
+                            ).total_seconds()
+                            * 1000
+                        ),
+                        initiated_by="orchestrator",
+                        extra_data={
+                            "total_devices": len(devices),
+                            "successful_pushes": successful_pushes,
+                            "site_id": job.site_id,
+                            "segment": job.segment,
+                        },
+                    )
+                    session.add(job_outcome)
+                    logger.debug(f"Logged successful job outcome for {job.job_id}")
             else:
                 await db_service.update_job_status(
                     str(job.job_id),
@@ -356,8 +433,48 @@ class JobOrchestrator:
                     f"{successful_pushes}/{len(devices)} devices successful"
                 )
 
+                # Log failed job outcome for AI training
+                async with db_service.get_session() as session:
+                    job_outcome = JobOutcome(
+                        timestamp=datetime.utcnow(),
+                        job_id=str(job.job_id),
+                        job_type=str(job.action),
+                        status="failed",
+                        duration_ms=int(
+                            (
+                                datetime.now(timezone.utc) - job.created_at
+                            ).total_seconds()
+                            * 1000
+                        ),
+                        error_message=f"Failed to send push to {failed_pushes}/{len(devices)} devices",
+                        initiated_by="orchestrator",
+                        extra_data={
+                            "total_devices": len(devices),
+                            "successful_pushes": successful_pushes,
+                            "failed_pushes": failed_pushes,
+                            "site_id": job.site_id,
+                            "segment": job.segment,
+                        },
+                    )
+                    session.add(job_outcome)
+                    logger.debug(f"Logged failed job outcome for {job.job_id}")
+
         except Exception as e:
             logger.error(f"Job {job.job_id} processing failed: {e}")
+
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="critical",
+                error_message="Job processing failed critically",
+                exception=e,
+                context={
+                    "job_id": str(job.job_id),
+                    "action": job.action,
+                    "site_id": job.site_id,
+                    "segment": job.segment,
+                },
+            )
 
             # Mark job as failed
             db_service = await get_database_service()
@@ -366,6 +483,25 @@ class JobOrchestrator:
                 JobStatus.FAILED,
                 error_message=str(e),
             )
+
+            # Log exception job outcome for AI training
+            try:
+                async with db_service.get_session() as session:
+                    job_outcome = JobOutcome(
+                        timestamp=datetime.utcnow(),
+                        job_id=str(job.job_id),
+                        job_type=str(job.action),
+                        status="failed",
+                        duration_ms=0,
+                        error_code="exception",
+                        error_message=str(e),
+                        initiated_by="orchestrator",
+                        extra_data={"exception_type": type(e).__name__},
+                    )
+                    session.add(job_outcome)
+                    logger.debug(f"Logged exception job outcome for {job.job_id}")
+            except Exception as log_exc:
+                logger.error(f"Failed to log job outcome: {log_exc}")
 
     async def _send_push_notification(
         self, device: Device, push_notification: PushNotification
@@ -424,6 +560,19 @@ class JobOrchestrator:
 
         except Exception as e:
             logger.error(f"Failed to send push to {device.device_id}: {e}")
+            # Log error for AI training
+            await log_error(
+                category="external_service",
+                severity="error",
+                error_message="Failed to send push notification",
+                exception=e,
+                device_id=str(device.device_id),
+                context={
+                    "config_url": push_notification.config_url,
+                    "config_version": push_notification.version,
+                    "device_name": device.name,
+                },
+            )
             return False
 
     async def get_recent_jobs_status(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -460,6 +609,14 @@ class JobOrchestrator:
 
         except Exception as e:
             logger.error(f"Failed to get recent jobs: {e}")
+            # Log error for AI training
+            await log_error(
+                category="database",
+                severity="warning",
+                error_message="Failed to retrieve recent jobs status",
+                exception=e,
+                context={"action": "get_recent_jobs_status", "limit": limit},
+            )
             return []
 
 
