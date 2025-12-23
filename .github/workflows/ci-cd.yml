@@ -41,7 +41,7 @@ jobs:
       run: bandit -r backend/src/homepot/ -f json -o bandit-results.json || true
 
     - name: Run Safety security scan
-      run: safety check --json --output safety-results.json || true
+      run: safety check --save-json safety-results.json || true
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
