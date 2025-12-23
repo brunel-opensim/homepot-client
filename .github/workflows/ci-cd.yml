@@ -181,13 +181,14 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'pip' # Enable caching for pip
 
     - name: Install dependencies
       shell: bash
       run: |
         set -e
         python -m pip install --upgrade pip
-        pip install --no-cache-dir -r backend/requirements.txt
+        pip install -r backend/requirements.txt
         pip install -e backend/
 
     - name: Run unit tests
@@ -199,8 +200,8 @@ jobs:
         if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.11" ]]; then
           pytest tests/ -n auto --cov=homepot --cov-report=xml --tb=short --durations=10
         elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          # Windows-specific configuration with parallel execution
-          pytest tests/ -n auto --tb=short --durations=10 \
+          # Windows-specific configuration: Sequential execution is often faster due to spawn overhead
+          pytest tests/ --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning

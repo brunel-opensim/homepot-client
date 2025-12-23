@@ -10,8 +10,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from homepot.app.auth_utils import ALGORITHM, COOKIE_NAME, SECRET_KEY
-from homepot.app.db.database import SessionLocal
 from homepot.app.models.AnalyticsModel import APIRequestLog
+from homepot.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 

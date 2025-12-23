@@ -14,8 +14,8 @@ src_dir = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(src_dir))
 
 from homepot.app.auth_utils import hash_password  # noqa: E402
-from homepot.app.db.database import SessionLocal  # noqa: E402
 from homepot.app.models.UserRegisterModel import User  # noqa: E402
+from homepot.database import SessionLocal  # noqa: E402
 
 
 def create_admin():

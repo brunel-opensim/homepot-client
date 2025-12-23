@@ -238,3 +238,35 @@ class SiteOperatingSchedule(Base):
     special_considerations = Column(JSON, nullable=True)
 
     __table_args__ = (Index("idx_site_day", "site_id", "day_of_week"),)
+
+
+class PushNotificationLog(Base):
+    """Track push notification delivery lifecycle."""
+
+    __tablename__ = "push_notification_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(String(100), unique=True, index=True, nullable=False)
+
+    # Context
+    device_id = Column(String(100), index=True, nullable=True)
+    job_id = Column(String(100), index=True, nullable=True)
+    provider = Column(String(20), nullable=False)  # fcm, apns, mqtt, wns, web_push
+
+    # Timestamps
+    sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    received_at = Column(DateTime, nullable=True)
+
+    # Metrics
+    latency_ms = Column(Integer, nullable=True)  # Calculated on ack
+    status = Column(String(20), default="sent")  # sent, delivered, failed, expired
+
+    # Error Tracking
+    error_code = Column(String(50), nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_push_message_id", "message_id"),
+        Index("idx_push_device", "device_id"),
+        Index("idx_push_status", "status"),
+    )

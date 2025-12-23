@@ -1547,9 +1547,10 @@ main() {
     if [[ "$QUIET" != true ]]; then
         echo -e "\nValidation Summary"
         echo "====================================="
-        echo "Total checks: $TOTAL_CHECKS"
-        echo "Passed: $PASSED_CHECKS"
-        echo "Failed: $((TOTAL_CHECKS - PASSED_CHECKS))"
+        echo "Total Check Suites: $TOTAL_CHECKS"
+        echo "Passed Suites:      $PASSED_CHECKS"
+        echo "Failed Suites:      $((TOTAL_CHECKS - PASSED_CHECKS))"
+        echo -e "${BLUE}(Each suite contains multiple individual validation steps)${NC}"
     fi
     
     if [ $PASSED_CHECKS -eq $TOTAL_CHECKS ]; then

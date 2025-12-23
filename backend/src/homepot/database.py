@@ -7,10 +7,11 @@ for the HOMEPOT system.
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
-from sqlalchemy import Result
+from sqlalchemy import Result, create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from homepot.config import get_settings
 from homepot.models import (
@@ -26,6 +27,18 @@ from homepot.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Import additional models to ensure they are registered with Base.metadata
+# This is crucial for create_all to create tables for these models
+try:
+    from homepot.app.models.AnalyticsModel import (  # noqa: F401
+        APIRequestLog,
+        DeviceStateHistory,
+        PushNotificationLog,
+        SiteOperatingSchedule,
+    )
+except ImportError:
+    logger.warning("Could not import AnalyticsModel. Tables may not be created.")
 
 
 class DatabaseService:
@@ -517,3 +530,55 @@ async def close_database_service() -> None:
     if _db_service is not None:
         await _db_service.close()
         _db_service = None
+
+
+# =============================================================================
+# Synchronous Database Support (Legacy & Sync API)
+# =============================================================================
+
+# Create sync engine for synchronous operations
+_settings = get_settings()
+_db_url = _settings.database.url
+
+# Convert async URLs to sync for this synchronous layer
+if _db_url.startswith("sqlite+aiosqlite://"):
+    _db_url = _db_url.replace("sqlite+aiosqlite://", "sqlite:///")
+elif _db_url.startswith("postgresql+asyncpg://"):
+    _db_url = _db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+
+# Create sync engine
+if _db_url.startswith("sqlite"):
+    sync_engine = create_engine(
+        _db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
+    )
+elif _db_url.startswith("postgresql"):
+    sync_engine = create_engine(
+        _db_url, pool_pre_ping=True, pool_size=5, max_overflow=10
+    )
+else:
+    sync_engine = create_engine(_db_url)
+
+SessionLocal = sessionmaker(bind=sync_engine, autocommit=False, autoflush=False)
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Dependency for getting a sync database session (FastAPI style)."""
+    db = None
+    try:
+        db = SessionLocal()
+        yield db
+    except Exception as e:
+        logger.error("Database session error: %s", e)
+        raise
+    finally:
+        if db is not None:
+            db.close()
+
+
+def execute_update(sql: str, params: Optional[Dict[str, Any]] = None) -> bool:
+    """Execute an UPDATE or DELETE statement synchronously."""
+    params = params or {}
+    with SessionLocal() as session:
+        session.execute(text(sql), params)
+        session.commit()
+        return True

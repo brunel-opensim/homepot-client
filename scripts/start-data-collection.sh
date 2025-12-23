@@ -96,4 +96,44 @@ sleep 3
 
 # Start backend
 cd "$BACKEND_DIR"
-uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Define cleanup to kill background process
+cleanup() {
+    echo ""
+    echo "Stopping HOMEPOT Backend..."
+    if [ -n "$BACKEND_PID" ]; then
+        kill "$BACKEND_PID" 2>/dev/null || true
+    fi
+    if [ -n "$TRAFFIC_PID" ]; then
+        kill "$TRAFFIC_PID" 2>/dev/null || true
+    fi
+    exit
+}
+trap cleanup SIGINT SIGTERM EXIT
+
+echo "Starting uvicorn in background (logging to backend/homepot.log)..."
+# Create/Clear log file
+> homepot.log
+
+# Start uvicorn in background
+uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload > homepot.log 2>&1 &
+BACKEND_PID=$!
+
+echo "Backend started with PID $BACKEND_PID"
+echo "Waiting for services to initialize..."
+sleep 5
+
+echo "Starting traffic generator..."
+python utils/generate_traffic.py > /dev/null 2>&1 &
+TRAFFIC_PID=$!
+
+# Run the dashboard
+if python -c "import rich" 2>/dev/null; then
+    python utils/visualize_progress.py
+else
+    echo "Rich library not found. Showing logs instead."
+    tail -f homepot.log
+fi
+
+# Wait for backend
+wait "$BACKEND_PID"

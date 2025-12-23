@@ -538,10 +538,10 @@ class POSAgentSimulator:
         return health_data
 
     async def _health_check_loop(self) -> None:
-        """Periodic health check loop (every 30 seconds)."""
+        """Periodic health check loop (every 5 seconds)."""
         while self.is_running:
             try:
-                await asyncio.sleep(30)  # Check every 30 seconds
+                await asyncio.sleep(5)  # Check every 5 seconds
                 if self.state == AgentState.IDLE:
                     await self._run_health_check()
             except Exception as e:

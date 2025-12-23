@@ -138,11 +138,31 @@ The HOMEPOT Client now supports push notifications across **all major platforms 
 
 **Total Coverage:** 95%+ of consumer devices + Industrial/IoT devices
 
+## Client-Side Integration & Analytics
+
+### Client-Side SDKs
+"Client-side SDKs" refer to the code running on the device receiving the notification (e.g., web browser, Android phone, IoT sensor). This code is responsible for:
+1. **Receiving** the push payload from the platform (FCM, APNS, Web Push).
+2. **Displaying** the notification to the user.
+3. **Reporting back** (Acknowledging) to the server that the message was received.
+
+**Scope & Implementation:**
+- **Web Platform (In Scope):** The "Web Client" is the frontend application in this repository. The SDK logic resides in the Service Worker (`frontend/public/sw.js`), which has been updated to support the "Fire and Acknowledge" analytics loop.
+- **Mobile & IoT Platforms (External):** For Android/iOS apps and IoT firmware, we define the **API Contract** (the `/ack` endpoint) that external developers must implement.
+
+### Service Vision: Technician vs. User Portals
+The HOMEPOT Client is evolving into a service accessible by both Technicians and Users (Clients).
+- **Role-Based Access:** The system supports distinct login options based on roles.
+- **Future State:** Envisioned as a cloud-based service where:
+    - **Technicians** access an administrative portal for device management and diagnostics.
+    - **Users (Clients)** access a user-centric portal for monitoring their specific devices and receiving notifications.
+- **Methodology:** This separation ensures security and tailored user experiences, potentially evolving into separate subdomains (e.g., `app.homepot.com` vs `admin.homepot.com`) while sharing the same robust backend API.
+
 ## Next Steps
 
-1. **Backend-Frontend Integration** - Connect frontend UI with push notification system
+1. **Backend-Frontend Integration** - Connect frontend UI with push notification system (Completed for Web Push)
 2. **Production Credentials** - Configure production credentials for each platform
-3. **Monitoring & Analytics** - Add metrics and logging for push notification analytics
+3. **Monitoring & Analytics** - Add metrics and logging for push notification analytics (Backend Implemented)
 4. **Performance Testing** - Test bulk notification performance across platforms
 5. **User Preferences** - Implement user notification preference management
 

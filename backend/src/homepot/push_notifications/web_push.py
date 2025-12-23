@@ -54,6 +54,7 @@ import asyncio
 import base64
 import json
 import logging
+import uuid
 from datetime import datetime
 from typing import Any, Dict, List
 from urllib.parse import urlparse
@@ -224,6 +225,13 @@ class WebPushProvider(PushNotificationProvider):
                     error_code="INVALID_SUBSCRIPTION",
                 )
 
+            # Ensure message_id exists for analytics
+            if payload.data is None:
+                payload.data = {}
+
+            if "message_id" not in payload.data:
+                payload.data["message_id"] = str(uuid.uuid4())
+
             # Build Web Push payload
             push_data = self._build_push_data(payload)
 
@@ -296,7 +304,7 @@ class WebPushProvider(PushNotificationProvider):
                 message="Push notification sent successfully",
                 platform=self.platform_name,
                 device_token=subscription["endpoint"][:50] + "...",
-                message_id=None,  # Web Push doesn't return message ID
+                message_id=payload.data.get("message_id"),
             )
 
         except WebPushException as e:

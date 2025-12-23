@@ -18,9 +18,9 @@ from homepot.app.auth_utils import (
     require_role,
     verify_password,
 )
-from homepot.app.db.database import SessionLocal
 from homepot.app.models import UserRegisterModel as models
 from homepot.app.schemas import schemas
+from homepot.database import SessionLocal
 
 # Cookie settings
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"

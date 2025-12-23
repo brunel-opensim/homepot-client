@@ -9,8 +9,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import TokenData, get_current_user
-from homepot.app.db.database import get_db
 from homepot.app.models import AnalyticsModel as models
+from homepot.database import get_db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

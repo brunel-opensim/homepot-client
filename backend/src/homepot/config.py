@@ -69,6 +69,25 @@ class PushNotificationSettings(BaseSettings):
         default="homepot", description="Prefix for push notification collapse keys"
     )
 
+    # Web Push (VAPID) Configuration
+    vapid_private_key: Optional[str] = Field(
+        default=None, description="VAPID private key for Web Push"
+    )
+    vapid_public_key: Optional[str] = Field(
+        default=None, description="VAPID public key for Web Push"
+    )
+    vapid_subject: Optional[str] = Field(
+        default=None, description="VAPID subject (mailto or URL)"
+    )
+
+    # WNS (Windows) Configuration
+    wns_package_sid: Optional[str] = Field(
+        default=None, description="Windows Package SID"
+    )
+    wns_client_secret: Optional[str] = Field(
+        default=None, description="WNS Client Secret"
+    )
+
 
 class DeviceSettings(BaseSettings):
     """Device management configuration."""

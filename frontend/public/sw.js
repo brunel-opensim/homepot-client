@@ -52,6 +52,71 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
+// IndexedDB helper to store device_id
+const DB_NAME = 'homepot-db';
+const STORE_NAME = 'settings';
+
+async function getDeviceId() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const getRequest = store.get('device_id');
+
+      getRequest.onsuccess = () => {
+        if (getRequest.result) {
+          resolve(getRequest.result);
+        } else {
+          // Generate new ID if not found
+          const newId = self.crypto.randomUUID();
+          const writeTransaction = db.transaction(STORE_NAME, 'readwrite');
+          const writeStore = writeTransaction.objectStore(STORE_NAME);
+          writeStore.put(newId, 'device_id');
+          resolve(newId);
+        }
+      };
+      
+      getRequest.onerror = () => reject(getRequest.error);
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function acknowledgePush(messageId) {
+  if (!messageId) return;
+  
+  try {
+    const deviceId = await getDeviceId();
+    await fetch('/api/v1/push/ack', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message_id: messageId,
+        device_id: deviceId,
+        status: 'delivered',
+        received_at: new Date().toISOString(),
+        platform: 'web_push'
+      })
+    });
+    console.log('[SW] Acknowledged push:', messageId);
+  } catch (err) {
+    console.error('[SW] Failed to acknowledge push:', err);
+  }
+}
+
 // Push event - handle incoming push notifications
 self.addEventListener('push', (event) => {
   console.log('[SW] Push notification received:', event);
@@ -79,6 +144,11 @@ self.addEventListener('push', (event) => {
         requireInteraction: payload.requireInteraction || false,
         actions: payload.actions || [],
       };
+
+      // Acknowledge receipt if message_id is present
+      if (payload.message_id) {
+        event.waitUntil(acknowledgePush(payload.message_id));
+      }
     } catch (error) {
       console.error('[SW] Error parsing push data:', error);
       notificationData.body = event.data.text();
