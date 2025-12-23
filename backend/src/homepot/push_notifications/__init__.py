@@ -101,20 +101,20 @@ def check_platform_availability() -> Dict[str, bool]:
         pass
 
     # Check FCM Android (when implemented)
-    try:
-        from .fcm_android import FCMAndroidProvider  # noqa: F401
-
-        platforms["fcm_android"] = True
-    except ImportError:
-        pass
+    # try:
+    #     from .fcm_android import FCMAndroidProvider  # noqa: F401
+    #
+    #     platforms["fcm_android"] = True
+    # except ImportError:
+    #     pass
 
     # Check UnifiedPush (when implemented)
-    try:
-        from .unified_push import UnifiedPushProvider  # noqa: F401
-
-        platforms["unified_push"] = True
-    except ImportError:
-        pass
+    # try:
+    #     from .unified_push import UnifiedPushProvider  # noqa: F401
+    #
+    #     platforms["unified_push"] = True
+    # except ImportError:
+    #     pass
 
     PLATFORM_STATUS = platforms
     return platforms
