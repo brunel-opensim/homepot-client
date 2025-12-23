@@ -83,6 +83,37 @@ Fetch details for a specific device.
 curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123"
 ```
 
+### 2.1 Get Device MDM Profile URL
+
+Fetch the Mobivisor MDM profile URL for a specific device.
+
+This endpoint proxies Mobivisor's `GET /devices/{deviceId}/mdmProfileUrl` API.
+
+**Endpoint**: `GET /api/v1/mobivisor/devices/{device_id}/mdmProfileUrl`
+
+**Parameters**:
+- `device_id` (path, required): The unique identifier of the device
+
+**Response** (200 OK):
+```json
+{
+  "mdmProfileUrl": "https://example.com/profile.mobileconfig"
+}
+```
+
+**Example**:
+```bash
+curl -X GET "http://localhost:8000/api/v1/mobivisor/devices/123/mdmProfileUrl"
+```
+
+**Notes & Errors**:
+- `400 Validation Error`: Returned when `device_id` is missing/blank.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Token is missing/invalid or insufficient permissions.
+- `404 Not Found`: Device not found on Mobivisor.
+- `502 Bad Gateway`: Upstream Mobivisor error or network error.
+- `504 Gateway Timeout`: Mobivisor did not respond in time.
+
 ### 3. Delete Device
 
 Delete a device from Mobivisor.
