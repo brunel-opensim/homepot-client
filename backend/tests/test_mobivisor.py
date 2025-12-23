@@ -96,6 +96,338 @@ class TestMobivisorDevicesEndpoints:
         assert response.status_code == 500
         assert "Configuration Error" in response.json()["detail"]["error"]
 
+
+class TestMobivisorDeviceLoginsDelete:
+    """Tests for deleting device login records via Mobivisor."""
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_device_logins_success_no_content(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful delete of device logins when upstream returns 204."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(status_code=204, json_data=None)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/devices/123/logins")
+        assert response.status_code == 200
+        assert response.json() == {}
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_delete_device_logins_missing_url(self, mock_config, client):
+        """Test delete device logins fails when Mobivisor API URL is missing."""
+        mock_config.return_value = {
+            "mobivisor_api_url": None,
+            "mobivisor_api_token": "test-token",
+        }
+
+        response = client.delete("/api/v1/mobivisor/devices/123/logins")
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_delete_device_logins_missing_token(self, mock_config, client):
+        """Test delete device logins fails when Mobivisor API token is missing."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": None,
+        }
+
+        response = client.delete("/api/v1/mobivisor/devices/123/logins")
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_device_logins_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test delete device logins propagates upstream 401/403 as unauthorized."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(status_code=401, json_data={"error": "no"})
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/devices/123/logins")
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "Unauthorized"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_device_logins_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test delete device logins returns 404 when device is not found upstream."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"message": "missing"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/devices/does-not-exist/logins")
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "Not Found"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_device_logins_timeout(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+    ):
+        """Test delete device logins returns 504 on Mobivisor timeout."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/devices/123/logins")
+        assert response.status_code == 504
+        assert response.json()["detail"]["error"] == "Gateway Timeout"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_delete_device_logins_request_error(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+    ):
+        """Test delete device logins returns 502 on network/request error."""
+        mock_config.return_value = mock_mobivisor_config
+
+        req = httpx.Request("DELETE", "https://test.mobivisor.com/devices/123/logins")
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.RequestError("boom", request=req)
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.delete("/api/v1/mobivisor/devices/123/logins")
+        assert response.status_code == 502
+        assert response.json()["detail"]["error"] == "Bad Gateway"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_delete_device_logins_invalid_device_id(self, mock_config, client):
+        """Test delete device logins rejects blank/whitespace-only device_id."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": "test-token",
+        }
+
+        response = client.delete("/api/v1/mobivisor/devices/%20%20%20/logins")
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "Validation Error"
+
+
+class TestMobivisorDeviceMdmProfileUrl:
+    """Tests for fetching a device MDM profile URL via Mobivisor."""
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_device_mdm_profile_url_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful fetch of mdmProfileUrl when upstream returns a string."""
+        mock_config.return_value = mock_mobivisor_config
+        upstream_url = "https://example.com/profile.mobileconfig"
+        mock_response = mock_httpx_response(status_code=200, json_data=None)
+        mock_response.json.side_effect = ValueError("not json")
+        mock_response.text = upstream_url
+        mock_response.content = upstream_url.encode("utf-8")
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/devices/123/mdmProfileUrl")
+        assert response.status_code == 200
+        assert response.json() == {"mdmProfileUrl": upstream_url}
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_fetch_device_mdm_profile_url_missing_url(self, mock_config, client):
+        """Test mdmProfileUrl fetch fails when Mobivisor API URL is missing."""
+        mock_config.return_value = {
+            "mobivisor_api_url": None,
+            "mobivisor_api_token": "test-token",
+        }
+
+        response = client.get("/api/v1/mobivisor/devices/123/mdmProfileUrl")
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_fetch_device_mdm_profile_url_missing_token(self, mock_config, client):
+        """Test mdmProfileUrl fetch fails when Mobivisor API token is missing."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": None,
+        }
+
+        response = client.get("/api/v1/mobivisor/devices/123/mdmProfileUrl")
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_device_mdm_profile_url_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test mdmProfileUrl fetch propagates upstream 401/403 as unauthorized."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(status_code=403, json_data={"error": "no"})
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/devices/123/mdmProfileUrl")
+        assert response.status_code == 403
+        assert response.json()["detail"]["error"] == "Unauthorized"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_device_mdm_profile_url_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test mdmProfileUrl fetch returns 404 when device is not found upstream."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"message": "missing"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/devices/does-not-exist/mdmProfileUrl")
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "Not Found"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_fetch_device_mdm_profile_url_timeout(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+    ):
+        """Test mdmProfileUrl fetch returns 504 on Mobivisor timeout."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.get("/api/v1/mobivisor/devices/123/mdmProfileUrl")
+        assert response.status_code == 504
+        assert response.json()["detail"]["error"] == "Gateway Timeout"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorDeviceEndpoints.get_mobivisor_api_config"
+    )
+    def test_fetch_device_mdm_profile_url_invalid_device_id(self, mock_config, client):
+        """Test mdmProfileUrl fetch rejects blank/whitespace-only device_id."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": "test-token",
+        }
+
+        response = client.get("/api/v1/mobivisor/devices/%20%20%20/mdmProfileUrl")
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "Validation Error"
+
     @patch(
         "homepot.app.api.API_v1.Endpoints.Mobivisor."
         "MobivisorDeviceEndpoints.get_mobivisor_api_config"
@@ -139,6 +471,207 @@ class TestMobivisorDevicesEndpoints:
 
         assert response.status_code == 401
         assert "Unauthorized" in response.json()["detail"]["error"]
+
+
+class TestMobivisorMobileAppsUpdate:
+    """Tests for updating Mobivisor mobile apps via proxy endpoint."""
+
+    @staticmethod
+    def _valid_mobile_app_payload() -> dict:
+        return {
+            "_id": "689c7d4e40257462671afcfc",
+            "appName": "DDCheckout",
+            "appSize": 33175454,
+            "fileOrStore": "File",
+            "environment": "Android",
+            "image_url": "img/mydd/uploadedAppImages/com.myddfoodapp/1755086158402/7c.png",
+            "appPackageName": "com.myddfoodapp",
+            "versionCode": "1",
+            "versionName": "1.0",
+            "silentInstallAfterSignin": False,
+            "autoInstall": False,
+            "localFilePath": "private/mydd/applicationAPKs/PackageNameNotGiven/1755086158186/1755086158193_17._DDCheckout10secsplashscreen.apk",
+            "managedConfig": [],
+            "__v": 0,
+            "managementFlags": {"removeAppOnMDMRemoval": True},
+            "createdAtStamp": 1755086158000,
+            "createdAt": "08/13/2025 17:25",
+            "environmentEnhanced": "Android",
+            "isChecked": False,
+            "description": "Test",
+        }
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorMobileApps.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_mobile_app_success(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test successful update of a Mobivisor mobile app."""
+        mock_config.return_value = mock_mobivisor_config
+        upstream_data = {"ok": True}
+        mock_response = mock_httpx_response(status_code=200, json_data=upstream_data)
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        payload = self._valid_mobile_app_payload()
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/689c7d4e40257462671afcfc",
+            json={"app": payload},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == upstream_data
+
+        request_kwargs = mock_client_instance.request.call_args.kwargs
+        assert request_kwargs["method"] == "PUT"
+        assert request_kwargs["url"].endswith("/mobileapps/689c7d4e40257462671afcfc")
+        assert request_kwargs["headers"]["Authorization"].startswith("Bearer ")
+        assert request_kwargs["json"]["app"]["_id"] == payload["_id"]
+        assert request_kwargs["json"]["app"]["__v"] == payload["__v"]
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorMobileApps.get_mobivisor_api_config"
+    )
+    def test_update_mobile_app_missing_url(self, mock_config, client):
+        """Test update mobile app fails when Mobivisor API URL is missing."""
+        mock_config.return_value = {
+            "mobivisor_api_url": None,
+            "mobivisor_api_token": "test-token",
+        }
+
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/app-1", json=self._valid_mobile_app_payload()
+        )
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorMobileApps.get_mobivisor_api_config"
+    )
+    def test_update_mobile_app_missing_token(self, mock_config, client):
+        """Test update mobile app fails when Mobivisor API token is missing."""
+        mock_config.return_value = {
+            "mobivisor_api_url": "https://test.mobivisor.com/",
+            "mobivisor_api_token": None,
+        }
+
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/app-1", json=self._valid_mobile_app_payload()
+        )
+        assert response.status_code == 500
+        assert response.json()["detail"]["error"] == "Configuration Error"
+
+    def test_update_mobile_app_invalid_application_id_blank(self, client):
+        """Test update mobile app returns 400 when application_id is blank."""
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/%20%20%20",
+            json=self._valid_mobile_app_payload(),
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "Validation Error"
+
+    def test_update_mobile_app_invalid_payload(self, client):
+        """Test update mobile app returns 422 when payload is invalid."""
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/app-1", json={"appName": "Only"}
+        )
+        assert response.status_code == 422
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorMobileApps.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_mobile_app_unauthorized(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test update mobile app propagates upstream 401/403 as unauthorized."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(status_code=403, json_data={"error": "no"})
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/app-1", json=self._valid_mobile_app_payload()
+        )
+        assert response.status_code == 403
+        assert response.json()["detail"]["error"] == "Unauthorized"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorMobileApps.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_mobile_app_not_found(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+        mock_httpx_response,
+    ):
+        """Test update mobile app returns 404 when upstream app is not found."""
+        mock_config.return_value = mock_mobivisor_config
+        mock_response = mock_httpx_response(
+            status_code=404, json_data={"message": "missing"}
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(return_value=mock_response)
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/does-not-exist",
+            json=self._valid_mobile_app_payload(),
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "Not Found"
+
+    @patch(
+        "homepot.app.api.API_v1.Endpoints.Mobivisor."
+        "MobivisorMobileApps.get_mobivisor_api_config"
+    )
+    @patch("httpx.AsyncClient")
+    def test_update_mobile_app_timeout(
+        self,
+        mock_async_client,
+        mock_config,
+        client,
+        mock_mobivisor_config,
+    ):
+        """Test update mobile app returns 504 on Mobivisor timeout."""
+        mock_config.return_value = mock_mobivisor_config
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.request = AsyncMock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
+        mock_async_client.return_value.__aenter__.return_value = mock_client_instance
+
+        response = client.put(
+            "/api/v1/mobivisor/mobileapps/app-1", json=self._valid_mobile_app_payload()
+        )
+        assert response.status_code == 504
+        assert response.json()["detail"]["error"] == "Gateway Timeout"
 
 
 class TestMobivisorDeviceIMEI:

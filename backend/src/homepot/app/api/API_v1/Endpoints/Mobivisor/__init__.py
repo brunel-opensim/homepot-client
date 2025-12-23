@@ -1,5 +1,5 @@
 """Mobivisor API endpoints module."""
 
-from . import MobivisorDeviceEndpoints
+from . import MobivisorDeviceEndpoints, MobivisorMobileApps
 
-__all__ = ["MobivisorDeviceEndpoints"]
+__all__ = ["MobivisorDeviceEndpoints", "MobivisorMobileApps"]

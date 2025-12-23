@@ -198,6 +198,119 @@ async def delete_device(device_id: str) -> Dict[str, Any]:
     return {"message": "Device deleted successfully", "device_id": device_id}
 
 
+@router.delete("/devices/{device_id}/logins", tags=["Mobivisor Devices"])
+async def delete_device_logins(device_id: str) -> Dict[str, Any]:
+    """Delete all login records for a device in Mobivisor.
+
+    This endpoint proxies a DELETE request to Mobivisor's
+    `/devices/{device_id}/logins` endpoint.
+
+    Args:
+        device_id: The unique identifier of the device (required).
+
+    Returns:
+        Dict[str, Any]: Proxied JSON response from Mobivisor.
+        When Mobivisor returns `204 No Content`, this endpoint returns an empty
+        JSON object `{}`.
+
+    Raises:
+        HTTPException: For configuration issues, validation errors, or mapped
+        upstream failures (401/403/404/5xx).
+
+    Example:
+        ```python
+        DELETE /api/v1/mobivisor/devices/123/logins
+        ```
+
+        Response:
+        ```json
+        {}
+        ```
+    """
+    if not device_id or not device_id.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Validation Error",
+                "message": "device_id is required",
+            },
+        )
+
+    logger.info("Deleting device logins via Mobivisor API: %s", device_id)
+    config = get_mobivisor_api_config()
+    response = await make_mobivisor_request(
+        "DELETE", f"devices/{device_id}/logins", config=config
+    )
+    return handle_mobivisor_response(response, f"delete device logins {device_id}")
+
+
+@router.get("/devices/{device_id}/mdmProfileUrl", tags=["Mobivisor Devices"])
+async def fetch_device_mdm_profile_url(device_id: str) -> Dict[str, Any]:
+    """Fetch the MDM profile URL for a device from Mobivisor.
+
+    This endpoint proxies a GET request to Mobivisor's
+    `/devices/{device_id}/mdmProfileUrl` endpoint.
+
+    Args:
+        device_id: The unique identifier of the device (required).
+
+    Returns:
+        Dict[str, Any]: Proxied JSON response from Mobivisor containing the
+        MDM profile URL.
+
+    Raises:
+        HTTPException: For configuration issues, validation errors, or mapped
+        upstream failures (401/403/404/5xx).
+
+    Example:
+        ```python
+        GET /api/v1/mobivisor/devices/123/mdmProfileUrl
+        ```
+
+        Response:
+        ```json
+        {"mdmProfileUrl": "https://example.com/profile.mobileconfig"}
+        ```
+    """
+    if not device_id or not device_id.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Validation Error",
+                "message": "device_id is required",
+            },
+        )
+
+    logger.info("Fetching MDM profile URL via Mobivisor API: %s", device_id)
+    config = get_mobivisor_api_config()
+    response = await make_mobivisor_request(
+        "GET", f"devices/{device_id}/mdmProfileUrl", config=config
+    )
+
+    # Mobivisor may return a plain string (URL) for this endpoint instead of a
+    # JSON object. Normalize successful responses into a JSON object.
+    if 200 <= response.status_code < 300:
+        try:
+            parsed = response.json() if response.content else None
+        except Exception:
+            parsed = None
+
+        if isinstance(parsed, dict):
+            return parsed
+
+        if isinstance(parsed, str) and parsed.strip():
+            return {"mdmProfileUrl": parsed.strip()}
+
+        text = (response.text or "").strip()
+        if text.startswith('"') and text.endswith('"') and len(text) >= 2:
+            text = text[1:-1]
+        return {"mdmProfileUrl": text}
+
+    return handle_mobivisor_response(
+        response, f"fetch mdmProfileUrl for device {device_id}"
+    )
+
+
 @router.get("/devices/{device_id}/installed-packages", tags=["Mobivisor Devices"])
 async def fetch_device_installed_packages(device_id: str) -> Any:
     """Fetch installed packages for a specific device from Mobivisor API.
