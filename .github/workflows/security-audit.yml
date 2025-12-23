@@ -51,7 +51,7 @@ jobs:
         pip install -e backend/
 
     - name: Run Safety security scan
-      run: safety check --json --output safety-results.json
+      run: safety scan --save-as json safety-results.json
       continue-on-error: true
 
     - name: Run Bandit security scan
@@ -88,7 +88,7 @@ jobs:
       run: |
         echo "Running comprehensive dependency security check..."
         # Use pip-audit which was already installed above
-        pip-audit --desc --format=text || echo "Some vulnerabilities found - check pip-audit-results.json for details"
+        pip-audit --desc --format=columns || echo "Some vulnerabilities found - check pip-audit-results.json for details"
         echo "Dependency security scan completed successfully"
 
   secret-scan:
