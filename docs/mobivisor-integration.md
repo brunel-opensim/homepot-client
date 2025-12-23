@@ -105,6 +105,37 @@ Delete a device from Mobivisor.
 curl -X DELETE "http://localhost:8000/api/v1/mobivisor/devices/123"
 ```
 
+### 3.1 Delete Device Logins
+
+Delete all device login records for a specific device in Mobivisor.
+
+This endpoint proxies Mobivisor's `DELETE /devices/{deviceId}/logins` API.
+
+**Endpoint**: `DELETE /api/v1/mobivisor/devices/{device_id}/logins`
+
+**Parameters**:
+- `device_id` (path, required): The unique identifier of the device
+
+**Response** (200 OK):
+```json
+{}
+```
+
+> Note: When Mobivisor responds with `204 No Content`, the proxy returns `{}`.
+
+**Example**:
+```bash
+curl -X DELETE "http://localhost:8000/api/v1/mobivisor/devices/123/logins"
+```
+
+**Notes & Errors**:
+- `400 Validation Error`: Returned when `device_id` is missing/blank.
+- `500 Configuration Error`: Missing `mobivisor_api_url` or `mobivisor_api_token`.
+- `401/403 Unauthorized`: Token is missing/invalid or insufficient permissions.
+- `404 Not Found`: Device (or login resource) not found on Mobivisor.
+- `502 Bad Gateway`: Upstream Mobivisor error or network error.
+- `504 Gateway Timeout`: Mobivisor did not respond in time.
+
 ### 4. Get Installed Packages
 
 Fetch the list of installed packages (enterprise apps) on a specific device managed by Mobivisor.
