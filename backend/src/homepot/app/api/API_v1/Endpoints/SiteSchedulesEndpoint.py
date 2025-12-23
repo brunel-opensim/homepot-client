@@ -5,7 +5,7 @@ from datetime import time
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select
 
 from homepot.app.models.AnalyticsModel import SiteOperatingSchedule
@@ -44,8 +44,8 @@ class ScheduleCreate(BaseModel):
     )
     notes: Optional[str] = Field(None, description="Additional notes")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "site_id": "site-001",
                 "day_of_week": 0,
@@ -59,6 +59,7 @@ class ScheduleCreate(BaseModel):
                 "notes": "Regular weekday schedule",
             }
         }
+    )
 
 
 class ScheduleUpdate(BaseModel):

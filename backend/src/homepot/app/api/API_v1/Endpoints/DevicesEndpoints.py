@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.exc import IntegrityError
 
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
@@ -76,6 +77,11 @@ async def create_device(
 
     except HTTPException:
         raise
+    except IntegrityError:
+        logger.warning(f"Device {device_request.device_id} already exists")
+        raise HTTPException(
+            status_code=409, detail=f"Device {device_request.device_id} already exists"
+        )
     except Exception as e:
         logger.error(f"Failed to create device: {e}", exc_info=True)
         raise HTTPException(
