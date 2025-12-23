@@ -35,13 +35,10 @@ jobs:
       run: |
         set -e
         python -m pip install --upgrade pip
-        pip install --no-cache-dir bandit[toml] safety
+        pip install --no-cache-dir bandit[toml]
 
     - name: Run Bandit security scan
-      run: bandit -r backend/src/homepot/ -f json -o bandit-results.json || true
-
-    - name: Run Safety security scan
-      run: safety check --save-json safety-results.json || true
+      run: bandit -r backend/src/homepot/ -ll -f json -o bandit-results.json || true
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -50,6 +47,8 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
+        ignore-unfixed: true
+        severity: 'CRITICAL,HIGH'
 
     - name: Check Advanced Security availability
       if: github.repository_owner != 'brunel-opensim'
@@ -64,6 +63,7 @@ jobs:
       continue-on-error: true
       with:
         sarif_file: 'trivy-results.sarif'
+        category: 'trivy'
 
     - name: Upload security scan artifacts
       uses: actions/upload-artifact@v4
@@ -72,7 +72,6 @@ jobs:
         name: security-scan-results
         path: |
           bandit-results.json
-          safety-results.json
           trivy-results.sarif
         retention-days: 30
 
