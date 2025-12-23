@@ -4,9 +4,9 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, cast
 
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
 from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
