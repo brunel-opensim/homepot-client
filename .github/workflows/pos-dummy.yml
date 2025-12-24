@@ -24,6 +24,10 @@ on:
     - 'backend/src/homepot/orchestrator.py'
     - 'backend/tests/test_pos_dummy.py'
     - 'scripts/run-pos-dummy.sh'
+  
+  # Trigger on PRs to main to act as a gate
+  pull_request:
+    branches: [ main ]
     
   # Schedule regular POSDummy runs (every 6 hours)
   schedule:
