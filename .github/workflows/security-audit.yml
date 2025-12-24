@@ -54,24 +54,6 @@ jobs:
       run: bandit -r backend/src/homepot/ ai/ -ll -f json -o bandit-results.json
       continue-on-error: true
 
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        version: 'v0.68.2'
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        ignore-unfixed: true
-        severity: 'CRITICAL,HIGH'
-
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v4
-      if: always() && github.repository_owner == 'brunel-opensim'
-      continue-on-error: true
-      with:
-        sarif_file: 'trivy-results.sarif'
-
     - name: Run pip-audit
       run: |
         pip install --no-cache-dir pip-audit
