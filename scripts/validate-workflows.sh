@@ -579,12 +579,12 @@ validate_python() {
         echo -e "${GREEN}$current_python_version${NC}"
         log_verbose "Running on Python $current_python_version"
         
-        # Check if it matches CI versions (3.9, 3.11)
-        if [[ "$current_python_version" =~ ^(3\.9|3\.11|3\.12)$ ]]; then
+        # Check if it matches CI versions (3.10, 3.11, 3.12)
+        if [[ "$current_python_version" =~ ^(3\.10|3\.11|3\.12)$ ]]; then
             log_verbose "Python version compatible with CI"
         else
-            log_warning "Local Python $current_python_version differs from CI versions (3.9, 3.11)"
-            log_verbose "Consider testing with Python 3.9 or 3.11 for CI compatibility"
+            log_warning "Local Python $current_python_version differs from CI versions (3.10, 3.11, 3.12)"
+            log_verbose "Consider testing with Python 3.10+ for CI compatibility"
         fi
     else
         echo -e "${RED}Unknown${NC}"
