@@ -122,52 +122,6 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/ai/query")
-async def query_ai(request: QueryRequest) -> Dict[str, Any]:
-    """Ask a natural language question about devices."""
-    try:
-        # 1. Retrieve context from memory
-        context_memories = memory_service.query_similar(request.query)
-        context_str = "\n".join([m["content"] for m in context_memories])
-
-        # 2. Generate response
-        response = llm_service.generate_response(request.query, context=context_str)
-
-        return {"response": response, "context_used": len(context_memories)}
-    except Exception as e:
-        logger.error(f"Query failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/ai/analyze")
-async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
-    """Analyze device metrics for anomalies using Hybrid approach."""
-    try:
-        # 1. Rule-Based Analysis (Fast & Deterministic)
-        anomaly_score = anomaly_detector.check_anomaly(request.metrics)
-
-        # 2. LLM Analysis (Contextual & Explanatory)
-        # We feed the rule-based score to the LLM to guide its interpretation
-        prompt = (
-            f"Analyze these metrics for device {request.device_id}.\n"
-            f"Metrics: {request.metrics}\n"
-            f"Automated Anomaly Score: {anomaly_score}/1.0\n"
-            f"Task: Explain any anomalies found and recommend actions."
-        )
-        analysis = llm_service.generate_response(prompt)
-
-        return {
-            "device_id": request.device_id,
-            "anomaly_score": anomaly_score,
-            "is_anomaly": anomaly_score > 0.5,
-            "analysis": analysis,
-            "status": "processed",
-        }
-    except Exception as e:
-        logger.error(f"Analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 if __name__ == "__main__":
     import uvicorn
 
