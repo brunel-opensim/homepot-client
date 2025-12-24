@@ -35,16 +35,16 @@ jobs:
         pip install -e backend/
 
     - name: Run Black formatter check
-      run: black --check backend/src/homepot/ backend/tests/
+      run: black --check backend/src/homepot/ backend/tests/ ai/
 
     - name: Run isort import sorting check
-      run: isort --check-only backend/src/homepot/ backend/tests/
+      run: isort --check-only backend/src/homepot/ backend/tests/ ai/
 
     - name: Run flake8 linting
-      run: flake8 backend/src/homepot/ backend/tests/
+      run: flake8 backend/src/homepot/ backend/tests/ ai/
 
     - name: Run mypy type checking
-      run: mypy --config-file=backend/mypy.ini backend/src/homepot/
+      run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/
 
     - name: Validate documentation files
       run: |

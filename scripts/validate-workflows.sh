@@ -465,11 +465,11 @@ validate_code_quality() {
     # Black formatting
     if command -v black >/dev/null 2>&1; then
         echo -n "    Black formatting: "
-        log_verbose "Running: black --check backend/ backend/tests/"
-        if black --check backend/ backend/tests/ 2>/dev/null; then
+        log_verbose "Running: black --check backend/ backend/tests/ ai/"
+        if black --check backend/ backend/tests/ ai/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: black backend/ backend/tests/${NC}"
+            echo -e "${RED}Failed - run: black backend/ backend/tests/ ai/${NC}"
             failed=true
         fi
     else
@@ -479,11 +479,11 @@ validate_code_quality() {
     # isort import sorting (NEW - matches CI/CD)
     if command -v isort >/dev/null 2>&1; then
         echo -n "    Import sorting (isort): "
-        log_verbose "Running: isort --check-only backend/ backend/tests/"
-        if isort --check-only backend/ backend/tests/ 2>/dev/null; then
+        log_verbose "Running: isort --check-only backend/ backend/tests/ ai/"
+        if isort --check-only backend/ backend/tests/ ai/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: isort backend/ backend/tests/${NC}"
+            echo -e "${RED}Failed - run: isort backend/ backend/tests/ ai/${NC}"
             failed=true
         fi
     else
@@ -493,11 +493,11 @@ validate_code_quality() {
     # flake8 linting
     if command -v flake8 >/dev/null 2>&1; then
         echo -n "    Linting (flake8): "
-        log_verbose "Running: flake8 backend/ backend/tests/"
-        if flake8 backend/ backend/tests/ 2>/dev/null; then
+        log_verbose "Running: flake8 backend/ backend/tests/ ai/"
+        if flake8 backend/ backend/tests/ ai/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/${NC}"
+            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/ ai/${NC}"
             failed=true
         fi
     else
@@ -507,11 +507,11 @@ validate_code_quality() {
     # MyPy type checking (NEW - matches CI/CD)
     if command -v mypy >/dev/null 2>&1; then
         echo -n "    Type checking (mypy): "
-        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/src/homepot/"
+        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/"
         
         # Capture mypy output to check for specific errors
         local mypy_output
-        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/src/homepot/ 2>&1); then
+        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/ 2>&1); then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check for specific error types
@@ -526,7 +526,7 @@ validate_code_quality() {
                 log_verbose "This indicates missing dependencies in requirements.txt or missing type stubs"
                 log_verbose "Consider installing missing packages or type stubs (e.g., pip install types-*)"
             else
-                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/src/homepot/${NC}"
+                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/${NC}"
                 log_verbose "MyPy failed for other reasons"
                 if [[ "$VERBOSE" == true ]]; then
                     echo "$mypy_output" | head -10 | while read -r line; do
@@ -543,16 +543,16 @@ validate_code_quality() {
     # Security scans (NEW - matches CI/CD)
     if command -v bandit >/dev/null 2>&1; then
         echo -n "    Security scan (bandit): "
-        log_verbose "Running: bandit -r backend/ -ll --exclude venv,.venv,htmlcov,.pytest_cache,.mypy_cache"
+        log_verbose "Running: bandit -r backend/ ai/ -ll --exclude venv,.venv,htmlcov,.pytest_cache,.mypy_cache"
         # Use -ll for low severity threshold, exclude virtual env and build artifacts
-        if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
+        if bandit -r backend/ ai/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check exit code - 0 means success, 1 means issues found
-            if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>/dev/null; then
+            if bandit -r backend/ ai/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>/dev/null; then
                 echo -e "${GREEN}Passed${NC}"
             else
-                echo -e "${YELLOW}Warnings found - review with: bandit -r backend/ -ll${NC}"
+                echo -e "${YELLOW}Warnings found - review with: bandit -r backend/ ai/ -ll${NC}"
                 log_verbose "Security scan found issues but continuing (non-blocking)"
             fi
         fi
