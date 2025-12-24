@@ -2,91 +2,97 @@
 # Use: pip install -r requirements.txt
 
 # Core FastAPI and Database
-fastapi>=0.104.0
-starlette>=0.49.1  # Force security update for CVE-2025-62727
-uvicorn[standard]>=0.24.0
-sqlalchemy>=2.0.0
-aiosqlite>=0.19.0  # SQLite async driver (for testing)
-asyncpg>=0.29.0  # PostgreSQL async driver (production)
-alembic>=1.12.0
-psycopg2-binary==2.9.9  # PostgreSQL sync driver (backup)
+fastapi==0.127.0  # High-performance web framework for building APIs
+starlette==0.50.0  # ASGI framework/toolkit (Force security update for CVE-2025-62727)
+uvicorn[standard]==0.40.0  # ASGI web server implementation
+sqlalchemy==2.0.45  # SQL Toolkit and Object Relational Mapper (ORM)
+aiosqlite==0.22.1  # SQLite async driver (for testing)
+asyncpg==0.31.0  # PostgreSQL async driver (production)
+alembic==1.17.2  # Database migration tool for SQLAlchemy
+psycopg2-binary==2.9.11  # PostgreSQL sync driver (backup/utility scripts)
 
 # Authentication and Security
-passlib[bcrypt]>=1.7.4
-bcrypt==3.2.2  # Downgraded for passlib compatibility (v4.0+ removed __about__)
-python-multipart>=0.0.6
+passlib[bcrypt]==1.7.4  # Password hashing library
+bcrypt==4.1.3  # Modern password hashing (Upgraded for chromadb compatibility)
+python-multipart==0.0.21  # Streaming multipart parser for file uploads
 
 # Background Tasks and Queues
-celery>=5.3.0
-redis>=5.0.0
+celery==5.6.0  # Distributed task queue for background processing
+redis==7.1.0  # Python client for Redis (used as Celery broker/backend)
 
 # Real-time Communication
-websockets>=12.0
-asyncio-mqtt>=0.16.0  # For async MQTT client communication
+websockets==15.0.1  # Library for building WebSocket servers and clients
+asyncio-mqtt==0.16.2  # For async MQTT client communication (IoT device messaging)
 
 # Utilities
-pydantic>=2.5.0
-pydantic-settings>=2.1.0
-python-dotenv>=1.0.0
-structlog>=23.2.0  # For structured logging
-rich>=13.7.0  # For rich terminal output
-typer>=0.9.0  # For CLI interface
-pyyaml>=6.0.1  # For YAML configuration
+pydantic==2.12.5  # Data validation using Python type hints
+pydantic-settings==2.12.0  # Settings management using Pydantic
+python-dotenv==1.2.1  # Read key-value pairs from .env file
+structlog==25.5.0  # For structured logging
+rich==14.2.0  # For rich terminal output
+click==8.3.1  # Composable command line interface toolkit
+typer==0.20.1  # For CLI interface
+pyyaml==6.0.3  # For YAML configuration
+
+# AI Dependencies
+chromadb==1.4.0  # Vector database for AI memory and embeddings
+ollama==0.6.1  # Client for local LLM interaction (Llama 3.2)
+textblob==0.19.0  # Simple NLP library for sentiment analysis/processing
 
 # Push Notifications
-aiohttp>=3.9.0  # For async HTTP requests in push notification providers
-google-auth>=2.23.0  # For Google Cloud/Firebase authentication (FCM Linux)
-google-auth-oauthlib>=1.1.0  # For OAuth2 flows (FCM Linux)
-pyjwt[crypto]>=2.8.0  # For JWT token generation (APNs authentication)
-pywebpush>=1.14.0  # For Web Push notifications (browsers)
-cryptography>=41.0.0  # For VAPID key generation and encryption (Web Push)
-paho-mqtt>=1.6.1  # For MQTT push notifications (IoT/OT devices)
+aiohttp==3.13.2  # For async HTTP requests in push notification providers
+google-auth==2.45.0  # For Google Cloud/Firebase authentication (FCM Linux)
+google-auth-oauthlib==1.2.2  # For OAuth2 flows (FCM Linux)
+pyjwt[crypto]==2.10.1  # For JWT token generation (APNs authentication)
+pywebpush==2.1.1  # For Web Push notifications (browsers)
+cryptography==46.0.3  # For VAPID key generation and encryption (Web Push)
+paho-mqtt==2.1.0  # For MQTT push notifications (IoT/OT devices)
 
 # Testing
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-pytest-cov>=4.1.0
-pytest-mock>=3.12.0
+pytest==9.0.2  # The pytest framework makes it easy to write small tests
+pytest-asyncio==1.3.0  # Pytest support for asyncio
+pytest-cov==7.0.0  # Coverage reporting for pytest
+pytest-mock==3.15.1  # Thin-wrapper around the mock package for easier use with pytest
 pytest-xdist>=3.5.0  # For parallel test execution
-factory-boy>=3.3.0
-faker>=20.1.0
-greenlet>=2.0.0  # Required for async testing
+factory-boy==3.3.3  # A versatile test fixtures replacement
+faker==37.11.0  # Generates fake data for testing
+greenlet==3.2.4  # Lightweight coroutines (Required for async testing)
 
 # Code quality
-black>=23.0.0
-isort>=5.12.0
-flake8>=6.1.0
-flake8-docstrings>=1.7.0
-flake8-bandit>=4.1.1
-mypy>=1.7.0
-bandit[toml]>=1.7.5
-safety>=2.3.0
-pre-commit>=3.6.0
+black==25.12.0  # The uncompromising code formatter
+isort==7.0.0  # Utility to sort imports alphabetically
+flake8==7.3.0  # Tool for style guide enforcement
+flake8-docstrings==1.7.0  # Extension for flake8 to check docstrings
+flake8-bandit==4.1.1  # Automated security testing using bandit and flake8
+mypy==1.19.1  # Optional static typing for Python
+bandit[toml]==1.9.2  # Security linter for Python code
+safety==3.7.0  # Checks installed dependencies for known security vulnerabilities
+pre-commit==4.5.1  # Framework for managing and maintaining multi-language pre-commit hooks
 
 # Documentation
-sphinx>=7.2.0
-sphinx-rtd-theme>=1.3.0
-sphinx-autodoc-typehints>=1.25.0
-myst-parser>=2.0.0
+sphinx==8.2.3  # Python documentation generator
+sphinx-rtd-theme==3.0.2  # Read the Docs theme for Sphinx
+sphinx-autodoc-typehints==3.5.2  # Type hints support for Sphinx autodoc
+myst-parser==4.0.1  # Markdown parser for Sphinx
 
 # For ReadTheDocs builds
-mkdocs>=1.5.0
-mkdocs-material>=9.5.0
-mkdocs-material-extensions>=1.3.0
-pymdown-extensions>=10.7.0
-markdown>=3.5.0
-mkdocs-minify-plugin>=0.8.0
+mkdocs==1.6.1  # Project documentation with Markdown
+mkdocs-material==9.6.22  # Material Design theme for MkDocs
+mkdocs-material-extensions==1.3.1  # Extension pack for MkDocs Material
+pymdown-extensions==10.16.1  # Extensions for Python Markdown
+markdown==3.9  # Python implementation of Markdown
+mkdocs-minify-plugin==0.8.0  # Minifies HTML/JS/CSS for MkDocs
 
 # Development tools
-ipython>=8.17.0
-jupyter>=1.0.0
-httpx[http2]>=0.25.0  # for testing HTTP clients and APNs HTTP/2 support
+ipython==9.6.0  # Interactive computing
+jupyter==1.1.1  # Jupyter metapackage
+httpx[http2]==0.28.1  # Next-generation HTTP client (for testing HTTP clients and APNs HTTP/2 support)
 
-requests==2.32.4
-pydantic[email]==2.11.7
-psycopg2-binary==2.9.9
+requests==2.32.5  # Simple, yet elegant HTTP library
+pydantic[email]==2.12.5  # Pydantic with email validation support
 
 # Type stubs for mypy
-types-passlib
-types-requests
-types-psutil
+types-passlib==1.7.7.20250602  # Type stubs for passlib
+types-requests==2.32.4.20250913  # Type stubs for requests
+types-psutil==7.0.0.20251001  # Type stubs for psutil
+types-PyYAML==6.0.12.20250915  # Type stubs for PyYAML

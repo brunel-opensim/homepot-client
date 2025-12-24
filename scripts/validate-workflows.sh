@@ -677,7 +677,8 @@ STDLIB_MODULES = {
     'asyncio', 'json', 'logging', 'datetime', 'pathlib', 'typing', 'os', 'sys',
     'time', 'uuid', 'tempfile', 'subprocess', 'collections', 'contextlib',
     'functools', 'itertools', 're', 'socket', 'ssl', 'urllib', 'http', 'email',
-    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum'
+    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum',
+    'random', 'traceback', 'dataclasses'
 }
 
 def get_imports_from_file(file_path):
@@ -692,14 +693,14 @@ def get_imports_from_file(file_path):
                 for name in node.names:
                     imports.add(name.name.split('.')[0])
             elif isinstance(node, ast.ImportFrom):
-                if node.module:
+                if node.module and node.level == 0:
                     imports.add(node.module.split('.')[0])
         return imports
     except:
         return set()
 
 # Find all Python files in backend/
-src_dir = Path('src')
+src_dir = Path('backend/src')
 all_imports = set()
 
 for py_file in src_dir.rglob('*.py'):
@@ -716,7 +717,7 @@ external_imports = {imp for imp in all_imports
 
 # Check what's in requirements.txt
 try:
-    with open('requirements.txt', 'r') as f:
+    with open('backend/requirements.txt', 'r') as f:
         req_content = f.read().lower()
     
     missing_deps = []
@@ -756,7 +757,8 @@ STDLIB_MODULES = {
     'asyncio', 'json', 'logging', 'datetime', 'pathlib', 'typing', 'os', 'sys',
     'time', 'uuid', 'tempfile', 'subprocess', 'collections', 'contextlib',
     'functools', 'itertools', 're', 'socket', 'ssl', 'urllib', 'http', 'email',
-    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum'
+    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum',
+    'random', 'traceback', 'dataclasses'
 }
 
 def get_imports_from_file(file_path):
@@ -769,13 +771,13 @@ def get_imports_from_file(file_path):
                 for name in node.names:
                     imports.add(name.name.split('.')[0])
             elif isinstance(node, ast.ImportFrom):
-                if node.module:
+                if node.module and node.level == 0:
                     imports.add(node.module.split('.')[0])
         return imports
     except:
         return set()
 
-src_dir = Path('src')
+src_dir = Path('backend/src')
 all_imports = set()
 for py_file in src_dir.rglob('*.py'):
     if '__pycache__' not in str(py_file):
@@ -789,7 +791,7 @@ external_imports = {imp for imp in all_imports
                    and not imp.startswith('src')}
 
 try:
-    with open('requirements.txt', 'r') as f:
+    with open('backend/requirements.txt', 'r') as f:
         req_content = f.read().lower()
     
     missing_deps = []
@@ -1228,15 +1230,19 @@ except Exception as e:
     log_verbose "Testing if integration tests can run without 503 errors"
     if python -c "
 import sys
+import os
 sys.path.insert(0, 'backend')
 try:
     # Test integration tests using pytest (which uses our fixtures)
     import subprocess
+    env = os.environ.copy()
+    if 'CI' in env:
+        del env['CI']
     result = subprocess.run([
         sys.executable, '-m', 'pytest', 
         'backend/tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
         '-v', '--no-cov', '--tb=no'
-    ], capture_output=True, text=True, cwd='.')
+    ], capture_output=True, text=True, cwd='.', env=env)
     
     if result.returncode == 0 and 'PASSED' in result.stdout:
         print('Integration tests pass with proper fixtures')
@@ -1501,9 +1507,14 @@ validate_frontend() {
 # Main execution
 main() {
     # Try to activate virtual environment if it exists and isn't already active
-    if [[ -z "$VIRTUAL_ENV" ]] && [[ -f "venv/bin/activate" ]]; then
-        log_verbose "Activating virtual environment at venv/"
-        source venv/bin/activate
+    if [[ -z "$VIRTUAL_ENV" ]]; then
+        if [[ -f ".venv/bin/activate" ]]; then
+            log_verbose "Activating virtual environment at .venv/"
+            source .venv/bin/activate
+        elif [[ -f "venv/bin/activate" ]]; then
+            log_verbose "Activating virtual environment at venv/"
+            source venv/bin/activate
+        fi
     elif [[ -n "$VIRTUAL_ENV" ]]; then
         log_verbose "Virtual environment already active: $VIRTUAL_ENV"
     fi

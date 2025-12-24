@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default configuration
-VENV_NAME="venv"
+VENV_NAME=".venv"
 PYTHON_CMD="python3"
 FORCE_REINSTALL=false
 SKIP_TESTS=false
@@ -31,7 +31,7 @@ usage() {
     echo "Sets up Python virtual environment and installs dependencies"
     echo ""
     echo "Options:"
-    echo "  --venv NAME         Virtual environment name (default: venv)"
+    echo "  --venv NAME         Virtual environment name (default: .venv)"
     echo "  --python CMD        Python command to use (default: python3)"
     echo "  --force             Force reinstall even if environment exists"
     echo "  --dev               Install development dependencies"
@@ -41,11 +41,11 @@ usage() {
     echo "  -h, --help          Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0                          # Basic installation"
-    echo "  $0 --dev                    # Install with development dependencies"
+    echo "  $0                                   # Basic installation"
+    echo "  $0 --dev                             # Install with development dependencies"
     echo "  $0 --venv myenv --python python3.11  # Custom environment"
-    echo "  $0 --force                  # Force reinstall"
-    echo "  $0 --quiet                  # Minimal output"
+    echo "  $0 --force                           # Force reinstall"
+    echo "  $0 --quiet                           # Minimal output"
 }
 
 # Parse command line arguments
@@ -170,6 +170,13 @@ check_existing_venv() {
         if [[ "$FORCE_REINSTALL" == true ]]; then
             log_warning "Removing existing virtual environment: $VENV_NAME"
             rm -rf "$VENV_NAME"
+            
+            log_info "Cleaning up cache files..."
+            find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+            find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+            find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+            log_success "Cleanup complete"
         else
             log_warning "Virtual environment '$VENV_NAME' already exists"
             echo -e "${YELLOW}Use --force to reinstall or choose a different name with --venv${NC}"
@@ -426,7 +433,8 @@ show_next_steps() {
     echo "1. Activate the environment:"
     echo -e "   ${YELLOW}source $VENV_NAME/bin/activate${NC}"
     echo "   or"
-    echo -e "   ${YELLOW}./scripts/activate-homepot.sh${NC}"
+    echo -e "   ${YELLOW}. ./scripts/activate-homepot.sh${NC}"
+    echo "   (Note: You must use 'source' or '.' to activate in the current terminal)"
     echo ""
     echo "2. Try the HOMEPOT client:"
     echo -e "   ${YELLOW}homepot-client version${NC}"
@@ -443,7 +451,7 @@ show_next_steps() {
         echo -e "   ${YELLOW}./scripts/build-docs.sh${NC}          # Build documentation"
         echo ""
     fi
-    echo "To deactivate the environment later: ${YELLOW}deactivate${NC}"
+    echo -e "To deactivate the environment later: ${YELLOW}deactivate${NC}"
 }
 
 # Main execution
