@@ -1,6 +1,7 @@
 """FastAPI application for the AI service."""
 
 import logging
+import uuid
 from typing import Any, Dict
 
 import yaml
@@ -110,12 +111,25 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
         )
         analysis = llm_service.generate_response(prompt)
 
+        # 3. Store Analysis in Memory
+        memory_service.add_memory(
+            text=f"Analysis for {request.device_id}: {analysis}",
+            metadata={
+                "device_id": request.device_id,
+                "anomaly_score": anomaly_score,
+                "is_anomaly": anomaly_score > 0.5,
+            },
+            memory_id=str(uuid.uuid4()),
+        )
+
+        status = "anomaly_detected" if anomaly_score > 0.5 else "normal"
+
         return {
             "device_id": request.device_id,
             "anomaly_score": anomaly_score,
             "is_anomaly": anomaly_score > 0.5,
             "analysis": analysis,
-            "status": "processed",
+            "status": status,
         }
     except Exception as e:
         logger.error(f"Analysis failed: {e}")

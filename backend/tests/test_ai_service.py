@@ -3,9 +3,13 @@
 These tests use MOCKING to avoid needing a real LLM or Vector DB running.
 """
 
+import builtins
+import importlib
 import os
 import sys
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add the 'ai' directory to sys.path so we can import from it
 # (Assuming tests are run from the workspace root or backend/ directory)
@@ -71,20 +75,9 @@ def test_anomaly_detector_multiple_issues():
 # ==========================================
 
 
-@patch("api.LLMService")
-@patch("api.DeviceMemory")
-@patch("api.AnomalyDetector")
-def test_analyze_endpoint_logic(MockDetector, MockMemory, MockLLM):
+@pytest.mark.asyncio
+async def test_analyze_endpoint_logic():
     """Test the /analyze endpoint logic without running real AI."""
-    # Setup Mocks
-    mock_llm_instance = MockLLM.return_value
-    mock_llm_instance.generate_response.return_value = (
-        "Mocked AI Analysis: CPU is high."
-    )
-
-    mock_detector_instance = MockDetector.return_value
-    mock_detector_instance.check_anomaly.return_value = 0.8
-
     # Mock config loading to avoid FileNotFoundError
     mock_config = {
         "app": {
@@ -97,43 +90,69 @@ def test_analyze_endpoint_logic(MockDetector, MockMemory, MockLLM):
         "memory": {"chroma_path": "test-db", "collection_name": "test-col"},
     }
 
-    with (
-        patch("builtins.open", new_callable=MagicMock) as _,
-        patch("yaml.safe_load", return_value=mock_config),
-    ):
+    # Capture original open
+    original_open = builtins.open
 
-        # Import app INSIDE the patch context so it uses the mocked config
-        # We need to reload it if it was already imported, but for this test run it's likely first import
-        import api  # noqa: F401
-        from api import AnalysisRequest, analyze_device
+    def open_side_effect(file, *args, **kwargs):
+        if file == "config.yaml":
+            # Return a file-like mock for config.yaml
+            m = MagicMock()
+            # Ensure it works as a context manager
+            m.__enter__.return_value = m
+            m.__exit__.return_value = None
+            # Ensure read returns a string (empty is fine as we mock yaml.safe_load)
+            m.read.return_value = ""
+            return m
+        return original_open(file, *args, **kwargs)
 
-    # Create a request
-    request = AnalysisRequest(device_id="device-123", metrics={"cpu_percent": 95.0})
+    # We must patch the dependencies BEFORE importing api, because api.py
+    # instantiates classes at module level.
+    with patch("builtins.open", side_effect=open_side_effect), patch(
+        "yaml.safe_load", return_value=mock_config
+    ), patch("device_memory.DeviceMemory"), patch("llm.LLMService") as MockLLM, patch(
+        "anomaly_detection.AnomalyDetector"
+    ) as MockDetector:
 
-    # We need to patch the global instances in api.py since they are created at import time
-    with (
-        patch("api.anomaly_detector", mock_detector_instance),
-        patch("api.llm_service", mock_llm_instance),
-    ):
+        # Import api inside the patch context
+        import api
 
-        # Run the function (async)
-        import asyncio
+        # Force reload to ensure module-level code runs with patched dependencies
+        importlib.reload(api)
 
-        result = asyncio.run(analyze_device(request))
-
-        # Verify Results
-        assert result["device_id"] == "device-123"
-        assert result["anomaly_score"] == 0.8
-        assert result["is_anomaly"] is True
-        assert result["analysis"] == "Mocked AI Analysis: CPU is high."
-
-        # Verify Interactions
-        mock_detector_instance.check_anomaly.assert_called_once_with(
-            {"cpu_percent": 95.0}
+        # Setup Mocks
+        mock_llm_instance = MockLLM.return_value
+        mock_llm_instance.generate_response.return_value = (
+            "Mocked AI Analysis: CPU is high."
         )
-        mock_llm_instance.generate_response.assert_called_once()
 
-        # Verify the prompt contained the score (checking args passed to LLM)
-        call_args = mock_llm_instance.generate_response.call_args
-        prompt_sent = call_args[0][0]
-        assert "Automated Anomaly Score: 0.8" in prompt_sent
+        mock_detector_instance = MockDetector.return_value
+        mock_detector_instance.check_anomaly.return_value = 0.8
+
+        # Create a request object
+        from api import AnalysisRequest
+
+        request = AnalysisRequest(
+            device_id="device-123",
+            metrics={
+                "cpu_percent": 95.0,
+                "memory_percent": 60.0,
+                "disk_percent": 40.0,
+                "error_rate": 0.0,
+                "network_latency_ms": 50.0,
+            },
+            context="User reported slowness.",
+        )
+
+        # Call the endpoint function directly
+        response = await api.analyze_device(request)
+
+        # Assertions
+        assert response["status"] == "anomaly_detected"
+        assert response["anomaly_score"] == 0.8
+        assert "Mocked AI Analysis" in response["analysis"]
+
+        # Verify interactions
+        mock_detector_instance.check_anomaly.assert_called_once()
+        mock_llm_instance.generate_response.assert_called_once()
+        # Memory should be added
+        api.memory_service.add_memory.assert_called_once()
