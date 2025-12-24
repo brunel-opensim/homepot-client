@@ -12,7 +12,7 @@ The repository is now organized as a monorepo with three main directories:
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python 3.11 or higher
 - Node.js 18 or higher (for frontend)
 - Git
 - Virtual environment tool (venv, conda, etc.)

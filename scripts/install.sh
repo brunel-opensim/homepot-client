@@ -143,7 +143,7 @@ check_python() {
     
     if ! command -v "$PYTHON_CMD" &> /dev/null; then
         log_error "Error: $PYTHON_CMD not found"
-        log_error "Please install Python 3.9 or higher"
+        log_error "Please install Python 3.11 or higher"
         exit 1
     fi
     
@@ -154,9 +154,9 @@ check_python() {
     
     log_verbose "Found Python $python_version"
     
-    # Check minimum version (3.9)
-    if [[ $major_version -lt 3 ]] || [[ $major_version -eq 3 && $minor_version -lt 9 ]]; then
-        log_error "Error: Python 3.9 or higher required"
+    # Check minimum version (3.11)
+    if [[ $major_version -lt 3 ]] || [[ $major_version -eq 3 && $minor_version -lt 11 ]]; then
+        log_error "Error: Python 3.11 or higher required"
         log_error "Found: Python $python_version"
         exit 1
     fi

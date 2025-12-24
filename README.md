@@ -1,7 +1,7 @@
 # HOMEPOT Client
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python Version](https://img.shields.io/badge/python-3.9%2B-brightgreen.svg)](https://python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-brightgreen.svg)](https://python.org/)
 [![Documentation](https://readthedocs.org/projects/homepot-client/badge/?version=latest)](https://homepot-client.readthedocs.io/en/latest/)
 [![Code Style](https://img.shields.io/badge/code%20style-black%20%7C%20flake8-000000.svg)](https://github.com/psf/black)
 [![Security](https://img.shields.io/badge/security-audit%20passing-green.svg)](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
@@ -104,7 +104,7 @@ This will:
 
 ### Prerequisites
 
-- **Python**: >= 3.9 (3.12.3 recommended)
+- **Python**: >= 3.11 (3.12.3 recommended)
 - **Node.js**: >= 18 (22+ recommended)
 - **PostgreSQL**: 13+ (for database)
 - **pip**: Latest version  
@@ -140,7 +140,7 @@ cd homepot-client
 
 This project maintains high code quality with automated tooling:
 
-- **Python 3.9+** with type hints and modern features
+- **Python 3.11+** with type hints and modern features
 - **Automated Testing** with >98% coverage requirement
 - **Code Formatting** with Black, isort, flake8, mypy
 - **Security Analysis** with Bandit and safety checks
@@ -196,7 +196,7 @@ This project involves multiple consortium partners working collaboratively on de
 
 - **Current Version**: 0.1.0 (Development)
 - **License**: Apache 2.0
-- **Python Support**: 3.9, 3.10, 3.11, 3.12
+- **Python Support**: 3.11, 3.12
 - **Platform Support**: Linux, macOS, Windows
 
 ## Support

@@ -237,7 +237,7 @@ jobs:
         echo "" >> dependency-report.md
         echo "### Python Version Compatibility" >> dependency-report.md
         echo "**Current Python:** $(python --version)" >> dependency-report.md
-        echo "**Supported versions:** 3.9, 3.10, 3.11, 3.12 (as per backend/pyproject.toml)" >> dependency-report.md
+        echo "**Supported versions:** 3.11, 3.12 (as per backend/pyproject.toml)" >> dependency-report.md
         echo "**Testing on:** ${{ matrix.python-version }}" >> dependency-report.md
         echo "Python $(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') compatibility verified" >> dependency-report.md
 

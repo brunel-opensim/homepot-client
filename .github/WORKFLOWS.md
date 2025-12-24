@@ -40,7 +40,7 @@ This document describes the automated workflows
 - **POSDummy Infrastructure Gate** - Fast infrastructure verification (2-3 minutes)
 - **Code quality checks** (Black formatting, flake8 linting, isort)
 - **Cross-platform testing** across Ubuntu, Windows, and macOS
-- **Multi-version Python support** (3.9, 3.11)
+- **Multi-version Python support** (3.11, 3.12)
 - **Unit testing** with pytest and coverage reporting
 - **Security scanning** (Bandit, Safety, pip-audit)
 - **Package building** and validation
@@ -51,8 +51,8 @@ This document describes the automated workflows
 ```text
 ├── Security Scan
 ├── POSDummy Infrastructure Gate
-├── Code Quality (Python 3.9, 3.11)
-├── Test Suite (Ubuntu/Windows/macOS × Python 3.9/3.11)
+├── Code Quality (Python 3.11, 3.12)
+├── Test Suite (Ubuntu/Windows/macOS × Python 3.11/3.12)
 ├── Build Package
 ├── Docker Build & Test
 └── Notify Consortium Partners
@@ -192,7 +192,7 @@ This document describes the automated workflows
   - Platform-aware cleanup that converts errors to warnings
   - Enhanced pytest configuration with Windows-specific warning filters
   - Windows-specific CI workflow configuration
-- **Result:** **Windows tests now PASSING** on both Python 3.9 and 3.11
+- **Result:** **Windows tests now PASSING** on both Python 3.11 and 3.12
 - **Impact:** Full cross-platform compatibility achieved (Ubuntu, Windows, macOS)
 
 **2. MyPy Type Checking (Temporarily Disabled)**
