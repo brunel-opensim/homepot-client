@@ -237,4 +237,4 @@ coverage/
 *.db
 *.sqlite3
 *.db-journal
-data/backups/
+ai/data/

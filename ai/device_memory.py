@@ -1,6 +1,7 @@
 """Module for managing device memory using ChromaDB."""
 
 import logging
+import os
 from typing import Any, Dict, List
 
 import chromadb  # type: ignore
@@ -12,12 +13,18 @@ logger = logging.getLogger(__name__)
 class DeviceMemory:
     """Vector memory for device logs and patterns using ChromaDB."""
 
-    def __init__(self, config_path: str = "config.yaml") -> None:
+    def __init__(self, config_path: str | None = None) -> None:
         """Initialize the DeviceMemory with configuration."""
+        if config_path is None:
+            config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
 
-        self.chroma_path = self.config["memory"]["chroma_path"]
+        # Resolve chroma_path relative to the config file location
+        base_dir = os.path.dirname(os.path.abspath(config_path))
+        raw_path = self.config["memory"]["chroma_path"]
+        self.chroma_path = os.path.join(base_dir, raw_path)
+
         self.collection_name = self.config["memory"]["collection_name"]
 
         # Initialize ChromaDB
