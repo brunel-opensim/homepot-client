@@ -465,11 +465,11 @@ validate_code_quality() {
     # Black formatting
     if command -v black >/dev/null 2>&1; then
         echo -n "    Black formatting: "
-        log_verbose "Running: black --check backend/ backend/tests/"
-        if black --check backend/ backend/tests/ 2>/dev/null; then
+        log_verbose "Running: black --check backend/ backend/tests/ ai/"
+        if black --check backend/ backend/tests/ ai/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: black backend/ backend/tests/${NC}"
+            echo -e "${RED}Failed - run: black backend/ backend/tests/ ai/${NC}"
             failed=true
         fi
     else
@@ -479,11 +479,11 @@ validate_code_quality() {
     # isort import sorting (NEW - matches CI/CD)
     if command -v isort >/dev/null 2>&1; then
         echo -n "    Import sorting (isort): "
-        log_verbose "Running: isort --check-only backend/ backend/tests/"
-        if isort --check-only backend/ backend/tests/ 2>/dev/null; then
+        log_verbose "Running: isort --check-only backend/ backend/tests/ ai/"
+        if isort --check-only backend/ backend/tests/ ai/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: isort backend/ backend/tests/${NC}"
+            echo -e "${RED}Failed - run: isort backend/ backend/tests/ ai/${NC}"
             failed=true
         fi
     else
@@ -493,11 +493,11 @@ validate_code_quality() {
     # flake8 linting
     if command -v flake8 >/dev/null 2>&1; then
         echo -n "    Linting (flake8): "
-        log_verbose "Running: flake8 backend/ backend/tests/"
-        if flake8 backend/ backend/tests/ 2>/dev/null; then
+        log_verbose "Running: flake8 backend/ backend/tests/ ai/"
+        if flake8 backend/ backend/tests/ ai/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/${NC}"
+            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/ ai/${NC}"
             failed=true
         fi
     else
@@ -507,11 +507,11 @@ validate_code_quality() {
     # MyPy type checking (NEW - matches CI/CD)
     if command -v mypy >/dev/null 2>&1; then
         echo -n "    Type checking (mypy): "
-        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/src/homepot/"
+        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/"
         
         # Capture mypy output to check for specific errors
         local mypy_output
-        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/src/homepot/ 2>&1); then
+        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/ 2>&1); then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check for specific error types
@@ -526,7 +526,7 @@ validate_code_quality() {
                 log_verbose "This indicates missing dependencies in requirements.txt or missing type stubs"
                 log_verbose "Consider installing missing packages or type stubs (e.g., pip install types-*)"
             else
-                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/src/homepot/${NC}"
+                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/${NC}"
                 log_verbose "MyPy failed for other reasons"
                 if [[ "$VERBOSE" == true ]]; then
                     echo "$mypy_output" | head -10 | while read -r line; do
@@ -543,16 +543,16 @@ validate_code_quality() {
     # Security scans (NEW - matches CI/CD)
     if command -v bandit >/dev/null 2>&1; then
         echo -n "    Security scan (bandit): "
-        log_verbose "Running: bandit -r backend/ -ll --exclude venv,.venv,htmlcov,.pytest_cache,.mypy_cache"
+        log_verbose "Running: bandit -r backend/ ai/ -ll --exclude venv,.venv,htmlcov,.pytest_cache,.mypy_cache"
         # Use -ll for low severity threshold, exclude virtual env and build artifacts
-        if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
+        if bandit -r backend/ ai/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check exit code - 0 means success, 1 means issues found
-            if bandit -r backend/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>/dev/null; then
+            if bandit -r backend/ ai/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>/dev/null; then
                 echo -e "${GREEN}Passed${NC}"
             else
-                echo -e "${YELLOW}Warnings found - review with: bandit -r backend/ -ll${NC}"
+                echo -e "${YELLOW}Warnings found - review with: bandit -r backend/ ai/ -ll${NC}"
                 log_verbose "Security scan found issues but continuing (non-blocking)"
             fi
         fi
@@ -579,12 +579,12 @@ validate_python() {
         echo -e "${GREEN}$current_python_version${NC}"
         log_verbose "Running on Python $current_python_version"
         
-        # Check if it matches CI versions (3.9, 3.11)
-        if [[ "$current_python_version" =~ ^(3\.9|3\.11|3\.12)$ ]]; then
+        # Check if it matches CI versions (3.11, 3.12)
+        if [[ "$current_python_version" =~ ^(3\.11|3\.12)$ ]]; then
             log_verbose "Python version compatible with CI"
         else
-            log_warning "Local Python $current_python_version differs from CI versions (3.9, 3.11)"
-            log_verbose "Consider testing with Python 3.9 or 3.11 for CI compatibility"
+            log_warning "Local Python $current_python_version differs from CI versions (3.11, 3.12)"
+            log_verbose "Consider testing with Python 3.11+ for CI compatibility"
         fi
     else
         echo -e "${RED}Unknown${NC}"
@@ -677,7 +677,8 @@ STDLIB_MODULES = {
     'asyncio', 'json', 'logging', 'datetime', 'pathlib', 'typing', 'os', 'sys',
     'time', 'uuid', 'tempfile', 'subprocess', 'collections', 'contextlib',
     'functools', 'itertools', 're', 'socket', 'ssl', 'urllib', 'http', 'email',
-    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum'
+    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum',
+    'random', 'traceback', 'dataclasses'
 }
 
 def get_imports_from_file(file_path):
@@ -692,14 +693,14 @@ def get_imports_from_file(file_path):
                 for name in node.names:
                     imports.add(name.name.split('.')[0])
             elif isinstance(node, ast.ImportFrom):
-                if node.module:
+                if node.module and node.level == 0:
                     imports.add(node.module.split('.')[0])
         return imports
     except:
         return set()
 
 # Find all Python files in backend/
-src_dir = Path('src')
+src_dir = Path('backend/src')
 all_imports = set()
 
 for py_file in src_dir.rglob('*.py'):
@@ -716,7 +717,7 @@ external_imports = {imp for imp in all_imports
 
 # Check what's in requirements.txt
 try:
-    with open('requirements.txt', 'r') as f:
+    with open('backend/requirements.txt', 'r') as f:
         req_content = f.read().lower()
     
     missing_deps = []
@@ -756,7 +757,8 @@ STDLIB_MODULES = {
     'asyncio', 'json', 'logging', 'datetime', 'pathlib', 'typing', 'os', 'sys',
     'time', 'uuid', 'tempfile', 'subprocess', 'collections', 'contextlib',
     'functools', 'itertools', 're', 'socket', 'ssl', 'urllib', 'http', 'email',
-    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum'
+    'base64', 'hashlib', 'hmac', 'secrets', 'warnings', 'abc', 'enum',
+    'random', 'traceback', 'dataclasses'
 }
 
 def get_imports_from_file(file_path):
@@ -769,13 +771,13 @@ def get_imports_from_file(file_path):
                 for name in node.names:
                     imports.add(name.name.split('.')[0])
             elif isinstance(node, ast.ImportFrom):
-                if node.module:
+                if node.module and node.level == 0:
                     imports.add(node.module.split('.')[0])
         return imports
     except:
         return set()
 
-src_dir = Path('src')
+src_dir = Path('backend/src')
 all_imports = set()
 for py_file in src_dir.rglob('*.py'):
     if '__pycache__' not in str(py_file):
@@ -789,7 +791,7 @@ external_imports = {imp for imp in all_imports
                    and not imp.startswith('src')}
 
 try:
-    with open('requirements.txt', 'r') as f:
+    with open('backend/requirements.txt', 'r') as f:
         req_content = f.read().lower()
     
     missing_deps = []
@@ -1228,15 +1230,19 @@ except Exception as e:
     log_verbose "Testing if integration tests can run without 503 errors"
     if python -c "
 import sys
+import os
 sys.path.insert(0, 'backend')
 try:
     # Test integration tests using pytest (which uses our fixtures)
     import subprocess
+    env = os.environ.copy()
+    if 'CI' in env:
+        del env['CI']
     result = subprocess.run([
         sys.executable, '-m', 'pytest', 
         'backend/tests/test_homepot_integration.py::TestPhase1CoreInfrastructure::test_health_endpoint',
         '-v', '--no-cov', '--tb=no'
-    ], capture_output=True, text=True, cwd='.')
+    ], capture_output=True, text=True, cwd='.', env=env)
     
     if result.returncode == 0 and 'PASSED' in result.stdout:
         print('Integration tests pass with proper fixtures')
@@ -1501,9 +1507,14 @@ validate_frontend() {
 # Main execution
 main() {
     # Try to activate virtual environment if it exists and isn't already active
-    if [[ -z "$VIRTUAL_ENV" ]] && [[ -f "venv/bin/activate" ]]; then
-        log_verbose "Activating virtual environment at venv/"
-        source venv/bin/activate
+    if [[ -z "$VIRTUAL_ENV" ]]; then
+        if [[ -f ".venv/bin/activate" ]]; then
+            log_verbose "Activating virtual environment at .venv/"
+            source .venv/bin/activate
+        elif [[ -f "venv/bin/activate" ]]; then
+            log_verbose "Activating virtual environment at venv/"
+            source venv/bin/activate
+        fi
     elif [[ -n "$VIRTUAL_ENV" ]]; then
         log_verbose "Virtual environment already active: $VIRTUAL_ENV"
     fi

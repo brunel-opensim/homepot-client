@@ -51,7 +51,7 @@ jobs:
         pip install -e backend/
 
     - name: Run Bandit security scan
-      run: bandit -r backend/src/homepot/ -ll -f json -o bandit-results.json
+      run: bandit -r backend/src/homepot/ ai/ -ll -f json -o bandit-results.json
       continue-on-error: true
 
     - name: Run pip-audit

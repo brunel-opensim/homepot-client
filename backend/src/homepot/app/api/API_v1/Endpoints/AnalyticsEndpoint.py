@@ -106,6 +106,54 @@ async def log_error(
         raise HTTPException(status_code=500, detail="Failed to log error")
 
 
+@router.post("/analytics/device-metrics", status_code=status.HTTP_201_CREATED)
+async def log_device_metrics(
+    metrics: Dict[str, Any],
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Log device performance metrics.
+
+    Expected payload:
+    {
+        "device_id": "device-123",
+        "cpu_percent": 45.5,
+        "memory_percent": 60.2,
+        "disk_percent": 30.1,
+        "network_latency_ms": 120.5,
+        "transaction_count": 150,
+        "transaction_volume": 5000.0,
+        "error_rate": 0.5,
+        "active_connections": 10,
+        "queue_depth": 2,
+        "extra_metrics": {...}
+    }
+    """
+    try:
+        device_metrics = models.DeviceMetrics(
+            device_id=metrics.get("device_id"),
+            cpu_percent=metrics.get("cpu_percent"),
+            memory_percent=metrics.get("memory_percent"),
+            disk_percent=metrics.get("disk_percent"),
+            network_latency_ms=metrics.get("network_latency_ms"),
+            transaction_count=metrics.get("transaction_count"),
+            transaction_volume=metrics.get("transaction_volume"),
+            error_rate=metrics.get("error_rate"),
+            active_connections=metrics.get("active_connections"),
+            queue_depth=metrics.get("queue_depth"),
+            extra_metrics=metrics.get("extra_metrics"),
+            timestamp=datetime.now(timezone.utc),
+        )
+        db.add(device_metrics)
+        db.commit()
+
+        return {"success": True, "message": "Device metrics logged"}
+
+    except Exception as e:
+        logger.error(f"Error logging device metrics: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to log device metrics")
+
+
 @router.post("/analytics/device-state-change", status_code=status.HTTP_201_CREATED)
 async def log_device_state_change(
     state_change: Dict[str, Any],

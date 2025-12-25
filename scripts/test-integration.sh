@@ -129,7 +129,7 @@ ${BOLD}DESCRIPTION:${NC}
   - Opens browser automatically when ready
 
 ${BOLD}REQUIREMENTS:${NC}
-  - Python 3.9 or higher
+  - Python 3.11 or higher
   - Node.js 18 or higher
   - npm or yarn
 

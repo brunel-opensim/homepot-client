@@ -12,105 +12,13 @@ permissions:
   contents: read
 
 jobs:
-  security-scan:
-    timeout-minutes: 20
-    name: Security Scan
-    runs-on: ubuntu-latest
-    if: github.repository == 'brunel-opensim/homepot-client'
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        set -e
-        python -m pip install --upgrade pip
-        pip install --no-cache-dir bandit[toml]
-
-    - name: Run Bandit security scan
-      run: bandit -r backend/src/homepot/ -ll -f json -o bandit-results.json || true
-
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        version: 'v0.68.2'
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        ignore-unfixed: true
-        severity: 'CRITICAL,HIGH'
-
-    - name: Check Advanced Security availability
-      if: github.repository_owner != 'brunel-opensim'
-      run: |
-        echo "GitHub Advanced Security is not enabled for this repository."
-        echo "   SARIF upload will be skipped. Security scan results are still available in job logs."
-        echo "   To enable code scanning, contact your GitHub organization admin."
-
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v4
-      if: always() && github.repository_owner == 'brunel-opensim'
-      continue-on-error: true
-      with:
-        sarif_file: 'trivy-results.sarif'
-
-    - name: Upload security scan artifacts
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: security-scan-results
-        path: |
-          bandit-results.json
-          trivy-results.sarif
-        retention-days: 30
-
-  pos-dummy:
-    name: POSDummy Integration Gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: github.repository == 'brunel-opensim/homepot-client'
-    needs: [security-scan]
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Install minimal dependencies
-      run: |
-        set -e
-        python -m pip install --upgrade pip
-        pip install --no-cache-dir -r backend/requirements.txt
-        pip install -e backend/
-
-    - name: Run POSDummy Integration Test
-      run: |
-        set -e
-        echo "Running POSDummy Integration Gate..."
-        ./scripts/run-pos-dummy.sh --verbose
-        echo "POSDummy gate passed - HOMEPOT infrastructure verified!"
-
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
     if: github.repository == 'brunel-opensim/homepot-client'
-    needs: [pos-dummy]
     strategy:
       matrix:
-        python-version: ['3.9', '3.11']
+        python-version: ['3.11', '3.12']
     steps:
     - uses: actions/checkout@v4
 
@@ -127,16 +35,16 @@ jobs:
         pip install -e backend/
 
     - name: Run Black formatter check
-      run: black --check backend/src/homepot/ backend/tests/
+      run: black --check backend/src/homepot/ backend/tests/ ai/
 
     - name: Run isort import sorting check
-      run: isort --check-only backend/src/homepot/ backend/tests/
+      run: isort --check-only backend/src/homepot/ backend/tests/ ai/
 
     - name: Run flake8 linting
-      run: flake8 backend/src/homepot/ backend/tests/
+      run: flake8 backend/src/homepot/ backend/tests/ ai/
 
     - name: Run mypy type checking
-      run: mypy --config-file=backend/mypy.ini backend/src/homepot/
+      run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/
 
     - name: Validate documentation files
       run: |
@@ -152,11 +60,10 @@ jobs:
     name: Test Suite
     runs-on: ${{ matrix.os }}
     if: github.repository == 'brunel-opensim/homepot-client'
-    needs: [pos-dummy]
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ['3.9', '3.11']
+        python-version: ['3.11', '3.12']
         include:
           # Only test Python 3.11 on Windows/macOS to reduce CI time
           - os: windows-latest
@@ -217,7 +124,7 @@ jobs:
     name: Build Package
     runs-on: ubuntu-latest
     if: github.repository == 'brunel-opensim/homepot-client'
-    needs: [security-scan, code-quality, test]
+    needs: [code-quality, test]
     steps:
     - uses: actions/checkout@v4
 

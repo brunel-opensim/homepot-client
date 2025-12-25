@@ -33,9 +33,14 @@ logger = logging.getLogger(__name__)
 try:
     from homepot.app.models.AnalyticsModel import (  # noqa: F401
         APIRequestLog,
+        ConfigurationHistory,
+        DeviceMetrics,
         DeviceStateHistory,
+        ErrorLog,
+        JobOutcome,
         PushNotificationLog,
         SiteOperatingSchedule,
+        UserActivity,
     )
 except ImportError:
     logger.warning("Could not import AnalyticsModel. Tables may not be created.")
