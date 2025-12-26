@@ -6,7 +6,17 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 import yaml
-from sqlalchemy import create_engine, text
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+    text,
+)
 from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
@@ -27,6 +37,7 @@ class EventStore:
         if self.db_url:
             try:
                 self.engine = create_engine(self.db_url)
+                self._init_db()
                 logger.info("Connected to event database.")
             except Exception as e:
                 logger.error(f"Failed to connect to database: {e}")
@@ -34,6 +45,26 @@ class EventStore:
         # In-memory cache for recent events: {device_id: [events]}
         self.cache: Dict[str, List[Dict[str, Any]]] = {}
         self.cache_limit = 100
+
+    def _init_db(self) -> None:
+        """Initialize database tables if they don't exist."""
+        if not self.engine:
+            return
+
+        metadata = MetaData()
+        Table(
+            "device_metrics",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("device_id", String),
+            Column("timestamp", DateTime),
+            Column("cpu_percent", Float),
+            Column("memory_percent", Float),
+            Column("disk_percent", Float),
+            Column("network_latency_ms", Float),
+            Column("error_rate", Float),
+        )
+        metadata.create_all(self.engine)
 
     def _load_config(self, path: str) -> Dict[str, Any]:
         try:
@@ -138,13 +169,17 @@ class EventStore:
                     )
                     events = []
                     for row in result:
-                        # Convert row to event format
+                        # Handle timestamp that might be string or datetime
+                        ts = row.timestamp
+                        if hasattr(ts, "isoformat"):
+                            ts_str = ts.isoformat()
+                        else:
+                            ts_str = str(ts) if ts else None
+
                         events.append(
                             {
                                 "device_id": row.device_id,
-                                "timestamp": (
-                                    row.timestamp.isoformat() if row.timestamp else None
-                                ),
+                                "timestamp": ts_str,
                                 "event": "metrics_update",
                                 "value": {
                                     "cpu_percent": row.cpu_percent,
