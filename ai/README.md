@@ -49,6 +49,20 @@ Here is the corrected flow based on what we implemented:
 - **Processing**: LLM + Context Search.
 - **Output**: Recommendation + New Memory (ChromaDB).
 
+## Predictive Maintenance (Phase 4)
+
+We have introduced a **Predictive Maintenance** module (`failure_predictor.py`) that analyzes historical metrics to forecast potential failures.
+
+### Features
+- **Risk Scoring**: Calculates a risk score (0.0 - 1.0) based on CPU, Memory, and Disk usage trends.
+- **Trend Analysis**: Detects increasing resource usage over time.
+- **API Endpoint**: `GET /predict/{device_id}` returns the current risk assessment.
+
+### Usage
+```bash
+curl http://localhost:8000/predict/device-123
+```
+
 ## Key Components
 
 The implementation consists of four core modules:

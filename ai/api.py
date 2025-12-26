@@ -10,6 +10,7 @@ from analysis_modes import ModeManager
 from anomaly_detection import AnomalyDetector
 from device_memory import DeviceMemory
 from event_store import EventStore
+from failure_predictor import FailurePredictor
 from fastapi import FastAPI, HTTPException
 from llm import LLMService
 from pydantic import BaseModel, Field
@@ -31,6 +32,7 @@ memory_service = DeviceMemory()
 anomaly_detector = AnomalyDetector()
 event_store = EventStore()
 mode_manager = ModeManager()
+failure_predictor = FailurePredictor(event_store)
 
 
 class ChatMessage(BaseModel):
@@ -173,6 +175,17 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/predict/{device_id}")
+async def predict_failure(device_id: str) -> Dict[str, Any]:
+    """Predict failure risk for a specific device."""
+    try:
+        prediction = failure_predictor.predict_failure_risk(device_id)
+        return prediction
+    except Exception as e:
+        logger.error(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

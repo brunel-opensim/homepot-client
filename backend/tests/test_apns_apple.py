@@ -24,10 +24,7 @@ from homepot.push_notifications.apns_apple import (
     APNS_SANDBOX_URL,
     APNsProvider,
 )
-from homepot.push_notifications.base import (
-    PushNotificationPayload,
-    PushPriority,
-)
+from homepot.push_notifications.base import PushNotificationPayload, PushPriority
 
 # Sample P8 private key for testing (not a real key)
 MOCK_P8_KEY = """-----BEGIN PRIVATE KEY-----
