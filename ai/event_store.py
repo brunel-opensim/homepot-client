@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 import yaml
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
@@ -73,19 +73,93 @@ class EventStore:
 
     def _persist_event(self, event: Dict[str, Any]) -> None:
         """Persist event to database."""
-        # TODO: Implement actual DB insertion based on schema
-        # For now, we just log that we would persist it
-        pass
+        if not self.engine:
+            return
+
+        try:
+            # We map the generic 'event' to the 'device_metrics' table structure
+            # Assuming 'value' contains the metrics dict
+            metrics = event.get("value", {})
+            if not isinstance(metrics, dict):
+                # If value is not a dict, we might be storing a different type of event
+                # For now, we only support metrics updates in this table
+                return
+
+            query = text(
+                """
+                INSERT INTO device_metrics (
+                    device_id, timestamp, cpu_percent, memory_percent,
+                    disk_percent, network_latency_ms, error_rate
+                ) VALUES (
+                    :device_id, :timestamp, :cpu, :memory, :disk, :latency, :error_rate
+                )
+            """
+            )
+
+            with self.engine.connect() as conn:
+                conn.execute(
+                    query,
+                    {
+                        "device_id": event.get("device_id"),
+                        "timestamp": event.get("timestamp"),
+                        "cpu": metrics.get("cpu_percent"),
+                        "memory": metrics.get("memory_percent"),
+                        "disk": metrics.get("disk_percent"),
+                        "latency": metrics.get("network_latency_ms"),
+                        "error_rate": metrics.get("error_rate"),
+                    },
+                )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to persist event: {e}")
 
     def get_recent_events(
         self, device_id: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Get recent events for a device."""
         # Try cache first
-        if device_id in self.cache:
+        if device_id in self.cache and self.cache[device_id]:
             return self.cache[device_id][-limit:]
 
-        # Fallback to DB if cache empty (not implemented yet)
+        # Fallback to DB if cache empty
+        if self.engine:
+            try:
+                query = text(
+                    """
+                    SELECT * FROM device_metrics
+                    WHERE device_id = :device_id
+                    ORDER BY timestamp DESC
+                    LIMIT :limit
+                """
+                )
+                with self.engine.connect() as conn:
+                    result = conn.execute(
+                        query, {"device_id": device_id, "limit": limit}
+                    )
+                    events = []
+                    for row in result:
+                        # Convert row to event format
+                        events.append(
+                            {
+                                "device_id": row.device_id,
+                                "timestamp": (
+                                    row.timestamp.isoformat() if row.timestamp else None
+                                ),
+                                "event": "metrics_update",
+                                "value": {
+                                    "cpu_percent": row.cpu_percent,
+                                    "memory_percent": row.memory_percent,
+                                    "disk_percent": row.disk_percent,
+                                    "network_latency_ms": row.network_latency_ms,
+                                    "error_rate": row.error_rate,
+                                },
+                            }
+                        )
+                    # Reverse to chronological order
+                    return events[::-1]
+            except Exception as e:
+                logger.error(f"Failed to fetch events from DB: {e}")
+
         return []
 
     def get_events_summary(self, device_id: str) -> str:
