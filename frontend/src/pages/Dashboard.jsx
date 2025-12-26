@@ -187,22 +187,17 @@ export default function Dashboard() {
 
           {/* Glowing Site Dots */}
           <div className="absolute inset-0">
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '30%', left: '20%' }}
-            ></span>
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '40%', left: '50%' }}
-            ></span>
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '55%', left: '70%' }}
-            ></span>
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '65%', left: '30%' }}
-            ></span>
+            {sites.map((site, index) => (
+              <span
+                key={index}
+                className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
+                style={{
+                  top: `${30 + ((index * 17) % 40)}%`,
+                  left: `${20 + ((index * 23) % 60)}%`,
+                }}
+                title={site.site}
+              ></span>
+            ))}
           </div>
         </Card>
 

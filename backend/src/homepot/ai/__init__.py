@@ -20,9 +20,11 @@ The AI system learns from 8 analytics tables:
 from .analytics_service import AIAnalyticsService
 from .failure_predictor import FailurePredictor
 from .job_scheduler import PredictiveJobScheduler
+from .llm_service import LLMService
 
 __all__ = [
     "AIAnalyticsService",
     "PredictiveJobScheduler",
     "FailurePredictor",
+    "LLMService",
 ]

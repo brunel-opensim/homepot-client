@@ -9,8 +9,16 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
-from homepot.ai import AIAnalyticsService, FailurePredictor, PredictiveJobScheduler
+from homepot.ai import (
+    AIAnalyticsService,
+    FailurePredictor,
+    LLMService,
+    PredictiveJobScheduler,
+)
+from homepot.database import get_database_service
+from homepot.models import Site
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +46,61 @@ class SuccessProbabilityRequest(BaseModel):
     scheduled_time: str = Field(..., description="Proposed execution time (ISO format)")
 
 
+class AIQueryRequest(BaseModel):
+    """Request model for AI query."""
+
+    query: str = Field(..., description="The question or prompt for the AI")
+    context: Optional[str] = Field(None, description="Optional context for the query")
+    device_id: Optional[str] = Field(None, description="Optional device ID for context")
+
+
 # ==================== Analytics Endpoints ====================
+
+
+@router.post("/query", tags=["AI Chat"])
+async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
+    """Query the AI assistant."""
+    try:
+        llm = LLMService()
+
+        # Fetch current system state for context
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            # Get Sites
+            result = await session.execute(select(Site).where(Site.is_active.is_(True)))
+            sites = result.scalars().all()
+
+            site_context = "Current System Status:\n"
+            site_context += f"Total Sites: {len(sites)}\n"
+            for site in sites:
+                site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
+
+        context = request.context
+        if context:
+            context = f"{site_context}\nUser Context: {context}"
+        else:
+            context = site_context
+
+        if request.device_id:
+            context += f"\nFocus on Device ID: {request.device_id}"
+
+        response = llm.generate_response(
+            prompt=request.query,
+            context=context,
+            system_prompt=(
+                "You are Homepot AI, a helpful assistant for managing smart home "
+                "devices and monitoring systems. You have access to the current "
+                "system status including sites and devices. Use this information "
+                "to answer user queries accurately. Be concise and professional."
+            ),
+        )
+        return {
+            "response": response,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"AI query failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/insights/device/{device_id}", tags=["AI Insights"])
