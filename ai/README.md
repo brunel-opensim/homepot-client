@@ -120,7 +120,7 @@ We provide a helper script to automate the installation and configuration of Oll
 4.  Pull the specific model defined in `ai/config.yaml` (e.g., `llama3.2`).
 
 ```bash
-./scripts/setup_ollama.sh
+./scripts/setup-ollama.sh
 ```
 
 ### Manual Setup (Alternative)
