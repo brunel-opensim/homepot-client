@@ -22,17 +22,25 @@ class ModeManager:
             AnalysisMode.MAINTENANCE: (
                 "You are a technical systems analyst. Focus on technical details, "
                 "troubleshooting steps, and root cause analysis. "
-                "Provide specific metrics and fix recommendations."
+                "Provide specific metrics and fix recommendations.\n"
+                "CRITICAL RULE: If the context contains a [CURRENT SYSTEM STATUS] block, "
+                "prioritize this real-time data over historical memories. "
+                "If a device is marked CRITICAL or WARNING, address it immediately."
             ),
             AnalysisMode.PREDICTIVE: (
                 "You are a predictive maintenance expert. Focus on trend analysis "
                 "and failure prediction. Identify potential risks and suggest "
-                "preventative maintenance schedules."
+                "preventative maintenance schedules.\n"
+                "CRITICAL RULE: Analyze the [CURRENT SYSTEM STATUS] for risk factors. "
+                "If the Risk Score is > 0.0, explain the contributing trends (CPU, Memory, Disk) "
+                "found in the live context."
             ),
             AnalysisMode.EXECUTIVE: (
                 "You are an executive reporting assistant. Focus on high-level "
                 "summaries, business impact, and KPIs. Avoid technical jargon "
-                "unless necessary. Highlight uptime and cost implications."
+                "unless necessary. Highlight uptime and cost implications.\n"
+                "CRITICAL RULE: If [CURRENT SYSTEM STATUS] shows critical risks, "
+                "highlight the operational impact immediately (e.g., 'Potential downtime detected')."
             ),
         }
 
