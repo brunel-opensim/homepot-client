@@ -76,6 +76,12 @@ When a user asks a question about a specific device (e.g., "Is the kitchen camer
 
 This ensures the AI answers based on *what is happening right now*, not just what happened in the past.
 
+### System Prompt Refinement
+To ensure the LLM correctly interprets the injected context, we have updated the system prompts in `analysis_modes.py`. Each mode (Maintenance, Predictive, Executive) now includes a **CRITICAL RULE**:
+> "If the context contains a [CURRENT SYSTEM STATUS] block, prioritize this real-time data over historical memories."
+
+This prevents the AI from hallucinating safety based on old logs when the live system is actually in a critical state.
+
 ## Key Components
 
 The implementation consists of four core modules:
