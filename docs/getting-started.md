@@ -20,8 +20,8 @@ git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
 
 # 2. Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # 3. Navigate to backend directory
 cd backend

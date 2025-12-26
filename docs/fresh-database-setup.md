@@ -175,7 +175,7 @@ curl -X POST http://localhost:8000/api/v1/analytics/user-activity \
 ### Start Backend Server
 ```bash
 cd /home/mghorbani/workspace/homepot-client/backend
-source venv/bin/activate
+source .venv/bin/activate
 uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 

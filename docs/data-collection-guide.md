@@ -35,7 +35,7 @@ Once running, the backend automatically:
 Run this command to see what data has been collected:
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py
 ```
 
@@ -128,7 +128,7 @@ python backend/utils/populate_schedules.py
 ### 3. Start Backend
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 uvicorn homepot.main:app --host 0.0.0.0 --port 8000
 ```
 

@@ -23,8 +23,8 @@ The repository is now organized as a monorepo with three main directories:
 
 ```bash
 # From the repository root
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
 ### 2. Install Dependencies
@@ -196,7 +196,7 @@ The monorepo includes helpful scripts in `scripts/`:
 
 ### Making Backend Changes
 
-1. Ensure virtual environment is activated: `source venv/bin/activate`
+1. Ensure virtual environment is activated: `source .venv/bin/activate`
 2. Navigate to backend: `cd backend`
 3. Make your changes in `homepot/`
 4. Run tests: `pytest`

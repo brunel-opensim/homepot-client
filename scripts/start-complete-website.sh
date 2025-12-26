@@ -134,8 +134,6 @@ fi
 
 print_step "Setting up backend..."
 
-cd "$REPO_ROOT/backend"
-
 # Activate virtual environment
 if [ -f "$REPO_ROOT/scripts/activate-homepot.sh" ]; then
     print_info "Activating HOMEPOT virtual environment..."
@@ -145,6 +143,8 @@ else
     print_error "Cannot find activation script: $REPO_ROOT/scripts/activate-homepot.sh"
     exit 1
 fi
+
+cd "$REPO_ROOT/backend"
 
 # Check if uvicorn is installed
 if ! python -c "import uvicorn" 2>/dev/null; then
@@ -188,7 +188,7 @@ mkdir -p "$REPO_ROOT/logs"
 print_info "Starting backend server on http://localhost:8000..."
 cd "$REPO_ROOT/backend"
 # Use bash -c to activate venv in the subshell
-nohup bash -c "source $REPO_ROOT/venv/bin/activate && python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload" \
+nohup bash -c "source $REPO_ROOT/.venv/bin/activate && python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload" \
     > "$REPO_ROOT/logs/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"

@@ -1511,9 +1511,6 @@ main() {
         if [[ -f ".venv/bin/activate" ]]; then
             log_verbose "Activating virtual environment at .venv/"
             source .venv/bin/activate
-        elif [[ -f "venv/bin/activate" ]]; then
-            log_verbose "Activating virtual environment at venv/"
-            source venv/bin/activate
         fi
     elif [[ -n "$VIRTUAL_ENV" ]]; then
         log_verbose "Virtual environment already active: $VIRTUAL_ENV"

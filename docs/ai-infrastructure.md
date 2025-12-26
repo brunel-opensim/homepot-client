@@ -960,7 +960,7 @@ ollama serve &
 
 # 4. Activate virtual environment
 cd /home/mghorbani/workspace/homepot-client
-source venv/bin/activate
+source .venv/bin/activate
 
 # 5. Install Python dependencies
 cd backend
