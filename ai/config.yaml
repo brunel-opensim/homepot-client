@@ -16,7 +16,9 @@ memory:
   embedding_model: "all-MiniLM-L6-v2"
 
 database:
-  url: "postgresql://user:password@localhost:5432/homepot"
+  # Use PostgreSQL from docker-compose
+  url: "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
+  # url: "sqlite:///homepot.db"
 
 anomaly_detection:
   sensitivity: 0.8

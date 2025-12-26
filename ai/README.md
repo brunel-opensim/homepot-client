@@ -109,8 +109,34 @@ We prioritize **normal execution cycles** (running directly in a local environme
 
 ### Prerequisites
 *   Python 3.11+
-*   [Ollama](https://ollama.ai/) installed and running locally (`ollama serve`)
-*   A model pulled (e.g., `ollama pull llama3.2`)
+*   [Ollama](https://ollama.ai/) installed and running locally.
+
+### Automated Setup (Recommended)
+
+We provide a helper script to automate the installation and configuration of Ollama. This script will:
+1.  Install Ollama (if missing).
+2.  Check if the port (11434) is free or already in use.
+3.  Start the Ollama server.
+4.  Pull the specific model defined in `ai/config.yaml` (e.g., `llama3.2`).
+
+```bash
+./scripts/setup-ollama.sh
+```
+
+### Manual Setup (Alternative)
+
+If you prefer to set up the environment manually:
+
+1.  **Install Ollama**: Follow instructions at [ollama.ai](https://ollama.ai).
+2.  **Start the Server**:
+    ```bash
+    ollama serve
+    ```
+3.  **Pull the Model**:
+    Check `ai/config.yaml` for the required model, then run:
+    ```bash
+    ollama pull llama3.2
+    ```
 
 ### Running Locally
 
@@ -134,3 +160,33 @@ We prioritize **normal execution cycles** (running directly in a local environme
     ```bash
     pytest backend/tests/test_ai_service.py
     ```
+
+### Running the Demo
+
+We have a **System Verification Suite** that demonstrates the full AI pipeline. This is not just a simulation; it verifies the integration of the Database, EventStore, Predictor, and LLM.
+
+**The Workflow:**
+`DB (Postgres) -> EventStore -> Predictor -> Context Builder -> LLM -> Response`
+
+1.  **Ensure Ollama is running**:
+    You can use our helper script to ensure everything is ready:
+    ```bash
+    ./scripts/setup-ollama.sh
+    ```
+    Or manually start it:
+    ```bash
+    ollama serve
+    ```
+
+2.  **Run the Analysis**:
+    Run the demo script. It will automatically detect a device with recent metrics in the database, analyze its risk, and query the LLM.
+    ```bash
+    python backend/utils/demo_ai_scenario.py
+    ```
+
+    **What to expect:**
+    *   The script will connect to the **PostgreSQL** database (configured in `ai/config.yaml`).
+    *   It will find the device with the most recent data (e.g., `pos-terminal-001`).
+    *   It will feed this real data into the AI pipeline.
+    *   The LLM will provide an assessment based on the actual metrics found.
+

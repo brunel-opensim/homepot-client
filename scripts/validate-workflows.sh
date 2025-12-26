@@ -294,7 +294,7 @@ run_check() {
 # 1. Validate YAML syntax
 validate_yaml() {
     local files_found=false
-    for file in .github/workflows/*.yml .github/workflows/*.yaml; do
+    for file in .github/workflows/*.yml .github/workflows/*.yaml ai/*.yml ai/*.yaml; do
         [ -f "$file" ] || continue
         files_found=true
         log_verbose "Validating YAML file: $file"
@@ -309,7 +309,7 @@ validate_yaml() {
     done
     
     if [[ "$files_found" == false ]]; then
-        log_warning "No workflow files found in .github/workflows/"
+        log_warning "No workflow files found in .github/workflows/ or ai/"
         return 1
     fi
     
