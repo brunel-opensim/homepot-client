@@ -380,6 +380,22 @@ const api = {
       return response.data;
     },
   },
+
+  ai: {
+    /**
+     * Query the AI with a natural language question
+     * @param {string} query - The user's question
+     * @param {string} [deviceId] - Optional device context
+     */
+    query: async (query, deviceId = null) => {
+      const payload = { query };
+      if (deviceId) {
+        payload.device_id = deviceId;
+      }
+      const response = await apiClient.post('/ai/query', payload);
+      return response.data;
+    },
+  },
 };
 
 /**

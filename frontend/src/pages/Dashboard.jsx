@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
+import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
@@ -231,7 +232,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover flex-1">
+          <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover">
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold text-white mb-2">Active Alerts</h2>
               <ul className="space-y-2">
@@ -241,6 +242,11 @@ export default function Dashboard() {
               </ul>
             </CardContent>
           </Card>
+
+          {/* AI Assistant Widget */}
+          <div className="col-span-2 h-[400px]">
+            <AskAIWidget />
+          </div>
         </div>
       </div>
     </div>
