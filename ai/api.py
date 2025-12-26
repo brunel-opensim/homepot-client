@@ -6,14 +6,15 @@ import uuid
 from typing import Any, Dict
 
 import yaml
-from analysis_modes import ModeManager
-from anomaly_detection import AnomalyDetector
-from device_memory import DeviceMemory
-from event_store import EventStore
-from failure_predictor import FailurePredictor
 from fastapi import FastAPI, HTTPException
-from llm import LLMService
 from pydantic import BaseModel, Field
+
+from .analysis_modes import ModeManager
+from .anomaly_detection import AnomalyDetector
+from .device_memory import DeviceMemory
+from .event_store import EventStore
+from .failure_predictor import FailurePredictor
+from .llm import LLMService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -100,19 +101,25 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
         if request.device_id:
             try:
                 # Get failure prediction
-                prediction = failure_predictor.predict_failure_risk(request.device_id)
+                prediction = await failure_predictor.predict_device_failure(
+                    request.device_id
+                )
 
                 # Get recent raw events
                 recent_events = event_store.get_recent_events(
                     request.device_id, limit=5
                 )
 
+                risk_factors = [
+                    f.get("name", "Unknown") for f in prediction.get("risk_factors", [])
+                ]
+
                 live_context = (
                     f"[CURRENT SYSTEM STATUS]\n"
                     f"Device ID: {request.device_id}\n"
                     f"Risk Level: {prediction.get('risk_level', 'UNKNOWN')}\n"
-                    f"Risk Score: {prediction.get('score', 0.0)}\n"
-                    f"Risk Factors: {', '.join(prediction.get('reasons', []))}\n"
+                    f"Failure Probability: {prediction.get('failure_probability', 0.0)}\n"
+                    f"Risk Factors: {', '.join(risk_factors)}\n"
                     f"Recent Events: {recent_events}\n"
                     f"----------------------------------------\n"
                 )

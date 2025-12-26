@@ -4,6 +4,8 @@ Provides REST API access to AI-powered analytics, predictions, and recommendatio
 """
 
 import logging
+import os
+import sys
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -11,14 +13,22 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from homepot.ai import (
-    AIAnalyticsService,
-    FailurePredictor,
-    LLMService,
-    PredictiveJobScheduler,
+# Add project root to path to allow importing 'ai' package
+# Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
+# Root is 7 levels up
+project_root = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../../../../../../")
 )
-from homepot.database import get_database_service
-from homepot.models import Site
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from ai.analytics_service import AIAnalyticsService  # noqa: E402
+from ai.failure_predictor import FailurePredictor  # noqa: E402
+from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
+from ai.llm import LLMService  # noqa: E402
+
+from homepot.database import get_database_service  # noqa: E402
+from homepot.models import Site  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

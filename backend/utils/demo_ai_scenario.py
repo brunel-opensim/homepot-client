@@ -10,17 +10,20 @@ This script demonstrates the full AI pipeline:
 Scenario: A server ('server-01') is experiencing a rapid CPU spike.
 """
 
+import asyncio
 import logging
 import os
 import sys
 
-# Add ai directory to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../ai")))
+# Add project root to path (to import 'ai' package)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+# Add backend/src to path for homepot imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from analysis_modes import ModeManager
-from event_store import EventStore
-from failure_predictor import FailurePredictor
-from llm import LLMService
+from ai.analysis_modes import ModeManager
+from ai.event_store import EventStore
+from ai.failure_predictor import FailurePredictor
+from ai.llm import LLMService
 from sqlalchemy import text
 
 # Configure logging
@@ -35,7 +38,7 @@ def print_header(title):
     print(f"{'='*60}")
 
 
-def run_demo():
+async def run_demo():
     """Run the AI capability demo."""
     print_header("HOMEPOT AI CAPABILITY DEMO")
     print("Initializing AI Services...")
@@ -106,20 +109,24 @@ def run_demo():
         print(
             f"The demo requires existing data in the 'device_metrics' table for '{device_id}'."
         )
-        sys.exit(1)
+        # sys.exit(1) # Don't exit, try to proceed with prediction even if it fails (it handles errors)
 
     # 3. Run Predictive Analysis
     print_header("STEP 2: Predictive Maintenance Analysis")
     print("Running FailurePredictor...")
 
-    prediction = predictor.predict_failure_risk(device_id)
+    prediction = await predictor.predict_device_failure(device_id)
 
     print(f"\nRisk Assessment for {device_id}:")
-    print(f"  Risk Level: {prediction['risk_level']}")
-    print(f"  Risk Score: {prediction['score']}/1.0")
-    print(f"  Reasons:    {prediction['reasons']}")
+    print(f"  Risk Level: {prediction.get('risk_level', 'UNKNOWN')}")
+    print(f"  Failure Probability: {prediction.get('failure_probability', 0.0)}/1.0")
 
-    if prediction["score"] > 0.7:
+    risk_factors = [
+        f.get("name", "Unknown") for f in prediction.get("risk_factors", [])
+    ]
+    print(f"  Risk Factors: {risk_factors}")
+
+    if prediction.get("failure_probability", 0) > 0.7:
         print("\n[!] CRITICAL RISK DETECTED")
 
     # 4. Simulate Context Injection (The "Bridge")
@@ -133,8 +140,8 @@ def run_demo():
         f"[CURRENT SYSTEM STATUS]\n"
         f"Device ID: {device_id}\n"
         f"Risk Level: {prediction.get('risk_level', 'UNKNOWN')}\n"
-        f"Risk Score: {prediction.get('score', 0.0)}\n"
-        f"Risk Factors: {', '.join(prediction.get('reasons', []))}\n"
+        f"Failure Probability: {prediction.get('failure_probability', 0.0)}\n"
+        f"Risk Factors: {', '.join(risk_factors)}\n"
         f"Recent Events: {recent_events}\n"
     )
 
@@ -163,8 +170,8 @@ def run_demo():
         print("[!] ERROR: LLM Service not reachable (Ollama might be down).")
         print("The demo requires a running LLM service to generate the response.")
         print("Please ensure Ollama is running (e.g., 'ollama serve').")
-        sys.exit(1)
+        # sys.exit(1)
 
 
 if __name__ == "__main__":
-    run_demo()
+    asyncio.run(run_demo())

@@ -345,6 +345,18 @@ const api = {
     },
   },
 
+  // ==================== Analytics ====================
+
+  analytics: {
+    /**
+     * Get dashboard metrics (CPU, Alerts)
+     */
+    getDashboardMetrics: async () => {
+      const response = await apiClient.get('/analytics/dashboard-metrics');
+      return response.data;
+    },
+  },
+
   // ==================== Client Management ====================
 
   client: {
