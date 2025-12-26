@@ -63,6 +63,19 @@ We have introduced a **Predictive Maintenance** module (`failure_predictor.py`) 
 curl http://localhost:8000/predict/device-123
 ```
 
+## NLP Context Injection (Phase 5)
+
+The AI Query endpoint (`/api/ai/query`) has been enhanced to bridge the gap between historical knowledge and real-time status.
+
+### How it Works
+When a user asks a question about a specific device (e.g., "Is the kitchen camera failing?"), the system:
+1.  **Detects** the `device_id` in the request.
+2.  **Fetches** the live risk assessment from the `FailurePredictor`.
+3.  **Retrieves** the last 5 raw events from the `EventStore`.
+4.  **Injects** this real-time context directly into the LLM's prompt.
+
+This ensures the AI answers based on *what is happening right now*, not just what happened in the past.
+
 ## Key Components
 
 The implementation consists of four core modules:
