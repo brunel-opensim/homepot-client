@@ -1,12 +1,15 @@
 """FastAPI application for the AI service."""
 
 import logging
+import os
 import uuid
 from typing import Any, Dict
 
 import yaml
+from analysis_modes import ModeManager
 from anomaly_detection import AnomalyDetector
 from device_memory import DeviceMemory
+from event_store import EventStore
 from fastapi import FastAPI, HTTPException
 from llm import LLMService
 from pydantic import BaseModel, Field
@@ -16,7 +19,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load config
-with open("config.yaml", "r") as f:
+config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
 app = FastAPI(title=config["app"]["name"], version=config["app"]["version"])
@@ -25,6 +29,8 @@ app = FastAPI(title=config["app"]["name"], version=config["app"]["version"])
 llm_service = LLMService()
 memory_service = DeviceMemory()
 anomaly_detector = AnomalyDetector()
+event_store = EventStore()
+mode_manager = ModeManager()
 
 
 class ChatMessage(BaseModel):
@@ -49,6 +55,12 @@ class AnalysisRequest(BaseModel):
     metrics: Dict[str, Any]
 
 
+class ModeRequest(BaseModel):
+    """Request model for setting analysis mode."""
+
+    mode: str
+
+
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
     """Check service health."""
@@ -57,7 +69,15 @@ async def health_check() -> Dict[str, Any]:
         "status": "healthy",
         "llm_connected": llm_health,
         "version": config["app"]["version"],
+        "mode": mode_manager.current_mode.value,
     }
+
+
+@app.post("/api/ai/mode")
+async def set_mode(request: ModeRequest) -> Dict[str, str]:
+    """Set the AI analysis mode."""
+    mode_manager.set_mode(request.mode)
+    return {"status": "success", "mode": mode_manager.current_mode.value}
 
 
 @app.post("/api/ai/query")
@@ -80,7 +100,11 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
         )
 
         # 4. Generate response
-        response = llm_service.generate_response(request.query, context=full_context)
+        response = llm_service.generate_response(
+            request.query,
+            context=full_context,
+            system_prompt=mode_manager.get_system_prompt(),
+        )
 
         return {
             "response": response,
@@ -98,20 +122,36 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
 async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
     """Analyze device metrics for anomalies using Hybrid approach."""
     try:
+        # 0. Store current metrics as an event
+        event_store.add_event(
+            {
+                "device_id": request.device_id,
+                "event": "metrics_update",
+                "value": request.metrics,
+                # timestamp added by store
+            }
+        )
+
         # 1. Rule-Based Analysis (Fast & Deterministic)
         anomaly_score = anomaly_detector.check_anomaly(request.metrics)
 
-        # 2. LLM Analysis (Contextual & Explanatory)
-        # We feed the rule-based score to the LLM to guide its interpretation
+        # 2. Retrieve Context
+        recent_events_summary = event_store.get_events_summary(request.device_id)
+
+        # 3. LLM Analysis (Contextual & Explanatory)
+        # We feed the rule-based score and recent history to the LLM
         prompt = (
             f"Analyze these metrics for device {request.device_id}.\n"
-            f"Metrics: {request.metrics}\n"
+            f"Current Metrics: {request.metrics}\n"
             f"Automated Anomaly Score: {anomaly_score}/1.0\n"
+            f"Recent Events Context:\n{recent_events_summary}\n"
             f"Task: Explain any anomalies found and recommend actions."
         )
-        analysis = llm_service.generate_response(prompt)
+        analysis = llm_service.generate_response(
+            prompt, system_prompt=mode_manager.get_system_prompt()
+        )
 
-        # 3. Store Analysis in Memory
+        # 4. Store Analysis in Memory
         memory_service.add_memory(
             text=f"Analysis for {request.device_id}: {analysis}",
             metadata={

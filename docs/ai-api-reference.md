@@ -44,7 +44,36 @@ Analyze a set of device metrics to detect anomalies and receive actionable recom
 
 ---
 
-## 2. Natural Language Query
+## 2. Set Analysis Mode
+
+Switch the AI's "persona" to tailor the analysis output for different audiences.
+
+### Endpoint
+`POST /mode`
+
+### Request Body
+```json
+{
+  "mode": "executive"
+}
+```
+
+**Available Modes:**
+- `maintenance` (Default): Technical focus, root cause analysis, fix recommendations.
+- `predictive`: Trend analysis, failure prediction, risk assessment.
+- `executive`: High-level summaries, business impact, KPIs.
+
+### Response
+```json
+{
+  "status": "success",
+  "mode": "executive"
+}
+```
+
+---
+
+## 3. Natural Language Query
 
 Ask questions about the system, specific devices, or historical incidents. The system uses **RAG (Retrieval-Augmented Generation)** to provide accurate answers based on:
 1.  **Long-Term Memory:** Historical logs and documentation stored in ChromaDB.
@@ -84,7 +113,7 @@ Ask questions about the system, specific devices, or historical incidents. The s
 
 ---
 
-## 3. Health Check
+## 4. Health Check
 
 Verify that the AI Service and LLM are operational.
 
@@ -96,6 +125,7 @@ Verify that the AI Service and LLM are operational.
 {
   "status": "healthy",
   "llm_connected": true,
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "mode": "maintenance"
 }
 ```

@@ -388,7 +388,7 @@ pip install chromadb sentence-transformers textblob pyyaml
 
 ---
 
-### Sprint 2: Core Components (Week 3-4)
+### Sprint 2: Core Components (Week 3-4) - COMPLETED
 
 **Objectives:**
 - Implement device memory and event storage
@@ -396,8 +396,14 @@ pip install chromadb sentence-transformers textblob pyyaml
 - Build analysis modes
 
 **Deliverables:**
-- `event_store.py` - Device event caching
-- `device_memory.py` - Vector database integration
+- `event_store.py` - Device event caching (Implemented)
+- `device_memory.py` - Vector database integration (Implemented)
+- `anomaly_detection.py` - Health scoring (Implemented)
+- `analysis_modes.py` - Mode definitions (Implemented)
+- Database migrations for AI-related tables (Pending)
+- Integration tests (Implemented)
+
+**Database Schema:**
 - `anomaly_detection.py` - Health scoring
 - `analysis_modes.py` - Mode definitions
 - Database migrations for AI-related tables

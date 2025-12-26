@@ -11,7 +11,7 @@ llm:
   context_window: 4096
 
 memory:
-  chroma_path: "./chroma_db"
+  chroma_path: "data/chroma_db"
   collection_name: "device_logs"
   embedding_model: "all-MiniLM-L6-v2"
 
