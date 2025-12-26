@@ -95,13 +95,40 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
             [f"{msg.role}: {msg.content}" for msg in request.history[-5:]]
         )
 
-        # 3. Combine Contexts
+        # 3. Retrieve Real-Time Device Context (The "Senses")
+        live_context = ""
+        if request.device_id:
+            try:
+                # Get failure prediction
+                prediction = failure_predictor.predict_failure_risk(request.device_id)
+
+                # Get recent raw events
+                recent_events = event_store.get_recent_events(
+                    request.device_id, limit=5
+                )
+
+                live_context = (
+                    f"[CURRENT SYSTEM STATUS]\n"
+                    f"Device ID: {request.device_id}\n"
+                    f"Risk Level: {prediction.get('risk_level', 'UNKNOWN')}\n"
+                    f"Risk Score: {prediction.get('score', 0.0)}\n"
+                    f"Risk Factors: {', '.join(prediction.get('reasons', []))}\n"
+                    f"Recent Events: {recent_events}\n"
+                    f"----------------------------------------\n"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to fetch live context for {request.device_id}: {e}"
+                )
+
+        # 4. Combine Contexts
         full_context = (
+            f"{live_context}\n"
             f"Relevant History:\n{long_term_context}\n\n"
             f"Current Conversation:\n{short_term_context}"
         )
 
-        # 4. Generate response
+        # 5. Generate response
         response = llm_service.generate_response(
             request.query,
             context=full_context,
@@ -113,6 +140,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
             "context_used": {
                 "long_term_memories": len(context_memories),
                 "short_term_messages": len(request.history),
+                "live_context_injected": bool(live_context),
             },
         }
     except Exception as e:
