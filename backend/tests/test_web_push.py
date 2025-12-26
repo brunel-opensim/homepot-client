@@ -5,10 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from homepot.push_notifications.base import (
-    PushNotificationPayload,
-    PushPriority,
-)
+from homepot.push_notifications.base import PushNotificationPayload, PushPriority
 from homepot.push_notifications.web_push import WebPushProvider
 
 

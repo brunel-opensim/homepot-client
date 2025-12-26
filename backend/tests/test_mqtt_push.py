@@ -4,10 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from homepot.push_notifications.base import (
-    PushNotificationPayload,
-    PushPriority,
-)
+from homepot.push_notifications.base import PushNotificationPayload, PushPriority
 from homepot.push_notifications.mqtt_push import MQTTPushProvider
 
 

@@ -12,10 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from homepot.push_notifications.base import (
-    PushNotificationPayload,
-    PushPriority,
-)
+from homepot.push_notifications.base import PushNotificationPayload, PushPriority
 from homepot.push_notifications.fcm_linux import FCMLinuxProvider
 
 

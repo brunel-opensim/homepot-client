@@ -126,16 +126,8 @@ class TestPOSDummy:
         issues before we attempt any actual functionality testing.
         """
         # Test core application imports  # noqa: F401
-        from homepot import (  # noqa: F401
-            agents,
-            audit,
-            client,
-            config,
-            database,
-            main,
-            models,
-            orchestrator,
-        )
+        from homepot import config  # noqa: F401
+        from homepot import agents, audit, client, database, main, models, orchestrator
 
         # Verify FastAPI app exists
         assert hasattr(main, "app"), "FastAPI app not found in main module"
