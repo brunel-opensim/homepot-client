@@ -400,14 +400,8 @@ pip install chromadb sentence-transformers textblob pyyaml
 - `device_memory.py` - Vector database integration (Implemented)
 - `anomaly_detection.py` - Health scoring (Implemented)
 - `analysis_modes.py` - Mode definitions (Implemented)
-- Database migrations for AI-related tables (Pending)
+- Database integration for Event Store (Implemented - uses `device_metrics`)
 - Integration tests (Implemented)
-
-**Database Schema:**
-- `anomaly_detection.py` - Health scoring
-- `analysis_modes.py` - Mode definitions
-- Database migrations for AI-related tables
-- Integration tests
 
 **Database Schema:**
 ```sql
