@@ -1,6 +1,7 @@
 """Module for detecting anomalies in device metrics."""
 
 import logging
+import os
 from typing import Any, Dict
 
 import yaml
@@ -11,8 +12,10 @@ logger = logging.getLogger(__name__)
 class AnomalyDetector:
     """Detects anomalies in device metrics using rule-based thresholds."""
 
-    def __init__(self, config_path: str = "config.yaml") -> None:
+    def __init__(self, config_path: str | None = None) -> None:
         """Initialize the AnomalyDetector with configuration."""
+        if config_path is None:
+            config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
         try:
             with open(config_path, "r") as f:
                 self.config = yaml.safe_load(f)
