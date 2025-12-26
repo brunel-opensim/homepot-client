@@ -217,7 +217,7 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
 async def predict_failure(device_id: str) -> Dict[str, Any]:
     """Predict failure risk for a specific device."""
     try:
-        prediction = failure_predictor.predict_failure_risk(device_id)
+        prediction = await failure_predictor.predict_device_failure(device_id)
         return prediction
     except Exception as e:
         logger.error(f"Prediction failed: {e}")

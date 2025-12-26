@@ -48,6 +48,16 @@ homepot-client/
 - **Location**: `ai/tests/`
 - **Configuration**: `ai/pyproject.toml`
 - **Coverage Tool**: pytest-cov
+
+## Feature Verification Scripts
+
+In addition to standard unit and integration tests, we maintain specialized scripts for verifying complex features like data pipelines and simulations.
+
+### Data Collection Validation
+- **Script**: `backend/utils/validate_data_collection.py`
+- **Purpose**: Verifies the integrity, range, and consistency of simulated POS agent data.
+- **Usage**: `python backend/utils/validate_data_collection.py`
+- **Documentation**: See [Data Collection Guide](data-collection-guide.md) for details.
 - **Run Command**: `pytest ai/tests/`
 
 ## Running Tests

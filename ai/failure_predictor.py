@@ -6,7 +6,7 @@ identify devices at risk of failure and generate early warnings.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .analytics_service import AIAnalyticsService
 
@@ -99,7 +99,7 @@ class FailurePredictor:
             logger.error(f"Failed to predict failure: {e}", exc_info=True)
             return {
                 "device_id": device_id,
-                "error": str(e),
+                "error": "Failed to generate failure prediction due to an internal error.",
                 "failure_probability": 0.0,
                 "risk_level": "unknown",
             }
@@ -207,3 +207,26 @@ class FailurePredictor:
         # Rough estimate
         hours = window * (1.0 - probability)
         return (datetime.utcnow() + timedelta(hours=hours)).isoformat()
+
+    async def identify_at_risk_devices(
+        self,
+        site_id: Optional[str] = None,
+        min_risk_level: str = "medium",
+    ) -> Dict[str, Any]:
+        """Identify all devices currently at risk of failure.
+
+        Args:
+            site_id: Optional site filter
+            min_risk_level: Minimum risk level to include
+
+        Returns:
+            Dict containing list of at-risk devices
+        """
+        # TODO: Implement actual identification logic
+        return {
+            "site_id": site_id,
+            "min_risk_level": min_risk_level,
+            "at_risk_count": 0,
+            "devices": [],
+            "generated_at": datetime.utcnow().isoformat(),
+        }

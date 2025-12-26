@@ -517,23 +517,23 @@ async def get_dashboard_metrics(
         )
 
         # Group by minute (simple approximation)
-        cpu_by_minute = {}
+        cpu_by_minute: Dict[str, list[float]] = {}
         for m in recent_metrics:
             # Round to nearest minute
             time_key = m.timestamp.strftime("%H:%M")
             if time_key not in cpu_by_minute:
                 cpu_by_minute[time_key] = []
-            cpu_by_minute[time_key].append(m.cpu_percent)
+            cpu_by_minute[time_key].append(float(m.cpu_percent or 0.0))
 
         # Calculate averages
-        cpu_data = []
+        cpu_data: list[dict[str, Any]] = []
         for time_key, values in cpu_by_minute.items():
             cpu_data.append(
                 {"time": time_key, "value": round(sum(values) / len(values), 1)}
             )
 
         # Sort by time and take last 12
-        cpu_data.sort(key=lambda x: x["time"])
+        cpu_data.sort(key=lambda x: str(x["time"]))
         cpu_data = cpu_data[-12:]
 
         # 2. Active Alerts

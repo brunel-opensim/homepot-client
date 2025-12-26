@@ -99,6 +99,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         await client_instance.connect()
         logger.info("HOMEPOT Client connected successfully")
+
+        # Inject client instance into endpoints
+        from homepot.app.api.API_v1.Endpoints import AgentsEndpoints, HealthEndpoint
+
+        HealthEndpoint.client_instance = client_instance
+        AgentsEndpoints.client_instance = client_instance
+
     except Exception as e:
         logger.warning(f"Failed to connect client on startup: {e}")
 

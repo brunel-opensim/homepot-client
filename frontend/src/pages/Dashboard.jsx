@@ -87,24 +87,25 @@ export default function Dashboard() {
 
         // 2. Fetch Dashboard Metrics (CPU & Alerts)
         const metrics = await api.analytics.getDashboardMetrics();
-        
+
         if (metrics.cpu && metrics.cpu.length > 0) {
           setCpuData({
-            labels: metrics.cpu.map(m => m.time),
-            datasets: [{
-              label: 'CPU',
-              data: metrics.cpu.map(m => m.value),
-              borderColor: '#22c55e',
-              backgroundColor: 'rgba(34,197,94,0.2)',
-              tension: 0.4,
-            }]
+            labels: metrics.cpu.map((m) => m.time),
+            datasets: [
+              {
+                label: 'CPU',
+                data: metrics.cpu.map((m) => m.value),
+                borderColor: '#22c55e',
+                backgroundColor: 'rgba(34,197,94,0.2)',
+                tension: 0.4,
+              },
+            ],
           });
         }
 
         if (metrics.alerts) {
           setAlerts(metrics.alerts);
         }
-
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
       } finally {
@@ -197,6 +198,14 @@ export default function Dashboard() {
               >
                 Agent
               </Button>
+              <Button
+                onClick={() => {
+                  navigate('/data-collection');
+                }}
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+              >
+                Data Collection
+              </Button>
               <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
                 Send Notification
               </Button>
@@ -259,7 +268,10 @@ export default function Dashboard() {
                 {alerts.length > 0 ? (
                   alerts.map((alert, i) => (
                     <li key={i} className="text-red-400 text-sm">
-                      {alert.message} – <span className="text-gray-500 text-xs">{new Date(alert.timestamp).toLocaleTimeString()}</span>
+                      {alert.message} –{' '}
+                      <span className="text-gray-500 text-xs">
+                        {new Date(alert.timestamp).toLocaleTimeString()}
+                      </span>
                     </li>
                   ))
                 ) : (

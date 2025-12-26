@@ -104,6 +104,29 @@ class AIAnalyticsService:
             return {"device_id": device_id, "status": "error", "message": str(e)}
 
     @staticmethod
+    async def get_configuration_impact_analysis(
+        site_id: str,
+        days: int = 14,
+    ) -> Dict[str, Any]:
+        """Analyze the impact of configuration changes on device performance.
+
+        Args:
+            site_id: Site identifier
+            days: Number of days to analyze
+
+        Returns:
+            Dict containing impact analysis
+        """
+        # TODO: Implement actual analysis
+        return {
+            "site_id": site_id,
+            "period_days": days,
+            "impact_score": 0.0,
+            "correlated_issues": [],
+            "recommendation": "No significant impact detected",
+        }
+
+    @staticmethod
     async def get_job_outcome_patterns(
         site_id: Optional[str] = None,
         days: int = 30,
