@@ -3,14 +3,14 @@
 import os
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
-# Add ai directory to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../ai")))
+# Add project root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 # We need to mock the imports in api.py that might fail if dependencies aren't perfect
 # But assuming the environment is set up:
-from api import ChatMessage, QueryRequest, query_ai  # noqa: E402
+from ai.api import ChatMessage, QueryRequest, query_ai  # noqa: E402
 
 
 class TestAINLPIntegration(unittest.IsolatedAsyncioTestCase):
@@ -20,10 +20,10 @@ class TestAINLPIntegration(unittest.IsolatedAsyncioTestCase):
         """Set up the test environment."""
         self.device_id = "test-device-nlp"
 
-    @patch("api.llm_service")
-    @patch("api.failure_predictor")
-    @patch("api.event_store")
-    @patch("api.memory_service")
+    @patch("ai.api.llm_service")
+    @patch("ai.api.failure_predictor")
+    @patch("ai.api.event_store")
+    @patch("ai.api.memory_service")
     async def test_query_injects_live_context(
         self, mock_memory, mock_store, mock_predictor, mock_llm
     ):
@@ -34,11 +34,15 @@ class TestAINLPIntegration(unittest.IsolatedAsyncioTestCase):
             {"event": "metrics", "value": {"cpu": 99}}
         ]
 
-        mock_predictor.predict_failure_risk.return_value = {
-            "risk_level": "CRITICAL",
-            "score": 0.95,
-            "reasons": ["CPU Overheating"],
-        }
+        # Configure AsyncMock for async method
+        mock_predictor.predict_device_failure = AsyncMock(
+            return_value={
+                "risk_level": "CRITICAL",
+                "score": 0.95,
+                "reasons": ["CPU Overheating"],
+                "risk_factors": [{"name": "CPU Overheating"}],
+            }
+        )
 
         mock_llm.generate_response.return_value = "Analysis complete."
 
@@ -69,10 +73,13 @@ class TestAINLPIntegration(unittest.IsolatedAsyncioTestCase):
         # Check return value
         self.assertTrue(response["context_used"]["live_context_injected"])
 
-    @patch("api.llm_service")
-    @patch("api.failure_predictor")
+    @patch("ai.api.llm_service")
+    @patch("ai.api.failure_predictor")
     async def test_query_without_device_id(self, mock_predictor, mock_llm):
         """Test that live context is NOT injected when device_id is missing."""
+        # Configure AsyncMock
+        mock_predictor.predict_device_failure = AsyncMock()
+
         request = QueryRequest(query="General question", device_id=None)
 
         await query_ai(request)
@@ -81,7 +88,7 @@ class TestAINLPIntegration(unittest.IsolatedAsyncioTestCase):
         context_passed = call_args[1]["context"]
 
         self.assertNotIn("[CURRENT SYSTEM STATUS]", context_passed)
-        mock_predictor.predict_failure_risk.assert_not_called()
+        mock_predictor.predict_device_failure.assert_not_called()
 
 
 if __name__ == "__main__":
