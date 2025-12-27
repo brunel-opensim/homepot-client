@@ -69,6 +69,12 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Username, Role, Activity Type (e.g., `page_view`), Target URL.
 *   **Goal:** Provides context on *who* is asking or *what* they were doing (e.g., "User 'admin' viewed the logs page").
 
+### 9. Site Context (`SiteOperatingSchedule`)
+*   **Trigger:** Always fetched when analyzing a device.
+*   **Content:** Operating hours and current status (Open/Closed).
+*   **Fields:** Site ID, Status, Open Time, Close Time.
+*   **Goal:** Contextualizes "offline" alerts (e.g., "Device is offline, but the store is closed, so it's low priority").
+
 ## Usage
 
 The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.
@@ -86,11 +92,14 @@ api_context = await context_builder.get_api_context()
 state_context = await context_builder.get_state_context(device_id="device-123")
 push_context = await context_builder.get_push_context(device_id="device-123")
 user_context = await context_builder.get_user_context(user_id="1")
+site_context = await context_builder.get_site_context(device_id="device-123")
 ```
 
 ## Future Expansion
 
 The following data sources are planned for integration:
-*   `SiteOperatingSchedule`: For understanding operational hours.
+*   `Devices`: Rich metadata (firmware version, IP address).
+*   `HealthCheck`: Raw health ping data.
+
 
 
