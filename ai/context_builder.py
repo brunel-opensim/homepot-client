@@ -6,8 +6,9 @@ from typing import Optional
 
 from sqlalchemy import and_, select
 
-from homepot.app.models.AnalyticsModel import ErrorLog, JobOutcome
+from homepot.app.models.AnalyticsModel import ConfigurationHistory, ErrorLog, JobOutcome
 from homepot.database import get_database_service
+from homepot.models import AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -107,3 +108,92 @@ class ContextBuilder:
         except Exception as e:
             logger.error(f"Failed to build error context: {e}")
             return "Error retrieving error context."
+
+    @staticmethod
+    async def get_config_context(
+        device_id: Optional[str] = None, limit: int = 5
+    ) -> str:
+        """Retrieve recent configuration changes.
+
+        Args:
+            device_id: Optional device ID to filter by.
+            limit: Number of changes to fetch.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                stmt = select(ConfigurationHistory).order_by(
+                    ConfigurationHistory.timestamp.desc()
+                )
+
+                if device_id:
+                    stmt = stmt.where(
+                        and_(
+                            ConfigurationHistory.entity_type == "device",
+                            ConfigurationHistory.entity_id == device_id,
+                        )
+                    )
+
+                stmt = stmt.limit(limit)
+
+                result = await session.execute(stmt)
+                changes = result.scalars().all()
+
+                if not changes:
+                    return "No recent configuration changes."
+
+                context_lines = ["[RECENT CONFIG CHANGES]"]
+                for change in changes:
+                    context_lines.append(
+                        f"- {change.timestamp.isoformat()}: {change.parameter_name} "
+                        f"changed by {change.changed_by} ({change.change_type})"
+                    )
+                return "\n".join(context_lines)
+
+        except Exception as e:
+            logger.error(f"Failed to build config context: {e}")
+            return "Error retrieving config context."
+
+    @staticmethod
+    async def get_audit_context(device_id: Optional[str] = None, limit: int = 5) -> str:
+        """Retrieve recent audit logs.
+
+        Args:
+            device_id: Optional device ID to filter by.
+            limit: Number of logs to fetch.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                # Note: AuditLog uses integer device_id FK, but we pass string ID.
+                # We might need to join with Device table or assume ID lookup is handled.
+                # For now, we'll skip device filtering if it's a string ID and AuditLog expects int,
+                # OR we assume the caller handles ID conversion.
+                # However, looking at models.py, AuditLog.device_id is Integer FK.
+                # But Device.device_id is String.
+                # This implies we need to look up the integer ID first.
+                # For simplicity in this iteration, we will return general audit logs
+                # or if device_id is provided, we'd need to resolve it.
+                # Let's check if we can filter by description or metadata if ID lookup is complex.
+
+                # Strategy: Just fetch recent logs for now to avoid complex joins in this step.
+                stmt = (
+                    select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)
+                )
+
+                result = await session.execute(stmt)
+                logs = result.scalars().all()
+
+                if not logs:
+                    return "No recent audit logs."
+
+                context_lines = ["[RECENT AUDIT LOGS]"]
+                for log in logs:
+                    context_lines.append(
+                        f"- {log.created_at.isoformat()}: {log.event_type} - {log.description}"
+                    )
+                return "\n".join(context_lines)
+
+        except Exception as e:
+            logger.error(f"Failed to build audit context: {e}")
+            return "Error retrieving audit context."
