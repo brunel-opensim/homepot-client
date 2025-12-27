@@ -15,7 +15,12 @@ if workspace_root not in sys.path:
 
 from ai.context_builder import ContextBuilder  # noqa: E402
 
-from homepot.app.models.AnalyticsModel import ErrorLog, JobOutcome  # noqa: E402
+from homepot.app.models.AnalyticsModel import (  # noqa: E402
+    ConfigurationHistory,
+    ErrorLog,
+    JobOutcome,
+)
+from homepot.models import AuditLog  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -155,3 +160,110 @@ async def test_get_error_context_no_errors():
         context = await ContextBuilder.get_error_context(device_id="device-123")
 
         assert "No recent system errors" in context
+
+
+@pytest.mark.asyncio
+async def test_get_config_context():
+    """Test retrieving context for configuration changes."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock the result
+    mock_change = ConfigurationHistory(
+        timestamp=datetime.utcnow(),
+        parameter_name="max_connections",
+        changed_by="admin",
+        change_type="manual",
+    )
+
+    # Setup the execute result
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_change]
+    mock_session.execute.return_value = mock_result
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_config_context(device_id="device-123")
+
+        assert "[RECENT CONFIG CHANGES]" in context
+        assert "max_connections" in context
+        assert "admin" in context
+
+
+@pytest.mark.asyncio
+async def test_get_config_context_no_changes():
+    """Test retrieving context when there are no config changes."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Setup the execute result (empty list)
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_session.execute.return_value = mock_result
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_config_context(device_id="device-123")
+
+        assert "No recent configuration changes" in context
+
+
+@pytest.mark.asyncio
+async def test_get_audit_context():
+    """Test retrieving context for audit logs."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock the result
+    mock_log = AuditLog(
+        created_at=datetime.utcnow(),
+        event_type="user_login",
+        description="User logged in successfully",
+    )
+
+    # Setup the execute result
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_log]
+    mock_session.execute.return_value = mock_result
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_audit_context(device_id="device-123")
+
+        assert "[RECENT AUDIT LOGS]" in context
+        assert "user_login" in context
+        assert "User logged in successfully" in context
+
+
+@pytest.mark.asyncio
+async def test_get_audit_context_no_logs():
+    """Test retrieving context when there are no audit logs."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Setup the execute result (empty list)
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_session.execute.return_value = mock_result
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_audit_context(device_id="device-123")
+
+        assert "No recent audit logs" in context
