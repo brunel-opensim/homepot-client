@@ -45,20 +45,27 @@ class LLMService:
     ) -> str:
         """Generate a response from the LLM."""
         try:
+            messages = []
+
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+
             full_prompt = prompt
             if context:
                 full_prompt = f"Context:\n{context}\n\nQuestion: {prompt}"
 
-            kwargs = {
-                "model": self.model,
-                "prompt": full_prompt,
-                "options": {"temperature": self.config["llm"]["temperature"]},
-            }
-            if system_prompt:
-                kwargs["system"] = system_prompt
+            messages.append({"role": "user", "content": full_prompt})
 
-            response = self.client.generate(**kwargs)
-            return str(response["response"])
+            response = self.client.chat(
+                model=self.model,
+                messages=messages,
+            )
+
+            return str(response["message"]["content"])
+
         except Exception as e:
-            logger.error(f"LLM generation failed: {e}")
-            return "Error generating response."
+            logger.error(f"Failed to generate LLM response: {e}")
+            return (
+                "I apologize, but I'm currently unable to connect to my AI brain "
+                "(Ollama). Please ensure the Ollama service is running."
+            )

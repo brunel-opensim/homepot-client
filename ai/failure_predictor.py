@@ -1,110 +1,232 @@
-"""Failure prediction module for analyzing device metrics and assessing risk."""
+"""Failure Prediction Engine - Predict device failures before they occur.
 
-import statistics
-from datetime import datetime
-from typing import Dict
+This module analyzes patterns in metrics, errors, and state changes to
+identify devices at risk of failure and generate early warnings.
+"""
 
-from event_store import EventStore
+import logging
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+from .analytics_service import AIAnalyticsService
+
+logger = logging.getLogger(__name__)
 
 
 class FailurePredictor:
-    """Predicts device failure risks based on historical metrics."""
+    """Predicts device failures using pattern analysis."""
 
-    def __init__(self, event_store: EventStore) -> None:
-        """Initialize the FailurePredictor with an event store."""
+    def __init__(self, event_store: Any = None) -> None:
+        """Initialize the failure predictor.
+
+        Args:
+            event_store: Optional event store (kept for compatibility with existing code)
+        """
+        self.analytics = AIAnalyticsService()
         self.event_store = event_store
 
-    def predict_failure_risk(self, device_id: str) -> Dict:
-        """Analyzes metrics to predict potential failures.
+    async def predict_device_failure(
+        self,
+        device_id: str,
+        prediction_window_hours: int = 24,
+    ) -> Dict[str, Any]:
+        """Predict likelihood of device failure in the next N hours.
 
-        Returns a risk assessment dictionary.
+        Args:
+            device_id: Device to analyze
+            prediction_window_hours: Prediction time window (default: 24h)
+
+        Returns:
+            Dict with failure probability, risk level, and contributing factors
         """
-        # Get recent events from the store
-        events = self.event_store.get_recent_events(device_id, limit=100)
+        try:
+            risk_score = 0.0
+            risk_factors = []
 
-        # Filter for device metrics (EventStore returns events for specific device)
-        # We just need to ensure they are metrics updates
-        device_events = [e for e in events if e.get("event") == "metrics_update"]
+            # Factor 1: Resource trends (CPU/Memory/Disk)
+            resource_risk = await self._analyze_resource_trends(device_id)
+            risk_score += resource_risk["score"] * 0.35  # 35% weight
+            if resource_risk["score"] > 0:
+                risk_factors.extend(resource_risk["factors"])
 
-        if not device_events:
+            # Factor 2: Error frequency and severity
+            error_risk = await self._analyze_error_patterns(device_id)
+            risk_score += error_risk["score"] * 0.30  # 30% weight
+            if error_risk["score"] > 0:
+                risk_factors.extend(error_risk["factors"])
+
+            # Factor 3: State transition instability
+            state_risk = await self._analyze_state_stability(device_id)
+            risk_score += state_risk["score"] * 0.20  # 20% weight
+            if state_risk["score"] > 0:
+                risk_factors.extend(state_risk["factors"])
+
+            # Factor 4: Historical health score
+            health_risk = await self._analyze_health_trend(device_id)
+            risk_score += health_risk["score"] * 0.15  # 15% weight
+            if health_risk["score"] > 0:
+                risk_factors.extend(health_risk["factors"])
+
+            # Normalize to 0-1 range
+            failure_probability = min(1.0, max(0.0, risk_score))
+
+            # Determine risk level
+            risk_level = self._determine_risk_level(failure_probability)
+
+            # Generate recommendations
+            recommendations = self._generate_recommendations(risk_level, risk_factors)
+
             return {
-                "risk_level": "UNKNOWN",
-                "score": 0.0,
-                "reasons": ["No recent data available for analysis"],
-                "timestamp": datetime.now().isoformat(),
+                "device_id": device_id,
+                "failure_probability": round(failure_probability, 3),
+                "risk_level": risk_level,
+                "prediction_window_hours": prediction_window_hours,
+                "confidence": self._calculate_confidence(risk_factors),
+                "risk_factors": sorted(
+                    risk_factors, key=lambda x: x.get("severity", 0), reverse=True
+                ),
+                "recommendations": recommendations,
+                "prediction_timestamp": datetime.utcnow().isoformat(),
+                "predicted_failure_time": (
+                    self._estimate_failure_time(
+                        failure_probability, prediction_window_hours
+                    )
+                    if failure_probability > 0.5
+                    else None
+                ),
+            }
+        except Exception as e:
+            logger.error(f"Failed to predict failure: {e}", exc_info=True)
+            return {
+                "device_id": device_id,
+                "error": "Failed to generate failure prediction due to an internal error.",
+                "failure_probability": 0.0,
+                "risk_level": "unknown",
             }
 
-        # Extract metrics safely
-        cpu_readings = []
-        memory_readings = []
-        disk_readings = []
+    async def _analyze_resource_trends(self, device_id: str) -> Dict[str, Any]:
+        """Analyze resource usage trends."""
+        try:
+            trends = await self.analytics.get_device_performance_trends(
+                device_id, days=3
+            )
+            if trends.get("status") == "error":
+                return {"score": 0.0, "factors": []}
 
-        for e in device_events:
-            data = e.get("value", {})
-            if "cpu_percent" in data:
-                cpu_readings.append(float(data["cpu_percent"]))
-            if "memory_percent" in data:
-                memory_readings.append(float(data["memory_percent"]))
-            if "disk_percent" in data:
-                disk_readings.append(float(data["disk_percent"]))
+            metrics = trends.get("metrics", {})
+            score = 0.0
+            factors = []
 
-        risk_score = 0.0
-        reasons = []
+            if metrics.get("avg_cpu_percent", 0) > 80:
+                score += 0.5
+                factors.append(
+                    {"type": "resource", "name": "High CPU Usage", "severity": 0.8}
+                )
 
-        # CPU Analysis
-        if cpu_readings:
-            avg_cpu = statistics.mean(cpu_readings)
-            if avg_cpu > 90:
-                risk_score += 0.7
-                reasons.append(f"Critical average CPU usage ({avg_cpu:.1f}%)")
-            elif avg_cpu > 75:
-                risk_score += 0.3
-                reasons.append(f"High average CPU usage ({avg_cpu:.1f}%)")
+            if metrics.get("avg_memory_percent", 0) > 85:
+                score += 0.5
+                factors.append(
+                    {"type": "resource", "name": "High Memory Usage", "severity": 0.9}
+                )
 
-            # Simple trend detection (comparing last 3 vs first 3 if enough data)
-            if len(cpu_readings) >= 6:
-                recent_avg = statistics.mean(cpu_readings[-3:])
-                older_avg = statistics.mean(cpu_readings[:3])
-                if recent_avg > older_avg * 1.2:  # 20% increase
-                    risk_score += 0.2
-                    reasons.append("CPU usage is trending upwards significantly")
+            return {"score": min(1.0, score), "factors": factors}
+        except Exception:
+            return {"score": 0.0, "factors": []}
 
-        # Memory Analysis
-        if memory_readings:
-            avg_mem = statistics.mean(memory_readings)
-            if avg_mem > 90:
-                risk_score += 0.5
-                reasons.append(f"Critical average Memory usage ({avg_mem:.1f}%)")
-            elif avg_mem > 80:
-                risk_score += 0.3
-                reasons.append(f"High average Memory usage ({avg_mem:.1f}%)")
+    async def _analyze_error_patterns(self, device_id: str) -> Dict[str, Any]:
+        """Analyze error logs."""
+        try:
+            errors = await self.analytics.get_error_frequency_analysis(
+                device_id, days=3
+            )
+            if errors.get("status") == "error":
+                return {"score": 0.0, "factors": []}
 
-        # Disk Analysis
-        if disk_readings:
-            max_disk = max(disk_readings)
-            if max_disk > 95:
-                risk_score += 0.6
-                reasons.append(f"Critical Disk usage detected ({max_disk:.1f}%)")
-            elif max_disk > 85:
-                risk_score += 0.3
-                reasons.append(f"High Disk usage detected ({max_disk:.1f}%)")
+            rate = errors.get("error_rate_per_day", 0)
+            score = 0.0
+            factors = []
 
-        # Cap score at 1.0
-        risk_score = min(risk_score, 1.0)
+            if rate > 10:
+                score = 1.0
+                factors.append(
+                    {"type": "error", "name": "Critical Error Rate", "severity": 1.0}
+                )
+            elif rate > 5:
+                score = 0.6
+                factors.append(
+                    {"type": "error", "name": "High Error Rate", "severity": 0.6}
+                )
 
-        # Determine Risk Level
-        if risk_score >= 0.7:
-            risk_level = "CRITICAL"
-        elif risk_score >= 0.4:
-            risk_level = "WARNING"
-        else:
-            risk_level = "HEALTHY"
+            return {"score": score, "factors": factors}
+        except Exception:
+            return {"score": 0.0, "factors": []}
 
+    async def _analyze_state_stability(self, device_id: str) -> Dict[str, Any]:
+        """Analyze state changes."""
+        # Simplified implementation
+        return {"score": 0.0, "factors": []}
+
+    async def _analyze_health_trend(self, device_id: str) -> Dict[str, Any]:
+        """Analyze health score trend."""
+        # Simplified implementation
+        return {"score": 0.0, "factors": []}
+
+    def _determine_risk_level(self, probability: float) -> str:
+        if probability > 0.8:
+            return "critical"
+        elif probability > 0.5:
+            return "high"
+        elif probability > 0.2:
+            return "medium"
+        return "low"
+
+    def _generate_recommendations(
+        self, risk_level: str, factors: List[Dict]
+    ) -> List[str]:
+        recs = []
+        if risk_level == "critical":
+            recs.append("Immediate maintenance required")
+        elif risk_level == "high":
+            recs.append("Schedule inspection within 24 hours")
+
+        for factor in factors:
+            if factor["name"] == "High CPU Usage":
+                recs.append("Check for runaway processes")
+            elif factor["name"] == "High Memory Usage":
+                recs.append("Check for memory leaks")
+
+        return recs
+
+    def _calculate_confidence(self, factors: List[Dict]) -> float:
+        # Simple confidence based on number of factors found
+        if not factors:
+            return 0.5
+        return min(0.95, 0.5 + (len(factors) * 0.1))
+
+    def _estimate_failure_time(self, probability: float, window: int) -> str:
+        # Rough estimate
+        hours = window * (1.0 - probability)
+        return (datetime.utcnow() + timedelta(hours=hours)).isoformat()
+
+    async def identify_at_risk_devices(
+        self,
+        site_id: Optional[str] = None,
+        min_risk_level: str = "medium",
+    ) -> Dict[str, Any]:
+        """Identify all devices currently at risk of failure.
+
+        Args:
+            site_id: Optional site filter
+            min_risk_level: Minimum risk level to include
+
+        Returns:
+            Dict containing list of at-risk devices
+        """
+        # TODO: Implement actual identification logic
         return {
-            "device_id": device_id,
-            "risk_level": risk_level,
-            "score": round(risk_score, 2),
-            "reasons": reasons,
-            "analyzed_samples": len(device_events),
-            "timestamp": datetime.now().isoformat(),
+            "site_id": site_id,
+            "min_risk_level": min_risk_level,
+            "at_risk_count": 0,
+            "devices": [],
+            "generated_at": datetime.utcnow().isoformat(),
         }

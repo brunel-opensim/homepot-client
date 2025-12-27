@@ -11,9 +11,9 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 
 # Check if virtual environment exists
-if [ ! -d "$PROJECT_ROOT/venv" ]; then
+if [ ! -d "$PROJECT_ROOT/.venv" ]; then
     echo "Virtual environment not found!"
-    echo "   Run: python3 -m venv venv && source venv/bin/activate && pip install -r backend/requirements.txt"
+    echo "   Run: python3 -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt"
     exit 1
 fi
 
@@ -28,7 +28,7 @@ if [ ! -f "$BACKEND_DIR/.env" ]; then
 fi
 
 # Activate virtual environment
-source "$PROJECT_ROOT/venv/bin/activate"
+source "$PROJECT_ROOT/.venv/bin/activate"
 
 # Check database connectivity (silent)
 python -c "

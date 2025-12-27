@@ -319,9 +319,9 @@ cd backend
 python3 -m venv venv
 
 # Activate virtual environment
-source venv/bin/activate  # Linux/Mac
+source .venv/bin/activate  # Linux/Mac
 # OR
-venv\Scripts\activate     # Windows
+.venv\Scripts\activate     # Windows
 
 # Install dependencies
 pip install -r requirements.txt
@@ -463,7 +463,7 @@ curl http://localhost:8000/api/v1/push/vapid-public-key
 
 # Option 3: Manual start
 # Terminal 1 - Backend
-cd backend && source venv/bin/activate
+cd backend && source .venv/bin/activate
 uvicorn homepot.main:app --reload
 
 # Terminal 2 - Frontend

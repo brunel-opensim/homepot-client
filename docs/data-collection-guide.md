@@ -24,7 +24,7 @@ Collect 3-5 days of analytics data to train AI models for:
 Once running, the backend automatically:
 
 - Spawns 10+ simulated POS agents at startup
-- Collects device metrics every 5 seconds
+- Collects device metrics every **2 seconds** (high-frequency mode)
 - Records job outcomes and state transitions
 - Logs errors and configuration changes
 
@@ -35,9 +35,15 @@ Once running, the backend automatically:
 Run this command to see what data has been collected:
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 python -W ignore::DeprecationWarning backend/utils/validate_data_collection.py
 ```
+
+The validation script now checks for a comprehensive set of metrics:
+- **System**: CPU, Memory, Disk Usage
+- **Business**: Transaction Count, Transaction Volume
+- **Network**: Latency, Active Connections
+- **Reliability**: Error Rates, Uptime
 
 **Note:** The `-W ignore::DeprecationWarning` flag suppresses datetime warnings (database uses timezone-naive timestamps for compatibility).
 
@@ -128,7 +134,7 @@ python backend/utils/populate_schedules.py
 ### 3. Start Backend
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 uvicorn homepot.main:app --host 0.0.0.0 --port 8000
 ```
 

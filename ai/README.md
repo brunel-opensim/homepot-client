@@ -142,7 +142,7 @@ If you prefer to set up the environment manually:
 
 1.  **Activate Virtual Environment**:
     ```bash
-    source venv/bin/activate
+    source .venv/bin/activate
     ```
 
 2.  **Install Dependencies**:

@@ -14,23 +14,25 @@ import {
 } from 'chart.js';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
+import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 
 // Register Chart.js modules
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
 
 export default function Dashboard() {
-  const cpuData = {
+  const [cpuData, setCpuData] = useState({
     labels: Array.from({ length: 12 }, (_, i) => i + 1),
     datasets: [
       {
         label: 'CPU',
-        data: [20, 40, 35, 60, 50, 70, 60, 55, 65, 45, 50, 55],
+        data: [20, 40, 35, 60, 50, 70, 60, 55, 65, 45, 50, 55], // Default/Loading data
         borderColor: '#22c55e',
         backgroundColor: 'rgba(34,197,94,0.2)',
         tension: 0.4,
       },
     ],
-  };
+  });
+  const [alerts, setAlerts] = useState([]);
 
   const cpuOptions = {
     responsive: true,
@@ -65,8 +67,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchSites = async () => {
+    const fetchData = async () => {
       try {
+        // 1. Fetch Sites
         const data = await api.sites.list();
         const fetchedSites = data?.sites || [];
 
@@ -81,14 +84,38 @@ export default function Dashboard() {
         }));
 
         setSites(sitesWithDefaults);
+
+        // 2. Fetch Dashboard Metrics (CPU & Alerts)
+        const metrics = await api.analytics.getDashboardMetrics();
+
+        if (metrics.cpu && metrics.cpu.length > 0) {
+          setCpuData({
+            labels: metrics.cpu.map((m) => m.time),
+            datasets: [
+              {
+                label: 'CPU',
+                data: metrics.cpu.map((m) => m.value),
+                borderColor: '#22c55e',
+                backgroundColor: 'rgba(34,197,94,0.2)',
+                tension: 0.4,
+              },
+            ],
+          });
+        }
+
+        if (metrics.alerts) {
+          setAlerts(metrics.alerts);
+        }
       } catch (err) {
-        console.error('Failed to fetch sites:', err);
+        console.error('Failed to fetch dashboard data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSites();
+    fetchData();
+    const interval = setInterval(fetchData, 30000); // Poll every 30s
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = async () => {
@@ -171,6 +198,14 @@ export default function Dashboard() {
               >
                 Agent
               </Button>
+              <Button
+                onClick={() => {
+                  navigate('/data-collection');
+                }}
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+              >
+                Data Collection
+              </Button>
               <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
                 Send Notification
               </Button>
@@ -186,22 +221,17 @@ export default function Dashboard() {
 
           {/* Glowing Site Dots */}
           <div className="absolute inset-0">
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '30%', left: '20%' }}
-            ></span>
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '40%', left: '50%' }}
-            ></span>
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '55%', left: '70%' }}
-            ></span>
-            <span
-              className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-              style={{ top: '65%', left: '30%' }}
-            ></span>
+            {sites.map((site, index) => (
+              <span
+                key={index}
+                className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
+                style={{
+                  top: `${30 + ((index * 17) % 40)}%`,
+                  left: `${20 + ((index * 23) % 60)}%`,
+                }}
+                title={site.site}
+              ></span>
+            ))}
           </div>
         </Card>
 
@@ -231,16 +261,30 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover flex-1">
+          <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover">
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold text-white mb-2">Active Alerts</h2>
               <ul className="space-y-2">
-                <li className="text-red-400 text-sm">Device offline – 6m ago</li>
-                <li className="text-red-400 text-sm">Site not responding – 9m ago</li>
-                <li className="text-red-400 text-sm">High latency detected – 17m ago</li>
+                {alerts.length > 0 ? (
+                  alerts.map((alert, i) => (
+                    <li key={i} className="text-red-400 text-sm">
+                      {alert.message} –{' '}
+                      <span className="text-gray-500 text-xs">
+                        {new Date(alert.timestamp).toLocaleTimeString()}
+                      </span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-gray-500 text-sm">No active alerts</li>
+                )}
               </ul>
             </CardContent>
           </Card>
+
+          {/* AI Assistant Widget */}
+          <div className="col-span-2 h-[400px]">
+            <AskAIWidget />
+          </div>
         </div>
       </div>
     </div>

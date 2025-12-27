@@ -498,3 +498,90 @@ async def get_device_state_history(
     except Exception as e:
         logger.error(f"Error fetching device history: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch history")
+
+
+@router.get("/analytics/dashboard-metrics")
+async def get_dashboard_metrics(
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get aggregated metrics for the dashboard."""
+    try:
+        # 1. CPU Usage - Get recent metrics
+        # Fetch last 100 metrics to calculate averages
+        recent_metrics = (
+            db.query(models.DeviceMetrics)
+            .order_by(models.DeviceMetrics.timestamp.desc())
+            .limit(100)
+            .all()
+        )
+
+        # Group by minute (simple approximation)
+        cpu_by_minute: Dict[str, list[float]] = {}
+        for m in recent_metrics:
+            # Round to nearest minute
+            time_key = m.timestamp.strftime("%H:%M")
+            if time_key not in cpu_by_minute:
+                cpu_by_minute[time_key] = []
+            cpu_by_minute[time_key].append(float(m.cpu_percent or 0.0))
+
+        # Calculate averages
+        cpu_data: list[dict[str, Any]] = []
+        for time_key, values in cpu_by_minute.items():
+            cpu_data.append(
+                {"time": time_key, "value": round(sum(values) / len(values), 1)}
+            )
+
+        # Sort by time and take last 12
+        cpu_data.sort(key=lambda x: str(x["time"]))
+        cpu_data = cpu_data[-12:]
+
+        # 2. Active Alerts
+        alerts = []
+
+        # Offline events
+        offline_events = (
+            db.query(models.DeviceStateHistory)
+            .filter(models.DeviceStateHistory.new_state == "offline")
+            .order_by(models.DeviceStateHistory.timestamp.desc())
+            .limit(5)
+            .all()
+        )
+
+        for event in offline_events:
+            alerts.append(
+                {
+                    "id": f"evt-{event.id}",
+                    "message": f"Device {event.device_id} offline",
+                    "timestamp": event.timestamp.isoformat(),
+                    "type": "error",
+                }
+            )
+
+        # Critical errors
+        errors = (
+            db.query(models.ErrorLog)
+            .filter(models.ErrorLog.severity.in_(["critical", "error"]))
+            .order_by(models.ErrorLog.timestamp.desc())
+            .limit(5)
+            .all()
+        )
+
+        for error in errors:
+            alerts.append(
+                {
+                    "id": f"err-{error.id}",
+                    "message": error.error_message,
+                    "timestamp": error.timestamp.isoformat(),
+                    "type": "critical",
+                }
+            )
+
+        # Sort and limit
+        alerts.sort(key=lambda x: x["timestamp"], reverse=True)
+
+        return {"cpu": cpu_data, "alerts": alerts[:5]}
+
+    except Exception as e:
+        logger.error(f"Error fetching dashboard metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch dashboard metrics")

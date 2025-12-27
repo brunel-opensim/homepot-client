@@ -221,7 +221,7 @@ pre-commit run --all-files
 
 ```json
 {
-  "python.defaultInterpreterPath": "./venv/bin/python",
+  "python.defaultInterpreterPath": "./.venv/bin/python",
   "python.linting.enabled": true,
   "python.linting.flake8Enabled": true,
   "python.formatting.provider": "black",
@@ -232,7 +232,7 @@ pre-commit run --all-files
 
 #### PyCharm Setup
 
-- Set interpreter to `./venv/bin/python`
+- Set interpreter to `./.venv/bin/python`
 - Enable Black formatter in Tools → External Tools
 - Configure flake8 as code inspector
 - Set up pytest as test runner

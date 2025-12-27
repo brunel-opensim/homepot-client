@@ -397,35 +397,46 @@ class DataCollectionValidator:
         try:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
-                # Check for null values in device metrics
-                result = await session.execute(
-                    select(func.count(DeviceMetrics.id)).where(
-                        DeviceMetrics.cpu_percent.is_(None)
-                    )
-                )
-                null_cpu = result.scalar()
+                # Define metrics to check
+                metrics_checks = [
+                    ("cpu_percent", DeviceMetrics.cpu_percent, 100),
+                    ("memory_percent", DeviceMetrics.memory_percent, 100),
+                    ("disk_percent", DeviceMetrics.disk_percent, 100),
+                    ("network_latency_ms", DeviceMetrics.network_latency_ms, None),
+                    ("transaction_count", DeviceMetrics.transaction_count, None),
+                    ("transaction_volume", DeviceMetrics.transaction_volume, None),
+                    ("error_rate", DeviceMetrics.error_rate, None),
+                    ("active_connections", DeviceMetrics.active_connections, None),
+                    ("queue_depth", DeviceMetrics.queue_depth, None),
+                ]
 
-                if null_cpu > 0:
-                    quality_issues.append(f"{null_cpu} device metrics with null CPU")
-                    print(
-                        f"  {Colors.YELLOW}⚠{Colors.END} {null_cpu} records with null CPU values"
+                for name, column, max_val in metrics_checks:
+                    # Check for nulls
+                    result = await session.execute(
+                        select(func.count(DeviceMetrics.id)).where(column.is_(None))
                     )
+                    null_count = result.scalar()
 
-                # Check for unreasonable values (CPU > 100%)
-                result = await session.execute(
-                    select(func.count(DeviceMetrics.id)).where(
-                        DeviceMetrics.cpu_percent > 100
-                    )
-                )
-                invalid_cpu = result.scalar()
+                    if null_count > 0:
+                        quality_issues.append(f"{null_count} metrics with null {name}")
+                        print(
+                            f"  {Colors.YELLOW}⚠{Colors.END} {null_count} records with null {name}"
+                        )
 
-                if invalid_cpu > 0:
-                    quality_issues.append(
-                        f"{invalid_cpu} metrics with invalid CPU (>100%)"
-                    )
-                    print(
-                        f"  {Colors.RED}✗{Colors.END} {invalid_cpu} records with CPU > 100%"
-                    )
+                    # Check for max value if applicable
+                    if max_val is not None:
+                        result = await session.execute(
+                            select(func.count(DeviceMetrics.id)).where(column > max_val)
+                        )
+                        invalid_count = result.scalar()
+
+                        if invalid_count > 0:
+                            quality_issues.append(
+                                f"{invalid_count} metrics with invalid {name} (>{max_val})"
+                            )
+                            print(
+                                f"  {Colors.RED}✗{Colors.END} {invalid_count} records with {name} > {max_val}"
+                            )
 
             if quality_issues:
                 self._add_check_result(check_name, "warning", "; ".join(quality_issues))

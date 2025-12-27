@@ -80,6 +80,11 @@ class POSAgentSimulator:
             "uptime_hours": random.randint(1, 720),  # nosec - simulation only
         }
 
+        # Simulation counters
+        self.transactions_today = random.randint(50, 100)
+        self.transaction_volume = random.uniform(1000.0, 5000.0)
+        self.uptime_seconds = random.randint(3600, 86400 * 7)
+
         logger.info(f"POS Agent {device_id} ({device_type}) initialized")
 
     async def start(self) -> None:
@@ -373,175 +378,201 @@ class POSAgentSimulator:
     async def _run_health_check(self) -> Dict[str, Any]:
         """Run comprehensive health check."""
         self.state = AgentState.HEALTH_CHECK
-        await asyncio.sleep(random.uniform(0.1, 0.5))
-
-        # Simulate various health scenarios
-        scenarios: List[Dict[str, Any]] = [
-            {"healthy": True, "weight": 0.85},  # 85% healthy
-            {"healthy": False, "error": "Payment gateway timeout", "weight": 0.08},
-            {"healthy": False, "error": "Database connection failed", "weight": 0.04},
-            {"healthy": False, "error": "Low disk space warning", "weight": 0.03},
-        ]
-
-        # Choose scenario based on weights
-        rand = random.random()
-        cumulative = 0
-        selected_scenario = scenarios[0]
-
-        for scenario in scenarios:
-            cumulative += scenario["weight"]
-            if rand <= cumulative:
-                selected_scenario = scenario
-                break
-
-        is_healthy = selected_scenario["healthy"]
-
-        # Generate realistic health data
-        health_data: Dict[str, Any] = {
-            "status": "healthy" if is_healthy else "unhealthy",
-            "config_version": self.current_config_version,
-            "last_restart": (
-                datetime.now(timezone.utc) - timedelta(hours=random.randint(1, 48))
-            ).isoformat(),
-            "response_time_ms": self.response_time_ms,
-            "device_info": self.device_info,
-            "services": {
-                "pos_app": "running" if is_healthy else "error",
-                "payment_gateway": "connected" if is_healthy else "disconnected",
-                "database": "online" if is_healthy else "offline",
-                "network": "connected",
-            },
-            "metrics": {
-                "cpu_usage_percent": random.randint(10, 80),
-                "memory_usage_percent": random.randint(30, 70),
-                "disk_usage_percent": random.randint(20, 60),
-                "transactions_today": random.randint(50, 300),
-                "uptime_seconds": random.randint(3600, 86400 * 7),
-                # New metrics for AI training
-                "network_latency_ms": random.uniform(10.0, 150.0),
-                "transaction_volume": random.uniform(1000.0, 50000.0),
-                "error_rate": random.uniform(0.0, 2.0),
-                "active_connections": random.randint(1, 50),
-                "queue_depth": random.randint(0, 20),
-            },
-        }
-
-        if not is_healthy:
-            health_data["error"] = selected_scenario["error"]
-            health_data["services"]["pos_app"] = "error"
-
-        self.last_health_check = health_data
-
-        # Update device status in database
         try:
-            db_service = await get_database_service()
+            await asyncio.sleep(random.uniform(0.1, 0.5))
 
-            # Use a single session for all database operations
-            async with db_service.get_session() as db:
-                # Determine new status based on health
-                new_status = DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
-                from sqlalchemy import select, update
+            # Simulate various health scenarios
+            scenarios: List[Dict[str, Any]] = [
+                {"healthy": True, "weight": 0.85},  # 85% healthy
+                {"healthy": False, "error": "Payment gateway timeout", "weight": 0.08},
+                {
+                    "healthy": False,
+                    "error": "Database connection failed",
+                    "weight": 0.04,
+                },
+                {"healthy": False, "error": "Low disk space warning", "weight": 0.03},
+            ]
 
-                from homepot.models import Device
+            # Choose scenario based on weights
+            rand = random.random()
+            cumulative = 0
+            selected_scenario = scenarios[0]
 
-                # Get device and its current status before updating
-                device_result = await db.execute(
-                    select(Device).where(Device.device_id == self.device_id)
-                )
-                device = device_result.scalar_one_or_none()
+            for scenario in scenarios:
+                cumulative += scenario["weight"]
+                if rand <= cumulative:
+                    selected_scenario = scenario
+                    break
 
-                if device:
-                    previous_status = device.status
+            is_healthy = selected_scenario["healthy"]
 
-                    # Update device status only if changed
-                    if previous_status != new_status:
-                        stmt = (
-                            update(Device)
-                            .where(Device.device_id == self.device_id)
-                            .values(status=new_status)
+            # Increment counters
+            self.transactions_today += random.randint(0, 2)
+            self.transaction_volume += random.uniform(0.0, 150.0)
+            self.uptime_seconds += 5  # Approximate check interval
+
+            # Generate realistic health data
+            health_data: Dict[str, Any] = {
+                "status": "healthy" if is_healthy else "unhealthy",
+                "config_version": self.current_config_version,
+                "last_restart": (
+                    datetime.now(timezone.utc) - timedelta(hours=random.randint(1, 48))
+                ).isoformat(),
+                "response_time_ms": self.response_time_ms,
+                "device_info": self.device_info,
+                "services": {
+                    "pos_app": "running" if is_healthy else "error",
+                    "payment_gateway": "connected" if is_healthy else "disconnected",
+                    "database": "online" if is_healthy else "offline",
+                    "network": "connected",
+                },
+                "metrics": {
+                    "cpu_usage_percent": random.randint(10, 80),
+                    "memory_usage_percent": random.randint(30, 70),
+                    "disk_usage_percent": random.randint(20, 60),
+                    "transactions_today": self.transactions_today,
+                    "uptime_seconds": self.uptime_seconds,
+                    # New metrics for AI training
+                    "network_latency_ms": random.uniform(10.0, 150.0),
+                    "transaction_volume": round(self.transaction_volume, 2),
+                    "error_rate": random.uniform(0.0, 2.0),
+                    "active_connections": random.randint(1, 50),
+                    "queue_depth": random.randint(0, 20),
+                },
+            }
+
+            if not is_healthy:
+                health_data["error"] = selected_scenario["error"]
+                health_data["services"]["pos_app"] = "error"
+
+            self.last_health_check = health_data
+
+            # Update device status in database
+            try:
+                db_service = await get_database_service()
+
+                # Use a single session for all database operations
+                async with db_service.get_session() as db:
+                    # Determine new status based on health
+                    new_status = (
+                        DeviceStatus.ONLINE if is_healthy else DeviceStatus.ERROR
+                    )
+                    from sqlalchemy import select, update
+
+                    from homepot.models import Device
+
+                    # Get device and its current status before updating
+                    device_result = await db.execute(
+                        select(Device).where(Device.device_id == self.device_id)
+                    )
+                    device = device_result.scalar_one_or_none()
+
+                    if device:
+                        previous_status = device.status
+
+                        # Update device status only if changed
+                        if previous_status != new_status:
+                            stmt = (
+                                update(Device)
+                                .where(Device.device_id == self.device_id)
+                                .values(status=new_status)
+                            )
+                            await db.execute(stmt)
+
+                            # Log state transition for AI training
+                            reason = (
+                                "Health check: healthy"
+                                if is_healthy
+                                else f"Health check: {health_data.get('error', 'unhealthy')}"
+                            )
+                            state_history = DeviceStateHistory(
+                                timestamp=datetime.utcnow(),
+                                device_id=self.device_id,
+                                previous_state=previous_status,
+                                new_state=new_status,
+                                changed_by="system",
+                                reason=reason,
+                                extra_data={
+                                    "response_time_ms": self.response_time_ms,
+                                    "health_status": (
+                                        "healthy" if is_healthy else "unhealthy"
+                                    ),
+                                },
+                            )
+                            db.add(state_history)
+                            logger.info(
+                                f"Device {self.device_id} state changed: {previous_status} → {new_status}"
+                            )
+
+                    if device:
+                        # Create health check record
+                        from homepot.models import HealthCheck
+
+                        health_check = HealthCheck(
+                            device_id=int(device.id),  # type: ignore[arg-type]
+                            is_healthy=is_healthy,
+                            response_time_ms=self.response_time_ms,
+                            status_code=200 if is_healthy else 500,
+                            endpoint="/health",
+                            response_data=health_data,
                         )
-                        await db.execute(stmt)
+                        db.add(health_check)
 
-                        # Log state transition for AI training
-                        reason = (
-                            "Health check: healthy"
-                            if is_healthy
-                            else f"Health check: {health_data.get('error', 'unhealthy')}"
-                        )
-                        state_history = DeviceStateHistory(
-                            timestamp=datetime.utcnow(),
+                        # Save device metrics to database for AI training
+                        device_metrics = DeviceMetrics(
+                            timestamp=datetime.utcnow(),  # Use timezone-naive for compatibility
                             device_id=self.device_id,
-                            previous_state=previous_status,
-                            new_state=new_status,
-                            changed_by="system",
-                            reason=reason,
-                            extra_data={
-                                "response_time_ms": self.response_time_ms,
-                                "health_status": (
-                                    "healthy" if is_healthy else "unhealthy"
-                                ),
+                            cpu_percent=health_data["metrics"]["cpu_usage_percent"],
+                            memory_percent=health_data["metrics"][
+                                "memory_usage_percent"
+                            ],
+                            disk_percent=health_data["metrics"]["disk_usage_percent"],
+                            transaction_count=health_data["metrics"][
+                                "transactions_today"
+                            ],
+                            network_latency_ms=health_data["metrics"][
+                                "network_latency_ms"
+                            ],
+                            transaction_volume=health_data["metrics"][
+                                "transaction_volume"
+                            ],
+                            error_rate=health_data["metrics"]["error_rate"],
+                            active_connections=health_data["metrics"][
+                                "active_connections"
+                            ],
+                            queue_depth=health_data["metrics"]["queue_depth"],
+                            extra_metrics={
+                                "uptime_seconds": health_data["metrics"][
+                                    "uptime_seconds"
+                                ],
+                                "services": health_data["services"],
+                                "device_info": health_data["device_info"],
                             },
                         )
-                        db.add(state_history)
-                        logger.info(
-                            f"Device {self.device_id} state changed: {previous_status} → {new_status}"
-                        )
+                        db.add(device_metrics)
+                        logger.info(f"Saved device metrics for {self.device_id}")
 
-                if device:
-                    # Create health check record
-                    from homepot.models import HealthCheck
+            except Exception as e:
+                logger.error(f"Failed to save device metrics for {self.device_id}: {e}")
+                # Log error for AI training
+                await log_error(
+                    category="database",
+                    severity="warning",
+                    error_message=f"Failed to save device metrics for {self.device_id}",
+                    exception=e,
+                    device_id=self.device_id,
+                    context={"action": "save_device_metrics"},
+                )
 
-                    health_check = HealthCheck(
-                        device_id=int(device.id),  # type: ignore[arg-type]
-                        is_healthy=is_healthy,
-                        response_time_ms=self.response_time_ms,
-                        status_code=200 if is_healthy else 500,
-                        endpoint="/health",
-                        response_data=health_data,
-                    )
-                    db.add(health_check)
-
-                    # Save device metrics to database for AI training
-                    device_metrics = DeviceMetrics(
-                        timestamp=datetime.utcnow(),  # Use timezone-naive for compatibility
-                        device_id=self.device_id,
-                        cpu_percent=health_data["metrics"]["cpu_usage_percent"],
-                        memory_percent=health_data["metrics"]["memory_usage_percent"],
-                        disk_percent=health_data["metrics"]["disk_usage_percent"],
-                        transaction_count=health_data["metrics"]["transactions_today"],
-                        network_latency_ms=health_data["metrics"]["network_latency_ms"],
-                        transaction_volume=health_data["metrics"]["transaction_volume"],
-                        error_rate=health_data["metrics"]["error_rate"],
-                        active_connections=health_data["metrics"]["active_connections"],
-                        queue_depth=health_data["metrics"]["queue_depth"],
-                        extra_metrics={
-                            "uptime_seconds": health_data["metrics"]["uptime_seconds"],
-                            "services": health_data["services"],
-                            "device_info": health_data["device_info"],
-                        },
-                    )
-                    db.add(device_metrics)
-                    logger.info(f"Saved device metrics for {self.device_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to save device metrics for {self.device_id}: {e}")
-            # Log error for AI training
-            await log_error(
-                category="database",
-                severity="warning",
-                error_message=f"Failed to save device metrics for {self.device_id}",
-                exception=e,
-                device_id=self.device_id,
-                context={"action": "save_device_metrics"},
-            )
-
-        return health_data
+            return health_data
+        finally:
+            self.state = AgentState.IDLE
 
     async def _health_check_loop(self) -> None:
-        """Periodic health check loop (every 5 seconds)."""
+        """Periodic health check loop (every 2 seconds)."""
         while self.is_running:
             try:
-                await asyncio.sleep(5)  # Check every 5 seconds
+                await asyncio.sleep(2)  # Check every 2 seconds
                 if self.state == AgentState.IDLE:
                     await self._run_health_check()
             except Exception as e:
@@ -555,7 +586,7 @@ class POSAgentSimulator:
                     device_id=self.device_id,
                     context={"action": "health_check_loop"},
                 )
-                await asyncio.sleep(5)  # Short retry delay
+                await asyncio.sleep(2)  # Short retry delay
 
 
 class AgentManager:

@@ -21,7 +21,7 @@ echo "  Database initialized successfully"
 echo ""
 
 cd "$BACKEND_DIR"
-source venv/bin/activate
+source .venv/bin/activate
 
 echo "Starting backend server..."
 uvicorn homepot.app.main:app --host 127.0.0.1 --port 8000 > /tmp/backend-test.log 2>&1 &

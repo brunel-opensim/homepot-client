@@ -1041,7 +1041,7 @@ npm install <package-name>
 **Install Backend Packages:**
 ```bash
 cd backend
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 pip install <package-name>
 pip freeze > requirements.txt
 ```

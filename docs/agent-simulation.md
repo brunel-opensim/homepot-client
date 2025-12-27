@@ -38,6 +38,26 @@ Each agent follows a realistic lifecycle with the following states:
 - **HEALTH_CHECK**: Performing system diagnostics
 - **READY**: Operational and healthy
 
+## Realistic Data Simulation
+
+The simulation engine (`POSAgentSimulator`) has been enhanced to provide **stateful, cumulative data generation**, ensuring that metrics behave realistically over time rather than being random snapshots.
+
+### Key Features
+
+1.  **Cumulative Metrics**:
+    *   **Transactions Today**: Increments steadily throughout the day.
+    *   **Transaction Volume**: Grows cumulatively based on transaction count.
+    *   **Uptime**: Increments by the check interval (2 seconds) on every heartbeat.
+
+2.  **High-Frequency Updates**:
+    *   Agents perform health checks every **2 seconds** (previously 5s).
+    *   This ensures the frontend dashboard (`/data-collection`) feels alive and responsive.
+
+3.  **Simulated Characteristics**:
+    *   **Network Latency**: Varies between 10ms and 150ms.
+    *   **Error Rate**: Simulates occasional spikes (0.0% - 2.0%).
+    *   **Resource Usage**: CPU, Memory, and Disk usage fluctuate within realistic bounds.
+
 ## Managing Agents
 
 ### Viewing All Agents

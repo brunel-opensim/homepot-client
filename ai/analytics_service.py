@@ -11,14 +11,12 @@ from typing import Any, Dict, Optional
 from sqlalchemy import and_, select
 
 from homepot.app.models.AnalyticsModel import (
-    ConfigurationHistory,
     DeviceMetrics,
     ErrorLog,
     JobOutcome,
     SiteOperatingSchedule,
 )
 from homepot.database import get_database_service
-from homepot.models import Device
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +102,29 @@ class AIAnalyticsService:
         except Exception as e:
             logger.error(f"Failed to analyze device performance: {e}", exc_info=True)
             return {"device_id": device_id, "status": "error", "message": str(e)}
+
+    @staticmethod
+    async def get_configuration_impact_analysis(
+        site_id: str,
+        days: int = 14,
+    ) -> Dict[str, Any]:
+        """Analyze the impact of configuration changes on device performance.
+
+        Args:
+            site_id: Site identifier
+            days: Number of days to analyze
+
+        Returns:
+            Dict containing impact analysis
+        """
+        # TODO: Implement actual analysis
+        return {
+            "site_id": site_id,
+            "period_days": days,
+            "impact_score": 0.0,
+            "correlated_issues": [],
+            "recommendation": "No significant impact detected",
+        }
 
     @staticmethod
     async def get_job_outcome_patterns(
@@ -302,21 +323,8 @@ class AIAnalyticsService:
                             "day": day_names[schedule.day_of_week],
                             "day_of_week": schedule.day_of_week,
                             "status": "open",
-                            "operating_hours": (
-                                f"{schedule.open_time} - {schedule.close_time}"
-                            ),
-                            "peak_hours": (
-                                f"{schedule.peak_hours_start} - {schedule.peak_hours_end}"
-                            ),
-                            "expected_volume": schedule.expected_transaction_volume,
-                            "is_maintenance_window": schedule.is_maintenance_window,
                             "optimal_windows": optimal_windows,
-                            "recommendation": (
-                                "Ideal for deployment"
-                                if optimal_windows
-                                and not schedule.is_maintenance_window
-                                else "Avoid - maintenance or limited windows"
-                            ),
+                            "is_maintenance_window": schedule.is_maintenance_window,
                         }
                     )
 
@@ -328,133 +336,41 @@ class AIAnalyticsService:
 
         except Exception as e:
             logger.error(f"Failed to get scheduling windows: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
+            return {"site_id": site_id, "status": "error", "message": str(e)}
 
     @staticmethod
     async def get_error_frequency_analysis(
-        device_id: Optional[str] = None,
+        device_id: str,
         days: int = 7,
     ) -> Dict[str, Any]:
-        """Analyze error frequency and categorization.
-
-        Args:
-            device_id: Optional device filter
-            days: Number of days to analyze
-
-        Returns:
-            Dict with error trends, categories, and severity distribution
-        """
+        """Analyze error frequency and patterns."""
         try:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-                query = select(ErrorLog).where(ErrorLog.timestamp >= cutoff_date)
-                if device_id:
-                    query = query.where(ErrorLog.device_id == device_id)
-
                 result = await session.execute(
-                    query.order_by(ErrorLog.timestamp.desc())
+                    select(ErrorLog)
+                    .where(
+                        and_(
+                            ErrorLog.device_id == device_id,
+                            ErrorLog.timestamp >= cutoff_date,
+                        )
+                    )
+                    .order_by(ErrorLog.timestamp.desc())
                 )
                 errors = result.scalars().all()
 
                 if not errors:
-                    return {
-                        "status": "no_errors",
-                        "message": "No errors recorded in the specified period",
-                    }
+                    return {"status": "no_errors", "error_rate_per_day": 0}
 
-                # Categorize by type
-                by_category: Dict[str, int] = {}
-                by_severity: Dict[str, int] = {}
-
-                for error in errors:
-                    # By category
-                    category = str(error.category or "unknown")
-                    by_category[category] = by_category.get(category, 0) + 1
-
-                    # By severity
-                    severity = str(error.severity or "error")
-                    by_severity[severity] = by_severity.get(severity, 0) + 1
-
-                # Calculate error rate per day
                 error_rate = len(errors) / days
 
                 return {
-                    "device_id": device_id,
-                    "period_days": days,
-                    "total_errors": len(errors),
                     "error_rate_per_day": round(error_rate, 2),
-                    "by_category": by_category,
-                    "by_severity": by_severity,
-                    "health_status": (
-                        "critical"
-                        if error_rate > 10
-                        else "warning" if error_rate > 5 else "healthy"
-                    ),
-                    "analysis_timestamp": datetime.utcnow().isoformat(),
-                }
-
-        except Exception as e:
-            logger.error(f"Failed to analyze errors: {e}", exc_info=True)
-            return {"status": "error", "message": str(e)}
-
-    @staticmethod
-    async def get_configuration_impact_analysis(
-        site_id: Optional[str] = None,
-        days: int = 14,
-    ) -> Dict[str, Any]:
-        """Analyze the impact of configuration changes on system behavior.
-
-        Args:
-            site_id: Optional site filter
-            days: Number of days to analyze
-
-        Returns:
-            Dict with configuration change frequency and correlation with issues
-        """
-        try:
-            db_service = await get_database_service()
-            async with db_service.get_session() as session:
-                cutoff_date = datetime.utcnow() - timedelta(days=days)
-
-                # Get configuration changes
-                query = select(ConfigurationHistory).where(
-                    ConfigurationHistory.timestamp >= cutoff_date
-                )
-                if site_id:
-                    query = query.join(Device).where(Device.site_id == site_id)
-
-                result = await session.execute(
-                    query.order_by(ConfigurationHistory.timestamp.desc())
-                )
-                changes = result.scalars().all()
-
-                if not changes:
-                    return {
-                        "status": "no_changes",
-                        "message": "No configuration changes in the specified period",
-                    }
-
-                # Analyze change frequency
-                change_count = len(changes)
-                change_rate = change_count / days
-
-                # Group by change type
-                by_field: Dict[str, int] = {}
-                for change in changes:
-                    field = str(change.parameter_name or "unknown")
-                    by_field[field] = by_field.get(field, 0) + 1
-
-                return {
-                    "site_id": site_id,
+                    "total_errors": len(errors),
                     "period_days": days,
-                    "total_changes": change_count,
-                    "change_rate_per_day": round(change_rate, 2),
-                    "changes_by_field": by_field,
-                    "analysis_timestamp": datetime.utcnow().isoformat(),
                 }
-
         except Exception as e:
-            logger.error(f"Failed to analyze config impact: {e}", exc_info=True)
+            logger.error(f"Failed to analyze errors: {e}")
             return {"status": "error", "message": str(e)}

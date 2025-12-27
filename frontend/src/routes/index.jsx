@@ -24,6 +24,7 @@ const Devices = lazy(() => import('../pages/Device/DeviceDetail'));
 const UserActivity = lazy(() => import('../pages/UserActivity'));
 
 const Agent = lazy(() => import('../pages/Agent'));
+const DataCollection = lazy(() => import('../pages/DataCollection'));
 
 export default function RoutesIndex() {
   return (
@@ -46,6 +47,7 @@ export default function RoutesIndex() {
         >
           {/* When user goes /dashboard => Dashboard page */}
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="data-collection" element={<DataCollection />} />
 
           {/* Device & Site routes (protected) */}
           <Route path="device" element={<Device />} />
