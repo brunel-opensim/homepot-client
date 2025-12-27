@@ -2,7 +2,7 @@
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,9 +22,10 @@ from homepot.app.models.AnalyticsModel import (  # noqa: E402
     ErrorLog,
     JobOutcome,
     PushNotificationLog,
+    SiteOperatingSchedule,
     UserActivity,
 )
-from homepot.models import AuditLog, User  # noqa: E402
+from homepot.models import AuditLog, Device, User  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -519,3 +520,95 @@ async def test_get_user_context_no_activity():
         assert "[USER PROFILE]" in context
         assert "Role: User" in context
         assert "No recent user activity" not in context  # It just returns the profile
+
+
+@pytest.mark.asyncio
+async def test_get_site_context_open():
+    """Test retrieving site context when site is open."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock Device
+    mock_device = Device(device_id="device-123", site_id="site-1")
+
+    # Mock Schedule
+    # Assume it's Monday (0) and time is 10:00
+    mock_schedule = SiteOperatingSchedule(
+        site_id="site-1",
+        day_of_week=0,
+        open_time=time(9, 0),
+        close_time=time(17, 0),
+        is_closed=False,
+    )
+
+    # Setup execute results
+    mock_result_device = MagicMock()
+    mock_result_device.scalar_one_or_none.return_value = mock_device
+
+    mock_result_schedule = MagicMock()
+    mock_result_schedule.scalar_one_or_none.return_value = mock_schedule
+
+    mock_session.execute.side_effect = [mock_result_device, mock_result_schedule]
+
+    # Mock datetime to be Monday 10:00
+    mock_now = datetime(2023, 1, 2, 10, 0, 0)  # Jan 2 2023 is a Monday
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ), patch("ai.context_builder.datetime") as mock_datetime:
+        mock_datetime.utcnow.return_value = mock_now
+        # We also need to mock weekday() on the return value of utcnow()
+        # But datetime objects already have weekday(), so mock_now.weekday() works.
+
+        context = await ContextBuilder.get_site_context(device_id="device-123")
+
+        assert "[SITE CONTEXT]" in context
+        assert "Site ID: site-1" in context
+        assert "Status: OPEN" in context
+        assert "Hours: 09:00:00 - 17:00:00" in context
+
+
+@pytest.mark.asyncio
+async def test_get_site_context_closed():
+    """Test retrieving site context when site is closed (outside hours)."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock Device
+    mock_device = Device(device_id="device-123", site_id="site-1")
+
+    # Mock Schedule
+    mock_schedule = SiteOperatingSchedule(
+        site_id="site-1",
+        day_of_week=0,
+        open_time=time(9, 0),
+        close_time=time(17, 0),
+        is_closed=False,
+    )
+
+    # Setup execute results
+    mock_result_device = MagicMock()
+    mock_result_device.scalar_one_or_none.return_value = mock_device
+
+    mock_result_schedule = MagicMock()
+    mock_result_schedule.scalar_one_or_none.return_value = mock_schedule
+
+    mock_session.execute.side_effect = [mock_result_device, mock_result_schedule]
+
+    # Mock datetime to be Monday 20:00 (8 PM)
+    mock_now = datetime(2023, 1, 2, 20, 0, 0)
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ), patch("ai.context_builder.datetime") as mock_datetime:
+        mock_datetime.utcnow.return_value = mock_now
+
+        context = await ContextBuilder.get_site_context(device_id="device-123")
+
+        assert "Status: CLOSED (Outside Hours)" in context

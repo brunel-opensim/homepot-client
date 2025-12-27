@@ -13,10 +13,11 @@ from homepot.app.models.AnalyticsModel import (
     ErrorLog,
     JobOutcome,
     PushNotificationLog,
+    SiteOperatingSchedule,
     UserActivity,
 )
 from homepot.database import get_database_service
-from homepot.models import AuditLog, User
+from homepot.models import AuditLog, Device, User
 
 logger = logging.getLogger(__name__)
 
@@ -388,3 +389,63 @@ class ContextBuilder:
         except Exception as e:
             logger.error(f"Failed to build user context: {e}")
             return "Error retrieving user context."
+
+    @staticmethod
+    async def get_site_context(device_id: Optional[str] = None) -> str:
+        """Retrieve site operating schedule and status.
+
+        Args:
+            device_id: Device ID to look up the site for.
+        """
+        if not device_id:
+            return ""
+
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                # 1. Get Site ID from Device
+                stmt = select(Device).where(Device.device_id == device_id)
+                result = await session.execute(stmt)
+                device = result.scalar_one_or_none()
+
+                if not device or not device.site_id:
+                    return "Site context unavailable (Device not found or no Site ID)."
+
+                # 2. Get Schedule for Today
+                now = datetime.utcnow()
+                day_of_week = now.weekday()  # 0=Monday, 6=Sunday
+
+                schedule_stmt = select(SiteOperatingSchedule).where(
+                    and_(
+                        SiteOperatingSchedule.site_id == device.site_id,
+                        SiteOperatingSchedule.day_of_week == day_of_week,
+                    )
+                )
+                schedule_result = await session.execute(schedule_stmt)
+                schedule = schedule_result.scalar_one_or_none()
+
+                if not schedule:
+                    return f"No schedule defined for Site {device.site_id} today."
+
+                # 3. Determine Status
+                status = "OPEN"
+                if schedule.is_closed:
+                    status = "CLOSED (Scheduled Closure)"
+                elif schedule.open_time and schedule.close_time:
+                    current_time = now.time()
+                    if (
+                        current_time < schedule.open_time
+                        or current_time > schedule.close_time
+                    ):
+                        status = "CLOSED (Outside Hours)"
+
+                return (
+                    f"[SITE CONTEXT]\n"
+                    f"Site ID: {device.site_id}\n"
+                    f"Status: {status}\n"
+                    f"Hours: {schedule.open_time} - {schedule.close_time}"
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build site context: {e}")
+            return "Error retrieving site context."
