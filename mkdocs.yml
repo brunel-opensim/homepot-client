@@ -154,6 +154,8 @@ nav:
       - Executive Summary: ai-roadmap-executive-summary.md
       - Full Roadmap: ai-roadmap.md
       - Infrastructure Implementation: ai-infrastructure.md
+      - Implementation Details: ai-implementation.md
+      - Context Builder: ai-context-builder.md
       - Data Collection: analytics-data-collection.md
       - Data Collection Guide: data-collection-guide.md
       - Data Collection Suite: data-collection-suite.md
