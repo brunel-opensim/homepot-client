@@ -19,8 +19,12 @@ WORKDIR /app
 
 # Copy backend dependency files and source
 COPY backend/pyproject.toml ./
-COPY README.md ../README.md
+COPY README.md ./README.md
 COPY backend/src/ src/
+COPY ai/ ai/
+
+# Set PYTHONPATH to include /app so ai package can be found if needed during build
+ENV PYTHONPATH=/app
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
@@ -51,6 +55,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application source
 COPY --from=builder /app/src /app/src
+COPY --from=builder /app/ai /app/ai
 COPY --chown=homepot:homepot backend/pyproject.toml ./
 COPY --chown=homepot:homepot README.md ../README.md
 
