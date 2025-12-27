@@ -1138,6 +1138,48 @@ validate_tests() {
         fi
     fi
     
+    # AI Service Tests
+    echo "  AI Service Tests:"
+    
+    # AI Service
+    if [ -f "backend/tests/test_ai_service.py" ]; then
+        echo -n "    AI Service tests: "
+        log_verbose "Running: cd backend && python -m pytest tests/test_ai_service.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_ai_service.py -q --no-cov) >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "AI Service tests failed - check AI service implementation"
+            failed=true
+        fi
+    fi
+
+    # AI Prediction
+    if [ -f "backend/tests/test_ai_prediction.py" ]; then
+        echo -n "    AI Prediction tests: "
+        log_verbose "Running: cd backend && python -m pytest tests/test_ai_prediction.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_ai_prediction.py -q --no-cov) >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "AI Prediction tests failed - check AI prediction implementation"
+            failed=true
+        fi
+    fi
+
+    # AI NLP Integration
+    if [ -f "backend/tests/test_ai_nlp_integration.py" ]; then
+        echo -n "    AI NLP Integration tests: "
+        log_verbose "Running: cd backend && python -m pytest tests/test_ai_nlp_integration.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_ai_nlp_integration.py -q --no-cov) >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "AI NLP Integration tests failed - check AI NLP implementation"
+            failed=true
+        fi
+    fi
+    
     # NEW: Integration test fixture validation
     echo -n "    Integration test fixtures: "
     if [ -f "backend/tests/test_homepot_integration.py" ]; then
