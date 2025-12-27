@@ -139,9 +139,11 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     context_builder.get_push_context(device_id=request.device_id),
                     context_builder.get_site_context(device_id=request.device_id),
                     context_builder.get_metadata_context(device_id=request.device_id),
-                    context_builder.get_user_context(user_id=request.user_id)
-                    if request.user_id
-                    else asyncio.sleep(0, result=""),
+                    (
+                        context_builder.get_user_context(user_id=request.user_id)
+                        if request.user_id
+                        else asyncio.sleep(0, result="")
+                    ),
                 )
 
                 live_context = (
