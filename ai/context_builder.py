@@ -6,7 +6,13 @@ from typing import Optional
 
 from sqlalchemy import and_, select
 
-from homepot.app.models.AnalyticsModel import ConfigurationHistory, ErrorLog, JobOutcome
+from homepot.app.models.AnalyticsModel import (
+    APIRequestLog,
+    ConfigurationHistory,
+    DeviceStateHistory,
+    ErrorLog,
+    JobOutcome,
+)
 from homepot.database import get_database_service
 from homepot.models import AuditLog
 
@@ -197,3 +203,77 @@ class ContextBuilder:
         except Exception as e:
             logger.error(f"Failed to build audit context: {e}")
             return "Error retrieving audit context."
+
+    @staticmethod
+    async def get_api_context(limit: int = 5) -> str:
+        """Retrieve recent failed API requests.
+
+        Args:
+            limit: Number of failed requests to fetch.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                # Fetch recent 5xx or 4xx errors
+                stmt = (
+                    select(APIRequestLog)
+                    .where(APIRequestLog.status_code >= 400)
+                    .order_by(APIRequestLog.timestamp.desc())
+                    .limit(limit)
+                )
+
+                result = await session.execute(stmt)
+                logs = result.scalars().all()
+
+                if not logs:
+                    return "No recent API errors."
+
+                context_lines = ["[RECENT API ERRORS]"]
+                for log in logs:
+                    context_lines.append(
+                        f"- {log.timestamp.isoformat()}: {log.method} {log.endpoint} "
+                        f"({log.status_code}) - {log.response_time_ms}ms"
+                    )
+                return "\n".join(context_lines)
+
+        except Exception as e:
+            logger.error(f"Failed to build API context: {e}")
+            return "Error retrieving API context."
+
+    @staticmethod
+    async def get_state_context(device_id: Optional[str] = None, limit: int = 5) -> str:
+        """Retrieve recent device state changes.
+
+        Args:
+            device_id: Optional device ID to filter by.
+            limit: Number of changes to fetch.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                stmt = select(DeviceStateHistory).order_by(
+                    DeviceStateHistory.timestamp.desc()
+                )
+
+                if device_id:
+                    stmt = stmt.where(DeviceStateHistory.device_id == device_id)
+
+                stmt = stmt.limit(limit)
+
+                result = await session.execute(stmt)
+                changes = result.scalars().all()
+
+                if not changes:
+                    return "No recent device state changes."
+
+                context_lines = ["[RECENT STATE CHANGES]"]
+                for change in changes:
+                    context_lines.append(
+                        f"- {change.timestamp.isoformat()}: {change.previous_state} -> "
+                        f"{change.new_state} ({change.reason})"
+                    )
+                return "\n".join(context_lines)
+
+        except Exception as e:
+            logger.error(f"Failed to build state context: {e}")
+            return "Error retrieving state context."

@@ -6,6 +6,19 @@
 
 This directory contains the AI and Machine Learning services for the HOMEPOT Client. The system implements a **Hybrid Analysis Architecture** that combines deterministic rule-based detection with contextual LLM analysis.
 
+## Context Builder
+
+The **Context Builder** (`ai/context_builder.py`) aggregates data from multiple sources to provide "situational awareness" to the LLM. It currently integrates:
+
+*   **Job Outcomes:** Recent failed jobs (e.g., firmware updates).
+*   **Error Logs:** System errors and stack traces.
+*   **Configuration History:** Recent changes to device settings.
+*   **Audit Logs:** User actions and system events.
+*   **API Request Logs:** Failed API calls (4xx/5xx errors).
+*   **Device State History:** Connectivity changes (Online/Offline).
+
+For full details, see the [Context Builder Documentation](/docs/ai-context-builder.md).
+
 ## Architecture Overview
 
 We utilize a **Hybrid Analysis** approach to balance speed and intelligence:

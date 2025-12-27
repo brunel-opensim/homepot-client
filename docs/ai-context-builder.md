@@ -45,6 +45,18 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Timestamp, Event Type, Description.
 *   **Goal:** Provides a broader operational context (e.g., "User logged in", "System rebooted").
 
+### 5. API Request Logs (`APIRequestLog`)
+*   **Trigger:** Always fetched when analyzing a device.
+*   **Content:** Recent failed API requests (status code >= 400).
+*   **Fields:** Timestamp, Method, Endpoint, Status Code, Response Time.
+*   **Goal:** Helps diagnose connectivity issues or backend failures (e.g., "500 Internal Server Error on /api/v1/sync").
+
+### 6. Device State History (`DeviceStateHistory`)
+*   **Trigger:** Always fetched when analyzing a device.
+*   **Content:** Recent state transitions (e.g., Online -> Offline).
+*   **Fields:** Timestamp, Previous State, New State, Reason.
+*   **Goal:** Identifies stability issues like "flapping" (rapidly connecting/disconnecting).
+
 ## Usage
 
 The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.
@@ -58,6 +70,8 @@ job_context = await context_builder.get_job_context()
 error_context = await context_builder.get_error_context(device_id="device-123")
 config_context = await context_builder.get_config_context(device_id="device-123")
 audit_context = await context_builder.get_audit_context(device_id="device-123")
+api_context = await context_builder.get_api_context()
+state_context = await context_builder.get_state_context(device_id="device-123")
 ```
 
 ## Future Expansion
