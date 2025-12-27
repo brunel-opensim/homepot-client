@@ -17,6 +17,13 @@ graph LR
     API --> LLM[LLM Service]
 ```
 
+## Performance Architecture
+
+To ensure low latency while fetching data from 10+ sources, the Context Builder utilizes an **asynchronous parallel execution model**:
+
+1.  **Concurrent Fetching:** All context methods are executed simultaneously using `asyncio.gather`. This reduces the total latency from the *sum* of all DB queries to the *maximum* of the slowest single query.
+2.  **Session Reuse:** A single database session is shared across all context builders during a request, minimizing connection pool overhead.
+
 ## Integrated Data Sources
 
 Currently, the Context Builder integrates the following data sources:
@@ -108,8 +115,5 @@ All planned data sources have been integrated. Future work will focus on:
 *   **Performance Optimization:** Caching context results to reduce DB load.
 *   **Relevance Filtering:** Using vector search to only include *relevant* logs instead of just *recent* ones.
 
-*   `Devices`: Rich metadata (firmware version, IP address).
-*   `HealthCheck`: Raw health ping data.
-
-
+By providing comprehensive situational awareness, the Context Builder empowers the LLM to deliver accurate, context-rich responses for device diagnostics and troubleshooting.
 
