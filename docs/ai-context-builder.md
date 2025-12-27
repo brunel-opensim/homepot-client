@@ -57,6 +57,12 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Timestamp, Previous State, New State, Reason.
 *   **Goal:** Identifies stability issues like "flapping" (rapidly connecting/disconnecting).
 
+### 7. Push Notification Logs (`PushNotificationLog`)
+*   **Trigger:** Always fetched when analyzing a device.
+*   **Content:** Recent push notification attempts.
+*   **Fields:** Timestamp, Provider (FCM/APNs), Status (Sent/Failed), Error Message.
+*   **Goal:** Diagnoses delivery issues (e.g., "Alert not received because token was invalid").
+
 ## Usage
 
 The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.
@@ -72,10 +78,11 @@ config_context = await context_builder.get_config_context(device_id="device-123"
 audit_context = await context_builder.get_audit_context(device_id="device-123")
 api_context = await context_builder.get_api_context()
 state_context = await context_builder.get_state_context(device_id="device-123")
+push_context = await context_builder.get_push_context(device_id="device-123")
 ```
 
 ## Future Expansion
 
 The following data sources are planned for integration:
 *   `UserActivity`: For understanding user intent.
-*   `PushNotificationLog`: For diagnosing delivery issues.
+

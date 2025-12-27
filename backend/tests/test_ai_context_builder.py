@@ -21,6 +21,7 @@ from homepot.app.models.AnalyticsModel import (  # noqa: E402
     DeviceStateHistory,
     ErrorLog,
     JobOutcome,
+    PushNotificationLog,
 )
 from homepot.models import AuditLog  # noqa: E402
 
@@ -378,3 +379,56 @@ async def test_get_state_context_no_changes():
         context = await ContextBuilder.get_state_context(device_id="device-123")
 
         assert "No recent device state changes" in context
+
+
+@pytest.mark.asyncio
+async def test_get_push_context():
+    """Test retrieving context for push notifications."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock the result
+    mock_log = PushNotificationLog(
+        sent_at=datetime.utcnow(),
+        provider="fcm",
+        status="failed",
+        error_message="Invalid token",
+    )
+
+    # Setup the execute result
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_log]
+    mock_session.execute.return_value = mock_result
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_push_context(device_id="device-123")
+
+        assert "[RECENT PUSH NOTIFICATIONS]" in context
+        assert "fcm -> (FAILED: Invalid token)" in context
+
+
+@pytest.mark.asyncio
+async def test_get_push_context_no_logs():
+    """Test retrieving context when there are no push logs."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Setup the execute result (empty list)
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_session.execute.return_value = mock_result
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_push_context(device_id="device-123")
+
+        assert "No recent push notifications" in context
