@@ -75,6 +75,12 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Site ID, Status, Open Time, Close Time.
 *   **Goal:** Contextualizes "offline" alerts (e.g., "Device is offline, but the store is closed, so it's low priority").
 
+### 10. Metadata Context (`Device`, `HealthCheck`)
+*   **Trigger:** Always fetched when analyzing a device.
+*   **Content:** Static device details and raw health pings.
+*   **Fields:** Firmware Version, IP Address, Last Seen, Ping Latency.
+*   **Goal:** Provides technical specs for correlation (e.g., "High latency on firmware v1.2.3").
+
 ## Usage
 
 The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.
@@ -93,11 +99,15 @@ state_context = await context_builder.get_state_context(device_id="device-123")
 push_context = await context_builder.get_push_context(device_id="device-123")
 user_context = await context_builder.get_user_context(user_id="1")
 site_context = await context_builder.get_site_context(device_id="device-123")
+metadata_context = await context_builder.get_metadata_context(device_id="device-123")
 ```
 
 ## Future Expansion
 
-The following data sources are planned for integration:
+All planned data sources have been integrated. Future work will focus on:
+*   **Performance Optimization:** Caching context results to reduce DB load.
+*   **Relevance Filtering:** Using vector search to only include *relevant* logs instead of just *recent* ones.
+
 *   `Devices`: Rich metadata (firmware version, IP address).
 *   `HealthCheck`: Raw health ping data.
 

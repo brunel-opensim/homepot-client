@@ -17,7 +17,7 @@ from homepot.app.models.AnalyticsModel import (
     UserActivity,
 )
 from homepot.database import get_database_service
-from homepot.models import AuditLog, Device, User
+from homepot.models import AuditLog, Device, HealthCheck, User
 
 logger = logging.getLogger(__name__)
 
@@ -449,3 +449,66 @@ class ContextBuilder:
         except Exception as e:
             logger.error(f"Failed to build site context: {e}")
             return "Error retrieving site context."
+
+    @staticmethod
+    async def get_metadata_context(device_id: Optional[str] = None) -> str:
+        """Retrieve device metadata and recent health checks.
+
+        Args:
+            device_id: Device ID to fetch metadata for.
+        """
+        if not device_id:
+            return ""
+
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                context_parts = []
+
+                # 1. Fetch Device Metadata
+                stmt = select(Device).where(Device.device_id == device_id)
+                result = await session.execute(stmt)
+                device = result.scalar_one_or_none()
+
+                if device:
+                    last_seen_str = (
+                        device.last_seen.isoformat() if device.last_seen else "Unknown"
+                    )
+                    context_parts.append(
+                        f"[DEVICE METADATA]\n"
+                        f"Name: {device.name}\n"
+                        f"Type: {device.device_type}\n"
+                        f"Firmware: {device.firmware_version or 'Unknown'}\n"
+                        f"IP: {device.ip_address or 'Unknown'}\n"
+                        f"Last Seen: {last_seen_str}"
+                    )
+                else:
+                    return f"Device {device_id} not found."
+
+                # 2. Fetch Recent Health Checks
+                # Note: HealthCheck uses Integer FK to Device.id, not String device_id
+                if device.id:
+                    health_stmt = (
+                        select(HealthCheck)
+                        .where(HealthCheck.device_id == device.id)
+                        .order_by(HealthCheck.timestamp.desc())
+                        .limit(5)
+                    )
+                    health_result = await session.execute(health_stmt)
+                    checks = health_result.scalars().all()
+
+                    if checks:
+                        lines = ["[RECENT HEALTH CHECKS]"]
+                        for check in checks:
+                            status = "Healthy" if check.is_healthy else "Unhealthy"
+                            lines.append(
+                                f"- {check.timestamp.isoformat()}: {status} "
+                                f"({check.response_time_ms}ms) - {check.endpoint}"
+                            )
+                        context_parts.append("\n".join(lines))
+
+                return "\n\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to build metadata context: {e}")
+            return "Error retrieving metadata context."
