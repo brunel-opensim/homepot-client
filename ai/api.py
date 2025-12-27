@@ -130,6 +130,9 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                 state_context = await context_builder.get_state_context(
                     device_id=request.device_id
                 )
+                push_context = await context_builder.get_push_context(
+                    device_id=request.device_id
+                )
 
                 live_context = (
                     f"[CURRENT SYSTEM STATUS]\n"
@@ -144,6 +147,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     f"{audit_context}\n"
                     f"{api_context}\n"
                     f"{state_context}\n"
+                    f"{push_context}\n"
                     f"----------------------------------------\n"
                 )
             except Exception as e:

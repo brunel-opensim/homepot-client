@@ -12,6 +12,7 @@ from homepot.app.models.AnalyticsModel import (
     DeviceStateHistory,
     ErrorLog,
     JobOutcome,
+    PushNotificationLog,
 )
 from homepot.database import get_database_service
 from homepot.models import AuditLog
@@ -277,3 +278,46 @@ class ContextBuilder:
         except Exception as e:
             logger.error(f"Failed to build state context: {e}")
             return "Error retrieving state context."
+
+    @staticmethod
+    async def get_push_context(device_id: Optional[str] = None, limit: int = 5) -> str:
+        """Retrieve recent push notification logs.
+
+        Args:
+            device_id: Optional device ID to filter by.
+            limit: Number of logs to fetch.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                stmt = select(PushNotificationLog).order_by(
+                    PushNotificationLog.sent_at.desc()
+                )
+
+                if device_id:
+                    stmt = stmt.where(PushNotificationLog.device_id == device_id)
+
+                stmt = stmt.limit(limit)
+
+                result = await session.execute(stmt)
+                logs = result.scalars().all()
+
+                if not logs:
+                    return "No recent push notifications."
+
+                context_lines = ["[RECENT PUSH NOTIFICATIONS]"]
+                for log in logs:
+                    status_detail = f"({log.status})"
+                    if log.status == "failed":
+                        status_detail = (
+                            f"(FAILED: {log.error_message or log.error_code})"
+                        )
+
+                    context_lines.append(
+                        f"- {log.sent_at.isoformat()}: {log.provider} -> {status_detail}"
+                    )
+                return "\n".join(context_lines)
+
+        except Exception as e:
+            logger.error(f"Failed to build push context: {e}")
+            return "Error retrieving push context."
