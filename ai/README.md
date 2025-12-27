@@ -19,6 +19,7 @@ The **Context Builder** (`ai/context_builder.py`) aggregates data from multiple 
 *   **Push Notification Logs:** Delivery status and failures (FCM/APNs).
 *   **User Context:** User profile and recent activity history.
 *   **Site Context:** Operating hours and open/closed status.
+*   **Metadata Context:** Device specifications (Firmware/IP) and Health Check logs.
 
 For full details, see the [Context Builder Documentation](/docs/ai-context-builder.md).
 

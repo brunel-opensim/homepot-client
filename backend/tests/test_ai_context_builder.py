@@ -25,7 +25,7 @@ from homepot.app.models.AnalyticsModel import (  # noqa: E402
     SiteOperatingSchedule,
     UserActivity,
 )
-from homepot.models import AuditLog, Device, User  # noqa: E402
+from homepot.models import AuditLog, Device, HealthCheck, User  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -612,3 +612,76 @@ async def test_get_site_context_closed():
         context = await ContextBuilder.get_site_context(device_id="device-123")
 
         assert "Status: CLOSED (Outside Hours)" in context
+
+
+@pytest.mark.asyncio
+async def test_get_metadata_context():
+    """Test retrieving device metadata and health checks."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock Device
+    mock_device = Device(
+        id=1,
+        device_id="device-123",
+        name="Test Device",
+        device_type="pos",
+        firmware_version="v1.0.0",
+        ip_address="192.168.1.100",
+        last_seen=datetime(2023, 1, 1, 12, 0, 0),
+    )
+
+    # Mock Health Checks
+    mock_check = HealthCheck(
+        timestamp=datetime(2023, 1, 1, 12, 0, 0),
+        is_healthy=True,
+        response_time_ms=50,
+        endpoint="/health",
+    )
+
+    # Setup execute results
+    mock_result_device = MagicMock()
+    mock_result_device.scalar_one_or_none.return_value = mock_device
+
+    mock_result_checks = MagicMock()
+    mock_result_checks.scalars.return_value.all.return_value = [mock_check]
+
+    mock_session.execute.side_effect = [mock_result_device, mock_result_checks]
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_metadata_context(device_id="device-123")
+
+        assert "[DEVICE METADATA]" in context
+        assert "Name: Test Device" in context
+        assert "Firmware: v1.0.0" in context
+        assert "[RECENT HEALTH CHECKS]" in context
+        assert "Healthy (50ms)" in context
+
+
+@pytest.mark.asyncio
+async def test_get_metadata_context_not_found():
+    """Test retrieving metadata for non-existent device."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Setup execute results (None)
+    mock_result_device = MagicMock()
+    mock_result_device.scalar_one_or_none.return_value = None
+
+    mock_session.execute.return_value = mock_result_device
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_metadata_context(device_id="unknown-device")
+
+        assert "Device unknown-device not found" in context
+

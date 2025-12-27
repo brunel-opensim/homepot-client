@@ -144,6 +144,9 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                 site_context = await context_builder.get_site_context(
                     device_id=request.device_id
                 )
+                metadata_context = await context_builder.get_metadata_context(
+                    device_id=request.device_id
+                )
 
                 live_context = (
                     f"[CURRENT SYSTEM STATUS]\n"
@@ -160,6 +163,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     f"{state_context}\n"
                     f"{push_context}\n"
                     f"{site_context}\n"
+                    f"{metadata_context}\n"
                     f"{user_context}\n"
                     f"----------------------------------------\n"
                 )
