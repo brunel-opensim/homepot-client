@@ -512,4 +512,3 @@ class ContextBuilder:
         except Exception as e:
             logger.error(f"Failed to build metadata context: {e}")
             return "Error retrieving metadata context."
-

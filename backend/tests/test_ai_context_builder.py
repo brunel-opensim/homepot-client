@@ -684,4 +684,3 @@ async def test_get_metadata_context_not_found():
         context = await ContextBuilder.get_metadata_context(device_id="unknown-device")
 
         assert "Device unknown-device not found" in context
-
