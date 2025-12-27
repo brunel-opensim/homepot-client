@@ -22,8 +22,9 @@ from homepot.app.models.AnalyticsModel import (  # noqa: E402
     ErrorLog,
     JobOutcome,
     PushNotificationLog,
+    UserActivity,
 )
-from homepot.models import AuditLog  # noqa: E402
+from homepot.models import AuditLog, User  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -432,3 +433,89 @@ async def test_get_push_context_no_logs():
         context = await ContextBuilder.get_push_context(device_id="device-123")
 
         assert "No recent push notifications" in context
+
+
+@pytest.mark.asyncio
+async def test_get_user_context():
+    """Test retrieving context for user activity."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock the user metadata result
+    mock_user = User(
+        id=1,
+        username="testuser",
+        is_admin=True,
+        is_active=True,
+    )
+
+    # Mock the activity result
+    mock_activity = UserActivity(
+        timestamp=datetime.utcnow(),
+        activity_type="page_view",
+        page_url="/dashboard",
+        user_id="1",
+    )
+
+    # Setup the execute results
+    # First call is for User metadata (scalar_one_or_none)
+    # Second call is for UserActivity (scalars().all())
+    mock_result_user = MagicMock()
+    mock_result_user.scalar_one_or_none.return_value = mock_user
+
+    mock_result_activity = MagicMock()
+    mock_result_activity.scalars.return_value.all.return_value = [mock_activity]
+
+    # We need to mock execute to return different results based on the query
+    # Or simply return a sequence of results
+    mock_session.execute.side_effect = [mock_result_user, mock_result_activity]
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_user_context(user_id="1")
+
+        assert "[USER PROFILE]" in context
+        assert "Username: testuser" in context
+        assert "Role: Admin" in context
+        assert "[RECENT USER ACTIVITY]" in context
+        assert "page_view on /dashboard" in context
+
+
+@pytest.mark.asyncio
+async def test_get_user_context_no_activity():
+    """Test retrieving context when there is no user activity."""
+    # Mock the database service and session
+    mock_db_service = MagicMock()
+    mock_session = AsyncMock()
+    mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
+
+    # Mock the user metadata result
+    mock_user = User(
+        id=1,
+        username="testuser",
+        is_admin=False,
+        is_active=True,
+    )
+
+    # Setup the execute results
+    mock_result_user = MagicMock()
+    mock_result_user.scalar_one_or_none.return_value = mock_user
+
+    mock_result_activity = MagicMock()
+    mock_result_activity.scalars.return_value.all.return_value = []
+
+    mock_session.execute.side_effect = [mock_result_user, mock_result_activity]
+
+    with patch(
+        "ai.context_builder.get_database_service",
+        new=AsyncMock(return_value=mock_db_service),
+    ):
+        context = await ContextBuilder.get_user_context(user_id="1")
+
+        assert "[USER PROFILE]" in context
+        assert "Role: User" in context
+        assert "No recent user activity" not in context  # It just returns the profile
