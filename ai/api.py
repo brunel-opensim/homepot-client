@@ -50,6 +50,7 @@ class QueryRequest(BaseModel):
 
     query: str
     device_id: str | None = None
+    user_id: str | None = None  # Added for user context
     history: list[ChatMessage] = Field(default_factory=list)
 
 
@@ -134,6 +135,12 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     device_id=request.device_id
                 )
 
+                user_context = ""
+                if request.user_id:
+                    user_context = await context_builder.get_user_context(
+                        user_id=request.user_id
+                    )
+
                 live_context = (
                     f"[CURRENT SYSTEM STATUS]\n"
                     f"Device ID: {request.device_id}\n"
@@ -148,6 +155,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     f"{api_context}\n"
                     f"{state_context}\n"
                     f"{push_context}\n"
+                    f"{user_context}\n"
                     f"----------------------------------------\n"
                 )
             except Exception as e:

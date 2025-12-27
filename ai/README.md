@@ -17,6 +17,7 @@ The **Context Builder** (`ai/context_builder.py`) aggregates data from multiple 
 *   **API Request Logs:** Failed API calls (4xx/5xx errors).
 *   **Device State History:** Connectivity changes (Online/Offline).
 *   **Push Notification Logs:** Delivery status and failures (FCM/APNs).
+*   **User Context:** User profile and recent activity history.
 
 For full details, see the [Context Builder Documentation](/docs/ai-context-builder.md).
 

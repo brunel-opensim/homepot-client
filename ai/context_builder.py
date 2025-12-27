@@ -13,9 +13,10 @@ from homepot.app.models.AnalyticsModel import (
     ErrorLog,
     JobOutcome,
     PushNotificationLog,
+    UserActivity,
 )
 from homepot.database import get_database_service
-from homepot.models import AuditLog
+from homepot.models import AuditLog, User
 
 logger = logging.getLogger(__name__)
 
@@ -321,3 +322,69 @@ class ContextBuilder:
         except Exception as e:
             logger.error(f"Failed to build push context: {e}")
             return "Error retrieving push context."
+
+    @staticmethod
+    async def get_user_context(user_id: Optional[str] = None, limit: int = 5) -> str:
+        """Retrieve recent user activity and metadata.
+
+        Args:
+            user_id: Optional user ID to filter by.
+            limit: Number of activities to fetch.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                context_parts = []
+
+                # 1. Fetch User Metadata if ID provided
+                if user_id:
+                    # Note: User.id is Integer, but user_id arg is often String from API.
+                    # We need to handle conversion or assume it's passed correctly.
+                    # For safety, we'll try to cast if it looks like an int, or skip.
+                    try:
+                        uid_int = int(user_id)
+                        stmt = select(User).where(User.id == uid_int)
+                        result = await session.execute(stmt)
+                        user = result.scalar_one_or_none()
+                        if user:
+                            context_parts.append(
+                                f"[USER PROFILE]\n"
+                                f"Username: {user.username}\n"
+                                f"Role: {'Admin' if user.is_admin else 'User'}\n"
+                                f"Status: {'Active' if user.is_active else 'Inactive'}"
+                            )
+                    except ValueError:
+                        pass  # user_id wasn't an integer, skip metadata lookup
+
+                # 2. Fetch Recent Activity
+                # Use a new variable for the activity statement to avoid type confusion
+                activity_stmt = select(UserActivity).order_by(
+                    UserActivity.timestamp.desc()
+                )
+
+                if user_id:
+                    activity_stmt = activity_stmt.where(UserActivity.user_id == user_id)
+
+                activity_stmt = activity_stmt.limit(limit)
+
+                # Explicitly type the result to help mypy
+                activity_result = await session.execute(activity_stmt)
+                activities = activity_result.scalars().all()
+
+                if activities:
+                    lines = ["[RECENT USER ACTIVITY]"]
+                    for act in activities:
+                        # act is UserActivity here
+                        details = act.page_url or act.element_id or act.activity_type
+                        lines.append(
+                            f"- {act.timestamp.isoformat()}: {act.activity_type} on {details}"
+                        )
+                    context_parts.append("\n".join(lines))
+                elif not context_parts:
+                    return "No recent user activity."
+
+                return "\n\n".join(context_parts)
+
+        except Exception as e:
+            logger.error(f"Failed to build user context: {e}")
+            return "Error retrieving user context."

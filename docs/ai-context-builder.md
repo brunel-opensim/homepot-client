@@ -63,6 +63,12 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Timestamp, Provider (FCM/APNs), Status (Sent/Failed), Error Message.
 *   **Goal:** Diagnoses delivery issues (e.g., "Alert not received because token was invalid").
 
+### 8. User Context (`User`, `UserActivity`)
+*   **Trigger:** Fetched when a `user_id` is available in the query context.
+*   **Content:** User profile (Role, Status) and recent actions.
+*   **Fields:** Username, Role, Activity Type (e.g., `page_view`), Target URL.
+*   **Goal:** Provides context on *who* is asking or *what* they were doing (e.g., "User 'admin' viewed the logs page").
+
 ## Usage
 
 The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.
@@ -79,10 +85,12 @@ audit_context = await context_builder.get_audit_context(device_id="device-123")
 api_context = await context_builder.get_api_context()
 state_context = await context_builder.get_state_context(device_id="device-123")
 push_context = await context_builder.get_push_context(device_id="device-123")
+user_context = await context_builder.get_user_context(user_id="1")
 ```
 
 ## Future Expansion
 
 The following data sources are planned for integration:
-*   `UserActivity`: For understanding user intent.
+*   `SiteOperatingSchedule`: For understanding operational hours.
+
 
