@@ -23,6 +23,18 @@ The **Context Builder** (`ai/context_builder.py`) aggregates data from multiple 
 
 For full details, see the [Context Builder Documentation](/docs/ai-context-builder.md).
 
+## Core Components
+
+### Device Resolver (`ai/device_resolver.py`)
+A specialized service that handles the resolution of public UUID strings (`device_id`) to internal Integer Primary Keys (`id`).
+*   **Purpose:** Bridges the gap between the API (public UUIDs) and the Database (Integer FKs).
+*   **Optimization:** Caches resolutions within the request session scope to prevent redundant database lookups.
+
+### Prompt Manager (`ai/prompts.py`)
+Centralizes all prompt templates and string construction logic.
+*   **Purpose:** Decouples prompt engineering from business logic.
+*   **Features:** Provides static methods to build "Live Context" and "Full Prompts" ensuring consistent formatting across the application.
+
 ## Architecture Overview
 
 We utilize a **Hybrid Analysis** approach to balance speed and intelligence:
