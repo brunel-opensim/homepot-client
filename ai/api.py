@@ -1,5 +1,6 @@
 """FastAPI application for the AI service."""
 
+import asyncio
 import logging
 import os
 import uuid
@@ -116,36 +117,31 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                 risk_factors = [
                     f.get("name", "Unknown") for f in prediction.get("risk_factors", [])
                 ]
-                # Fetch additional context
-                job_context = await context_builder.get_job_context()
-                error_context = await context_builder.get_error_context(
-                    device_id=request.device_id
-                )
-                config_context = await context_builder.get_config_context(
-                    device_id=request.device_id
-                )
-                audit_context = await context_builder.get_audit_context(
-                    device_id=request.device_id
-                )
-                api_context = await context_builder.get_api_context()
-                state_context = await context_builder.get_state_context(
-                    device_id=request.device_id
-                )
-                push_context = await context_builder.get_push_context(
-                    device_id=request.device_id
-                )
-
-                user_context = ""
-                if request.user_id:
-                    user_context = await context_builder.get_user_context(
-                        user_id=request.user_id
-                    )
-
-                site_context = await context_builder.get_site_context(
-                    device_id=request.device_id
-                )
-                metadata_context = await context_builder.get_metadata_context(
-                    device_id=request.device_id
+                # Fetch additional context concurrently
+                (
+                    job_context,
+                    error_context,
+                    config_context,
+                    audit_context,
+                    api_context,
+                    state_context,
+                    push_context,
+                    site_context,
+                    metadata_context,
+                    user_context,
+                ) = await asyncio.gather(
+                    context_builder.get_job_context(),
+                    context_builder.get_error_context(device_id=request.device_id),
+                    context_builder.get_config_context(device_id=request.device_id),
+                    context_builder.get_audit_context(device_id=request.device_id),
+                    context_builder.get_api_context(),
+                    context_builder.get_state_context(device_id=request.device_id),
+                    context_builder.get_push_context(device_id=request.device_id),
+                    context_builder.get_site_context(device_id=request.device_id),
+                    context_builder.get_metadata_context(device_id=request.device_id),
+                    context_builder.get_user_context(user_id=request.user_id)
+                    if request.user_id
+                    else asyncio.sleep(0, result=""),
                 )
 
                 live_context = (
