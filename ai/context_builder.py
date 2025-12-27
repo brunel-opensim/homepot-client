@@ -106,13 +106,15 @@ class ContextBuilder:
         device_id: Optional[str] = None,
         limit: int = 5,
         session: Optional[AsyncSession] = None,
+        device_int_id: Optional[int] = None,
     ) -> str:
         """Retrieve recent error logs.
 
         Args:
-            device_id: Optional device ID to filter by.
+            device_id: Optional device ID (UUID) to filter by.
             limit: Number of errors to fetch.
             session: Optional database session to reuse.
+            device_int_id: Optional internal device ID (Integer).
         """
         try:
             if session:
@@ -160,13 +162,15 @@ class ContextBuilder:
         device_id: Optional[str] = None,
         limit: int = 5,
         session: Optional[AsyncSession] = None,
+        device_int_id: Optional[int] = None,
     ) -> str:
         """Retrieve recent configuration changes.
 
         Args:
-            device_id: Optional device ID to filter by.
+            device_id: Optional device ID (UUID) to filter by.
             limit: Number of changes to fetch.
             session: Optional database session to reuse.
+            device_int_id: Optional internal device ID (Integer).
         """
         try:
             if session:
@@ -221,24 +225,26 @@ class ContextBuilder:
         device_id: Optional[str] = None,
         limit: int = 5,
         session: Optional[AsyncSession] = None,
+        device_int_id: Optional[int] = None,
     ) -> str:
         """Retrieve recent audit logs.
 
         Args:
-            device_id: Optional device ID to filter by.
+            device_id: Optional device ID (UUID) to filter by.
             limit: Number of logs to fetch.
             session: Optional database session to reuse.
+            device_int_id: Optional internal device ID (Integer).
         """
         try:
             if session:
                 return await ContextBuilder._get_audit_context_impl(
-                    session, device_id, limit
+                    session, device_id, limit, device_int_id
                 )
 
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 return await ContextBuilder._get_audit_context_impl(
-                    session, device_id, limit
+                    session, device_id, limit, device_int_id
                 )
 
         except Exception as e:
@@ -247,21 +253,27 @@ class ContextBuilder:
 
     @staticmethod
     async def _get_audit_context_impl(
-        session: AsyncSession, device_id: Optional[str], limit: int
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+        device_int_id: Optional[int] = None,
     ) -> str:
-        # Note: AuditLog uses integer device_id FK, but we pass string ID.
-        # We might need to join with Device table or assume ID lookup is handled.
-        # For now, we'll skip device filtering if it's a string ID and AuditLog expects int,
-        # OR we assume the caller handles ID conversion.
-        # However, looking at models.py, AuditLog.device_id is Integer FK.
-        # But Device.device_id is String.
-        # This implies we need to look up the integer ID first.
-        # For simplicity in this iteration, we will return general audit logs
-        # or if device_id is provided, we'd need to resolve it.
-        # Let's check if we can filter by description or metadata if ID lookup is complex.
+        stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
 
-        # Strategy: Just fetch recent logs for now to avoid complex joins in this step.
-        stmt = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)
+        if device_int_id:
+            stmt = stmt.where(AuditLog.device_id == device_int_id)
+        elif device_id:
+            # Fallback: If we only have UUID but AuditLog needs Int, we can't filter efficiently
+            # without a join or lookup.
+            # For now, if device_int_id is missing, we might skip filtering or try to resolve.
+            # But since we are refactoring to ALWAYS provide device_int_id from api.py,
+            # we can assume it's there if device_id is there.
+            # If not, we return general logs or empty?
+            # Let's try to resolve if missing? No, keep it simple.
+            # If device_id is present but device_int_id is not, we can't filter AuditLog (Int FK).
+            pass
+
+        stmt = stmt.limit(limit)
 
         result = await session.execute(stmt)
         logs = result.scalars().all()
@@ -517,24 +529,31 @@ class ContextBuilder:
 
     @staticmethod
     async def get_site_context(
-        device_id: Optional[str] = None, session: Optional[AsyncSession] = None
+        device_id: Optional[str] = None,
+        session: Optional[AsyncSession] = None,
+        device_int_id: Optional[int] = None,
     ) -> str:
         """Retrieve site operating schedule and status.
 
         Args:
             device_id: Device ID to look up the site for.
             session: Optional database session to reuse.
+            device_int_id: Optional internal device ID (Integer).
         """
-        if not device_id:
+        if not device_id and not device_int_id:
             return ""
 
         try:
             if session:
-                return await ContextBuilder._get_site_context_impl(session, device_id)
+                return await ContextBuilder._get_site_context_impl(
+                    session, device_id, device_int_id
+                )
 
             db_service = await get_database_service()
             async with db_service.get_session() as session:
-                return await ContextBuilder._get_site_context_impl(session, device_id)
+                return await ContextBuilder._get_site_context_impl(
+                    session, device_id, device_int_id
+                )
 
         except Exception as e:
             logger.error(f"Failed to build site context: {e}")
@@ -542,10 +561,16 @@ class ContextBuilder:
 
     @staticmethod
     async def _get_site_context_impl(
-        session: AsyncSession, device_id: Optional[str]
+        session: AsyncSession,
+        device_id: Optional[str],
+        device_int_id: Optional[int] = None,
     ) -> str:
         # 1. Get Site ID from Device
-        stmt = select(Device).where(Device.device_id == device_id)
+        if device_int_id:
+            stmt = select(Device).where(Device.id == device_int_id)
+        else:
+            stmt = select(Device).where(Device.device_id == device_id)
+
         result = await session.execute(stmt)
         device = result.scalar_one_or_none()
 
@@ -586,27 +611,30 @@ class ContextBuilder:
 
     @staticmethod
     async def get_metadata_context(
-        device_id: Optional[str] = None, session: Optional[AsyncSession] = None
+        device_id: Optional[str] = None,
+        session: Optional[AsyncSession] = None,
+        device_int_id: Optional[int] = None,
     ) -> str:
         """Retrieve device metadata and recent health checks.
 
         Args:
             device_id: Device ID to fetch metadata for.
             session: Optional database session to reuse.
+            device_int_id: Optional internal device ID (Integer).
         """
-        if not device_id:
+        if not device_id and not device_int_id:
             return ""
 
         try:
             if session:
                 return await ContextBuilder._get_metadata_context_impl(
-                    session, device_id
+                    session, device_id, device_int_id
                 )
 
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 return await ContextBuilder._get_metadata_context_impl(
-                    session, device_id
+                    session, device_id, device_int_id
                 )
 
         except Exception as e:
@@ -615,12 +643,18 @@ class ContextBuilder:
 
     @staticmethod
     async def _get_metadata_context_impl(
-        session: AsyncSession, device_id: Optional[str]
+        session: AsyncSession,
+        device_id: Optional[str],
+        device_int_id: Optional[int] = None,
     ) -> str:
         context_parts = []
 
         # 1. Fetch Device Metadata
-        stmt = select(Device).where(Device.device_id == device_id)
+        if device_int_id:
+            stmt = select(Device).where(Device.id == device_int_id)
+        else:
+            stmt = select(Device).where(Device.device_id == device_id)
+
         result = await session.execute(stmt)
         device = result.scalar_one_or_none()
 
@@ -637,10 +671,11 @@ class ContextBuilder:
                 f"Last Seen: {last_seen_str}"
             )
         else:
-            return f"Device {device_id} not found."
+            return f"Device {device_id or device_int_id} not found."
 
         # 2. Fetch Recent Health Checks
-        # Note: HealthCheck uses Integer FK to Device.id, not String device_id
+        # Note: HealthCheck uses Integer FK to Device.id
+        # Since we have the device object (and it has .id), we can use it directly.
         if device.id:
             health_stmt = (
                 select(HealthCheck)

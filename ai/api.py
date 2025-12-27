@@ -10,13 +10,17 @@ import yaml
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from homepot.database import get_database_service
+
 from .analysis_modes import ModeManager
 from .anomaly_detection import AnomalyDetector
 from .context_builder import ContextBuilder
 from .device_memory import DeviceMemory
+from .device_resolver import DeviceResolver
 from .event_store import EventStore
 from .failure_predictor import FailurePredictor
 from .llm import LLMService
+from .prompts import PromptManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -118,52 +122,85 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     f.get("name", "Unknown") for f in prediction.get("risk_factors", [])
                 ]
                 # Fetch additional context concurrently
-                (
-                    job_context,
-                    error_context,
-                    config_context,
-                    audit_context,
-                    api_context,
-                    state_context,
-                    push_context,
-                    site_context,
-                    metadata_context,
-                    user_context,
-                ) = await asyncio.gather(
-                    context_builder.get_job_context(),
-                    context_builder.get_error_context(device_id=request.device_id),
-                    context_builder.get_config_context(device_id=request.device_id),
-                    context_builder.get_audit_context(device_id=request.device_id),
-                    context_builder.get_api_context(),
-                    context_builder.get_state_context(device_id=request.device_id),
-                    context_builder.get_push_context(device_id=request.device_id),
-                    context_builder.get_site_context(device_id=request.device_id),
-                    context_builder.get_metadata_context(device_id=request.device_id),
-                    (
-                        context_builder.get_user_context(user_id=request.user_id)
-                        if request.user_id
-                        else asyncio.sleep(0, result="")
-                    ),
-                )
+                db_service = await get_database_service()
+                async with db_service.get_session() as session:
+                    # Resolve Device ID
+                    resolver = DeviceResolver(session)
+                    device_int_id = await resolver.resolve(request.device_id)
 
-                live_context = (
-                    f"[CURRENT SYSTEM STATUS]\n"
-                    f"Device ID: {request.device_id}\n"
-                    f"Risk Level: {prediction.get('risk_level', 'UNKNOWN')}\n"
-                    f"Failure Probability: {prediction.get('failure_probability', 0.0)}\n"
-                    f"Risk Factors: {', '.join(risk_factors)}\n"
-                    f"Recent Events: {recent_events}\n"
-                    f"{job_context}\n"
-                    f"{error_context}\n"
-                    f"{config_context}\n"
-                    f"{audit_context}\n"
-                    f"{api_context}\n"
-                    f"{state_context}\n"
-                    f"{push_context}\n"
-                    f"{site_context}\n"
-                    f"{metadata_context}\n"
-                    f"{user_context}\n"
-                    f"----------------------------------------\n"
+                    (
+                        job_context,
+                        error_context,
+                        config_context,
+                        audit_context,
+                        api_context,
+                        state_context,
+                        push_context,
+                        site_context,
+                        metadata_context,
+                        user_context,
+                    ) = await asyncio.gather(
+                        context_builder.get_job_context(session=session),
+                        context_builder.get_error_context(
+                            device_id=request.device_id,
+                            session=session,
+                            device_int_id=device_int_id,
+                        ),
+                        context_builder.get_config_context(
+                            device_id=request.device_id,
+                            session=session,
+                            device_int_id=device_int_id,
+                        ),
+                        context_builder.get_audit_context(
+                            device_id=request.device_id,
+                            session=session,
+                            device_int_id=device_int_id,
+                        ),
+                        context_builder.get_api_context(session=session),
+                        context_builder.get_state_context(
+                            device_id=request.device_id, session=session
+                        ),
+                        context_builder.get_push_context(
+                            device_id=request.device_id, session=session
+                        ),
+                        context_builder.get_site_context(
+                            device_id=request.device_id,
+                            session=session,
+                            device_int_id=device_int_id,
+                        ),
+                        context_builder.get_metadata_context(
+                            device_id=request.device_id,
+                            session=session,
+                            device_int_id=device_int_id,
+                        ),
+                        (
+                            context_builder.get_user_context(
+                                user_id=request.user_id, session=session
+                            )
+                            if request.user_id
+                            else asyncio.sleep(0, result="")
+                        ),
+                    )
+
+                context_data = {
+                    "job": job_context,
+                    "error": error_context,
+                    "config": config_context,
+                    "audit": audit_context,
+                    "api": api_context,
+                    "state": state_context,
+                    "push": push_context,
+                    "site": site_context,
+                    "metadata": metadata_context,
+                    "user": user_context,
+                }
+
+                live_context = PromptManager.build_live_context(
+                    request.device_id,
+                    prediction,
+                    risk_factors,
+                    recent_events,
+                    context_data,
                 )
             except Exception as e:
                 logger.warning(
@@ -171,10 +208,8 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                 )
 
         # 4. Combine Contexts
-        full_context = (
-            f"{live_context}\n"
-            f"Relevant History:\n{long_term_context}\n\n"
-            f"Current Conversation:\n{short_term_context}"
+        full_context = PromptManager.build_full_prompt(
+            live_context, long_term_context, short_term_context
         )
 
         # 5. Generate response
