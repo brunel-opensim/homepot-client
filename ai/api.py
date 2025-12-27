@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from .analysis_modes import ModeManager
 from .anomaly_detection import AnomalyDetector
+from .context_builder import ContextBuilder
 from .device_memory import DeviceMemory
 from .event_store import EventStore
 from .failure_predictor import FailurePredictor
@@ -34,6 +35,7 @@ anomaly_detector = AnomalyDetector()
 event_store = EventStore()
 mode_manager = ModeManager()
 failure_predictor = FailurePredictor(event_store)
+context_builder = ContextBuilder()
 
 
 class ChatMessage(BaseModel):
@@ -113,6 +115,9 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                 risk_factors = [
                     f.get("name", "Unknown") for f in prediction.get("risk_factors", [])
                 ]
+# Fetch additional context
+                job_context = await context_builder.get_job_context()
+                error_context = await context_builder.get_error_context(device_id=request.device_id)
 
                 live_context = (
                     f"[CURRENT SYSTEM STATUS]\n"
@@ -120,6 +125,9 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     f"Risk Level: {prediction.get('risk_level', 'UNKNOWN')}\n"
                     f"Failure Probability: {prediction.get('failure_probability', 0.0)}\n"
                     f"Risk Factors: {', '.join(risk_factors)}\n"
+                    f"Recent Events: {recent_events}\n"
+                    f"{job_context}\n"
+                    f"{error_context_factors)}\n"
                     f"Recent Events: {recent_events}\n"
                     f"----------------------------------------\n"
                 )
