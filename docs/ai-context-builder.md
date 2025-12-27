@@ -23,6 +23,9 @@ To ensure low latency while fetching data from 10+ sources, the Context Builder 
 
 1.  **Concurrent Fetching:** All context methods are executed simultaneously using `asyncio.gather`. This reduces the total latency from the *sum* of all DB queries to the *maximum* of the slowest single query.
 2.  **Session Reuse:** A single database session is shared across all context builders during a request, minimizing connection pool overhead.
+3.  **ID Resolution Strategy:** The system employs a **Device Resolver** pattern to optimize query performance.
+    *   **Problem:** The API receives public UUID strings, but high-volume tables (Audit Logs, Health Checks) use Integer Foreign Keys for performance.
+    *   **Solution:** The `DeviceResolver` resolves the UUID to an Integer ID *once* at the start of the request. This Integer ID is passed to all Context Builder methods, enabling direct index lookups on the Foreign Key columns instead of expensive joins with the `Device` table.
 
 ## Integrated Data Sources
 
