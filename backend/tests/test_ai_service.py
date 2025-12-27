@@ -11,16 +11,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add the 'ai' directory to sys.path so we can import from it
-# (Assuming tests are run from the workspace root or backend/ directory)
+# Add the workspace root to sys.path so we can import 'ai' as a package
 current_dir = os.path.dirname(os.path.abspath(__file__))
 workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
-ai_dir = os.path.join(workspace_root, "ai")
-if ai_dir not in sys.path:
-    sys.path.insert(0, ai_dir)
+if workspace_root not in sys.path:
+    sys.path.insert(0, workspace_root)
 
-# Now we can import from the ai/ directory
-from anomaly_detection import AnomalyDetector  # noqa: E402
+# Now we can import from the ai package
+from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 
 # ==========================================
 # 1. Test Anomaly Detector (Pure Logic)
@@ -107,14 +105,16 @@ async def test_analyze_endpoint_logic():
 
     # We must patch the dependencies BEFORE importing api, because api.py
     # instantiates classes at module level.
-    with patch("builtins.open", side_effect=open_side_effect), patch(
-        "yaml.safe_load", return_value=mock_config
-    ), patch("device_memory.DeviceMemory"), patch("llm.LLMService") as MockLLM, patch(
-        "anomaly_detection.AnomalyDetector"
-    ) as MockDetector:
+    with (
+        patch("builtins.open", side_effect=open_side_effect),
+        patch("yaml.safe_load", return_value=mock_config),
+        patch("ai.device_memory.DeviceMemory"),
+        patch("ai.llm.LLMService") as MockLLM,
+        patch("ai.anomaly_detection.AnomalyDetector") as MockDetector,
+    ):
 
         # Import api inside the patch context
-        import api
+        from ai import api
 
         # Force reload to ensure module-level code runs with patched dependencies
         importlib.reload(api)
@@ -129,7 +129,7 @@ async def test_analyze_endpoint_logic():
         mock_detector_instance.check_anomaly.return_value = 0.8
 
         # Create a request object
-        from api import AnalysisRequest
+        from ai.api import AnalysisRequest
 
         request = AnalysisRequest(
             device_id="device-123",
