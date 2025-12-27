@@ -2,6 +2,7 @@
 
 > **Status:** Foundation Implemented (December 2025)
 > **Roadmap:** [AI Integration Roadmap](/docs/ai-roadmap.md)
+> **Documentation:** [Context Builder](/docs/ai-context-builder.md)
 
 This directory contains the AI and Machine Learning services for the HOMEPOT Client. The system implements a **Hybrid Analysis Architecture** that combines deterministic rule-based detection with contextual LLM analysis.
 

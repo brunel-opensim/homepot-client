@@ -115,9 +115,11 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                 risk_factors = [
                     f.get("name", "Unknown") for f in prediction.get("risk_factors", [])
                 ]
-# Fetch additional context
+                # Fetch additional context
                 job_context = await context_builder.get_job_context()
-                error_context = await context_builder.get_error_context(device_id=request.device_id)
+                error_context = await context_builder.get_error_context(
+                    device_id=request.device_id
+                )
 
                 live_context = (
                     f"[CURRENT SYSTEM STATUS]\n"
@@ -127,8 +129,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     f"Risk Factors: {', '.join(risk_factors)}\n"
                     f"Recent Events: {recent_events}\n"
                     f"{job_context}\n"
-                    f"{error_context_factors)}\n"
-                    f"Recent Events: {recent_events}\n"
+                    f"{error_context}\n"
                     f"----------------------------------------\n"
                 )
             except Exception as e:

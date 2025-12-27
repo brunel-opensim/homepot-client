@@ -2,9 +2,9 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 
 from homepot.app.models.AnalyticsModel import ErrorLog, JobOutcome
 from homepot.database import get_database_service
@@ -49,7 +49,7 @@ class ContextBuilder:
                     .where(
                         and_(
                             JobOutcome.status == "failed",
-                            JobOutcome.timestamp >= cutoff
+                            JobOutcome.timestamp >= cutoff,
                         )
                     )
                     .order_by(JobOutcome.timestamp.desc())
@@ -84,12 +84,12 @@ class ContextBuilder:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 stmt = select(ErrorLog).order_by(ErrorLog.timestamp.desc())
-                
+
                 if device_id:
                     stmt = stmt.where(ErrorLog.device_id == device_id)
-                
+
                 stmt = stmt.limit(limit)
-                
+
                 result = await session.execute(stmt)
                 errors = result.scalars().all()
 
@@ -99,7 +99,8 @@ class ContextBuilder:
                 context_lines = ["[RECENT SYSTEM ERRORS]"]
                 for error in errors:
                     context_lines.append(
-                        f"- {error.timestamp.isoformat()} [{error.severity}]: {error.error_message} ({error.category})"
+                        f"- {error.timestamp.isoformat()} [{error.severity}]: "
+                        f"{error.error_message} ({error.category})"
                     )
                 return "\n".join(context_lines)
 
