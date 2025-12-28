@@ -34,20 +34,36 @@ GRANT ALL PRIVILEGES ON DATABASE homepot_db TO homepot_user;
 
 ### 3. Seed Data Created
 
-**Test User:**
-- Email: `analytics-test@example.com`
-- Password: `testpass123`
-- Role: Regular user (not admin)
+**Admin User:**
+- Username: `homepot_user`
+- Email: `admin@homepot.com`
+- Password: `homepot_dev_password` (Same as DB credentials)
+- Role: Admin
 
-**Sites (3):**
-- `site-001` - Main Store - Downtown (5 POS terminals)
-- `site-002` - West Branch (3 POS terminals)
-- `site-003` - East Side Mall (4 POS terminals)
+**Sites (4):**
+- `site-001` - Site 1 - Mixed OS
+- `site-002` - Site 2 - Mixed OS
+- `site-003` - Site 3 - Mixed OS
+- `site-004` - Site 4 - Mixed OS
 
-**Devices (12):**
-- POS-001 through POS-012
-- All marked as "online"
-- Distributed across 3 sites
+**Devices (20):**
+- 5 devices per site (Total 20)
+- Each site contains one of each:
+    - Android/Linux POS (FCM)
+    - Windows POS (WNS)
+    - Apple POS (APNs)
+    - Web Client (Web Push)
+    - IoT Sensor (MQTT)
+
+### 4. Seeding Script (`seed_data.py`)
+
+The database is populated using `backend/utils/seed_data.py`. This script is automatically executed by `init-postgresql.sh` but can also be run manually if needed.
+
+**Key Features:**
+- **Deterministic Seeding:** Creates a fixed set of 4 sites and 20 devices to ensure consistent testing environments.
+- **Credential Alignment:** Creates a single application user (`homepot_user`) that matches the database credentials, simplifying the developer experience.
+- **Sample Analytics:** Generates initial sample data for jobs, health checks, audit logs, and analytics events to populate the dashboard immediately.
+- **Dependency Handling:** Includes patches for library compatibility (e.g., `bcrypt`/`passlib`).
 
 ## Database Configuration
 
