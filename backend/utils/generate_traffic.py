@@ -160,29 +160,22 @@ async def simulate_user_traffic():
 
                         # If no sites, create one
                         if not sites:
-                            site_id = f"site-{random.randint(100, 999)}"
-                            create_site_resp = await client.post(
-                                f"{BASE_URL}/sites/",
-                                json={
-                                    "site_id": site_id,
-                                    "name": f"Store {site_id}",
-                                    "location": "New York",
-                                    "description": "Simulated Store",
-                                },
-                                headers=headers,
-                            )
-                            if create_site_resp.status_code == 200:
-                                sites = [{"site_id": site_id}]
-                                # Also create a device for this site so jobs have a target
-                                await client.post(
-                                    f"{BASE_URL}/devices/sites/{site_id}/devices",
-                                    json={
-                                        "device_id": f"pos-{site_id}-01",
-                                        "name": "POS Terminal 1",
-                                        "device_type": "pos_terminal",
-                                    },
-                                    headers=headers,
-                                )
+                            logger.warning("No sites found for job creation. Skipping.")
+                            # site_id = f"site-{random.randint(100, 999)}"
+                            # create_site_resp = await client.post(
+                            #     f"{BASE_URL}/sites/",
+                            #     json={
+                            #         "site_id": site_id,
+                            #         "name": f"Store {site_id}",
+                            #         "location": "New York",
+                            #         "description": "Simulated Store",
+                            #     },
+                            #     headers=headers,
+                            # )
+                            # if create_site_resp.status_code == 200:
+                            #     sites = [{"site_id": site_id}]
+                            #     # Also create a device for this site so jobs have a target
+                            #     # ... (omitted for brevity)
 
                         if sites:
                             site_id = random.choice(sites)["site_id"]
