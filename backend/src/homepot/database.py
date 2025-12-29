@@ -17,7 +17,9 @@ from homepot.config import get_settings
 from homepot.models import (
     AuditLog,
     Base,
+    CommandStatus,
     Device,
+    DeviceCommand,
     DeviceStatus,
     HealthCheck,
     Job,
@@ -292,6 +294,7 @@ class DatabaseService:
         site_id: str,
         ip_address: Optional[str] = None,
         config: Optional[dict] = None,
+        api_key_hash: Optional[str] = None,
     ) -> Device:
         """Create a new device."""
         async with self.get_session() as session:
@@ -303,6 +306,7 @@ class DatabaseService:
                 ip_address=ip_address,
                 config=config,
                 status=DeviceStatus.UNKNOWN,
+                api_key_hash=api_key_hash,
             )
             session.add(device)
             await session.flush()
@@ -433,6 +437,75 @@ class DatabaseService:
                 .limit(limit)
             )
             return list(result.scalars().all())
+
+    # Device Command operations
+    async def create_device_command(
+        self,
+        device_id: int,
+        command_type: str,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> DeviceCommand:
+        """Create a new device command."""
+        import uuid
+
+        async with self.get_session() as session:
+            command = DeviceCommand(
+                command_id=str(uuid.uuid4()),
+                device_id=device_id,
+                command_type=command_type,
+                payload=payload,
+                status=CommandStatus.PENDING,
+            )
+            session.add(command)
+            await session.commit()
+            await session.refresh(command)
+            return command
+
+    async def get_pending_commands_for_device(
+        self, device_id: int
+    ) -> List[DeviceCommand]:
+        """Get pending commands for a specific device."""
+        from sqlalchemy import select
+
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(DeviceCommand)
+                .where(
+                    DeviceCommand.device_id == device_id,
+                    DeviceCommand.status == CommandStatus.PENDING,
+                )
+                .order_by(DeviceCommand.created_at.asc())
+            )
+            return list(result.scalars().all())
+
+    async def update_command_status(
+        self,
+        command_id: str,
+        status: CommandStatus,
+        result: Optional[Dict[str, Any]] = None,
+    ) -> Optional[DeviceCommand]:
+        """Update command status."""
+        from datetime import datetime, timezone
+
+        from sqlalchemy import select
+
+        async with self.get_session() as session:
+            # Fetch first to ensure existence and get object
+            stmt = select(DeviceCommand).where(DeviceCommand.command_id == command_id)
+            exec_result = await session.execute(stmt)
+            command = exec_result.scalar_one_or_none()
+
+            if command:
+                command.status = status  # type: ignore
+                if result:
+                    command.result = result  # type: ignore
+                if status in (CommandStatus.COMPLETED, CommandStatus.FAILED):
+                    command.executed_at = datetime.now(timezone.utc)  # type: ignore
+
+                await session.commit()
+                await session.refresh(command)
+                return command
+            return None
 
     # Health check operations
     async def create_health_check(

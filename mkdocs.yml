@@ -109,6 +109,7 @@ nav:
       - POS Management: pos-management.md
       - Real-time Dashboard: real-time-dashboard.md
       - Agent Simulation: agent-simulation.md
+      - Real Device Transition: real-device-transition.md
       - API Testing: api-testing-guide.md
       - Device Metrics Collection: device-metrics-collection.md
   

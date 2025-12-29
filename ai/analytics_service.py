@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 
 from homepot.app.models.AnalyticsModel import (
     DeviceMetrics,
@@ -98,10 +98,68 @@ class AIAnalyticsService:
                     "health_score": round(max(0, health_score), 2),
                     "analysis_timestamp": datetime.utcnow().isoformat(),
                 }
-
         except Exception as e:
             logger.error(f"Failed to analyze device performance: {e}", exc_info=True)
             return {"device_id": device_id, "status": "error", "message": str(e)}
+
+    @staticmethod
+    async def get_system_health_summary(window_minutes: int = 15) -> Dict[str, Any]:
+        """Get a high-level summary of system health.
+
+        Args:
+            window_minutes: Time window to consider for 'active' status.
+
+        Returns:
+            Dict containing system health stats.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                cutoff_time = datetime.utcnow() - timedelta(minutes=window_minutes)
+
+                # 1. Active Devices Count
+                # Count distinct device_ids in metrics table in last window
+                result = await session.execute(
+                    select(func.count(func.distinct(DeviceMetrics.device_id))).where(
+                        DeviceMetrics.timestamp >= cutoff_time
+                    )
+                )
+                active_devices = result.scalar() or 0
+
+                # 2. Critical Devices (High CPU or Error Rate)
+                # Find devices with ANY metric > threshold in last window
+                result = await session.execute(
+                    select(func.distinct(DeviceMetrics.device_id)).where(
+                        and_(
+                            DeviceMetrics.timestamp >= cutoff_time,
+                            (DeviceMetrics.cpu_percent > 80)
+                            | (DeviceMetrics.error_rate > 0.1),
+                        )
+                    )
+                )
+                critical_devices = result.scalars().all()
+
+                # 3. Recent Errors Count
+                result = await session.execute(
+                    select(func.count(ErrorLog.id)).where(
+                        ErrorLog.timestamp >= cutoff_time
+                    )
+                )
+                recent_errors = result.scalar() or 0
+
+                return {
+                    "status": "ok",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "active_devices_count": active_devices,
+                    "critical_devices_count": len(critical_devices),
+                    "critical_device_ids": list(critical_devices),
+                    "recent_error_count": recent_errors,
+                    "window_minutes": window_minutes,
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to get system summary: {e}")
+            return {"status": "error", "message": str(e)}
 
     @staticmethod
     async def get_configuration_impact_analysis(

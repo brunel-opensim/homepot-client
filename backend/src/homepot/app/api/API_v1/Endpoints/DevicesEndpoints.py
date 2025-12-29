@@ -1,12 +1,14 @@
 """API endpoints for managing Device in the HomePot system."""
 
 import logging
+import secrets
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import IntegrityError
 
+from homepot.app.auth_utils import hash_password
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
 from homepot.models import DeviceType
@@ -58,6 +60,10 @@ async def create_device(
         if not site:
             raise HTTPException(status_code=404, detail=f"Site {site_id} not found")
 
+        # Generate API Key
+        api_key = secrets.token_urlsafe(32)
+        api_key_hash = hash_password(api_key)
+
         # Create device
         device = await db_service.create_device(
             device_id=device_request.device_id,
@@ -66,6 +72,7 @@ async def create_device(
             site_id=site_id,
             ip_address=device_request.ip_address,
             config=device_request.config,
+            api_key_hash=api_key_hash,
         )
 
         logger.info(f"Created device {device.device_id} for site {site_id}")
@@ -73,6 +80,7 @@ async def create_device(
             "message": f"Device {device.device_id} created successfully",
             "device_id": str(device.device_id),
             "site_id": site_id,
+            "api_key": api_key,  # Return only once
         }
 
     except HTTPException:
