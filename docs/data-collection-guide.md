@@ -24,9 +24,11 @@ Collect 3-5 days of analytics data to train AI models for:
 Once running, the backend automatically:
 
 - Spawns 10+ simulated POS agents at startup
-- Collects device metrics every **2 seconds** (high-frequency mode)
+- Collects device metrics using **Smart Filtering** (snapshots + significant changes)
 - Records job outcomes and state transitions
 - Logs errors and configuration changes
+
+> **Note:** **Smart Filtering** is enabled to optimize database storage. It only records metrics when significant changes occur (>5%) or every 5 minutes as a heartbeat.
 
 **Just leave it running for 3-5 days!**
 
