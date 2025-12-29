@@ -42,6 +42,8 @@ class CreateSiteRequest(BaseModel):
     name: str
     description: Optional[str] = None
     location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -50,6 +52,8 @@ class CreateSiteRequest(BaseModel):
                 "name": "Main Retail Store",
                 "description": "Primary retail location with 5 POS terminals",
                 "location": "London, UK",
+                "latitude": 51.5074,
+                "longitude": -0.1278,
             }
         }
     )
@@ -81,6 +85,8 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
             name=site_request.name,
             description=site_request.description,
             location=site_request.location,
+            latitude=site_request.latitude,
+            longitude=site_request.longitude,
         )
 
         # Log audit event
@@ -94,6 +100,8 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
                 "name": str(site.name),
                 "description": str(site.description),
                 "location": site.location,
+                "latitude": site.latitude,
+                "longitude": site.longitude,
             },
         )
 

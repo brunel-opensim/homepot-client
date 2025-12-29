@@ -106,6 +106,7 @@ nav:
       - Integration Guide: integration-guide.md
   
   - User Guides:
+      - Device Registration: device-registration.md
       - POS Management: pos-management.md
       - Real-time Dashboard: real-time-dashboard.md
       - Agent Simulation: agent-simulation.md

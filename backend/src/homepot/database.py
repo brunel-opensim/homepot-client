@@ -224,6 +224,8 @@ class DatabaseService:
         name: str,
         description: Optional[str] = None,
         location: Optional[str] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
     ) -> Site:
         """Create a new site."""
         async with self.get_session() as session:
@@ -232,6 +234,8 @@ class DatabaseService:
                 name=name,
                 description=description,
                 location=location,
+                latitude=latitude,
+                longitude=longitude,
             )
             session.add(site)
             await session.flush()
