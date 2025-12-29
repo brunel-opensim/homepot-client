@@ -7,6 +7,7 @@ from .Endpoints import (
     AIEndpoint,
     AnalyticsEndpoint,
     ClientEndpoint,
+    DeviceCommandsEndpoint,
     DevicesEndpoints,
     DeviceSimulatorEndpoint,
     HealthEndpoint,
@@ -37,6 +38,9 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(
     DevicesEndpoints.router, prefix="/devices", tags=["Devices"]
+)
+api_v1_router.include_router(
+    DeviceCommandsEndpoint.router, prefix="/devices", tags=["Device Commands"]
 )
 api_v1_router.include_router(JobsEndpoints.router, prefix="/jobs", tags=["Jobs"])
 api_v1_router.include_router(AgentsEndpoints.router, prefix="/agents", tags=["Agents"])

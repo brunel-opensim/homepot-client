@@ -96,3 +96,4 @@ types-passlib==1.7.7.20250602  # Type stubs for passlib
 types-requests==2.32.4.20250913  # Type stubs for requests
 types-psutil==7.0.0.20251001  # Type stubs for psutil
 types-PyYAML==6.0.12.20250915  # Type stubs for PyYAML
+psutil==5.9.8

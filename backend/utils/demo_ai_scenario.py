@@ -21,6 +21,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
 from ai.analysis_modes import ModeManager
+from ai.analytics_service import AIAnalyticsService
 from ai.event_store import EventStore
 from ai.failure_predictor import FailurePredictor
 from ai.llm import LLMService
@@ -67,8 +68,64 @@ async def run_demo():
         f"INFO: LLM Service: {'ACTIVE' if llm_service.check_health() else 'OFFLINE (Will use Simulation)'}"
     )
 
-    # 2. Auto-Detect Device
-    print_header("STEP 1: Data Acquisition")
+    # =========================================================================
+    # SCENARIO 1: Shift Start - System Overview
+    # =========================================================================
+    print_header("SCENARIO 1: Technician Shift Start")
+    print("Technician: 'How are things going?'")
+    print("AI: Gathering system-wide telemetry...")
+
+    analytics_service = AIAnalyticsService()
+    system_summary = await analytics_service.get_system_health_summary(
+        window_minutes=15
+    )
+
+    if system_summary["status"] == "ok":
+        print(f"\n[System Telemetry Summary]")
+        print(f"  Active Devices (15m): {system_summary['active_devices_count']}")
+        print(f"  Critical Devices:     {system_summary['critical_devices_count']}")
+        print(f"  Recent Errors:        {system_summary['recent_error_count']}")
+        if system_summary["critical_device_ids"]:
+            print(
+                f"  Alerts on:            {', '.join(system_summary['critical_device_ids'])}"
+            )
+
+        # Ask LLM
+        if llm_service.check_health():
+            print("\nGenerating AI Daily Briefing...")
+
+            shift_context = f"""
+[SYSTEM HEALTH REPORT]
+Timestamp: {system_summary['timestamp']}
+Active Devices: {system_summary['active_devices_count']}
+Critical Devices: {system_summary['critical_devices_count']}
+List of Critical Devices: {system_summary['critical_device_ids']}
+Recent Error Count: {system_summary['recent_error_count']}
+"""
+            shift_prompt = "You are the HOMEPOT AI Assistant. A technician just started their shift and asked 'How are things going?'. Provide a concise, professional summary of the system status based on the report. If there are critical devices, highlight them immediately."
+
+            response = llm_service.generate_response(
+                "How are things going?",
+                context=shift_context,
+                system_prompt=shift_prompt,
+            )
+            print("\nAI Response:")
+            print("-" * 40)
+            print(response)
+            print("-" * 40)
+
+            # Pause for effect
+            print(
+                "\n(Technician acknowledges. Proceeding to deep dive on specific device...)"
+            )
+            await asyncio.sleep(2)
+    else:
+        print(f"Error fetching system summary: {system_summary.get('message')}")
+
+    # =========================================================================
+    # SCENARIO 2: Deep Dive Analysis
+    # =========================================================================
+    print_header("SCENARIO 2: Deep Dive Analysis")
 
     device_id = None
     if event_store.engine:
@@ -157,10 +214,21 @@ async def run_demo():
     # Check if LLM is available
     if llm_service.check_health():
         print("LLM is online. Generating response...\n")
+
+        # Print what the LLM sees
+        system_prompt = mode_manager.get_system_prompt()
+        print("DEBUG: LLM Input:")
+        print("-" * 40)
+        print(f"System Prompt:\n{system_prompt}\n")
+        print(f"User Query:\n{user_query}\n")
+        print(f"Context:\n{live_context}")
+        print("-" * 40)
+        print("\n")
+
         response = llm_service.generate_response(
             user_query,
             context=live_context,
-            system_prompt=mode_manager.get_system_prompt(),
+            system_prompt=system_prompt,
         )
         print("AI Response:")
         print("-" * 40)

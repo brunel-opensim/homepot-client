@@ -37,6 +37,17 @@ async def get_auth_token(client: httpx.AsyncClient) -> Optional[str]:
         )
         return None
 
+    except httpx.ConnectError:
+        logger.error("Failed to connect to HOMEPOT server.")
+        print("\n" + "=" * 80)
+        print("ERROR: Could not connect to the server.")
+        print("Please start the server by running:")
+        print(
+            "source .venv/bin/activate && uvicorn homepot.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
+        )
+        print("=" * 80 + "\n")
+        return None
+
     except Exception as e:
         logger.error(f"Authentication error: {e}")
         return None

@@ -6,12 +6,16 @@ from typing import Any, Optional, cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from homepot.app.schemas.schemas import UserDict
+from homepot.database import get_db
+from homepot.models import Device
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -19,9 +23,13 @@ SECRET_KEY = os.getenv("SECRET_KEY", "supersecret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 COOKIE_NAME = "access_token"
+API_KEY_HEADER_NAME = "X-API-Key"
+DEVICE_ID_HEADER_NAME = "X-Device-ID"
 
 # Use HTTPBearer instead of OAuth2PasswordBearer
 security = HTTPBearer(auto_error=False)
+api_key_header = APIKeyHeader(name=API_KEY_HEADER_NAME, auto_error=False)
+device_id_header = APIKeyHeader(name=DEVICE_ID_HEADER_NAME, auto_error=False)
 
 
 def hash_password(password: str) -> str:
@@ -113,3 +121,47 @@ def require_role(required_role: str) -> Any:
         return {"email": user.email, "role": user.role}
 
     return role_checker
+
+
+async def get_current_device(
+    api_key: str = Depends(api_key_header),
+    device_id: str = Depends(device_id_header),
+    db: Session = Depends(get_db),
+) -> Device:
+    """Authenticate device using API Key and Device ID."""
+    if not api_key or not device_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing X-API-Key or X-Device-ID header",
+        )
+
+    # Fetch device by ID
+    result = db.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalars().first()
+
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Device ID",
+        )
+
+    if not device.api_key_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Device not configured for API Key authentication",
+        )
+
+    # Verify API Key
+    if not verify_password(api_key, device.api_key_hash):  # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+        )
+
+    if not device.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Device is inactive",
+        )
+
+    return device

@@ -79,6 +79,16 @@ class DeviceStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
+class CommandStatus(str, Enum):
+    """Command status enumeration."""
+
+    PENDING = "pending"
+    SENT = "sent"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
 class User(Base):
     """User model for authentication."""
 
@@ -140,6 +150,11 @@ class Device(Base):
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration
 
+    # Authentication
+    api_key_hash = Column(
+        String(255), nullable=True
+    )  # Hashed API key for device authentication
+
     # Metadata
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
@@ -149,6 +164,31 @@ class Device(Base):
     site = relationship("Site", back_populates="devices")
     jobs = relationship("Job", back_populates="target_device")
     health_checks = relationship("HealthCheck", back_populates="device")
+    commands = relationship("DeviceCommand", back_populates="device")
+
+
+class DeviceCommand(Base):
+    """Command queue for specific devices."""
+
+    __tablename__ = "device_commands"
+
+    id = Column(Integer, primary_key=True, index=True)
+    command_id = Column(String(50), unique=True, index=True, nullable=False)  # UUID
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
+
+    command_type = Column(
+        String(50), nullable=False
+    )  # e.g. "restart", "update_config", "ping"
+    payload = Column(JSON, nullable=True)
+
+    status = Column(String(20), default=CommandStatus.PENDING)
+    result = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    executed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    device = relationship("Device", back_populates="commands")
 
 
 class Job(Base):

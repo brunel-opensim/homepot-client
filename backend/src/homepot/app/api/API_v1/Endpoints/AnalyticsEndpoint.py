@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from homepot.app.auth_utils import TokenData, get_current_user
+from homepot.app.auth_utils import TokenData, get_current_device, get_current_user
 from homepot.app.models import AnalyticsModel as models
 from homepot.app.utils.smart_filter import SmartDataFilter
 from homepot.database import get_db
+from homepot.models import Device
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -129,8 +130,11 @@ async def log_error(
 async def log_device_metrics(
     metrics: Dict[str, Any],
     db: Session = Depends(get_db),
+    device: Device = Depends(get_current_device),
 ) -> Dict[str, Any]:
     """Log device performance metrics.
+
+    Requires X-API-Key and X-Device-ID headers.
 
     Expected payload:
     {
