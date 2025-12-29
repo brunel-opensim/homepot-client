@@ -1,6 +1,63 @@
 """Tests for device command management."""
 
+import os
+import tempfile
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+import homepot.database
+from homepot.config import reload_settings
+from homepot.models import Base
+
+
+@pytest.fixture(autouse=True)
+def mock_db_url(monkeypatch):
+    """Use a temporary database for these tests to avoid file locking issues."""
+    # Create a temp file
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+
+    # Set env var
+    db_url = f"sqlite:///{path}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setenv("DATABASE__URL", db_url)
+
+    # Reload settings to pick up new env var
+    reload_settings()
+
+    # Reset the database service singleton so it picks up the new settings
+    if homepot.database._db_service is not None:
+        # We can't await close() here easily in a sync fixture, but we can just clear the reference
+        # The file cleanup will handle the old DB file
+        homepot.database._db_service = None
+
+    # Create new sync engine for the temp DB (for create_all)
+    new_engine = create_engine(
+        db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
+    )
+
+    # Create tables
+    Base.metadata.create_all(bind=new_engine)
+
+    # Create new sessionmaker
+    NewSessionLocal = sessionmaker(bind=new_engine, autocommit=False, autoflush=False)
+
+    # Patch the database module globals
+    monkeypatch.setattr(homepot.database, "sync_engine", new_engine)
+    monkeypatch.setattr(homepot.database, "SessionLocal", NewSessionLocal)
+
+    yield
+
+    # Cleanup
+    new_engine.dispose()
+    if os.path.exists(path):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
 
 
 # Use the client fixture from conftest.py

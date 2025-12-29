@@ -961,7 +961,7 @@ validate_tests() {
     fi
     
     # Check if we have essential test files
-    local essential_tests=("test_database.py" "test_models.py" "test_cli.py" "test_client.py" "test_device_metrics.py")
+    local essential_tests=("test_database.py" "test_models.py" "test_cli.py" "test_client.py" "test_device_metrics.py" "test_device_commands.py")
     local found_tests=()
     
     for test_file in "${essential_tests[@]}"; do
@@ -1066,6 +1066,19 @@ validate_tests() {
         else
             echo -e "${RED}Failed${NC}"
             log_verbose "Device Metrics tests failed - check health/metrics endpoints"
+            failed=true
+        fi
+    fi
+
+    # Run device commands tests
+    if [[ " ${found_tests[*]} " =~ " test_device_commands.py " ]]; then
+        echo -n "    Device Commands tests: "
+        log_verbose "Running: cd backend && python -m pytest tests/test_device_commands.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_device_commands.py -q --no-cov) >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "Device Commands tests failed - check command queuing/retrieval"
             failed=true
         fi
     fi
