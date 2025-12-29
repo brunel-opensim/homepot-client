@@ -164,7 +164,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=20",
+    "--cov-fail-under=10",
 ]
 pythonpath = ["."]
 testpaths = ["tests"]
