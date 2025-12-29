@@ -32,6 +32,12 @@ API_KEY_FILE = ".device_api_key"
 
 async def register_device(client: httpx.AsyncClient) -> Optional[str]:
     """Register this device with the HOMEPOT backend and return API Key."""
+    # Check environment variable first
+    env_key = os.environ.get("HOMEPOT_DEVICE_API_KEY")
+    if env_key:
+        logger.info("Using API Key from environment variable HOMEPOT_DEVICE_API_KEY")
+        return env_key
+
     # Check if we already have an API key
     if os.path.exists(API_KEY_FILE):
         with open(API_KEY_FILE, "r") as f:
@@ -65,7 +71,10 @@ async def register_device(client: httpx.AsyncClient) -> Optional[str]:
             api_key = data.get("api_key")
             if api_key:
                 logger.info("Device registered successfully. Saving API Key.")
-                with open(API_KEY_FILE, "w") as f:
+                # Securely write the API key with read/write permissions for owner only (0o600)
+                # This prevents other users on the system from reading the key
+                fd = os.open(API_KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "w") as f:
                     f.write(api_key)
                 return api_key
             else:
@@ -76,7 +85,7 @@ async def register_device(client: httpx.AsyncClient) -> Optional[str]:
         elif response.status_code == 409:
             logger.info("Device already registered. Cannot retrieve API Key again.")
             logger.warning(
-                "Please delete the device from DB or provide API Key manually in .device_api_key"
+                "Please delete the device from DB or provide API Key manually in .device_api_key or HOMEPOT_DEVICE_API_KEY env var"
             )
             return None
         else:
