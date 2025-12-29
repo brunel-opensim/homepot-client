@@ -29,12 +29,13 @@ The entry point for the suite. It manages the lifecycle of all other components.
 A sophisticated script that simulates realistic user and system behavior. It runs concurrently with the backend.
 
 **Simulation Capabilities:**
-- **Authentication:** Automatically handles Admin login or falls back to Simulation User registration/login.
+- **Authentication:** Uses `homepot_user` credentials to match the database seed.
+- **Device Discovery:** Dynamically fetches the list of real devices from the API at startup.
+- **Realistic Targeting:** Randomly selects *real* devices and sites for every simulated action, ensuring data integrity.
 - **User Activity:** Simulates page views, clicks, and searches (for `user_activities` table).
-- **Job Creation:** Randomly creates jobs for sites (e.g., "Update POS payment config"), triggering `job_outcomes`.
+- **Job Creation:** Randomly creates jobs for specific devices (e.g., "Update POS payment config"), triggering `job_outcomes`.
 - **Error Injection:** Randomly injects errors (API timeouts, validation errors) to populate `error_logs`.
 - **Device Interaction:** Simulates Push Notification acknowledgments and device queries.
-- **Site Management:** Creates new sites and devices if none exist.
 
 **Key Metrics Generated:**
 - `User Activity` (Rate: ~15/min)
