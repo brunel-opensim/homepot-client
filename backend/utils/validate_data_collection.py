@@ -186,7 +186,11 @@ class DataCollectionValidator:
             "Device Metrics",
             DeviceMetrics,
             DeviceMetrics.timestamp,
-            expected_per_day=17280,  # 24h * 60min * 12 (every 5 seconds)
+            # Smart Filtering enabled:
+            # - Snapshot every 5 min = 12/hr = 288/day
+            # - Plus significant changes
+            # We set expectation to the snapshot baseline to avoid false warnings.
+            expected_per_day=288,
             critical=True,
         )
 
