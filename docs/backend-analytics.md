@@ -48,6 +48,17 @@ This analytics infrastructure provides comprehensive data collection and queryin
 - Can be called from frontend or backend
 - Categorizes and tracks errors
 
+### 3. Smart Data Filtering
+
+To prevent database overload from high-frequency device metrics, the system implements a **Smart Data Filtering** mechanism (`SmartDataFilter`).
+
+**Logic:**
+1.  **Snapshot Interval**: A full snapshot of device metrics is stored every 5 minutes (configurable) regardless of changes, ensuring a heartbeat.
+2.  **Significant Change**: Metrics are stored immediately if they deviate by more than 5% (configurable) from the last stored value.
+3.  **First Contact**: The first data point received from a device (after system restart) is always stored.
+
+This ensures that the database only grows with meaningful data while maintaining high-resolution visibility during active state changes.
+
 **POST `/api/v1/analytics/device-state-change`** - Log device state changes
 - Called when device state changes
 - Tracks who/what triggered the change

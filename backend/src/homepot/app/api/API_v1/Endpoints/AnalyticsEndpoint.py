@@ -10,12 +10,17 @@ from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import TokenData, get_current_user
 from homepot.app.models import AnalyticsModel as models
+from homepot.app.utils.smart_filter import SmartDataFilter
 from homepot.database import get_db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Initialize Smart Filter
+# In a real production app with multiple workers, this should be a Redis-backed service
+smart_filter = SmartDataFilter(snapshot_interval=300, change_threshold=0.05)
 
 
 # ==================== Data Collection Endpoints ====================
@@ -83,6 +88,20 @@ async def log_error(
     }
     """
     try:
+        # Smart Filtering (Deduplication)
+        device_id = error.get("device_id")
+        error_code = error.get("error_code", "unknown")
+        error_message = error.get("error_message", "unknown")
+
+        # Only filter if we have a device_id (system errors might not have one)
+        if device_id and not smart_filter.should_store_error(
+            device_id, str(error_code), str(error_message)
+        ):
+            return {
+                "success": True,
+                "message": "Error filtered (duplicate)",
+            }
+
         error_log = models.ErrorLog(
             category=error.get("category", "unknown"),
             severity=error.get("severity", "error"),
@@ -129,6 +148,14 @@ async def log_device_metrics(
     }
     """
     try:
+        # Smart Filtering
+        device_id = metrics.get("device_id")
+        if device_id and not smart_filter.should_store(device_id, metrics):
+            return {
+                "success": True,
+                "message": "Metrics filtered (no significant change)",
+            }
+
         device_metrics = models.DeviceMetrics(
             device_id=metrics.get("device_id"),
             cpu_percent=metrics.get("cpu_percent"),
