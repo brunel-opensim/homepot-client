@@ -100,6 +100,15 @@ export default function Device() {
     }
   };
 
+  const handleToggleMonitor = async () => {
+    try {
+      const updatedDevice = await api.devices.toggleMonitor(id, !device.is_monitored);
+      setDevice((prev) => ({ ...prev, is_monitored: updatedDevice.is_monitored }));
+    } catch (err) {
+      console.error('Failed to toggle monitor:', err);
+    }
+  };
+
   const handleSendCommand = async () => {
     if (!cmdInput.trim()) return;
 
@@ -258,6 +267,13 @@ export default function Device() {
             </div>
 
             <div className="flex items-center gap-3">
+              <ActionButton
+                onClick={handleToggleMonitor}
+                className={device?.is_monitored ? 'text-yellow-400 border-yellow-400' : ''}
+              >
+                {device?.is_monitored ? 'Monitored' : 'Add to Dashboard'}
+              </ActionButton>
+
               {['Reconnect', 'Run Command', 'Audit Log', 'Exit'].map((btn) => (
                 <ActionButton key={btn} onClick={() => handleButtonClick(btn)}>
                   {btn}
@@ -439,11 +455,11 @@ function LargeCard({ children, className = '' }) {
   );
 }
 
-function ActionButton({ children, onClick }) {
+function ActionButton({ children, onClick, className }) {
   return (
     <button
       onClick={onClick}
-      className="px-4 py-2 rounded-md text-sm font-medium border backdrop-blur-sm border-[#0b3b3f] text-teal-200 hover:brightness-105"
+      className={`px-4 py-2 rounded-md text-sm font-medium border backdrop-blur-sm border-[#0b3b3f] text-teal-200 hover:brightness-105 ${className || ''}`}
     >
       {children}
     </button>

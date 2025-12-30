@@ -121,6 +121,10 @@ def login(
             {"sub": db_user.email, "is_admin": db_user.is_admin}
         )
 
+        logger.info(
+            f"Setting cookie: secure={COOKIE_SECURE}, samesite={COOKIE_SAMESITE}"
+        )
+
         # Set httpOnly cookie (not accessible via JavaScript - XSS protection)
         api_response.set_cookie(
             key=COOKIE_NAME,

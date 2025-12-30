@@ -3,42 +3,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle, Apple, Package, Monitor, CheckCircle } from 'lucide-react';
 import api from '@/services/api';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-} from 'chart.js';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 
-// Register Chart.js modules
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
-
 export default function Dashboard() {
-  const [cpuData, setCpuData] = useState({
-    labels: Array.from({ length: 12 }, (_, i) => i + 1),
-    datasets: [
-      {
-        label: 'CPU',
-        data: [20, 40, 35, 60, 50, 70, 60, 55, 65, 45, 50, 55], // Default/Loading data
-        borderColor: '#22c55e',
-        backgroundColor: 'rgba(34,197,94,0.2)',
-        tension: 0.4,
-      },
-    ],
-  });
   const [alerts, setAlerts] = useState([]);
-
-  const cpuOptions = {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: { x: { display: false }, y: { display: false } },
-  };
 
   // Apple Icon (light grey)
   const AppleIcon = () => (
@@ -70,13 +40,39 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         // 1. Fetch Sites
-        const data = await api.sites.list();
-        const fetchedSites = data?.sites || [];
+        const sitesData = await api.sites.list();
+        const fetchedSites = sitesData?.sites || [];
+
+        // 2. Fetch Devices
+        let fetchedDevices = [];
+        try {
+          const devicesData = await api.devices.list();
+          fetchedDevices = devicesData?.devices || [];
+        } catch (e) {
+          console.error('Failed to fetch devices for dashboard', e);
+        }
+
+        // Filter monitored items
+        const monitoredSites = fetchedSites.filter((s) => s.is_monitored);
+        const monitoredDevices = fetchedDevices.filter((d) => d.is_monitored);
+
+        let itemsToDisplay = [];
+
+        if (monitoredSites.length > 0 || monitoredDevices.length > 0) {
+          itemsToDisplay = [
+            ...monitoredSites.map((s) => ({ ...s, _type: 'site' })),
+            ...monitoredDevices.map((d) => ({ ...d, _type: 'device' })),
+          ];
+        }
+        // else {
+        //      // Fallback removed: Dashboard is empty if nothing is monitored
+        //      itemsToDisplay = [];
+        // }
 
         const icons = [<WindowsIcon />, <AppleIcon />]; // rotate between these
 
-        const sitesWithDefaults = fetchedSites.map((site, index) => ({
-          site: site.name || `Site ${index + 1}`,
+        const sitesWithDefaults = itemsToDisplay.map((item, index) => ({
+          site: item.name || `Item ${index + 1}`,
           online: Math.floor(Math.random() * 10) + 1,
           alert: ['2m ago', '5m ago', '—'][index % 3],
           // Alternate icons between Apple and Windows
@@ -85,23 +81,8 @@ export default function Dashboard() {
 
         setSites(sitesWithDefaults);
 
-        // 2. Fetch Dashboard Metrics (CPU & Alerts)
+        // 3. Fetch Dashboard Metrics (CPU & Alerts)
         const metrics = await api.analytics.getDashboardMetrics();
-
-        if (metrics.cpu && metrics.cpu.length > 0) {
-          setCpuData({
-            labels: metrics.cpu.map((m) => m.time),
-            datasets: [
-              {
-                label: 'CPU',
-                data: metrics.cpu.map((m) => m.value),
-                borderColor: '#22c55e',
-                backgroundColor: 'rgba(34,197,94,0.2)',
-                tension: 0.4,
-              },
-            ],
-          });
-        }
 
         if (metrics.alerts) {
           setAlerts(metrics.alerts);
@@ -118,69 +99,48 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await api.auth.logout(); // calling your API logout
-      window.location.href = '/login'; // redirect
-    } catch (err) {
-      console.error('Logout failed:', err);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-gray-200 flex items-center justify-center">
+      <div className="h-screen bg-black text-gray-200 flex items-center justify-center">
         <p className="text-teal-400 animate-pulse">Loading sites...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-gray-200 p-6">
-      {/* Top Bar */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex space-x-14">
-          <div className="flex flex-col items-start">
-            <h1 className="text-2xl font-bold text-white">HOMEPOT</h1>
-            <h3 className="text-xl font-medium text-white">CLIENT</h3>
-          </div>
-          <span className="text-green-400 font-semibold">All Systems Operational</span>
-        </div>
-        <div className="py-2 px-4 text-sm font-semibold rounded-lg flex items-center gap-2 bg-gray-900 border border-green-400">
-          <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-          <span>Operational</span>
-        </div>
-
-        {/* Logout Button */}
-        <button
-          onClick={handleLogout}
-          className="py-2 px-4 text-sm font-semibold rounded-lg bg-red-500 hover:bg-red-600 text-white transition"
-        >
-          Logout
-        </button>
-      </div>
-
+    <div className="h-screen bg-black text-gray-200 p-4 flex flex-col overflow-hidden">
       {/* Main Content: Two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
         {/* Left Column: Connected Sites */}
-        <Card className="col-span-2 relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover">
+        <Card className="col-span-2 relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover h-full flex flex-col">
           {/* Overlay for opacity */}
           <div className="absolute inset-0 bg-black/40 rounded-xl"></div>
 
           <CardContent className="p-4 relative z-10 flex flex-col h-full">
-            <h2 className="text-lg font-semibold text-white mb-4">Connected Sites</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">Monitored Resources</h2>
 
-            <MetricCard sites={sites} />
+            <div className="flex-1 overflow-y-auto">
+              {sites.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  <p>No items monitored.</p>
+                  <p className="text-sm mt-2">
+                    Go to Sites or Devices to add them to the dashboard.
+                  </p>
+                </div>
+              ) : (
+                <MetricCard sites={sites} />
+              )}
+            </div>
 
             {/* Buttons */}
-            <div className="flex justify-center space-x-4 mt-8">
+            <div className="flex justify-center gap-4 mt-4 shrink-0 flex-wrap">
               <Button
                 onClick={() => {
-                  navigate('/sites');
+                  navigate('/data-collection');
                 }}
                 className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
               >
-                View Sites
+                Data Collection
               </Button>
               <Button
                 onClick={() => {
@@ -198,14 +158,6 @@ export default function Dashboard() {
               >
                 Agent
               </Button>
-              <Button
-                onClick={() => {
-                  navigate('/data-collection');
-                }}
-                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
-              >
-                Data Collection
-              </Button>
               <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
                 Send Notification
               </Button>
@@ -220,7 +172,7 @@ export default function Dashboard() {
           />
 
           {/* Glowing Site Dots */}
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none">
             {sites.map((site, index) => (
               <span
                 key={index}
@@ -235,16 +187,11 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {/* Right Column: CPU, Heartbeat, Active Alerts */}
-        <div className="flex flex-col gap-6 h-full">
-          <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover">
-            <CardContent className="p-4">
-              <h2 className="text-lg font-semibold text-white mb-2">CPU Usage</h2>
-              <Line data={cpuData} options={cpuOptions} height={100} />
-            </CardContent>
-          </Card>
+        {/* Right Column: Heartbeat, Active Alerts, AI Assistant */}
+        <div className="flex flex-col gap-4 h-full min-h-0 overflow-y-auto pr-1">
+          {/* CPU Usage removed to give more space to AI Assistant */}
 
-          <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover">
+          <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold text-white mb-2">Heartbeat Status</h2>
               <div className="flex space-x-2">
@@ -261,10 +208,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-2 relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover">
+          <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold text-white mb-2">Active Alerts</h2>
-              <ul className="space-y-2">
+              <ul className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
                 {alerts.length > 0 ? (
                   alerts.map((alert, i) => (
                     <li key={i} className="text-red-400 text-sm">
@@ -282,7 +229,7 @@ export default function Dashboard() {
           </Card>
 
           {/* AI Assistant Widget */}
-          <div className="col-span-2 h-[400px]">
+          <div className="flex-1 min-h-[200px]">
             <AskAIWidget />
           </div>
         </div>

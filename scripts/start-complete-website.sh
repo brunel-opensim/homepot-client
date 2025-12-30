@@ -301,14 +301,14 @@ echo -e "${CYAN}For detailed testing, see: docs/complete-website-setup.md${NC}"
 echo ""
 
 # Optional: Open browser automatically
-if command_exists xdg-open; then
-    print_info "Opening website in browser..."
-    sleep 2
-    xdg-open http://localhost:5173 2>/dev/null || true
-elif command_exists open; then
-    print_info "Opening website in browser..."
-    sleep 2
-    open http://localhost:5173 2>/dev/null || true
-fi
+# if command_exists xdg-open; then
+#     print_info "Opening website in browser..."
+#     sleep 2
+#     xdg-open http://localhost:5173 2>/dev/null || true
+# elif command_exists open; then
+#     print_info "Opening website in browser..."
+#     sleep 2
+#     open http://localhost:5173 2>/dev/null || true
+# fi
 
 exit 0

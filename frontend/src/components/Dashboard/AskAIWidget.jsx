@@ -35,12 +35,12 @@ export default function AskAIWidget() {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
-          Ask AI Assistant
+          System Diagnostics AI
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-4">
+      <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
         {/* Response Area */}
-        <div className="flex-1 min-h-[150px] bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800">
+        <div className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
