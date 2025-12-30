@@ -1,10 +1,11 @@
-const MetricCard = ({ sites }) => {
+const MetricCard = ({ sites, onItemClick }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4 w-full">
       {sites.map((s, i) => (
         <div
           key={i}
-          className="w-full p-3 rounded-xl border border-primary bg-gray-800/90 hover:bg-gray-800 transition-colors"
+          onClick={() => onItemClick && onItemClick(s)}
+          className="w-full p-3 rounded-xl border border-primary bg-gray-800/90 hover:bg-gray-800 transition-colors cursor-pointer"
         >
           <div className="flex justify-between items-center">
             <h3 className="text-md text-text font-semibold mb-1 truncate pr-2" title={s.site}>

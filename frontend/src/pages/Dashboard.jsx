@@ -36,6 +36,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const handleItemClick = (item) => {
+    if (item.type === 'device' && item.id) {
+      navigate(`/device/${item.id}`);
+    } else if (item.type === 'site' && item.id) {
+      navigate(`/sites/${item.id}`);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -77,6 +85,8 @@ export default function Dashboard() {
           alert: ['2m ago', '5m ago', '—'][index % 3],
           // Alternate icons between Apple and Windows
           icon: icons[index % icons.length],
+          id: item._type === 'device' ? item.device_id : item.site_id,
+          type: item._type,
         }));
 
         setSites(sitesWithDefaults);
@@ -92,6 +102,7 @@ export default function Dashboard() {
               message: `${a.device_name}: ${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
               timestamp: a.timestamp,
               severity: a.severity,
+              device_id: a.device_id,
             }));
             setAlerts(formattedAlerts);
           }
@@ -139,7 +150,7 @@ export default function Dashboard() {
                   </p>
                 </div>
               ) : (
-                <MetricCard sites={sites} />
+                <MetricCard sites={sites} onItemClick={handleItemClick} />
               )}
             </div>
 
@@ -227,7 +238,8 @@ export default function Dashboard() {
                   alerts.map((alert, i) => (
                     <li
                       key={i}
-                      className={`text-sm ${
+                      onClick={() => alert.device_id && navigate(`/device/${alert.device_id}`)}
+                      className={`text-sm cursor-pointer hover:underline ${
                         alert.severity === 'critical' ? 'text-red-500 font-bold' : 'text-orange-400'
                       }`}
                     >
