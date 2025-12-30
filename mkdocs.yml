@@ -100,6 +100,7 @@ nav:
   
   - Getting Started:
       - Quick Start: getting-started.md
+      - Accessing Dashboard: accessing-dashboard.md
       - Running Locally: running-locally.md
       - Complete Setup: complete-website-setup.md
       - Website Testing: website-testing-guide.md

@@ -164,7 +164,10 @@ export default function SiteForm() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label htmlFor="latitude" className="text-sm font-medium leading-none text-gray-300">
+                <label
+                  htmlFor="latitude"
+                  className="text-sm font-medium leading-none text-gray-300"
+                >
                   Latitude
                 </label>
                 <input
@@ -179,7 +182,10 @@ export default function SiteForm() {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="longitude" className="text-sm font-medium leading-none text-gray-300">
+                <label
+                  htmlFor="longitude"
+                  className="text-sm font-medium leading-none text-gray-300"
+                >
                   Longitude
                 </label>
                 <input

@@ -12,9 +12,9 @@ In HOMEPOT, every device must belong to a **Site**. This hierarchy ensures that 
 
 ```mermaid
 graph LR
-    Site[Site (Location)] --> Device1[Device 1 (POS)]
-    Site --> Device2[Device 2 (Sensor)]
-    Site --> Device3[Device 3 (Gateway)]
+    Site[Site Location] --> Device1[Device 1 - POS]
+    Site --> Device2[Device 2 - Sensor]
+    Site --> Device3[Device 3 - Gateway]
 ```
 
 ## Prerequisites

@@ -26,19 +26,19 @@ export default function DeviceRegistration() {
   useEffect(() => {
     const fetchSites = async () => {
       try {
-        // Assuming there's an endpoint to list all sites. 
+        // Assuming there's an endpoint to list all sites.
         // If not, we might need to implement it or use what's available.
-        // Based on api.js, there isn't a direct 'list all sites' method exposed clearly 
+        // Based on api.js, there isn't a direct 'list all sites' method exposed clearly
         // in the snippet I saw, but usually it's api.sites.list() or similar.
         // I'll assume api.sites.list() exists or I'll check api.js again.
-        // Checking api.js context from earlier... I didn't see api.sites.list explicitly 
-        // but I saw api.sites.get(id). 
+        // Checking api.js context from earlier... I didn't see api.sites.list explicitly
+        // but I saw api.sites.get(id).
         // Let's assume for now and if it fails I'll fix it.
         // Actually, let's check api.js again to be safe.
-        const sitesData = await api.sites.list(); 
+        const sitesData = await api.sites.list();
         setSites(sitesData);
         if (sitesData.length > 0) {
-            setFormData(prev => ({ ...prev, site_id: sitesData[0].site_id }));
+          setFormData((prev) => ({ ...prev, site_id: sitesData[0].site_id }));
         }
       } catch (err) {
         console.error('Failed to fetch sites:', err);
@@ -94,12 +94,8 @@ export default function DeviceRegistration() {
         </Button>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Register New Device
-          </h1>
-          <p className="text-gray-400">
-            Add a new device to a site in your network.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Register New Device</h1>
+          <p className="text-gray-400">Add a new device to a site in your network.</p>
         </div>
 
         {error && (
@@ -110,7 +106,6 @@ export default function DeviceRegistration() {
 
         <Card className="p-6 bg-card border-border">
           <form onSubmit={handleSubmit} className="space-y-6">
-            
             {/* Site Selection */}
             <div className="space-y-2">
               <label htmlFor="site_id" className="text-sm font-medium leading-none text-gray-300">
@@ -124,7 +119,9 @@ export default function DeviceRegistration() {
                 value={formData.site_id}
                 onChange={handleChange}
               >
-                <option value="" disabled>Select a site</option>
+                <option value="" disabled>
+                  Select a site
+                </option>
                 {sites.map((site) => (
                   <option key={site.id} value={site.site_id}>
                     {site.name} ({site.site_id})
@@ -132,47 +129,55 @@ export default function DeviceRegistration() {
                 ))}
               </select>
               {sites.length === 0 && (
-                 <p className="text-xs text-yellow-500">No sites available. Please create a site first.</p>
+                <p className="text-xs text-yellow-500">
+                  No sites available. Please create a site first.
+                </p>
               )}
             </div>
 
             {/* Device Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="space-y-2">
                 <label htmlFor="name" className="text-sm font-medium leading-none text-gray-300">
-                    Device Name <span className="text-red-400">*</span>
+                  Device Name <span className="text-red-400">*</span>
                 </label>
                 <input
-                    id="name"
-                    name="name"
-                    type="text"
-                    required
-                    className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="e.g. Front Desk POS"
-                    value={formData.name}
-                    onChange={handleChange}
+                  id="name"
+                  name="name"
+                  type="text"
+                  required
+                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="e.g. Front Desk POS"
+                  value={formData.name}
+                  onChange={handleChange}
                 />
-                </div>
+              </div>
 
-                <div className="space-y-2">
-                <label htmlFor="device_id" className="text-sm font-medium leading-none text-gray-300">
-                    Device ID <span className="text-red-400">*</span>
+              <div className="space-y-2">
+                <label
+                  htmlFor="device_id"
+                  className="text-sm font-medium leading-none text-gray-300"
+                >
+                  Device ID <span className="text-red-400">*</span>
                 </label>
                 <input
-                    id="device_id"
-                    name="device_id"
-                    type="text"
-                    required
-                    className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="e.g. dev-001"
-                    value={formData.device_id}
-                    onChange={handleChange}
+                  id="device_id"
+                  name="device_id"
+                  type="text"
+                  required
+                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="e.g. dev-001"
+                  value={formData.device_id}
+                  onChange={handleChange}
                 />
-                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="device_type" className="text-sm font-medium leading-none text-gray-300">
+              <label
+                htmlFor="device_type"
+                className="text-sm font-medium leading-none text-gray-300"
+              >
                 Device Type <span className="text-red-400">*</span>
               </label>
               <select
@@ -193,49 +198,58 @@ export default function DeviceRegistration() {
 
             {/* Optional Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <label htmlFor="ip_address" className="text-sm font-medium leading-none text-gray-300">
-                        IP Address
-                    </label>
-                    <input
-                        id="ip_address"
-                        name="ip_address"
-                        type="text"
-                        className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                        placeholder="e.g. 192.168.1.100"
-                        value={formData.ip_address}
-                        onChange={handleChange}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <label htmlFor="mac_address" className="text-sm font-medium leading-none text-gray-300">
-                        MAC Address
-                    </label>
-                    <input
-                        id="mac_address"
-                        name="mac_address"
-                        type="text"
-                        className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                        placeholder="e.g. 00:1A:2B:3C:4D:5E"
-                        value={formData.mac_address}
-                        onChange={handleChange}
-                    />
-                </div>
+              <div className="space-y-2">
+                <label
+                  htmlFor="ip_address"
+                  className="text-sm font-medium leading-none text-gray-300"
+                >
+                  IP Address
+                </label>
+                <input
+                  id="ip_address"
+                  name="ip_address"
+                  type="text"
+                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="e.g. 192.168.1.100"
+                  value={formData.ip_address}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="space-y-2">
+                <label
+                  htmlFor="mac_address"
+                  className="text-sm font-medium leading-none text-gray-300"
+                >
+                  MAC Address
+                </label>
+                <input
+                  id="mac_address"
+                  name="mac_address"
+                  type="text"
+                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="e.g. 00:1A:2B:3C:4D:5E"
+                  value={formData.mac_address}
+                  onChange={handleChange}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-                <label htmlFor="firmware_version" className="text-sm font-medium leading-none text-gray-300">
-                    Firmware Version
-                </label>
-                <input
-                    id="firmware_version"
-                    name="firmware_version"
-                    type="text"
-                    className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="e.g. v1.2.3"
-                    value={formData.firmware_version}
-                    onChange={handleChange}
-                />
+              <label
+                htmlFor="firmware_version"
+                className="text-sm font-medium leading-none text-gray-300"
+              >
+                Firmware Version
+              </label>
+              <input
+                id="firmware_version"
+                name="firmware_version"
+                type="text"
+                className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="e.g. v1.2.3"
+                value={formData.firmware_version}
+                onChange={handleChange}
+              />
             </div>
 
             <div className="flex justify-end gap-4 pt-4">

@@ -91,6 +91,18 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const signup = async (userData) => {
+    try {
+      const resp = await api.auth.signup(userData);
+      if (resp?.success) {
+        return { success: true, data: resp };
+      }
+      return { success: false, error: resp?.message || 'Signup failed' };
+    } catch (err) {
+      return { success: false, error: err?.response?.data?.detail || err.message };
+    }
+  };
+
   const logout = async () => {
     try {
       await api.auth.logout(); // Server clears the httpOnly cookie
@@ -103,7 +115,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const value = { user, isAuthenticated, loading, login, logout, checkAuth };
+  const value = { user, isAuthenticated, loading, login, signup, logout, checkAuth };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

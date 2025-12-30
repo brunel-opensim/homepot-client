@@ -48,6 +48,10 @@ cd ..  # Go back to homepot-client/
 
 This creates:
 - PostgreSQL database `homepot_db` with all tables
+
+### Next Steps
+
+Once you have completed the setup, proceed to the [Accessing Dashboard](accessing-dashboard.md) guide to learn how to start the application and log in.
 - **3 demo sites** (Main Store Downtown, West Branch, East Side Mall)  
 - **12 demo devices** (POS terminals)
 

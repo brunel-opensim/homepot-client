@@ -11,7 +11,7 @@ const Home = lazy(() => import('../pages/Home'));
 const Login = lazy(() => import('../pages/Login'));
 const Signup = lazy(() => import('../pages/Signup'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
-const Device = lazy(() => import('../pages/Device'));
+const DeviceList = lazy(() => import('../pages/Device/DeviceList'));
 
 const NotFound = lazy(() => import('../pages/NotFound'));
 
@@ -51,7 +51,7 @@ export default function RoutesIndex() {
           <Route path="data-collection" element={<DataCollection />} />
 
           {/* Device & Site routes (protected) */}
-          <Route path="device" element={<Device />} />
+          <Route path="device" element={<DeviceList />} />
           <Route path="device/new" element={<DeviceRegistration />} />
 
           {/* New Sites Management Routes */}
