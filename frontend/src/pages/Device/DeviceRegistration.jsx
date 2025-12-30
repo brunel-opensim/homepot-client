@@ -35,10 +35,11 @@ export default function DeviceRegistration() {
         // but I saw api.sites.get(id).
         // Let's assume for now and if it fails I'll fix it.
         // Actually, let's check api.js again to be safe.
-        const sitesData = await api.sites.list();
-        setSites(sitesData);
-        if (sitesData.length > 0) {
-          setFormData((prev) => ({ ...prev, site_id: sitesData[0].site_id }));
+        const response = await api.sites.list();
+        const sitesList = response.sites || [];
+        setSites(sitesList);
+        if (sitesList.length > 0) {
+          setFormData((prev) => ({ ...prev, site_id: sitesList[0].site_id }));
         }
       } catch (err) {
         console.error('Failed to fetch sites:', err);
