@@ -1,5 +1,6 @@
 """Authentication and authorization utilities for the HomePot system."""
 
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, cast
@@ -16,6 +17,8 @@ from sqlalchemy.orm import Session
 from homepot.app.schemas.schemas import UserDict
 from homepot.database import get_db
 from homepot.models import Device
+
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -87,6 +90,14 @@ def get_current_user(
 
     # First, try to get token from httpOnly cookie
     token = request.cookies.get(COOKIE_NAME)
+
+    # Debug logging for cookie issues
+    if not token:
+        logger.warning(
+            f"Auth Debug: No token in cookie '{COOKIE_NAME}'. Cookies present: {list(request.cookies.keys())}"
+        )
+    else:
+        logger.info(f"Auth Debug: Token found in cookie '{COOKIE_NAME}'")
 
     # Fall back to Authorization header if no cookie
     if not token and credentials:

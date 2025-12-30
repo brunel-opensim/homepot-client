@@ -14,6 +14,8 @@ export default function SiteForm() {
     name: '',
     site_id: '',
     location: '',
+    latitude: '',
+    longitude: '',
     description: '',
   });
   const [loading, setLoading] = useState(false);
@@ -33,6 +35,8 @@ export default function SiteForm() {
           name: data.name || '',
           site_id: data.site_id || data.id || '',
           location: data.location || '',
+          latitude: data.latitude || '',
+          longitude: data.longitude || '',
           description: data.description || '',
         });
       } catch (err) {
@@ -156,6 +160,45 @@ export default function SiteForm() {
                 value={formData.location}
                 onChange={handleChange}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label
+                  htmlFor="latitude"
+                  className="text-sm font-medium leading-none text-gray-300"
+                >
+                  Latitude
+                </label>
+                <input
+                  id="latitude"
+                  name="latitude"
+                  type="number"
+                  step="any"
+                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="e.g. 40.7128"
+                  value={formData.latitude}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="space-y-2">
+                <label
+                  htmlFor="longitude"
+                  className="text-sm font-medium leading-none text-gray-300"
+                >
+                  Longitude
+                </label>
+                <input
+                  id="longitude"
+                  name="longitude"
+                  type="number"
+                  step="any"
+                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="e.g. -74.0060"
+                  value={formData.longitude}
+                  onChange={handleChange}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

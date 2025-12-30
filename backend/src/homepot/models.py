@@ -13,6 +13,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     Engine,
+    Float,
     ForeignKey,
     Integer,
     Sequence,
@@ -120,7 +121,10 @@ class Site(Base):
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     location = Column(String(200), nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     is_active = Column(Boolean, default=True)
+    is_monitored = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
@@ -157,6 +161,7 @@ class Device(Base):
 
     # Metadata
     is_active = Column(Boolean, default=True)
+    is_monitored = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 

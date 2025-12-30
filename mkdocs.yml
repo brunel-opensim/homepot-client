@@ -100,12 +100,14 @@ nav:
   
   - Getting Started:
       - Quick Start: getting-started.md
+      - Accessing Dashboard: accessing-dashboard.md
       - Running Locally: running-locally.md
       - Complete Setup: complete-website-setup.md
       - Website Testing: website-testing-guide.md
       - Integration Guide: integration-guide.md
   
   - User Guides:
+      - Device Registration: device-registration.md
       - POS Management: pos-management.md
       - Real-time Dashboard: real-time-dashboard.md
       - Agent Simulation: agent-simulation.md

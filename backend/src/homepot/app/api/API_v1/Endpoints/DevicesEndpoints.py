@@ -123,7 +123,10 @@ async def list_device() -> Dict[str, List[Dict]]:
                         "site_id": device.site_id,
                         "device_id": device.device_id,
                         "name": device.name,
+                        "device_type": device.device_type,
+                        "status": device.status,
                         "ip_address": device.ip_address,
+                        "is_monitored": device.is_monitored,
                         "created_at": (
                             device.created_at.isoformat() if device.created_at else None
                         ),
@@ -158,6 +161,7 @@ async def get_device(device_id: str) -> Dict[str, Any]:
             "device_id": device.device_id,
             "name": device.name,
             "ip_address": device.ip_address,
+            "is_monitored": device.is_monitored,
             "created_at": device.created_at.isoformat() if device.created_at else None,
             "updated_at": device.updated_at.isoformat() if device.updated_at else None,
         }
@@ -169,6 +173,43 @@ async def get_device(device_id: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail="Failed to get Device. Please check server logs."
         )
+
+
+@router.put("/device/{device_id}/monitor", tags=["Devices"])
+async def toggle_device_monitor(device_id: str, monitor: bool) -> Dict[str, Any]:
+    """Toggle the monitoring status of a device."""
+    try:
+        db_service = await get_database_service()
+
+        from sqlalchemy import select
+
+        from homepot.models import Device
+
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = result.scalars().first()
+
+            if not device:
+                raise HTTPException(
+                    status_code=404, detail=f"Device '{device_id}' not found"
+                )
+
+            device.is_monitored = monitor  # type: ignore
+            await session.commit()
+
+            return {
+                "message": f"Device monitoring {'enabled' if monitor else 'disabled'}",
+                "device_id": device.device_id,
+                "is_monitored": device.is_monitored,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update device monitor status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/sites/{site_id}/devices", tags=["Devices"])
@@ -203,6 +244,7 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
                 "device_type": d.device_type,
                 "status": d.status,
                 "ip_address": d.ip_address,
+                "is_monitored": d.is_monitored,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
                 "updated_at": d.updated_at.isoformat() if d.updated_at else None,
             }

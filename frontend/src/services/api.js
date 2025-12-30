@@ -187,6 +187,14 @@ const api = {
       const response = await apiClient.delete(`/sites/sites/${siteId}`);
       return response.data;
     },
+
+    /**
+     * Toggle site monitoring
+     */
+    toggleMonitor: async (siteId, monitor) => {
+      const response = await apiClient.put(`/sites/${siteId}/monitor?monitor=${monitor}`);
+      return response.data;
+    },
   },
 
   // ==================== Devices ====================
@@ -211,6 +219,16 @@ const api = {
 
     getDeviceById: async (deviceId) => {
       const response = await apiClient.get(`/devices/device/${deviceId}`);
+      return response.data;
+    },
+
+    /**
+     * Toggle device monitoring
+     */
+    toggleMonitor: async (deviceId, monitor) => {
+      const response = await apiClient.put(
+        `/devices/device/${deviceId}/monitor?monitor=${monitor}`
+      );
       return response.data;
     },
 

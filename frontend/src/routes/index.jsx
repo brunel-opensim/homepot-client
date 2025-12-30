@@ -11,7 +11,7 @@ const Home = lazy(() => import('../pages/Home'));
 const Login = lazy(() => import('../pages/Login'));
 const Signup = lazy(() => import('../pages/Signup'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
-const Device = lazy(() => import('../pages/Device'));
+const DeviceList = lazy(() => import('../pages/Device/DeviceList'));
 
 const NotFound = lazy(() => import('../pages/NotFound'));
 
@@ -20,6 +20,7 @@ const SitesList = lazy(() => import('../pages/Sites/SitesList'));
 const SiteForm = lazy(() => import('../pages/Sites/SiteForm'));
 const SiteDetail = lazy(() => import('../pages/Sites/SiteDetail'));
 
+const DeviceRegistration = lazy(() => import('../pages/Device/DeviceRegistration'));
 const Devices = lazy(() => import('../pages/Device/DeviceDetail'));
 const UserActivity = lazy(() => import('../pages/UserActivity'));
 
@@ -50,7 +51,8 @@ export default function RoutesIndex() {
           <Route path="data-collection" element={<DataCollection />} />
 
           {/* Device & Site routes (protected) */}
-          <Route path="device" element={<Device />} />
+          <Route path="device" element={<DeviceList />} />
+          <Route path="device/new" element={<DeviceRegistration />} />
 
           {/* New Sites Management Routes */}
           <Route path="sites" element={<SitesList />} />

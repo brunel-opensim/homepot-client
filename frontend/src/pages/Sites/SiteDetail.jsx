@@ -97,6 +97,15 @@ export default function SiteDetail() {
     }
   };
 
+  const handleToggleMonitor = async () => {
+    try {
+      const updatedSite = await api.sites.toggleMonitor(id, !site.is_monitored);
+      setSite((prev) => ({ ...prev, is_monitored: updatedSite.is_monitored }));
+    } catch (err) {
+      console.error('Failed to toggle monitor:', err);
+    }
+  };
+
   // ====== New Function for Creating Job ======
   const handleCreateJob = async () => {
     try {
@@ -155,6 +164,18 @@ export default function SiteDetail() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              onClick={handleToggleMonitor}
+              className={`bg-transparent border ${
+                site.is_monitored
+                  ? 'text-yellow-400 border-yellow-400 hover:bg-yellow-400/10'
+                  : 'text-gray-400 border-gray-400 hover:bg-gray-400/10'
+              }`}
+            >
+              <Activity className="h-4 w-4 mr-2" />
+              {site.is_monitored ? 'Monitored' : 'Add to Dashboard'}
+            </Button>
+
             <Button
               onClick={() => setAddDeviceOpen(true)}
               className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"

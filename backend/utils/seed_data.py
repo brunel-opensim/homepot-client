@@ -108,30 +108,57 @@ async def init_database():
     # --- SITES ---
     print("\n=== Creating Sites ===")
 
-    async def get_or_create_site(site_id, name, description, location):
+    async def get_or_create_site(
+        site_id, name, description, location, latitude=None, longitude=None
+    ):
         existing = await db_service.get_site_by_site_id(site_id)
         if existing:
             # print(f"Site {site_id} already exists")
             return existing
 
         site = await db_service.create_site(
-            site_id=site_id, name=name, description=description, location=location
+            site_id=site_id,
+            name=name,
+            description=description,
+            location=location,
+            latitude=latitude,
+            longitude=longitude,
         )
         print(f"Created site: {site.name} ({site_id})")
         return site
 
     # Create 4 Targeted Sites
     site1 = await get_or_create_site(
-        "site-001", "Site 1 - Mixed OS", "Mixed environment site 1", "Region 1"
+        "site-001",
+        "Site 1 - Mixed OS",
+        "Mixed environment site 1",
+        "New York, USA",
+        40.7128,
+        -74.0060,
     )
     site2 = await get_or_create_site(
-        "site-002", "Site 2 - Mixed OS", "Mixed environment site 2", "Region 2"
+        "site-002",
+        "Site 2 - Mixed OS",
+        "Mixed environment site 2",
+        "London, UK",
+        51.5074,
+        -0.1278,
     )
     site3 = await get_or_create_site(
-        "site-003", "Site 3 - Mixed OS", "Mixed environment site 3", "Region 3"
+        "site-003",
+        "Site 3 - Mixed OS",
+        "Mixed environment site 3",
+        "Tokyo, Japan",
+        35.6762,
+        139.6503,
     )
     site4 = await get_or_create_site(
-        "site-004", "Site 4 - Mixed OS", "Mixed environment site 4", "Region 4"
+        "site-004",
+        "Site 4 - Mixed OS",
+        "Mixed environment site 4",
+        "Sydney, Australia",
+        -33.8688,
+        151.2093,
     )
 
     sites = [site1, site2, site3, site4]

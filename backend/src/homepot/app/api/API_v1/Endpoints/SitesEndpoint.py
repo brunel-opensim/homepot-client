@@ -42,6 +42,8 @@ class CreateSiteRequest(BaseModel):
     name: str
     description: Optional[str] = None
     location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -50,6 +52,8 @@ class CreateSiteRequest(BaseModel):
                 "name": "Main Retail Store",
                 "description": "Primary retail location with 5 POS terminals",
                 "location": "London, UK",
+                "latitude": 51.5074,
+                "longitude": -0.1278,
             }
         }
     )
@@ -81,6 +85,8 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
             name=site_request.name,
             description=site_request.description,
             location=site_request.location,
+            latitude=site_request.latitude,
+            longitude=site_request.longitude,
         )
 
         # Log audit event
@@ -94,6 +100,8 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
                 "name": str(site.name),
                 "description": str(site.description),
                 "location": site.location,
+                "latitude": site.latitude,
+                "longitude": site.longitude,
             },
         )
 
@@ -149,6 +157,7 @@ async def list_sites() -> Dict[str, List[Dict]]:
                         "name": site.name,
                         "description": site.description,
                         "location": site.location,
+                        "is_monitored": site.is_monitored,
                         "created_at": (
                             site.created_at.isoformat() if site.created_at else None
                         ),
@@ -190,6 +199,7 @@ async def get_site(site_id: str) -> Dict[str, Any]:
             "name": site.name,
             "description": site.description,
             "location": site.location,
+            "is_monitored": site.is_monitored,
             "is_active": site.is_active,
             "created_at": site.created_at.isoformat() if site.created_at else None,
             "updated_at": site.updated_at.isoformat() if site.updated_at else None,
@@ -211,3 +221,40 @@ async def get_site(site_id: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail="Failed to get site. Please check server logs."
         )
+
+
+@router.put("/{site_id}/monitor", tags=["Sites"])
+async def toggle_site_monitor(site_id: str, monitor: bool) -> Dict[str, Any]:
+    """Toggle the monitoring status of a site."""
+    try:
+        db_service = await get_database_service()
+
+        # We need to implement update_site in db_service or do it manually here
+        # For now, let's do it manually via session
+        from sqlalchemy import select
+
+        from homepot.models import Site
+
+        async with db_service.get_session() as session:
+            result = await session.execute(select(Site).where(Site.site_id == site_id))
+            site = result.scalars().first()
+
+            if not site:
+                raise HTTPException(
+                    status_code=404, detail=f"Site '{site_id}' not found"
+                )
+
+            site.is_monitored = monitor  # type: ignore
+            await session.commit()
+
+            return {
+                "message": f"Site monitoring {'enabled' if monitor else 'disabled'}",
+                "site_id": site.site_id,
+                "is_monitored": site.is_monitored,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update site monitor status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")

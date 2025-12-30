@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Plus, Search, Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Search, Edit, Trash2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/services/api';
 import SiteDeleteDialog from '@/components/Sites/SiteDeleteDialog';
@@ -162,25 +162,6 @@ export default function SitesList() {
 
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-3">
         <h1 className="text-2xl font-semibold">Manage Sites</h1>
-        <div className="flex gap-3">
-          <Button
-            // onClick={() => navigate('/sites/new')}
-            onClick={() => {
-              trackActivity(
-                'click',
-                '/sites',
-                {}, // extra data
-                'add_site_btn' // element id
-              );
-
-              navigate('/sites/new');
-            }}
-            className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Site
-          </Button>
-        </div>
       </div>
 
       <div className="flex flex-col md:flex-row items-center gap-3 mb-6">
@@ -326,17 +307,6 @@ export default function SitesList() {
             </button>
           </div>
         ))}
-
-        {/* Add New Site Card (Optional, but good UX) */}
-        <div
-          onClick={() => navigate('/sites/new')}
-          className="bg-[#141a24]/50 border border-[#1f2735] border-dashed rounded-xl p-5 hover:border-teal-400/50 hover:bg-[#141a24] cursor-pointer transition-all flex flex-col items-center justify-center min-h-[200px] group"
-        >
-          <div className="h-12 w-12 rounded-full bg-[#1f2735] flex items-center justify-center mb-3 group-hover:bg-teal-400/10 transition-colors">
-            <Plus className="h-6 w-6 text-gray-400 group-hover:text-teal-400" />
-          </div>
-          <p className="text-gray-400 font-medium group-hover:text-teal-400">Add New Site</p>
-        </div>
       </div>
 
       <SiteDeleteDialog
