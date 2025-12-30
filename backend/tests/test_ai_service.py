@@ -52,16 +52,16 @@ def test_anomaly_detector_high_cpu():
     metrics = {"cpu_percent": 95.0, "memory_percent": 50.0}  # Above 90.0 threshold
     score = detector.check_anomaly(metrics)
     assert score > 0.0
-    assert score == 0.4  # Based on the logic we wrote (0.4 for CPU)
+    assert score == 0.2  # Based on the logic we wrote (0.2 for CPU)
 
 
-def test_anomaly_detector_multiple_issues():
-    """Test that multiple issues accumulate score (capped at 1.0)."""
+def test_anomaly_detector_capped_score():
+    """Test that anomaly score is capped at 1.0."""
     detector = AnomalyDetector()
     metrics = {
-        "cpu_percent": 99.0,  # +0.4
+        "cpu_percent": 99.0,  # +0.2
         "error_rate": 0.5,  # +0.5
-        "network_latency_ms": 2000,  # +0.2
+        "network_latency_ms": 2000,  # +0.4
     }
     # Sum is 1.1, but should be capped at 1.0
     score = detector.check_anomaly(metrics)

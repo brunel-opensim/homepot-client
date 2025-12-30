@@ -23,3 +23,8 @@ database:
 anomaly_detection:
   sensitivity: 0.8
   window_size: 50
+  thresholds:
+    max_latency_ms: 500
+    max_error_rate: 0.05
+    max_flapping_count: 5  # State changes per hour
+    consecutive_failures: 3

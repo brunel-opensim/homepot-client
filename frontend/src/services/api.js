@@ -425,6 +425,14 @@ const api = {
       const response = await apiClient.post('/ai/query', payload);
       return response.data;
     },
+
+    /**
+     * Get system anomalies
+     */
+    getAnomalies: async () => {
+      const response = await apiClient.get('/ai/anomalies');
+      return response.data;
+    },
   },
 };
 
