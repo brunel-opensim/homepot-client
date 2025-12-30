@@ -49,7 +49,11 @@ The implementation consists of four core modules:
     *   `POST /api/ai/analyze`: Analyzes metrics, scores anomalies, and generates LLM explanations.
     *   `POST /api/ai/query`: Answers natural language questions using RAG (Retrieval-Augmented Generation).
     *   `POST /api/ai/mode`: Switches the AI's analysis persona (Maintenance, Predictive, Executive).
-*   **`anomaly_detection.py` (The Reflex)**: Implements rule-based logic to check thresholds (CPU, Memory, Disk, Error Rate) and calculate an `anomaly_score` (0.0 - 1.0).
+    *   `GET /api/ai/anomalies`: Returns a list of currently detected anomalies. See [Anomaly Detection](anomaly-detection.md) for details.
+*   **`anomaly_detection.py` (The Reflex)**:
+    *   Implements the "Fast Layer".
+    *   Calculates anomaly scores (0.0 - 1.0) based on stability and resource usage.
+    *   See [Anomaly Detection Documentation](anomaly-detection.md) for scoring logic.
 *   **`llm.py` (The Voice)**: A wrapper for **Ollama** that manages the connection to local models (Llama/Mistral) and constructs context-aware prompts.
 *   **`device_memory.py` (The Long-Term Memory)**: Manages **ChromaDB** interactions for storing and retrieving semantic vector embeddings of device logs.
 *   **`event_store.py` (The Short-Term Memory)**: Caches recent device events in-memory and persists them to the **PostgreSQL** `device_metrics` table to provide immediate context for analysis.

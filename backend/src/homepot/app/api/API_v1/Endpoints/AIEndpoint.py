@@ -6,12 +6,12 @@ Provides REST API access to AI-powered analytics, predictions, and recommendatio
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -23,12 +23,17 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
+from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 
+from homepot.app.models.AnalyticsModel import (  # noqa: E402
+    DeviceMetrics,
+    DeviceStateHistory,
+)
 from homepot.database import get_database_service  # noqa: E402
-from homepot.models import Site  # noqa: E402
+from homepot.models import Device, HealthCheck, Site  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +70,97 @@ class AIQueryRequest(BaseModel):
 
 
 # ==================== Analytics Endpoints ====================
+
+
+@router.get("/anomalies", tags=["AI Insights"])
+async def get_system_anomalies() -> Dict[str, Any]:
+    """Detect system-wide anomalies using AI heuristics."""
+    try:
+        detector = AnomalyDetector()
+        anomalies = []
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            # 1. Get all monitored devices
+            result = await session.execute(
+                select(Device).where(Device.is_monitored.is_(True))
+            )
+            devices = result.scalars().all()
+
+            for device in devices:
+                device_metrics: Dict[str, Any] = {}
+
+                # 2. Get latest metrics
+                metrics_result = await session.execute(
+                    select(DeviceMetrics)
+                    .where(DeviceMetrics.device_id == device.device_id)
+                    .order_by(DeviceMetrics.timestamp.desc())
+                    .limit(1)
+                )
+                latest_metric = metrics_result.scalars().first()
+                if latest_metric:
+                    device_metrics.update(
+                        {
+                            "cpu_percent": latest_metric.cpu_percent,
+                            "memory_percent": latest_metric.memory_percent,
+                            "disk_percent": latest_metric.disk_percent,
+                            "network_latency_ms": latest_metric.network_latency_ms,
+                            "error_rate": latest_metric.error_rate,
+                        }
+                    )
+
+                # 3. Get Flapping Count (last 1 hour)
+                one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+                flapping_result = await session.execute(
+                    select(func.count(DeviceStateHistory.id)).where(
+                        and_(
+                            DeviceStateHistory.device_id == device.device_id,
+                            DeviceStateHistory.timestamp >= one_hour_ago,
+                        )
+                    )
+                )
+                device_metrics["flapping_count"] = float(flapping_result.scalar() or 0)
+
+                # 4. Get Consecutive Failures
+                # Simplified: Check last 5 health checks
+                health_result = await session.execute(
+                    select(HealthCheck)
+                    .where(HealthCheck.device_id == device.id)
+                    .order_by(HealthCheck.timestamp.desc())
+                    .limit(5)
+                )
+                checks = health_result.scalars().all()
+                consecutive_failures = 0
+                for check in checks:
+                    if not check.is_healthy:
+                        consecutive_failures += 1
+                    else:
+                        break
+                device_metrics["consecutive_failures"] = float(consecutive_failures)
+
+                # 5. Run Detection
+                score = detector.check_anomaly(device_metrics)
+
+                if score > 0:
+                    anomalies.append(
+                        {
+                            "device_id": device.device_id,
+                            "device_name": device.name,
+                            "score": round(score, 2),
+                            "severity": "critical" if score >= 0.8 else "warning",
+                            "metrics": device_metrics,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
+
+        # Sort by score descending
+        anomalies.sort(key=lambda x: float(str(x["score"])), reverse=True)
+
+        return {"count": len(anomalies), "anomalies": anomalies}
+
+    except Exception as e:
+        logger.error(f"Failed to detect anomalies: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Anomaly detection failed")
 
 
 @router.post("/query", tags=["AI Chat"])

@@ -36,6 +36,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const handleItemClick = (item) => {
+    if (item.type === 'device' && item.id) {
+      navigate(`/device/${item.id}`);
+    } else if (item.type === 'site' && item.id) {
+      navigate(`/sites/${item.id}`);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -77,15 +85,29 @@ export default function Dashboard() {
           alert: ['2m ago', '5m ago', '—'][index % 3],
           // Alternate icons between Apple and Windows
           icon: icons[index % icons.length],
+          id: item._type === 'device' ? item.device_id : item.site_id,
+          type: item._type,
         }));
 
         setSites(sitesWithDefaults);
 
         // 3. Fetch Dashboard Metrics (CPU & Alerts)
-        const metrics = await api.analytics.getDashboardMetrics();
+        // const metrics = await api.analytics.getDashboardMetrics(); // Deprecated for alerts
 
-        if (metrics.alerts) {
-          setAlerts(metrics.alerts);
+        // 4. Fetch AI Anomalies
+        try {
+          const anomalyData = await api.ai.getAnomalies();
+          if (anomalyData && anomalyData.anomalies) {
+            const formattedAlerts = anomalyData.anomalies.map((a) => ({
+              message: `${a.device_name}: ${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
+              timestamp: a.timestamp,
+              severity: a.severity,
+              device_id: a.device_id,
+            }));
+            setAlerts(formattedAlerts);
+          }
+        } catch (e) {
+          console.error('Failed to fetch anomalies:', e);
         }
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
@@ -128,7 +150,7 @@ export default function Dashboard() {
                   </p>
                 </div>
               ) : (
-                <MetricCard sites={sites} />
+                <MetricCard sites={sites} onItemClick={handleItemClick} />
               )}
             </div>
 
@@ -214,7 +236,13 @@ export default function Dashboard() {
               <ul className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
                 {alerts.length > 0 ? (
                   alerts.map((alert, i) => (
-                    <li key={i} className="text-red-400 text-sm">
+                    <li
+                      key={i}
+                      onClick={() => alert.device_id && navigate(`/device/${alert.device_id}`)}
+                      className={`text-sm cursor-pointer hover:underline ${
+                        alert.severity === 'critical' ? 'text-red-500 font-bold' : 'text-orange-400'
+                      }`}
+                    >
                       {alert.message} –{' '}
                       <span className="text-gray-500 text-xs">
                         {new Date(alert.timestamp).toLocaleTimeString()}
@@ -222,7 +250,7 @@ export default function Dashboard() {
                     </li>
                   ))
                 ) : (
-                  <li className="text-gray-500 text-sm">No active alerts</li>
+                  <li className="text-green-500 text-sm">All systems normal</li>
                 )}
               </ul>
             </CardContent>
