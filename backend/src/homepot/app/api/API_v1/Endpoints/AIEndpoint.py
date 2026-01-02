@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -24,13 +24,17 @@ if project_root not in sys.path:
 
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
+from ai.context_builder import ContextBuilder  # noqa: E402
+from ai.device_memory import DeviceMemory  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
+from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
 from homepot.app.models.AnalyticsModel import (  # noqa: E402
     DeviceMetrics,
     DeviceStateHistory,
+    PushNotificationLog,
 )
 from homepot.database import get_database_service  # noqa: E402
 from homepot.models import Device, HealthCheck, Site  # noqa: E402
@@ -61,12 +65,22 @@ class SuccessProbabilityRequest(BaseModel):
     scheduled_time: str = Field(..., description="Proposed execution time (ISO format)")
 
 
+class ChatMessage(BaseModel):
+    """Model for a single chat message."""
+
+    role: str = Field(..., description="Role: 'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+
+
 class AIQueryRequest(BaseModel):
     """Request model for AI query."""
 
     query: str = Field(..., description="The question or prompt for the AI")
     context: Optional[str] = Field(None, description="Optional context for the query")
     device_id: Optional[str] = Field(None, description="Optional device ID for context")
+    history: Optional[list[ChatMessage]] = Field(
+        default_factory=list, description="Conversation history for short-term memory"
+    )
 
 
 # ==================== Analytics Endpoints ====================
@@ -168,36 +182,112 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
     """Query the AI assistant."""
     try:
         llm = LLMService()
+        knowledge = SystemKnowledge(project_root)
+        memory = DeviceMemory()
+        context_builder = ContextBuilder()
 
-        # Fetch current system state for context
+        # 1. Build Short-Term Context (Conversation History)
+        short_term_context = ""
+        if request.history:
+            short_term_context = "\n[CONVERSATION HISTORY]\n"
+            short_term_context += "\n".join(
+                [f"{msg.role}: {msg.content}" for msg in request.history[-5:]]
+            )
+
+        # 2. Build Long-Term Context (Vector Memory)
+        long_term_context = ""
+        try:
+            # Get Memory Stats (Self-Awareness)
+            mem_stats = memory.get_memory_stats()
+            long_term_context = (
+                f"\n[MEMORY SYSTEM STATUS]\n"
+                f"Total Memories Stored: {mem_stats['total_memories']}\n"
+            )
+
+            # Get Similar Memories
+            similar_memories = memory.query_similar(request.query)
+            if similar_memories:
+                long_term_context += "\n[RELEVANT MEMORIES]\n"
+                long_term_context += "\n".join(
+                    [f"- {m['content']}" for m in similar_memories]
+                )
+        except Exception as e:
+            logger.warning(f"Failed to query vector memory: {e}")
+
+        # 3. Build Real-Time System Context
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             # Get Sites
             result = await session.execute(select(Site).where(Site.is_active.is_(True)))
             sites = result.scalars().all()
 
-            site_context = "Current System Status:\n"
+            site_context = "[CURRENT SYSTEM STATUS]\n"
             site_context += f"Total Sites: {len(sites)}\n"
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
 
-        context = request.context
-        if context:
-            context = f"{site_context}\nUser Context: {context}"
-        else:
-            context = site_context
+            # Get Push Notification Stats (Last 24 hours)
+            one_day_ago = datetime.utcnow() - timedelta(days=1)
+            push_result = await session.execute(
+                select(
+                    func.count(PushNotificationLog.id),
+                    func.sum(
+                        case((PushNotificationLog.status == "delivered", 1), else_=0)
+                    ),
+                    func.avg(PushNotificationLog.latency_ms),
+                ).where(PushNotificationLog.sent_at >= one_day_ago)
+            )
+            total_push, delivered_push, avg_latency = push_result.one()
+
+            site_context += "\n[PUSH NOTIFICATION STATS (24h)]\n"
+            site_context += f"- Total Sent: {total_push or 0}\n"
+            site_context += f"- Delivered: {delivered_push or 0}\n"
+            if avg_latency:
+                site_context += f"- Avg Latency: {round(avg_latency, 2)}ms\n"
+
+            # Get Job Context if relevant
+            job_context = await context_builder.get_job_context(session=session)
+
+        # 4. Assemble Final Context
+        full_context = (
+            f"{site_context}\n{job_context}\n{long_term_context}\n{short_term_context}"
+        )
+
+        if request.context:
+            full_context += f"\n[USER CONTEXT]\n{request.context}"
 
         if request.device_id:
-            context += f"\nFocus on Device ID: {request.device_id}"
+            full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
+
+        # Get static system knowledge
+        system_knowledge = knowledge.get_full_system_context()
 
         response = llm.generate_response(
             prompt=request.query,
-            context=context,
+            context=full_context,
             system_prompt=(
-                "You are Homepot AI, a helpful assistant for managing smart home "
-                "devices and monitoring systems. You have access to the current "
-                "system status including sites and devices. Use this information "
-                "to answer user queries accurately. Be concise and professional."
+                "IDENTITY:\n"
+                "You are the HOMEPOT System Diagnostic AI, an advanced operational "
+                "assistant for the HOMEPOT Client ecosystem.\n"
+                "Your goal is to monitor, diagnose, and explain the behavior of "
+                "IoT devices, sites, and the platform itself.\n\n"
+                "CAPABILITIES & DATA SOURCES:\n"
+                "1. Real-Time Database (PostgreSQL): You have access to live device "
+                "metrics, site status, and push notification stats.\n"
+                "2. Long-Term Memory (ChromaDB): You can recall past anomalies, "
+                "error patterns, and resolutions to identify recurring issues.\n"
+                "3. System Knowledge: You are self-aware of the codebase structure, "
+                "file locations, and documentation.\n"
+                "4. Short-Term Memory: You maintain context of the current conversation.\n\n"
+                "SYSTEM CONTEXT:\n"
+                f"{system_knowledge}\n\n"
+                "INSTRUCTIONS:\n"
+                "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
+                "general knowledge questions.\n"
+                "- Use the provided [CURRENT SYSTEM STATUS] and [RELEVANT MEMORIES] "
+                "to ground your answers in facts.\n"
+                "- If you don't know something, admit it. Do not hallucinate system details.\n"
+                "- Be concise, professional, and technical where appropriate."
             ),
         )
         return {
@@ -207,6 +297,45 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"AI query failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/insights/push-notifications", tags=["AI Insights"])
+async def get_push_insights(
+    device_id: Optional[str] = Query(
+        None, description="Optional device ID to filter by"
+    ),
+    days: int = Query(default=7, ge=1, le=90, description="Analysis period in days"),
+) -> Dict[str, Any]:
+    """Get AI analytics for push notification delivery."""
+    try:
+        analytics = AIAnalyticsService()
+        analytics_result = await analytics.get_push_notification_analytics(
+            device_id, days
+        )
+
+        # If the analytics service indicates an error, raise a generic HTTP error
+        if (
+            isinstance(analytics_result, dict)
+            and analytics_result.get("status") == "error"
+        ):
+            logger.error(
+                "Push notification analytics service reported an error: %s",
+                analytics_result.get("message"),
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to analyze push notifications",
+            )
+
+        return analytics_result
+    except HTTPException:
+        # Re-raise HTTPException without modification
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get push insights: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to analyze push notifications"
+        )
 
 
 @router.get("/insights/device/{device_id}", tags=["AI Insights"])

@@ -69,3 +69,16 @@ class DeviceMemory:
         except Exception as e:
             logger.error(f"Memory query failed: {e}")
             return []
+
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get statistics about the stored memories."""
+        try:
+            count = self.collection.count()
+            return {
+                "total_memories": count,
+                "collection_name": self.collection_name,
+                "status": "active",
+            }
+        except Exception as e:
+            logger.error(f"Failed to get memory stats: {e}")
+            return {"total_memories": 0, "status": "error"}

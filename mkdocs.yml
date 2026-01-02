@@ -160,6 +160,7 @@ nav:
       - Full Roadmap: ai-roadmap.md
       - Infrastructure Implementation: ai-infrastructure.md
       - Implementation Details: ai-implementation.md
+      - Memory Inspection: ai-memory-inspection.md
       - Context Builder: ai-context-builder.md
       - Data Collection: analytics-data-collection.md
       - Data Collection Guide: data-collection-guide.md

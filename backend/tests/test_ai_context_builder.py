@@ -555,10 +555,13 @@ async def test_get_site_context_open():
     # Mock datetime to be Monday 10:00
     mock_now = datetime(2023, 1, 2, 10, 0, 0)  # Jan 2 2023 is a Monday
 
-    with patch(
-        "ai.context_builder.get_database_service",
-        new=AsyncMock(return_value=mock_db_service),
-    ), patch("ai.context_builder.datetime") as mock_datetime:
+    with (
+        patch(
+            "ai.context_builder.get_database_service",
+            new=AsyncMock(return_value=mock_db_service),
+        ),
+        patch("ai.context_builder.datetime") as mock_datetime,
+    ):
         mock_datetime.utcnow.return_value = mock_now
         # We also need to mock weekday() on the return value of utcnow()
         # But datetime objects already have weekday(), so mock_now.weekday() works.
@@ -603,10 +606,13 @@ async def test_get_site_context_closed():
     # Mock datetime to be Monday 20:00 (8 PM)
     mock_now = datetime(2023, 1, 2, 20, 0, 0)
 
-    with patch(
-        "ai.context_builder.get_database_service",
-        new=AsyncMock(return_value=mock_db_service),
-    ), patch("ai.context_builder.datetime") as mock_datetime:
+    with (
+        patch(
+            "ai.context_builder.get_database_service",
+            new=AsyncMock(return_value=mock_db_service),
+        ),
+        patch("ai.context_builder.datetime") as mock_datetime,
+    ):
         mock_datetime.utcnow.return_value = mock_now
 
         context = await ContextBuilder.get_site_context(device_id="device-123")

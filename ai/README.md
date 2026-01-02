@@ -43,41 +43,32 @@ We utilize a **Hybrid Analysis** approach to balance speed and intelligence:
 2.  **Smart Layer (LLM)**: Contextual understanding. It takes the raw data and the rule-based score to explain *why* an anomaly matters and recommends actions.
 3.  **Memory Layer (RAG)**: Uses Vector Memory (ChromaDB) to store analysis results. Future queries retrieve these "memories" to identify recurring patterns across devices.
 
-Think of it like a **Senior Engineer (the AI)** working with a **Log Book (PostgreSQL)** and a **Personal Diary (ChromaDB)**.
+## Memory & Self-Awareness (New)
 
-1. **The Two Memories**
-- **PostgreSQL is "The Facts" (Structured Memory)**
-  -   It holds the hard numbers: "Device A had 95% CPU at 10:00 AM."
-  - It is exact, rigid, and holds the "System of Record."
-  - **Role**: The AI looks here to get the raw data to analyze.
+As of January 2026, the AI has been upgraded with a **Dual-Memory System** and **System Knowledge**, making it fully self-aware and contextually intelligent.
 
-- **ChromaDB is "The Experience" (Semantic Memory)**
-  - It holds the insights: "Last time Device A had 95% CPU, it was because of a memory leak in the video process."
-  - It is fuzzy, searchable by meaning, and holds "Wisdom."
-  - **Role**: The AI looks here to find patterns from the past.
+### 1. Short-Term Memory (Conversation History)
+*   **Mechanism**: The API now tracks the last 5 exchanges in the conversation.
+*   **Benefit**: Enables natural, back-and-forth dialogue. You can ask follow-up questions like "Tell me more about that error" without restating the context.
 
-2. **The Workflow (The "Cycle")**
-Here is the corrected flow based on what we implemented:
+### 2. Long-Term Memory (Vector Store)
+*   **Mechanism**: Uses **ChromaDB** (`ai/device_memory.py`) to store and retrieve semantic memories.
+*   **Benefit**: Before answering, the AI searches its "brain" for similar past incidents. If a device failed with a specific error code last month, the AI will recall the solution and suggest it.
 
-**Step 1: **Input (The Trigger)**
-- **User Input**: You ask, "Why is the kitchen camera failing?"
-- **System Input**: Or, the system automatically sends current metrics (from PostgreSQL/Devices) to the AI.
+### 3. System Knowledge (Self-Awareness)
+*   **Mechanism**: The `SystemKnowledge` service (`ai/system_knowledge.py`) scans the codebase structure and `README.md` in real-time.
+*   **Benefit**: The AI knows "what" it is. It understands the project structure, where files are located, and the overall goals of HOMEPOT. You can ask "Where is the frontend code?" or "What is the purpose of the `ai` folder?" and it will answer accurately.
 
-**Step 2: Context Gathering (The Brain)**
-- The AI looks at the Current Metrics (The Facts).
-- The AI searches ChromaDB for similar past events (The Experience). "Have we seen this error before?"
+## The "Brain" Workflow
 
-**Step 3: Processing (The Intelligence)**
-- The LLM combines the Facts + Experience to generate an answer.
-
-**Step 4: Output (The Result)**
-- **Recommendation**: "Restart the video service. This looks like the memory leak we saw last Tuesday."
-- **Learning**: The AI saves this new analysis into ChromaDB. Now it has "learned" from this event for next time.
-
-**Summary:**
-- **Input**: User Query + Raw Data (Postgres).
-- **Processing**: LLM + Context Search.
-- **Output**: Recommendation + New Memory (ChromaDB).
+1.  **Input**: User asks a question (e.g., "Why is the camera offline?").
+2.  **Context Assembly**:
+    *   **Short-Term**: Fetches recent chat history.
+    *   **Long-Term**: Queries ChromaDB for similar past events.
+    *   **Real-Time**: Fetches current status from PostgreSQL (Sites, Devices, Push Stats).
+    *   **System**: Scans the codebase for structural context.
+3.  **Processing**: The LLM synthesizes all these inputs.
+4.  **Output**: A highly contextualized answer that considers the past, present, and system architecture.
 
 ## Predictive Maintenance (Phase 4)
 
