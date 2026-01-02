@@ -91,6 +91,18 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Firmware Version, IP Address, Last Seen, Ping Latency.
 *   **Goal:** Provides technical specs for correlation (e.g., "High latency on firmware v1.2.3").
 
+### 11. System Knowledge (Self-Awareness)
+*   **Trigger:** Always fetched.
+*   **Content:** Project structure and high-level documentation.
+*   **Fields:** Directory tree, README content.
+*   **Goal:** Gives the AI awareness of the codebase it resides in (e.g., "I know this is the HOMEPOT project and the frontend is in `/frontend`").
+
+### 12. Long-Term Memory (Vector Store)
+*   **Trigger:** Always fetched.
+*   **Content:** Semantically similar past events from ChromaDB.
+*   **Fields:** Past analysis, resolutions, error patterns.
+*   **Goal:** Provides historical wisdom (e.g., "This looks like the issue we solved last week by restarting the service").
+
 ## Usage
 
 The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.

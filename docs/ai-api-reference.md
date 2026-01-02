@@ -75,9 +75,12 @@ Switch the AI's "persona" to tailor the analysis output for different audiences.
 
 ## 3. Natural Language Query
 
-Ask questions about the system, specific devices, or historical incidents. The system uses **RAG (Retrieval-Augmented Generation)** to provide accurate answers based on:
-1.  **Long-Term Memory:** Historical logs and documentation stored in ChromaDB.
-2.  **Short-Term Memory:** The recent conversation history.
+Ask questions about the system, specific devices, or historical incidents. The system uses **RAG (Retrieval-Augmented Generation)** and **Context Injection** to provide accurate answers based on:
+
+1.  **Real-Time Context:** Current device status, health checks, and push notification stats.
+2.  **System Knowledge:** Awareness of the codebase structure and project documentation.
+3.  **Long-Term Memory:** Historical logs and similar past incidents stored in ChromaDB.
+4.  **Short-Term Memory:** The recent conversation history (last 5 messages).
 
 ### Endpoint
 `POST /query`
@@ -99,6 +102,11 @@ Ask questions about the system, specific devices, or historical incidents. The s
   ]
 }
 ```
+
+**Parameters:**
+*   `query` (string, required): The question to ask.
+*   `device_id` (string, optional): If provided, fetches specific context for this device.
+*   `history` (list, optional): A list of previous messages to maintain conversation context.
 
 ### Response
 ```json

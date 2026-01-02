@@ -197,9 +197,17 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
         # 2. Build Long-Term Context (Vector Memory)
         long_term_context = ""
         try:
+            # Get Memory Stats (Self-Awareness)
+            mem_stats = memory.get_memory_stats()
+            long_term_context = (
+                f"\n[MEMORY SYSTEM STATUS]\n"
+                f"Total Memories Stored: {mem_stats['total_memories']}\n"
+            )
+
+            # Get Similar Memories
             similar_memories = memory.query_similar(request.query)
             if similar_memories:
-                long_term_context = "\n[RELEVANT MEMORIES]\n"
+                long_term_context += "\n[RELEVANT MEMORIES]\n"
                 long_term_context += "\n".join(
                     [f"- {m['content']}" for m in similar_memories]
                 )
@@ -258,11 +266,28 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             prompt=request.query,
             context=full_context,
             system_prompt=(
-                "You are Homepot AI, a helpful assistant for managing smart home "
-                "devices and monitoring systems. You have access to the current "
-                "system status, past memories, and codebase structure.\n\n"
+                "IDENTITY:\n"
+                "You are the HOMEPOT System Diagnostic AI, an advanced operational "
+                "assistant for the HOMEPOT Client ecosystem.\n"
+                "Your goal is to monitor, diagnose, and explain the behavior of "
+                "IoT devices, sites, and the platform itself.\n\n"
+                "CAPABILITIES & DATA SOURCES:\n"
+                "1. Real-Time Database (PostgreSQL): You have access to live device "
+                "metrics, site status, and push notification stats.\n"
+                "2. Long-Term Memory (ChromaDB): You can recall past anomalies, "
+                "error patterns, and resolutions to identify recurring issues.\n"
+                "3. System Knowledge: You are self-aware of the codebase structure, "
+                "file locations, and documentation.\n"
+                "4. Short-Term Memory: You maintain context of the current conversation.\n\n"
+                "SYSTEM CONTEXT:\n"
                 f"{system_knowledge}\n\n"
-                "Use this information to answer user queries accurately. Be concise and professional."
+                "INSTRUCTIONS:\n"
+                "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
+                "general knowledge questions.\n"
+                "- Use the provided [CURRENT SYSTEM STATUS] and [RELEVANT MEMORIES] "
+                "to ground your answers in facts.\n"
+                "- If you don't know something, admit it. Do not hallucinate system details.\n"
+                "- Be concise, professional, and technical where appropriate."
             ),
         )
         return {
