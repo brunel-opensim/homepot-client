@@ -616,3 +616,82 @@ async def get_dashboard_metrics(
     except Exception as e:
         logger.error(f"Error fetching dashboard metrics: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch dashboard metrics")
+
+
+@router.get("/metrics/configuration-history/{device_id}")
+async def get_configuration_history(
+    device_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Get configuration change history for a device."""
+    try:
+        history = (
+            db.query(models.ConfigurationHistory)
+            .filter(
+                models.ConfigurationHistory.entity_type == "device",
+                models.ConfigurationHistory.entity_id == device_id,
+            )
+            .order_by(models.ConfigurationHistory.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+
+        return {
+            "success": True,
+            "device_id": device_id,
+            "history": [
+                {
+                    "id": f"job-{h.id}",
+                    "date": h.timestamp.isoformat(),
+                    "status": "success",  # Assuming success if logged
+                    "user": h.changed_by,
+                    "summary": h.change_reason or f"Updated {h.parameter_name}",
+                    "changes": 1,
+                    "version": h.new_value.get("version", "v1"),
+                    "payload": {
+                        "title": "Configuration Update",
+                        "body": f"Updated {h.parameter_name}",
+                        "data": h.new_value,
+                        "priority": "normal",
+                    },
+                }
+                for h in history
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error fetching configuration history: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Failed to fetch configuration history"
+        )
+
+
+@router.delete("/metrics/configuration-history/{history_id}")
+async def delete_configuration_history_item(
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Delete a specific configuration history record."""
+    try:
+        record = (
+            db.query(models.ConfigurationHistory)
+            .filter(models.ConfigurationHistory.id == history_id)
+            .first()
+        )
+
+        if not record:
+            raise HTTPException(status_code=404, detail="History record not found")
+
+        db.delete(record)
+        db.commit()
+
+        return {"success": True, "message": "History record deleted"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting configuration history: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete history record")

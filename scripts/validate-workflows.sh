@@ -116,6 +116,7 @@ while [[ $# -gt 0 ]]; do
             CHECK_PYTHON=false
             CHECK_DOCS=false
             CHECK_TESTS=false
+            CHECK_FRONTEND=false
             shift
             ;;
         --structure-only)
@@ -126,6 +127,7 @@ while [[ $# -gt 0 ]]; do
             CHECK_PYTHON=false
             CHECK_DOCS=false
             CHECK_TESTS=false
+            CHECK_FRONTEND=false
             shift
             ;;
         --posdummy-only)
@@ -136,6 +138,7 @@ while [[ $# -gt 0 ]]; do
             CHECK_PYTHON=false
             CHECK_DOCS=false
             CHECK_TESTS=false
+            CHECK_FRONTEND=false
             shift
             ;;
         --code-only)
@@ -146,6 +149,7 @@ while [[ $# -gt 0 ]]; do
             CHECK_PYTHON=false
             CHECK_DOCS=false
             CHECK_TESTS=false
+            CHECK_FRONTEND=false
             shift
             ;;
         --python-only)
@@ -156,6 +160,7 @@ while [[ $# -gt 0 ]]; do
             CHECK_PYTHON=true
             CHECK_DOCS=false
             CHECK_TESTS=false
+            CHECK_FRONTEND=false
             shift
             ;;
         --docs-only)
@@ -166,6 +171,7 @@ while [[ $# -gt 0 ]]; do
             CHECK_PYTHON=false
             CHECK_DOCS=true
             CHECK_TESTS=false
+            CHECK_FRONTEND=false
             shift
             ;;
         --tests-only)

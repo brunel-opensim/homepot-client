@@ -113,6 +113,33 @@ curl -X POST http://localhost:8000/devices/TERMINAL_001/restart
 # Response: {"message": "Restart command sent", "device_id": "TERMINAL_001"}
 ```
 
+### Device Management Interface
+
+The **Device Detail** page provides a comprehensive dashboard for managing individual devices.
+
+#### Dashboard Features
+- **Real-time Status**: Visual indicators for online/offline status and health metrics.
+- **System Stats**: Live monitoring of CPU, Memory, and Disk usage.
+- **Device Information**: Detailed view of IP address, MAC address, firmware version, and last seen timestamp.
+
+#### Direct Connect (Remote Shell)
+Establish a secure, simulated remote shell session directly from the browser:
+- **Access**: Click the "Direct Connect" widget to open the terminal.
+- **Capabilities**: Execute commands like `status`, `reboot`, `logs`, and `help`.
+- **Security**: Simulated TLS 1.3 secure channel.
+
+#### Device Actions
+Perform critical maintenance tasks with immediate feedback via toast notifications:
+- **Refresh Kiosk**: Reload the kiosk application.
+- **Update Configurations**: Push the latest settings to the device.
+- **Request Status**: Force a status update.
+- **Fetch Apps**: Retrieve installed application list.
+
+#### Audit & History
+- **Command History**: Track all administrative actions performed on the device.
+- **Audit Log**: View detailed system events and configuration changes.
+- **Logs**: Access recent device logs for troubleshooting.
+
 ## Job Management
 
 Deploy configuration updates and maintenance tasks across your POS network.

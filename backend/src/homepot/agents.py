@@ -121,11 +121,14 @@ class POSAgentSimulator:
             await asyncio.sleep(0.2)
 
             action = notification_data.get("action", "")
-            config_url = notification_data.get("data", {}).get("config_url", "")
-            config_version = notification_data.get("data", {}).get("config_version", "")
+            data = notification_data.get("data", {})
+            config_url = data.get("config_url", "")
+            config_version = data.get("config_version", "")
 
             if action == "update_pos_payment_config":
-                return await self._handle_config_update(config_url, config_version)
+                return await self._handle_config_update(
+                    config_url, config_version, data
+                )
             elif action == "restart_pos_app":
                 return await self._handle_restart()
             elif action == "health_check":
@@ -159,7 +162,10 @@ class POSAgentSimulator:
             }
 
     async def _handle_config_update(
-        self, config_url: str, config_version: str
+        self,
+        config_url: str,
+        config_version: str,
+        config_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Simulate configuration update process."""
         try:
@@ -212,14 +218,30 @@ class POSAgentSimulator:
             # Log configuration change for AI training
             try:
                 db_service = await get_database_service()
+
+                # Determine parameter name and value based on input data
+                param_name = "config_version"
+                new_val = {"version": config_version, "url": config_url}
+
+                if config_data:
+                    # Identify custom fields (excluding standard ones)
+                    custom_keys = [
+                        k
+                        for k in config_data.keys()
+                        if k not in ["config_url", "config_version"]
+                    ]
+                    if custom_keys:
+                        param_name = ", ".join(custom_keys)
+                        new_val = config_data
+
                 async with db_service.get_session() as session:
                     config_history = ConfigurationHistory(
                         timestamp=datetime.utcnow(),
                         entity_type="device",
                         entity_id=self.device_id,
-                        parameter_name="config_version",
+                        parameter_name=param_name,
                         old_value={"version": old_version},
-                        new_value={"version": config_version, "url": config_url},
+                        new_value=new_val,
                         changed_by="system",
                         change_reason="Push notification config update",
                         change_type="automated",
@@ -245,6 +267,16 @@ class POSAgentSimulator:
                 logger.error(
                     f"Failed to log configuration history: {log_err}", exc_info=True
                 )
+                # Return this error in the response for debugging
+                return {
+                    "status": "success",
+                    "message": "Configuration updated (DB Log Failed)",
+                    "warning": str(log_err),
+                    "device_id": self.device_id,
+                    "config_version": config_version,
+                    "health_check": health_result,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
 
             # Step 6: Send success ACK
             return {
@@ -658,10 +690,11 @@ class AgentManager:
     async def _start_agent_for_device(self, device_id: str, device_name: str) -> None:
         """Start an agent for a specific device."""
         if device_id not in self.agents:
-            agent = POSAgentSimulator(device_id, device_name)
+            # Fix: Pass device_type explicitly, don't use name as type
+            agent = POSAgentSimulator(device_id, device_type="pos_terminal")
             self.agents[device_id] = agent
             await agent.start()
-            logger.info(f"Started agent for device {device_id}")
+            logger.info(f"Started agent for device {device_id} ({device_name})")
 
     async def _device_monitor_loop(self) -> None:
         """Monitor for new devices and start agents for them."""

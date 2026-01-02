@@ -22,6 +22,8 @@ const SiteDetail = lazy(() => import('../pages/Sites/SiteDetail'));
 
 const DeviceRegistration = lazy(() => import('../pages/Device/DeviceRegistration'));
 const Devices = lazy(() => import('../pages/Device/DeviceDetail'));
+const DeviceSettings = lazy(() => import('../pages/Device/DeviceSettings'));
+const PushReview = lazy(() => import('../pages/Device/PushReview'));
 const UserActivity = lazy(() => import('../pages/UserActivity'));
 
 const Agent = lazy(() => import('../pages/Agent'));
@@ -60,6 +62,8 @@ export default function RoutesIndex() {
           <Route path="sites/:id" element={<SiteDetail />} />
           <Route path="sites/:id/edit" element={<SiteForm />} />
           <Route path="device/:id" element={<Devices />} />
+          <Route path="device/:id/settings" element={<DeviceSettings />} />
+          <Route path="device/:id/push-review" element={<PushReview />} />
           <Route path="useractivity" element={<UserActivity />} />
           <Route path="/agents" element={<Agent />} />
 
