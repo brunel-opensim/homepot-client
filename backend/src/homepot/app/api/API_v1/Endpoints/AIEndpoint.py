@@ -309,7 +309,25 @@ async def get_push_insights(
     """Get AI analytics for push notification delivery."""
     try:
         analytics = AIAnalyticsService()
-        return await analytics.get_push_notification_analytics(device_id, days)
+        analytics_result = await analytics.get_push_notification_analytics(
+            device_id, days
+        )
+
+        # If the analytics service indicates an error, raise a generic HTTP error
+        if isinstance(analytics_result, dict) and analytics_result.get("status") == "error":
+            logger.error(
+                "Push notification analytics service reported an error: %s",
+                analytics_result.get("message"),
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to analyze push notifications",
+            )
+
+        return analytics_result
+    except HTTPException:
+        # Re-raise HTTPException without modification
+        raise
     except Exception as e:
         logger.error(f"Failed to get push insights: {e}", exc_info=True)
         raise HTTPException(

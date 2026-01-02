@@ -195,10 +195,11 @@ class AIAnalyticsService:
                 }
 
         except Exception as e:
-            logger.error(f"Error analyzing push notifications: {e}")
+            # Log full exception details on the server, but do not expose them to clients
+            logger.error(f"Error analyzing push notifications: {e}", exc_info=True)
             return {
                 "status": "error",
-                "message": str(e),
+                "message": "Failed to analyze push notification analytics.",
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
