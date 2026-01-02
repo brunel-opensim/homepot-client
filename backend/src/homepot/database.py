@@ -335,6 +335,31 @@ class DatabaseService:
             result = await session.execute(query)
             return list(result.scalars().all())
 
+    async def get_devices_by_site_and_segment_paginated(
+        self,
+        site_id: str,
+        segment: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Device]:
+        """Get devices by site and segment with pagination for scalability."""
+        from sqlalchemy import select
+
+        async with self.get_session() as session:
+            query = select(Device).where(
+                Device.site_id == site_id, Device.is_active.is_(True)
+            )
+
+            # For POS scenario: filter by device type if segment specified
+            if segment == "pos-terminals":
+                query = query.where(Device.device_type == "pos_terminal")
+
+            # Add ordering for consistent pagination
+            query = query.order_by(Device.id).limit(limit).offset(offset)
+
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
     async def update_device_status(self, device_id: str, status: DeviceStatus) -> bool:
         """Update device status."""
         from sqlalchemy import update
