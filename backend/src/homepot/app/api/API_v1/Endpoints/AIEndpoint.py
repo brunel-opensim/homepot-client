@@ -27,6 +27,7 @@ from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
+from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
 from homepot.app.models.AnalyticsModel import (  # noqa: E402
     DeviceMetrics,
@@ -169,6 +170,7 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
     """Query the AI assistant."""
     try:
         llm = LLMService()
+        knowledge = SystemKnowledge(project_root)
 
         # Fetch current system state for context
         db_service = await get_database_service()
@@ -210,14 +212,18 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
         if request.device_id:
             context += f"\nFocus on Device ID: {request.device_id}"
 
+        # Get static system knowledge
+        system_knowledge = knowledge.get_full_system_context()
+
         response = llm.generate_response(
             prompt=request.query,
             context=context,
             system_prompt=(
                 "You are Homepot AI, a helpful assistant for managing smart home "
                 "devices and monitoring systems. You have access to the current "
-                "system status including sites and devices. Use this information "
-                "to answer user queries accurately. Be concise and professional."
+                "system status including sites and devices, as well as the codebase structure.\n\n"
+                f"{system_knowledge}\n\n"
+                "Use this information to answer user queries accurately. Be concise and professional."
             ),
         )
         return {
