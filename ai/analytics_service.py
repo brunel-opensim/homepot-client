@@ -8,12 +8,13 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 
 from homepot.app.models.AnalyticsModel import (
     DeviceMetrics,
     ErrorLog,
     JobOutcome,
+    PushNotificationLog,
     SiteOperatingSchedule,
 )
 from homepot.database import get_database_service
@@ -98,9 +99,108 @@ class AIAnalyticsService:
                     "health_score": round(max(0, health_score), 2),
                     "analysis_timestamp": datetime.utcnow().isoformat(),
                 }
+
         except Exception as e:
             logger.error(f"Failed to analyze device performance: {e}", exc_info=True)
             return {"device_id": device_id, "status": "error", "message": str(e)}
+
+    @staticmethod
+    async def get_push_notification_analytics(
+        device_id: Optional[str] = None,
+        days: int = 7,
+    ) -> Dict[str, Any]:
+        """Analyze push notification delivery performance.
+
+        Args:
+            device_id: Optional device identifier to filter by
+            days: Number of days to analyze (default: 7)
+
+        Returns:
+            Dict containing delivery rates, latency stats, and failure breakdown
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+                # Base query conditions
+                conditions = [PushNotificationLog.sent_at >= cutoff_date]
+                if device_id:
+                    conditions.append(PushNotificationLog.device_id == device_id)
+
+                # 1. Overall Stats
+                stats_query = select(
+                    func.count(PushNotificationLog.id).label("total"),
+                    func.sum(
+                        case((PushNotificationLog.status == "delivered", 1), else_=0)
+                    ).label("delivered"),
+                    func.sum(
+                        case((PushNotificationLog.status == "failed", 1), else_=0)
+                    ).label("failed"),
+                    func.avg(PushNotificationLog.latency_ms).label("avg_latency"),
+                ).where(and_(*conditions))
+
+                stats_result = await session.execute(stats_query)
+                total, delivered, failed, avg_latency = stats_result.one()
+
+                total = total or 0
+                delivered = delivered or 0
+                failed = failed or 0
+                delivery_rate = (delivered / total * 100) if total > 0 else 0.0
+
+                # 2. Provider Breakdown
+                provider_query = (
+                    select(
+                        PushNotificationLog.provider, func.count(PushNotificationLog.id)
+                    )
+                    .where(and_(*conditions))
+                    .group_by(PushNotificationLog.provider)
+                )
+                provider_result = await session.execute(provider_query)
+                provider_stats = {
+                    row[0]: row[1] for row in provider_result.all() if row[0]
+                }
+
+                # 3. Error Breakdown
+                error_query = (
+                    select(
+                        PushNotificationLog.error_code,
+                        func.count(PushNotificationLog.id),
+                    )
+                    .where(
+                        and_(
+                            *conditions,
+                            PushNotificationLog.status == "failed",
+                            PushNotificationLog.error_code.isnot(None),
+                        )
+                    )
+                    .group_by(PushNotificationLog.error_code)
+                )
+                error_result = await session.execute(error_query)
+                error_stats = {row[0]: row[1] for row in error_result.all()}
+
+                return {
+                    "period_days": days,
+                    "device_id": device_id,
+                    "summary": {
+                        "total_sent": total,
+                        "delivered": delivered,
+                        "failed": failed,
+                        "delivery_rate_percent": round(delivery_rate, 2),
+                        "avg_latency_ms": round(avg_latency or 0, 2),
+                    },
+                    "provider_breakdown": provider_stats,
+                    "failure_reasons": error_stats,
+                    "analysis_timestamp": datetime.utcnow().isoformat(),
+                }
+
+        except Exception as e:
+            logger.error(f"Error analyzing push notifications: {e}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
 
     @staticmethod
     async def get_system_health_summary(window_minutes: int = 15) -> Dict[str, Any]:

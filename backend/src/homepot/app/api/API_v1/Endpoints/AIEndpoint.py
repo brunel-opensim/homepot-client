@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -31,6 +31,7 @@ from ai.llm import LLMService  # noqa: E402
 from homepot.app.models.AnalyticsModel import (  # noqa: E402
     DeviceMetrics,
     DeviceStateHistory,
+    PushNotificationLog,
 )
 from homepot.database import get_database_service  # noqa: E402
 from homepot.models import Device, HealthCheck, Site  # noqa: E402
@@ -181,6 +182,25 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
 
+            # Get Push Notification Stats (Last 24 hours)
+            one_day_ago = datetime.utcnow() - timedelta(days=1)
+            push_result = await session.execute(
+                select(
+                    func.count(PushNotificationLog.id),
+                    func.sum(
+                        case((PushNotificationLog.status == "delivered", 1), else_=0)
+                    ),
+                    func.avg(PushNotificationLog.latency_ms),
+                ).where(PushNotificationLog.sent_at >= one_day_ago)
+            )
+            total_push, delivered_push, avg_latency = push_result.one()
+
+            site_context += "\nPush Notification Stats (Last 24h):\n"
+            site_context += f"- Total Sent: {total_push or 0}\n"
+            site_context += f"- Delivered: {delivered_push or 0}\n"
+            if avg_latency:
+                site_context += f"- Avg Latency: {round(avg_latency, 2)}ms\n"
+
         context = request.context
         if context:
             context = f"{site_context}\nUser Context: {context}"
@@ -207,6 +227,24 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"AI query failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/insights/push-notifications", tags=["AI Insights"])
+async def get_push_insights(
+    device_id: Optional[str] = Query(
+        None, description="Optional device ID to filter by"
+    ),
+    days: int = Query(default=7, ge=1, le=90, description="Analysis period in days"),
+) -> Dict[str, Any]:
+    """Get AI analytics for push notification delivery."""
+    try:
+        analytics = AIAnalyticsService()
+        return await analytics.get_push_notification_analytics(device_id, days)
+    except Exception as e:
+        logger.error(f"Failed to get push insights: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to analyze push notifications"
+        )
 
 
 @router.get("/insights/device/{device_id}", tags=["AI Insights"])
