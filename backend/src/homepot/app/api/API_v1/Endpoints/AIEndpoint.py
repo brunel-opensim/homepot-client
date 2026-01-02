@@ -314,7 +314,10 @@ async def get_push_insights(
         )
 
         # If the analytics service indicates an error, raise a generic HTTP error
-        if isinstance(analytics_result, dict) and analytics_result.get("status") == "error":
+        if (
+            isinstance(analytics_result, dict)
+            and analytics_result.get("status") == "error"
+        ):
             logger.error(
                 "Push notification analytics service reported an error: %s",
                 analytics_result.get("message"),
