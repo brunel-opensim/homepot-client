@@ -823,6 +823,33 @@ sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE homepot_db TO homepot
 - Regular database maintenance: `VACUUM ANALYZE`
 - Monitor PostgreSQL logs: `/var/log/postgresql/`
 
+### Scalability Patterns
+
+To handle large datasets efficiently, the system implements the following patterns:
+
+#### Pagination for Large Result Sets
+When retrieving large numbers of records (e.g., devices for a site), use pagination to avoid memory issues. The `DatabaseService` provides methods like `get_devices_by_site_and_segment_paginated` which utilize `LIMIT` and `OFFSET` at the database level.
+
+```python
+# Example of paginated retrieval
+batch_size = 50
+offset = 0
+while True:
+    devices = await db_service.get_devices_by_site_and_segment_paginated(
+        site_id="site-123",
+        limit=batch_size,
+        offset=offset
+    )
+    if not devices:
+        break
+    
+    # Process batch...
+    offset += batch_size
+```
+
+#### Batch Processing
+Operations that affect many rows should be batched to manage transaction size and lock duration. The job orchestrator uses this pattern for sending push notifications to large device segments.
+
 ### Support
 
 For database-related issues:
