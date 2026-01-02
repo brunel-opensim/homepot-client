@@ -24,6 +24,8 @@ if project_root not in sys.path:
 
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
+from ai.context_builder import ContextBuilder  # noqa: E402
+from ai.device_memory import DeviceMemory  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
@@ -63,12 +65,22 @@ class SuccessProbabilityRequest(BaseModel):
     scheduled_time: str = Field(..., description="Proposed execution time (ISO format)")
 
 
+class ChatMessage(BaseModel):
+    """Model for a single chat message."""
+
+    role: str = Field(..., description="Role: 'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+
+
 class AIQueryRequest(BaseModel):
     """Request model for AI query."""
 
     query: str = Field(..., description="The question or prompt for the AI")
     context: Optional[str] = Field(None, description="Optional context for the query")
     device_id: Optional[str] = Field(None, description="Optional device ID for context")
+    history: Optional[list[ChatMessage]] = Field(
+        default_factory=list, description="Conversation history for short-term memory"
+    )
 
 
 # ==================== Analytics Endpoints ====================
@@ -171,15 +183,37 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
     try:
         llm = LLMService()
         knowledge = SystemKnowledge(project_root)
+        memory = DeviceMemory()
+        context_builder = ContextBuilder()
 
-        # Fetch current system state for context
+        # 1. Build Short-Term Context (Conversation History)
+        short_term_context = ""
+        if request.history:
+            short_term_context = "\n[CONVERSATION HISTORY]\n"
+            short_term_context += "\n".join(
+                [f"{msg.role}: {msg.content}" for msg in request.history[-5:]]
+            )
+
+        # 2. Build Long-Term Context (Vector Memory)
+        long_term_context = ""
+        try:
+            similar_memories = memory.query_similar(request.query)
+            if similar_memories:
+                long_term_context = "\n[RELEVANT MEMORIES]\n"
+                long_term_context += "\n".join(
+                    [f"- {m['content']}" for m in similar_memories]
+                )
+        except Exception as e:
+            logger.warning(f"Failed to query vector memory: {e}")
+
+        # 3. Build Real-Time System Context
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             # Get Sites
             result = await session.execute(select(Site).where(Site.is_active.is_(True)))
             sites = result.scalars().all()
 
-            site_context = "Current System Status:\n"
+            site_context = "[CURRENT SYSTEM STATUS]\n"
             site_context += f"Total Sites: {len(sites)}\n"
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
@@ -197,31 +231,36 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             )
             total_push, delivered_push, avg_latency = push_result.one()
 
-            site_context += "\nPush Notification Stats (Last 24h):\n"
+            site_context += "\n[PUSH NOTIFICATION STATS (24h)]\n"
             site_context += f"- Total Sent: {total_push or 0}\n"
             site_context += f"- Delivered: {delivered_push or 0}\n"
             if avg_latency:
                 site_context += f"- Avg Latency: {round(avg_latency, 2)}ms\n"
 
-        context = request.context
-        if context:
-            context = f"{site_context}\nUser Context: {context}"
-        else:
-            context = site_context
+            # Get Job Context if relevant
+            job_context = await context_builder.get_job_context(session=session)
+
+        # 4. Assemble Final Context
+        full_context = (
+            f"{site_context}\n{job_context}\n{long_term_context}\n{short_term_context}"
+        )
+
+        if request.context:
+            full_context += f"\n[USER CONTEXT]\n{request.context}"
 
         if request.device_id:
-            context += f"\nFocus on Device ID: {request.device_id}"
+            full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
 
         # Get static system knowledge
         system_knowledge = knowledge.get_full_system_context()
 
         response = llm.generate_response(
             prompt=request.query,
-            context=context,
+            context=full_context,
             system_prompt=(
                 "You are Homepot AI, a helpful assistant for managing smart home "
                 "devices and monitoring systems. You have access to the current "
-                "system status including sites and devices, as well as the codebase structure.\n\n"
+                "system status, past memories, and codebase structure.\n\n"
                 f"{system_knowledge}\n\n"
                 "Use this information to answer user queries accurately. Be concise and professional."
             ),
