@@ -28,6 +28,17 @@ sys.path.insert(0, str(Path.cwd() / "backend" / "src"))
 # Monkey patch bcrypt to work with passlib (bcrypt >= 4.0.0 compatibility)
 import bcrypt
 
+from homepot.app.models.AnalyticsModel import (
+    APIRequestLog,
+    ConfigurationHistory,
+    DeviceMetrics,
+    DeviceStateHistory,
+    ErrorLog,
+    JobOutcome,
+    PushNotificationLog,
+    SiteOperatingSchedule,
+    UserActivity,
+)
 from homepot.app.models.UserModel import Base as AppBase
 from homepot.app.models.UserModel import User
 from homepot.database import DatabaseService
@@ -510,17 +521,6 @@ async def init_database():
             session.add(sample_audit)
 
             # Sample Analytics
-            from homepot.app.models.AnalyticsModel import (
-                APIRequestLog,
-                ConfigurationHistory,
-                DeviceMetrics,
-                DeviceStateHistory,
-                ErrorLog,
-                JobOutcome,
-                SiteOperatingSchedule,
-                UserActivity,
-            )
-
             session.add(
                 APIRequestLog(
                     endpoint="/api/v1/sites/site-001/jobs",
@@ -610,6 +610,22 @@ async def init_database():
                     was_rolled_back=False,
                     timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
                     - timedelta(hours=2),
+                )
+            )
+
+            session.add(
+                PushNotificationLog(
+                    message_id="msg-001",
+                    device_id=first_device.device_id,
+                    job_id=sample_job.job_id,
+                    provider="fcm",
+                    status="delivered",
+                    latency_ms=150,
+                    sent_at=datetime.now(timezone.utc).replace(tzinfo=None)
+                    - timedelta(minutes=5),
+                    received_at=datetime.now(timezone.utc).replace(tzinfo=None)
+                    - timedelta(minutes=5)
+                    + timedelta(milliseconds=150),
                 )
             )
 

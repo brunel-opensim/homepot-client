@@ -108,6 +108,7 @@ nav:
   
   - User Guides:
       - Device Registration: device-registration.md
+      - MDM Configuration: device-configuration-mdm.md
       - POS Management: pos-management.md
       - Real-time Dashboard: real-time-dashboard.md
       - Agent Simulation: agent-simulation.md
@@ -135,6 +136,7 @@ nav:
   
   - Push Notifications:
       - Overview: push-notification.md
+      - Payload Structure: push-notification-payloads.md
       - Analytics Roadmap: push-analytics-roadmap.md
       - FCM (Linux/Android): fcm-linux-integration.md
       - WNS (Windows): wns-windows-integration.md

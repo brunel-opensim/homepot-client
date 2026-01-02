@@ -180,9 +180,6 @@ export default function Dashboard() {
               >
                 Agent
               </Button>
-              <Button className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10">
-                Send Notification
-              </Button>
             </div>
           </CardContent>
 

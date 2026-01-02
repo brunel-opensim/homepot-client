@@ -80,8 +80,7 @@ export default function Sidebar() {
             {user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="text-sm font-medium truncate">{user?.username || 'User'}</p>
-            <p className="text-xs text-slate-400 truncate">{user?.isAdmin ? 'Admin' : 'User'}</p>
+            <p className="text-sm font-medium truncate">{user?.isAdmin ? 'Admin' : 'User'}</p>
           </div>
         </div>
         <button

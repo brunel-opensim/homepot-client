@@ -223,6 +223,22 @@ const api = {
     },
 
     /**
+     * Get device configuration history
+     */
+    getHistory: async (deviceId) => {
+      const response = await apiClient.get(`/metrics/configuration-history/${deviceId}`);
+      return response.data.history;
+    },
+
+    /**
+     * Delete configuration history item
+     */
+    deleteHistoryItem: async (historyId) => {
+      const response = await apiClient.delete(`/metrics/configuration-history/${historyId}`);
+      return response.data;
+    },
+
+    /**
      * Toggle device monitoring
      */
     toggleMonitor: async (deviceId, monitor) => {
@@ -237,6 +253,18 @@ const api = {
      */
     restart: async (deviceId) => {
       const response = await apiClient.post(`/devices/${deviceId}/restart`);
+      return response.data;
+    },
+
+    /**
+     * Trigger generic device action
+     */
+    triggerAction: async (deviceId, actionKey, actionData = {}) => {
+      const payload = {
+        command_type: actionKey,
+        payload: actionData,
+      };
+      const response = await apiClient.post(`/devices/${deviceId}/commands`, payload);
       return response.data;
     },
   },
