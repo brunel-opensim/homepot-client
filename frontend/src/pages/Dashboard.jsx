@@ -9,20 +9,26 @@ import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
-  const [heartbeatIndices, setHeartbeatIndices] = useState(new Set());
+  const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newIndices = new Set();
-      // Randomly activate 1-3 "heartbeats"
-      const count = Math.floor(Math.random() * 3) + 1;
-      for (let k = 0; k < count; k++) {
-        newIndices.add(Math.floor(Math.random() * 12));
+    // Poll system pulse every 1 second
+    const fetchPulse = async () => {
+      try {
+        const data = await api.health.getSystemPulse();
+        setSystemPulse(data);
+      } catch (e) {
+        console.error('Failed to fetch system pulse', e);
       }
-      setHeartbeatIndices(newIndices);
-    }, 600);
-    return () => clearInterval(interval);
-  }, []);
+    };
+
+    fetchPulse();
+    const pulseInterval = setInterval(fetchPulse, 1000);
+
+    return () => {
+      clearInterval(pulseInterval);
+    };
+  }, []); // Run once on mount
 
   // Apple Icon (light grey)
   const AppleIcon = () => (
@@ -226,24 +232,105 @@ export default function Dashboard() {
 
           <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
             <CardContent className="p-4">
-              <h2 className="text-lg font-semibold text-white mb-2">Heartbeat Status</h2>
+              <h2 className="text-lg font-semibold text-white mb-2">System Pulse</h2>
               <div className="flex space-x-2">
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const isActive = heartbeatIndices.has(i);
-                  // Occasionally show orange to simulate minor latency/issues, mostly green
-                  const colorClass = isActive 
-                    ? (Math.random() > 0.9 ? 'bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.6)]' : 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]')
-                    : 'bg-gray-800';
-                  
+                {Array.from({ length: 10 }).map((_, i) => {
+                  // Calculate if this circle should be active based on load_score
+                  // i=0 -> 10%, i=1 -> 20%, ..., i=9 -> 100%
+                  // We light up if load_score is "close" to this threshold or higher
+                  // e.g. load=12 -> i=0 (10%) is active, i=1 (20%) is inactive
+                  // Using Math.ceil(load / 10) logic:
+                  // load=1-10 -> 1 circle
+                  // load=11-20 -> 2 circles
+                  const activeCount = Math.ceil((systemPulse.load_score || 0) / 10);
+                  const isActive = i < activeCount;
+
+                  // Equalizer Color Logic
+                  let colorClass = 'bg-gray-800';
+                  if (isActive) {
+                    if (i < 6) {
+                      // 10% - 60%: Green
+                      colorClass = 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
+                    } else if (i < 8) {
+                      // 70% - 80%: Yellow/Orange
+                      colorClass = 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]';
+                    } else {
+                      // 90% - 100%: Red
+                      colorClass = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]';
+                    }
+                  }
+
                   return (
                     <span
                       key={i}
-                      className={`w-4 h-4 rounded-full transition-all duration-500 ${colorClass} ${isActive ? 'scale-110' : 'scale-100'}`}
+                      className={`w-4 h-4 rounded-full transition-all duration-300 ${colorClass} ${isActive ? 'scale-110' : 'scale-100'}`}
                     ></span>
                   );
                 })}
               </div>
-              <p className="text-xs text-gray-400 mt-2">Real-time device pings</p>
+              <div className="flex flex-col mt-2">
+                <p className="text-xs text-gray-400 flex justify-between w-full font-mono">
+                  <span>
+                    Load:{' '}
+                    <span
+                      className={
+                        systemPulse.load_score >= 90
+                          ? 'text-red-400 font-bold'
+                          : systemPulse.load_score >= 70
+                            ? 'text-yellow-400'
+                            : 'text-green-400'
+                      }
+                    >
+                      {systemPulse.load_score}%
+                    </span>
+                  </span>
+                  <span className="text-gray-700">|</span>
+                  <span>
+                    Jobs:{' '}
+                    <span
+                      className={
+                        systemPulse.active_jobs > 5
+                          ? 'text-red-400 font-bold'
+                          : systemPulse.active_jobs > 0
+                            ? 'text-yellow-400'
+                            : 'text-green-400'
+                      }
+                    >
+                      {systemPulse.active_jobs > 0 ? systemPulse.active_jobs : 'IDLE'}
+                    </span>
+                  </span>
+                  <span className="text-gray-700">|</span>
+                  <span>
+                    CPU:{' '}
+                    <span
+                      className={
+                        (systemPulse.cpu_percent || 0) >= 90
+                          ? 'text-red-400 font-bold'
+                          : (systemPulse.cpu_percent || 0) >= 70
+                            ? 'text-yellow-400'
+                            : 'text-green-400'
+                      }
+                    >
+                      {Math.round(systemPulse.cpu_percent || 0)}%
+                    </span>
+                  </span>
+                  <span className="text-gray-700">|</span>
+                  <span>
+                    Mem:{' '}
+                    <span
+                      className={
+                        (systemPulse.memory_percent || 0) >= 90
+                          ? 'text-red-400 font-bold'
+                          : (systemPulse.memory_percent || 0) >= 70
+                            ? 'text-yellow-400'
+                            : 'text-green-400'
+                      }
+                    >
+                      {Math.round(systemPulse.memory_percent || 0)}%
+                    </span>
+                  </span>
+                </p>
+              </div>
             </CardContent>
           </Card>
 

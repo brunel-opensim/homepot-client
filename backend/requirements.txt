@@ -33,6 +33,7 @@ rich==14.2.0  # For rich terminal output
 click==8.3.1  # Composable command line interface toolkit
 typer==0.20.1  # For CLI interface
 pyyaml==6.0.3  # For YAML configuration
+psutil==6.1.1  # Cross-platform process and system utilities
 
 # AI Dependencies
 chromadb==1.4.0  # Vector database for AI memory and embeddings

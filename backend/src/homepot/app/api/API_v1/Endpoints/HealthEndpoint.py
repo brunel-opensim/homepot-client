@@ -2,15 +2,23 @@
 
 import asyncio
 import logging
+import os
+import time
 from datetime import datetime
+from multiprocessing import Process
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+import psutil
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
-from homepot.app.schemas.schemas import HealthCheckRequest
+from homepot.agents import AgentState, get_agent_manager
+from homepot.app.schemas.schemas import HealthCheckRequest, SystemPulseResponse
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
+from homepot.orchestrator import get_job_orchestrator
+from homepot.request_metrics import get_request_metrics
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +48,246 @@ def get_client() -> HomepotClient:
     if client_instance is None:
         raise HTTPException(status_code=503, detail="Client not available")
     return client_instance
+
+
+# Global cache for Process objects to maintain CPU measurement state
+_process_cache: Dict[int, psutil.Process] = {}
+
+
+def _get_process_metrics(pid: int) -> tuple[float, float]:
+    """Get CPU and Memory for a specific PID using cached Process object."""
+    try:
+        if pid not in _process_cache:
+            proc = psutil.Process(pid)
+            # First call to cpu_percent always returns 0.0, so we initialize it
+            proc.cpu_percent(interval=None)
+            _process_cache[pid] = proc
+        else:
+            proc = _process_cache[pid]
+            # Verify process is still running and is the same process
+            if not proc.is_running():
+                del _process_cache[pid]
+                return 0.0, 0.0
+
+        # Get metrics
+        cpu = proc.cpu_percent(interval=None)
+        mem = proc.memory_percent()
+        return cpu, mem
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        if pid in _process_cache:
+            del _process_cache[pid]
+        return 0.0, 0.0
+
+
+def _get_homepot_resource_usage() -> tuple[float, float]:
+    """Calculate CPU and Memory usage for Homepot processes (Backend + Frontend)."""
+    total_cpu = 0.0
+    total_mem_percent = 0.0
+
+    # 1. Backend Process (Current Process)
+    current_pid = os.getpid()
+    cpu, mem = _get_process_metrics(current_pid)
+    total_cpu += cpu
+    total_mem_percent += mem
+
+    # Include children (e.g. workers)
+    try:
+        parent = psutil.Process(current_pid)
+        for child in parent.children(recursive=True):
+            c_cpu, c_mem = _get_process_metrics(child.pid)
+            total_cpu += c_cpu
+            total_mem_percent += c_mem
+    except Exception:
+        pass
+
+    # 2. Frontend Process
+    # Try to find the PID file
+    cwd = Path.cwd()
+    pid_path = None
+
+    # Check common locations for logs/frontend.pid
+    if (cwd / "logs/frontend.pid").exists():
+        pid_path = cwd / "logs/frontend.pid"
+    elif (cwd.parent / "logs/frontend.pid").exists():
+        pid_path = cwd.parent / "logs/frontend.pid"
+    elif (cwd / "../logs/frontend.pid").exists():  # Relative from backend/
+        pid_path = cwd / "../logs/frontend.pid"
+
+    if pid_path:
+        try:
+            pid = int(pid_path.read_text().strip())
+            cpu, mem = _get_process_metrics(pid)
+            total_cpu += cpu
+            total_mem_percent += mem
+
+            # Include children (vite, etc)
+            try:
+                parent = psutil.Process(pid)
+                for child in parent.children(recursive=True):
+                    c_cpu, c_mem = _get_process_metrics(child.pid)
+                    total_cpu += c_cpu
+                    total_mem_percent += c_mem
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    # 3. AI Service (Ollama)
+    # Since Ollama runs as a separate service, we need to find it by name
+    try:
+        for proc in psutil.process_iter(["pid", "name"]):
+            try:
+                if "ollama" in proc.info["name"].lower():
+                    c_cpu, c_mem = _get_process_metrics(proc.info["pid"])
+                    total_cpu += c_cpu
+                    total_mem_percent += c_mem
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    except Exception:
+        pass
+
+    # Normalize CPU by core count to get 0-100% of system capacity
+    cpu_count = psutil.cpu_count() or 1
+    normalized_cpu = total_cpu / cpu_count
+
+    return normalized_cpu, total_mem_percent
+
+
+@router.get("/system-pulse", response_model=SystemPulseResponse, tags=["Health"])
+async def get_system_pulse() -> SystemPulseResponse:
+    """Get real-time system pulse metrics (load, active jobs, agent activity)."""
+    try:
+        # 1. Get Orchestrator Metrics
+        orchestrator = await get_job_orchestrator()
+        active_jobs = len(orchestrator._active_jobs)
+        queue_depth = orchestrator._job_queue.qsize()
+
+        # 2. Get Agent Metrics
+        agent_manager = await get_agent_manager()
+        total_agents = len(agent_manager.agents)
+
+        # Count active agents (not IDLE)
+        active_agents = 0
+        for agent in agent_manager.agents.values():
+            if agent.state != AgentState.IDLE:
+                active_agents += 1
+
+        # 3. Get Request Metrics (Data Ingestion Load)
+        requests_per_minute = get_request_metrics()
+
+        # 4. Get Homepot Specific Metrics (CPU/Mem)
+        # This calculates the sum of Backend + Frontend usage
+        cpu_percent, memory_percent = _get_homepot_resource_usage()
+
+        # 5. Calculate Load Score (0-100)
+        # Application Load Component:
+        # - Each active job adds 10 points
+        # - Each queued job adds 5 points
+        # - Each active agent adds 2 points
+        # - Each 10 RPM adds 1 point (e.g., 600 RPM = 60 points)
+        rpm_score = int(requests_per_minute / 10)
+        app_raw_score = (
+            (active_jobs * 10) + (queue_depth * 5) + (active_agents * 2) + rpm_score
+        )
+        app_load_score = min(100, app_raw_score)
+
+        # Combined Score:
+        # We take the maximum of the components to ensure that if ANY resource
+        # is bottlenecked (CPU, Memory, or Job Queue), the system is reported as busy.
+        # This ensures the dashboard alerts the user even if only one metric is critical.
+        load_score = int(max(app_load_score, cpu_percent, memory_percent))
+
+        # 6. Determine Status
+        if load_score > 80:
+            status_val = "busy"
+        elif load_score > 20:
+            status_val = "working"
+        else:
+            status_val = "idle"
+
+        return SystemPulseResponse(
+            status=status_val,
+            load_score=load_score,
+            active_jobs=active_jobs,
+            queue_depth=queue_depth,
+            active_agents=active_agents,
+            total_agents=total_agents,
+            requests_per_minute=requests_per_minute,
+            cpu_percent=cpu_percent,
+            memory_percent=memory_percent,
+        )
+    except Exception as e:
+        logger.error(f"System pulse check failed: {e}", exc_info=True)
+        # Return fallback "idle" state on error to prevent UI crash
+        return SystemPulseResponse(
+            status="idle",
+            load_score=0,
+            active_jobs=0,
+            queue_depth=0,
+            active_agents=0,
+            total_agents=0,
+            requests_per_minute=0,
+            cpu_percent=0.0,
+            memory_percent=0.0,
+        )
+
+
+def _cpu_stress_task(duration: int) -> None:
+    """CPU intensive task."""
+    end_time = time.time() + duration
+    while time.time() < end_time:
+        # Perform complex calculations to burn CPU
+        _ = [x**2 for x in range(10000)]
+
+
+@router.post("/stress-test", tags=["Health"])
+async def trigger_stress_test(
+    background_tasks: BackgroundTasks,
+    duration: int = 30,
+    memory_mb: int = 500,
+    cpu_cores: int = 0,
+) -> Dict[str, str]:
+    """
+    Trigger a temporary system load for testing dashboard metrics.
+
+    - duration: How long to run the CPU stress (seconds). Default 30s.
+    - memory_mb: How much memory to allocate (MB). Default 500MB.
+    - cpu_cores: Number of CPU cores to stress. 0 = All available cores.
+    """
+    # 1. CPU Stress
+    # We spawn separate processes to bypass GIL and burn multiple cores
+    if cpu_cores <= 0:
+        cpu_cores = psutil.cpu_count() or 1
+
+    logger.info(
+        f"Starting stress test: {cpu_cores} cores, {memory_mb}MB RAM, {duration}s"
+    )
+
+    for _ in range(cpu_cores):
+        # We use multiprocessing.Process to create real system load
+        # These will be children of the backend process, so they will be counted
+        p = Process(target=_cpu_stress_task, args=(duration,))
+        p.start()
+        # We don't join() here because we want to return immediately
+        # The processes will exit on their own after 'duration' seconds
+
+    # 2. Memory Stress (Allocate and hold)
+    # We create a large list of integers. Python ints are ~28 bytes.
+    # 1 MB = 1024 * 1024 bytes
+    # We'll just allocate a big string
+    _ = "x" * (memory_mb * 1024 * 1024)
+
+    # Keep memory allocated for the duration
+    # Note: We use asyncio.sleep to yield control back to the event loop
+    # This allows the /system-pulse endpoint to continue responding while we hold the memory
+    await asyncio.sleep(duration)
+
+    return {
+        "message": (
+            f"Stress test completed: {duration}s CPU load "
+            f"({cpu_cores} cores), {memory_mb}MB Memory"
+        )
+    }
 
 
 @router.get("/health", tags=["Health"])

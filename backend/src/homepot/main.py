@@ -32,6 +32,7 @@ from homepot.client import HomepotClient
 from homepot.database import close_database_service, get_database_service
 from homepot.models import DeviceType, JobPriority
 from homepot.orchestrator import get_job_orchestrator, stop_job_orchestrator
+from homepot.request_metrics import increment_request_count
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -260,6 +261,18 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+
+# Middleware to count requests
+@app.middleware("http")
+async def count_requests(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Middleware to increment the global request counter."""
+    increment_request_count()
+    response = await call_next(request)
+    return response
+
 
 # Add CORS middleware
 app.add_middleware(

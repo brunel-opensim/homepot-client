@@ -99,6 +99,52 @@ curl -s http://localhost:8000/version | jq .
 }
 ```
 
+### Check System Pulse (Real-time Load)
+
+This endpoint returns the current system load, including CPU, Memory, and Application metrics.
+
+```bash
+curl -s http://localhost:8000/api/v1/health/system-pulse | jq .
+```
+
+**Expected Response:**
+```json
+{
+  "status": "idle",
+  "load_score": 12,
+  "active_jobs": 0,
+  "queue_depth": 0,
+  "active_agents": 0,
+  "total_agents": 5,
+  "requests_per_minute": 0,
+  "cpu_percent": 12.5,
+  "memory_percent": 45.2
+}
+```
+
+### Trigger System Stress Test
+
+You can simulate high system load to test the dashboard's "System Pulse" visualization. This endpoint spawns background processes to consume CPU and Memory.
+
+**Parameters:**
+- `duration`: Seconds to run the test (default: 30)
+- `memory_mb`: Megabytes of RAM to allocate (default: 500)
+- `cpu_cores`: Number of cores to stress (0 = all cores)
+
+```bash
+# Stress all CPU cores and allocate 1GB RAM for 60 seconds
+curl -X POST "http://localhost:8000/api/v1/health/stress-test?duration=60&memory_mb=1000"
+```
+
+**Expected Response:**
+```json
+{
+  "message": "Stress test completed: 60s CPU load (8 cores), 1000MB Memory"
+}
+```
+
+**Note:** While the test is running, check the Dashboard to see the System Pulse gauge turn red and the CPU/Memory metrics spike.
+
 ## 2. Sites Management
 
 ### List All Sites

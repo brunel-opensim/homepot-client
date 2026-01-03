@@ -121,6 +121,14 @@ const api = {
     },
 
     /**
+     * Get System Pulse (Load Metrics)
+     */
+    getSystemPulse: async () => {
+      const response = await apiClient.get('/health/system-pulse');
+      return response.data;
+    },
+
+    /**
      * Get site health
      */
     getSiteHealth: async (siteId) => {

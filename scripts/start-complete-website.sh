@@ -118,6 +118,7 @@ if port_in_use 8000; then
         print_success "Killed existing process on port 8000"
     else
         print_error "Cannot start backend - port 8000 is in use"
+        echo -e "${YELLOW}Tip: Run ./scripts/stop-website.sh to clean up old processes${NC}"
         exit 1
     fi
 else
@@ -194,7 +195,8 @@ BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"
 
 # Wait for backend to start
-sleep 3
+print_step "Waiting for backend to initialize..."
+sleep 10
 
 # Check if backend started successfully
 if ps -p $BACKEND_PID > /dev/null; then
@@ -298,6 +300,11 @@ echo -e "  3. Create an account using the signup form"
 echo -e "  4. Login and explore the dashboard"
 echo ""
 echo -e "${CYAN}For detailed testing, see: docs/complete-website-setup.md${NC}"
+echo ""
+
+echo -e "${YELLOW}NOTE: To restart the system cleanly:${NC}"
+echo -e "  1. Stop services: ${CYAN}./scripts/stop-website.sh${NC}"
+echo -e "  2. Start again:   ${CYAN}./scripts/start-complete-website.sh${NC}"
 echo ""
 
 # Optional: Open browser automatically
