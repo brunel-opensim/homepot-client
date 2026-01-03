@@ -178,7 +178,7 @@ export default function Dashboard() {
                 }}
                 className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
               >
-                Agent
+                Agents
               </Button>
             </div>
           </CardContent>

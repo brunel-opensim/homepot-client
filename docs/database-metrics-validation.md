@@ -753,7 +753,7 @@ During the validation process, the following gaps and areas for improvement were
 -   **Observation:** In `configuration_history`, the `performance_after` field is currently `NULL`.
 -   **Impact:** Prevents the system from automatically validating if a configuration change improved or degraded performance.
 -   **Recommendation:** Implement a post-change hook that runs a health check after a set interval (e.g., 5 mins) and updates this record.
--   **Status:** **Addressed.** The `POSAgentSimulator` in `backend/src/homepot/agents.py` now includes a `_monitor_post_update_performance` background task. This task waits for a settling period (simulated as 5 seconds) after a config update, runs a fresh health check, and populates the `performance_after` and `was_successful` fields in the database.
+-   **Status:** **Addressed.** The `DeviceAgentSimulator` in `backend/src/homepot/agents.py` now includes a `_monitor_post_update_performance` background task. This task waits for a settling period (simulated as 5 seconds) after a config update, runs a fresh health check, and populates the `performance_after` and `was_successful` fields in the database.
 
 ### 4. Frontend Integration
 -   **Observation:** The `user_activities` table is populated with sample data only.

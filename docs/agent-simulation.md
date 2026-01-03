@@ -40,7 +40,7 @@ Each agent follows a realistic lifecycle with the following states:
 
 ## Realistic Data Simulation
 
-The simulation engine (`POSAgentSimulator`) has been enhanced to provide **stateful, cumulative data generation**, ensuring that metrics behave realistically over time rather than being random snapshots.
+The simulation engine (`DeviceAgentSimulator`) has been enhanced to provide **stateful, cumulative data generation**, ensuring that metrics behave realistically over time rather than being random snapshots.
 
 ### Key Features
 

@@ -322,29 +322,29 @@ class JobOrchestrator:
                 )
 
                 # Process results
-                for i, result in enumerate(batch_results):
+                for i, push_result in enumerate(batch_results):
                     device = devices[i]
                     timestamp = datetime.now(timezone.utc).isoformat()
 
-                    if isinstance(result, Exception):
+                    if isinstance(push_result, Exception):
                         failed_pushes += 1
                         device_results.append(
                             {
                                 "device_id": device.device_id,
                                 "status": "push_error",
-                                "error": str(result),
+                                "error": str(push_result),
                                 "timestamp": timestamp,
                             }
                         )
                         logger.error(
-                            f"Failed to send push to {device.device_id}: {result}"
+                            f"Failed to send push to {device.device_id}: {push_result}"
                         )
                         # Log error for AI training
                         await log_error(
                             category="external_service",
                             severity="error",
                             error_message="Failed to send push notification",
-                            exception=result,
+                            exception=push_result,
                             device_id=str(device.device_id),
                             context={
                                 "job_id": str(job.job_id),
@@ -352,7 +352,7 @@ class JobOrchestrator:
                                 "device_name": device.name,
                             },
                         )
-                    elif result:  # Success (True)
+                    elif push_result:  # Success (True)
                         successful_pushes += 1
                         device_results.append(
                             {
@@ -424,7 +424,6 @@ class JobOrchestrator:
                     f"Job {job.job_id} completed successfully: "
                     f"{successful_pushes}/{total_processed} devices"
                 )
-
 
                 # Log successful job outcome for AI training
                 async with db_service.get_session() as session:
