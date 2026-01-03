@@ -284,13 +284,100 @@ class JobOrchestrator:
                     raise ValueError(f"Site not found: {job.site_id}")
                 site_string_id = str(site.site_id)
 
-            # Get target devices for this job using the site's string identifier
-            devices = await db_service.get_devices_by_site_and_segment(
-                site_id=site_string_id,
-                segment=str(job.segment) if job.segment else None,
-            )
+            # SCALABILITY IMPROVEMENT: Process devices in batches
+            # Instead of fetching all devices at once, we process them in chunks
+            # and send notifications in parallel within each chunk.
+            batch_size = 50
+            offset = 0
+            total_processed = 0
+            successful_pushes = 0
+            failed_pushes = 0
+            device_results = []
+            has_devices = False
 
-            if not devices:
+            while True:
+                # Fetch batch of devices
+                devices = await db_service.get_devices_by_site_and_segment_paginated(
+                    site_id=site_string_id,
+                    segment=str(job.segment) if job.segment else None,
+                    limit=batch_size,
+                    offset=offset,
+                )
+
+                if not devices:
+                    break
+
+                has_devices = True
+
+                # Process batch in parallel using asyncio.gather
+                push_tasks = []
+                for device in devices:
+                    push_tasks.append(
+                        self._send_push_notification(device, push_notification)
+                    )
+
+                # Wait for all pushes in this batch to complete
+                batch_results = await asyncio.gather(
+                    *push_tasks, return_exceptions=True
+                )
+
+                # Process results
+                for i, push_result in enumerate(batch_results):
+                    device = devices[i]
+                    timestamp = datetime.now(timezone.utc).isoformat()
+
+                    if isinstance(push_result, Exception):
+                        failed_pushes += 1
+                        device_results.append(
+                            {
+                                "device_id": device.device_id,
+                                "status": "push_error",
+                                "error": str(push_result),
+                                "timestamp": timestamp,
+                            }
+                        )
+                        logger.error(
+                            f"Failed to send push to {device.device_id}: {push_result}"
+                        )
+                        # Log error for AI training
+                        await log_error(
+                            category="external_service",
+                            severity="error",
+                            error_message="Failed to send push notification",
+                            exception=push_result,
+                            device_id=str(device.device_id),
+                            context={
+                                "job_id": str(job.job_id),
+                                "action": job.action,
+                                "device_name": device.name,
+                            },
+                        )
+                    elif push_result:  # Success (True)
+                        successful_pushes += 1
+                        device_results.append(
+                            {
+                                "device_id": device.device_id,
+                                "status": "push_sent",
+                                "timestamp": timestamp,
+                            }
+                        )
+                    else:  # Failure (False)
+                        failed_pushes += 1
+                        device_results.append(
+                            {
+                                "device_id": device.device_id,
+                                "status": "push_failed",
+                                "timestamp": timestamp,
+                            }
+                        )
+
+                total_processed += len(devices)
+                offset += batch_size
+
+                # Small yield to let other tasks run
+                await asyncio.sleep(0.01)
+
+            if not has_devices:
                 # No devices found - mark as completed with warning
                 await db_service.update_job_status(
                     str(job.job_id),
@@ -320,67 +407,9 @@ class JobOrchestrator:
 
                 return
 
-            # Send push notifications to all devices
-            successful_pushes = 0
-            failed_pushes = 0
-            device_results = []
-
-            for device in devices:
-                try:
-                    # Simulate sending push notification
-                    success = await self._send_push_notification(
-                        device, push_notification
-                    )
-
-                    if success:
-                        successful_pushes += 1
-                        device_results.append(
-                            {
-                                "device_id": device.device_id,
-                                "status": "push_sent",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            }
-                        )
-                    else:
-                        failed_pushes += 1
-                        device_results.append(
-                            {
-                                "device_id": device.device_id,
-                                "status": "push_failed",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            }
-                        )
-
-                except Exception as e:
-                    failed_pushes += 1
-                    device_results.append(
-                        {
-                            "device_id": device.device_id,
-                            "status": "push_error",
-                            "error": "Failed to send push notification",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
-                    logger.error(
-                        f"Failed to send push to device {device.device_id}: {e}"
-                    )
-                    # Log error for AI training
-                    await log_error(
-                        category="external_service",
-                        severity="error",
-                        error_message="Failed to send push notification to device",
-                        exception=e,
-                        device_id=str(device.device_id),
-                        context={
-                            "job_id": str(job.job_id),
-                            "action": job.action,
-                            "device_name": device.name,
-                        },
-                    )
-
             # Update job with results
             result = {
-                "total_devices": len(devices),
+                "total_devices": total_processed,
                 "successful_pushes": successful_pushes,
                 "failed_pushes": failed_pushes,
                 "devices": device_results,
@@ -393,7 +422,7 @@ class JobOrchestrator:
                 )
                 logger.info(
                     f"Job {job.job_id} completed successfully: "
-                    f"{successful_pushes}/{len(devices)} devices"
+                    f"{successful_pushes}/{total_processed} devices"
                 )
 
                 # Log successful job outcome for AI training
@@ -411,7 +440,7 @@ class JobOrchestrator:
                         ),
                         initiated_by="orchestrator",
                         extra_data={
-                            "total_devices": len(devices),
+                            "total_devices": total_processed,
                             "successful_pushes": successful_pushes,
                             "site_id": job.site_id,
                             "segment": job.segment,
@@ -425,12 +454,12 @@ class JobOrchestrator:
                     JobStatus.FAILED,
                     result=result,
                     error_message=(
-                        f"Failed to send push to {failed_pushes}/{len(devices)} devices"
+                        f"Failed to send push to {failed_pushes}/{total_processed} devices"
                     ),
                 )
                 logger.warning(
                     f"Job {job.job_id} completed with errors: "
-                    f"{successful_pushes}/{len(devices)} devices successful"
+                    f"{successful_pushes}/{total_processed} devices successful"
                 )
 
                 # Log failed job outcome for AI training
@@ -446,10 +475,10 @@ class JobOrchestrator:
                             ).total_seconds()
                             * 1000
                         ),
-                        error_message=f"Failed to send push to {failed_pushes}/{len(devices)} devices",
+                        error_message=f"Failed to send push to {failed_pushes}/{total_processed} devices",
                         initiated_by="orchestrator",
                         extra_data={
-                            "total_devices": len(devices),
+                            "total_devices": total_processed,
                             "successful_pushes": successful_pushes,
                             "failed_pushes": failed_pushes,
                             "site_id": job.site_id,

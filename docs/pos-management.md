@@ -1,6 +1,11 @@
 # POS Management Guide
 
-This guide covers managing sites, devices, and jobs in your HOMEPOT POS ecosystem.
+This guide covers managing sites, devices, and `job(s)` in your HOMEPOT POS ecosystem.
+
+1. Job (The Goal): "Update all 50 devices at Site A."
+2. Orchestrator (The Manager): Breaks the job down and finds the 50 target devices.
+3. Push Notification (The Message): A specific signal sent to one specific Agent.
+4. Agent (The Worker): Receives the notification, wakes up, and executes the task.
 
 ## Site Management
 

@@ -100,6 +100,24 @@ from homepot.push_notifications.factory import get_fallback_provider
 provider = await get_fallback_provider(['fcm_linux', 'apns_macos', 'simulation'])
 ```
 
+## Scalability & Performance
+
+To ensure the system can handle large-scale deployments (e.g., thousands of devices per site), the push notification system implements several scalability patterns:
+
+### Batch Processing
+The orchestrator processes devices in configurable batches (default: 50) rather than loading all target devices into memory at once. This prevents memory exhaustion when targeting large sites or segments.
+
+### Parallel Execution
+Within each batch, push notifications are sent concurrently using `asyncio.gather`. This significantly reduces the total time required to broadcast messages. For example, sending 50 notifications sequentially with 100ms latency would take 5 seconds, whereas parallel execution takes approximately 100-200ms.
+
+### Database Pagination
+Device retrieval uses efficient database pagination (`LIMIT`/`OFFSET`) to fetch devices in chunks, ensuring consistent memory usage regardless of the total number of devices.
+
+### Resource Management
+- **Connection Pooling**: Database connections are reused efficiently.
+- **Controlled Concurrency**: The batch size limits the number of concurrent network requests to prevent overwhelming external push services or local resources.
+
+
 ### Orchestrator Integration (Automatic)
 ```python
 # Jobs automatically use the new system

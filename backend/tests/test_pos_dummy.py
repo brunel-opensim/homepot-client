@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from homepot.agents import POSAgentSimulator
+from homepot.agents import DeviceAgentSimulator
 
 # Import HOMEPOT components
 from homepot.models import Base, User
@@ -137,7 +137,7 @@ class TestPOSDummy:
         assert hasattr(models, "Device"), "Device model not found"
         assert hasattr(models, "Job"), "Job model not found"
         assert hasattr(database, "DatabaseService"), "DatabaseService not found"
-        assert hasattr(agents, "POSAgentSimulator"), "POSAgentSimulator not found"
+        assert hasattr(agents, "DeviceAgentSimulator"), "DeviceAgentSimulator not found"
 
         print("All critical imports successful")
 
@@ -309,7 +309,7 @@ class TestPOSDummy:
 
         # Step 4: Test agent simulation (basic functionality)
         try:
-            dummy_agent = POSAgentSimulator("POS_DUMMY_DEVICE", "pos_terminal")
+            dummy_agent = DeviceAgentSimulator("POS_DUMMY_DEVICE", "pos_terminal")
             assert (
                 dummy_agent.device_id == "POS_DUMMY_DEVICE"
             ), "Agent initialization failed"

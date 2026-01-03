@@ -26,7 +26,7 @@ const DeviceSettings = lazy(() => import('../pages/Device/DeviceSettings'));
 const PushReview = lazy(() => import('../pages/Device/PushReview'));
 const UserActivity = lazy(() => import('../pages/UserActivity'));
 
-const Agent = lazy(() => import('../pages/Agent'));
+const Agents = lazy(() => import('../pages/Agents'));
 const DataCollection = lazy(() => import('../pages/DataCollection'));
 
 export default function RoutesIndex() {
@@ -65,7 +65,7 @@ export default function RoutesIndex() {
           <Route path="device/:id/settings" element={<DeviceSettings />} />
           <Route path="device/:id/push-review" element={<PushReview />} />
           <Route path="useractivity" element={<UserActivity />} />
-          <Route path="/agents" element={<Agent />} />
+          <Route path="/agents" element={<Agents />} />
 
           {/* If you want / (root after login) to go to /dashboard */}
           <Route index element={<Navigate to="dashboard" replace />} />

@@ -18,7 +18,8 @@ export default function DataCollection() {
   const navigate = useNavigate();
   const [agents, setAgents] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [isCollecting] = useState(true); // Assume collection is active if page is open
+  const [isCollecting, setIsCollecting] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(true);
 
   const fetchAgents = async () => {
     try {
@@ -30,21 +31,59 @@ export default function DataCollection() {
     }
   };
 
+  const fetchStatus = async () => {
+    try {
+      const res = await api.agents.getSimulationStatus();
+      setIsCollecting(res.is_running);
+    } catch (err) {
+      console.error('Failed to fetch simulation status:', err);
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  const toggleCollection = async () => {
+    try {
+      setLoadingStatus(true);
+      if (isCollecting) {
+        await api.agents.stopSimulation();
+      } else {
+        await api.agents.startSimulation();
+      }
+      // Wait a bit for backend to update
+      setTimeout(fetchStatus, 500);
+    } catch (err) {
+      console.error('Failed to toggle simulation:', err);
+      setLoadingStatus(false);
+    }
+  };
+
   useEffect(() => {
+    fetchStatus();
     fetchAgents();
-    const interval = setInterval(fetchAgents, 2000); // Poll every 2 seconds
+    const interval = setInterval(() => {
+      fetchAgents();
+      // Optionally poll status too, but might be overkill
+      fetchStatus();
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
 
   const getStatusBadge = (state) => {
     const baseClasses =
-      'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2';
-    switch (state?.toLowerCase()) {
+      'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 capitalize';
+
+    const s = state?.toLowerCase();
+
+    switch (s) {
       case 'running':
       case 'idle':
+      case 'online':
         return (
-          <span className={`${baseClasses} bg-green-500/10 text-green-500 border-green-500/20`}>
-            Active
+          <span
+            className={`${baseClasses} bg-emerald-500/10 text-emerald-500 border-emerald-500/20`}
+          >
+            {state || 'Online'}
           </span>
         );
       case 'updating':
@@ -53,17 +92,23 @@ export default function DataCollection() {
       case 'health_check':
         return (
           <span className={`${baseClasses} bg-blue-500/10 text-blue-500 border-blue-500/20`}>
-            Updating
+            {state}
           </span>
         );
       case 'error':
         return (
           <span className={`${baseClasses} bg-red-500/10 text-red-500 border-red-500/20`}>
-            Error
+            {state}
           </span>
         );
+      case 'unknown':
+      case 'offline':
       default:
-        return <span className={`${baseClasses} text-foreground`}>{state || 'Unknown'}</span>;
+        return (
+          <span className={`${baseClasses} bg-slate-500/10 text-slate-400 border-slate-500/20`}>
+            {state || 'Unknown'}
+          </span>
+        );
     }
   };
 
@@ -82,7 +127,7 @@ export default function DataCollection() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Data Collection</h1>
-            <p className="text-muted-foreground">Real-time monitoring of POS agent simulation</p>
+            <p className="text-muted-foreground">Real-time monitoring of agents</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -90,11 +135,21 @@ export default function DataCollection() {
             <Activity className="w-4 h-4 animate-pulse text-green-500" />
             Last updated: {lastUpdated.toLocaleTimeString()}
           </div>
-          <Button disabled={isCollecting} variant={isCollecting ? 'secondary' : 'default'}>
-            {isCollecting ? (
+          <Button
+            onClick={toggleCollection}
+            disabled={loadingStatus}
+            variant={isCollecting ? 'secondary' : 'default'}
+            className="min-w-[160px]"
+          >
+            {loadingStatus ? (
               <>
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                Collecting Data...
+                Updating...
+              </>
+            ) : isCollecting ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Stop Collection
               </>
             ) : (
               <>

@@ -319,6 +319,30 @@ const api = {
       const response = await apiClient.post(`/agents/agents/${deviceId}/push`, notificationData);
       return response.data;
     },
+
+    /**
+     * Start simulation
+     */
+    startSimulation: async () => {
+      const response = await apiClient.post('/agents/agents/simulation/start');
+      return response.data;
+    },
+
+    /**
+     * Stop simulation
+     */
+    stopSimulation: async () => {
+      const response = await apiClient.post('/agents/agents/simulation/stop');
+      return response.data;
+    },
+
+    /**
+     * Get simulation status
+     */
+    getSimulationStatus: async () => {
+      const response = await apiClient.get('/agents/agents/simulation/status');
+      return response.data;
+    },
   },
 
   // ==================== Push Notifications ====================

@@ -1,6 +1,6 @@
-"""POS Agent Simulation for HOMEPOT Client.
+"""Device Agent Simulation for HOMEPOT Client.
 
-This module implements mock POS agents that simulate real-world device behavior:
+This module implements mock device agents that simulate real-world device behavior:
 - Respond to push notifications
 - Download and apply configuration updates
 - Run health checks and report status
@@ -14,7 +14,7 @@ not for cryptographic operations. S311 warnings are expected and acceptable here
 
 import asyncio
 import logging
-import random  # nosec - Used for POS device simulation, not cryptographic purposes
+import random  # nosec - Used for device simulation, not cryptographic purposes
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, cast
@@ -42,24 +42,24 @@ class AgentState(str, Enum):
     ERROR = "error"
 
 
-class POSAgentSimulator:
-    """Simulates a POS agent that responds to push notifications and runs health checks.
+class DeviceAgentSimulator:
+    """Simulates a device agent that responds to push notifications and runs health checks.
 
-    This simulates realistic POS terminal behavior:
+    This simulates realistic device behavior:
     1. Receives push notification from orchestrator
     2. Downloads new configuration from provided URL
     3. Validates and applies configuration
-    4. Restarts POS application
+    4. Restarts application
     5. Runs health check
     6. Sends ACK back to HOMEPOT
     """
 
-    def __init__(self, device_id: str, device_type: str = "pos_terminal"):
-        """Initialize a POS agent with device configuration.
+    def __init__(self, device_id: str, device_type: str = "device"):
+        """Initialize a device agent with device configuration.
 
         Args:
-            device_id: Unique identifier for the POS device
-            device_type: Type of device, defaults to "pos_terminal"
+            device_id: Unique identifier for the device
+            device_type: Type of device, defaults to "device"
         """
         self.device_id = device_id
         self.device_type = device_type
@@ -72,7 +72,7 @@ class POSAgentSimulator:
 
         # Simulate device characteristics
         self.device_info = {
-            "model": "POS-Terminal-X1",
+            "model": "Generic-Device-X1",
             "firmware": "2.4.1",
             "os": "Linux ARM",
             "memory_mb": 2048,
@@ -85,7 +85,7 @@ class POSAgentSimulator:
         self.transaction_volume = random.uniform(1000.0, 5000.0)
         self.uptime_seconds = random.randint(3600, 86400 * 7)
 
-        logger.info(f"POS Agent {device_id} ({device_type}) initialized")
+        logger.info(f"Device Agent {device_id} ({device_type}) initialized")
 
     async def start(self) -> None:
         """Start the agent simulator."""
@@ -622,11 +622,11 @@ class POSAgentSimulator:
 
 
 class AgentManager:
-    """Manages all POS agent simulators."""
+    """Manages all device agent simulators."""
 
     def __init__(self) -> None:
         """Initialize the agent manager with empty agent registry."""
-        self.agents: Dict[str, POSAgentSimulator] = {}
+        self.agents: Dict[str, DeviceAgentSimulator] = {}
         self.is_running = False
 
     async def start(self) -> None:
@@ -691,7 +691,7 @@ class AgentManager:
         """Start an agent for a specific device."""
         if device_id not in self.agents:
             # Fix: Pass device_type explicitly, don't use name as type
-            agent = POSAgentSimulator(device_id, device_type="pos_terminal")
+            agent = DeviceAgentSimulator(device_id, device_type="pos_terminal")
             self.agents[device_id] = agent
             await agent.start()
             logger.info(f"Started agent for device {device_id} ({device_name})")
