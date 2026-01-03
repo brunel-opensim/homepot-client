@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Radio } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
+  AlertsWidget,
   AuditWidget,
   CommandHistoryWidget,
   DeviceActionsWidget,
@@ -85,6 +86,7 @@ export default function Device() {
   const navigate = useNavigate();
 
   const [device, setDevice] = useState(null);
+  const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -129,6 +131,27 @@ export default function Device() {
           setError('Device not found.');
         } else {
           setDevice(deviceData);
+
+          // Fetch device health/alerts from AI anomalies to ensure consistency with Dashboard
+          try {
+            const anomalyData = await api.ai.getAnomalies();
+            if (anomalyData && anomalyData.anomalies) {
+              // Filter anomalies for this specific device
+              const deviceAnomalies = anomalyData.anomalies
+                .filter((a) => a.device_id === id)
+                .map((a) => ({
+                  message:
+                    a.reasons && a.reasons.length > 0
+                      ? a.reasons[0]
+                      : `${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
+                  timestamp: a.timestamp,
+                  severity: a.severity,
+                }));
+              setAlerts(deviceAnomalies);
+            }
+          } catch (healthErr) {
+            console.warn('Failed to fetch device health:', healthErr);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch device:', err);
@@ -480,6 +503,9 @@ export default function Device() {
 
           {/* Main Grid */}
           <div className="flex flex-col gap-6">
+            {/* Alerts Widget */}
+            <AlertsWidget alerts={alerts} />
+
             {/* Tier 2: Metrics Row (6 columns) */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {metrics.map((metric) => (

@@ -121,7 +121,10 @@ export default function Dashboard() {
           const anomalyData = await api.ai.getAnomalies();
           if (anomalyData && anomalyData.anomalies) {
             finalAlerts = anomalyData.anomalies.map((a) => ({
-              message: `${a.device_name}: ${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
+              message:
+                a.reasons && a.reasons.length > 0
+                  ? `${a.device_name}: ${a.reasons[0]}`
+                  : `${a.device_name}: ${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
               timestamp: a.timestamp,
               severity: a.severity,
               device_id: a.device_id,

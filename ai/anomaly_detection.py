@@ -41,7 +41,7 @@ class AnomalyDetector:
             "consecutive_failures": config_thresholds.get("consecutive_failures", 3),
         }
 
-    def check_anomaly(self, metrics: Dict[str, Any]) -> float:
+    def check_anomaly(self, metrics: Dict[str, Any]) -> tuple[float, list[str]]:
         """Calculate anomaly score (0.0 to 1.0) based on metrics.
 
         Args:
@@ -50,7 +50,7 @@ class AnomalyDetector:
                      error_rate, network_latency_ms, flapping_count, consecutive_failures
 
         Returns:
-            float: Anomaly score where 0.0 is normal and 1.0 is critical.
+            tuple: (Anomaly score, List of anomaly descriptions)
         """
         score = 0.0
         anomalies = []
@@ -115,8 +115,8 @@ class AnomalyDetector:
                     f"Anomaly detected (score={final_score:.2f}): {', '.join(anomalies)}"
                 )
 
-            return final_score
+            return final_score, anomalies
 
         except Exception as e:
             logger.error(f"Error checking anomalies: {e}")
-            return 0.0
+            return 0.0, []

@@ -153,7 +153,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                 device_metrics["consecutive_failures"] = float(consecutive_failures)
 
                 # 5. Run Detection
-                score = detector.check_anomaly(device_metrics)
+                score, reasons = detector.check_anomaly(device_metrics)
 
                 if score > 0:
                     anomalies.append(
@@ -161,6 +161,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                             "device_id": device.device_id,
                             "device_name": device.name,
                             "score": round(score, 2),
+                            "reasons": reasons,
                             "severity": "critical" if score >= 0.8 else "warning",
                             "metrics": device_metrics,
                             "timestamp": datetime.utcnow().isoformat(),

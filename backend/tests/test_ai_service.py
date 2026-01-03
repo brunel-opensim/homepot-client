@@ -42,17 +42,19 @@ def test_anomaly_detector_normal_metrics():
         "error_rate": 0.0,
         "network_latency_ms": 50.0,
     }
-    score = detector.check_anomaly(normal_metrics)
+    score, reasons = detector.check_anomaly(normal_metrics)
     assert score == 0.0
+    assert len(reasons) == 0
 
 
 def test_anomaly_detector_high_cpu():
     """Test that high CPU triggers an anomaly score."""
     detector = AnomalyDetector()
     metrics = {"cpu_percent": 95.0, "memory_percent": 50.0}  # Above 90.0 threshold
-    score = detector.check_anomaly(metrics)
+    score, reasons = detector.check_anomaly(metrics)
     assert score > 0.0
     assert score == 0.2  # Based on the logic we wrote (0.2 for CPU)
+    assert len(reasons) > 0
 
 
 def test_anomaly_detector_capped_score():
@@ -64,7 +66,7 @@ def test_anomaly_detector_capped_score():
         "network_latency_ms": 2000,  # +0.4
     }
     # Sum is 1.1, but should be capped at 1.0
-    score = detector.check_anomaly(metrics)
+    score, reasons = detector.check_anomaly(metrics)
     assert score == 1.0
 
 
@@ -126,7 +128,7 @@ async def test_analyze_endpoint_logic():
         )
 
         mock_detector_instance = MockDetector.return_value
-        mock_detector_instance.check_anomaly.return_value = 0.8
+        mock_detector_instance.check_anomaly.return_value = (0.8, ["High CPU"])
 
         # Create a request object
         from ai.api import AnalysisRequest
