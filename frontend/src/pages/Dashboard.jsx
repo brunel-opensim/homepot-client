@@ -116,20 +116,22 @@ export default function Dashboard() {
         // const metrics = await api.analytics.getDashboardMetrics(); // Deprecated for alerts
 
         // 4. Fetch AI Anomalies
+        let finalAlerts = [];
         try {
           const anomalyData = await api.ai.getAnomalies();
           if (anomalyData && anomalyData.anomalies) {
-            const formattedAlerts = anomalyData.anomalies.map((a) => ({
+            finalAlerts = anomalyData.anomalies.map((a) => ({
               message: `${a.device_name}: ${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
               timestamp: a.timestamp,
               severity: a.severity,
               device_id: a.device_id,
             }));
-            setAlerts(formattedAlerts);
           }
         } catch (e) {
           console.error('Failed to fetch anomalies:', e);
         }
+
+        setAlerts(finalAlerts);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
       } finally {

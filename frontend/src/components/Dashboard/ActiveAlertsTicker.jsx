@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, AlertTriangle, AlertCircle, CheckCircle2, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, AlertCircle, CheckCircle2, Maximize2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -11,21 +11,33 @@ import {
 } from "@/components/ui/dialog";
 
 const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
-  const alerts = rawAlerts || [];
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+    const saved = localStorage.getItem('dismissedAlerts');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Filter out dismissed alerts
+  const alerts = (rawAlerts || []).filter(alert => {
+    const alertId = alert.device_id && alert.timestamp ? `${alert.device_id}-${alert.timestamp}` : null;
+    return !alertId || !dismissedAlerts.includes(alertId);
+  });
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const navigate = useNavigate();
 
   // Auto-rotation logic
   useEffect(() => {
-    if (alerts.length <= 1 || isPaused) return;
+    // Don't rotate if paused, dialog is open, or not enough alerts
+    if (alerts.length <= 1 || isPaused || isDialogOpen) return;
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % alerts.length);
     }, 4000); // Rotate every 4 seconds
 
     return () => clearInterval(interval);
-  }, [alerts.length, isPaused]);
+  }, [alerts.length, isPaused, isDialogOpen]);
 
   const handleNext = (e) => {
     e.stopPropagation();
@@ -35,6 +47,21 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
   const handlePrev = (e) => {
     e.stopPropagation();
     setCurrentIndex((prev) => (prev - 1 + alerts.length) % alerts.length);
+  };
+
+  const handleDismiss = (e, alert) => {
+    e.stopPropagation();
+    if (!alert.device_id || !alert.timestamp) return;
+    
+    const alertId = `${alert.device_id}-${alert.timestamp}`;
+    const newDismissed = [...dismissedAlerts, alertId];
+    setDismissedAlerts(newDismissed);
+    localStorage.setItem('dismissedAlerts', JSON.stringify(newDismissed));
+    
+    // Adjust index if needed
+    if (currentIndex >= alerts.length - 1) {
+      setCurrentIndex(Math.max(0, alerts.length - 2));
+    }
   };
 
   // Ensure safe index access in case alerts array changes size
@@ -76,8 +103,12 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
     >
       {/* Main Ticker Card */}
       <div 
-        className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-300 ${styles.borderClass} cursor-pointer hover:bg-opacity-20`}
-        onClick={() => currentAlert?.device_id && navigate(`/device/${currentAlert.device_id}`)}
+        className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-300 ${styles.borderClass} ${currentAlert?.device_id && !currentAlert.device_id.startsWith('mock-') ? 'cursor-pointer hover:bg-opacity-20' : ''}`}
+        onClick={() => {
+          if (currentAlert?.device_id && !currentAlert.device_id.startsWith('mock-')) {
+            navigate(`/device/${currentAlert.device_id}`);
+          }
+        }}
       >
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="shrink-0 animate-pulse">
@@ -122,30 +153,40 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
           </Button>
           
           {/* Expand Button */}
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button 
                 variant="ghost" 
                 size="icon" 
                 className="h-6 w-6 hover:bg-gray-800 border-l border-gray-800 ml-1"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPaused(true); // Pause when opening
+                }}
               >
                 <Maximize2 className="w-3 h-3 text-gray-400" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-[#080A0A] border-gray-800 text-gray-200 max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent 
+              className="bg-[#080A0A] border-gray-800 text-gray-200 max-w-2xl max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDownOutside={() => setIsPaused(false)} // Resume when clicking outside
+              onCloseAutoFocus={() => setIsPaused(false)} // Resume when closing
+            >
               <DialogHeader>
                 <DialogTitle>Active Alerts ({alerts.length})</DialogTitle>
               </DialogHeader>
               <div className="space-y-2 mt-4">
                 {alerts.map((alert, idx) => {
                   const alertStyles = getSeverityStyles(alert.severity);
+                  const isMock = alert.device_id && alert.device_id.startsWith('mock-');
+                  
                   return (
                     <div 
                       key={idx}
-                      className={`flex items-center gap-3 p-3 rounded-lg border ${alertStyles.borderClass} cursor-pointer hover:bg-opacity-20`}
+                      className={`flex items-center gap-3 p-3 rounded-lg border ${alertStyles.borderClass} ${isMock ? '' : 'cursor-pointer hover:bg-opacity-20'} group/item`}
                       onClick={() => {
-                        if (alert.device_id) {
+                        if (alert.device_id && !isMock) {
                           navigate(`/device/${alert.device_id}`);
                         }
                       }}
@@ -156,9 +197,19 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
                           <span className={`font-medium ${alertStyles.textClass}`}>
                             {alert.message || 'Alert'}
                           </span>
-                          <span className="text-xs text-gray-500">
-                            {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : ''}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">
+                              {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : ''}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 opacity-0 group-hover/item:opacity-100 hover:bg-red-500/20 hover:text-red-400 transition-all"
+                              onClick={(e) => handleDismiss(e, alert)}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -167,6 +218,17 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Dismiss Button (Ticker View) */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6 hover:bg-red-500/20 hover:text-red-400 border-l border-gray-800 ml-1"
+            onClick={(e) => handleDismiss(e, currentAlert)}
+            title="Dismiss alert"
+          >
+            <X className="w-3 h-3" />
+          </Button>
         </div>
       </div>
       
