@@ -6,6 +6,7 @@ import api from '@/services/api';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
+import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
 
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
@@ -337,26 +338,7 @@ export default function Dashboard() {
           <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold text-white mb-2">Active Alerts</h2>
-              <ul className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
-                {alerts.length > 0 ? (
-                  alerts.map((alert, i) => (
-                    <li
-                      key={i}
-                      onClick={() => alert.device_id && navigate(`/device/${alert.device_id}`)}
-                      className={`text-sm cursor-pointer hover:underline ${
-                        alert.severity === 'critical' ? 'text-red-500 font-bold' : 'text-orange-400'
-                      }`}
-                    >
-                      {alert.message} –{' '}
-                      <span className="text-gray-500 text-xs">
-                        {new Date(alert.timestamp).toLocaleTimeString()}
-                      </span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-green-500 text-sm">All systems normal</li>
-                )}
-              </ul>
+              <ActiveAlertsTicker alerts={alerts} />
             </CardContent>
           </Card>
 
