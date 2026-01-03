@@ -1,4 +1,4 @@
-import { Loader2, Terminal, X } from 'lucide-react';
+import { Loader2, Terminal, X, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
 import React from 'react';
 
 /* === Reusable UI Components === */
@@ -88,6 +88,59 @@ export function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40, animated 
 }
 
 /* === Feature Widgets === */
+
+export const AlertsWidget = ({ alerts = [] }) => {
+  if (!alerts || alerts.length === 0) {
+    return (
+      <Card className="lg:col-span-4">
+        <h3 className="text-sm text-slate-300 font-medium mb-3">ACTIVE ALERTS</h3>
+        <div className="border-t border-[#1f2735] mb-2"></div>
+        <div className="flex items-center gap-2 text-emerald-400 text-sm p-2 bg-emerald-500/5 rounded border border-emerald-500/20">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>No active alerts</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="lg:col-span-4">
+      <h3 className="text-sm text-slate-300 font-medium mb-3">ACTIVE ALERTS</h3>
+      <div className="border-t border-[#1f2735] mb-2"></div>
+      <div className="space-y-2">
+        {alerts.map((alert, idx) => {
+          const isCritical = alert.severity === 'critical';
+          return (
+            <div
+              key={idx}
+              className={`flex items-start gap-3 p-3 rounded border ${
+                isCritical
+                  ? 'bg-red-500/10 border-red-500/30'
+                  : 'bg-orange-500/10 border-orange-500/30'
+              }`}
+            >
+              {isCritical ? (
+                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div
+                  className={`text-sm font-medium ${isCritical ? 'text-red-400' : 'text-orange-300'}`}
+                >
+                  {alert.message}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'Just now'}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
 
 export const HealthWidget = ({ stats, sparkData }) => (
   <LargeCard className="md:col-span-2">

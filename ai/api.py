@@ -247,7 +247,7 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
         )
 
         # 1. Rule-Based Analysis (Fast & Deterministic)
-        anomaly_score = anomaly_detector.check_anomaly(request.metrics)
+        anomaly_score, anomaly_reasons = anomaly_detector.check_anomaly(request.metrics)
 
         # 2. Retrieve Context
         recent_events_summary = event_store.get_events_summary(request.device_id)
@@ -258,6 +258,7 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
             f"Analyze these metrics for device {request.device_id}.\n"
             f"Current Metrics: {request.metrics}\n"
             f"Automated Anomaly Score: {anomaly_score}/1.0\n"
+            f"Detected Anomalies: {', '.join(anomaly_reasons)}\n"
             f"Recent Events Context:\n{recent_events_summary}\n"
             f"Task: Explain any anomalies found and recommend actions."
         )

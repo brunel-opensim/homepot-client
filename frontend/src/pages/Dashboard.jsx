@@ -6,6 +6,7 @@ import api from '@/services/api';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
+import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
 
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
@@ -115,20 +116,25 @@ export default function Dashboard() {
         // const metrics = await api.analytics.getDashboardMetrics(); // Deprecated for alerts
 
         // 4. Fetch AI Anomalies
+        let finalAlerts = [];
         try {
           const anomalyData = await api.ai.getAnomalies();
           if (anomalyData && anomalyData.anomalies) {
-            const formattedAlerts = anomalyData.anomalies.map((a) => ({
-              message: `${a.device_name}: ${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
+            finalAlerts = anomalyData.anomalies.map((a) => ({
+              message:
+                a.reasons && a.reasons.length > 0
+                  ? `${a.device_name}: ${a.reasons[0]}`
+                  : `${a.device_name}: ${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
               timestamp: a.timestamp,
               severity: a.severity,
               device_id: a.device_id,
             }));
-            setAlerts(formattedAlerts);
           }
         } catch (e) {
           console.error('Failed to fetch anomalies:', e);
         }
+
+        setAlerts(finalAlerts);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
       } finally {
@@ -337,26 +343,7 @@ export default function Dashboard() {
           <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold text-white mb-2">Active Alerts</h2>
-              <ul className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
-                {alerts.length > 0 ? (
-                  alerts.map((alert, i) => (
-                    <li
-                      key={i}
-                      onClick={() => alert.device_id && navigate(`/device/${alert.device_id}`)}
-                      className={`text-sm cursor-pointer hover:underline ${
-                        alert.severity === 'critical' ? 'text-red-500 font-bold' : 'text-orange-400'
-                      }`}
-                    >
-                      {alert.message} –{' '}
-                      <span className="text-gray-500 text-xs">
-                        {new Date(alert.timestamp).toLocaleTimeString()}
-                      </span>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-green-500 text-sm">All systems normal</li>
-                )}
-              </ul>
+              <ActiveAlertsTicker alerts={alerts} />
             </CardContent>
           </Card>
 

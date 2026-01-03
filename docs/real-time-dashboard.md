@@ -135,6 +135,17 @@ curl http://localhost:8000/agents/POS_TERMINAL_001
 3. **Status Indicators**: Click for recent events and actions
 4. **Agent List**: Expandable view of all POS terminals
 
+### Active Alerts Ticker
+
+A real-time ticker at the top of the dashboard displaying critical system alerts.
+
+- **Auto-Rotation**: Cycles through active alerts automatically.
+- **Interaction**:
+    - **Pause**: Hovering over the ticker pauses rotation.
+    - **Dismiss**: Users can dismiss specific alerts. Dismissed alerts are persisted in local storage and won't reappear.
+    - **View All**: A "View All" button opens a dialog showing all active alerts in a list.
+    - **Navigation**: Clicking an alert card navigates to the specific device or site details.
+
 ### Navigation
 
 - **Dashboard Home**: Overview of all sites and agents
