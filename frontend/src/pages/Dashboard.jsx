@@ -9,6 +9,20 @@ import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
+  const [heartbeatIndices, setHeartbeatIndices] = useState(new Set());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newIndices = new Set();
+      // Randomly activate 1-3 "heartbeats"
+      const count = Math.floor(Math.random() * 3) + 1;
+      for (let k = 0; k < count; k++) {
+        newIndices.add(Math.floor(Math.random() * 12));
+      }
+      setHeartbeatIndices(newIndices);
+    }, 600);
+    return () => clearInterval(interval);
+  }, []);
 
   // Apple Icon (light grey)
   const AppleIcon = () => (
@@ -214,16 +228,22 @@ export default function Dashboard() {
             <CardContent className="p-4">
               <h2 className="text-lg font-semibold text-white mb-2">Heartbeat Status</h2>
               <div className="flex space-x-2">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`w-4 h-4 rounded-full ${
-                      i % 4 === 0 ? 'bg-green-400' : i % 3 === 0 ? 'bg-orange-400' : 'bg-gray-600'
-                    }`}
-                  ></span>
-                ))}
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const isActive = heartbeatIndices.has(i);
+                  // Occasionally show orange to simulate minor latency/issues, mostly green
+                  const colorClass = isActive 
+                    ? (Math.random() > 0.9 ? 'bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.6)]' : 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]')
+                    : 'bg-gray-800';
+                  
+                  return (
+                    <span
+                      key={i}
+                      className={`w-4 h-4 rounded-full transition-all duration-500 ${colorClass} ${isActive ? 'scale-110' : 'scale-100'}`}
+                    ></span>
+                  );
+                })}
               </div>
-              <p className="text-xs text-gray-400 mt-2">Last 5 min</p>
+              <p className="text-xs text-gray-400 mt-2">Real-time device pings</p>
             </CardContent>
           </Card>
 
