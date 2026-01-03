@@ -69,7 +69,7 @@ export default function AskAIWidget() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g., Why is the kitchen camera failing?"
+            placeholder="e.g., How is our system performing today?"
             className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
             disabled={loading}
           />

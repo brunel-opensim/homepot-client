@@ -39,6 +39,20 @@ class Token(BaseModel):
     token_type: str
 
 
+class SystemPulseResponse(BaseModel):
+    """Schema for system pulse/load metrics."""
+
+    status: str  # "idle", "working", "busy"
+    load_score: int  # 0-100
+    active_jobs: int
+    queue_depth: int
+    active_agents: int
+    total_agents: int
+    requests_per_minute: int
+    cpu_percent: Optional[float] = None
+    memory_percent: Optional[float] = None
+
+
 class UserDict(TypedDict):
     """TypedDict for user information extracted from JWT token."""
 

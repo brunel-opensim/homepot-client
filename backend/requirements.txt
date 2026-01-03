@@ -33,6 +33,7 @@ rich==14.2.0  # For rich terminal output
 click==8.3.1  # Composable command line interface toolkit
 typer==0.20.1  # For CLI interface
 pyyaml==6.0.3  # For YAML configuration
+psutil>=5.9.0  # Cross-platform process and system utilities
 
 # AI Dependencies
 chromadb==1.4.0  # Vector database for AI memory and embeddings
@@ -96,4 +97,3 @@ types-passlib==1.7.7.20250602  # Type stubs for passlib
 types-requests==2.32.4.20250913  # Type stubs for requests
 types-psutil==7.0.0.20251001  # Type stubs for psutil
 types-PyYAML==6.0.12.20250915  # Type stubs for PyYAML
-psutil==5.9.8

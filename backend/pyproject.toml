@@ -44,6 +44,7 @@ dependencies = [
     "typer>=0.9.0",
     "pyyaml>=6.0.1",
     "python-dotenv>=1.0.0",
+    "psutil>=5.9.0",
     # AI Dependencies
     "chromadb>=0.4.0",
     "ollama>=0.1.0",
