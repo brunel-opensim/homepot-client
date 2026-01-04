@@ -5,9 +5,9 @@ import sys
 from pathlib import Path
 
 # Add backend src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from homepot.error_logger import log_error
+from homepot.error_logger import log_error  # noqa: E402
 
 
 async def test_error_logging():

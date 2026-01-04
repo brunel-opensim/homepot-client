@@ -1,17 +1,14 @@
 """API endpoints for managing Device in the HomePot system."""
 
 import logging
-import secrets
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy.exc import IntegrityError
 
-from homepot.app.auth_utils import hash_password
+from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
-from homepot.models import DeviceType
 
 client_instance: Optional[HomepotClient] = None
 
@@ -26,70 +23,110 @@ router = APIRouter()
 class CreateDeviceRequest(BaseModel):
     """Request model for creating a new device."""
 
+    site_id: str
     device_id: str
     name: str
-    device_type: str = DeviceType.POS_TERMINAL
+    device_type: str
     ip_address: Optional[str] = None
-    config: Optional[Dict] = None
+    mac_address: Optional[str] = None
+    firmware_version: Optional[str] = None
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "device_id": "pos-terminal-001",
-                "name": "POS Terminal 1",
+                "site_id": "site-123",
+                "device_id": "pos-001",
+                "name": "Main POS Terminal",
                 "device_type": "pos_terminal",
-                "ip_address": "192.168.1.10",
-                "config": {"gateway_url": "https://payments.example.com"},
+                "ip_address": "192.168.1.100",
+                "mac_address": "00:11:22:33:44:55",
+                "firmware_version": "1.0.0",
             }
         }
     )
 
 
-@router.post(
-    "/sites/{site_id}/devices", tags=["Devices"], response_model=Dict[str, str]
-)
-async def create_device(
-    site_id: str, device_request: CreateDeviceRequest
-) -> Dict[str, str]:
-    """Create a new device for a site."""
+class UpdateDeviceRequest(BaseModel):
+    """Request model for updating an existing device."""
+
+    name: Optional[str] = None
+    device_type: Optional[str] = None
+    ip_address: Optional[str] = None
+    mac_address: Optional[str] = None
+    firmware_version: Optional[str] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "Updated POS Terminal",
+                "device_type": "pos_terminal",
+                "ip_address": "192.168.1.101",
+                "mac_address": "00:11:22:33:44:55",
+                "firmware_version": "1.0.1",
+            }
+        }
+    )
+
+
+@router.post("/device", tags=["Devices"])
+async def create_device(device_request: CreateDeviceRequest) -> Dict[str, Any]:
+    """Create a new device."""
     try:
         db_service = await get_database_service()
 
-        # Get site
-        site = await db_service.get_site_by_site_id(site_id)
-        if not site:
-            raise HTTPException(status_code=404, detail=f"Site {site_id} not found")
+        # Check if device already exists
+        existing_device = await db_service.get_device_by_device_id(
+            device_request.device_id
+        )
+        if existing_device:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Device {device_request.device_id} already exists",
+            )
 
-        # Generate API Key
-        api_key = secrets.token_urlsafe(32)
-        api_key_hash = hash_password(api_key)
+        # Verify site exists
+        site = await db_service.get_site_by_site_id(device_request.site_id)
+        if not site:
+            raise HTTPException(
+                status_code=404, detail=f"Site {device_request.site_id} not found"
+            )
 
         # Create device
         device = await db_service.create_device(
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=site_id,
+            site_id=device_request.site_id,
             ip_address=device_request.ip_address,
-            config=device_request.config,
-            api_key_hash=api_key_hash,
+            config={
+                "mac_address": device_request.mac_address,
+                "firmware_version": device_request.firmware_version,
+            },
         )
 
-        logger.info(f"Created device {device.device_id} for site {site_id}")
+        # Log audit event
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_CREATED,
+            f"Device '{device.name}' registered with ID {device.device_id}",
+            site_id=int(site.id),
+            device_id=int(device.id),
+            new_values={
+                "device_id": str(device.device_id),
+                "name": str(device.name),
+                "site_id": str(device.site_id),
+                "type": str(device.device_type),
+            },
+        )
+
         return {
-            "message": f"Device {device.device_id} created successfully",
-            "device_id": str(device.device_id),
-            "site_id": site_id,
-            "api_key": api_key,  # Return only once
+            "message": "Device created successfully",
+            "device_id": device.device_id,
+            "name": device.name,
         }
 
     except HTTPException:
         raise
-    except IntegrityError:
-        logger.warning(f"Device {device_request.device_id} already exists")
-        raise HTTPException(
-            status_code=409, detail=f"Device {device_request.device_id} already exists"
-        )
     except Exception as e:
         logger.error(f"Failed to create device: {e}", exc_info=True)
         raise HTTPException(
@@ -160,7 +197,12 @@ async def get_device(device_id: str) -> Dict[str, Any]:
             "site_id": device.site_id,
             "device_id": device.device_id,
             "name": device.name,
+            "device_type": device.device_type,
             "ip_address": device.ip_address,
+            "mac_address": device.config.get("mac_address") if device.config else None,
+            "firmware_version": (
+                device.config.get("firmware_version") if device.config else None
+            ),
             "is_monitored": device.is_monitored,
             "created_at": device.created_at.isoformat() if device.created_at else None,
             "updated_at": device.updated_at.isoformat() if device.updated_at else None,
@@ -173,6 +215,90 @@ async def get_device(device_id: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail="Failed to get Device. Please check server logs."
         )
+
+
+@router.put("/device/{device_id}", tags=["Devices"])
+async def update_device(
+    device_id: str, device_request: UpdateDeviceRequest
+) -> Dict[str, Any]:
+    """Update an existing device."""
+    try:
+        db_service = await get_database_service()
+
+        # Prepare config update
+        config_update = {}
+        if device_request.mac_address:
+            config_update["mac_address"] = device_request.mac_address
+        if device_request.firmware_version:
+            config_update["firmware_version"] = device_request.firmware_version
+
+        # Update device
+        updated_device = await db_service.update_device(
+            device_id=device_id,
+            name=device_request.name,
+            device_type=device_request.device_type,
+            ip_address=device_request.ip_address,
+            config=config_update if config_update else None,
+        )
+
+        if not updated_device:
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
+
+        # Get site for audit logging (need integer ID)
+        site = await db_service.get_site_by_site_id(updated_device.site_id)  # type: ignore
+        site_pk = int(site.id) if site else None
+
+        # Log audit event
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_UPDATED,
+            f"Device '{updated_device.name}' updated",
+            device_id=int(updated_device.id),
+            site_id=site_pk,
+            new_values={
+                "name": str(updated_device.name),
+                "type": str(updated_device.device_type),
+                "ip": str(updated_device.ip_address),
+            },
+        )
+
+        return {
+            "message": "Device updated successfully",
+            "device_id": updated_device.device_id,
+            "name": updated_device.name,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update device {device_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to update device. Please check server logs."
+        )
+
+
+@router.delete("/device/{device_id}", tags=["Devices"])
+async def delete_device(device_id: str) -> Dict[str, Any]:
+    """Delete a device and all associated data."""
+    try:
+        db_service = await get_database_service()
+
+        success = await db_service.delete_device(device_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
+
+        return {"message": f"Device '{device_id}' deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete device {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.put("/device/{device_id}/monitor", tags=["Devices"])

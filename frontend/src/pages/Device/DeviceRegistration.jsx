@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 
 export default function DeviceRegistration() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -38,8 +39,23 @@ export default function DeviceRegistration() {
         const response = await api.sites.list();
         const sitesList = response.sites || [];
         setSites(sitesList);
-        if (sitesList.length > 0) {
-          setFormData((prev) => ({ ...prev, site_id: sitesList[0].site_id }));
+
+        // Check if siteId was passed in navigation state
+        if (location.state?.siteId) {
+          // Verify the passed siteId exists in the fetched list
+          const preSelectedSite = sitesList.find(
+            (s) => s.site_id === location.state.siteId || s.id === location.state.siteId
+          );
+          if (preSelectedSite) {
+            setFormData((prev) => ({
+              ...prev,
+              site_id: preSelectedSite.site_id || preSelectedSite.id,
+            }));
+          } else if (sitesList.length > 0) {
+            setFormData((prev) => ({ ...prev, site_id: sitesList[0].site_id || sitesList[0].id }));
+          }
+        } else if (sitesList.length > 0) {
+          setFormData((prev) => ({ ...prev, site_id: sitesList[0].site_id || sitesList[0].id }));
         }
       } catch (err) {
         console.error('Failed to fetch sites:', err);
@@ -65,7 +81,13 @@ export default function DeviceRegistration() {
     try {
       // api.devices.create(siteId, deviceData)
       await api.devices.create(formData.site_id, formData);
-      navigate('/device'); // Redirect to device list
+
+      // Always redirect to the site page where the device was registered
+      if (formData.site_id) {
+        navigate(`/sites/${formData.site_id}`);
+      } else {
+        navigate('/device');
+      }
     } catch (err) {
       console.error('Failed to register device:', err);
       setError(api.apiHelpers?.formatError(err) || 'Failed to register device. Please try again.');
@@ -82,16 +104,31 @@ export default function DeviceRegistration() {
     );
   }
 
+  const getBackTarget = () => {
+    if (location.state?.siteId) return `/sites/${location.state.siteId}`;
+    if (formData.site_id) return `/sites/${formData.site_id}`;
+    return '/device';
+  };
+
+  const getBackLabel = () => {
+    if (location.state?.siteId) return 'Back to Site';
+    if (formData.site_id) {
+      const site = sites.find((s) => s.site_id === formData.site_id);
+      return site ? `Back to ${site.name}` : 'Back to Site';
+    }
+    return 'Back to Devices';
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground py-6 px-4">
       <div className="container mx-auto max-w-2xl">
         <Button
           variant="ghost"
-          onClick={() => navigate('/device')}
+          onClick={() => navigate(getBackTarget())}
           className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Devices
+          {getBackLabel()}
         </Button>
 
         <div className="mb-6">

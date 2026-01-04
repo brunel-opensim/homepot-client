@@ -1,6 +1,7 @@
 """Tests for device command management."""
 
 import os
+import secrets
 import tempfile
 
 import pytest
@@ -9,8 +10,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import homepot.database
+from homepot.app.auth_utils import hash_password
 from homepot.config import reload_settings
-from homepot.models import Base
+from homepot.models import Base, Device
 
 
 @pytest.fixture(autouse=True)
@@ -83,16 +85,24 @@ def test_device_command_flow(client: TestClient):
 
     # 2. Create Device
     device_id = "test-device-cmd-flow"
-    device_data = {
-        "device_id": device_id,
-        "name": "Command Flow Device",
-        "device_type": "pos_terminal",
-    }
-    response = client.post(f"/api/v1/devices/sites/{site_id}/devices", json=device_data)
-    assert response.status_code == 200
-    data = response.json()
-    assert "api_key" in data
-    api_key = data["api_key"]
+
+    # Create device directly in DB since API endpoint is removed
+    api_key = secrets.token_urlsafe(32)
+    api_key_hash = hash_password(api_key)
+
+    db = homepot.database.SessionLocal()
+    try:
+        device = Device(
+            device_id=device_id,
+            name="Command Flow Device",
+            device_type="pos_terminal",
+            site_id=site_id,
+            api_key_hash=api_key_hash,
+        )
+        db.add(device)
+        db.commit()
+    finally:
+        db.close()
 
     # 3. Queue Command
     command_payload = {

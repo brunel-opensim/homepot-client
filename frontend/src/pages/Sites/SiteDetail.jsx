@@ -6,16 +6,15 @@ import {
   Server,
   Activity,
   Loader2,
-  Edit,
   Trash2,
-  Plus,
-  Briefcase,
+  Edit,
+  PlusCircle,
+  LayoutDashboard,
 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import SiteDeleteDialog from '@/components/Sites/SiteDeleteDialog';
-import DeviceAddDialog from '@/components/Devices/DeviceAddDialog';
+import DeviceDeleteDialog from '@/components/Devices/DeviceDeleteDialog';
 
 export default function SiteDetail() {
   const { id } = useParams();
@@ -23,11 +22,11 @@ export default function SiteDetail() {
   const [site, setSite] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [addDeviceOpen, setAddDeviceOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isAddingDevice, setIsAddingDevice] = useState(false);
   const [devices, setDevices] = useState([]);
+
+  // Device deletion state
+  const [deviceToDelete, setDeviceToDelete] = useState(null);
+  const [isDeletingDevice, setIsDeletingDevice] = useState(false);
 
   useEffect(() => {
     const fetchSiteAndDevices = async () => {
@@ -54,6 +53,9 @@ export default function SiteDetail() {
         const devicesData = await api.devices.getSiteId(id);
         const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
 
+        // Sort alphabetically by name
+        devicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
         setDevices(devicesList);
       } catch (err) {
         console.error('Failed to load devices:', err);
@@ -65,38 +67,6 @@ export default function SiteDetail() {
     fetchSiteAndDevices();
   }, [id]);
 
-  const handleDelete = async () => {
-    try {
-      setIsDeleting(true);
-      await api.sites.delete(id);
-      navigate('/sites');
-    } catch (err) {
-      console.error('Failed to delete site:', err);
-      alert('Failed to delete site');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleAddDevice = async (deviceData) => {
-    try {
-      setIsAddingDevice(true);
-      await api.devices.create(id, deviceData);
-
-      // Refresh devices
-      const devicesData = await api.devices.getSiteId(id);
-      const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
-      setDevices(devicesList);
-
-      setAddDeviceOpen(false);
-    } catch (err) {
-      console.error('Failed to add device:', err);
-      throw new Error(api.apiHelpers?.formatError(err) || 'Failed to add device');
-    } finally {
-      setIsAddingDevice(false);
-    }
-  };
-
   const handleToggleMonitor = async () => {
     try {
       const updatedSite = await api.sites.toggleMonitor(id, !site.is_monitored);
@@ -106,22 +76,28 @@ export default function SiteDetail() {
     }
   };
 
-  // ====== New Function for Creating Job ======
-  const handleCreateJob = async () => {
-    try {
-      const defaultJob = {
-        name: `Job for ${site.name}`,
-        description: 'Automatically created job',
-      };
+  const handleDeleteDeviceClick = (device) => {
+    setDeviceToDelete(device);
+  };
 
-      await api.jobs.create(id, defaultJob);
-      // toast({
-      //   title: 'Job Created',
-      //   description: `Job created successfully for site ${site.name}`,
-      //   variant: 'success',
-      // });
+  const handleConfirmDeleteDevice = async () => {
+    if (!deviceToDelete) return;
+
+    try {
+      setIsDeletingDevice(true);
+      // Use device_id (string) if available, otherwise fallback to id (int) but convert to string if needed
+      // The backend expects the string ID (e.g. "device-123")
+      const idToDelete = deviceToDelete.device_id || deviceToDelete.id;
+      await api.devices.delete(idToDelete);
+
+      // Remove from list
+      setDevices((prev) => prev.filter((d) => (d.device_id || d.id) !== idToDelete));
+      setDeviceToDelete(null);
     } catch (err) {
-      console.error('Failed to create job:', err);
+      console.error('Failed to delete device:', err);
+      alert(`Failed to delete device: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setIsDeletingDevice(false);
     }
   };
 
@@ -165,6 +141,13 @@ export default function SiteDetail() {
           </div>
           <div className="flex gap-2">
             <Button
+              onClick={() => navigate('/device/new', { state: { siteId: id } })}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white border-none"
+            >
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Register Device
+            </Button>
+            <Button
               onClick={handleToggleMonitor}
               className={`bg-transparent border ${
                 site.is_monitored
@@ -175,39 +158,12 @@ export default function SiteDetail() {
               <Activity className="h-4 w-4 mr-2" />
               {site.is_monitored ? 'Monitored' : 'Add to Dashboard'}
             </Button>
-
             <Button
-              onClick={() => setAddDeviceOpen(true)}
-              className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+              onClick={() => navigate('/dashboard')}
+              className="bg-transparent border text-gray-400 border-gray-400 hover:bg-gray-400/10"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Device
-            </Button>
-
-            {/* Create Job */}
-            <Button
-              onClick={handleCreateJob}
-              className="bg-transparent text-blue-400 border border-blue-400 hover:bg-blue-400/10"
-            >
-              <Briefcase className="h-4 w-4 mr-2" />
-              Create Job
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/sites/${id}/edit`)}
-              className="border-[#1f2735] bg-transparent text-gray-300 hover:bg-[#1f2735] hover:text-white"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Site
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => setDeleteDialogOpen(true)}
-              className="bg-transparent text-red-500 border border-red-500 hover:bg-red-500/10"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
+              <LayoutDashboard className="h-4 w-4 mr-2" />
+              Exit
             </Button>
           </div>
         </div>
@@ -263,6 +219,9 @@ export default function SiteDetail() {
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">
                         Last Seen
                       </th>
+                      <th className="h-12 px-4 align-middle font-medium text-gray-400 text-right">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="[&_tr:last-child]:border-0">
@@ -273,7 +232,11 @@ export default function SiteDetail() {
                       >
                         <td
                           className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
-                          onClick={() => navigate(`/device/${device.id || device.device_id}`)}
+                          onClick={() =>
+                            navigate(`/device/${device.device_id || device.id}`, {
+                              state: { from: 'site', siteId: id },
+                            })
+                          }
                         >
                           {device.name}
                         </td>
@@ -294,6 +257,37 @@ export default function SiteDetail() {
                         <td className="p-4 align-middle text-gray-300">
                           {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
                         </td>
+                        <td className="p-4 align-middle text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/device/${device.device_id || device.id}/settings`, {
+                                  state: {
+                                    mode: 'edit',
+                                    from: 'site',
+                                  },
+                                });
+                              }}
+                              className="h-8 w-8 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteDeviceClick(device);
+                              }}
+                              className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -308,19 +302,12 @@ export default function SiteDetail() {
           )}
         </div>
 
-        <SiteDeleteDialog
-          isOpen={deleteDialogOpen}
-          onClose={() => setDeleteDialogOpen(false)}
-          onConfirm={handleDelete}
-          siteName={site.name}
-          isDeleting={isDeleting}
-        />
-
-        <DeviceAddDialog
-          isOpen={addDeviceOpen}
-          onClose={() => setAddDeviceOpen(false)}
-          onAdd={handleAddDevice}
-          isAdding={isAddingDevice}
+        <DeviceDeleteDialog
+          isOpen={!!deviceToDelete}
+          onClose={() => setDeviceToDelete(null)}
+          onConfirm={handleConfirmDeleteDevice}
+          deviceName={deviceToDelete?.name}
+          isDeleting={isDeletingDevice}
         />
       </div>
     </div>

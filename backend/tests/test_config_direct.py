@@ -80,8 +80,8 @@ async def test_direct_config_history():
     print("\nConfiguration history tracking verified!")
     print("\nSummary:")
     print(f"  - Total config changes logged: {len(config_logs)}")
-    site_changes = [l for l in config_logs if l.entity_type == "site"]
-    device_changes = [l for l in config_logs if l.entity_type == "device"]
+    site_changes = [log for log in config_logs if log.entity_type == "site"]
+    device_changes = [log for log in config_logs if log.entity_type == "device"]
     print(f"  - Site-level changes: {len(site_changes)}")
     print(f"  - Device-level changes: {len(device_changes)}")
 

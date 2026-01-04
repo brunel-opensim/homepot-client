@@ -184,7 +184,7 @@ const api = {
      * Update site
      */
     update: async (siteId, siteData) => {
-      const response = await apiClient.put(`/sites${siteId}`, siteData);
+      const response = await apiClient.put(`/sites/${siteId}`, siteData);
       return response.data;
     },
 
@@ -192,7 +192,7 @@ const api = {
      * Delete site
      */
     delete: async (siteId) => {
-      const response = await apiClient.delete(`/sites/sites/${siteId}`);
+      const response = await apiClient.delete(`/sites/${siteId}`);
       return response.data;
     },
 
@@ -208,15 +208,16 @@ const api = {
   // ==================== Devices ====================
 
   devices: {
-    list: async () => {
-      const response = await apiClient.get('/devices/device');
-      return response.data;
-    },
     /**
-     * Create device
+     * Create new device
      */
     create: async (siteId, deviceData) => {
-      const response = await apiClient.post(`/devices/sites/${siteId}/devices`, deviceData);
+      const response = await apiClient.post('/devices/device', deviceData);
+      return response.data;
+    },
+
+    list: async () => {
+      const response = await apiClient.get('/devices/device');
       return response.data;
     },
 
@@ -227,6 +228,22 @@ const api = {
 
     getDeviceById: async (deviceId) => {
       const response = await apiClient.get(`/devices/device/${deviceId}`);
+      return response.data;
+    },
+
+    /**
+     * Update device
+     */
+    update: async (deviceId, deviceData) => {
+      const response = await apiClient.put(`/devices/device/${deviceId}`, deviceData);
+      return response.data;
+    },
+
+    /**
+     * Delete device
+     */
+    delete: async (deviceId) => {
+      const response = await apiClient.delete(`/devices/device/${deviceId}`);
       return response.data;
     },
 

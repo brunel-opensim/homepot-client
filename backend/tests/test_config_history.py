@@ -33,7 +33,6 @@ async def test_config_history():
         if response.status_code == 200:
             result = response.json()
             print(f"✓ Job created: {result['job_id']}")
-            job_id = result["job_id"]
         else:
             print(f"✗ Failed to create job: {response.status_code}")
             print(response.text)

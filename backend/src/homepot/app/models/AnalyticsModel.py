@@ -1,6 +1,6 @@
 """Analytics models for tracking system metrics and user behavior."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     JSON,
@@ -24,7 +24,7 @@ def utc_now() -> datetime:
     Note: Uses timezone-naive datetime for compatibility with existing
     database schema. For new projects, consider using timezone-aware datetimes.
     """
-    return datetime.utcnow()
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class APIRequestLog(Base):

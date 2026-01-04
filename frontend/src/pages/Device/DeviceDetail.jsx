@@ -4,7 +4,7 @@ import api from '@/services/api';
 import { trackActivity } from '@/utils/analytics';
 import { ArrowLeft, Loader2, Radio } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   AlertsWidget,
   AuditWidget,
@@ -57,10 +57,8 @@ const DEVICE_CAPABILITIES = {
 // Define available actions per device type
 const DEVICE_ACTIONS = {
   pos_terminal: [
-    { key: 'refresh_kiosk', label: 'Refresh Kiosk' },
     { key: 'update_settings', label: 'Update Configurations' },
     { key: 'status_request', label: 'Request Status' },
-    { key: 'fetch_system_apps', label: 'Fetch Apps' },
   ],
   iot_sensor: [
     { key: 'status_request', label: 'Request Status' },
@@ -73,7 +71,6 @@ const DEVICE_ACTIONS = {
   gateway: [
     { key: 'status_request', label: 'Request Status' },
     { key: 'update_settings', label: 'Update Configurations' },
-    { key: 'fetch_system_apps', label: 'Fetch Apps' },
   ],
   unknown: [
     { key: 'status_request', label: 'Request Status' },
@@ -84,6 +81,7 @@ const DEVICE_ACTIONS = {
 export default function Device() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [device, setDevice] = useState(null);
   const [alerts, setAlerts] = useState([]);
@@ -439,11 +437,15 @@ export default function Device() {
       <div className="min-h-screen bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-6 sm:p-10 font-sans">
         <Button
           variant="ghost"
-          onClick={() => navigate('/device')}
+          onClick={() =>
+            location.state?.from === 'site' && location.state?.siteId
+              ? navigate(`/sites/${location.state.siteId}`)
+              : navigate('/device')
+          }
           className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
+          {location.state?.from === 'site' ? 'Back to Site' : 'Back'}
         </Button>
 
         <div className="max-w-7xl mx-auto">
