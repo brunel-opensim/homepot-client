@@ -8,11 +8,27 @@ from sqlalchemy import select
 
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 from homepot.database import get_database_service
+from homepot.models import Site
 
 
 @pytest.mark.asyncio
 async def test_config_history(async_client):
     """Test configuration history tracking by creating a config update job."""
+    # Setup: Create a test site
+    db_service = await get_database_service()
+    async with db_service.get_session() as session:
+        # Check if site exists, if not create it
+        result = await session.execute(select(Site).where(Site.site_id == "site-001"))
+        site = result.scalars().first()
+        if not site:
+            site = Site(
+                site_id="site-001",
+                name="Test Site",
+                location="Test Location"
+            )
+            session.add(site)
+            await session.commit()
+
     # Test 1: Create a config update job
     job_data = {
         "action": "Update POS payment config",

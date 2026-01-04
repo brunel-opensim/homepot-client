@@ -8,13 +8,28 @@ from sqlalchemy import select
 
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 from homepot.database import get_database_service
-from homepot.models import JobPriority
+from homepot.models import JobPriority, Site
 from homepot.orchestrator import get_job_orchestrator
 
 
 @pytest.mark.asyncio
 async def test_direct_config_history():
     """Test configuration history by calling orchestrator directly."""
+    # Setup: Create a test site
+    db_service = await get_database_service()
+    async with db_service.get_session() as session:
+        # Check if site exists, if not create it
+        result = await session.execute(select(Site).where(Site.site_id == "site-001"))
+        site = result.scalars().first()
+        if not site:
+            site = Site(
+                site_id="site-001",
+                name="Test Site",
+                location="Test Location"
+            )
+            session.add(site)
+            await session.commit()
+
     # Test 1: Create a job via orchestrator
     try:
         orchestrator = await get_job_orchestrator()
