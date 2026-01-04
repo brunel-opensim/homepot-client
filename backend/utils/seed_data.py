@@ -16,6 +16,7 @@ Usage:
 """
 
 import asyncio
+import random
 import sys
 from datetime import datetime
 from datetime import time as dt_time
@@ -44,6 +45,7 @@ from homepot.app.models.UserModel import User
 from homepot.database import DatabaseService
 from homepot.models import (
     AuditLog,
+    Base,
     Device,
     DeviceType,
     HealthCheck,
@@ -65,12 +67,114 @@ from passlib.context import CryptContext
 from sqlalchemy import select
 
 
+def generate_historical_metrics(device_id: str, hours: int = 24) -> list[DeviceMetrics]:
+    """Generate historical metrics for a device."""
+    metrics = []
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    for i in range(hours):
+        timestamp = now - timedelta(hours=hours - i)
+
+        # Simulate daily cycle (higher load during day)
+        hour_of_day = timestamp.hour
+        is_peak = 9 <= hour_of_day <= 17
+
+        base_cpu = 40 if is_peak else 10
+        base_mem = 60 if is_peak else 30
+        base_trans = 100 if is_peak else 10
+
+        cpu = min(100, max(0, base_cpu + random.uniform(-10, 20)))
+        mem = min(100, max(0, base_mem + random.uniform(-5, 10)))
+        trans_count = int(max(0, base_trans + random.uniform(-20, 50)))
+        trans_vol = trans_count * random.uniform(10, 50)
+
+        metrics.append(
+            DeviceMetrics(
+                device_id=device_id,
+                cpu_percent=round(cpu, 1),
+                memory_percent=round(mem, 1),
+                disk_percent=round(random.uniform(30, 40), 1),
+                network_latency_ms=round(random.uniform(5, 50), 1),
+                transaction_count=trans_count,
+                transaction_volume=round(trans_vol, 2),
+                error_rate=round(random.uniform(0, 2), 2),
+                active_connections=int(trans_count / 10),
+                queue_depth=int(trans_count / 50),
+                timestamp=timestamp,
+                extra_metrics={"temperature_celsius": round(random.uniform(35, 55), 1)},
+            )
+        )
+    return metrics
+
+
+def generate_historical_errors(
+    device_id: str, user_id: str, count: int = 5
+) -> list[ErrorLog]:
+    """Generate historical error logs."""
+    errors = []
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    error_types = [
+        ("api", "error", "Connection timeout", "NET001"),
+        ("validation", "warning", "Invalid input format", "VAL001"),
+        ("device", "critical", "Sensor malfunction", "DEV002"),
+        ("auth", "error", "Token expired", "AUTH003"),
+    ]
+
+    for _ in range(count):
+        cat, sev, msg, code = random.choice(error_types)
+        timestamp = now - timedelta(hours=random.randint(1, 48))
+        errors.append(
+            ErrorLog(
+                category=cat,
+                severity=sev,
+                error_code=code,
+                error_message=msg,
+                endpoint="/api/v1/mobile/sync",
+                user_id=user_id,
+                device_id=device_id,
+                context={"retry_count": random.randint(1, 3)},
+                timestamp=timestamp,
+            )
+        )
+    return errors
+
+
+def generate_historical_user_activity(
+    user_id: str, count: int = 20
+) -> list[UserActivity]:
+    """Generate historical user activity."""
+    activities = []
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    activity_types = ["page_view", "click", "search", "filter"]
+    pages = ["/dashboard", "/devices", "/sites", "/settings"]
+
+    for _ in range(count):
+        timestamp = now - timedelta(hours=random.randint(1, 24))
+        activities.append(
+            UserActivity(
+                user_id=user_id,
+                activity_type=random.choice(activity_types),
+                page_url=random.choice(pages),
+                element_id=f"btn-{random.randint(1, 50)}",
+                duration_ms=random.randint(500, 5000),
+                session_id=f"sess-{random.randint(10000, 99999)}",
+                timestamp=timestamp,
+            )
+        )
+    return activities
+
+
 async def init_database():
     """Initialize PostgreSQL database with schema and seed data."""
     print("Importing database service...")
 
     # Create database service (will use DATABASE__URL from .env)
     db_service = DatabaseService()
+
+    print("Dropping existing tables...")
+    async with db_service.engine.begin() as conn:
+        await conn.run_sync(AppBase.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all)
 
     print("Creating database schema...")
     await db_service.initialize()
@@ -138,12 +242,12 @@ async def init_database():
         print(f"Created site: {site.name} ({site_id})")
         return site
 
-    # Create 4 Targeted Sites
+    # Create 2 Targeted Sites
     site1 = await get_or_create_site(
         "site-001",
         "Site 1 - Mixed OS",
         "Mixed environment site 1",
-        "New York, USA",
+        "London, UK",
         40.7128,
         -74.0060,
     )
@@ -155,24 +259,8 @@ async def init_database():
         51.5074,
         -0.1278,
     )
-    site3 = await get_or_create_site(
-        "site-003",
-        "Site 3 - Mixed OS",
-        "Mixed environment site 3",
-        "Tokyo, Japan",
-        35.6762,
-        139.6503,
-    )
-    site4 = await get_or_create_site(
-        "site-004",
-        "Site 4 - Mixed OS",
-        "Mixed environment site 4",
-        "Sydney, Australia",
-        -33.8688,
-        151.2093,
-    )
 
-    sites = [site1, site2, site3, site4]
+    sites = [site1, site2]
 
     # --- DEVICES ---
     print("\n=== Creating Devices ===")
@@ -198,8 +286,8 @@ async def init_database():
     # Site 1 Devices
     print("--- Site 1 Devices ---")
     await get_or_create_device(
-        "site1-fcm-01",
-        "Android/Linux POS 1-1",
+        "site1-linux-01",
+        "Linux POS 1-1",
         DeviceType.POS_TERMINAL,
         site1.site_id,
         "10.1.1.10",
@@ -211,7 +299,7 @@ async def init_database():
         },
     )
     await get_or_create_device(
-        "site1-wns-02",
+        "site1-windows-02",
         "Windows POS 1-2",
         DeviceType.POS_TERMINAL,
         site1.site_id,
@@ -224,7 +312,7 @@ async def init_database():
         },
     )
     await get_or_create_device(
-        "site1-apns-03",
+        "site1-macos-03",
         "Apple POS 1-3",
         DeviceType.POS_TERMINAL,
         site1.site_id,
@@ -238,27 +326,27 @@ async def init_database():
     )
     await get_or_create_device(
         "site1-web-04",
-        "Web Client 1-4",
-        "web_client",
+        "Web Dashboard 1-4",
+        DeviceType.POS_TERMINAL,
         site1.site_id,
         "10.1.4.10",
         {
             "os": "web",
             "push_platform": "web_push",
-            "agent_version": "1.0.0-sim",
+            "agent_version": "1.0.0-web",
             "version": "1.0.0",
         },
     )
     await get_or_create_device(
-        "site1-mqtt-05",
+        "site1-iot-05",
         "IoT Sensor 1-5",
         DeviceType.IOT_SENSOR,
         site1.site_id,
         "10.1.5.10",
         {
-            "os": "rtos",
+            "os": "embedded",
             "push_platform": "mqtt",
-            "agent_version": "1.0.0-sim",
+            "agent_version": "1.0.0-iot",
             "version": "1.0.0",
         },
     )
@@ -266,8 +354,8 @@ async def init_database():
     # Site 2 Devices
     print("--- Site 2 Devices ---")
     await get_or_create_device(
-        "site2-fcm-01",
-        "Android/Linux POS 2-1",
+        "site2-linux-01",
+        "Linux POS 2-1",
         DeviceType.POS_TERMINAL,
         site2.site_id,
         "10.2.1.10",
@@ -279,7 +367,7 @@ async def init_database():
         },
     )
     await get_or_create_device(
-        "site2-wns-02",
+        "site2-windows-02",
         "Windows POS 2-2",
         DeviceType.POS_TERMINAL,
         site2.site_id,
@@ -292,7 +380,7 @@ async def init_database():
         },
     )
     await get_or_create_device(
-        "site2-apns-03",
+        "site2-macos-03",
         "Apple POS 2-3",
         DeviceType.POS_TERMINAL,
         site2.site_id,
@@ -306,163 +394,27 @@ async def init_database():
     )
     await get_or_create_device(
         "site2-web-04",
-        "Web Client 2-4",
-        "web_client",
+        "Web Dashboard 2-4",
+        DeviceType.POS_TERMINAL,
         site2.site_id,
         "10.2.4.10",
         {
             "os": "web",
             "push_platform": "web_push",
-            "agent_version": "1.0.0-sim",
+            "agent_version": "1.0.0-web",
             "version": "1.0.0",
         },
     )
     await get_or_create_device(
-        "site2-mqtt-05",
+        "site2-iot-05",
         "IoT Sensor 2-5",
         DeviceType.IOT_SENSOR,
         site2.site_id,
         "10.2.5.10",
         {
-            "os": "rtos",
+            "os": "embedded",
             "push_platform": "mqtt",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-
-    # Site 3 Devices
-    print("--- Site 3 Devices ---")
-    await get_or_create_device(
-        "site3-fcm-01",
-        "Android/Linux POS 3-1",
-        DeviceType.POS_TERMINAL,
-        site3.site_id,
-        "10.3.1.10",
-        {
-            "os": "linux",
-            "push_platform": "fcm",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site3-wns-02",
-        "Windows POS 3-2",
-        DeviceType.POS_TERMINAL,
-        site3.site_id,
-        "10.3.2.10",
-        {
-            "os": "windows",
-            "push_platform": "wns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site3-apns-03",
-        "Apple POS 3-3",
-        DeviceType.POS_TERMINAL,
-        site3.site_id,
-        "10.3.3.10",
-        {
-            "os": "macos",
-            "push_platform": "apns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site3-web-04",
-        "Web Client 3-4",
-        "web_client",
-        site3.site_id,
-        "10.3.4.10",
-        {
-            "os": "web",
-            "push_platform": "web_push",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site3-mqtt-05",
-        "IoT Sensor 3-5",
-        DeviceType.IOT_SENSOR,
-        site3.site_id,
-        "10.3.5.10",
-        {
-            "os": "rtos",
-            "push_platform": "mqtt",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-
-    # Site 4 Devices
-    print("--- Site 4 Devices ---")
-    await get_or_create_device(
-        "site4-fcm-01",
-        "Android/Linux POS 4-1",
-        DeviceType.POS_TERMINAL,
-        site4.site_id,
-        "10.4.1.10",
-        {
-            "os": "linux",
-            "push_platform": "fcm",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site4-wns-02",
-        "Windows POS 4-2",
-        DeviceType.POS_TERMINAL,
-        site4.site_id,
-        "10.4.2.10",
-        {
-            "os": "windows",
-            "push_platform": "wns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site4-apns-03",
-        "Apple POS 4-3",
-        DeviceType.POS_TERMINAL,
-        site4.site_id,
-        "10.4.3.10",
-        {
-            "os": "macos",
-            "push_platform": "apns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site4-web-04",
-        "Web Client 4-4",
-        "web_client",
-        site4.site_id,
-        "10.4.4.10",
-        {
-            "os": "web",
-            "push_platform": "web_push",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site4-mqtt-05",
-        "IoT Sensor 4-5",
-        DeviceType.IOT_SENSOR,
-        site4.site_id,
-        "10.4.5.10",
-        {
-            "os": "rtos",
-            "push_platform": "mqtt",
-            "agent_version": "1.0.0-sim",
+            "agent_version": "1.0.0-iot",
             "version": "1.0.0",
         },
     )
@@ -578,21 +530,19 @@ async def init_database():
                 )
             )
 
-            session.add(
-                DeviceMetrics(
-                    device_id=first_device.device_id,
-                    cpu_percent=45.2,
-                    memory_percent=62.8,
-                    disk_percent=38.5,
-                    network_latency_ms=12.3,
-                    transaction_count=156,
-                    transaction_volume=2847.50,
-                    error_rate=0.64,
-                    active_connections=8,
-                    queue_depth=2,
-                    extra_metrics={"temperature_celsius": 42, "uptime_hours": 168},
-                )
+            # Generate historical metrics
+            historical_metrics = generate_historical_metrics(first_device.device_id)
+            session.add_all(historical_metrics)
+
+            # Generate historical errors
+            historical_errors = generate_historical_errors(
+                first_device.device_id, str(admin_user.id)
             )
+            session.add_all(historical_errors)
+
+            # Generate historical user activity
+            historical_activity = generate_historical_user_activity(str(admin_user.id))
+            session.add_all(historical_activity)
 
             session.add(
                 ConfigurationHistory(
@@ -643,7 +593,9 @@ async def init_database():
             "closed": False,
             "maint": False,
             "vol": 500,
-            "notes": "Regular weekday",
+            "peak_start": dt_time(12, 0),
+            "peak_end": dt_time(14, 0),
+            "notes": "Regular weekday - high traffic",
         },
         {
             "day": 1,
@@ -652,6 +604,8 @@ async def init_database():
             "closed": False,
             "maint": False,
             "vol": 450,
+            "peak_start": dt_time(12, 0),
+            "peak_end": dt_time(14, 0),
             "notes": "Regular weekday",
         },
         {
@@ -661,6 +615,8 @@ async def init_database():
             "closed": False,
             "maint": True,
             "vol": 420,
+            "peak_start": dt_time(12, 0),
+            "peak_end": dt_time(14, 0),
             "notes": "Maintenance 2-4 AM",
         },
         {
@@ -670,6 +626,8 @@ async def init_database():
             "closed": False,
             "maint": False,
             "vol": 550,
+            "peak_start": dt_time(17, 0),
+            "peak_end": dt_time(20, 0),
             "notes": "Late night shopping",
         },
         {
@@ -679,6 +637,8 @@ async def init_database():
             "closed": False,
             "maint": False,
             "vol": 700,
+            "peak_start": dt_time(16, 0),
+            "peak_end": dt_time(21, 0),
             "notes": "Busiest day",
         },
         {
@@ -688,6 +648,8 @@ async def init_database():
             "closed": False,
             "maint": False,
             "vol": 650,
+            "peak_start": dt_time(11, 0),
+            "peak_end": dt_time(16, 0),
             "notes": "Weekend traffic",
         },
         {
@@ -697,6 +659,8 @@ async def init_database():
             "closed": False,
             "maint": True,
             "vol": 200,
+            "peak_start": dt_time(12, 0),
+            "peak_end": dt_time(14, 0),
             "notes": "Sunday reduced hours",
         },
     ]
@@ -720,6 +684,8 @@ async def init_database():
                     is_closed=sched["closed"],
                     is_maintenance_window=sched["maint"],
                     expected_transaction_volume=sched["vol"],
+                    peak_hours_start=sched["peak_start"],
+                    peak_hours_end=sched["peak_end"],
                     notes=sched["notes"],
                 )
                 session.add(new_sched)

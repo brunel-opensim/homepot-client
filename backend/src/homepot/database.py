@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
-from sqlalchemy import Result, create_engine, text
+from sqlalchemy import Result, create_engine, delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -316,6 +316,99 @@ class DatabaseService:
             await session.flush()
             await session.refresh(device)
             return device
+
+    async def update_device(
+        self,
+        device_id: str,
+        name: Optional[str] = None,
+        device_type: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        config: Optional[dict] = None,
+    ) -> Optional[Device]:
+        """Update an existing device."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = result.scalars().first()
+
+            if not device:
+                return None
+
+            if name is not None:
+                device.name = name  # type: ignore
+            if device_type is not None:
+                device.device_type = device_type  # type: ignore
+            if ip_address is not None:
+                device.ip_address = ip_address  # type: ignore
+            if config is not None:
+                # Merge or replace config? For now, let's assume we update keys
+                # If config is None in DB, initialize it
+                current_config = dict(device.config) if device.config else {}
+                current_config.update(config)
+                device.config = current_config  # type: ignore
+
+            await session.commit()
+            await session.refresh(device)
+            return device
+
+    async def delete_device(self, device_id: str) -> bool:
+        """Delete a device and all associated data (hard delete)."""
+        async with self.get_session() as session:
+            # 1. Get the device to find its integer ID
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = result.scalars().first()
+
+            if not device:
+                return False
+
+            device_pk = device.id
+
+            # 2. Delete dependent data using integer ID (FKs)
+            # HealthChecks
+            await session.execute(
+                delete(HealthCheck).where(HealthCheck.device_id == device_pk)
+            )
+
+            # DeviceCommands
+            await session.execute(
+                delete(DeviceCommand).where(DeviceCommand.device_id == device_pk)
+            )
+
+            # AuditLogs
+            # First, delete AuditLogs associated with the device directly
+            await session.execute(
+                delete(AuditLog).where(AuditLog.device_id == device_pk)
+            )
+
+            # Second, delete AuditLogs associated with Jobs that are about to be deleted
+            # Find all job IDs for this device
+            jobs_result = await session.execute(
+                select(Job.id).where(Job.device_id == device_pk)
+            )
+            job_ids = jobs_result.scalars().all()
+
+            if job_ids:
+                await session.execute(
+                    delete(AuditLog).where(AuditLog.job_id.in_(job_ids))
+                )
+
+            # Jobs
+            await session.execute(delete(Job).where(Job.device_id == device_pk))
+
+            # 3. Delete dependent data using string ID
+            # DeviceMetrics
+            await session.execute(
+                delete(DeviceMetrics).where(DeviceMetrics.device_id == device_id)
+            )
+
+            # 4. Delete the Device itself
+            await session.execute(delete(Device).where(Device.id == device_pk))
+
+            await session.commit()
+            return True
 
     async def get_devices_by_site_and_segment(
         self, site_id: str, segment: Optional[str] = None

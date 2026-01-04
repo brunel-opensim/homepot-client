@@ -7,7 +7,6 @@ and send them to the HOMEPOT backend. It bridges the gap between simulation and 
 import asyncio
 import logging
 import os
-import platform
 import socket
 import time
 from typing import Optional
@@ -31,7 +30,12 @@ API_KEY_FILE = ".device_api_key"
 
 
 async def register_device(client: httpx.AsyncClient) -> Optional[str]:
-    """Register this device with the HOMEPOT backend and return API Key."""
+    """
+    Get API Key for this device.
+
+    NOTE: Auto-registration has been disabled to ensure seed_data.py is the single source of truth.
+    This agent must be configured with an existing Device ID and API Key.
+    """
     # Check environment variable first
     env_key = os.environ.get("HOMEPOT_DEVICE_API_KEY")
     if env_key:
@@ -46,56 +50,11 @@ async def register_device(client: httpx.AsyncClient) -> Optional[str]:
             logger.info("Loaded existing API Key.")
             return api_key
 
-    logger.info(f"Attempting to register device: {DEVICE_ID}")
-
-    payload = {
-        "device_id": DEVICE_ID,
-        "name": f"WSL2 Agent - {HOSTNAME}",
-        "device_type": DEVICE_TYPE,
-        "ip_address": socket.gethostbyname(HOSTNAME),
-        "config": {
-            "os": platform.system(),
-            "release": platform.release(),
-            "processor": platform.processor(),
-        },
-    }
-
-    try:
-        # Note: The endpoint is mounted under /devices, so the path is /devices/sites/{site_id}/devices
-        response = await client.post(
-            f"{BASE_URL}/devices/sites/{SITE_ID}/devices", json=payload
-        )
-
-        if response.status_code in (200, 201):
-            data = response.json()
-            api_key = data.get("api_key")
-            if api_key:
-                logger.info("Device registered successfully. Saving API Key.")
-                # Securely write the API key with read/write permissions for owner only (0o600)
-                # This prevents other users on the system from reading the key
-                fd = os.open(API_KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-                with os.fdopen(fd, "w") as f:
-                    f.write(api_key)
-                return api_key
-            else:
-                logger.warning(
-                    "Device registered but no API Key returned (maybe already exists?)."
-                )
-                return None
-        elif response.status_code == 409:
-            logger.info("Device already registered. Cannot retrieve API Key again.")
-            logger.warning(
-                "Please delete the device from DB or provide API Key manually in .device_api_key or HOMEPOT_DEVICE_API_KEY env var"
-            )
-            return None
-        else:
-            logger.error(
-                f"Registration failed: {response.status_code} - {response.text}"
-            )
-            return None
-    except Exception as e:
-        logger.error(f"Registration error: {e}")
-        return None
+    logger.error("No API Key found. Auto-registration is disabled.")
+    logger.error(
+        "Please configure HOMEPOT_DEVICE_API_KEY or .device_api_key with a valid key for a pre-seeded device."
+    )
+    return None
 
 
 async def collect_and_send_metrics(client: httpx.AsyncClient, api_key: str):

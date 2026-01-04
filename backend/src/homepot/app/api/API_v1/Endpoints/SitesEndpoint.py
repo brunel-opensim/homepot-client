@@ -139,7 +139,7 @@ async def list_sites() -> Dict[str, List[Dict]]:
         # For demo, we'll create a simple query (in real app, add pagination)
         from sqlalchemy import select
 
-        from homepot.models import Site
+        from homepot.models import Device, Site
 
         async with db_service.get_session() as session:
             result = await session.execute(
@@ -151,6 +151,28 @@ async def list_sites() -> Dict[str, List[Dict]]:
 
             site_list = []
             for site in sites:
+                # Fetch devices for this site to determine status and OS types
+                devices_result = await session.execute(
+                    select(Device).where(
+                        Device.site_id == site.site_id, Device.is_active.is_(True)
+                    )
+                )
+                devices = devices_result.scalars().all()
+
+                # Determine status
+                status = "Offline"
+                if devices:
+                    if any(d.status == "error" for d in devices):
+                        status = "Warning"
+                    elif any(d.status == "online" for d in devices):
+                        status = "Online"
+
+                # Collect OS types
+                os_types = set()
+                for device in devices:
+                    if device.config and "os" in device.config:
+                        os_types.add(device.config["os"])
+
                 site_list.append(
                     {
                         "site_id": site.site_id,
@@ -158,6 +180,8 @@ async def list_sites() -> Dict[str, List[Dict]]:
                         "description": site.description,
                         "location": site.location,
                         "is_monitored": site.is_monitored,
+                        "status": status,
+                        "os_types": list(os_types),
                         "created_at": (
                             site.created_at.isoformat() if site.created_at else None
                         ),
@@ -221,6 +245,191 @@ async def get_site(site_id: str) -> Dict[str, Any]:
         raise HTTPException(
             status_code=500, detail="Failed to get site. Please check server logs."
         )
+
+
+@router.delete("/{site_id}", tags=["Sites"])
+async def delete_site(site_id: str) -> Dict[str, str]:
+    """Delete a site and ALL associated resources (metrics, logs, history)."""
+    try:
+        db_service = await get_database_service()
+        from sqlalchemy import delete, select
+
+        # Import analytics models for comprehensive cleanup
+        from homepot.app.models.AnalyticsModel import (
+            APIRequestLog,
+            ConfigurationHistory,
+            DeviceMetrics,
+            DeviceStateHistory,
+            ErrorLog,
+            JobOutcome,
+            PushNotificationLog,
+            SiteOperatingSchedule,
+        )
+        from homepot.models import (
+            AuditLog,
+            Device,
+            DeviceCommand,
+            HealthCheck,
+            Job,
+            Site,
+        )
+
+        async with db_service.get_session() as session:
+            # 1. Get the site
+            result = await session.execute(select(Site).where(Site.site_id == site_id))
+            site = result.scalars().first()
+
+            if not site:
+                raise HTTPException(
+                    status_code=404, detail=f"Site '{site_id}' not found"
+                )
+
+            # Capture site details before deletion for audit logging (of the deletion event itself)
+            site_pk = site.id
+            site_name = site.name
+            site_str_id = site.site_id
+
+            # Get all devices for this site to clean up their related data
+            # We need both Integer IDs (for FKs) and String IDs (for Analytics)
+            devices_result = await session.execute(
+                select(Device).where(Device.site_id == site.site_id)
+            )
+            devices = devices_result.scalars().all()
+            device_pk_ids = [d.id for d in devices]
+            device_str_ids = [d.device_id for d in devices]
+
+            # --- PHASE 1: Clean up Device-Specific Analytics & History ---
+            if device_str_ids:
+                # Device Metrics
+                await session.execute(
+                    delete(DeviceMetrics).where(
+                        DeviceMetrics.device_id.in_(device_str_ids)
+                    )
+                )
+                # Device State History
+                await session.execute(
+                    delete(DeviceStateHistory).where(
+                        DeviceStateHistory.device_id.in_(device_str_ids)
+                    )
+                )
+                # Push Notification Logs
+                await session.execute(
+                    delete(PushNotificationLog).where(
+                        PushNotificationLog.device_id.in_(device_str_ids)
+                    )
+                )
+                # Error Logs (linked to devices)
+                await session.execute(
+                    delete(ErrorLog).where(ErrorLog.device_id.in_(device_str_ids))
+                )
+                # Job Outcomes (linked to devices)
+                await session.execute(
+                    delete(JobOutcome).where(JobOutcome.device_id.in_(device_str_ids))
+                )
+                # Configuration History (linked to devices)
+                await session.execute(
+                    delete(ConfigurationHistory).where(
+                        ConfigurationHistory.entity_type == "device",
+                        ConfigurationHistory.entity_id.in_(device_str_ids),
+                    )
+                )
+
+            # --- PHASE 2: Clean up Site-Specific Analytics & History ---
+            # Site Operating Schedules
+            await session.execute(
+                delete(SiteOperatingSchedule).where(
+                    SiteOperatingSchedule.site_id == site_str_id
+                )
+            )
+            # Configuration History (linked to site)
+            await session.execute(
+                delete(ConfigurationHistory).where(
+                    ConfigurationHistory.entity_type == "site",
+                    ConfigurationHistory.entity_id == site_str_id,
+                )
+            )
+            # API Request Logs (Best effort: matching endpoint path)
+            # Deletes logs like /api/v1/sites/site-123...
+            await session.execute(
+                delete(APIRequestLog).where(
+                    APIRequestLog.endpoint.like(f"%/{site_str_id}%")
+                )
+            )
+
+            # --- PHASE 3: Clean up Core Relational Data ---
+            if device_pk_ids:
+                # Delete DeviceCommands
+                await session.execute(
+                    delete(DeviceCommand).where(
+                        DeviceCommand.device_id.in_(device_pk_ids)
+                    )
+                )
+                # Delete HealthChecks
+                await session.execute(
+                    delete(HealthCheck).where(HealthCheck.device_id.in_(device_pk_ids))
+                )
+                # Delete AuditLogs for devices
+                await session.execute(
+                    delete(AuditLog).where(AuditLog.device_id.in_(device_pk_ids))
+                )
+
+            # Delete AuditLogs for the site
+            await session.execute(delete(AuditLog).where(AuditLog.site_id == site.id))
+
+            # Get associated Jobs to delete their AuditLogs
+            jobs_result = await session.execute(
+                select(Job.id).where(Job.site_id == site.id)
+            )
+            job_ids = jobs_result.scalars().all()
+
+            if job_ids:
+                # Delete AuditLogs for jobs
+                await session.execute(
+                    delete(AuditLog).where(AuditLog.job_id.in_(job_ids))
+                )
+
+            # Delete associated Jobs
+            await session.execute(delete(Job).where(Job.site_id == site.id))
+
+            # Delete associated Devices
+            await session.execute(delete(Device).where(Device.site_id == site.site_id))
+
+            # Delete the Site itself
+            await session.delete(site)
+            await session.commit()
+
+            # Log audit event (This will be the ONLY record left of this site,
+            # and it won't be linked via FK, so it's safe)
+            audit_logger = get_audit_logger()
+            await audit_logger.log_event(
+                AuditEventType.SITE_DELETED,
+                f"Site '{site_name}' and ALL associated data (metrics, logs) deleted",
+                site_id=None,
+                old_values={
+                    "site_id": site_str_id,
+                    "name": site_name,
+                    "db_id": site_pk,
+                    "cleanup_policy": "hard_delete_all_associated_data",
+                },
+            )
+
+            return {
+                "message": f"Site {site_id} and all associated data deleted successfully"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete site {site_id}: {e}", exc_info=True)
+        await log_error(
+            category="api",
+            severity="error",
+            error_message=f"Failed to delete site {site_id}",
+            exception=e,
+            endpoint=f"/api/v1/sites/{site_id}",
+            context={"site_id": site_id, "action": "delete_site"},
+        )
+        raise HTTPException(status_code=500, detail="Failed to delete site")
 
 
 @router.put("/{site_id}/monitor", tags=["Sites"])

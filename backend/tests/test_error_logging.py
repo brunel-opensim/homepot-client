@@ -1,19 +1,16 @@
 """Test script to verify error logging functionality."""
 
-import asyncio
-import sys
-from pathlib import Path
+import pytest
+from sqlalchemy import select
 
-# Add backend src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
+from homepot.app.models.AnalyticsModel import ErrorLog
+from homepot.database import get_database_service
 from homepot.error_logger import log_error
 
 
+@pytest.mark.asyncio
 async def test_error_logging():
     """Test various error logging scenarios."""
-    print("Testing error logging functionality...")
-
     # Test 1: Database error
     try:
         raise Exception("Simulated database connection failure")
@@ -26,7 +23,6 @@ async def test_error_logging():
             error_code="DB_CONN_001",
             context={"query": "SELECT * FROM test_table", "retry_count": 3},
         )
-        print("✓ Logged database error")
 
     # Test 2: API error
     try:
@@ -42,7 +38,6 @@ async def test_error_logging():
             user_id="test-user-123",
             context={"parameter": "invalid_value", "expected": "string"},
         )
-        print("✓ Logged API validation error")
 
     # Test 3: External service error
     try:
@@ -61,7 +56,6 @@ async def test_error_logging():
                 "endpoint": "https://payment-gateway.example.com/charge",
             },
         )
-        print("✓ Logged external service error")
 
     # Test 4: Validation error (no exception)
     await log_error(
@@ -76,34 +70,19 @@ async def test_error_logging():
             "action": "using_default",
         },
     )
-    print("✓ Logged validation info")
-
-    print("\n✅ All error logging tests completed!")
-    print("\nChecking error_logs table...")
 
     # Query the database to verify
-    from homepot.database import get_database_service
-
     db_service = await get_database_service()
     async with db_service.get_session() as session:
-        from sqlalchemy import select
-
-        from homepot.app.models.AnalyticsModel import ErrorLog
-
         result = await session.execute(
             select(ErrorLog).order_by(ErrorLog.timestamp.desc()).limit(10)
         )
         logs = result.scalars().all()
 
-        print(f"\nFound {len(logs)} recent error logs:")
-        for log in logs:
-            print(f"  - [{log.severity.upper()}] {log.category}: {log.error_message}")
-            if log.error_code:
-                print(f"    Code: {log.error_code}")
-            if log.device_id:
-                print(f"    Device: {log.device_id}")
-            print()
+        # Verify we have logs
+        assert len(logs) > 0
 
-
-if __name__ == "__main__":
-    asyncio.run(test_error_logging())
+        # Verify specific logs exist (checking the most recent ones)
+        messages = [log.error_message for log in logs]
+        assert "Configuration validation warning" in messages
+        assert "Payment gateway connection timeout" in messages

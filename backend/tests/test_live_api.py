@@ -157,12 +157,28 @@ class TestLiveAPI:
             "type": "test",
         }
 
-        response = requests.post(f"{BASE_URL}/sites", json=test_site, timeout=TIMEOUT)
+        try:
+            response = requests.post(
+                f"{BASE_URL}/sites", json=test_site, timeout=TIMEOUT
+            )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "site_id" in data
-        print(f"Created Test Site: {data['site_id']}")
+            assert response.status_code == 200
+            data = response.json()
+            assert "site_id" in data
+            print(f"Created Test Site: {data['site_id']}")
+
+        finally:
+            # Clean up: Delete the test site
+            if response.status_code == 200:
+                site_id = data.get("site_id")
+                if site_id:
+                    delete_response = requests.delete(
+                        f"{BASE_URL}/sites/{site_id}", timeout=TIMEOUT
+                    )
+                    if delete_response.status_code == 200:
+                        print(f"Cleaned up Test Site: {site_id}")
+                    else:
+                        print(f"Failed to clean up Test Site: {site_id}")
 
     def test_device_health(self):
         """Test device health checking."""

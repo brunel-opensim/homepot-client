@@ -23,6 +23,10 @@ export default function DeviceList() {
       const data = await api.devices.list();
       // Handle different response structures
       const fetchedDevices = Array.isArray(data) ? data : data.devices || [];
+
+      // Sort alphabetically by name
+      fetchedDevices.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
       setDevices(fetchedDevices);
     } catch (err) {
       console.error('Failed to fetch devices:', err);

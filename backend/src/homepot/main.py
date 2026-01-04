@@ -30,7 +30,7 @@ from homepot.app.api.API_v1.Api import api_v1_router
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import close_database_service, get_database_service
-from homepot.models import DeviceType, JobPriority
+from homepot.models import JobPriority
 from homepot.orchestrator import get_job_orchestrator, stop_job_orchestrator
 from homepot.request_metrics import increment_request_count
 
@@ -225,28 +225,6 @@ class CreateSiteRequest(BaseModel):
                 "location": "London, UK",
                 "latitude": 51.5074,
                 "longitude": -0.1278,
-            }
-        }
-    )
-
-
-class CreateDeviceRequest(BaseModel):
-    """Request model for creating a new device."""
-
-    device_id: str
-    name: str
-    device_type: str = DeviceType.POS_TERMINAL
-    ip_address: Optional[str] = None
-    config: Optional[Dict] = None
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "device_id": "pos-terminal-001",
-                "name": "POS Terminal 1",
-                "device_type": "pos_terminal",
-                "ip_address": "192.168.1.10",
-                "config": {"gateway_url": "https://payments.example.com"},
             }
         }
     )
@@ -542,45 +520,6 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
         logger.error(f"Failed to create site: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to create site. Please check server logs."
-        )
-
-
-@app.post("/sites/{site_id}/devices", tags=["Devices"], response_model=Dict[str, str])
-async def create_device(
-    site_id: str, device_request: CreateDeviceRequest
-) -> Dict[str, str]:
-    """Create a new device for a site."""
-    try:
-        db_service = await get_database_service()
-
-        # Get site
-        site = await db_service.get_site_by_site_id(site_id)
-        if not site:
-            raise HTTPException(status_code=404, detail=f"Site {site_id} not found")
-
-        # Create device
-        device = await db_service.create_device(
-            device_id=device_request.device_id,
-            name=device_request.name,
-            device_type=device_request.device_type,
-            site_id=site_id,
-            ip_address=device_request.ip_address,
-            config=device_request.config,
-        )
-
-        logger.info(f"Created device {device.device_id} for site {site_id}")
-        return {
-            "message": f"Device {device.device_id} created successfully",
-            "device_id": str(device.device_id),
-            "site_id": site_id,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to create device: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail="Failed to create device. Please check server logs."
         )
 
 

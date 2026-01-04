@@ -89,13 +89,13 @@ export default function SitesList() {
       const withStaticValues = fetchedSites.map((site) => ({
         ...site,
         id: site.id || site.site_id,
-        status: site.status || (Math.random() > 0.5 ? 'Online' : 'Offline'),
-        alert:
-          site.alert ||
-          (Math.random() > 0.6
-            ? `${Math.floor(Math.random() * 3) + 1} asst alert: ${Math.floor(Math.random() * 5) + 1}h ago`
-            : null),
+        // Status is now provided by backend, fallback to Offline if missing
+        status: site.status || 'Offline',
+        alert: site.alert || null,
       }));
+
+      // Sort alphabetically by name
+      withStaticValues.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
       setSites(withStaticValues);
     } catch (err) {
@@ -209,11 +209,6 @@ export default function SitesList() {
             </option>
           ))}
         </select>
-
-        {/* Status box placeholder */}
-        <div className="bg-[#141a24] border border-[#1f2735] text-white px-4 py-[10px] rounded-lg hidden md:block">
-          <p className="text-sm">Status</p>
-        </div>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -265,14 +260,14 @@ export default function SitesList() {
             </div>
 
             <div className="flex items-center space-x-3 mb-3">
-              {site.status === 'Online' && (
-                <>
-                  <WindowsIcon />
-                  <LinuxIcon />
-                  <AppleIcon />
+              {/* Render icons based on OS types present in the site */}
+              {site.os_types && site.os_types.includes('windows') && <WindowsIcon />}
+              {site.os_types && site.os_types.includes('linux') && <LinuxIcon />}
+              {site.os_types && site.os_types.includes('macos') && <AppleIcon />}
+              {site.os_types &&
+                (site.os_types.includes('android') || site.os_types.includes('embedded')) && (
                   <AndroidIcon />
-                </>
-              )}
+                )}
             </div>
 
             {site.alert && (

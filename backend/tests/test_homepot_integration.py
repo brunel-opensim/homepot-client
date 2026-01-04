@@ -141,13 +141,18 @@ class TestPhase2APIEndpoints:
             "type": "test",
         }
 
-        response = client.post("/sites", json=test_site)
+        try:
+            response = client.post("/sites", json=test_site)
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "message" in data
-        assert "site_id" in data
-        assert data["site_id"] == "TEST_SITE_001"
+            assert response.status_code == 200
+            data = response.json()
+            assert "message" in data
+            assert "site_id" in data
+            assert data["site_id"] == "TEST_SITE_001"
+        finally:
+            # Clean up: Delete the test site
+            if response.status_code == 200:
+                client.delete("/sites/TEST_SITE_001")
 
     def test_site_health(self, client: TestClient) -> None:
         """Test site health monitoring."""

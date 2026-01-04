@@ -196,7 +196,7 @@ echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"
 
 # Wait for backend to start
 print_step "Waiting for backend to initialize..."
-sleep 10
+sleep 6
 
 # Check if backend started successfully
 if ps -p $BACKEND_PID > /dev/null; then

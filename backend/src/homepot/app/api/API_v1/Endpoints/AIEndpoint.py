@@ -453,7 +453,7 @@ async def get_at_risk_devices(
     site_id: Optional[str] = Query(None, description="Optional site filter"),
     min_risk_level: str = Query(
         default="medium",
-        regex="^(low|medium|high|critical)$",
+        pattern="^(low|medium|high|critical)$",
         description="Minimum risk level to include",
     ),
 ) -> Dict[str, Any]:
