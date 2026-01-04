@@ -1,16 +1,16 @@
 """Test script to verify error logging functionality."""
 
-import asyncio
 import pytest
 from sqlalchemy import select
-from homepot.error_logger import log_error
-from homepot.database import get_database_service
+
 from homepot.app.models.AnalyticsModel import ErrorLog
+from homepot.database import get_database_service
+from homepot.error_logger import log_error
+
 
 @pytest.mark.asyncio
 async def test_error_logging():
     """Test various error logging scenarios."""
-    
     # Test 1: Database error
     try:
         raise Exception("Simulated database connection failure")
@@ -78,12 +78,11 @@ async def test_error_logging():
             select(ErrorLog).order_by(ErrorLog.timestamp.desc()).limit(10)
         )
         logs = result.scalars().all()
-        
+
         # Verify we have logs
         assert len(logs) > 0
-        
+
         # Verify specific logs exist (checking the most recent ones)
         messages = [log.error_message for log in logs]
         assert "Configuration validation warning" in messages
         assert "Payment gateway connection timeout" in messages
-

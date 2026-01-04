@@ -1,18 +1,20 @@
 """Simple test to verify configuration history directly through orchestrator."""
 
 import asyncio
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
 from sqlalchemy import select
+
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 from homepot.database import get_database_service
 from homepot.models import JobPriority
 from homepot.orchestrator import get_job_orchestrator
 
+
 @pytest.mark.asyncio
 async def test_direct_config_history():
     """Test configuration history by calling orchestrator directly."""
-    
     # Test 1: Create a job via orchestrator
     try:
         orchestrator = await get_job_orchestrator()
@@ -42,7 +44,6 @@ async def test_direct_config_history():
             .order_by(ConfigurationHistory.timestamp.desc())
         )
         config_logs = result.scalars().all()
-        
+
         # Just verify the query works
         assert config_logs is not None
-
