@@ -22,11 +22,7 @@ async def test_direct_config_history():
         result = await session.execute(select(Site).where(Site.site_id == "site-001"))
         site = result.scalars().first()
         if not site:
-            site = Site(
-                site_id="site-001",
-                name="Test Site",
-                location="Test Location"
-            )
+            site = Site(site_id="site-001", name="Test Site", location="Test Location")
             session.add(site)
             await session.commit()
 
