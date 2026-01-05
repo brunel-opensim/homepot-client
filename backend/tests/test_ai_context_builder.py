@@ -531,12 +531,12 @@ async def test_get_site_context_open():
     mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
 
     # Mock Device
-    mock_device = Device(device_id="device-123", site_id="site-1")
+    mock_device = Device(device_id="device-123", site_id=1)
 
     # Mock Schedule
     # Assume it's Monday (0) and time is 10:00
     mock_schedule = SiteOperatingSchedule(
-        site_id="site-1",
+        site_id=1,
         day_of_week=0,
         open_time=time(9, 0),
         close_time=time(17, 0),
@@ -569,7 +569,7 @@ async def test_get_site_context_open():
         context = await ContextBuilder.get_site_context(device_id="device-123")
 
         assert "[SITE CONTEXT]" in context
-        assert "Site ID: site-1" in context
+        assert "Site ID: 1" in context
         assert "Status: OPEN" in context
         assert "Hours: 09:00:00 - 17:00:00" in context
 
@@ -583,11 +583,11 @@ async def test_get_site_context_closed():
     mock_db_service.get_session.return_value.__aenter__.return_value = mock_session
 
     # Mock Device
-    mock_device = Device(device_id="device-123", site_id="site-1")
+    mock_device = Device(device_id="device-123", site_id=1)
 
     # Mock Schedule
     mock_schedule = SiteOperatingSchedule(
-        site_id="site-1",
+        site_id=1,
         day_of_week=0,
         open_time=time(9, 0),
         close_time=time(17, 0),

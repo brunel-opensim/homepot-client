@@ -5,36 +5,37 @@ export PGPASSWORD='homepot_dev_password'
 
 # If no argument provided, show usage
 if [ $# -eq 0 ]; then
-    echo "Usage: ./scripts/query-db.sh [command]"
+    echo "Usage: ./scripts/query-db.sh [command] [command]"
     echo ""
     echo "Available commands:"
-    echo "  tables              - List all tables"
-    echo "  users               - Show all users"
-    echo "  sites               - Show all sites"
-    echo "  devices             - Show all devices"
-    echo "  jobs                - Show all jobs"
-    echo "  health_checks       - Show recent health checks"
-    echo "  audit_logs          - Show recent audit logs"
-    echo "  api_request_logs    - Show recent API requests"
-    echo "  user_activities     - Show recent user activities"
-    echo "  device_state_history - Show device state changes"
-    echo "  device_metrics      - Show device performance metrics"
-    echo "  configuration_history - Show configuration changes"
-    echo "  site_operating_schedules - Show site schedules"
-    echo "  job_outcomes        - Show job execution outcomes"
-    echo "  push_logs           - Show push notification logs"
-    echo "  error_logs          - Show recent errors"
-    echo "  count               - Count rows in all tables"
-    echo "  schema [table]      - Show table structure"
-    echo "  where               - Show where PostgreSQL stores data"
-    echo "  sql 'query'         - Run custom SQL query"
+    echo "  tables                     - List all tables"
+    echo "  users                      - Show all users"
+    echo "  sites                      - Show all sites"
+    echo "  devices                    - Show all devices"
+    echo "  jobs                       - Show all jobs"
+    echo "  health_checks              - Show recent health checks"
+    echo "  audit_logs                 - Show recent audit logs"
+    echo "  api_request_logs           - Show recent API requests"
+    echo "  user_activities            - Show recent user activities"
+    echo "  device_state_history       - Show device state changes"
+    echo "  device_metrics             - Show device performance metrics"
+    echo "  configuration_history      - Show configuration changes"
+    echo "  site_operating_schedules   - Show site schedules"
+    echo "  job_outcomes               - Show job execution outcomes"
+    echo "  push_logs                  - Show push notification logs"
+    echo "  error_logs                 - Show recent errors"
+    echo "  count                      - Count rows in all tables"
+    echo "  schema [table]             - Show table structure"
+    echo "  where                      - Show where PostgreSQL stores data"
+    echo "  site_devices [site_id]     - Show all devices for a specific site"
+    echo "  device_details [device_id] - Show full details and recent metrics for a device"
+    echo "  sql 'query'                - Run custom SQL query"
     echo ""
     echo "Examples:"
     echo "  ./scripts/query-db.sh count"
+    echo "  ./scripts/query-db.sh site_devices site-001"
+    echo "  ./scripts/query-db.sh device_details site1-linux-01"
     echo "  ./scripts/query-db.sh jobs"
-    echo "  ./scripts/query-db.sh audit_logs"
-    echo "  ./scripts/query-db.sh schema health_checks"
-    echo "  ./scripts/query-db.sh sql 'SELECT * FROM sites LIMIT 1;'"
     exit 0
 fi
 
@@ -56,22 +57,28 @@ EOF
         ;;
     devices)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
-SELECT id, device_id, name, device_type, site_id, status FROM devices LIMIT 10;
+SELECT d.id, d.device_id, d.name, d.device_type, s.site_id, d.status 
+FROM devices d
+JOIN sites s ON d.site_id = s.id
+LIMIT 10;
 EOF
         ;;
     jobs)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
-SELECT id, job_id, action, status, priority, site_id, device_id, created_at, completed_at 
-FROM jobs 
-ORDER BY created_at DESC 
+SELECT j.id, j.job_id, j.action, j.status, s.site_id, d.device_id, j.created_at 
+FROM jobs j
+JOIN sites s ON j.site_id = s.id
+LEFT JOIN devices d ON j.device_id = d.id
+ORDER BY j.created_at DESC 
 LIMIT 10;
 EOF
         ;;
     health_checks)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
-SELECT id, device_id, is_healthy, response_time_ms, status_code, endpoint, timestamp 
-FROM health_checks 
-ORDER BY timestamp DESC 
+SELECT h.id, d.device_id, h.is_healthy, h.response_time_ms, h.status_code, h.timestamp 
+FROM health_checks h
+JOIN devices d ON h.device_id = d.id
+ORDER BY h.timestamp DESC 
 LIMIT 10;
 EOF
         ;;
@@ -133,10 +140,10 @@ EOF
         ;;
     device_metrics)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
-SELECT id, device_id, cpu_percent, memory_percent, disk_percent, 
-       transaction_count, error_rate, timestamp 
-FROM device_metrics 
-ORDER BY timestamp DESC 
+SELECT m.id, d.device_id, m.cpu_percent, m.memory_percent, m.transaction_count, m.timestamp 
+FROM device_metrics m
+JOIN devices d ON m.device_id = d.id
+ORDER BY m.timestamp DESC 
 LIMIT 10;
 EOF
         ;;
@@ -217,6 +224,40 @@ EOF
         fi
         psql -h localhost -U homepot_user -d homepot_db <<EOF
 $2
+EOF
+        ;;
+    site_devices)
+        if [ -z "$2" ]; then
+            echo "Please provide a site_id: ./scripts/query-db.sh site_devices site-001"
+            exit 1
+        fi
+        echo "Devices for Site: $2"
+        echo "------------------------------------------------"
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+SELECT d.device_id, d.name, d.device_type, d.status, d.ip_address 
+FROM devices d
+JOIN sites s ON d.site_id = s.id
+WHERE s.site_id = '$2'
+ORDER BY d.device_id;
+EOF
+        ;;
+    device_details)
+        if [ -z "$2" ]; then
+            echo "Please provide a device_id: ./scripts/query-db.sh device_details site1-linux-01"
+            exit 1
+        fi
+        echo "=== Device Information: $2 ==="
+        psql -h localhost -U homepot_user -d homepot_db -x <<EOF
+SELECT * FROM devices WHERE device_id = '$2';
+EOF
+        echo ""
+        echo "=== Recent Metrics (Last 5) ==="
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+SELECT timestamp, cpu_percent, memory_percent, transaction_count, error_rate 
+FROM device_metrics 
+WHERE device_id = (SELECT id FROM devices WHERE device_id = '$2') 
+ORDER BY timestamp DESC 
+LIMIT 5;
 EOF
         ;;
     *)

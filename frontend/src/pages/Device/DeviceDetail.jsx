@@ -437,15 +437,19 @@ export default function Device() {
       <div className="min-h-screen bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-6 sm:p-10 font-sans">
         <Button
           variant="ghost"
-          onClick={() =>
-            location.state?.from === 'site' && location.state?.siteId
-              ? navigate(`/sites/${location.state.siteId}`)
-              : navigate('/device')
-          }
+          onClick={() => {
+            if (location.state?.from === 'site' && location.state?.siteId) {
+              navigate(`/sites/${location.state.siteId}`);
+            } else if (device?.site_id) {
+              navigate(`/sites/${device.site_id}`);
+            } else {
+              navigate('/device');
+            }
+          }}
           className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          {location.state?.from === 'site' ? 'Back to Site' : 'Back'}
+          {location.state?.from === 'site' || device?.site_id ? 'Back to Site' : 'Back'}
         </Button>
 
         <div className="max-w-7xl mx-auto">

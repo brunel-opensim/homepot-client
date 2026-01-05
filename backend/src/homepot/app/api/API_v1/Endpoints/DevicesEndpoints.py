@@ -96,7 +96,7 @@ async def create_device(device_request: CreateDeviceRequest) -> Dict[str, Any]:
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=device_request.site_id,
+            site_id=site.id,
             ip_address=device_request.ip_address,
             config={
                 "mac_address": device_request.mac_address,

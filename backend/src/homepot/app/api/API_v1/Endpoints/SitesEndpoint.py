@@ -154,7 +154,7 @@ async def list_sites() -> Dict[str, List[Dict]]:
                 # Fetch devices for this site to determine status and OS types
                 devices_result = await session.execute(
                     select(Device).where(
-                        Device.site_id == site.site_id, Device.is_active.is_(True)
+                        Device.site_id == site.id, Device.is_active.is_(True)
                     )
                 )
                 devices = devices_result.scalars().all()

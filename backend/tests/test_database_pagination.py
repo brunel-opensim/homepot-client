@@ -12,7 +12,7 @@ async def test_get_devices_by_site_and_segment_paginated():
     await db_service.initialize()
 
     # Create a test site
-    await db_service.create_site(
+    site = await db_service.create_site(
         site_id="site-pagination-test", name="Pagination Test Site"
     )
 
@@ -23,7 +23,7 @@ async def test_get_devices_by_site_and_segment_paginated():
             device_id=f"device-p-{i}",
             name=f"Device {i}",
             device_type="pos_terminal",
-            site_id="site-pagination-test",
+            site_id=site.id,
         )
         devices.append(device)
 

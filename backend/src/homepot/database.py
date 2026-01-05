@@ -295,7 +295,7 @@ class DatabaseService:
         device_id: str,
         name: str,
         device_type: str,
-        site_id: str,
+        site_id: int,
         ip_address: Optional[str] = None,
         config: Optional[dict] = None,
         api_key_hash: Optional[str] = None,
@@ -417,8 +417,8 @@ class DatabaseService:
         from sqlalchemy import select
 
         async with self.get_session() as session:
-            query = select(Device).where(
-                Device.site_id == site_id, Device.is_active.is_(True)
+            query = select(Device).join(Site).where(
+                Site.site_id == site_id, Device.is_active.is_(True)
             )
 
             # For POS scenario: filter by device type if segment specified
@@ -439,8 +439,8 @@ class DatabaseService:
         from sqlalchemy import select
 
         async with self.get_session() as session:
-            query = select(Device).where(
-                Device.site_id == site_id, Device.is_active.is_(True)
+            query = select(Device).join(Site).where(
+                Site.site_id == site_id, Device.is_active.is_(True)
             )
 
             # For POS scenario: filter by device type if segment specified
