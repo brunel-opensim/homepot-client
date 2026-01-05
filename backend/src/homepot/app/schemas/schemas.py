@@ -11,7 +11,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     username: Optional[str] = None
-    role: Optional[str] = "User"  # Default role
+    role: Optional[str] = "Client"  # Default role
 
 
 class UserLogin(BaseModel):
