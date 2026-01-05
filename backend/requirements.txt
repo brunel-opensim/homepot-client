@@ -45,6 +45,7 @@ aiohttp==3.13.2  # For async HTTP requests in push notification providers
 google-auth==2.45.0  # For Google Cloud/Firebase authentication (FCM Linux)
 google-auth-oauthlib==1.2.2  # For OAuth2 flows (FCM Linux)
 pyjwt[crypto]==2.10.1  # For JWT token generation (APNs authentication)
+py-vapid==1.9.2  # Pinning to 1.9.2 because 1.9.3 is broken (contains absolute symlinks)
 pywebpush==2.1.1  # For Web Push notifications (browsers)
 cryptography==46.0.3  # For VAPID key generation and encryption (Web Push)
 paho-mqtt==2.1.0  # For MQTT push notifications (IoT/OT devices)
