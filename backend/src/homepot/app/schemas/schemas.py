@@ -10,6 +10,7 @@ class UserCreate(BaseModel):
 
     email: EmailStr
     password: str
+    full_name: Optional[str] = None
     username: Optional[str] = None
     role: Optional[str] = "Client"  # Default role
 
@@ -28,8 +29,12 @@ class UserOut(BaseModel):
 
     id: int
     email: EmailStr
-    name: Optional[str] = None
+    username: str
+    full_name: Optional[str] = None
     role: str
+    is_active: bool
+    is_admin: bool
+    created_at: Any
 
 
 class Token(BaseModel):

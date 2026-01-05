@@ -196,27 +196,48 @@ async def init_database():
     async with db_service.get_session() as session:
         # 1. Admin User (matching DB credentials for simplicity)
         result = await session.execute(
-            select(User).where(User.username == "homepot_user")
+            select(User).where(User.username == "homepot_admin")
         )
         if not result.scalar_one_or_none():
             admin_user = User(
                 email="admin@homepot.com",
-                username="homepot_user",
+                username="homepot_admin",
+                full_name="System Administrator",
                 hashed_password=pwd_context.hash("homepot_dev_password"),
                 is_admin=True,
                 created_at=now,
                 updated_at=now,
             )
             session.add(admin_user)
-            print("Created user: homepot_user")
+            print("Created user: homepot_admin")
         else:
-            print("User homepot_user already exists")
+            print("User homepot_admin already exists")
             # Fetch for later use
             admin_user = (
                 await session.execute(
-                    select(User).where(User.username == "homepot_user")
+                    select(User).where(User.username == "homepot_admin")
                 )
             ).scalar_one()
+
+        # 2. Standard Client User
+        result = await session.execute(
+            select(User).where(User.username == "homepot_client")
+        )
+        if not result.scalar_one_or_none():
+            client_user = User(
+                email="user@homepot.com",
+                username="homepot_client",
+                full_name="Standard Client",
+                hashed_password=pwd_context.hash("homepot_dev_password"),
+                role="Client",
+                is_admin=False,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(client_user)
+            print("Created user: homepot_client")
+        else:
+            print("User homepot_client already exists")
 
         await session.commit()
 
