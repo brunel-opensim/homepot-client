@@ -275,16 +275,16 @@ class DatabaseService:
         """
         from sqlalchemy import select
 
-        async with self.get_session() as session:
-            # Verify site exists first
-            site = await self.get_site_by_site_id(site_id)
-            if not site:
-                return []
+        # Verify site exists first (outside of the device query session to avoid nesting)
+        site = await self.get_site_by_site_id(site_id)
+        if not site:
+            return []
 
-            # Query devices using string site_id FK
+        async with self.get_session() as session:
+            # Query devices using INTEGER site.id FK
             result = await session.execute(
                 select(Device)
-                .where(Device.site_id == site_id, Device.is_active.is_(True))
+                .where(Device.site_id == site.id, Device.is_active.is_(True))
                 .order_by(Device.created_at.desc())
             )
             return list(result.scalars().all())
