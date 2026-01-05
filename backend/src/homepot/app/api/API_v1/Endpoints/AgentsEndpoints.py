@@ -28,7 +28,7 @@ def get_client() -> HomepotClient:
 async def list_agents() -> Dict[str, List[Dict]]:
     """List all active agents and their status from the database."""
     try:
-        from sqlalchemy import and_, func, select
+        from sqlalchemy import select
 
         from homepot.database import get_database_service
         from homepot.models import Device, DeviceStatus, HealthCheck
@@ -44,44 +44,55 @@ async def list_agents() -> Dict[str, List[Dict]]:
             if not devices:
                 return {"agents": []}
 
-            # Optimization: Fetch latest health checks in a single query
-            # instead of N+1 queries
-            device_ids = [d.id for d in devices]
-
-            # Subquery to find the max timestamp for each device
-            subq = (
-                select(
-                    HealthCheck.device_id,
-                    func.max(HealthCheck.timestamp).label("max_ts"),
-                )
-                .where(HealthCheck.device_id.in_(device_ids))
-                .group_by(HealthCheck.device_id)
-                .subquery()
-            )
-
-            # Join to get the full row
-            stmt = select(HealthCheck).join(
-                subq,
-                and_(
-                    HealthCheck.device_id == subq.c.device_id,
-                    HealthCheck.timestamp == subq.c.max_ts,
-                ),
-            )
-
-            hc_result = await session.execute(stmt)
-            latest_hcs = hc_result.scalars().all()
-
-            # Map device_id -> HealthCheck
-            hc_map = {hc.device_id: hc for hc in latest_hcs}
-
             for device in devices:
-                latest_hc = hc_map.get(device.id)
+                # Fetch latest health check for this device
+                # Using a direct query per device is more reliable than complex joins
+                # with timestamps across different DB backends (SQLite vs Postgres)
+                stmt = (
+                    select(HealthCheck)
+                    .where(HealthCheck.device_id == device.id)
+                    .order_by(HealthCheck.timestamp.desc())
+                    .limit(1)
+                )
+                hc_result = await session.execute(stmt)
+                latest_hc = hc_result.scalar_one_or_none()
+
+                # Prepare health check data
+                hc_data = None
+                if latest_hc:
+                    # Ensure response_data is a dict
+                    if isinstance(latest_hc.response_data, dict):
+                        hc_data = latest_hc.response_data.copy()
+                    elif isinstance(latest_hc.response_data, str):
+                        try:
+                            import json
+
+                            hc_data = json.loads(latest_hc.response_data)
+                        except Exception:
+                            logger.error(
+                                f"Failed to parse JSON for device {device.device_id}",
+                                exc_info=True,
+                            )
+                            hc_data = {}
+                    else:
+                        hc_data = {}
+
+                    # Inject timestamp from the record if not present in the JSON data
+                    # The frontend expects 'timestamp' at the root of the health check object
+                    if "timestamp" not in hc_data and latest_hc.timestamp:
+                        hc_data["timestamp"] = latest_hc.timestamp.isoformat()
+                else:
+                    # Log warning if no health check found for active device
+                    if device.status == DeviceStatus.ONLINE:
+                        logger.warning(
+                            f"No health check found for online device {device.device_id} (PK: {device.id})"
+                        )
 
                 status_data = {
                     "device_id": device.device_id,
                     "state": device.status,
                     "config_version": device.firmware_version or "unknown",
-                    "last_health_check": latest_hc.response_data if latest_hc else None,
+                    "last_health_check": hc_data,
                     "uptime": (
                         "running" if device.status == DeviceStatus.ONLINE else "stopped"
                     ),
