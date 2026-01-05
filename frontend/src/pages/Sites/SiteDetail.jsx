@@ -30,8 +30,10 @@ export default function SiteDetail() {
 
   useEffect(() => {
     const fetchSiteAndDevices = async () => {
-      if (!id) {
-        console.error('No ID provided to fetch');
+      if (!id || id === 'undefined' || id === 'null') {
+        console.error('Invalid ID:', id);
+        // If we somehow got here with an invalid ID, go back to list
+        navigate('/sites', { replace: true });
         return;
       }
 
@@ -114,7 +116,7 @@ export default function SiteDetail() {
       <div className="container mx-auto py-12 px-4 text-center">
         <h2 className="text-lg font-semibold text-destructive mb-2">Error</h2>
         <p className="text-muted-foreground mb-4">{error || 'Site not found'}</p>
-        <Button onClick={() => navigate('/sites')}>Back to Sites</Button>
+        <Button onClick={() => navigate('/sites', { replace: true })}>Back to Sites</Button>
       </div>
     );
   }
@@ -124,7 +126,7 @@ export default function SiteDetail() {
       <div className="container mx-auto max-w-7xl">
         <Button
           variant="ghost"
-          onClick={() => navigate('/sites')}
+          onClick={() => navigate('/sites', { replace: true })}
           className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -140,13 +142,6 @@ export default function SiteDetail() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              onClick={() => navigate('/device/new', { state: { siteId: id } })}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white border-none"
-            >
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Register Device
-            </Button>
             <Button
               onClick={handleToggleMonitor}
               className={`bg-transparent border ${

@@ -57,24 +57,24 @@ const DEVICE_CAPABILITIES = {
 // Define available actions per device type
 const DEVICE_ACTIONS = {
   pos_terminal: [
-    { key: 'update_settings', label: 'Update Configurations' },
     { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   iot_sensor: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   industrial_controller: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   gateway: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   unknown: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
 };
 

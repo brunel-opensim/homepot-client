@@ -12,30 +12,35 @@ The tests use httpx for async HTTP testing and cover the full API surface.
 import os
 import time
 import uuid
-import random
-import string
 from typing import AsyncGenerator
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+
 def generate_random_id(prefix: str) -> str:
+    """Generate a random ID with the given prefix."""
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
 
 def ensure_user_exists(client: TestClient) -> None:
     """Ensure a user exists (likely ID 1) for foreign key constraints."""
     try:
         # Try to register a user. Ignore if it fails (e.g. already exists).
         # Using /api/v1/auth/signup based on UserRegisterEndpoint.py and route list
-        response = client.post("/api/v1/auth/signup", json={
-            "username": "admin",
-            "email": "admin@example.com",
-            "password": "password123"
-        })
+        client.post(
+            "/api/v1/auth/signup",
+            json={
+                "username": "admin",
+                "email": "admin@example.com",
+                "password": "password123",
+            },
+        )
         # We don't assert here because if user exists it returns 400, which is fine.
     except Exception:
         pass
+
 
 # Test Configuration
 TEST_BASE_URL = "http://localhost:8000"
@@ -279,7 +284,7 @@ class TestPhase3AgentSimulation:
             assert response.status_code == 200
             agent = response.json()
             assert agent["device_id"] == device_id
-            assert "state" in agent # Changed from status
+            assert "state" in agent  # Changed from status
             # assert "health_metrics" in agent # Might be missing
 
     def test_agent_push_notification(self, client: TestClient) -> None:
@@ -315,8 +320,8 @@ class TestPhase3AgentSimulation:
             assert response.status_code == 200
             health = response.json()
             assert "device_id" in health
-            assert "agent_state" in health # Changed from status
-            assert "health" in health # Changed from metrics based on error log
+            assert "agent_state" in health  # Changed from status
+            assert "health" in health  # Changed from metrics based on error log
 
     def test_device_restart(self, client: TestClient) -> None:
         """Test device restart functionality."""
@@ -367,7 +372,7 @@ class TestPhase4AuditLogging:
         stats_response = response.json()
         assert "statistics" in stats_response
         stats = stats_response["statistics"]
-        
+
         assert "total_events" in stats
         assert "events_by_type" in stats
         # assert "events_by_severity" in stats # This key is not in the response based on audit.py

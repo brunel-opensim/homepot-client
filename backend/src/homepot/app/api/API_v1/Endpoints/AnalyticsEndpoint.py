@@ -643,19 +643,18 @@ async def get_configuration_history(
             "device_id": device_id,
             "history": [
                 {
-                    "id": f"job-{h.id}",
-                    "date": h.timestamp.isoformat(),
-                    "status": "success",  # Assuming success if logged
+                    "id": h.id,
+                    "timestamp": h.timestamp.isoformat(),
+                    "status": "success" if h.was_successful is not False else "failed",
+                    "action_type": h.change_type or "configuration_update",
+                    "title": h.change_reason or f"Updated {h.parameter_name}",
+                    "details": h.new_value,
+                    "config_version": (
+                        h.new_value.get("version", "v1")
+                        if isinstance(h.new_value, dict)
+                        else "v1"
+                    ),
                     "user": h.changed_by,
-                    "summary": h.change_reason or f"Updated {h.parameter_name}",
-                    "changes": 1,
-                    "version": h.new_value.get("version", "v1"),
-                    "payload": {
-                        "title": "Configuration Update",
-                        "body": f"Updated {h.parameter_name}",
-                        "data": h.new_value,
-                        "priority": "normal",
-                    },
                 }
                 for h in history
             ],

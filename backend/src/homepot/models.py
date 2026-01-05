@@ -170,7 +170,7 @@ class Device(Base):
     jobs = relationship("Job", back_populates="target_device")
     health_checks = relationship("HealthCheck", back_populates="device")
     commands = relationship("DeviceCommand", back_populates="device")
-    
+
     # Analytics Relationships
     metrics = relationship(
         "DeviceMetrics",

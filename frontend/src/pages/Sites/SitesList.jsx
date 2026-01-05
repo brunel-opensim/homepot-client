@@ -88,7 +88,7 @@ export default function SitesList() {
       // Add temporary static fields to match Site.jsx look if missing from API
       const withStaticValues = fetchedSites.map((site) => ({
         ...site,
-        id: site.id || site.site_id,
+        id: site.site_id || site.id,
         // Status is now provided by backend, fallback to Offline if missing
         status: site.status || 'Offline',
         alert: site.alert || null,
@@ -216,10 +216,9 @@ export default function SitesList() {
           <div
             key={site.id}
             className="bg-[#141a24] border border-[#1f2735] rounded-xl p-5 hover:border-teal-400 transition-all flex flex-col group relative"
-            onClick={() => navigate(`/sites/${site.id}`)}
           >
-            {/* Edit/Delete Actions - Visible on hover or always visible on mobile */}
-            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Edit/Delete Actions - Always visible */}
+            <div className="absolute top-4 right-4 flex gap-2">
               <button
                 // onClick={(e) => handleEditClick(e, site)}
                 onClick={(e) => {
@@ -250,7 +249,7 @@ export default function SitesList() {
               </button>
             </div>
 
-            <div className="mb-6 cursor-pointer">
+            <div className="mb-6">
               <h2 className="text-lg font-semibold text-white text-start truncate pr-16">
                 {site.name}
               </h2>
@@ -291,6 +290,7 @@ export default function SitesList() {
               // }}
               onClick={(e) => {
                 e.stopPropagation();
+                if (!site.id) return;
 
                 trackActivity('click', '/sites', { site_id: site.id }, 'view_site_details_btn');
 

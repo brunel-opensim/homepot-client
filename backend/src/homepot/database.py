@@ -255,12 +255,13 @@ class DatabaseService:
     async def get_device_by_device_id(self, device_id: str) -> Optional[Device]:
         """Get Device by device_id."""
         from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
 
         async with self.get_session() as session:
             result = await session.execute(
-                select(Device).where(
-                    Device.device_id == device_id, Device.is_active.is_(True)
-                )
+                select(Device)
+                .options(joinedload(Device.site))
+                .where(Device.device_id == device_id, Device.is_active.is_(True))
             )
             return result.scalar_one_or_none()
 
@@ -417,8 +418,10 @@ class DatabaseService:
         from sqlalchemy import select
 
         async with self.get_session() as session:
-            query = select(Device).join(Site).where(
-                Site.site_id == site_id, Device.is_active.is_(True)
+            query = (
+                select(Device)
+                .join(Site)
+                .where(Site.site_id == site_id, Device.is_active.is_(True))
             )
 
             # For POS scenario: filter by device type if segment specified
@@ -439,8 +442,10 @@ class DatabaseService:
         from sqlalchemy import select
 
         async with self.get_session() as session:
-            query = select(Device).join(Site).where(
-                Site.site_id == site_id, Device.is_active.is_(True)
+            query = (
+                select(Device)
+                .join(Site)
+                .where(Site.site_id == site_id, Device.is_active.is_(True))
             )
 
             # For POS scenario: filter by device type if segment specified

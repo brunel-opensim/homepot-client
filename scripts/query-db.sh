@@ -149,11 +149,11 @@ EOF
         ;;
     configuration_history)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
-SELECT id, entity_type, entity_id, parameter_name, 
-       old_value, new_value, was_successful, timestamp 
+SELECT id, change_type, entity_id, parameter_name, 
+       was_successful, timestamp, changed_by
 FROM configuration_history 
 ORDER BY timestamp DESC 
-LIMIT 10;
+LIMIT 20;
 EOF
         ;;
     site_operating_schedules)
@@ -258,6 +258,52 @@ FROM device_metrics
 WHERE device_id = (SELECT id FROM devices WHERE device_id = '$2') 
 ORDER BY timestamp DESC 
 LIMIT 5;
+EOF
+        ;;
+    history_details)
+        if [ -z "$2" ]; then
+            echo "Please provide a history id: ./scripts/query-db.sh history_details 123"
+            exit 1
+        fi
+        echo "=== Configuration History Details: $2 ==="
+        psql -h localhost -U homepot_user -d homepot_db -x <<EOF
+SELECT * FROM configuration_history WHERE id = $2;
+EOF
+        ;;
+    site_hierarchy)
+        if [ -z "$2" ]; then
+            echo "Please provide a site_id: ./scripts/query-db.sh site_hierarchy site-001"
+            exit 1
+        fi
+        SITE_ID="$2"
+        echo "=== Hierarchy Report for Site: $SITE_ID ==="
+        
+        # Get Site PK
+        SITE_PK=$(psql -h localhost -U homepot_user -d homepot_db -t -c "SELECT id FROM sites WHERE site_id = '$SITE_ID';" | tr -d ' ')
+        
+        if [ -z "$SITE_PK" ]; then
+            echo "Site not found!"
+            exit 1
+        fi
+        
+        echo "Site Internal ID: $SITE_PK"
+        
+        echo ""
+        echo "--- Devices & Associated Records ---"
+        echo "This report confirms that records are correctly linked to devices under this site."
+        echo ""
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+        SELECT 
+            d.device_id,
+            d.name,
+            (SELECT COUNT(*) FROM device_metrics m WHERE m.device_id = d.id) as metrics,
+            (SELECT COUNT(*) FROM device_state_history h WHERE h.device_id = d.id) as state_changes,
+            (SELECT COUNT(*) FROM configuration_history c WHERE c.entity_id = d.device_id AND c.entity_type = 'device') as config_changes,
+            (SELECT COUNT(*) FROM push_notification_logs p WHERE p.device_id = d.device_id) as push_logs,
+            (SELECT COUNT(*) FROM job_outcomes j WHERE j.device_id = d.device_id) as jobs
+        FROM devices d
+        WHERE d.site_id = $SITE_PK
+        ORDER BY d.device_id;
 EOF
         ;;
     *)
