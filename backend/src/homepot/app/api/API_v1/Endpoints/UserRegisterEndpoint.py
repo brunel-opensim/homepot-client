@@ -57,18 +57,30 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
             logger.warning(f"Signup failed: Email {user.email} already registered")
             raise HTTPException(status_code=400, detail="Email already registered")
             # return {"status_code": 400, "detail": "Email already registered"}
+
+        # Handle username (generate from email if missing)
+        final_username = user.username
+        if not final_username:
+            final_username = user.email.split("@")[0]
+
         db_username = (
-            db.query(models.User).filter(models.User.username == user.username).first()
+            db.query(models.User).filter(models.User.username == final_username).first()
         )
         if db_username:
-            logger.warning(f"Signup failed: Username {user.username} already taken")
+            logger.warning(f"Signup failed: Username {final_username} already taken")
             raise HTTPException(status_code=400, detail="Username already taken")
             # return {"status_code": 400, "detail": "Username already taken"}
+        # Determine if admin based on role
+        user_role = user.role if user.role else "Client"
+        is_admin_user = user_role.lower() == "admin"
+
         new_user = models.User(
             email=user.email,
-            username=user.username,
+            username=final_username,
+            full_name=user.full_name,
             hashed_password=hash_password(user.password),
-            # role=user.role if user.role else "User",
+            role=user_role,
+            is_admin=is_admin_user,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             # last_login=datetime.now(timezone.utc),

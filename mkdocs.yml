@@ -107,6 +107,7 @@ nav:
       - Integration Guide: integration-guide.md
   
   - User Guides:
+      - Authentication Guide: authentication-guide.md
       - Device Registration: device-registration.md
       - MDM Configuration: device-configuration-mdm.md
       - POS Management: pos-management.md

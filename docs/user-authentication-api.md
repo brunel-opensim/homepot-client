@@ -33,14 +33,18 @@ Content-Type: application/json
 {
   "email": "user@example.com",
   "password": "securePassword123",
-  "username": "user"
+  "full_name": "John Doe",
+  "username": "user",
+  "role": "Client"
 }
 ```
 
 **Fields:**
 - `email` (required, EmailStr): User's email address
 - `password` (required, string): User's password (will be hashed)
-- `username` (optional, string): User's username
+- `full_name` (optional, string): User's full real name
+- `username` (optional, string): User's username. If not provided, it will be auto-generated from the email (e.g. `user` from `user@example.com`).
+- `role` (optional, string): "Client" or "Admin" (Default: "Client")
 
 #### Success Response (201 Created)
 ```json

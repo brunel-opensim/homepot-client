@@ -47,7 +47,7 @@ case "$1" in
         ;;
     users)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
-SELECT id, username, email, is_admin, is_active, created_at FROM users;
+SELECT id, username, full_name, email, is_admin, is_active, created_at FROM users;
 EOF
         ;;
     sites)

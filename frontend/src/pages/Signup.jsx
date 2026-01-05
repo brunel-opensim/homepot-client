@@ -49,7 +49,12 @@ const Signup = () => {
     setSuccessMsg(null);
 
     // basic validation
-    if (!credentials.email || !credentials.password || !credentials.name || !credentials.role) {
+    if (
+      !credentials.email ||
+      !credentials.password ||
+      !credentials.full_name ||
+      !credentials.role
+    ) {
       setErrorMsg('Please fill in all fields.');
       return { success: false };
     }
@@ -131,7 +136,7 @@ const Signup = () => {
             loading={loading}
             errorMsg={errorMsg}
             successMsg={successMsg}
-            onSubmit={() => handleSignUp({ name, email, password, role, activeTab })}
+            onSubmit={() => handleSignUp({ full_name: name, email, password, role, activeTab })}
             onNavigateToSignIn={handleNavigateToSignIn}
           />
 
