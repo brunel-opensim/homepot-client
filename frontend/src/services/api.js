@@ -160,7 +160,7 @@ const api = {
      * List all sites
      */
     list: async () => {
-      const response = await apiClient.get('/sites');
+      const response = await apiClient.get('/sites/');
       return response.data;
     },
 
@@ -176,7 +176,7 @@ const api = {
      * Create new site
      */
     create: async (siteData) => {
-      const response = await apiClient.post('/sites', siteData);
+      const response = await apiClient.post('/sites/', siteData);
       return response.data;
     },
 

@@ -8,12 +8,14 @@ from sqlalchemy import (
     Column,
     DateTime,
     Float,
+    ForeignKey,
     Index,
     Integer,
     String,
     Text,
     Time,
 )
+from sqlalchemy.orm import relationship
 
 from .UserModel import Base
 
@@ -58,12 +60,18 @@ class DeviceStateHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
-    device_id = Column(String(255), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False, index=True)
     previous_state = Column(String(50), nullable=True)
     new_state = Column(String(50), nullable=False)
     changed_by = Column(String(255), nullable=True)  # user_id or system
     reason = Column(String(500), nullable=True)
     extra_data = Column(JSON, nullable=True)
+
+    # Relationships
+    device = relationship(
+        "Device",
+        back_populates="state_history",
+    )
 
     __table_args__ = (Index("idx_device_timestamp", "device_id", "timestamp"),)
 
@@ -152,7 +160,7 @@ class DeviceMetrics(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
-    device_id = Column(String(255), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False, index=True)
 
     # Performance metrics
     cpu_percent = Column(Float, nullable=True)
@@ -169,6 +177,12 @@ class DeviceMetrics(Base):
     active_connections = Column(Integer, nullable=True)
     queue_depth = Column(Integer, nullable=True)
     extra_metrics = Column(JSON, nullable=True)
+
+    # Relationships
+    device = relationship(
+        "Device",
+        back_populates="metrics",
+    )
 
     __table_args__ = (
         Index("idx_device_metrics_device_timestamp", "device_id", "timestamp"),
@@ -219,7 +233,7 @@ class SiteOperatingSchedule(Base):
     __tablename__ = "site_operating_schedules"
 
     id = Column(Integer, primary_key=True, index=True)
-    site_id = Column(String(255), nullable=False, index=True)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=False, index=True)
 
     # Schedule definition
     day_of_week = Column(Integer, nullable=False)  # 0=Monday, 6=Sunday

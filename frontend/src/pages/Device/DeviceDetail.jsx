@@ -57,24 +57,24 @@ const DEVICE_CAPABILITIES = {
 // Define available actions per device type
 const DEVICE_ACTIONS = {
   pos_terminal: [
-    { key: 'update_settings', label: 'Update Configurations' },
     { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   iot_sensor: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   industrial_controller: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   gateway: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
   unknown: [
     { key: 'status_request', label: 'Request Status' },
-    { key: 'update_settings', label: 'Update Configurations' },
+    { key: 'update_settings', label: 'Compose Command' },
   ],
 };
 
@@ -218,7 +218,7 @@ export default function Device() {
           type: 'success',
         });
       } else if (actionKey === 'update_settings') {
-        navigate(`/device/${id}/settings`);
+        navigate(`/device/${id}/push-review`);
       } else {
         setToast({
           message: `Action ${actionKey.replace('_', ' ')} triggered successfully`,
@@ -437,15 +437,19 @@ export default function Device() {
       <div className="min-h-screen bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-6 sm:p-10 font-sans">
         <Button
           variant="ghost"
-          onClick={() =>
-            location.state?.from === 'site' && location.state?.siteId
-              ? navigate(`/sites/${location.state.siteId}`)
-              : navigate('/device')
-          }
+          onClick={() => {
+            if (location.state?.from === 'site' && location.state?.siteId) {
+              navigate(`/sites/${location.state.siteId}`);
+            } else if (device?.site_id) {
+              navigate(`/sites/${device.site_id}`);
+            } else {
+              navigate('/device');
+            }
+          }}
           className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          {location.state?.from === 'site' ? 'Back to Site' : 'Back'}
+          {location.state?.from === 'site' || device?.site_id ? 'Back to Site' : 'Back'}
         </Button>
 
         <div className="max-w-7xl mx-auto">

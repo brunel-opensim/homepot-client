@@ -143,7 +143,7 @@ class Device(Base):
     name = Column(String(100), nullable=False)
     device_type = Column(String(50), nullable=False)  # DeviceType enum
     status = Column(String(20), default=DeviceStatus.UNKNOWN)
-    site_id = Column(String(20), ForeignKey("sites.site_id"), nullable=False)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
 
     # Device specifications
     ip_address = Column(String(45), nullable=True)  # IPv4/IPv6
@@ -170,6 +170,21 @@ class Device(Base):
     jobs = relationship("Job", back_populates="target_device")
     health_checks = relationship("HealthCheck", back_populates="device")
     commands = relationship("DeviceCommand", back_populates="device")
+
+    # Analytics Relationships
+    metrics = relationship(
+        "DeviceMetrics",
+        back_populates="device",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
+
+    state_history = relationship(
+        "DeviceStateHistory",
+        back_populates="device",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
 
 
 class DeviceCommand(Base):

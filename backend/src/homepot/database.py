@@ -255,12 +255,13 @@ class DatabaseService:
     async def get_device_by_device_id(self, device_id: str) -> Optional[Device]:
         """Get Device by device_id."""
         from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
 
         async with self.get_session() as session:
             result = await session.execute(
-                select(Device).where(
-                    Device.device_id == device_id, Device.is_active.is_(True)
-                )
+                select(Device)
+                .options(joinedload(Device.site))
+                .where(Device.device_id == device_id, Device.is_active.is_(True))
             )
             return result.scalar_one_or_none()
 
@@ -275,16 +276,16 @@ class DatabaseService:
         """
         from sqlalchemy import select
 
-        async with self.get_session() as session:
-            # Verify site exists first
-            site = await self.get_site_by_site_id(site_id)
-            if not site:
-                return []
+        # Verify site exists first (outside of the device query session to avoid nesting)
+        site = await self.get_site_by_site_id(site_id)
+        if not site:
+            return []
 
-            # Query devices using string site_id FK
+        async with self.get_session() as session:
+            # Query devices using INTEGER site.id FK
             result = await session.execute(
                 select(Device)
-                .where(Device.site_id == site_id, Device.is_active.is_(True))
+                .where(Device.site_id == site.id, Device.is_active.is_(True))
                 .order_by(Device.created_at.desc())
             )
             return list(result.scalars().all())
@@ -295,7 +296,7 @@ class DatabaseService:
         device_id: str,
         name: str,
         device_type: str,
-        site_id: str,
+        site_id: int,
         ip_address: Optional[str] = None,
         config: Optional[dict] = None,
         api_key_hash: Optional[str] = None,
@@ -417,8 +418,10 @@ class DatabaseService:
         from sqlalchemy import select
 
         async with self.get_session() as session:
-            query = select(Device).where(
-                Device.site_id == site_id, Device.is_active.is_(True)
+            query = (
+                select(Device)
+                .join(Site)
+                .where(Site.site_id == site_id, Device.is_active.is_(True))
             )
 
             # For POS scenario: filter by device type if segment specified
@@ -439,8 +442,10 @@ class DatabaseService:
         from sqlalchemy import select
 
         async with self.get_session() as session:
-            query = select(Device).where(
-                Device.site_id == site_id, Device.is_active.is_(True)
+            query = (
+                select(Device)
+                .join(Site)
+                .where(Site.site_id == site_id, Device.is_active.is_(True))
             )
 
             # For POS scenario: filter by device type if segment specified

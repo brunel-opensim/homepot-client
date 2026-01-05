@@ -10,8 +10,8 @@ import {
   StatBlock,
 } from './DeviceWidgets';
 import { AlertTriangle, ArrowLeft, FileJson, MessageSquare, Rocket, Terminal } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
 // Predefined templates for common commands
 const COMMAND_TEMPLATES = {
@@ -60,17 +60,28 @@ const COMMAND_TEMPLATES = {
 export default function PushReview() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [device, setDevice] = useState(null);
   const [toast, setToast] = useState(null);
 
   // State for the Command Builder
-  const [selectedCommand, setSelectedCommand] = useState('APPLY_CONFIG');
+  // Initialize from location state if available
+  const [selectedCommand, setSelectedCommand] = useState(
+    location.state?.initialCommand || 'APPLY_CONFIG'
+  );
   const [commandData, setCommandData] = useState(
-    JSON.stringify(COMMAND_TEMPLATES['APPLY_CONFIG'].defaultData, null, 2)
+    location.state?.initialData
+      ? typeof location.state.initialData === 'string'
+        ? location.state.initialData
+        : JSON.stringify(location.state.initialData, null, 2)
+      : JSON.stringify(COMMAND_TEMPLATES['APPLY_CONFIG'].defaultData, null, 2)
   );
   const [jsonError, setJsonError] = useState(null);
+
+  // Ref to track if we are initializing from reuse
+  const isReuseInit = useRef(!!location.state?.initialData);
 
   // State for the Notification Envelope
   const [payloadConfig, setPayloadConfig] = useState({
@@ -103,12 +114,23 @@ export default function PushReview() {
     if (device) {
       setPayloadConfig((prev) => ({
         ...prev,
-        title: COMMAND_TEMPLATES[selectedCommand].label,
+        title: COMMAND_TEMPLATES[selectedCommand]?.label || 'Custom Command',
         body: `Executing ${selectedCommand} on ${device.name}`,
       }));
     }
+
+    // If this is the first run and we are reusing data, DO NOT reset commandData
+    if (isReuseInit.current) {
+      isReuseInit.current = false; // Clear the flag so subsequent changes DO reset
+      return;
+    }
+
     // Reset data to template default when command type changes
-    setCommandData(JSON.stringify(COMMAND_TEMPLATES[selectedCommand].defaultData, null, 2));
+    if (COMMAND_TEMPLATES[selectedCommand]) {
+      setCommandData(JSON.stringify(COMMAND_TEMPLATES[selectedCommand].defaultData, null, 2));
+    } else {
+      setCommandData('{}');
+    }
     setJsonError(null);
   }, [selectedCommand, device]);
 
@@ -193,7 +215,7 @@ export default function PushReview() {
       });
 
       setTimeout(() => {
-        navigate(`/device/${id}/settings`);
+        navigate(`/device/${id}/history`);
       }, 1500);
     } catch (err) {
       console.error('Failed to send push:', err);
@@ -217,11 +239,11 @@ export default function PushReview() {
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
-              onClick={() => navigate(`/device/${id}/settings`)}
+              onClick={() => navigate(`/device/${id}/history`)}
               className="pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to History
+              Back to Push History
             </Button>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Compose Command</h1>
@@ -274,7 +296,7 @@ export default function PushReview() {
                       ))}
                     </select>
                     <p className="text-xs text-slate-500 mt-1">
-                      {COMMAND_TEMPLATES[selectedCommand].description}
+                      {COMMAND_TEMPLATES[selectedCommand]?.description || 'Custom command'}
                     </p>
                   </div>
                 </div>

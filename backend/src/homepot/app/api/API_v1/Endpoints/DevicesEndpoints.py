@@ -96,7 +96,7 @@ async def create_device(device_request: CreateDeviceRequest) -> Dict[str, Any]:
             device_id=device_request.device_id,
             name=device_request.name,
             device_type=device_request.device_type,
-            site_id=device_request.site_id,
+            site_id=int(site.id),
             ip_address=device_request.ip_address,
             config={
                 "mac_address": device_request.mac_address,
@@ -142,12 +142,14 @@ async def list_device() -> Dict[str, List[Dict]]:
 
         # For demo, we'll create a simple query (in real app, add pagination)
         from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
 
         from homepot.models import Device
 
         async with db_service.get_session() as session:
             result = await session.execute(
                 select(Device)
+                .options(joinedload(Device.site))
                 .where(Device.is_active.is_(True))
                 .order_by(Device.created_at.desc())
             )
@@ -157,7 +159,7 @@ async def list_device() -> Dict[str, List[Dict]]:
             for device in devices:
                 device_list.append(
                     {
-                        "site_id": device.site_id,
+                        "site_id": device.site.site_id,
                         "device_id": device.device_id,
                         "name": device.name,
                         "device_type": device.device_type,
@@ -194,7 +196,7 @@ async def get_device(device_id: str) -> Dict[str, Any]:
             )
 
         return {
-            "site_id": device.site_id,
+            "site_id": device.site.site_id,
             "device_id": device.device_id,
             "name": device.name,
             "device_type": device.device_type,
@@ -247,8 +249,7 @@ async def update_device(
             )
 
         # Get site for audit logging (need integer ID)
-        site = await db_service.get_site_by_site_id(updated_device.site_id)  # type: ignore
-        site_pk = int(site.id) if site else None
+        site_pk = int(updated_device.site_id)
 
         # Log audit event
         audit_logger = get_audit_logger()
@@ -364,7 +365,7 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
 
         return [
             {
-                "site_id": d.site_id,
+                "site_id": site.site_id,
                 "device_id": d.device_id,
                 "name": d.name,
                 "device_type": d.device_type,

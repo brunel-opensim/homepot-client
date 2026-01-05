@@ -67,7 +67,7 @@ from passlib.context import CryptContext
 from sqlalchemy import select
 
 
-def generate_historical_metrics(device_id: str, hours: int = 24) -> list[DeviceMetrics]:
+def generate_historical_metrics(device_id: int, hours: int = 24) -> list[DeviceMetrics]:
     """Generate historical metrics for a device."""
     metrics = []
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -289,7 +289,7 @@ async def init_database():
         "site1-linux-01",
         "Linux POS 1-1",
         DeviceType.POS_TERMINAL,
-        site1.site_id,
+        site1.id,
         "10.1.1.10",
         {
             "os": "linux",
@@ -302,7 +302,7 @@ async def init_database():
         "site1-windows-02",
         "Windows POS 1-2",
         DeviceType.POS_TERMINAL,
-        site1.site_id,
+        site1.id,
         "10.1.2.10",
         {
             "os": "windows",
@@ -315,7 +315,7 @@ async def init_database():
         "site1-macos-03",
         "Apple POS 1-3",
         DeviceType.POS_TERMINAL,
-        site1.site_id,
+        site1.id,
         "10.1.3.10",
         {
             "os": "macos",
@@ -328,7 +328,7 @@ async def init_database():
         "site1-web-04",
         "Web Dashboard 1-4",
         DeviceType.POS_TERMINAL,
-        site1.site_id,
+        site1.id,
         "10.1.4.10",
         {
             "os": "web",
@@ -341,7 +341,7 @@ async def init_database():
         "site1-iot-05",
         "IoT Sensor 1-5",
         DeviceType.IOT_SENSOR,
-        site1.site_id,
+        site1.id,
         "10.1.5.10",
         {
             "os": "embedded",
@@ -357,7 +357,7 @@ async def init_database():
         "site2-linux-01",
         "Linux POS 2-1",
         DeviceType.POS_TERMINAL,
-        site2.site_id,
+        site2.id,
         "10.2.1.10",
         {
             "os": "linux",
@@ -370,7 +370,7 @@ async def init_database():
         "site2-windows-02",
         "Windows POS 2-2",
         DeviceType.POS_TERMINAL,
-        site2.site_id,
+        site2.id,
         "10.2.2.10",
         {
             "os": "windows",
@@ -383,7 +383,7 @@ async def init_database():
         "site2-macos-03",
         "Apple POS 2-3",
         DeviceType.POS_TERMINAL,
-        site2.site_id,
+        site2.id,
         "10.2.3.10",
         {
             "os": "macos",
@@ -396,7 +396,7 @@ async def init_database():
         "site2-web-04",
         "Web Dashboard 2-4",
         DeviceType.POS_TERMINAL,
-        site2.site_id,
+        site2.id,
         "10.2.4.10",
         {
             "os": "web",
@@ -409,7 +409,7 @@ async def init_database():
         "site2-iot-05",
         "IoT Sensor 2-5",
         DeviceType.IOT_SENSOR,
-        site2.site_id,
+        site2.id,
         "10.2.5.10",
         {
             "os": "embedded",
@@ -497,7 +497,7 @@ async def init_database():
 
             session.add(
                 DeviceStateHistory(
-                    device_id=first_device.device_id,
+                    device_id=first_device.id,
                     previous_state="offline",
                     new_state="online",
                     changed_by="system",
@@ -531,7 +531,7 @@ async def init_database():
             )
 
             # Generate historical metrics
-            historical_metrics = generate_historical_metrics(first_device.device_id)
+            historical_metrics = generate_historical_metrics(first_device.id)
             session.add_all(historical_metrics)
 
             # Generate historical errors
@@ -669,7 +669,7 @@ async def init_database():
         for sched in weekly_schedule:
             result = await session.execute(
                 select(SiteOperatingSchedule).where(
-                    SiteOperatingSchedule.site_id == sites[0].site_id,
+                    SiteOperatingSchedule.site_id == sites[0].id,
                     SiteOperatingSchedule.day_of_week == sched["day"],
                 )
             )
@@ -677,7 +677,7 @@ async def init_database():
 
             if not existing:
                 new_sched = SiteOperatingSchedule(
-                    site_id=sites[0].site_id,
+                    site_id=sites[0].id,
                     day_of_week=sched["day"],
                     open_time=sched["open"],
                     close_time=sched["close"],

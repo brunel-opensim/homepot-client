@@ -28,7 +28,7 @@ async def setup_device(async_client: AsyncClient):
     # Create site
     existing_site = await db_service.get_site_by_site_id(site_id)
     if not existing_site:
-        await db_service.create_site(
+        site = await db_service.create_site(
             site_id=site_id,
             name="Test Site",
             description="Test Site Description",
@@ -36,6 +36,8 @@ async def setup_device(async_client: AsyncClient):
             latitude=0.0,
             longitude=0.0,
         )
+    else:
+        site = existing_site
 
     # Create device
     existing_device = await db_service.get_device_by_device_id(device_id)
@@ -47,7 +49,7 @@ async def setup_device(async_client: AsyncClient):
             device_id=device_id,
             name="Test Device",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.100",
             api_key_hash=api_key_hash,
         )
@@ -58,24 +60,29 @@ async def setup_device(async_client: AsyncClient):
     async with db_service.get_session() as session:
         from homepot.models import HealthCheck
 
-        # Find all devices associated with the test site
-        devices_result = await session.execute(
-            select(Device).where(Device.site_id == site_id)
-        )
-        devices = devices_result.scalars().all()
+        # Get site ID for cleanup
+        site_result = await session.execute(select(Site).where(Site.site_id == site_id))
+        site_obj = site_result.scalars().first()
 
-        for device in devices:
-            # Delete health checks for each device
-            await session.execute(
-                delete(HealthCheck).where(HealthCheck.device_id == device.id)
+        if site_obj:
+            # Find all devices associated with the test site
+            devices_result = await session.execute(
+                select(Device).where(Device.site_id == site_obj.id)
             )
+            devices = devices_result.scalars().all()
 
-            # Delete the device itself
-            await session.execute(delete(Device).where(Device.id == device.id))
+            for device in devices:
+                # Delete health checks for each device
+                await session.execute(
+                    delete(HealthCheck).where(HealthCheck.device_id == device.id)
+                )
 
-        # Delete site
-        await session.execute(delete(Site).where(Site.site_id == site_id))
-        await session.commit()
+                # Delete the device itself
+                await session.execute(delete(Device).where(Device.id == device.id))
+
+            # Delete site
+            await session.execute(delete(Site).where(Site.id == site_obj.id))
+            await session.commit()
 
 
 @pytest.mark.asyncio
@@ -141,6 +148,7 @@ async def test_submit_health_check_minimal_data(
     # Ensure site exists (setup_device runs before this, so site exists)
     # Create device 2 directly in DB
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -149,7 +157,7 @@ async def test_submit_health_check_minimal_data(
             device_id=device_id,
             name="Test Device 2",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.101",
             api_key_hash=api_key_hash,
         )
@@ -179,6 +187,7 @@ async def test_submit_health_check_unhealthy(async_client: AsyncClient, setup_de
 
     # Create device 3 directly in DB
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -187,7 +196,7 @@ async def test_submit_health_check_unhealthy(async_client: AsyncClient, setup_de
             device_id=device_id,
             name="Test Device 3",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.102",
             api_key_hash=api_key_hash,
         )
@@ -239,6 +248,7 @@ async def test_simulate_device_metrics_default(async_client: AsyncClient, setup_
     device_id = "simulated-pos-001"
 
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -247,7 +257,7 @@ async def test_simulate_device_metrics_default(async_client: AsyncClient, setup_
             device_id=device_id,
             name="Simulated Device",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.200",
             api_key_hash=api_key_hash,
         )
@@ -287,6 +297,7 @@ async def test_simulate_device_metrics_custom_device(
     site_id = "test-site-001"
 
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(custom_device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -295,7 +306,7 @@ async def test_simulate_device_metrics_custom_device(
             device_id=custom_device_id,
             name="Custom Simulated Device",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.201",
             api_key_hash=api_key_hash,
         )
@@ -320,6 +331,7 @@ async def test_simulate_unhealthy_device(async_client: AsyncClient, setup_device
     device_id = "simulated-pos-001"
 
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -328,7 +340,7 @@ async def test_simulate_unhealthy_device(async_client: AsyncClient, setup_device
             device_id=device_id,
             name="Simulated Device",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.200",
             api_key_hash=api_key_hash,
         )
@@ -356,6 +368,7 @@ async def test_metrics_data_structure(async_client: AsyncClient, setup_device):
     site_id = "test-site-001"
 
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -364,7 +377,7 @@ async def test_metrics_data_structure(async_client: AsyncClient, setup_device):
             device_id=device_id,
             name="Structure Test Device",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.202",
             api_key_hash=api_key_hash,
         )
@@ -404,6 +417,7 @@ async def test_multiple_metrics_submissions(async_client: AsyncClient, setup_dev
     site_id = "test-site-001"
 
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -412,7 +426,7 @@ async def test_multiple_metrics_submissions(async_client: AsyncClient, setup_dev
             device_id=device_id,
             name="Multi Test Device",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.203",
             api_key_hash=api_key_hash,
         )
@@ -481,6 +495,7 @@ async def test_simulator_generates_realistic_data(
     device_id = "simulated-pos-001"
 
     db_service = await get_database_service()
+    site = await db_service.get_site_by_site_id(site_id)
     existing_device = await db_service.get_device_by_device_id(device_id)
     if not existing_device:
         api_key = secrets.token_urlsafe(32)
@@ -489,7 +504,7 @@ async def test_simulator_generates_realistic_data(
             device_id=device_id,
             name="Simulated Device",
             device_type="POS",
-            site_id=site_id,
+            site_id=site.id,
             ip_address="192.168.1.200",
             api_key_hash=api_key_hash,
         )

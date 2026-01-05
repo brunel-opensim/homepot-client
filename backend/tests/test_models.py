@@ -189,19 +189,19 @@ def test_site_device_relationship(memory_db):
         device_id="pos-001",
         name="Register 1",
         device_type=DeviceType.POS_TERMINAL,
-        site_id=site.site_id,
+        site_id=site.id,
     )
     device2 = Device(
         device_id="pos-002",
         name="Register 2",
         device_type=DeviceType.POS_TERMINAL,
-        site_id=site.site_id,
+        site_id=site.id,
     )
     device3 = Device(
         device_id="sensor-001",
         name="Temperature Sensor",
         device_type=DeviceType.IOT_SENSOR,
-        site_id=site.site_id,
+        site_id=site.id,
     )
 
     db.add_all([device1, device2, device3])

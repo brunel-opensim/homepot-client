@@ -294,7 +294,7 @@ export default function DeviceRegistration() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/device')}
+                onClick={() => navigate(getBackTarget())}
                 className="border-[#1f2735] bg-transparent text-gray-300 hover:bg-[#1f2735] hover:text-white"
               >
                 Cancel
