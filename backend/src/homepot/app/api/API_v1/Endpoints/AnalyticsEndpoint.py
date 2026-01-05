@@ -152,16 +152,39 @@ async def log_device_metrics(
     }
     """
     try:
+        # Resolve device_id if it's a string
+        device_id_input = metrics.get("device_id")
+        device_pk = device_id_input
+
+        if isinstance(device_id_input, str):
+            # Look up the device to get the Integer PK
+            from sqlalchemy import select
+
+            result = db.execute(
+                select(Device).where(Device.device_id == device_id_input)
+            )
+            found_device = result.scalar_one_or_none()
+            if found_device:
+                device_pk = found_device.id
+            else:
+                # If device not found, we can't log metrics linked to it
+                logger.warning(
+                    f"Device not found for metrics logging: {device_id_input}"
+                )
+                return {
+                    "success": False,
+                    "message": f"Device {device_id_input} not found",
+                }
+
         # Smart Filtering
-        device_id = metrics.get("device_id")
-        if device_id and not smart_filter.should_store(device_id, metrics):
+        if device_id_input and not smart_filter.should_store(device_id_input, metrics):
             return {
                 "success": True,
                 "message": "Metrics filtered (no significant change)",
             }
 
         device_metrics = models.DeviceMetrics(
-            device_id=metrics.get("device_id"),
+            device_id=device_pk,
             cpu_percent=metrics.get("cpu_percent"),
             memory_percent=metrics.get("memory_percent"),
             disk_percent=metrics.get("disk_percent"),
@@ -203,8 +226,31 @@ async def log_device_state_change(
     }
     """
     try:
+        # Resolve device_id if it's a string
+        device_id_input = state_change.get("device_id")
+        device_pk = device_id_input
+
+        if isinstance(device_id_input, str):
+            # Look up the device to get the Integer PK
+            from sqlalchemy import select
+
+            result = db.execute(
+                select(Device).where(Device.device_id == device_id_input)
+            )
+            device = result.scalar_one_or_none()
+            if device:
+                device_pk = device.id
+            else:
+                logger.warning(
+                    f"Device not found for state change logging: {device_id_input}"
+                )
+                return {
+                    "success": False,
+                    "message": f"Device {device_id_input} not found",
+                }
+
         state_log = models.DeviceStateHistory(
-            device_id=state_change.get("device_id"),
+            device_id=device_pk,
             previous_state=state_change.get("previous_state"),
             new_state=state_change.get("new_state"),
             changed_by=current_user.email if current_user else "system",

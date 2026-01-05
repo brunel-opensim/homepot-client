@@ -519,7 +519,7 @@ class DeviceAgentSimulator:
                             )
                             state_history = DeviceStateHistory(
                                 timestamp=datetime.utcnow(),
-                                device_id=self.device_id,
+                                device_id=int(device.id),  # Use Integer ID
                                 previous_state=previous_status,
                                 new_state=new_status,
                                 changed_by="system",
@@ -553,7 +553,7 @@ class DeviceAgentSimulator:
                         # Save device metrics to database for AI training
                         device_metrics = DeviceMetrics(
                             timestamp=datetime.utcnow(),  # Use timezone-naive for compatibility
-                            device_id=self.device_id,
+                            device_id=int(device.id),  # Use Integer ID
                             cpu_percent=health_data["metrics"]["cpu_usage_percent"],
                             memory_percent=health_data["metrics"][
                                 "memory_usage_percent"
@@ -663,10 +663,13 @@ class AgentManager:
             from homepot.models import Device, DeviceType
 
             async with db_service.get_session() as session:
+                # Query for both POS_TERMINAL and IOT_SENSOR devices
                 result = await session.execute(
                     select(Device).where(
                         Device.is_active.is_(True),
-                        Device.device_type == DeviceType.POS_TERMINAL,
+                        Device.device_type.in_(
+                            [DeviceType.POS_TERMINAL, DeviceType.IOT_SENSOR]
+                        ),
                     )
                 )
                 devices = result.scalars().all()
