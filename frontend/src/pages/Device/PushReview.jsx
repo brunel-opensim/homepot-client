@@ -217,11 +217,11 @@ export default function PushReview() {
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
-              onClick={() => navigate(`/device/${id}/settings`)}
+              onClick={() => navigate(`/device/${id}`)}
               className="pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to History
+              Back to Device
             </Button>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Compose Command</h1>
