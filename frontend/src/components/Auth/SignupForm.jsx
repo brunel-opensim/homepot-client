@@ -94,17 +94,20 @@ export default function SignupForm({
             />
           </div>
 
-          <div>
-            <Dropdown
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              placeholder="Select Role"
-              options={[
-                { label: 'User', value: 'User' },
-                { label: 'Admin', value: 'Admin' },
-              ]}
-            />
-          </div>
+          {/* Role selection - Only show for Client tab, Engineer/Admin is auto-assigned */}
+          {activeTab === 'CLIENT' && (
+            <div>
+              <Dropdown
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="Select Role"
+                options={[
+                  { label: 'User', value: 'User' },
+                  { label: 'Manager', value: 'Manager' },
+                ]}
+              />
+            </div>
+          )}
 
           {errorMsg && (
             <div className="text-center p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
@@ -121,7 +124,11 @@ export default function SignupForm({
           <div className="text-center flex justify-center items-center gap-2">
             <button
               type="button"
-              className="text-teal-400 hover:text-teal-300 text-sm transition-colors duration-200"
+              className={`text-sm transition-colors duration-200 ${
+                activeTab === 'ENGINEER'
+                  ? 'text-teal-400 hover:text-teal-300 font-bold'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
             >
               Sign up with SSO
             </button>

@@ -18,6 +18,15 @@ const Signup = () => {
   const location = useLocation();
   const { signup, isAuthenticated } = useAuth();
 
+  // Smart Role Selection: Update role based on active tab
+  useEffect(() => {
+    if (activeTab === 'ENGINEER') {
+      setRole('Admin'); // Map Engineer tab to Admin/Engineer role
+    } else {
+      setRole('User'); // Default for Client tab
+    }
+  }, [activeTab]);
+
   // Show session expiry message if redirected from protected route
   useEffect(() => {
     if (location.state?.message) {
@@ -94,6 +103,12 @@ const Signup = () => {
         <div className="bg-gray-900/90 backdrop-blur-sm border border-gray-700/50 rounded-lg p-8 shadow-2xl">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-6 tracking-wider">HOMEPOT</h1>
+
+            <p className="text-gray-400 mb-4">
+              {activeTab === 'ENGINEER'
+                ? 'Welcome back, Partner. Access your engineering console.'
+                : 'Manage your devices and monitor your home.'}
+            </p>
 
             {sessionMsg && (
               <div className="mb-4 p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-300 text-sm">
