@@ -218,7 +218,7 @@ export default function Device() {
           type: 'success',
         });
       } else if (actionKey === 'update_settings') {
-        navigate(`/device/${id}/settings`);
+        navigate(`/device/${id}/push-review`);
       } else {
         setToast({
           message: `Action ${actionKey.replace('_', ' ')} triggered successfully`,
