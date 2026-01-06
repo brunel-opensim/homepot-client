@@ -116,6 +116,7 @@ class JobOrchestrator:
         config_version: Optional[str] = None,
         user_id: int = 1,  # Default user for demo
         priority: str = JobPriority.HIGH,
+        device_id: Optional[str] = None,
     ) -> str:
         """Create a POS configuration update job (the main scenario).
 
@@ -131,6 +132,7 @@ class JobOrchestrator:
             config_version: Configuration version
             user_id: User who created the job
             priority: Job priority
+            device_id: Optional specific device ID target
 
         Returns:
             job_id: Unique job identifier
@@ -141,6 +143,17 @@ class JobOrchestrator:
         site = await db_service.get_site_by_site_id(site_id)
         if not site:
             raise ValueError(f"Site {site_id} not found")
+
+        # Resolve device_id if provided
+        device_pk = None
+        segment: Optional[str] = "pos-terminals"
+
+        if device_id:
+            device = await db_service.get_device_by_device_id(device_id)
+            if not device:
+                raise ValueError(f"Device {device_id} not found")
+            device_pk = int(device.id)
+            segment = None  # Targeted job, not segment-wide
 
         # Generate job ID and configuration details
         job_id = f"job-{uuid.uuid4().hex[:8]}"
@@ -159,7 +172,8 @@ class JobOrchestrator:
             description=description
             or f"Update POS payment configuration for {site_id}",
             site_id=int(site.id),
-            segment="pos-terminals",  # Target POS terminals segment
+            device_id=device_pk,
+            segment=segment,  # Target POS terminals segment if no device_id
             config_url=config_url,
             config_version=config_version,
             ttl_seconds=self.settings.push.default_ttl,
@@ -169,7 +183,8 @@ class JobOrchestrator:
             payload={
                 "action": action,
                 "site_id": site_id,
-                "segment": "pos-terminals",
+                "device_id": device_id,
+                "segment": segment,
                 "config_type": "payment_gateway",
                 "restart_required": True,
             },

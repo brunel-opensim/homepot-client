@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import String, and_, case, cast, func, select
 
 from homepot.app.models.AnalyticsModel import (
     DeviceMetrics,
@@ -126,7 +126,9 @@ class AIAnalyticsService:
                 # Base query conditions
                 conditions = [PushNotificationLog.sent_at >= cutoff_date]
                 if device_id:
-                    conditions.append(PushNotificationLog.device_id == device_id)
+                    # Device filtering disabled due to schema mismatch
+                    # conditions.append(PushNotificationLog.device_id == device_id)
+                    pass
 
                 # 1. Overall Stats
                 stats_query = select(
@@ -508,17 +510,34 @@ class AIAnalyticsService:
             async with db_service.get_session() as session:
                 cutoff_date = datetime.utcnow() - timedelta(days=days)
 
+                filters = [ErrorLog.timestamp >= cutoff_date]
+                if device_id:
+                    quoted_id = f'"{device_id}"'
+                    filters.append(
+                        cast(ErrorLog.context["original_device_id"], String)
+                        == quoted_id
+                    )
+
                 result = await session.execute(
                     select(ErrorLog)
-                    .where(
-                        and_(
-                            ErrorLog.device_id == device_id,
-                            ErrorLog.timestamp >= cutoff_date,
-                        )
-                    )
+                    .where(and_(*filters))
                     .order_by(ErrorLog.timestamp.desc())
                 )
                 errors = result.scalars().all()
+
+                if device_id and not errors:
+                    # Fallback for unquoted ID
+                    filters_fallback = [ErrorLog.timestamp >= cutoff_date]
+                    filters_fallback.append(
+                        cast(ErrorLog.context["original_device_id"], String)
+                        == device_id
+                    )
+                    result = await session.execute(
+                        select(ErrorLog)
+                        .where(and_(*filters_fallback))
+                        .order_by(ErrorLog.timestamp.desc())
+                    )
+                    errors = result.scalars().all()
 
                 if not errors:
                     return {"status": "no_errors", "error_rate_per_day": 0}

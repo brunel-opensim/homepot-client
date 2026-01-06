@@ -14,19 +14,23 @@ not for cryptographic operations. S311 warnings are expected and acceptable here
 
 import asyncio
 import logging
+import math
 import random  # nosec - Used for device simulation, not cryptographic purposes
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, cast
+
+from sqlalchemy import select
 
 from homepot.app.models.AnalyticsModel import (
     ConfigurationHistory,
     DeviceMetrics,
     DeviceStateHistory,
 )
+from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service
 from homepot.error_logger import log_error
-from homepot.models import DeviceStatus
+from homepot.models import Device, DeviceStatus, Job, JobPriority, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +88,47 @@ class DeviceAgentSimulator:
         self.transactions_today = random.randint(50, 100)
         self.transaction_volume = random.uniform(1000.0, 5000.0)
         self.uptime_seconds = random.randint(3600, 86400 * 7)
+        self.device_int_id: Optional[int] = None  # Cache for database integer ID
 
         logger.info(f"Device Agent {device_id} ({device_type}) initialized")
+
+    async def _get_device_db_id(self) -> Optional[int]:
+        """Resolve database integer ID for this device."""
+        if self.device_int_id is not None:
+            return self.device_int_id
+
+        try:
+            db_service = await get_database_service()
+            from sqlalchemy import select
+
+            from homepot.models import Device
+
+            async with db_service.get_session() as session:
+                result = await session.execute(
+                    select(Device.id).where(Device.device_id == self.device_id)
+                )
+                self.device_int_id = result.scalar_one_or_none()
+                return self.device_int_id
+        except Exception:
+            return None
 
     async def start(self) -> None:
         """Start the agent simulator."""
         self.is_running = True
         logger.info(f"Agent {self.device_id} started")
+
+        # Audit Log: Agent Started
+        try:
+            audit = get_audit_logger()
+            db_id = await self._get_device_db_id()
+            await audit.log_event(
+                event_type=AuditEventType.AGENT_STARTED,
+                description=f"Device Agent {self.device_id} started simulation",
+                device_id=db_id,
+                event_metadata={"device_id": self.device_id},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to audit log agent start: {e}")
 
         # Start health check loop
         asyncio.create_task(self._health_check_loop())
@@ -99,6 +137,19 @@ class DeviceAgentSimulator:
         """Stop the agent simulator."""
         self.is_running = False
         logger.info(f"Agent {self.device_id} stopped")
+
+        # Audit Log: Agent Stopped
+        try:
+            audit = get_audit_logger()
+            db_id = await self._get_device_db_id()
+            await audit.log_event(
+                event_type=AuditEventType.AGENT_STOPPED,
+                description=f"Device Agent {self.device_id} stopped simulation",
+                device_id=db_id,
+                event_metadata={"device_id": self.device_id},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to audit log agent stop: {e}")
 
     async def handle_push_notification(
         self, notification_data: Dict[str, Any]
@@ -182,6 +233,16 @@ class DeviceAgentSimulator:
             logger.debug(
                 f"Agent {self.device_id} validating config version {config_version}"
             )
+
+            # Audit Log: Config Update
+            db_id = await self._get_device_db_id()
+            await get_audit_logger().log_event(
+                event_type=AuditEventType.CONFIG_UPDATE_APPLIED,
+                description=f"Configuration update {config_version} applied",
+                device_id=db_id,
+                event_metadata={"device_id": self.device_id, "version": config_version},
+            )
+
             await asyncio.sleep(0.2)
 
             # Simulate validation failures (3% chance)
@@ -199,6 +260,15 @@ class DeviceAgentSimulator:
             self.state = AgentState.RESTARTING
             logger.debug(f"Agent {self.device_id} restarting POS application")
             await asyncio.sleep(random.uniform(1.0, 3.0))  # Realistic restart time
+
+            # Audit Log: Device Restart
+            db_id = await self._get_device_db_id()
+            await get_audit_logger().log_event(
+                event_type=AuditEventType.DEVICE_STATUS_CHANGED,
+                description=f"POS Application restarted remotely",
+                device_id=db_id,
+                event_metadata={"device_id": self.device_id, "action": "restart"},
+            )
 
             # Simulate restart failures (2% chance)
             if random.random() < 0.02:
@@ -443,6 +513,38 @@ class DeviceAgentSimulator:
             self.transaction_volume += random.uniform(0.0, 150.0)
             self.uptime_seconds += 5  # Approximate check interval
 
+            # Generate realistic sine-wave based metrics (1-minute cycle for visibility)
+            now = datetime.now(timezone.utc)
+            # Cycle position 0..2pi over 60 seconds
+            cycle_position = (now.second / 60.0) * 2 * math.pi
+            # Factor oscillates 0.0 to 1.0 (smooth wave)
+            load_factor = (math.sin(cycle_position) + 1) / 2
+
+            # Calculate metrics based on load factor + reduced noise for smoothness
+            cpu_val = (
+                20 + (50 * load_factor) + random.uniform(-0.5, 0.5)
+            )  # Minimal noise
+            mem_val = (
+                40 + (30 * load_factor) + random.uniform(-0.2, 0.2)
+            )  # Ultra smooth
+            net_val = 20 + (80 * load_factor) + random.uniform(0, 2)  # Micro jitter
+
+            # Base error rate is low
+            err_val = random.uniform(0.00, 0.02)
+
+            # ANOMALY SIMULATION: Occasionally spike metrics to trigger AI alerts
+            # 2% chance per check to spike CPU > 90% (threshold)
+            if random.random() < 0.02:
+                cpu_val = random.uniform(92.0, 99.0)
+
+            # 2% chance per check to spike Latency > 500ms (threshold)
+            if random.random() < 0.02:
+                net_val = random.uniform(550.0, 1200.0)
+
+            # 1% chance per check to spike Error Rate > 5% (threshold)
+            if random.random() < 0.01:
+                err_val = random.uniform(0.06, 0.15)
+
             # Generate realistic health data
             health_data: Dict[str, Any] = {
                 "status": "healthy" if is_healthy else "unhealthy",
@@ -459,23 +561,69 @@ class DeviceAgentSimulator:
                     "network": "connected",
                 },
                 "metrics": {
-                    "cpu_usage_percent": random.randint(10, 80),
-                    "memory_usage_percent": random.randint(30, 70),
+                    "cpu_usage_percent": round(max(0, min(100, cpu_val)), 1),
+                    "memory_usage_percent": round(max(0, min(100, mem_val)), 1),
                     "disk_usage_percent": random.randint(20, 60),
                     "transactions_today": self.transactions_today,
                     "uptime_seconds": self.uptime_seconds,
                     # New metrics for AI training
-                    "network_latency_ms": random.uniform(10.0, 150.0),
+                    "network_latency_ms": round(max(0, net_val), 1),
                     "transaction_volume": round(self.transaction_volume, 2),
-                    "error_rate": random.uniform(0.0, 2.0),
-                    "active_connections": random.randint(1, 50),
-                    "queue_depth": random.randint(0, 20),
+                    "error_rate": err_val,
+                    "active_connections": int(10 + (40 * load_factor)),
+                    "queue_depth": int(2 + (18 * load_factor)),
                 },
             }
 
             if not is_healthy:
                 health_data["error"] = selected_scenario["error"]
                 health_data["services"]["pos_app"] = "error"
+
+                # Log the simulated error to the error_logs table so it shows up in "Live Logs"
+                await log_error(
+                    category="simulation",
+                    severity="error",
+                    error_message=f"Agent simulation error: {health_data['error']}",
+                    exception=None,  # No real exception, just simulated
+                    device_id=self.device_id,
+                    context={"health_data": health_data},
+                )
+            else:
+                # Log INFO messages frequently to keep the live log stream active (40% chance)
+                if random.random() < 0.40:
+                    await log_error(
+                        category="system",
+                        severity="info",
+                        error_message="Routine health check passed successfully",
+                        exception=None,
+                        device_id=self.device_id,
+                        context={"metrics": health_data["metrics"]},
+                    )
+
+            # Audit Log: Occasional System Maintenance (5% chance)
+            if random.random() < 0.05:
+                maintenance_actions = [
+                    "Local cache cleared",
+                    "Log rotation completed",
+                    "Security policies updated",
+                    "NTP time synchronization",
+                    "Service discovery refresh",
+                ]
+                action = random.choice(maintenance_actions)
+                try:
+                    db_id = await self._get_device_db_id()
+                    await get_audit_logger().log_event(
+                        event_type=(
+                            AuditEventType.SYSTEM_STARTUP
+                            if "boot" in action
+                            else AuditEventType.DEVICE_STATUS_CHANGED
+                        ),
+                        description=f"Automated maintenance: {action}",
+                        device_id=db_id,
+                        event_metadata={"device_id": self.device_id},
+                    )
+                except Exception:
+                    pass
 
             self.last_health_check = health_data
 
@@ -582,6 +730,15 @@ class DeviceAgentSimulator:
                             },
                         )
                         db.add(device_metrics)
+
+                        # Update Device Last Seen
+                        # device object is already attached to the session
+                        device.last_seen = datetime.now(timezone.utc)  # type: ignore[assignment]
+                        # Ensure status is consistent
+                        device.status = "online" if is_healthy else "offline"  # type: ignore[assignment]
+                        db.add(device)
+
+                        await db.commit()
                         logger.info(f"Saved device metrics for {self.device_id}")
 
             except Exception as e:
@@ -607,6 +764,7 @@ class DeviceAgentSimulator:
                 await asyncio.sleep(2)  # Check every 2 seconds
                 if self.state == AgentState.IDLE:
                     await self._run_health_check()
+                    await self._simulate_background_jobs()
             except Exception as e:
                 logger.error(f"Health check loop error for {self.device_id}: {e}")
                 # Log error for AI training
@@ -619,6 +777,70 @@ class DeviceAgentSimulator:
                     context={"action": "health_check_loop"},
                 )
                 await asyncio.sleep(2)  # Short retry delay
+
+    async def _simulate_background_jobs(self) -> None:
+        """Simulate execution of background system jobs."""
+        # 5% chance per 2s check (~1 per 40s) to create a historical job
+        if random.random() < 0.05:
+            try:
+                db_id = await self._get_device_db_id()
+                if not db_id:
+                    return
+
+                job_types = [
+                    ("Log Rotation", JobStatus.COMPLETED),
+                    ("Firmware Check", JobStatus.COMPLETED),
+                    ("Cache Pruning", JobStatus.COMPLETED),
+                    ("Metric Upload", JobStatus.COMPLETED),
+                    ("Security Scan", JobStatus.FAILED),
+                ]
+                action, status = random.choice(job_types)
+
+                error_msg = None
+                if status == JobStatus.FAILED:
+                    error_msg = "Timeout waiting for resource"
+
+                logger.debug(f"Simulating job {action} for {self.device_id}")
+
+                db_service = await get_database_service()
+
+                # We need UUID
+                import uuid
+
+                from sqlalchemy import select
+
+                from homepot.models import Device
+
+                async with db_service.get_session() as session:
+                    # Get site_id
+                    dev_res = await session.execute(
+                        select(Device).where(Device.id == db_id)
+                    )
+                    device = dev_res.scalar_one_or_none()
+                    if not device or not device.site_id:
+                        return
+
+                    job = Job(
+                        job_id=str(uuid.uuid4()),
+                        action=action,
+                        description=f"Automated background task: {action}",
+                        status=status,
+                        priority=JobPriority.LOW,
+                        device_id=db_id,
+                        site_id=device.site_id,
+                        created_by=1,  # Assume system user ID 1
+                        created_at=datetime.utcnow()
+                        - timedelta(seconds=random.randint(2, 30)),
+                        started_at=datetime.utcnow()
+                        - timedelta(seconds=random.randint(1, 10)),
+                        completed_at=datetime.utcnow(),
+                        error_message=error_msg,
+                        result={"trigger": "simulation"},
+                    )
+                    session.add(job)
+
+            except Exception as e:
+                logger.warning(f"Failed to simulate job: {e}")
 
 
 class AgentManager:

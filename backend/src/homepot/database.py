@@ -4,6 +4,7 @@ This module provides async database operations and session management
 for the HOMEPOT system.
 """
 
+import datetime
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -300,6 +301,7 @@ class DatabaseService:
         ip_address: Optional[str] = None,
         config: Optional[dict] = None,
         api_key_hash: Optional[str] = None,
+        last_seen: Optional[datetime.datetime] = None,
     ) -> Device:
         """Create a new device."""
         async with self.get_session() as session:
@@ -312,6 +314,7 @@ class DatabaseService:
                 config=config,
                 status=DeviceStatus.UNKNOWN,
                 api_key_hash=api_key_hash,
+                last_seen=last_seen,
             )
             session.add(device)
             await session.flush()

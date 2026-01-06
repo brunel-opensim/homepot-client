@@ -1,14 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/Toast';
 import api from '@/services/api';
-import {
-  AuditWidget,
-  CommandHistoryWidget,
-  DeviceActionsWidget,
-  DirectConnectWidget,
-  LogsWidget,
-  StatBlock,
-} from './DeviceWidgets';
+// Cleaned up unused imports that were causing blank page errors
 import { AlertTriangle, ArrowLeft, FileJson, MessageSquare, Rocket, Terminal } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -109,7 +102,7 @@ export default function PushReview() {
     fetchDevice();
   }, [id]);
 
-  // Update body when command changes
+  // Update body/title when command or device changes
   useEffect(() => {
     if (device) {
       setPayloadConfig((prev) => ({
@@ -118,7 +111,10 @@ export default function PushReview() {
         body: `Executing ${selectedCommand} on ${device.name}`,
       }));
     }
+  }, [selectedCommand, device]);
 
+  // Handle Command Template Changes
+  useEffect(() => {
     // If this is the first run and we are reusing data, DO NOT reset commandData
     if (isReuseInit.current) {
       isReuseInit.current = false; // Clear the flag so subsequent changes DO reset
@@ -129,10 +125,12 @@ export default function PushReview() {
     if (COMMAND_TEMPLATES[selectedCommand]) {
       setCommandData(JSON.stringify(COMMAND_TEMPLATES[selectedCommand].defaultData, null, 2));
     } else {
+      // Only clear if explicitly changing to a type with no template (Custom)
+      // and NOT during initial reuse load
       setCommandData('{}');
     }
     setJsonError(null);
-  }, [selectedCommand, device]);
+  }, [selectedCommand]); // Only dependency is selectedCommand
 
   const handleDataChange = (value) => {
     setCommandData(value);

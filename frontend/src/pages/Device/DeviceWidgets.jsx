@@ -1,4 +1,17 @@
-import { Loader2, Terminal, X, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  Loader2,
+  Terminal,
+  X,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2,
+  Shield,
+  FileText,
+  Activity,
+  Power,
+  RefreshCcw,
+  Settings,
+} from 'lucide-react';
 import React from 'react';
 
 /* === Reusable UI Components === */
@@ -93,11 +106,11 @@ export const AlertsWidget = ({ alerts = [] }) => {
   if (!alerts || alerts.length === 0) {
     return (
       <Card className="lg:col-span-4">
-        <h3 className="text-sm text-slate-300 font-medium mb-3">ACTIVE ALERTS</h3>
+        <h3 className="text-sm text-slate-300 font-medium mb-3">AI ALERTS</h3>
         <div className="border-t border-[#1f2735] mb-2"></div>
-        <div className="flex items-center gap-2 text-emerald-400 text-sm p-2 bg-emerald-500/5 rounded border border-emerald-500/20">
+        <div className="flex items-center gap-2 text-emerald-400 text-sm p-4 bg-emerald-500/5 rounded border border-emerald-500/20 justify-center">
           <CheckCircle2 className="w-4 h-4" />
-          <span>No active alerts</span>
+          <span>No active anomalies detected</span>
         </div>
       </Card>
     );
@@ -105,9 +118,14 @@ export const AlertsWidget = ({ alerts = [] }) => {
 
   return (
     <Card className="lg:col-span-4">
-      <h3 className="text-sm text-slate-300 font-medium mb-3">ACTIVE ALERTS</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm text-slate-300 font-medium">AI ALERTS</h3>
+        <span className="text-[10px] text-slate-500 font-mono">
+          DETECTED ISSUES ({alerts.length})
+        </span>
+      </div>
       <div className="border-t border-[#1f2735] mb-2"></div>
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
         {alerts.map((alert, idx) => {
           const isCritical = alert.severity === 'critical';
           return (
@@ -120,9 +138,9 @@ export const AlertsWidget = ({ alerts = [] }) => {
               }`}
             >
               {isCritical ? (
-                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
               ) : (
-                <AlertTriangle className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
+                <AlertTriangle className="w-5 h-5 text-orange-400 mt-0.5 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <div
@@ -130,8 +148,13 @@ export const AlertsWidget = ({ alerts = [] }) => {
                 >
                   {alert.message}
                 </div>
-                <div className="text-xs text-slate-500 mt-1">
-                  {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'Just now'}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="text-xs text-slate-500">
+                    {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString() : 'Just now'}
+                  </div>
+                  <div className="text-[10px] text-slate-600 bg-slate-900/50 px-1 rounded uppercase tracking-wider font-mono">
+                    {alert.source || 'SYSTEM'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -178,20 +201,71 @@ export const SettingsWidget = ({ commandInput, setCommandInput, handleCommandSub
   </Card>
 );
 
-export const CommandHistoryWidget = ({ commandHistory }) => (
-  <Card className="lg:col-span-4 text-left">
-    <h3 className="text-sm text-slate-300 font-medium mb-3">COMMAND HISTORY</h3>
-    <div className="border-t border-[#1f2735] mb-2"></div>
-    <div className="space-y-3 text-sm">
-      {commandHistory.map((a, i) => (
-        <div key={i} className="flex flex-col">
-          <div className="text-slate-200">{a.title}</div>
-          <div className="text-xs text-slate-400">{a.date}</div>
+export const JobHistoryWidget = ({ jobs }) => {
+  if (!jobs || jobs.length === 0) {
+    return (
+      <Card>
+        <h3 className="text-sm text-slate-300 font-medium mb-3">JOB HISTORY</h3>
+        <div className="border-t border-[#1f2735] mb-2"></div>
+        <div className="text-slate-500 text-xs italic text-center py-4">
+          No jobs executed recently
         </div>
-      ))}
-    </div>
-  </Card>
-);
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="lg:col-span-4 text-left">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm text-slate-300 font-medium">JOB HISTORY</h3>
+        <span className="text-[10px] text-slate-500 font-mono">LATEST {jobs.length} TASKS</span>
+      </div>
+      <div className="border-t border-[#1f2735] mb-2"></div>
+      <div className="space-y-3 text-sm max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+        {jobs.map((job, i) => {
+          let statusColor = 'text-slate-400';
+          let StatusIcon = Activity;
+
+          if (job.status === 'completed' || job.status === 'success') {
+            statusColor = 'text-emerald-400';
+            StatusIcon = CheckCircle2;
+          } else if (job.status === 'failed' || job.status === 'error') {
+            statusColor = 'text-red-400';
+            StatusIcon = AlertCircle;
+          } else if (job.status === 'pending' || job.status === 'running') {
+            statusColor = 'text-blue-400';
+            StatusIcon = Loader2;
+          }
+
+          return (
+            <div
+              key={i}
+              className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50"
+            >
+              <div className="flex items-center gap-3">
+                <StatusIcon
+                  className={`w-4 h-4 ${statusColor} ${job.status === 'running' ? 'animate-spin' : ''}`}
+                />
+                <div className="flex flex-col">
+                  <span className="text-slate-200 font-medium">{job.action || 'Unknown Task'}</span>
+                  <span className="text-xs text-slate-500">
+                    ID: {job.job_id?.substring(0, 8) || 'N/A'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className={`text-xs uppercase font-bold ${statusColor}`}>{job.status}</span>
+                <span className="text-xs text-slate-500">
+                  {job.created_at ? new Date(job.created_at).toLocaleString() : ''}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
 
 export const ConnectionsWidget = ({ connections, sparkData }) => (
   <Card>
@@ -248,32 +322,110 @@ export const CommandInputWidget = ({ cmdInput, handleCmdInputChange, handleSendC
   </Card>
 );
 
-export const AuditWidget = ({ audit }) => (
-  <Card>
-    <h3 className="text-sm text-slate-300 font-medium mb-3">AUDIT</h3>
-    <div className="border-t border-[#1f2735] mb-2"></div>
-    <div className="space-y-3 text-sm">
-      {audit.map((a, i) => (
-        <div key={i} className="flex flex-col">
-          <div className="text-slate-200">{a.title}</div>
-          <div className="text-xs text-slate-400">{a.date}</div>
-        </div>
-      ))}
-    </div>
-  </Card>
-);
+export const AuditWidget = ({ audit }) => {
+  if (!audit || audit.length === 0) {
+    return (
+      <Card>
+        <h3 className="text-sm text-slate-300 font-medium mb-3">AUDIT TRAIL</h3>
+        <div className="border-t border-[#1f2735] mb-2"></div>
+        <div className="text-slate-500 text-xs italic text-center py-4">No audit records found</div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm text-slate-300 font-medium">AUDIT TRAIL</h3>
+        <span className="text-[10px] text-slate-500 font-mono">LATEST {audit.length} EVENTS</span>
+      </div>
+      <div className="border-t border-[#1f2735] mb-2"></div>
+      <div className="space-y-4 text-sm max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+        {audit.map((a, i) => {
+          let Icon = FileText;
+          let color = 'text-slate-400';
+
+          if (a.event_type?.includes('error')) {
+            Icon = AlertTriangle;
+            color = 'text-red-400';
+          } else if (a.event_type?.includes('startup')) {
+            Icon = Power;
+            color = 'text-green-400';
+          } else if (a.event_type?.includes('update')) {
+            Icon = RefreshCcw;
+            color = 'text-blue-400';
+          } else if (a.event_type?.includes('user')) {
+            Icon = Shield;
+            color = 'text-indigo-400';
+          } else if (a.event_type?.includes('config')) {
+            Icon = Settings;
+            color = 'text-purple-400';
+          }
+
+          return (
+            <div key={i} className="flex gap-3 relative">
+              {/* Timeline line */}
+              {i !== audit.length - 1 && (
+                <div className="absolute left-[9px] top-6 bottom-[-20px] w-px bg-[#1f2735]" />
+              )}
+
+              <div className={`mt-0.5 shrink-0 ${color}`}>
+                <Icon className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-slate-200 font-medium">{a.description || a.title}</div>
+                <div className="flex gap-2 text-xs text-slate-500 mt-0.5">
+                  <span>{a.created_at ? new Date(a.created_at).toLocaleString() : a.date}</span>
+                  {a.event_type && <span className="opacity-50">• {a.event_type}</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
 
 export const LogsWidget = ({ logs }) => (
   <Card>
-    <h3 className="text-sm text-slate-300 font-medium mb-3">LOGS</h3>
+    <div className="flex items-center justify-between mb-3">
+      <h3 className="text-sm text-slate-300 font-medium">LIVE LOGS</h3>
+      <span className="text-[10px] text-slate-500 font-mono">LATEST {logs.length} EVENTS</span>
+    </div>
     <div className="border-t border-[#1f2735] mb-2"></div>
-    <div className="space-y-3 text-sm">
-      {logs.map((l, i) => (
-        <div key={i} className="flex flex-col">
-          <div className="text-slate-200">{l.message}</div>
-          <div className="text-xs text-slate-400">{l.timestamp}</div>
-        </div>
-      ))}
+    <div className="space-y-3 text-sm max-h-[300px] overflow-y-auto custom-scrollbar">
+      {logs.map((l, i) => {
+        const isError = l.severity === 'error' || l.severity === 'critical';
+        const isWarning = l.severity === 'warning';
+
+        return (
+          <div key={i} className="flex flex-col gap-1 border-b border-[#1f2735] pb-2 last:border-0">
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${
+                  isError
+                    ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                    : isWarning
+                      ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                      : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                }`}
+              >
+                {l.severity || 'INFO'}
+              </span>
+              <span className="text-xs text-slate-500 font-mono">
+                {l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : ''}
+              </span>
+            </div>
+            <div className="text-slate-300 font-mono text-xs break-all">
+              {l.error_message || l.message}
+            </div>
+          </div>
+        );
+      })}
+      {logs.length === 0 && (
+        <div className="text-slate-500 text-xs italic text-center py-4">Waiting for logs...</div>
+      )}
     </div>
   </Card>
 );
@@ -290,6 +442,57 @@ export const MonitoringWidget = () => (
     <div className="mt-3 text-sm text-slate-200">Alerts</div>
     <div className="mt-2">
       <Sparkline data={[4, 6, 5, 6, 7, 6, 8]} height={48} animated />
+    </div>
+  </Card>
+);
+
+export const DeviceInfoWidget = ({ device }) => (
+  <Card>
+    <h3 className="text-sm text-slate-300 font-medium mb-3">DEVICE INFO</h3>
+    <div className="border-t border-[#1f2735] mb-3"></div>
+    <div className="space-y-3 text-sm">
+      <div className="flex justify-between items-center">
+        <span className="text-slate-400">Status</span>
+        <span
+          className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
+            device?.status === 'online'
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : device?.status === 'offline'
+                ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                : 'bg-slate-700 text-slate-300'
+          }`}
+        >
+          {device?.status || 'UNKNOWN'}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">IP Address</span>
+        <span className="text-slate-200 font-mono">{device?.ip_address || 'N/A'}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">MAC Address</span>
+        <span className="text-slate-200 font-mono">{device?.mac_address || 'N/A'}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Firmware</span>
+        <span className="text-slate-200">{device?.firmware_version || 'N/A'}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Type</span>
+        <span className="text-slate-200 uppercase">
+          {device?.device_type?.replace(/_/g, ' ') || 'N/A'}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Site</span>
+        <span className="text-teal-400">{device?.site_name || device?.site_id || 'N/A'}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Last Seen</span>
+        <span className="text-slate-200 text-xs mt-0.5">
+          {device?.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
+        </span>
+      </div>
     </div>
   </Card>
 );
