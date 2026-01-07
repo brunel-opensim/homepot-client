@@ -168,6 +168,34 @@ async def get_system_anomalies() -> Dict[str, Any]:
                         }
                     )
 
+        # DEMONSTRATION: Hardcoded anomaly for "Apple POS 1-3"
+        # Ensure this specific device always shows an alert for demo purposes
+        demo_device_id = "site1-macos-03"
+        demo_device_name = "Apple POS 1-3"
+
+        # Check if already present
+        if not any(a["device_id"] == demo_device_id for a in anomalies):
+            anomalies.append(
+                {
+                    "device_id": demo_device_id,
+                    "device_name": demo_device_name,
+                    "score": 0.85,
+                    "reasons": [
+                        "Abnormal pattern sequence detected",
+                        "CPU spike correlated with high latency",
+                    ],
+                    "severity": "critical",
+                    "metrics": {
+                        "cpu_percent": 92.5,
+                        "memory_percent": 45.0,
+                        "network_latency_ms": 120,
+                        "flapping_count": 0,
+                        "consecutive_failures": 0,
+                    },
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+
         # Sort by score descending
         anomalies.sort(key=lambda x: float(str(x["score"])), reverse=True)
 

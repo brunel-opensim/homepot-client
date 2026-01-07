@@ -41,6 +41,7 @@ class APIRequestLog(Base):
     status_code = Column(Integer, nullable=False)
     response_time_ms = Column(Float, nullable=False)
     user_id = Column(String(255), nullable=True, index=True)
+    # device_id removed because it does not exist in the database schema yet
     ip_address = Column(String(45), nullable=True)  # IPv6 support
     user_agent = Column(String(500), nullable=True)
     error_message = Column(Text, nullable=True)
@@ -118,7 +119,8 @@ class ErrorLog(Base):
     stack_trace = Column(Text, nullable=True)
     endpoint = Column(String(255), nullable=True)
     user_id = Column(String(255), nullable=True, index=True)
-    device_id = Column(String(255), nullable=True)
+    # device_id removed because it does not exist in the database schema yet
+    # device_id = Column(String(255), nullable=True)
     context = Column(JSON, nullable=True)  # Additional context data
     resolved = Column(Boolean, default=False, index=True)
     resolved_at = Column(DateTime, nullable=True)
@@ -137,6 +139,8 @@ class UserActivity(Base):
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
     user_id = Column(String(255), nullable=False, index=True)
+    # device_id removed because it does not exist in the database schema yet
+    # device_id = Column(String(255), nullable=True, index=True)
     session_id = Column(String(255), nullable=True, index=True)
     activity_type = Column(
         String(50), nullable=False, index=True
@@ -263,7 +267,8 @@ class PushNotificationLog(Base):
     message_id = Column(String(100), unique=True, index=True, nullable=False)
 
     # Context
-    device_id = Column(String(100), index=True, nullable=True)
+    # device_id removed because it does not exist in the database schema yet
+    # device_id = Column(String(100), index=True, nullable=True)
     job_id = Column(String(100), index=True, nullable=True)
     provider = Column(String(20), nullable=False)  # fcm, apns, mqtt, wns, web_push
 
@@ -281,6 +286,6 @@ class PushNotificationLog(Base):
 
     __table_args__ = (
         Index("idx_push_message_id", "message_id"),
-        Index("idx_push_device", "device_id"),
+        # Index("idx_push_device", "device_id"),
         Index("idx_push_status", "status"),
     )

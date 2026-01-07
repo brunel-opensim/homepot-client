@@ -98,6 +98,10 @@ plugins:
 nav:
   - Home: index.md
   
+  - Product Vision:
+      - Commercial Strategy: product-vision.md
+      - Compliance Matrix: architecture-compliance-matrix.md
+
   - Getting Started:
       - Quick Start: getting-started.md
       - Accessing Dashboard: accessing-dashboard.md

@@ -172,6 +172,63 @@ class Device(Base):
     jobs = relationship("Job", back_populates="target_device")
     health_checks = relationship("HealthCheck", back_populates="device")
     commands = relationship("DeviceCommand", back_populates="device")
+    audit_logs = relationship("AuditLog", back_populates="device")
+
+    # Smart Relationship for Polymorphic Configuration History
+    # Joins on string device_id and filters by entity_type='device'
+    config_history = relationship(
+        "ConfigurationHistory",
+        primaryjoin="and_("
+        "foreign(ConfigurationHistory.entity_id) == Device.device_id, "
+        "ConfigurationHistory.entity_type == 'device'"
+        ")",
+        viewonly=True,
+        uselist=True,
+    )
+
+    # Smart Relationship for Error Logs (String ID Match)
+    # Commented out because ErrorLog.device_id does not exist in DB yet
+    # error_logs = relationship(
+    #     "ErrorLog",
+    #     primaryjoin="foreign(ErrorLog.device_id) == Device.device_id",
+    #     viewonly=True,
+    #     uselist=True,
+    # )
+
+    # Smart Relationship for Job Outcomes (String ID Match)
+    job_outcomes = relationship(
+        "JobOutcome",
+        primaryjoin="foreign(JobOutcome.device_id) == Device.device_id",
+        viewonly=True,
+        uselist=True,
+    )
+
+    # Smart Relationship for API Request Logs (String ID Match)
+    # Commented out because APIRequestLog.device_id does not exist in DB yet
+    # api_request_logs = relationship(
+    #     "APIRequestLog",
+    #     primaryjoin="foreign(APIRequestLog.device_id) == Device.device_id",
+    #     viewonly=True,
+    #     uselist=True,
+    # )
+
+    # Smart Relationship for Push Notification Logs (String ID Match)
+    # Commented out because PushNotificationLog.device_id does not exist in DB yet
+    # push_logs = relationship(
+    #     "PushNotificationLog",
+    #     primaryjoin="foreign(PushNotificationLog.device_id) == Device.device_id",
+    #     viewonly=True,
+    #     uselist=True,
+    # )
+
+    # Smart Relationship for User Activities (String ID Match)
+    # Commented out because UserActivity.device_id does not exist in DB yet
+    # user_activities = relationship(
+    #     "UserActivity",
+    #     primaryjoin="foreign(UserActivity.device_id) == Device.device_id",
+    #     viewonly=True,
+    #     uselist=True,
+    # )
 
     # Analytics Relationships
     metrics = relationship(
@@ -332,6 +389,7 @@ class AuditLog(Base):
 
     # Relationships
     job = relationship("Job", back_populates="logs")
+    device = relationship("Device", back_populates="audit_logs")
 
 
 # Database engine and session configuration

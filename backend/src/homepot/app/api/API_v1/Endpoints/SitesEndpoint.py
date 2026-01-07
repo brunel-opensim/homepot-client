@@ -255,14 +255,12 @@ async def delete_site(site_id: str) -> Dict[str, str]:
         from sqlalchemy import delete, select
 
         # Import analytics models for comprehensive cleanup
-        from homepot.app.models.AnalyticsModel import (
+        from homepot.app.models.AnalyticsModel import (  # ErrorLog,  # Unused; PushNotificationLog,  # Unused
             APIRequestLog,
             ConfigurationHistory,
             DeviceMetrics,
             DeviceStateHistory,
-            ErrorLog,
             JobOutcome,
-            PushNotificationLog,
             SiteOperatingSchedule,
         )
         from homepot.models import (
@@ -312,16 +310,16 @@ async def delete_site(site_id: str) -> Dict[str, str]:
                         DeviceStateHistory.device_id.in_(device_str_ids)
                     )
                 )
-                # Push Notification Logs
-                await session.execute(
-                    delete(PushNotificationLog).where(
-                        PushNotificationLog.device_id.in_(device_str_ids)
-                    )
-                )
-                # Error Logs (linked to devices)
-                await session.execute(
-                    delete(ErrorLog).where(ErrorLog.device_id.in_(device_str_ids))
-                )
+                # Push Notification Logs - Disabled due to missing device_id column
+                # await session.execute(
+                #     delete(PushNotificationLog).where(
+                #         PushNotificationLog.device_id.in_(device_str_ids)
+                #     )
+                # )
+                # Error Logs (linked to devices) - Disabled due to missing device_id column
+                # await session.execute(
+                #     delete(ErrorLog).where(ErrorLog.device_id.in_(device_str_ids))
+                # )
                 # Job Outcomes (linked to devices)
                 await session.execute(
                     delete(JobOutcome).where(JobOutcome.device_id.in_(device_str_ids))

@@ -5,10 +5,14 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import desc, select
+from sqlalchemy.orm import joinedload
 
+from homepot.app.models import AnalyticsModel as analytics_models
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
+from homepot.models import AuditLog, Device, Job
 
 client_instance: Optional[HomepotClient] = None
 
@@ -141,11 +145,6 @@ async def list_device() -> Dict[str, List[Dict]]:
         db_service = await get_database_service()
 
         # For demo, we'll create a simple query (in real app, add pagination)
-        from sqlalchemy import select
-        from sqlalchemy.orm import joinedload
-
-        from homepot.models import Device
-
         async with db_service.get_session() as session:
             result = await session.execute(
                 select(Device)
@@ -197,14 +196,17 @@ async def get_device(device_id: str) -> Dict[str, Any]:
 
         return {
             "site_id": device.site.site_id,
+            "site_name": device.site.name if device.site else "Unknown Site",
             "device_id": device.device_id,
             "name": device.name,
             "device_type": device.device_type,
-            "ip_address": device.ip_address,
-            "mac_address": device.config.get("mac_address") if device.config else None,
-            "firmware_version": (
-                device.config.get("firmware_version") if device.config else None
-            ),
+            "status": device.status,
+            "ip_address": device.ip_address or "N/A",
+            "mac_address": device.mac_address
+            or (device.config.get("mac_address") if device.config else "N/A"),
+            "firmware_version": device.firmware_version
+            or (device.config.get("firmware_version") if device.config else "N/A"),
+            "last_seen": device.last_seen.isoformat() if device.last_seen else None,
             "is_monitored": device.is_monitored,
             "created_at": device.created_at.isoformat() if device.created_at else None,
             "updated_at": device.updated_at.isoformat() if device.updated_at else None,
@@ -372,6 +374,7 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
                 "status": d.status,
                 "ip_address": d.ip_address,
                 "is_monitored": d.is_monitored,
+                "last_seen": d.last_seen.isoformat() if d.last_seen else None,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
                 "updated_at": d.updated_at.isoformat() if d.updated_at else None,
             }
@@ -385,3 +388,221 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
         raise HTTPException(
             status_code=500, detail="Failed to get devices. Please check server logs."
         )
+
+
+@router.get("/device/{device_id}/metrics", tags=["Devices"])
+async def get_device_metrics(device_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    """Get performance metrics for a specific device."""
+    try:
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            # First find the device PK
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = result.scalars().first()
+            if not device:
+                raise HTTPException(status_code=404, detail="Device not found")
+
+            # Fetch metrics
+            metrics_result = await session.execute(
+                select(analytics_models.DeviceMetrics)
+                .where(analytics_models.DeviceMetrics.device_id == device.id)
+                .order_by(desc(analytics_models.DeviceMetrics.timestamp))
+                .limit(limit)
+            )
+            metrics = metrics_result.scalars().all()
+
+            return [
+                {
+                    "timestamp": m.timestamp.isoformat(),
+                    "cpu_percent": m.cpu_percent,
+                    "memory_percent": m.memory_percent,
+                    "disk_percent": m.disk_percent,
+                    "network_latency_ms": m.network_latency_ms,
+                    "transaction_count": m.transaction_count,
+                    "error_rate": m.error_rate,
+                    "extra_metrics": m.extra_metrics,
+                }
+                for m in metrics
+            ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get metrics for {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/device/{device_id}/audit-logs", tags=["Devices"])
+async def get_device_audit_logs(
+    device_id: str, limit: int = 50
+) -> List[Dict[str, Any]]:
+    """Get audit logs for a specific device."""
+    try:
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            # Find device PK
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = result.scalars().first()
+            if not device:
+                raise HTTPException(status_code=404, detail="Device not found")
+
+            # Fetch logs
+            logs_result = await session.execute(
+                select(AuditLog)
+                .where(AuditLog.device_id == device.id)
+                .order_by(desc(AuditLog.created_at))
+                .limit(limit)
+            )
+            logs = logs_result.scalars().all()
+
+            return [
+                {
+                    "id": log.id,
+                    "event_type": log.event_type,
+                    "description": log.description,
+                    "created_at": log.created_at.isoformat(),
+                    "user_id": log.user_id,
+                    "ip_address": log.ip_address,
+                }
+                for log in logs
+            ]
+    except HTTPException:
+        raise
+
+
+@router.get("/device/{device_id}/jobs", tags=["Devices"])
+async def get_device_jobs(device_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Get job history for a specific device."""
+    try:
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = result.scalars().first()
+            if not device:
+                raise HTTPException(status_code=404, detail="Device not found")
+
+            jobs_result = await session.execute(
+                select(Job)
+                .where(Job.device_id == device.id)
+                .order_by(desc(Job.created_at))
+                .limit(limit)
+            )
+            jobs = jobs_result.scalars().all()
+
+            return [
+                {
+                    "job_id": j.job_id,
+                    "action": j.action,
+                    "status": j.status,
+                    "priority": j.priority,
+                    "created_at": j.created_at.isoformat(),
+                    "completed_at": (
+                        j.completed_at.isoformat() if j.completed_at else None
+                    ),
+                    "result": j.result,
+                }
+                for j in jobs
+            ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get jobs for {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/device/{device_id}/error-logs", tags=["Devices"])
+async def get_device_error_logs(
+    device_id: str, limit: int = 50
+) -> List[Dict[str, Any]]:
+    """Get error logs for a specific device."""
+    try:
+        from sqlalchemy import String, cast
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            # Query using the context JSON column since device_id column was removed
+            errors_result = await session.execute(
+                select(analytics_models.ErrorLog)
+                .where(
+                    cast(
+                        analytics_models.ErrorLog.context["original_device_id"], String
+                    )
+                    == f'"{device_id}"'
+                )
+                .order_by(desc(analytics_models.ErrorLog.timestamp))
+                .limit(limit)
+            )
+            # Fallback: check unquoted match if the cast result doesn't include quotes
+            errors = errors_result.scalars().all()
+            if not errors:
+                errors_result = await session.execute(
+                    select(analytics_models.ErrorLog)
+                    .where(
+                        cast(
+                            analytics_models.ErrorLog.context["original_device_id"],
+                            String,
+                        )
+                        == device_id
+                    )
+                    .order_by(desc(analytics_models.ErrorLog.timestamp))
+                    .limit(limit)
+                )
+                errors = errors_result.scalars().all()
+
+            return [
+                {
+                    "timestamp": e.timestamp.isoformat(),
+                    "category": e.category,
+                    "severity": e.severity,
+                    "error_code": e.error_code,
+                    "error_message": e.error_message,
+                    "resolved": e.resolved,
+                    "context": e.context,
+                }
+                for e in errors
+            ]
+    except Exception as e:
+        logger.error(f"Failed to get error logs for {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/device/{device_id}/push-logs", tags=["Devices"])
+async def get_device_push_logs(device_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Get push notification logs for a specific device."""
+    try:
+        # device_id column removed from schema due to mismatch.
+        # Returning empty list until schema migration catches up.
+        return []
+
+        # db_service = await get_database_service()
+        # async with db_service.get_session() as session:
+        #     # Note: PushNotificationLog uses string device_id
+        #     logs_result = await session.execute(
+        #         select(analytics_models.PushNotificationLog)
+        #         .where(analytics_models.PushNotificationLog.device_id == device_id)
+        #         .order_by(desc(analytics_models.PushNotificationLog.sent_at))
+        #         .limit(limit)
+        #     )
+        #     logs = logs_result.scalars().all()
+        #
+        #     return [
+        #         {
+        #             "message_id": log.message_id,
+        #             "provider": log.provider,
+        #             "status": log.status,
+        #             "sent_at": log.sent_at.isoformat(),
+        #             "received_at": (
+        #                 log.received_at.isoformat() if log.received_at else None
+        #             ),
+        #             "error_message": log.error_message,
+        #         }
+        #         for log in logs
+        #     ]
+    except Exception as e:
+        logger.error(f"Failed to get push logs for {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")

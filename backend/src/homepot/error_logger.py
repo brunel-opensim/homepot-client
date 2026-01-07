@@ -53,6 +53,8 @@ async def log_error(
         error_context = context or {}
         if exception:
             error_context["exception_type"] = type(exception).__name__
+        if device_id:
+            error_context["original_device_id"] = device_id
 
         # Log to database
         db_service = await get_database_service()
@@ -66,7 +68,7 @@ async def log_error(
                 stack_trace=stack_trace,
                 endpoint=endpoint,
                 user_id=user_id,
-                device_id=device_id,
+                # device_id removed from model because it doesn't exist in DB
                 context=error_context,
             )
             session.add(error_log)

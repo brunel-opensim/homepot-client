@@ -51,6 +51,7 @@ class CreateJobRequest(BaseModel):
     config_url: Optional[str] = None
     config_version: Optional[str] = None
     priority: str = JobPriority.HIGH
+    device_id: Optional[str] = None  # Added to support device-specific jobs
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -84,6 +85,7 @@ async def create_pos_config_job(
             config_url=job_request.config_url,
             config_version=job_request.config_version,
             priority=job_request.priority,
+            device_id=job_request.device_id,
         )
 
         # Log audit event

@@ -231,6 +231,31 @@ const api = {
       return response.data;
     },
 
+    getMetrics: async (deviceId, limit = 100) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/metrics?limit=${limit}`);
+      return response.data;
+    },
+
+    getAuditLogs: async (deviceId, limit = 50) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/audit-logs?limit=${limit}`);
+      return response.data;
+    },
+
+    getJobs: async (deviceId, limit = 50) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/jobs?limit=${limit}`);
+      return response.data;
+    },
+
+    getErrorLogs: async (deviceId, limit = 50) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/error-logs?limit=${limit}`);
+      return response.data;
+    },
+
+    getPushLogs: async (deviceId, limit = 50) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/push-logs?limit=${limit}`);
+      return response.data;
+    },
+
     /**
      * Update device
      */

@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import and_, select
+from sqlalchemy import String, and_, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from homepot.app.models.AnalyticsModel import (
@@ -139,12 +139,26 @@ class ContextBuilder:
         stmt = select(ErrorLog).order_by(ErrorLog.timestamp.desc())
 
         if device_id:
-            stmt = stmt.where(ErrorLog.device_id == device_id)
+            # Check for device_id in context JSON field
+            quoted_id = f'"{device_id}"'
+            stmt = stmt.where(
+                cast(ErrorLog.context["original_device_id"], String) == quoted_id
+            )
 
         stmt = stmt.limit(limit)
 
         result = await session.execute(stmt)
         errors = result.scalars().all()
+
+        if device_id and not errors:
+            # Fallback for unquoted ID
+            stmt = select(ErrorLog).order_by(ErrorLog.timestamp.desc())
+            stmt = stmt.where(
+                cast(ErrorLog.context["original_device_id"], String) == device_id
+            )
+            stmt = stmt.limit(limit)
+            result = await session.execute(stmt)
+            errors = result.scalars().all()
 
         if not errors:
             return "No recent system errors."
@@ -421,10 +435,13 @@ class ContextBuilder:
     async def _get_push_context_impl(
         session: AsyncSession, device_id: Optional[str], limit: int
     ) -> str:
-        stmt = select(PushNotificationLog).order_by(PushNotificationLog.sent_at.desc())
-
+        # device_id filtering temporarily disabled due to schema mismatch
         if device_id:
-            stmt = stmt.where(PushNotificationLog.device_id == device_id)
+            return "Push notification history not available for specific devices."
+
+        stmt = select(PushNotificationLog).order_by(PushNotificationLog.sent_at.desc())
+        # if device_id:
+        #    stmt = stmt.where(PushNotificationLog.device_id == device_id)
 
         stmt = stmt.limit(limit)
 

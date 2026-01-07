@@ -300,6 +300,7 @@ async def init_database():
             site_id=site_id,
             ip_address=ip_address,
             config=config,
+            last_seen=datetime.now(timezone.utc),  # Set initial Last Seen
         )
         print(f"Created device: {device.name} ({device_id})")
         return device

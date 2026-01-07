@@ -235,8 +235,8 @@ export default function SiteDetail() {
                         >
                           {device.name}
                         </td>
-                        <td className="p-4 align-middle text-gray-300">
-                          {device.type || 'Unknown'}
+                        <td className="p-4 align-middle text-gray-300 uppercase">
+                          {device.device_type?.replace(/_/g, ' ') || 'Unknown'}
                         </td>
                         <td className="p-4 align-middle">
                           <span

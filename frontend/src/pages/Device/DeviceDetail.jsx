@@ -2,14 +2,25 @@ import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/Toast';
 import api from '@/services/api';
 import { trackActivity } from '@/utils/analytics';
-import { ArrowLeft, Loader2, Radio } from 'lucide-react';
-import React, { useEffect, useState, useRef } from 'react';
+import {
+  ArrowLeft,
+  Loader2,
+  Radio,
+  FileText,
+  Shield,
+  TerminalSquare,
+  History,
+  Activity,
+  AlertTriangle,
+} from 'lucide-react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   AlertsWidget,
   AuditWidget,
-  CommandHistoryWidget,
+  JobHistoryWidget,
   DeviceActionsWidget,
+  DeviceInfoWidget,
   DirectConnectWidget,
   LogsWidget,
   StatBlock,
@@ -78,6 +89,16 @@ const DEVICE_ACTIONS = {
   ],
 };
 
+/* === Helpers === */
+function formatUptime(seconds) {
+  if (!seconds) return '0s';
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return `${days}d ${hours}h`;
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${minutes}m`;
+}
+
 export default function Device() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -87,39 +108,36 @@ export default function Device() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('logs');
+
+  // Real Data States
+  // metrics: raw data not currently used for display (we use stats)
+  const [errorLogs, setErrorLogs] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [jobHistory, setJobHistory] = useState([]);
+  // pushLogs: raw data not currently used for display
+  const [stats, setStats] = useState({
+    cpu: { label: 'CPU', value: '0%', subtitle: 'avg 0%', data: [] },
+    memory: { label: 'Memory', value: '0GB', subtitle: 'used 0GB', data: [] },
+    disk: { label: 'Disk', value: '0%', subtitle: 'last check', data: [] },
+    network: { label: 'Network', value: '0ms', subtitle: 'latency', data: [] },
+    uptime: { label: 'Uptime', value: '0s', subtitle: 'system up', data: [] },
+  });
 
   const [showPushModal, setShowPushModal] = useState(false);
   const [pushMessage, setPushMessage] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
 
+  const handleToastClose = useCallback(() => {
+    setToast(null);
+  }, []);
+
   // Terminal State
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState([]);
   const [terminalInput, setTerminalInput] = useState('');
   const terminalEndRef = useRef(null);
-
-  // Mock Data (In a real app, this would come from the API or a store)
-  const stats = {
-    cpu: { label: 'CPU', value: '3,4rh', subtitle: 'avg 3.4%' },
-    memory: { label: 'Memory', value: '4 MW', subtitle: 'used 4GB' },
-    disk: { label: 'Disk', value: '25s ago', subtitle: 'last check' },
-  };
-
-  const [commandHistory, setCommandHistory] = useState([
-    { title: 'Configuration updated', date: '22 Jan 2024' },
-    { title: 'Alert resolved', date: '2024-04-23' },
-  ]);
-
-  const [audit] = useState([
-    { title: 'Configuration updated', date: '22 Jan 2024' },
-    { title: 'Alert resolved', date: '2024-04-23' },
-  ]);
-
-  const [logs, setLogs] = useState([
-    { message: 'Connection established', timestamp: '2024-04-23 10:00:00' },
-    { message: 'Data sync completed', timestamp: '2024-04-23 10:05:00' },
-  ]);
 
   useEffect(() => {
     const fetchDevice = async () => {
@@ -129,6 +147,74 @@ export default function Device() {
           setError('Device not found.');
         } else {
           setDevice(deviceData);
+
+          // Fetch related data in parallel
+          try {
+            const [metricsData, auditData, jobsData, , errorData] = await Promise.all([
+              api.devices.getMetrics(id, 20),
+              api.devices.getAuditLogs(id, 10),
+              api.devices.getJobs(id, 10),
+              api.devices.getPushLogs(id, 10),
+              api.devices.getErrorLogs(id, 10),
+            ]);
+
+            // setMetrics(metricsData); // unused
+            setAuditLogs(auditData);
+            setJobHistory(jobsData);
+            // setPushLogs(pushData); // unused
+            setErrorLogs(errorData);
+
+            // Process Stats
+            if (metricsData && metricsData.length > 0) {
+              const latest = metricsData[0];
+              const cpuTrend = metricsData.map((m) => m.cpu_percent).reverse();
+              const memTrend = metricsData.map((m) => m.memory_percent).reverse();
+              const diskTrend = metricsData.map((m) => m.disk_percent).reverse();
+              const netTrend = metricsData.map((m) => m.network_latency_ms).reverse();
+
+              // Extract uptime from extra_metrics if available
+              const currentUptime = latest.extra_metrics?.uptime_seconds || 0;
+              const uptimeTrend = metricsData
+                .map((m) => m.extra_metrics?.uptime_seconds || 0)
+                .reverse();
+
+              setStats({
+                cpu: {
+                  label: 'CPU',
+                  value: `${latest.cpu_percent?.toFixed(1) || 0}%`,
+                  subtitle: 'current load',
+                  data: cpuTrend,
+                },
+                memory: {
+                  label: 'Memory',
+                  value: `${latest.memory_percent?.toFixed(1) || 0}%`,
+                  subtitle: 'utilization',
+                  data: memTrend,
+                },
+                disk: {
+                  label: 'Disk',
+                  value: `${latest.disk_percent?.toFixed(1) || 0}%`,
+                  subtitle: 'usage',
+                  data: diskTrend,
+                },
+                network: {
+                  label: 'Network',
+                  value: `${latest.network_latency_ms?.toFixed(0) || 0}ms`,
+                  subtitle: 'latency',
+                  data: netTrend,
+                },
+                uptime: {
+                  label: 'Uptime',
+                  value: formatUptime(currentUptime),
+                  subtitle: 'system up',
+                  data: uptimeTrend,
+                },
+              });
+            }
+          } catch (relatedErr) {
+            console.warn('Failed to fetch related device data', relatedErr);
+            // Don't fail the whole page load
+          }
 
           // Fetch device health/alerts from AI anomalies to ensure consistency with Dashboard
           try {
@@ -160,6 +246,112 @@ export default function Device() {
     };
 
     fetchDevice();
+
+    // Poll for live metrics every 2 seconds matching the agent loop
+    const pollInterval = setInterval(() => {
+      // 1. Fetch Metrics
+      api.devices
+        .getMetrics(id, 20)
+        .then((metricsData) => {
+          if (metricsData && metricsData.length > 0) {
+            const latest = metricsData[0];
+            const cpuTrend = metricsData.map((m) => m.cpu_percent).reverse();
+            const memTrend = metricsData.map((m) => m.memory_percent).reverse();
+            const diskTrend = metricsData.map((m) => m.disk_percent).reverse();
+            const netTrend = metricsData.map((m) => m.network_latency_ms).reverse();
+
+            // Extract uptime from extra_metrics if available
+            const currentUptime = latest.extra_metrics?.uptime_seconds || 0;
+            const uptimeTrend = metricsData
+              .map((m) => m.extra_metrics?.uptime_seconds || 0)
+              .reverse();
+
+            setStats({
+              cpu: {
+                label: 'CPU',
+                value: `${latest.cpu_percent?.toFixed(1) || 0}%`,
+                subtitle: 'current load',
+                data: cpuTrend,
+              },
+              memory: {
+                label: 'Memory',
+                value: `${latest.memory_percent?.toFixed(1) || 0}%`,
+                subtitle: 'utilization',
+                data: memTrend,
+              },
+              disk: {
+                label: 'Disk',
+                value: `${latest.disk_percent?.toFixed(1) || 0}%`,
+                subtitle: 'usage',
+                data: diskTrend,
+              },
+              network: {
+                label: 'Network',
+                value: `${latest.network_latency_ms?.toFixed(0) || 0}ms`,
+                subtitle: 'latency',
+                data: netTrend,
+              },
+              uptime: {
+                label: 'Uptime',
+                value: formatUptime(currentUptime),
+                subtitle: 'system up',
+                data: uptimeTrend,
+              },
+            });
+          }
+        })
+        .catch((err) => console.debug('Metric poll skipped', err));
+
+      // 2. Fetch Logs (if tab is active)
+      // We check activeTab inside the effect, but activeTab state might be stale in closure.
+      // However, fetching these small JSONs is cheap enough to do always for "Live" feel.
+      // Limit to latest 50 entries to prevent memory growth (the "overwrite" behavior)
+      api.devices
+        .getErrorLogs(id, 50)
+        .then((errorData) => {
+          setErrorLogs(errorData);
+        })
+        .catch((err) => console.debug('Log poll skipped', err));
+
+      // 3. Fetch Audit Logs (if tab is active or just always for consistency)
+      // Limit to 50 for consistency with other tabs
+      api.devices
+        .getAuditLogs(id, 50)
+        .then((auditData) => {
+          setAuditLogs(auditData);
+        })
+        .catch((err) => console.debug('Audit poll skipped', err));
+
+      // 4. Fetch Job History
+      api.devices
+        .getJobs(id, 50)
+        .then((jobsData) => {
+          setJobHistory(jobsData);
+        })
+        .catch((err) => console.debug('Job poll skipped', err));
+
+      // 5. Fetch Alerts (AI Anomalies) - Live
+      api.ai
+        .getAnomalies()
+        .then((anomalyData) => {
+          if (anomalyData && anomalyData.anomalies) {
+            const deviceAnomalies = anomalyData.anomalies
+              .filter((a) => a.device_id === id)
+              .slice(0, 50) // Limit to latest 50 alerts
+              .map((a) => ({
+                type: 'alert',
+                severity: a.severity === 'critical' ? 'critical' : 'warning',
+                message: a.reasons ? a.reasons.join(', ') : 'Unknown Anomaly',
+                timestamp: a.timestamp,
+                source: 'AI Analysis',
+              }));
+            setAlerts(deviceAnomalies);
+          }
+        })
+        .catch((err) => console.debug('Anomaly poll skipped', err));
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
   }, [id]);
 
   useEffect(() => {
@@ -199,22 +391,32 @@ export default function Device() {
         title: `Action: ${actionKey.replace('_', ' ')}`,
         date: new Date().toLocaleString(),
       };
-      setCommandHistory((prev) => [newHistoryItem, ...prev]);
+      setJobHistory((prev) => [newHistoryItem, ...prev]);
 
-      // Update Logs
-      const newLogItem = {
-        message: `Action ${actionKey} triggered successfully`,
-        timestamp: new Date().toLocaleString(),
-      };
-      setLogs((prev) => [newLogItem, ...prev]);
+      // Update Logs (Toast only since we don't have local logs anymore)
+      // const newLogItem = ...
 
       // Handle specific actions
       if (actionKey === 'status_request') {
-        // Simulate a status update or refresh device data
+        // 1. Create a tracking Job
+        if (device?.site_id) {
+          try {
+            await api.jobs.create(device.site_id, {
+              action: 'Manual Status Check',
+              description: `User requested status check for device ${id}`,
+              priority: 'high',
+              device_id: id,
+            });
+          } catch (jobErr) {
+            console.warn('Failed to create tracking job:', jobErr);
+          }
+        }
+
+        // 2. Refresh device data
         const deviceData = await api.devices.getDeviceById(id);
         setDevice(deviceData);
         setToast({
-          message: `Status updated: ${deviceData?.status || 'Online'}`,
+          message: `Status request sent. Job created.`,
           type: 'success',
         });
       } else if (actionKey === 'update_settings') {
@@ -233,11 +435,15 @@ export default function Device() {
       });
 
       // Log failure
+      // NOTE: We rely on server-side logging for errors now.
+      // Re-fetch logs if needed, or just show toast.
+      /*
       const errorLogItem = {
         message: `Action ${actionKey} failed: ${err.message}`,
         timestamp: new Date().toLocaleString(),
       };
       setLogs((prev) => [errorLogItem, ...prev]);
+      */
     } finally {
       setActionLoading(null);
     }
@@ -358,53 +564,60 @@ export default function Device() {
   };
 
   // Consolidated Metrics for Tier 2
-  const metrics = [
+  const statCards = [
     {
       key: 'cpu',
       label: 'CPU',
       value: stats.cpu.value,
       subtitle: stats.cpu.subtitle,
-      data: sparkData.small,
+      data: stats.cpu.data.length > 0 ? stats.cpu.data : sparkData.small,
     },
     {
       key: 'memory',
       label: 'Memory',
       value: stats.memory.value,
       subtitle: stats.memory.subtitle,
-      data: sparkData.small,
+      data: stats.memory.data.length > 0 ? stats.memory.data : sparkData.small,
     },
     {
       key: 'disk',
       label: 'Disk',
       value: stats.disk.value,
       subtitle: stats.disk.subtitle,
-      data: sparkData.small,
+      data: stats.disk.data.length > 0 ? stats.disk.data : sparkData.small,
     },
     {
       key: 'uptime',
       label: 'Uptime',
-      value: '99.9%',
-      subtitle: 'last 30 days',
-      data: [8, 10, 12, 10, 14, 16, 18],
+      value: stats.uptime?.value || '0s',
+      subtitle: stats.uptime?.subtitle || 'system up',
+      data: stats.uptime?.data?.length > 0 ? stats.uptime.data : [0, 1, 2, 3, 4],
     },
-    { key: 'alerts', label: 'Alerts', value: '2', subtitle: 'active', data: [4, 6, 5, 6, 7, 6, 8] },
     {
       key: 'network',
       label: 'Network',
-      value: '1.2 GB',
-      subtitle: 'traffic',
-      data: sparkData.medium,
+      value: stats.network.value,
+      subtitle: stats.network.subtitle,
+      data: stats.network.data.length > 0 ? stats.network.data : sparkData.medium,
+    },
+    {
+      key: 'alerts',
+      label: 'Alerts',
+      value: alerts.length.toString(),
+      subtitle: 'active',
+      data: [4, 6, 5, 6, 7, 6, 8],
     },
   ];
 
   // Determine capabilities based on device type
-  const deviceType = device?.device_type || 'unknown';
-  const capabilities = DEVICE_CAPABILITIES[deviceType] || DEVICE_CAPABILITIES['unknown'];
-  const actions = DEVICE_ACTIONS[deviceType] || [];
+  // const deviceType = device?.device_type || 'unknown';
+  // const capabilities = DEVICE_CAPABILITIES[deviceType] || DEVICE_CAPABILITIES['unknown'];
+  // NOTE: Capabilities are now handled by tab visibility or individual widget logic in the new layout
+  const actions = DEVICE_ACTIONS[device?.device_type] || [];
 
   return (
     <>
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={handleToastClose} />}
 
       {showPushModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -507,63 +720,104 @@ export default function Device() {
             </div>
           </header>
 
-          {/* Main Grid */}
-          <div className="flex flex-col gap-6">
-            {/* Alerts Widget */}
-            <AlertsWidget alerts={alerts} />
+          {/* Main Layout: Right Actions (Sidebar) + Left Content */}
+          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+            {/* Main Column: Context & History */}
+            <div className="w-full lg:w-3/4 flex flex-col gap-6">
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {statCards.map((metric) => (
+                  <StatBlock
+                    key={metric.key}
+                    title={metric.label}
+                    value={metric.value}
+                    subtitle={metric.subtitle}
+                    data={metric.data}
+                  />
+                ))}
+              </div>
 
-            {/* Tier 2: Metrics Row (6 columns) */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {metrics.map((metric) => (
-                <StatBlock
-                  key={metric.key}
-                  title={metric.label}
-                  value={metric.value}
-                  subtitle={metric.subtitle}
-                  data={metric.data}
-                />
-              ))}
+              {/* Activity Tabs */}
+              <div className="bg-[#06181c] border border-[#0e3b3f] rounded-xl overflow-hidden shadow-sm flex flex-col flex-1">
+                <div className="flex border-b border-[#0e3b3f] bg-[#041014] overflow-x-auto">
+                  <button
+                    onClick={() => setActiveTab('logs')}
+                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'logs'
+                        ? 'border-teal-500 text-teal-400 bg-teal-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" /> Live Logs
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('audit')}
+                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'audit'
+                        ? 'border-teal-500 text-teal-400 bg-teal-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" /> Audit Trail
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('jobs')}
+                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'jobs'
+                        ? 'border-teal-500 text-teal-400 bg-teal-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <History className="w-4 h-4" /> Job History
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('alerts')}
+                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'alerts'
+                        ? 'border-teal-500 text-teal-400 bg-teal-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <AlertTriangle className="w-4 h-4" /> Alerts
+                    {alerts.length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded-full">
+                        {alerts.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                <div className="p-4 min-h-[300px] flex-1">
+                  {activeTab === 'logs' && <LogsWidget logs={errorLogs} />}
+                  {activeTab === 'audit' && <AuditWidget audit={auditLogs} />}
+                  {activeTab === 'jobs' && <JobHistoryWidget jobs={jobHistory} />}
+                  {activeTab === 'alerts' && <AlertsWidget alerts={alerts} />}
+                </div>
+              </div>
             </div>
 
-            {/* Tier 3: Actions, History & Terminal (Left) | Logs & Audit (Right) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Left Column */}
-              <div className="space-y-4">
-                {/* Device Actions */}
-                {actions.length > 0 && (
-                  <DeviceActionsWidget
-                    actions={actions}
-                    onActionClick={handleActionClick}
-                    loadingAction={actionLoading}
-                  />
-                )}
+            {/* Sidebar Column: Identity & Actions */}
+            <div className="w-full lg:w-1/4 space-y-4">
+              <DeviceInfoWidget device={device} />
 
-                {/* Command History (Moved from Right) */}
-                {capabilities.showCommandHistory && (
-                  <CommandHistoryWidget commandHistory={commandHistory} />
-                )}
-
-                {/* Direct Connect Terminal */}
-                <DirectConnectWidget
-                  isOpen={isTerminalOpen}
-                  onClose={() => setIsTerminalOpen(false)}
-                  terminalOutput={terminalOutput}
-                  terminalInput={terminalInput}
-                  setTerminalInput={setTerminalInput}
-                  handleTerminalSubmit={handleTerminalSubmit}
-                  terminalEndRef={terminalEndRef}
-                  deviceName={device?.name}
+              {actions.length > 0 && (
+                <DeviceActionsWidget
+                  actions={actions}
+                  onActionClick={handleActionClick}
+                  loadingAction={actionLoading}
                 />
-              </div>
+              )}
 
-              {/* Right Column */}
-              <div className="space-y-4">
-                {/* Logs */}
-                <LogsWidget logs={logs} />
-
-                {/* Audit (Moved from Left) */}
-                {capabilities.showAudit && <AuditWidget audit={audit} />}
-              </div>
+              <DirectConnectWidget
+                isOpen={isTerminalOpen}
+                onClose={() => setIsTerminalOpen(false)}
+                terminalOutput={terminalOutput}
+                terminalInput={terminalInput}
+                setTerminalInput={setTerminalInput}
+                handleTerminalSubmit={handleTerminalSubmit}
+                terminalEndRef={terminalEndRef}
+                deviceName={device?.name}
+              />
             </div>
           </div>
         </div>

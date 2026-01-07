@@ -1186,6 +1186,19 @@ validate_tests() {
         fi
     fi
 
+    # AI Context Builder
+    if [ -f "backend/tests/test_ai_context_builder.py" ]; then
+        echo -n "    AI Context Builder tests: "
+        log_verbose "Running: cd backend && python -m pytest tests/test_ai_context_builder.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_ai_context_builder.py -q --no-cov) >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "AI Context Builder tests failed - check AI context builder implementation"
+            failed=true
+        fi
+    fi
+
     # AI NLP Integration
     if [ -f "backend/tests/test_ai_nlp_integration.py" ]; then
         echo -n "    AI NLP Integration tests: "
