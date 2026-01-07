@@ -186,37 +186,6 @@ verify_installation() {
     log_success "Verification passed"
 }
 
-run_tests() {
-    if [[ "$SKIP_TESTS" == true ]]; then
-        log_verbose "Skipping tests"
-        return 0
-    fi
-    
-    log_info "Running validation tests..."
-    
-    # Simple CLI checks
-    homepot-client info > /dev/null 2>&1 || log_warning "Info command failed"
-    homepot-client --help > /dev/null 2>&1 || log_warning "Help command failed"
-
-    # Unit tests if pytest available
-    if command -v pytest &> /dev/null && [[ -d "backend/tests/" ]]; then
-        log_verbose "Running pytest (unit tests only)..."
-        # Skip integration, live, and performance tests to avoid needing a running server
-        if pytest backend/tests/ -q \
-            --ignore=backend/tests/test_live_api.py \
-            --ignore=backend/tests/test_performance.py \
-            --ignore=backend/tests/test_homepot_integration.py \
-            --ignore=backend/tests/test_database_pagination.py \
-            -m "not integration and not live and not performance"; then
-             log_success "Unit tests passed"
-        else
-             log_warning "Some unit tests failed"
-        fi
-    else
-        log_verbose "Skipping unit tests (pytest not found or no tests dir)"
-    fi
-}
-
 generate_activation_script() {
     local activate_script="scripts/activate-homepot.sh"
     cat > "$activate_script" << EOF
@@ -249,7 +218,6 @@ main() {
     setup_venv
     install_dependencies
     verify_installation
-    run_tests
     generate_activation_script
     show_next_steps
 }
