@@ -34,7 +34,7 @@ It is designed as a flexible, extensible client system that enables secure, scal
 ```text
 homepot-client/
 ├── backend/                 # Python backend service
-│   ├── homepot/             # Main Python package
+│   ├── src/homepot/         # Main Python package
 │   ├── tests/               # Backend tests
 │   ├── pyproject.toml       # Python configuration
 │   └── requirements.txt     # Python dependencies
@@ -58,14 +58,34 @@ homepot-client/
 
 ## Quick Start
 
+### Full Installation
+
+```bash
+# Clone the repository (consortium members only)
+git clone https://github.com/brunel-opensim/homepot-client.git
+cd homepot-client
+
+# Install using the automated script help
+./scripts/install.sh --help
+```
+
+Simple installation command:
+
+```bash
+./scripts/install.sh
+```
+
+Please follow the installation prompts to complete setup.
+
+**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
+
 ### For Frontend Developers
 
 Working on the UI? Here's the fastest way to get started:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/brunel-opensim/homepot-client.git
-cd homepot-client
+# 1. Create PostgreSQL database
+./scripts/init-postgresql.sh
 
 # 2. Start both backend and frontend
 ./scripts/start-complete-website.sh
@@ -74,27 +94,12 @@ cd homepot-client
 This will start:
 - **Backend API**: http://localhost:8000 (with API docs at `/docs`)
 - **Frontend**: http://localhost:5173
-- **Test Account**: `test@homepot.com` / `Test123!`
+- **Test Account**: `admin@homepot.com` / `homepot_dev_password`
 
 **See [Complete Website Setup Guide](docs/complete-website-setup.md) and [Website Testing Guide](docs/website-testing-guide.md)**
 
-### Analytics Demo (Data Collection for AI)
+### Analytics (Data Collection for AI)
 
-Ready to demonstrate analytics data collection? Run the demo to verify the infrastructure is working:
-
-```bash
-# 1. Create analytics tables (one-time setup)
-python backend/utils/create_analytics_tables.py
-
-# 2. Start the backend server (in a new terminal)
-cd backend
-uvicorn homepot.app.main:app --reload
-
-# 3. Run the demo (in a new terminal)
-python backend/utils/demo_analytics.py
-```
-
-This will:
 - Verify backend server is running
 - Generate test API calls
 - Show collected analytics data
@@ -111,31 +116,6 @@ This will:
 - **Git**: Latest version
 - **Access**: HOMEPOT consortium membership required
 
-### Full Installation
-
-```bash
-# Clone the repository (consortium members only)
-git clone https://github.com/brunel-opensim/homepot-client.git
-cd homepot-client
-
-# Install using the automated script
-./scripts/install.sh --dev
-```
-
-**For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
-
-## Development
-
-### Quick Reference
-
-| Command | Description |
-|---------|-------------|
-| `pytest` | Run test suite with coverage |
-| `homepot-client version` | Display version information |
-| `homepot-client info` | Display project information |
-
-**For complete development workflow, testing commands, and Docker deployment, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
-
 ### Code Quality Standards
 
 This project maintains high code quality with automated tooling:
@@ -147,7 +127,7 @@ This project maintains high code quality with automated tooling:
 
 ## Security
 
-Security is paramount in the HOMEPOT project. Please review our [Security Policy](SECURITY.md) for:
+Security is paramount in the HOMEPOT project, including:
 
 - Vulnerability reporting procedures
 - Security best practices
@@ -192,13 +172,6 @@ This is a private project developed by the HOMEPOT consortium for consortium mem
 
 This project involves multiple consortium partners working collaboratively on device management solutions.
 
-## Project Status
-
-- **Current Version**: 0.1.0 (Development)
-- **License**: Apache 2.0
-- **Python Support**: 3.11, 3.12
-- **Platform Support**: Linux, macOS, Windows
-
 ## Support
 
 For support and questions:
@@ -216,5 +189,3 @@ Copyright 2025 HOMEPOT Consortium
 ---
 
 **Important**: This repository contains proprietary consortium information. Access is restricted to authorized HOMEPOT consortium members only.
-CI/CD pile failed on git but passed on local so this commit if only for testing purpose to push and check on git .
-
