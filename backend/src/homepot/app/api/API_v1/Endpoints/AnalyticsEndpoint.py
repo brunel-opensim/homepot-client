@@ -106,7 +106,7 @@ async def log_error(
         # Prepare context data
         context_data = error.get("context") or {}
         if not isinstance(context_data, dict):
-             context_data = {"original_context": context_data}
+            context_data = {"original_context": context_data}
         if device_id:
             context_data["device_id"] = device_id
 

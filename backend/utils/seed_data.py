@@ -123,11 +123,11 @@ def generate_historical_errors(
     for _ in range(count):
         cat, sev, msg, code = random.choice(error_types)
         timestamp = now - timedelta(hours=random.randint(1, 48))
-        
+
         context = {"retry_count": random.randint(1, 3)}
         if device_id:
             context["device_id"] = device_id
-            
+
         errors.append(
             ErrorLog(
                 category=cat,
