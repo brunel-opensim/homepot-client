@@ -593,7 +593,7 @@ async def init_database():
             session.add(
                 PushNotificationLog(
                     message_id="msg-001",
-                    device_id=first_device.device_id,
+                    # device_id removed from model
                     job_id=sample_job.job_id,
                     provider="fcm",
                     status="delivered",
