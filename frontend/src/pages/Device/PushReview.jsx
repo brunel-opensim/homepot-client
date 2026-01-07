@@ -175,10 +175,25 @@ export default function PushReview() {
       // Send the push notification via API
       // We map the selected command to the action expected by the agent
       let action = 'unknown';
+
+      // Map UI constants to Backend Actions
       if (selectedCommand === 'APPLY_CONFIG') action = 'update_pos_payment_config';
       else if (selectedCommand === 'REBOOT_DEVICE') action = 'restart_pos_app';
       else if (selectedCommand === 'RUN_DIAGNOSTICS') action = 'health_check';
-      else if (selectedCommand === 'UPDATE_FIRMWARE') action = 'update_pos_payment_config'; // Reuse config update for firmware sim
+      else if (selectedCommand === 'UPDATE_FIRMWARE') action = 'update_pos_payment_config';
+      // Support Reuse: If selectedCommand IS the backend action (from history), use it directly
+      else if (
+        ['update_pos_payment_config', 'restart_pos_app', 'health_check'].includes(selectedCommand)
+      ) {
+        action = selectedCommand;
+      }
+      // Support Custom: functionality via JSON payload
+      else if (selectedCommand === 'CUSTOM' || action === 'unknown') {
+        // Try to find action in the user-provided JSON
+        if (parsedData.action) action = parsedData.action;
+        // If still unknown, but selectedCommand is not one of the template keys, maybe selectedCommand IS the action
+        else if (selectedCommand !== 'CUSTOM') action = selectedCommand;
+      }
 
       // Ensure data has required fields for the agent simulator
       const finalPayload = {

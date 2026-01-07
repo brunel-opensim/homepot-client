@@ -5,13 +5,16 @@
 # TODO: Update audit logging calls to match current AuditLogger signature
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from homepot.app.models.AnalyticsModel import PushNotificationLog
 from homepot.audit import AuditEventType, get_audit_logger
+from homepot.database import get_database_service
 from homepot.push_notifications.factory import PushNotificationProvider
 
 # Configure logging
@@ -214,12 +217,17 @@ async def send_notification(request: SendNotificationRequest) -> Dict[str, Any]:
     try:
         provider = await get_push_provider(request.platform)
 
+        # Generate unique message ID for tracking
+        message_id = str(uuid.uuid4())
+
         # Build notification payload
         notification_data = {
             "title": request.title,
             "body": request.body,
             "data": request.data or {},
         }
+        # Inject message_id into data for client ACK
+        notification_data["data"]["message_id"] = message_id
 
         # Add optional fields if provided
         if request.priority:
@@ -240,11 +248,32 @@ async def send_notification(request: SendNotificationRequest) -> Dict[str, Any]:
             device_token=request.device_token, notification_data=notification_data
         )
 
+        success = result.get("success", False)
+
+        # Persist log to DB
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                log_entry = PushNotificationLog(
+                    message_id=message_id,
+                    provider=request.platform,
+                    sent_at=datetime.utcnow(),
+                    status="sent" if success else "failed",
+                    error_message=result.get("message") if not success else None,
+                    # We don't have device_id or job_id in the simple request model yet,
+                    # but we can improve this later if needed.
+                )
+                session.add(log_entry)
+                await session.commit()
+        except Exception as db_err:
+            logger.error(f"Failed to save push log: {db_err}")
+
         audit_logger.log_event(
             event_type=AuditEventType.NOTIFICATION_SENT,
             message=f"Push notification sent via {request.platform}",
             metadata={
                 "platform": request.platform,
+                "message_id": message_id,
                 "title": request.title,
                 "success": result.get("success", False),
             },
@@ -479,9 +508,6 @@ async def acknowledge_push_notification(ack_request: PushAckRequest) -> Dict[str
     latency.
     """
     try:
-        from homepot.app.models.AnalyticsModel import PushNotificationLog
-        from homepot.database import get_database_service
-
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             from sqlalchemy import select

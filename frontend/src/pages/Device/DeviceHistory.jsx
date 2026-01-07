@@ -93,18 +93,36 @@ export default function DeviceHistory() {
   };
 
   const handleReuse = (item) => {
-    // Extract strictly the 'data' portion if it exists in the payload,
-    // otherwise fallback to the full details. This prevents the editor
-    // from showing the entire command envelope.
+    // 1. Determine the Command Type (Action)
+    // If the history item has a specific 'action' in its details (saved from full payload),
+    // prefer that over the generic 'action_type' column (which is often just 'automated').
+    let commandType = item.action_type || 'CUSTOM';
+    if (item.details && item.details.action) {
+      commandType = item.details.action;
+    } else if (commandType === 'automated' || commandType === 'configuration_update') {
+      // Fallback if specific action is missing but we have generic types
+      commandType = 'CUSTOM';
+    }
+
+    // 2. Extract and Clean Data
     let reuseData = item.details;
     if (reuseData && typeof reuseData === 'object' && reuseData.data) {
-      reuseData = reuseData.data;
+      reuseData = { ...reuseData.data }; // Clone to avoid mutating original
+    } else if (reuseData && typeof reuseData === 'object') {
+      reuseData = { ...reuseData };
+    }
+
+    // Remove system-generated metadata fields so they don't clutter the editor
+    if (reuseData) {
+      delete reuseData.timestamp;
+      delete reuseData.command;
+      delete reuseData.message_id;
     }
 
     // Navigate to PushReview with initial data
     navigate(`/device/${id}/push-review`, {
       state: {
-        initialCommand: item.action_type || 'CUSTOM',
+        initialCommand: commandType,
         initialData: reuseData,
       },
     });
