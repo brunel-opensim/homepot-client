@@ -21,24 +21,22 @@ FORCE_REINSTALL=false
 SKIP_TESTS=false
 VERBOSE=false
 QUIET=false
-DEV_INSTALL=false
 
 # Print usage
 usage() {
+    echo "HOMEPOT Client Installer"
     echo "Usage: $0 [OPTIONS]"
     echo ""
-    echo "HOMEPOT Client installation script"
-    echo "Sets up Python virtual environment and installs dependencies"
-    echo ""
-    echo "Options:"
-    echo "  --venv NAME         Virtual environment name (default: .venv)"
-    echo "  --python CMD        Python command to use (default: python3)"
-    echo "  --force             Force reinstall even if environment exists"
-    echo "  --dev               Install development dependencies"
-    echo "  --skip-tests        Skip validation tests after installation"
-    echo "  -v, --verbose       Enable verbose output"
-    echo "  -q, --quiet         Suppress non-essential output"
+    echo "Common Options:"
+    echo "  --force             Force reinstall (cleans existing environment)"
     echo "  -h, --help          Show this help message"
+    echo ""
+    echo "Advanced Options:"
+    echo "  --venv NAME         Set virtual environment name (default: .venv)"
+    echo "  --python CMD        Specify Python command (default: auto-detect)"
+    echo "  --skip-tests        Skip post-install validation"
+    echo "  -v, --verbose       Enable verbose debugging output"
+    echo "  -q, --quiet         Suppress output (useful for scripts)"
     echo ""
 }
 
@@ -48,7 +46,6 @@ while [[ $# -gt 0 ]]; do
         --venv) VENV_NAME="$2"; shift 2 ;;
         --python) PYTHON_CMD="$2"; shift 2 ;;
         --force) FORCE_REINSTALL=true; shift ;;
-        --dev) DEV_INSTALL=true; shift ;;
         --skip-tests) SKIP_TESTS=true; shift ;;
         -v|--verbose) VERBOSE=true; shift ;;
         -q|--quiet) QUIET=true; shift ;;
@@ -83,18 +80,37 @@ check_project_root() {
 # Check Python version
 check_python() {
     log_info "Checking Python installation..."
+    
+    # If user didn't specify a command, try to find the best one
+    if [[ "$PYTHON_CMD" == "python3" ]]; then
+        # List of candidates to try in order
+        local candidates=("python3.12" "python3.11" "python3")
+        for cmd in "${candidates[@]}"; do
+            if command -v "$cmd" &> /dev/null; then
+                # Check version compatibility
+                if "$cmd" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null; then
+                    PYTHON_CMD="$cmd"
+                    log_verbose "Auto-detected compatible Python: $PYTHON_CMD"
+                    break
+                fi
+            fi
+        done
+    fi
+
     if ! command -v "$PYTHON_CMD" &> /dev/null; then
-        log_error "Error: $PYTHON_CMD not found."
+        log_error "Error: Python interpreter '$PYTHON_CMD' not found."
+        log_error "This project requires Python 3.11 or higher."
         exit 1
     fi
 
-    # Check for Python 3.11+ using python itself
+    # Final verification
     if ! "$PYTHON_CMD" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"; then
         log_error "Error: Python 3.11 or higher required."
-        log_error "Found: $($PYTHON_CMD --version)"
+        log_error "Current '$PYTHON_CMD' is $($PYTHON_CMD --version 2>&1)"
+        log_error "Please install python3.11 or python3.12 package."
         exit 1
     fi
-    log_success "$($PYTHON_CMD --version) (compatible)"
+    log_success "Using $($PYTHON_CMD --version 2>&1) ($PYTHON_CMD)"
 }
 
 # Check/Create virtual environment
@@ -127,30 +143,25 @@ install_dependencies() {
     log_info "Upgrading pip..."
     pip install --upgrade pip > /dev/null 2>&1 || log_warning "Failed to upgrade pip"
 
-    local install_target="backend/"
     local pip_flags=("-e")
-    
-    if [[ "$DEV_INSTALL" == true ]]; then
-        install_target="backend/[dev]"
-        log_info "Installing development dependencies..."
-    else
-        log_info "Installing production dependencies..."
-    fi
-
     [[ "$QUIET" == true ]] && pip_flags+=("-q")
 
-    # Install main target
-    if pip install "${pip_flags[@]}" "$install_target"; then
-        log_success "Dependencies installed"
+    log_info "Installing dependencies..."
+
+    # Install project in editable mode
+    if pip install "${pip_flags[@]}" "backend/"; then
+        log_verbose "Project installed successfully"
     else
-        log_error "Failed to install dependencies"
+        log_error "Failed to install project"
         return 1
     fi
 
-    # Optional requirements.txt
+    # Install pinned requirements
     if [[ -f "backend/requirements.txt" ]]; then
         log_verbose "Installing from backend/requirements.txt"
-        pip install -r backend/requirements.txt > /dev/null 2>&1 || log_warning "Some additional requirements failed"
+        pip install -r backend/requirements.txt > /dev/null 2>&1 || log_warning "Some requirements failed to install"
+    else
+        log_warning "backend/requirements.txt not found"
     fi
 }
 
