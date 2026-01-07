@@ -274,6 +274,8 @@ def get_me(
                 "username": db_user.username,
                 "email": db_user.email,
                 "is_admin": db_user.is_admin,
+                "full_name": db_user.full_name,
+                "role": db_user.role,
             },
         )
     except HTTPException:
