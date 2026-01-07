@@ -59,7 +59,7 @@ If you prefer to start services manually or need more control:
 cd backend
 
 # Activate virtual environment
-source ../scripts/activate-homepot.sh
+source ../.venv/bin/activate
 
 # Start the backend server
 python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -308,7 +308,7 @@ VITE_ENABLE_DEBUG_LOGS=true
 
 **Solution**: 
 ```bash
-source scripts/activate-homepot.sh
+source .venv/bin/activate
 cd backend
 pip install -r requirements.txt
 ```

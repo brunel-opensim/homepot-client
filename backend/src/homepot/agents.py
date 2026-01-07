@@ -178,7 +178,7 @@ class DeviceAgentSimulator:
 
             if action == "update_pos_payment_config":
                 return await self._handle_config_update(
-                    config_url, config_version, data
+                    config_url, config_version, data, notification_data
                 )
             elif action == "restart_pos_app":
                 return await self._handle_restart()
@@ -217,6 +217,7 @@ class DeviceAgentSimulator:
         config_url: str,
         config_version: str,
         config_data: Optional[Dict[str, Any]] = None,
+        full_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Simulate configuration update process."""
         try:
@@ -291,9 +292,14 @@ class DeviceAgentSimulator:
 
                 # Determine parameter name and value based on input data
                 param_name = "config_version"
-                new_val = {"version": config_version, "url": config_url}
 
-                if config_data:
+                # Use full payload for new_value if available to support Reuse functionality
+                if full_payload:
+                    new_val = full_payload
+                    if "action" in full_payload:
+                        param_name = full_payload["action"]
+                # Fallback to legacy logic
+                elif config_data:
                     # Identify custom fields (excluding standard ones)
                     custom_keys = [
                         k
@@ -303,6 +309,8 @@ class DeviceAgentSimulator:
                     if custom_keys:
                         param_name = ", ".join(custom_keys)
                         new_val = config_data
+                else:
+                    new_val = {"version": config_version, "url": config_url}
 
                 async with db_service.get_session() as session:
                     config_history = ConfigurationHistory(

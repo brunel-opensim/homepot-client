@@ -291,7 +291,7 @@ cd homepot-client
 
 # Set up development environment
 ./scripts/install.sh --dev
-source scripts/activate-homepot.sh
+source .venv/bin/activate
 ```
 
 ### POSDummy Infrastructure Verification

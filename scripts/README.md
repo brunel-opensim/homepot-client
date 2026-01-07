@@ -43,20 +43,6 @@ Stops both backend and frontend servers.
 
 ## Environment Management
 
-### `activate-homepot.sh`
-
-Activates the Python virtual environment and sets up the development environment.
-
-**Usage:**
-```bash
-source scripts/activate-homepot.sh
-```
-
-**What it does:**
-1. Activates the Python virtual environment at `venv/`
-2. Sets environment variables for development
-3. Prepares the shell for backend development
-
 ## Database Password Management
 
 ### `setup-pgpass.sh`
@@ -128,9 +114,9 @@ All scripts use standardized password handling:
 ## Important Notes
 
 ### Virtual Environment
-- The project uses a **root-level virtual environment** at `venv/`
+- The project uses a **root-level virtual environment** at `.venv/`
 - Do NOT use `backend/venv/` (old structure, no longer used)
-- Always activate with: `source venv/bin/activate` or use `activate-homepot.sh`
+- Always activate with: `source .venv/bin/activate`
 
 ### bcrypt Compatibility
 - The project requires `bcrypt==4.1.3` for authentication to work

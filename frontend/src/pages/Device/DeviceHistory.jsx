@@ -93,11 +93,19 @@ export default function DeviceHistory() {
   };
 
   const handleReuse = (item) => {
+    // Extract strictly the 'data' portion if it exists in the payload,
+    // otherwise fallback to the full details. This prevents the editor
+    // from showing the entire command envelope.
+    let reuseData = item.details;
+    if (reuseData && typeof reuseData === 'object' && reuseData.data) {
+      reuseData = reuseData.data;
+    }
+
     // Navigate to PushReview with initial data
     navigate(`/device/${id}/push-review`, {
       state: {
         initialCommand: item.action_type || 'CUSTOM',
-        initialData: item.details,
+        initialData: reuseData,
       },
     });
   };

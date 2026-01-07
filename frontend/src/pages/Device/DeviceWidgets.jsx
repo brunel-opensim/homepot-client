@@ -501,13 +501,13 @@ export const DeviceActionsWidget = ({ actions, onActionClick, loadingAction }) =
   <Card>
     <h3 className="text-sm text-slate-300 font-medium mb-3">DEVICE ACTIONS</h3>
     <div className="border-t border-[#1f2735] mb-2"></div>
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 gap-2">
       {actions.map((action) => (
         <button
           key={action.key}
           onClick={() => onActionClick(action.key)}
           disabled={!!loadingAction}
-          className={`px-3 py-2 rounded bg-[#0b3b3f] text-teal-200 text-xs hover:bg-[#0e4b50] transition-colors text-left flex items-center justify-between ${
+          className={`px-3 py-2 rounded bg-[#0b3b3f] text-teal-200 text-xs hover:bg-[#0e4b50] transition-colors text-left flex items-center justify-between whitespace-nowrap ${
             loadingAction && loadingAction !== action.key ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
