@@ -195,12 +195,6 @@ source .venv/bin/activate
 uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Run Validation Tests
-```bash
-cd /home/mghorbani/workspace/homepot-client
-bash scripts/run-validation-test.sh
-```
-
 ### Verify Data
 ```bash
 # Check record counts
@@ -258,11 +252,6 @@ created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezo
    - Document analytics authentication requirement
    - Include code examples from this document
 
-3. **Validation:**
-   - Run `bash scripts/run-validation-test.sh`
-   - Verify all tests pass with fresh database
-   - Report any failures
-
 ### For ICCS Paper Data Collection
 
 1. **Start Fresh:**
@@ -314,7 +303,6 @@ created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezo
 
 **Scripts:**
 - Database Init: `scripts/init-postgresql.sh`
-- Validation: `scripts/run-validation-test.sh`
 - **Password Setup: `scripts/setup-pgpass.sh`**
 
 ---

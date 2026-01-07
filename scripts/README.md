@@ -201,20 +201,9 @@ If you're working on the frontend UI/UX:
    - API Docs: http://localhost:8000/docs
 
 4. **Test credentials:**
-   - Email: `test@homepot.com`
-   - Password: `Test123!`
+   - Email: `admin@homepot.com`
+   - Password: `homepot_dev_password`
    - Role: ENGINEER
-
-## Analytics Validation
-
-### `run-validation-test.sh`
-
-Comprehensive validation of the analytics infrastructure. Automatically starts the backend, runs validation tests, and reports results.
-
-**Usage:**
-```bash
-./scripts/run_validation_test.sh
-```
 
 **What it does:**
 1. Starts backend server on http://localhost:8000
@@ -242,7 +231,6 @@ Comprehensive validation of the analytics infrastructure. Automatically starts t
 
 **Python Utility:**
 The actual validation logic is in `backend/utils/validate_analytics.py` (Python utility).
-The bash script `run-validation-test.sh` handles starting/stopping the backend and calling the Python script.
 
 **Manual usage** (if backend is already running):
 ```bash
