@@ -200,8 +200,14 @@ run_tests() {
 
     # Unit tests if pytest available
     if command -v pytest &> /dev/null && [[ -d "backend/tests/" ]]; then
-        log_verbose "Running pytest..."
-        if pytest backend/tests/ -q; then
+        log_verbose "Running pytest (unit tests only)..."
+        # Skip integration, live, and performance tests to avoid needing a running server
+        if pytest backend/tests/ -q \
+            --ignore=backend/tests/test_live_api.py \
+            --ignore=backend/tests/test_performance.py \
+            --ignore=backend/tests/test_homepot_integration.py \
+            --ignore=backend/tests/test_database_pagination.py \
+            -m "not integration and not live and not performance"; then
              log_success "Unit tests passed"
         else
              log_warning "Some unit tests failed"
