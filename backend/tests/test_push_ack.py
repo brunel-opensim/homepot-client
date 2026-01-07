@@ -32,7 +32,7 @@ async def test_acknowledge_push_notification(async_client, mocker):
 
     # Mock get_database_service
     mocker.patch(
-        "homepot.database.get_database_service",
+        "homepot.app.api.API_v1.Endpoints.PushNotificationEndpoint.get_database_service",
         new_callable=AsyncMock,
         return_value=mock_db_service,
     )
@@ -84,7 +84,7 @@ async def test_acknowledge_push_notification_unknown_id(async_client, mocker):
 
     # Mock get_database_service
     mocker.patch(
-        "homepot.database.get_database_service",
+        "homepot.app.api.API_v1.Endpoints.PushNotificationEndpoint.get_database_service",
         new_callable=AsyncMock,
         return_value=mock_db_service,
     )
