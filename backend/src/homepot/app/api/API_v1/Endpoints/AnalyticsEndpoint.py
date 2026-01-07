@@ -103,6 +103,13 @@ async def log_error(
                 "message": "Error filtered (duplicate)",
             }
 
+        # Prepare context data
+        context_data = error.get("context") or {}
+        if not isinstance(context_data, dict):
+             context_data = {"original_context": context_data}
+        if device_id:
+            context_data["device_id"] = device_id
+
         error_log = models.ErrorLog(
             category=error.get("category", "unknown"),
             severity=error.get("severity", "error"),
@@ -111,8 +118,8 @@ async def log_error(
             stack_trace=error.get("stack_trace"),
             endpoint=error.get("endpoint"),
             user_id=error.get("user_id"),
-            device_id=error.get("device_id"),
-            context=error.get("context"),
+            # device_id removed from model
+            context=context_data,
             timestamp=datetime.now(timezone.utc),
         )
         db.add(error_log)
