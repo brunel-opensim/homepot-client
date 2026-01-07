@@ -108,7 +108,6 @@ nav:
       - Running Locally: running-locally.md
       - Complete Setup: complete-website-setup.md
       - Website Testing: website-testing-guide.md
-      - Integration Guide: integration-guide.md
   
   - User Guides:
       - Authentication Guide: authentication-guide.md
@@ -179,7 +178,6 @@ nav:
       - Audit & Compliance: audit-compliance.md
       - GitHub Permissions: github-permissions-guide.md
       - Repository Health: repository-health.md
-      - Engineering TODO: engineering-todo.md
 
 # Extra
 extra:

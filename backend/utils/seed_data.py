@@ -123,6 +123,11 @@ def generate_historical_errors(
     for _ in range(count):
         cat, sev, msg, code = random.choice(error_types)
         timestamp = now - timedelta(hours=random.randint(1, 48))
+
+        context = {"retry_count": random.randint(1, 3)}
+        if device_id:
+            context["device_id"] = device_id
+
         errors.append(
             ErrorLog(
                 category=cat,
@@ -131,8 +136,8 @@ def generate_historical_errors(
                 error_message=msg,
                 endpoint="/api/v1/mobile/sync",
                 user_id=user_id,
-                device_id=device_id,
-                context={"retry_count": random.randint(1, 3)},
+                # device_id removed from model
+                context=context,
                 timestamp=timestamp,
             )
         )
@@ -588,7 +593,7 @@ async def init_database():
             session.add(
                 PushNotificationLog(
                     message_id="msg-001",
-                    device_id=first_device.device_id,
+                    # device_id removed from model
                     job_id=sample_job.job_id,
                     provider="fcm",
                     status="delivered",

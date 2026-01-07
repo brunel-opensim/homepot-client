@@ -50,8 +50,7 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 
 ```bash
 # ONE COMMAND to run everything:
-./scripts/test-integration.sh
-
+./scripts/start-complete-website.sh
 # Access:
 # Frontend: http://localhost:5173
 # Backend: http://localhost:8000
