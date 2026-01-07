@@ -75,6 +75,8 @@ export default function PushReview() {
 
   // Ref to track if we are initializing from reuse
   const isReuseInit = useRef(!!location.state?.initialData);
+  // Ref to track previous command to allow intentional changes
+  const prevCommand = useRef(selectedCommand);
 
   // State for the Notification Envelope
   const [payloadConfig, setPayloadConfig] = useState({
@@ -118,18 +120,20 @@ export default function PushReview() {
     // If this is the first run and we are reusing data, DO NOT reset commandData
     if (isReuseInit.current) {
       isReuseInit.current = false; // Clear the flag so subsequent changes DO reset
+      prevCommand.current = selectedCommand;
       return;
     }
 
-    // Reset data to template default when command type changes
-    if (COMMAND_TEMPLATES[selectedCommand]) {
-      setCommandData(JSON.stringify(COMMAND_TEMPLATES[selectedCommand].defaultData, null, 2));
-    } else {
-      // Only clear if explicitly changing to a type with no template (Custom)
-      // and NOT during initial reuse load
-      setCommandData('{}');
+    // Only reset if command type ACTUALLY changed
+    if (prevCommand.current !== selectedCommand) {
+      if (COMMAND_TEMPLATES[selectedCommand]) {
+        setCommandData(JSON.stringify(COMMAND_TEMPLATES[selectedCommand].defaultData, null, 2));
+      } else {
+        setCommandData('{}');
+      }
+      setJsonError(null);
+      prevCommand.current = selectedCommand;
     }
-    setJsonError(null);
   }, [selectedCommand]); // Only dependency is selectedCommand
 
   const handleDataChange = (value) => {

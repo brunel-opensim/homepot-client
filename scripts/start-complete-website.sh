@@ -136,12 +136,13 @@ fi
 print_step "Setting up backend..."
 
 # Activate virtual environment
-if [ -f "$REPO_ROOT/scripts/activate-homepot.sh" ]; then
+if [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
     print_info "Activating HOMEPOT virtual environment..."
-    source "$REPO_ROOT/scripts/activate-homepot.sh"
+    source "$REPO_ROOT/.venv/bin/activate"
     print_success "Virtual environment activated"
 else
-    print_error "Cannot find activation script: $REPO_ROOT/scripts/activate-homepot.sh"
+    print_error "Cannot find virtual environment at $REPO_ROOT/.venv"
+    print_info "Please run ./scripts/install.sh first"
     exit 1
 fi
 
