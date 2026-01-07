@@ -8,7 +8,7 @@ Welcome to **HOMEPOT** (Homogenous Cyber Management of End-Points and OT) - an e
 
 ### Prerequisites
 
-- **Python**: 3.9 or higher
+- **Python**: 3.11 or higher
 - **Git**: Latest version
 - **HOMEPOT Consortium Access**: Repository access required
 
@@ -19,18 +19,11 @@ Welcome to **HOMEPOT** (Homogenous Cyber Management of End-Points and OT) - an e
 git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
 
-# 2. Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# 3. Navigate to backend directory
-cd backend
-
-# 4. Install dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install -e .
+# 2. Full installation using the automated script
+./scripts/install.sh
 ```
+
+*Please follow the installation prompts to complete setup.*
 
 ### Database Setup (Required)
 
@@ -38,11 +31,10 @@ pip install -e .
 
 The database will be empty when you first clone the repository. You need to initialize it with the schema and demo data:
 
-#### **Option 1: Using the initialization script (Recommended)**
+#### **Using database initialization script (Recommended)**
 
 ```bash
 # From project root (not backend/)
-cd ..  # Go back to homepot-client/
 ./scripts/init-postgresql.sh
 ```
 
@@ -52,59 +44,17 @@ This creates:
 ### Next Steps
 
 Once you have completed the setup, proceed to the [Accessing Dashboard](accessing-dashboard.md) guide to learn how to start the application and log in.
-- **3 demo sites** (Main Store Downtown, West Branch, East Side Mall)  
-- **12 demo devices** (POS terminals)
-
-#### **Option 2: Using Python directly**
-
-```bash
-# From backend/ directory
-python -c "
-import asyncio
-import sys
-sys.path.insert(0, 'src')
-from homepot.database import DatabaseService
-
-async def init():
-    db = DatabaseService()
-    await db.initialize()
-    await db.close()
-
-asyncio.run(init())
-"
-```
-
-#### **What Gets Created**
-
-After initialization, you'll have:
-- **Sites table**: 3 demo retail locations
-- **Devices table**: 12 POS terminals distributed across sites
-- **Jobs table**: Empty (ready for configuration updates)
-- **Users table**: Empty (ready for user management)
+- **2 demo sites** (Main Store Downtown, West Branch, East Side Mall)  
+- **10 demo devices** (5 Operating Systems per site)
 
 You can verify the database:
 ```bash
-# From project root
-export PGPASSWORD='homepot_dev_password'
-psql -h localhost -U homepot_user -d homepot_db -c "SELECT COUNT(*) as sites FROM sites; SELECT COUNT(*) as devices FROM devices;"
-# Expected: 3 sites, 12 devices
+./scripts/query-db.sh
 ```
+
+*Please follow the prompts for help option and list of available tables.*
 
 > **PostgreSQL Required:** HOMEPOT now uses PostgreSQL for production-ready performance. See [docs/postgresql-migration-complete.md](postgresql-migration-complete.md) for details.
-
-### Verify Installation
-
-```bash
-# 6. Check the version (from backend/ directory)
-python -m homepot.cli version
-
-# 7. More information
-python -m homepot.cli info
-
-# 8. Test configuration (from root directory)
-cd ..  # Return to root
-python -m pytest backend/tests/test_client.py -v --disable-warnings
-```
 
 ### Start the Backend Server
 
@@ -163,8 +113,8 @@ Expected output for health check:
 
 Congratulations! You now have a complete enterprise POS management system with:
 
-- **3 Demo Sites** (Main Store Downtown, West Branch, East Side Mall)
-- **12 POS Devices** (realistic terminal configuration)
+- **2 Demo Sites** (Main Store Downtown, West Branch, East Side Mall)
+- **10 POS Devices** (realistic terminal configuration)
 - **Real-time Dashboard** (live monitoring with WebSocket updates)
 - **Enterprise Audit Logging** (compliance-ready event tracking)
 - **Complete REST API** (comprehensive device management)
@@ -173,6 +123,14 @@ Congratulations! You now have a complete enterprise POS management system with:
 > **Need more data?** You can create additional sites and devices using the REST API at [http://localhost:8000/docs](http://localhost:8000/docs) or modify `scripts/init-postgresql.sh` to add more demo data.
 
 ## Next Steps
+
+### Run the Complete Website
+
+```bash
+./scripts/start-complete-website.sh
+```
+
+*Please follow the prompts to start both backend and frontend.*
 
 ### For New Users
 - **[POS Management Guide](pos-management.md)** - Manage sites, devices, and jobs
@@ -231,13 +189,6 @@ curl http://localhost:8000/health
 # If connection refused, restart from backend/ directory
 cd backend
 python -m uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-**Want to Start Fresh?**
-```bash
-# Drop and recreate PostgreSQL database
-./scripts/init-postgresql.sh
-# You'll get clean demo data (3 sites, 12 devices)
 ```
 
 ### Getting Help
