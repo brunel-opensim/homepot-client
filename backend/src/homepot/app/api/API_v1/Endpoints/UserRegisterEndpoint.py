@@ -4,8 +4,15 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import Dict, Generator, Literal, Optional, cast
+from urllib.parse import urlencode
 
+import requests
+from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from google.auth.transport import requests as google_requests
+
+# SSO Imports
+from google.oauth2 import id_token
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import (
@@ -21,6 +28,14 @@ from homepot.app.auth_utils import (
 from homepot.app.models import UserRegisterModel as models
 from homepot.app.schemas import schemas
 from homepot.database import SessionLocal
+
+# Load the .env file
+load_dotenv()
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+
 
 # Cookie settings
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
@@ -283,3 +298,84 @@ def get_me(
     except Exception as e:
         logger.error(f"Get user error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/" + "token"  # nosec
+
+
+@router.get("/login")
+def google_login() -> dict:
+    """Return the URL for Google sign-in."""
+    params = {
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "consent",
+    }
+    return {"auth_url": f"{GOOGLE_AUTH_URL}?{urlencode(params)}"}
+
+
+@router.get("/callback")
+def google_callback(code: str, db: Session = Depends(get_db)) -> dict:
+    """Backend-only callback: exchanges code and returns JSON user data."""
+    # 1. Exchange code for Google tokens
+    token_data = {
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+        "code": code,
+        "grant_type": "authorization_code",
+        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
+    }
+    token_response = requests.post(GOOGLE_TOKEN_URL, data=token_data, timeout=10)
+    if token_response.status_code != 200:
+        logger.error(f"Google Token Exchange Failed: {token_response.text}")
+        raise HTTPException(status_code=400, detail="Token exchange failed")
+    tokens = token_response.json()
+    id_token_str = tokens.get("id_token")
+    # 2. Verify Google User
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            id_token_str, google_requests.Request(), os.getenv("GOOGLE_CLIENT_ID")
+        )
+    except Exception as e:
+        logger.error(f"Google Verification Failed: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    # 3. Find/Create User in DB
+    user_email = idinfo["email"]
+    db_user = db.query(models.User).filter(models.User.email == user_email).first()
+
+    if not db_user:
+        db_user = models.User(
+            email=user_email,
+            username=idinfo.get("name", user_email.split("@")[0]),
+            full_name=idinfo.get("name"),
+            hashed_password=hash_password(os.urandom(24).hex()),
+            is_admin=False,
+            role="Client",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+    # 4. Generate App JWT
+    access_token = create_access_token(
+        {"sub": db_user.email, "is_admin": db_user.is_admin}
+    )
+    # 5. Return JSON (Pure Backend Response)
+    return response(
+        success=True,
+        message="SSO Login successful",
+        data={
+            "access_token": access_token,
+            "user": {
+                "email": db_user.email,
+                "username": db_user.username,
+                "role": db_user.role,
+                "is_admin": db_user.is_admin,
+            },
+        },
+    )
