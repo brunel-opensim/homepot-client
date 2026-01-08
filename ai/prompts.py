@@ -26,6 +26,7 @@ class PromptManager:
         site_ctx = context_data.get("site", "")
         meta_ctx = context_data.get("metadata", "")
         user_ctx = context_data.get("user", "")
+        metrics_ctx = context_data.get("metrics", "")
 
         return (
             f"[CURRENT SYSTEM STATUS]\n"
@@ -44,6 +45,7 @@ class PromptManager:
             f"{site_ctx}\n"
             f"{meta_ctx}\n"
             f"{user_ctx}\n"
+            f"{metrics_ctx}\n"
             f"----------------------------------------\n"
         )
 

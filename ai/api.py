@@ -138,6 +138,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                         push_context,
                         site_context,
                         metadata_context,
+                        metrics_context,
                         user_context,
                     ) = await asyncio.gather(
                         context_builder.get_job_context(session=session),
@@ -173,6 +174,11 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                             session=session,
                             device_int_id=device_int_id,
                         ),
+                        context_builder.get_metrics_context(
+                            device_id=request.device_id,
+                            session=session,
+                            device_int_id=device_int_id,
+                        ),
                         (
                             context_builder.get_user_context(
                                 user_id=request.user_id, session=session
@@ -192,6 +198,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     "push": push_context,
                     "site": site_context,
                     "metadata": metadata_context,
+                    "metrics": metrics_context,
                     "user": user_context,
                 }
 

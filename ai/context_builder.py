@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from homepot.app.models.AnalyticsModel import (
     APIRequestLog,
     ConfigurationHistory,
+    DeviceMetrics,
     DeviceStateHistory,
     ErrorLog,
     JobOutcome,
@@ -544,8 +545,82 @@ class ContextBuilder:
 
         return "\n\n".join(context_parts)
 
+    @staticmethod    async def get_metrics_context(
+        device_id: Optional[str] = None,
+        limit: int = 5,
+        session: Optional[AsyncSession] = None,
+        device_int_id: Optional[int] = None,
+    ) -> str:
+        """Retrieve recent device performance metrics.
+
+        Args:
+            device_id: Device UUID.
+            limit: Number of records.
+            session: DB Session.
+            device_int_id: Device Integer ID.
+        """
+        if not device_id and not device_int_id:
+            return ""
+
+        try:
+            if session:
+                return await ContextBuilder._get_metrics_context_impl(
+                    session, device_id, limit, device_int_id
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_metrics_context_impl(
+                    session, device_id, limit, device_int_id
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build metrics context: {e}")
+            return "Error retrieving metrics context."
+
     @staticmethod
-    async def get_site_context(
+    async def _get_metrics_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+        device_int_id: Optional[int] = None,
+    ) -> str:
+        # Resolve ID if needed
+        target_id = device_int_id
+        if not target_id and device_id:
+            # Try to resolve or fallback
+            stmt = select(Device).where(Device.device_id == device_id)
+            result = await session.execute(stmt)
+            device = result.scalar_one_or_none()
+            if device:
+                target_id = device.id
+
+        if not target_id:
+            return "Metrics context unavailable (Device ID resolution failed)."
+
+        stmt = (
+            select(DeviceMetrics)
+            .where(DeviceMetrics.device_id == target_id)
+            .order_by(DeviceMetrics.timestamp.desc())
+            .limit(limit)
+        )
+
+        result = await session.execute(stmt)
+        metrics = result.scalars().all()
+
+        if not metrics:
+            return "No recent performance metrics."
+
+        context_lines = ["[RECENT PERFORMANCE METRICS]"]
+        for m in metrics:
+            context_lines.append(
+                f"- {m.timestamp.isoformat()}: CPU={m.cpu_percent}% "
+                f"MEM={m.memory_percent}% DISK={m.disk_percent}% "
+                f"LATENCY={m.network_latency_ms}ms"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod    async def get_site_context(
         device_id: Optional[str] = None,
         session: Optional[AsyncSession] = None,
         device_int_id: Optional[int] = None,
