@@ -197,7 +197,7 @@ def assign_role(
         if new_role.lower() == "admin":
             user.is_admin = True  # type: ignore
         elif new_role.lower() == "user":
-            user.is_admin = False  # type: ignore
+            user.is_admin = False
         else:
             raise HTTPException(
                 status_code=400, detail="Invalid role. Allowed roles: Admin, User"
