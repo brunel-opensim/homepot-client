@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path.cwd() / "backend" / "src"))
 import bcrypt
 
 from homepot.app.models.AnalyticsModel import (
+    Alert,
     APIRequestLog,
     ConfigurationHistory,
     DeviceMetrics,
@@ -169,6 +170,67 @@ def generate_historical_user_activity(
     return activities
 
 
+def generate_problematic_metrics(device_id: int) -> list[DeviceMetrics]:
+    """Generate recent metrics that justify the active alerts (High CPU)."""
+    metrics = []
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Generate 15 minutes of high CPU data
+    for i in range(15):
+        timestamp = now - timedelta(minutes=i)
+        metrics.append(
+            DeviceMetrics(
+                device_id=device_id,
+                cpu_percent=round(random.uniform(92.0, 99.0), 2),  # Critical CPU
+                memory_percent=round(random.uniform(60.0, 70.0), 2),
+                disk_percent=round(random.uniform(40.0, 45.0), 2),
+                network_latency_ms=round(random.uniform(20.0, 50.0), 2),
+                transaction_count=random.randint(0, 5),
+                timestamp=timestamp,
+            )
+        )
+    return metrics
+
+
+def generate_active_alerts(device_id: str, site_id: int) -> list[Alert]:
+    """Generate sample active alerts for AI testing."""
+    alerts = []
+
+    # Scenario 1: High CPU Usage
+    # We will simulate this by creating an alert AND corresponding high CPU metrics
+    # so the detection logic would agree with the alert if it ran.
+    high_cpu_alert = Alert(
+        device_id=device_id,
+        site_id=site_id,
+        title="[DEMO] High CPU Usage",
+        description="CPU utilization > 90% (Sustainable) - Simulation Test",
+        severity="warning",
+        category="hardware",
+        status="active",
+        ai_confidence=0.85,
+        ai_recommendation="Check for runaway processes or background updates.",
+        timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
+        - timedelta(minutes=10),
+    )
+
+    # Scenario 2: Network Latency Spike
+    network_alert = Alert(
+        device_id=device_id,
+        site_id=site_id,
+        title="[DEMO] Network Latency Critical",
+        description="Latency > 200ms observed for 5 minutes - Simulation Test",
+        severity="critical",
+        category="network",
+        status="active",
+        ai_confidence=0.92,
+        ai_recommendation="Inspect switch logs and bandwidth usage.",
+        timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
+        - timedelta(minutes=5),
+    )
+
+    return [high_cpu_alert, network_alert]
+
+
 async def init_database():
     """Initialize PostgreSQL database with schema and seed data."""
     print("Importing database service...")
@@ -292,7 +354,7 @@ async def init_database():
     print("\n=== Creating Devices ===")
 
     async def get_or_create_device(
-        device_id, name, device_type, site_id, ip_address, config
+        device_id, name, device_type, site_id, ip_address, config, is_monitored=False
     ):
         existing = await db_service.get_device_by_device_id(device_id)
         if existing:
@@ -306,8 +368,11 @@ async def init_database():
             ip_address=ip_address,
             config=config,
             last_seen=datetime.now(timezone.utc),  # Set initial Last Seen
+            is_monitored=is_monitored,
         )
-        print(f"Created device: {device.name} ({device_id})")
+        print(
+            f"Created device: {device.name} ({device_id}) [Monitored: {is_monitored}]"
+        )
         return device
 
     # Site 1 Devices
@@ -324,6 +389,7 @@ async def init_database():
             "agent_version": "1.0.0-sim",
             "version": "1.0.0",
         },
+        is_monitored=True,
     )
     await get_or_create_device(
         "site1-windows-02",
@@ -566,6 +632,18 @@ async def init_database():
                 first_device.device_id, str(admin_user.id)
             )
             session.add_all(historical_errors)
+
+            # Generate active alerts (New for AI Context testing)
+            # Only generate for the first device to guarantee we have a test case
+            print(f"  -> Injecting critical alerts and metrics for {first_device.name}")
+
+            # 1. Add the alerts
+            active_alerts = generate_active_alerts(first_device.device_id, sites[0].id)
+            session.add_all(active_alerts)
+
+            # 2. Add the supporting data (High CPU metrics)
+            problem_metrics = generate_problematic_metrics(first_device.id)
+            session.add_all(problem_metrics)
 
             # Generate historical user activity
             historical_activity = generate_historical_user_activity(str(admin_user.id))

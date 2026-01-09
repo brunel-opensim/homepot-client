@@ -27,6 +27,7 @@ class PromptManager:
         meta_ctx = context_data.get("metadata", "")
         user_ctx = context_data.get("user", "")
         metrics_ctx = context_data.get("metrics", "")
+        alert_ctx = context_data.get("alert", "")
 
         return (
             f"[CURRENT SYSTEM STATUS]\n"
@@ -35,6 +36,7 @@ class PromptManager:
             f"Failure Probability: {prediction.get('failure_probability', 0.0)}\n"
             f"Risk Factors: {', '.join(risk_factors)}\n"
             f"Recent Events: {recent_events}\n"
+            f"{alert_ctx}\n"
             f"{job_ctx}\n"
             f"{error_ctx}\n"
             f"{config_ctx}\n"

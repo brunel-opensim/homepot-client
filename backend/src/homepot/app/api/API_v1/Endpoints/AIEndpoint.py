@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import case, func, select
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -32,8 +32,8 @@ from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
 from homepot.app.models.AnalyticsModel import (  # noqa: E402
+    Alert,
     DeviceMetrics,
-    DeviceStateHistory,
     PushNotificationLog,
 )
 from homepot.database import get_database_service  # noqa: E402
@@ -95,19 +95,21 @@ async def get_system_anomalies() -> Dict[str, Any]:
 
         db_service = await get_database_service()
         async with db_service.get_session() as session:
-            # 1. Get all monitored devices
-            result = await session.execute(
-                select(Device).where(Device.is_monitored.is_(True))
-            )
-            devices = result.scalars().all()
+            # 1. Get all devices for mapping (to ensure we can name any device with an alert)
+            all_devices_result = await session.execute(select(Device))
+            all_devices = all_devices_result.scalars().all()
+            device_map = {d.device_id: d.name for d in all_devices}
 
-            for device in devices:
+            # Filter for monitored devices to run active detection
+            monitored_devices = [d for d in all_devices if d.is_monitored]
+
+            for device in monitored_devices:
                 device_metrics: Dict[str, Any] = {}
 
                 # 2. Get latest metrics
                 metrics_result = await session.execute(
                     select(DeviceMetrics)
-                    .where(DeviceMetrics.device_id == device.device_id)
+                    .where(DeviceMetrics.device_id == device.id)
                     .order_by(DeviceMetrics.timestamp.desc())
                     .limit(1)
                 )
@@ -124,16 +126,19 @@ async def get_system_anomalies() -> Dict[str, Any]:
                     )
 
                 # 3. Get Flapping Count (last 1 hour)
-                one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-                flapping_result = await session.execute(
-                    select(func.count(DeviceStateHistory.id)).where(
-                        and_(
-                            DeviceStateHistory.device_id == device.device_id,
-                            DeviceStateHistory.timestamp >= one_hour_ago,
-                        )
-                    )
-                )
-                device_metrics["flapping_count"] = float(flapping_result.scalar() or 0)
+                # Temporarily disabled for DEMO to prevent noise alerts from simulation
+                device_metrics["flapping_count"] = 0.0
+
+                # one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+                # flapping_result = await session.execute(
+                #     select(func.count(DeviceStateHistory.id)).where(
+                #         and_(
+                #             DeviceStateHistory.device_id == device.id,
+                #             DeviceStateHistory.timestamp >= one_hour_ago,
+                #         )
+                #     )
+                # )
+                # device_metrics["flapping_count"] = float(flapping_result.scalar() or 0)
 
                 # 4. Get Consecutive Failures
                 # Simplified: Check last 5 health checks
@@ -168,42 +173,85 @@ async def get_system_anomalies() -> Dict[str, Any]:
                         }
                     )
 
-        # DEMONSTRATION: Hardcoded anomaly for "Apple POS 1-3"
-        # Ensure this specific device always shows an alert for demo purposes
-        demo_device_id = "site1-macos-03"
-        demo_device_name = "Apple POS 1-3"
+        # 6. Fetch Active Alerts from Database (Persistent Context)
+        # This ensures that alerts created by other services (or seed data) are visible
+        alerts_result = await session.execute(
+            select(Alert).where(Alert.status == "active")
+        )
+        active_alerts = alerts_result.scalars().all()
 
-        # Check if already present
-        if not any(a["device_id"] == demo_device_id for a in anomalies):
+        for alert in active_alerts:
+            # Avoid duplicating if the detector also caught it (simple check by device_id)
+            # For now, we append them to showcase the persistent alerts.
             anomalies.append(
                 {
-                    "device_id": demo_device_id,
-                    "device_name": demo_device_name,
-                    "score": 0.85,
-                    "reasons": [
-                        "Abnormal pattern sequence detected",
-                        "CPU spike correlated with high latency",
-                    ],
-                    "severity": "critical",
+                    "device_id": alert.device_id,
+                    "device_name": device_map.get(alert.device_id, "Unknown Device"),
+                    "score": round(alert.ai_confidence or 0.8, 2),
+                    "reasons": [alert.title, alert.description],
+                    "severity": alert.severity,
                     "metrics": {
-                        "cpu_percent": 92.5,
-                        "memory_percent": 45.0,
-                        "network_latency_ms": 120,
-                        "flapping_count": 0,
-                        "consecutive_failures": 0,
+                        "source": "persistent_alert",
+                        "category": alert.category,
                     },
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": (
+                        alert.timestamp.isoformat()
+                        if alert.timestamp
+                        else datetime.utcnow().isoformat()
+                    ),
                 }
             )
 
         # Sort by score descending
         anomalies.sort(key=lambda x: float(str(x["score"])), reverse=True)
 
+        # Limit to top 5 anomalies
+        anomalies = anomalies[:5]
+
         return {"count": len(anomalies), "anomalies": anomalies}
 
     except Exception as e:
         logger.error(f"Failed to detect anomalies: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Anomaly detection failed")
+
+
+@router.put("/alerts/{alert_id}/resolve", tags=["AI Insights"])
+async def resolve_alert(
+    alert_id: int,
+    user_id: Optional[str] = Query(None, description="User resolving the alert"),
+    notes: Optional[str] = Query(None, description="Resolution notes"),
+) -> Dict[str, Any]:
+    """Resolve a system alert manually."""
+    try:
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            result = await session.execute(select(Alert).where(Alert.id == alert_id))
+            alert = result.scalars().first()
+
+            if not alert:
+                raise HTTPException(status_code=404, detail="Alert not found")
+
+            alert.status = "resolved"  # type: ignore
+            alert.resolved_at = datetime.utcnow()  # type: ignore
+            alert.resolved_by = user_id or "manual_resolution"  # type: ignore
+            alert.resolution_notes = notes  # type: ignore
+
+            await session.commit()
+
+            return {
+                "status": "success",
+                "message": f"Alert {alert_id} resolved",
+                "alert": {
+                    "id": alert.id,
+                    "status": alert.status,
+                    "resolved_at": alert.resolved_at,
+                },
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to resolve alert: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to resolve alert")
 
 
 @router.post("/query", tags=["AI Chat"])
@@ -273,6 +321,23 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             site_context += f"- Delivered: {delivered_push or 0}\n"
             if avg_latency:
                 site_context += f"- Avg Latency: {round(avg_latency, 2)}ms\n"
+
+            # Get Active Alerts for AI Context
+            alerts_result = await session.execute(
+                select(Alert).where(Alert.status == "active").limit(20)
+            )
+            active_alerts = alerts_result.scalars().all()
+
+            site_context += "\n[ACTIVE SYSTEM ALERTS]\n"
+            if active_alerts:
+                for alert in active_alerts:
+                    site_context += (
+                        f"- Alert: {alert.title} (Severity: {alert.severity}) "
+                        f"on Device: {alert.device_id}. "
+                        f"Description: {alert.description}\n"
+                    )
+            else:
+                site_context += "No active alerts.\n"
 
             # Get Job Context if relevant
             job_context = await context_builder.get_job_context(session=session)

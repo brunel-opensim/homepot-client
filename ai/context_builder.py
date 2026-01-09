@@ -8,6 +8,7 @@ from sqlalchemy import String, and_, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from homepot.app.models.AnalyticsModel import (
+    Alert,
     APIRequestLog,
     ConfigurationHistory,
     DeviceMetrics,
@@ -545,7 +546,8 @@ class ContextBuilder:
 
         return "\n\n".join(context_parts)
 
-    @staticmethod    async def get_metrics_context(
+    @staticmethod
+    async def get_metrics_context(
         device_id: Optional[str] = None,
         limit: int = 5,
         session: Optional[AsyncSession] = None,
@@ -589,11 +591,11 @@ class ContextBuilder:
         target_id = device_int_id
         if not target_id and device_id:
             # Try to resolve or fallback
-            stmt = select(Device).where(Device.device_id == device_id)
-            result = await session.execute(stmt)
-            device = result.scalar_one_or_none()
+            resolve_stmt = select(Device).where(Device.device_id == device_id)
+            resolve_result = await session.execute(resolve_stmt)
+            device = resolve_result.scalar_one_or_none()
             if device:
-                target_id = device.id
+                target_id = int(device.id)
 
         if not target_id:
             return "Metrics context unavailable (Device ID resolution failed)."
@@ -620,7 +622,61 @@ class ContextBuilder:
             )
         return "\n".join(context_lines)
 
-    @staticmethod    async def get_site_context(
+    @staticmethod
+    async def get_alert_context(
+        device_id: Optional[str] = None,
+        limit: int = 5,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve active alerts for the device.
+
+        Args:
+            device_id: Device ID to filter by.
+            limit: Number of alerts to fetch.
+            session: Optional database session to reuse.
+        """
+        try:
+            if session:
+                return await ContextBuilder._get_alert_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_alert_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build alert context: {e}")
+            return "Error retrieving alert context."
+
+    @staticmethod
+    async def _get_alert_context_impl(
+        session: AsyncSession, device_id: Optional[str], limit: int
+    ) -> str:
+        stmt = select(Alert).where(Alert.status == "active").order_by(Alert.severity)
+
+        if device_id:
+            stmt = stmt.where(Alert.device_id == device_id)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        alerts = result.scalars().all()
+
+        if not alerts:
+            return "No active alerts."
+
+        context_lines = ["[ACTIVE ALERTS]"]
+        for alert in alerts:
+            context_lines.append(
+                f"- [{alert.severity.upper()}] {alert.title}: {alert.description}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_site_context(
         device_id: Optional[str] = None,
         session: Optional[AsyncSession] = None,
         device_int_id: Optional[int] = None,
