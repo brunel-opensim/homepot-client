@@ -254,13 +254,28 @@ async def resolve_alert(
         raise HTTPException(status_code=500, detail="Failed to resolve alert")
 
 
+# Helper for Singleton services to avoid re-initialization overhead
+_ai_services: Dict[str, Any] = {"llm": None, "knowledge": None, "memory": None}
+
+
+def get_ai_services() -> Any:
+    """Get singleton instances of AI services."""
+    if _ai_services["llm"] is None:
+        _ai_services["llm"] = LLMService()
+    if _ai_services["knowledge"] is None:
+        _ai_services["knowledge"] = SystemKnowledge(project_root)
+    if _ai_services["memory"] is None:
+        _ai_services["memory"] = DeviceMemory()
+    return _ai_services["llm"], _ai_services["knowledge"], _ai_services["memory"]
+
+
 @router.post("/query", tags=["AI Chat"])
 async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
     """Query the AI assistant."""
     try:
-        llm = LLMService()
-        knowledge = SystemKnowledge(project_root)
-        memory = DeviceMemory()
+        # Use singletons for heavy services
+        llm, knowledge, memory = get_ai_services()
+        # ContextBuilder is lightweight
         context_builder = ContextBuilder()
 
         # 1. Build Short-Term Context (Conversation History)

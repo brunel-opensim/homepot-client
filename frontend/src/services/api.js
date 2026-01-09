@@ -532,7 +532,8 @@ const api = {
       if (deviceId) {
         payload.device_id = deviceId;
       }
-      const response = await apiClient.post('/ai/query', payload);
+      // Increase timeout for AI queries as model cold-start can take time
+      const response = await apiClient.post('/ai/query', payload, { timeout: 60000 });
       return response.data;
     },
 
