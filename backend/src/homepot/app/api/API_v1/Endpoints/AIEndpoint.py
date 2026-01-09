@@ -157,6 +157,26 @@ async def get_system_anomalies() -> Dict[str, Any]:
                         break
                 device_metrics["consecutive_failures"] = float(consecutive_failures)
 
+                # Sync Device Status with Health & Generate Offline Alert
+                try:
+                    status_changed = False
+                    if consecutive_failures >= 3:
+                        if device.status != "offline":
+                            device.status = "offline"  # type: ignore
+                            status_changed = True
+
+                    elif consecutive_failures == 0 and device.status == "offline":
+                        # Recover from offline
+                        device.status = "online"  # type: ignore
+                        status_changed = True
+
+                    if status_changed:
+                        session.add(device)
+                        await session.commit()
+                        await session.refresh(device)
+                except Exception as e:
+                    logger.error(f"Failed to sync device status: {e}")
+
                 # 5. Run Detection
                 score, reasons = detector.check_anomaly(device_metrics)
 
