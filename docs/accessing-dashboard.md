@@ -10,7 +10,7 @@ To run the complete HOMEPOT system (Backend + Frontend), use the provided startu
 2.  Run the following command:
 
     ```bash
-    ./scripts/start-complete-website.sh
+    ./scripts/start-website.sh
     ```
 
     > **Note**: This script requires **Node.js 22+**. If you have an older version, the script will attempt to use `nvm` to switch to version 22 automatically.

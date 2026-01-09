@@ -13,7 +13,7 @@ The repository is now organized as a monorepo with three main directories:
 ## Prerequisites
 
 - Python 3.11 or higher
-- Node.js 18 or higher (for frontend)
+- Node.js v22.12+ (Recommended) or v20.19+ (Required for Vite 6+)
 - Git
 - Virtual environment tool (venv, conda, etc.)
 

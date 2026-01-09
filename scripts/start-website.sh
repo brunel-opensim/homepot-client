@@ -6,7 +6,7 @@
 # This script starts both the backend and frontend servers for the complete
 # HOMEPOT website experience with full integration.
 #
-# Usage: ./scripts/start-complete-website.sh
+# Usage: ./scripts/start-website.sh
 ################################################################################
 
 set -e
@@ -308,7 +308,7 @@ echo ""
 
 echo -e "${YELLOW}NOTE: To restart the system cleanly:${NC}"
 echo -e "  1. Stop services: ${CYAN}./scripts/stop-website.sh${NC}"
-echo -e "  2. Start again:   ${CYAN}./scripts/start-complete-website.sh${NC}"
+echo -e "  2. Start again:   ${CYAN}./scripts/start-website.sh${NC}"
 echo ""
 
 # Optional: Open browser automatically

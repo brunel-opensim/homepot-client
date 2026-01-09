@@ -159,7 +159,7 @@ frontend/coverage/index.html
 Tests run automatically in GitHub Actions on:
 - Every pull request
 - Every push to `main` or `develop`
-- Both Node.js 20.x and 22.x
+- Node.js 22.x
 
 ### Workflow Steps
 
