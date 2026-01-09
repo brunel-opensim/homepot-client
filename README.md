@@ -75,7 +75,7 @@ Simple installation command:
 ./scripts/install.sh
 ```
 
-Please follow the installation prompts to complete setup.
+*Please follow the installation prompts to complete setup.*
 
 **For complete installation, running, testing, and development instructions, see the [Getting Started Guide](https://homepot-client.readthedocs.io/en/latest/getting-started/)**
 
@@ -88,7 +88,7 @@ Working on the UI? Here's the fastest way to get started:
 ./scripts/init-postgresql.sh
 
 # 2. Start both backend and frontend
-./scripts/start-complete-website.sh
+./scripts/start-website.sh
 ```
 
 This will start:
@@ -110,7 +110,7 @@ This will start:
 ### Prerequisites
 
 - **Python**: >= 3.11 (3.12.3 recommended)
-- **Node.js**: >= 18 (22+ recommended)
+- **Node.js**: v22+ (Required for Vite 6+)
 - **PostgreSQL**: 13+ (for database)
 - **pip**: Latest version  
 - **Git**: Latest version

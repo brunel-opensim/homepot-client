@@ -38,7 +38,7 @@ Use the provided script to start everything automatically:
 
 ```bash
 # From the repository root
-./scripts/start-complete-website.sh
+./scripts/start-website.sh
 ```
 
 This script will:
