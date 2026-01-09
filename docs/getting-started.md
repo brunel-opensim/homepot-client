@@ -9,13 +9,36 @@ Welcome to **HOMEPOT** (Homogenous Cyber Management of End-Points and OT) - an e
 ### Prerequisites
 
 - **Python**: 3.11 or higher
+- **Node.js**: v22.12+ (Recommended) or v20.19+
 - **Git**: Latest version
 - **HOMEPOT Consortium Access**: Repository access required
 
 ### Installation & Setup
 
+#### 1. Install Node.js (via NVM)
+
+We recommend using [NVM (Node Version Manager)](https://github.com/nvm-sh/nvm) to manage Node.js versions, as it prevents permission issues.
+
 ```bash
-# 1. Clone the repository
+# 1. Install NVM (if not installed)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+# 2. Restart your terminal, then install Node.js v22
+nvm install 22
+
+# 3. Set as default
+nvm alias default 22
+nvm use default
+
+# 4. Verify installation
+node -v  # Should be v22.x.x
+npm -v   # Should be 10.x.x
+```
+
+#### 2. Install Project
+
+```bash
+# Clone the repository
 git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
 
