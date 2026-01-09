@@ -289,3 +289,41 @@ class PushNotificationLog(Base):
         # Index("idx_push_device", "device_id"),
         Index("idx_push_status", "status"),
     )
+
+
+class Alert(Base):
+    """Persistent system alerts for AI tracking and dashboard display."""
+
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
+
+    # Target
+    device_id = Column(String(50), nullable=True, index=True)
+    site_id = Column(Integer, nullable=True, index=True)
+
+    # Alert Details
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    severity = Column(String(20), nullable=False)  # critical, high, medium, low, info
+    category = Column(
+        String(50), nullable=False
+    )  # hardware, network, software, security
+
+    # Lifecycle
+    status = Column(
+        String(20), default="active", index=True
+    )  # active, acknowledged, resolved, ignored
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by = Column(String(255), nullable=True)  # user_id or 'ai_auto_resolve'
+    resolution_notes = Column(Text, nullable=True)
+
+    # AI Integration
+    ai_recommendation = Column(Text, nullable=True)
+    ai_confidence = Column(Float, nullable=True)
+
+    __table_args__ = (
+        Index("idx_alert_status_severity", "status", "severity"),
+        Index("idx_alert_device", "device_id"),
+    )

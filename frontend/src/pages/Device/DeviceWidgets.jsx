@@ -103,9 +103,12 @@ export function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40, animated 
 /* === Feature Widgets === */
 
 export const AlertsWidget = ({ alerts = [] }) => {
+  // Limit to 5 alerts as per requirement to avoid clutter and staleness
+  const displayedAlerts = alerts.slice(0, 5);
+
   if (!alerts || alerts.length === 0) {
     return (
-      <Card className="lg:col-span-4">
+      <Card>
         <h3 className="text-sm text-slate-300 font-medium mb-3">AI ALERTS</h3>
         <div className="border-t border-[#1f2735] mb-2"></div>
         <div className="flex items-center gap-2 text-emerald-400 text-sm p-4 bg-emerald-500/5 rounded border border-emerald-500/20 justify-center">
@@ -117,16 +120,16 @@ export const AlertsWidget = ({ alerts = [] }) => {
   }
 
   return (
-    <Card className="lg:col-span-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm text-slate-300 font-medium">AI ALERTS</h3>
         <span className="text-[10px] text-slate-500 font-mono">
-          DETECTED ISSUES ({alerts.length})
+          LATEST {displayedAlerts.length} ISSUES
         </span>
       </div>
       <div className="border-t border-[#1f2735] mb-2"></div>
       <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-        {alerts.map((alert, idx) => {
+        {displayedAlerts.map((alert, idx) => {
           const isCritical = alert.severity === 'critical';
           return (
             <div
@@ -215,7 +218,7 @@ export const JobHistoryWidget = ({ jobs }) => {
   }
 
   return (
-    <Card className="lg:col-span-4 text-left">
+    <Card className="text-left">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm text-slate-300 font-medium">JOB HISTORY</h3>
         <span className="text-[10px] text-slate-500 font-mono">LATEST {jobs.length} TASKS</span>

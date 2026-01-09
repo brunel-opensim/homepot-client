@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import joinedload
 
 from homepot.app.models import AnalyticsModel as analytics_models
@@ -365,6 +365,27 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
         # Get devices for this site
         devices = await db_service.get_devices_by_site_id(site_id)
 
+        # Basic alert counting (can be optimized with a single query if needed)
+        alert_map = {}
+        if devices:
+            device_ids = [d.device_id for d in devices]
+            async with db_service.get_session() as session:
+                alerts_query = (
+                    select(
+                        analytics_models.Alert.device_id,
+                        func.count(analytics_models.Alert.id),
+                    )
+                    .where(
+                        analytics_models.Alert.device_id.in_(device_ids),
+                        analytics_models.Alert.status == "active",
+                    )
+                    .group_by(analytics_models.Alert.device_id)
+                )
+                result = await session.execute(alerts_query)
+                for row in result:
+                    # row is (device_id, count)
+                    alert_map[row[0]] = row[1]
+
         return [
             {
                 "site_id": site.site_id,
@@ -374,6 +395,7 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
                 "status": d.status,
                 "ip_address": d.ip_address,
                 "is_monitored": d.is_monitored,
+                "active_alerts": alert_map.get(d.device_id, 0),
                 "last_seen": d.last_seen.isoformat() if d.last_seen else None,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
                 "updated_at": d.updated_at.isoformat() if d.updated_at else None,
@@ -605,4 +627,47 @@ async def get_device_push_logs(device_id: str, limit: int = 50) -> List[Dict[str
         #     ]
     except Exception as e:
         logger.error(f"Failed to get push logs for {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/device/{device_id}/alerts", tags=["Devices"])
+async def get_device_alerts(device_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Get active and recent alerts for a specific device."""
+    try:
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            # Query active alerts first, then history
+            # For simplicity, we just fetch by device_id matching both status
+            alerts_result = await session.execute(
+                select(analytics_models.Alert)
+                .where(analytics_models.Alert.device_id == device_id)
+                .order_by(
+                    # Prioritize active alerts, then by time
+                    desc(analytics_models.Alert.status == "active"),
+                    desc(analytics_models.Alert.timestamp),
+                )
+                .limit(limit)
+            )
+            alerts = alerts_result.scalars().all()
+
+            return [
+                {
+                    "id": a.id,
+                    "title": a.title,
+                    "description": a.description,
+                    "severity": a.severity,
+                    "category": a.category,
+                    "status": a.status,
+                    "ai_confidence": a.ai_confidence,
+                    "ai_recommendation": a.ai_recommendation,
+                    "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+                    "resolved_at": (
+                        a.resolved_at.isoformat() if a.resolved_at else None
+                    ),
+                    "resolved_by": a.resolved_by,
+                }
+                for a in alerts
+            ]
+    except Exception as e:
+        logger.error(f"Failed to get alerts for {device_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")

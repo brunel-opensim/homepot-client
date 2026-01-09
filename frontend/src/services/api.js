@@ -299,6 +299,14 @@ const api = {
     },
 
     /**
+     * Get device alerts
+     */
+    getAlerts: async (deviceId) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/alerts`);
+      return response.data;
+    },
+
+    /**
      * Restart device
      */
     restart: async (deviceId) => {

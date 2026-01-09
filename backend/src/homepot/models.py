@@ -230,6 +230,15 @@ class Device(Base):
     #     uselist=True,
     # )
 
+    # Smart Relationship for Alerts (String ID Match)
+    alerts = relationship(
+        "Alert",
+        primaryjoin="foreign(Alert.device_id) == Device.device_id",
+        viewonly=True,
+        uselist=True,
+        lazy="select",
+    )
+
     # Analytics Relationships
     metrics = relationship(
         "DeviceMetrics",

@@ -216,25 +216,20 @@ export default function Device() {
             // Don't fail the whole page load
           }
 
-          // Fetch device health/alerts from AI anomalies to ensure consistency with Dashboard
+          // Fetch persistent alerts from the device alerts endpoint
           try {
-            const anomalyData = await api.ai.getAnomalies();
-            if (anomalyData && anomalyData.anomalies) {
-              // Filter anomalies for this specific device
-              const deviceAnomalies = anomalyData.anomalies
-                .filter((a) => a.device_id === id)
-                .map((a) => ({
-                  message:
-                    a.reasons && a.reasons.length > 0
-                      ? a.reasons[0]
-                      : `${a.severity === 'critical' ? 'CRITICAL' : 'WARNING'} - Score ${a.score}`,
-                  timestamp: a.timestamp,
-                  severity: a.severity,
-                }));
-              setAlerts(deviceAnomalies);
+            const alertsData = await api.devices.getAlerts(id);
+            if (alertsData) {
+              const mappedAlerts = alertsData.map((a) => ({
+                message: `${a.title}: ${a.description}`,
+                severity: a.severity,
+                timestamp: a.timestamp,
+                source: 'Monitor',
+              }));
+              setAlerts(mappedAlerts);
             }
-          } catch (healthErr) {
-            console.warn('Failed to fetch device health:', healthErr);
+          } catch (alertsErr) {
+            console.warn('Failed to fetch device alerts:', alertsErr);
           }
         }
       } catch (err) {
@@ -330,25 +325,21 @@ export default function Device() {
         })
         .catch((err) => console.debug('Job poll skipped', err));
 
-      // 5. Fetch Alerts (AI Anomalies) - Live
-      api.ai
-        .getAnomalies()
-        .then((anomalyData) => {
-          if (anomalyData && anomalyData.anomalies) {
-            const deviceAnomalies = anomalyData.anomalies
-              .filter((a) => a.device_id === id)
-              .slice(0, 50) // Limit to latest 50 alerts
-              .map((a) => ({
-                type: 'alert',
-                severity: a.severity === 'critical' ? 'critical' : 'warning',
-                message: a.reasons ? a.reasons.join(', ') : 'Unknown Anomaly',
-                timestamp: a.timestamp,
-                source: 'AI Analysis',
-              }));
-            setAlerts(deviceAnomalies);
+      // 5. Fetch Alerts - Live
+      api.devices
+        .getAlerts(id)
+        .then((alertsData) => {
+          if (alertsData) {
+            const mappedAlerts = alertsData.map((a) => ({
+              message: `${a.title}: ${a.description}`,
+              severity: a.severity,
+              timestamp: a.timestamp,
+              source: 'Monitor',
+            }));
+            setAlerts(mappedAlerts);
           }
         })
-        .catch((err) => console.debug('Anomaly poll skipped', err));
+        .catch((err) => console.debug('Alerts poll skipped', err));
     }, 2000);
 
     return () => clearInterval(pollInterval);
@@ -697,8 +688,8 @@ export default function Device() {
                     {device?.status ? device.status.toUpperCase() : 'UNKNOWN'}
                   </span>
                 </div>
-                <div className="text-xs text-slate-500 mt-1 uppercase tracking-wider">
-                  {device?.device_type?.replace('_', ' ') || 'UNKNOWN TYPE'}
+                <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
+                  {device?.device_id || 'NO ID'}
                 </div>
               </div>
             </div>
