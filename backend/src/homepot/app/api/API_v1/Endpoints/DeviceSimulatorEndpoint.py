@@ -44,6 +44,7 @@ async def simulate_device_metrics(
         - low_memory: Memory pressure (Memory 90-95%)
         - high_errors: Application errors (10-20 errors)
         - degraded: Multiple issues (high CPU + errors)
+        - offline: Device offline simulation (0 metrics, unhealthy)
     """
     try:
         db_service = await get_database_service()
@@ -384,6 +385,35 @@ def _generate_metrics_for_scenario(scenario: str) -> Dict:
                 "rx_bytes": random.randint(300000, 1000000),
                 "tx_bytes": random.randint(150000, 500000),
                 "connection_quality": "poor",
+            },
+        },
+        "offline": {
+            "is_healthy": False,
+            "status": "offline",
+            "response_time_ms": 0,
+            "system": {
+                "cpu_percent": 0.0,
+                "memory_percent": 0.0,
+                "memory_used_mb": 0,
+                "memory_total_mb": 2048,
+                "disk_percent": 0.0,
+                "disk_used_gb": 0.0,
+                "disk_total_gb": 200.0,
+                "uptime_seconds": 0,
+            },
+            "app_metrics": {
+                "app_version": "1.2.3",
+                "transactions_count": 0,
+                "errors_count": 0,
+                "warnings_count": 0,
+                "avg_response_time_ms": 0.0,
+                "active_connections": 0,
+            },
+            "network": {
+                "latency_ms": 0.0,
+                "rx_bytes": 0,
+                "tx_bytes": 0,
+                "connection_quality": "offline",
             },
         },
     }
