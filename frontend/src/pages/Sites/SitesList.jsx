@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Search, Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Search, Edit, Trash2, ArrowLeft, Globe, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/services/api';
 import SiteDeleteDialog from '@/components/Sites/SiteDeleteDialog';
@@ -64,6 +64,9 @@ export default function SitesList() {
       }}
     />
   );
+
+  const WebIcon = () => <Globe className="w-5 h-5 text-blue-400" />;
+  const IoTIcon = () => <Cpu className="w-5 h-5 text-blue-400" />;
 
   useEffect(() => {
     fetchSites();
@@ -263,10 +266,14 @@ export default function SitesList() {
               {site.os_types && site.os_types.includes('windows') && <WindowsIcon />}
               {site.os_types && site.os_types.includes('linux') && <LinuxIcon />}
               {site.os_types && site.os_types.includes('macos') && <AppleIcon />}
+              {site.os_types && site.os_types.includes('android') && <AndroidIcon />}
+              {site.os_types && site.os_types.includes('web') && <WebIcon />}
               {site.os_types &&
-                (site.os_types.includes('android') || site.os_types.includes('embedded')) && (
-                  <AndroidIcon />
-                )}
+                (site.os_types.includes('iot') ||
+                  site.os_types.includes('sensor') ||
+                  site.os_types.includes('iot_sensor') ||
+                  site.os_types.includes('embedded') ||
+                  site.os_types.some((t) => t.includes('iot'))) && <IoTIcon />}
             </div>
 
             {site.alert && (

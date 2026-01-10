@@ -216,18 +216,47 @@ export default function Device() {
             // Don't fail the whole page load
           }
 
-          // Fetch persistent alerts from the device alerts endpoint
+          // Fetch persistent alerts AND AI anomalies
           try {
-            const alertsData = await api.devices.getAlerts(id);
-            if (alertsData) {
-              const mappedAlerts = alertsData.map((a) => ({
-                message: `${a.title}: ${a.description}`,
-                severity: a.severity,
-                timestamp: a.timestamp,
-                source: 'Monitor',
-              }));
-              setAlerts(mappedAlerts);
+            const [alertsData, anomalyData] = await Promise.all([
+              api.devices.getAlerts(id),
+              api.ai.getAnomalies().catch(() => ({ anomalies: [] })), // Fail gracefully
+            ]);
+
+            let combinedAlerts = [];
+
+            // 1. Standard Monitor Alerts
+            if (alertsData && Array.isArray(alertsData)) {
+              combinedAlerts = combinedAlerts.concat(
+                alertsData.map((a) => ({
+                  message: `${a.title}: ${a.description}`,
+                  severity: a.severity,
+                  timestamp: a.timestamp,
+                  source: 'Monitor',
+                }))
+              );
             }
+
+            // 2. AI Anomalies
+            if (anomalyData && anomalyData.anomalies) {
+              const deviceAnomalies = anomalyData.anomalies.filter((a) => a.device_id === id);
+              combinedAlerts = combinedAlerts.concat(
+                deviceAnomalies.map((a) => ({
+                  message:
+                    a.reasons && a.reasons.length > 0
+                      ? `Anomaly: ${a.reasons[0]}`
+                      : `Anomaly Detected (Score: ${a.score})`,
+                  severity: a.severity === 'critical' ? 'critical' : 'warning',
+                  timestamp: a.timestamp,
+                  source: 'AI Analysis',
+                }))
+              );
+            }
+
+            // Sort by timestamp descending
+            combinedAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            setAlerts(combinedAlerts);
           } catch (alertsErr) {
             console.warn('Failed to fetch device alerts:', alertsErr);
           }

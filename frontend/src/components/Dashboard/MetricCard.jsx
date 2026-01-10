@@ -1,5 +1,5 @@
 import React from 'react';
-import { Cpu } from 'lucide-react';
+import { Cpu, Globe } from 'lucide-react';
 
 const OsIcon = ({ type }) => {
   const iconBase = 'w-5 h-5';
@@ -50,6 +50,9 @@ const OsIcon = ({ type }) => {
           alt="Android"
         />
       );
+    case 'web':
+      return <Globe className={`${iconBase} text-blue-400`} />;
+    case 'iot':
     default:
       return <Cpu className={`${iconBase} text-blue-400`} />;
   }
