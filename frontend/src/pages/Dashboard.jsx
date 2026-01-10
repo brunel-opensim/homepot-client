@@ -135,7 +135,7 @@ export default function Dashboard() {
             ).length;
 
             // Sites contain multiple OS types
-            osList = ['windows', 'linux', 'apple', 'android', 'iot'];
+            osList = ['windows', 'linux', 'apple', 'android', 'web', 'iot'];
 
             // Alerts for site: Filter anomalies for devices in this site
             const siteDeviceIds = new Set(siteDevices.map((d) => d.device_id));
@@ -163,6 +163,8 @@ export default function Dashboard() {
               osList = ['apple'];
             } else if (normalizedName.includes('android')) {
               osList = ['android'];
+            } else if (normalizedName.includes('web')) {
+              osList = ['web'];
             } else {
               osList = ['iot']; // Default
             }

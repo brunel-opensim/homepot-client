@@ -378,7 +378,10 @@ pip install httpie
 http GET localhost:8000/sites
 
 # Monitor API logs
-tail -f server.log | grep -i error
+tail -f logs/backend.log | grep -i error
+
+# Monitor access logs (HTTP requests)
+tail -f logs/backend.out
 ```
 
 ## Performance

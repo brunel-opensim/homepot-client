@@ -35,6 +35,27 @@ High resource usage is often normal (e.g., during updates), so it carries less w
 | **Memory Usage** | > 90% | **+0.2** | RAM is near capacity. |
 | **Disk Usage** | > 95% | **+0.2** | Storage is critically low. |
 
+## Reliability & Alert Persistence
+
+### Is it "Real" AI?
+Currently, the system uses a **Rule-Based Heuristic Engine**, not a black-box machine learning model. This ensures **High Reliability**.
+*   It is **Deterministic**: If CPU > 90%, it alerts. Every time.
+*   It is **Transparent**: You always know *why* an alert triggered (the math is clear).
+*   It eliminates "Hallucinations": The system will not invent an alert based on a guess.
+
+### Alert Visibility: Dashboard vs. Device Page
+There is a distinction in how alerts are displayed across the application:
+
+1.  **Dashboard (Real-Time + Persistent)**:
+    *   Shows anomalies detected **right now** in memory (e.g., a sudden 5-second CPU spike).
+    *   Shows persistent alerts stored in the database.
+    *   *Purpose*: Immediate operational awareness.
+
+2.  **Device Detail Page (Persistent Only)**:
+    *   Under the "Alerts" tab, this view shows **only** alerts that have been formally logged to the database.
+    *   Transient anomalies (like a momentary spike) may appear on the Dashboard but not here unless they persist long enough to be committed to the database.
+    *   *Purpose*: Historical audit trail and case management.
+
 ## Configuration
 Thresholds are defined in `ai/config.yaml` under the `anomaly_detection` section.
 

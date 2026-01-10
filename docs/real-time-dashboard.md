@@ -261,8 +261,8 @@ curl http://localhost:8000/health
 # Verify WebSocket connection in browser DevTools
 # Network tab should show WebSocket connection as "101 Switching Protocols"
 
-# Check server logs for WebSocket errors
-tail -f server.log | grep -i websocket
+# Check server logs for WebSocket events
+tail -f logs/backend.out | grep -i websocket
 ```
 
 ## Performance Optimization
