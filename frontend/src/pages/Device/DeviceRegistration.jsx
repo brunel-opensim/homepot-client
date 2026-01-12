@@ -66,7 +66,7 @@ export default function DeviceRegistration() {
     };
 
     fetchSites();
-  }, []);
+  }, [location]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

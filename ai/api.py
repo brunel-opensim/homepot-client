@@ -9,7 +9,9 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import yaml
+from sqlalchemy import and_, select
 
+from homepot.app.models.AnalyticsModel import Alert
 from homepot.database import get_database_service
 
 from .analysis_modes import ModeManager
@@ -138,6 +140,8 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                         push_context,
                         site_context,
                         metadata_context,
+                        metrics_context,
+                        alert_context,
                         user_context,
                     ) = await asyncio.gather(
                         context_builder.get_job_context(session=session),
@@ -173,6 +177,14 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                             session=session,
                             device_int_id=device_int_id,
                         ),
+                        context_builder.get_metrics_context(
+                            device_id=request.device_id,
+                            session=session,
+                            device_int_id=device_int_id,
+                        ),
+                        context_builder.get_alert_context(
+                            device_id=request.device_id, session=session
+                        ),
                         (
                             context_builder.get_user_context(
                                 user_id=request.user_id, session=session
@@ -192,6 +204,8 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     "push": push_context,
                     "site": site_context,
                     "metadata": metadata_context,
+                    "metrics": metrics_context,
+                    "alert": alert_context,
                     "user": user_context,
                 }
 
@@ -248,6 +262,53 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
 
         # 1. Rule-Based Analysis (Fast & Deterministic)
         anomaly_score, anomaly_reasons = anomaly_detector.check_anomaly(request.metrics)
+
+        # 1.1 Persist Low-Level Alerts Immediately
+        if anomaly_reasons:
+            try:
+                db_service = await get_database_service()
+                async with db_service.get_session() as session:
+                    for reason in anomaly_reasons:
+                        # Heuristic mapping for properties
+                        severity = "warning"
+                        if "System Failure" in reason or "High Instability" in reason:
+                            severity = "critical"
+                        elif "High Error Rate" in reason:
+                            severity = "error"
+
+                        category = "hardware"
+                        if "Latency" in reason:
+                            category = "network"
+                        elif "Error" in reason or "Failure" in reason:
+                            category = "software"
+
+                        # Check for existing active alert to avoid duplicates
+                        stmt = select(Alert).where(
+                            and_(
+                                Alert.device_id == request.device_id,
+                                Alert.title == reason,
+                                Alert.status == "active",
+                            )
+                        )
+                        result = await session.execute(stmt)
+                        existing_alert = result.scalar_one_or_none()
+
+                        if not existing_alert:
+                            # Create new alert
+                            alert = Alert(
+                                device_id=request.device_id,
+                                title=reason,
+                                description=f"Detected by AnomalyDetector (Score: {anomaly_score:.2f})",
+                                severity=severity,
+                                category=category,
+                                status="active",
+                                ai_confidence=anomaly_score,
+                                ai_recommendation="Analysis pending...",
+                            )
+                            session.add(alert)
+                    await session.commit()
+            except Exception as e:
+                logger.error(f"Failed to persist alerts: {e}")
 
         # 2. Retrieve Context
         recent_events_summary = event_store.get_events_summary(request.device_id)

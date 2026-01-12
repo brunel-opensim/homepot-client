@@ -299,6 +299,14 @@ const api = {
     },
 
     /**
+     * Get device alerts
+     */
+    getAlerts: async (deviceId) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/alerts`);
+      return response.data;
+    },
+
+    /**
      * Restart device
      */
     restart: async (deviceId) => {
@@ -524,7 +532,8 @@ const api = {
       if (deviceId) {
         payload.device_id = deviceId;
       }
-      const response = await apiClient.post('/ai/query', payload);
+      // Increase timeout for AI queries as model cold-start can take time
+      const response = await apiClient.post('/ai/query', payload, { timeout: 60000 });
       return response.data;
     },
 

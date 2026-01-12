@@ -170,8 +170,41 @@ async def list_sites() -> Dict[str, List[Dict]]:
                 # Collect OS types
                 os_types = set()
                 for device in devices:
-                    if device.config and "os" in device.config:
-                        os_types.add(device.config["os"])
+                    # Priority 0: Check device_type for IoT
+                    if device.device_type == "iot_sensor":
+                        os_types.add("iot")
+
+                    # Priority 1: Check config['os']
+                    if (
+                        device.config
+                        and isinstance(device.config, dict)
+                        and "os" in device.config
+                    ):
+                        os_types.add(str(device.config["os"]))
+                    # Priority 2: Infer from device name/description
+                    else:
+                        normalized_name = (device.name or "").lower()
+                        if "windows" in normalized_name or "win" in normalized_name:
+                            os_types.add("windows")
+                        elif (
+                            "linux" in normalized_name
+                            or "ubuntu" in normalized_name
+                            or "debian" in normalized_name
+                        ):
+                            os_types.add("linux")
+                        elif (
+                            "mac" in normalized_name
+                            or "apple" in normalized_name
+                            or "ios" in normalized_name
+                        ):
+                            os_types.add("apple")
+                        elif "android" in normalized_name:
+                            os_types.add("android")
+                        elif "web" in normalized_name:
+                            os_types.add("web")
+                        else:
+                            # Default to IoT for unknown devices
+                            os_types.add("iot")
 
                 site_list.append(
                     {

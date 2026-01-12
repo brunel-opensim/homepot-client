@@ -31,28 +31,6 @@ export default function Dashboard() {
     };
   }, []); // Run once on mount
 
-  // Apple Icon (light grey)
-  const AppleIcon = () => (
-    <img
-      src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/apple.svg"
-      alt="Apple"
-      className="w-5 h-5 text-gray-300"
-      style={{ filter: 'invert(80%) grayscale(100%)' }}
-    />
-  );
-
-  const WindowsIcon = () => (
-    <img
-      src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/windows.svg"
-      alt="Windows"
-      className="w-5 h-5"
-      style={{
-        filter:
-          'invert(47%) sepia(100%) saturate(5000%) hue-rotate(180deg) brightness(95%) contrast(105%)',
-      }}
-    />
-  );
-
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -81,46 +59,14 @@ export default function Dashboard() {
           console.error('Failed to fetch devices for dashboard', e);
         }
 
-        // Filter monitored items
-        const monitoredSites = fetchedSites.filter((s) => s.is_monitored);
-        const monitoredDevices = fetchedDevices.filter((d) => d.is_monitored);
-
-        let itemsToDisplay = [];
-
-        if (monitoredSites.length > 0 || monitoredDevices.length > 0) {
-          itemsToDisplay = [
-            ...monitoredSites.map((s) => ({ ...s, _type: 'site' })),
-            ...monitoredDevices.map((d) => ({ ...d, _type: 'device' })),
-          ];
-        }
-        // else {
-        //      // Fallback removed: Dashboard is empty if nothing is monitored
-        //      itemsToDisplay = [];
-        // }
-
-        const icons = [<WindowsIcon />, <AppleIcon />]; // rotate between these
-
-        const sitesWithDefaults = itemsToDisplay.map((item, index) => ({
-          site: item.name || `Item ${index + 1}`,
-          online: Math.floor(Math.random() * 10) + 1,
-          alert: ['2m ago', '5m ago', '—'][index % 3],
-          // Alternate icons between Apple and Windows
-          icon: icons[index % icons.length],
-          id: item._type === 'device' ? item.device_id : item.site_id,
-          type: item._type,
-        }));
-
-        setSites(sitesWithDefaults);
-
-        // 3. Fetch Dashboard Metrics (CPU & Alerts)
-        // const metrics = await api.analytics.getDashboardMetrics(); // Deprecated for alerts
-
-        // 4. Fetch AI Anomalies
+        // 3. Fetch AI Anomalies (Moved up to support auto-monitoring)
+        let anomalies = [];
         let finalAlerts = [];
         try {
           const anomalyData = await api.ai.getAnomalies();
           if (anomalyData && anomalyData.anomalies) {
-            finalAlerts = anomalyData.anomalies.map((a) => ({
+            anomalies = anomalyData.anomalies;
+            finalAlerts = anomalies.map((a) => ({
               message:
                 a.reasons && a.reasons.length > 0
                   ? `${a.device_name}: ${a.reasons[0]}`
@@ -134,6 +80,116 @@ export default function Dashboard() {
           console.error('Failed to fetch anomalies:', e);
         }
 
+        // Filter monitored items
+        const monitoredSites = fetchedSites.filter((s) => s.is_monitored);
+
+        // Auto-monitor devices with active alerts
+        const alertedDeviceIds = new Set(anomalies.map((a) => a.device_id));
+        const monitoredDevices = fetchedDevices.filter(
+          (d) => d.is_monitored || alertedDeviceIds.has(d.device_id)
+        );
+
+        let itemsToDisplay = [];
+
+        if (monitoredSites.length > 0 || monitoredDevices.length > 0) {
+          itemsToDisplay = [
+            ...monitoredSites.map((s) => ({ ...s, _type: 'site' })),
+            ...monitoredDevices.map((d) => ({ ...d, _type: 'device' })),
+          ];
+        }
+
+        // Helper to format time ago
+        const formatTimeAgo = (isoString) => {
+          if (!isoString) return '—';
+          try {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000); // minutes
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) return `${diffHours}h ago`;
+            const diffDays = Math.floor(diffHours / 24);
+            return `${diffDays}d ago`;
+          } catch {
+            return '—';
+          }
+        };
+
+        const sitesWithDefaults = itemsToDisplay.map((item, index) => {
+          let osList = [];
+
+          // Calculate Online Count
+          let onlineCount = 0;
+
+          // Find latest alert for Sync
+          let itemAlerts = [];
+
+          if (item._type === 'site') {
+            // Count devices for this site that are online
+            // Note: cached 'fetchedDevices' has all devices with site_id
+            const siteDevices = fetchedDevices.filter((d) => d.site_id === item.site_id);
+            onlineCount = siteDevices.filter(
+              (d) => d.status && d.status.toLowerCase() === 'online'
+            ).length;
+
+            // Sites contain multiple OS types
+            osList = ['windows', 'linux', 'apple', 'android', 'web', 'iot'];
+
+            // Alerts for site: Filter anomalies for devices in this site
+            const siteDeviceIds = new Set(siteDevices.map((d) => d.device_id));
+            itemAlerts = anomalies.filter((a) => siteDeviceIds.has(a.device_id));
+          } else {
+            // Single Device
+            onlineCount = item.status && item.status.toLowerCase() === 'online' ? 1 : 0;
+
+            // Identify OS by name/description for single device
+            const normalizedName = (item.name || item.description || '').toLowerCase();
+            if (normalizedName.includes('windows') || normalizedName.includes('win')) {
+              osList = ['windows'];
+            } else if (
+              normalizedName.includes('linux') ||
+              normalizedName.includes('ubuntu') ||
+              normalizedName.includes('debian')
+            ) {
+              osList = ['linux'];
+            } else if (
+              normalizedName.includes('mac') ||
+              normalizedName.includes('apple') ||
+              normalizedName.includes('ios') ||
+              normalizedName.includes('osx')
+            ) {
+              osList = ['apple'];
+            } else if (normalizedName.includes('android')) {
+              osList = ['android'];
+            } else if (normalizedName.includes('web')) {
+              osList = ['web'];
+            } else {
+              osList = ['iot']; // Default
+            }
+
+            // Alerts for device
+            itemAlerts = anomalies.filter((a) => a.device_id === item.device_id);
+          }
+
+          // Sort alerts to find the latest one
+          const latestAlert =
+            itemAlerts.length > 0
+              ? itemAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
+              : null;
+
+          return {
+            site: item.name || `Item ${index + 1}`,
+            online: onlineCount,
+            alert: latestAlert ? formatTimeAgo(latestAlert.timestamp) : '—',
+            osList, // Send list of OS strings for MetricCard to render
+            id: item._type === 'device' ? item.device_id : item.site_id,
+            type: item._type,
+          };
+        });
+
+        setSites(sitesWithDefaults);
         setAlerts(finalAlerts);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);

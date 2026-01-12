@@ -212,6 +212,7 @@ pre-commit run --all-files
 | `./scripts/validate-workflows.sh --code-only` | Run Python code quality only | `./scripts/validate-workflows.sh --code-only` |
 | `./scripts/build-docs.sh` | Build documentation | `./scripts/build-docs.sh` |
 | `./scripts/test-docker.sh` | Test Docker setup | `./scripts/test-docker.sh` |
+| `./scripts/query-db.sh` | Query database | `./scripts/query-db.sh` |
 
 ## Development Environment
 
@@ -253,9 +254,8 @@ export DATABASE__URL=postgresql://homepot_user:homepot_dev_password@localhost:54
 # Create development database
 ./scripts/init-postgresql.sh
 
-# Verify database
-export PGPASSWORD='homepot_dev_password'
-psql -h localhost -U homepot_user -d homepot_db -c "SELECT COUNT(*) FROM sites;"
+# Verify database content
+./scripts/query-db.sh count
 
 # Reset database
 ./scripts/init-postgresql.sh
@@ -347,21 +347,24 @@ python -m pdb -m homepot.main
 
 ### Database Debugging
 
+Use the provided helper script to inspect the database state without needing to memorize connection strings.
+
 ```bash
-# Access PostgreSQL database directly
-export PGPASSWORD='homepot_dev_password'
-psql -h localhost -U homepot_user -d homepot_db
+# List all tables and row counts
+./scripts/query-db.sh count
 
-# View table schemas
-\dt  # List tables
-\d sites  # Describe sites table
+# View specific data
+./scripts/query-db.sh sites
+./scripts/query-db.sh devices
 
-# Query data
-SELECT * FROM sites LIMIT 5;
-SELECT * FROM devices WHERE site_id = 'RESTAURANT_001';
+# View relationship data
+./scripts/query-db.sh site_devices RESTAURANT_001
 
-# Exit
-\q
+# Run custom SQL queries
+./scripts/query-db.sh sql "SELECT * FROM sites WHERE location LIKE '%Main St%'"
+
+# View table schema
+./scripts/query-db.sh schema sites
 ```
 
 ### API Debugging
@@ -375,7 +378,10 @@ pip install httpie
 http GET localhost:8000/sites
 
 # Monitor API logs
-tail -f server.log | grep -i error
+tail -f logs/backend.log | grep -i error
+
+# Monitor access logs (HTTP requests)
+tail -f logs/backend.out
 ```
 
 ## Performance

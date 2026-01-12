@@ -16,7 +16,7 @@ The workflow runs on:
 
 #### 1. **Frontend Quality Checks**
 
-Tests the frontend on multiple Node.js versions (20.x and 22.x) to ensure compatibility.
+Tests the frontend on Node.js v22.x to ensure compatibility.
 
 **Steps:**
 - **Install dependencies** - Uses `npm ci` for consistent, clean installs

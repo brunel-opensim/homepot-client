@@ -6,7 +6,7 @@
 # This script starts both the backend and frontend servers for the complete
 # HOMEPOT website experience with full integration.
 #
-# Usage: ./scripts/start-complete-website.sh
+# Usage: ./scripts/start-website.sh
 ################################################################################
 
 set -e
@@ -190,8 +190,10 @@ mkdir -p "$REPO_ROOT/logs"
 print_info "Starting backend server on http://localhost:8000..."
 cd "$REPO_ROOT/backend"
 # Use bash -c to activate venv in the subshell
+# Redirect stdout/stderr to backend.out (overwritten on start)
+# The application handles backend.log with rotation
 nohup bash -c "source $REPO_ROOT/.venv/bin/activate && python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload" \
-    > "$REPO_ROOT/logs/backend.log" 2>&1 &
+    > "$REPO_ROOT/logs/backend.out" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"
 
@@ -205,12 +207,13 @@ if ps -p $BACKEND_PID > /dev/null; then
         print_success "Backend started successfully (PID: $BACKEND_PID)"
     else
         print_error "Backend process is running but not responding"
-        print_info "Check logs: $REPO_ROOT/logs/backend.log"
+        print_info "Check startup logs: $REPO_ROOT/logs/backend.out"
+        print_info "Check app logs: $REPO_ROOT/logs/backend.log"
         exit 1
     fi
 else
     print_error "Backend failed to start"
-    print_info "Check logs: $REPO_ROOT/logs/backend.log"
+    print_info "Check startup logs: $REPO_ROOT/logs/backend.out"
     exit 1
 fi
 
@@ -305,7 +308,7 @@ echo ""
 
 echo -e "${YELLOW}NOTE: To restart the system cleanly:${NC}"
 echo -e "  1. Stop services: ${CYAN}./scripts/stop-website.sh${NC}"
-echo -e "  2. Start again:   ${CYAN}./scripts/start-complete-website.sh${NC}"
+echo -e "  2. Start again:   ${CYAN}./scripts/start-website.sh${NC}"
 echo ""
 
 # Optional: Open browser automatically

@@ -10,6 +10,8 @@ import {
   Edit,
   PlusCircle,
   LayoutDashboard,
+  AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -67,7 +69,7 @@ export default function SiteDetail() {
     };
 
     fetchSiteAndDevices();
-  }, [id]);
+  }, [id, navigate]);
 
   const handleToggleMonitor = async () => {
     try {
@@ -211,6 +213,7 @@ export default function SiteDetail() {
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Name</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Type</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Status</th>
+                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Alerts</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">
                         Last Seen
                       </th>
@@ -248,6 +251,18 @@ export default function SiteDetail() {
                           >
                             {device.status || 'Offline'}
                           </span>
+                        </td>
+                        <td className="p-4 align-middle">
+                          {device.active_alerts > 0 ? (
+                            <div className="flex items-center text-orange-400 font-medium bg-orange-500/10 px-2 py-1 rounded w-fit">
+                              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                              {device.active_alerts}
+                            </div>
+                          ) : (
+                            <div className="flex items-center text-emerald-500 font-medium bg-emerald-500/10 px-2 py-1 rounded w-fit">
+                              <CheckCircle className="h-3.5 w-3.5 mr-1.5" />0
+                            </div>
+                          )}
                         </td>
                         <td className="p-4 align-middle text-gray-300">
                           {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}

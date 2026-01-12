@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Send, Loader2, AlertCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
 
 export default function AskAIWidget() {
@@ -52,8 +53,8 @@ export default function AskAIWidget() {
               {error}
             </div>
           ) : response ? (
-            <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-              {response}
+            <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300">
+              <ReactMarkdown>{response}</ReactMarkdown>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 italic text-center gap-2">

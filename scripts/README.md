@@ -2,13 +2,13 @@
 
 ## Website Management
 
-### `start-complete-website.sh`
+### `start-website.sh`
 
 Starts the complete HOMEPOT website with backend and frontend.
 
 **Usage:**
 ```bash
-./scripts/start-complete-website.sh
+./scripts/start-website.sh
 ```
 
 **What it does:**

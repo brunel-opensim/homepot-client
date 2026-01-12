@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Maximize2,
   X,
+  BellOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -19,27 +20,62 @@ import {
 } from '@/components/ui/dialog';
 
 const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
-  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
-    const saved = localStorage.getItem('dismissedAlerts');
-    return saved ? JSON.parse(saved) : [];
+  const [snoozedAlerts, setSnoozedAlerts] = useState(() => {
+    const saved = localStorage.getItem('snoozedAlerts');
+    try {
+      const parsed = JSON.parse(saved);
+      // Ensure it's an object and not the old array format (and not null)
+      return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
   });
 
-  // Filter out dismissed alerts
+  // Periodically check for expired snoozes to force re-render/cleanup
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+      const newSnoozed = { ...snoozedAlerts };
+
+      Object.keys(newSnoozed).forEach((key) => {
+        if (newSnoozed[key] < now) {
+          delete newSnoozed[key];
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        setSnoozedAlerts(newSnoozed);
+        localStorage.setItem('snoozedAlerts', JSON.stringify(newSnoozed));
+      }
+    }, 5000); // Check every 5s
+
+    return () => clearInterval(interval);
+  }, [snoozedAlerts]);
+
+  // Filter out snoozed alerts
   const alerts = (rawAlerts || []).filter((alert) => {
     const alertId =
       alert.device_id && alert.timestamp ? `${alert.device_id}-${alert.timestamp}` : null;
-    return !alertId || !dismissedAlerts.includes(alertId);
+
+    if (!alertId) return true;
+
+    const snoozeExpiry = snoozedAlerts[alertId];
+    return !snoozeExpiry || snoozeExpiry < Date.now();
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeSnoozeId, setActiveSnoozeId] = useState(null);
   const navigate = useNavigate();
 
-  // Reset dialog state when alerts are cleared
+  // Reset dialog state and snooze menu when alerts are cleared
   useEffect(() => {
     if (alerts.length === 0) {
       setIsDialogOpen(false);
+      setActiveSnoozeId(null);
     }
   }, [alerts.length]);
 
@@ -60,24 +96,39 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
     setCurrentIndex((prev) => (prev + 1) % alerts.length);
   };
 
+  // Close snooze menu when clicking outside (handled via stopPropagation on menu)
+  useEffect(() => {
+    if (!isDialogOpen) setActiveSnoozeId(null);
+  }, [isDialogOpen]);
+
   const handlePrev = (e) => {
     e.stopPropagation();
     setCurrentIndex((prev) => (prev - 1 + alerts.length) % alerts.length);
   };
 
-  const handleDismiss = (e, alert) => {
+  const handleSnooze = (e, alert, durationMinutes = 1) => {
     e.stopPropagation();
     if (!alert.device_id || !alert.timestamp) return;
 
     const alertId = `${alert.device_id}-${alert.timestamp}`;
-    const newDismissed = [...dismissedAlerts, alertId];
-    setDismissedAlerts(newDismissed);
-    localStorage.setItem('dismissedAlerts', JSON.stringify(newDismissed));
+    const snoozeDuration = durationMinutes * 60 * 1000;
+    const expiry = Date.now() + snoozeDuration;
+
+    const newSnoozed = { ...snoozedAlerts, [alertId]: expiry };
+    setSnoozedAlerts(newSnoozed);
+    localStorage.setItem('snoozedAlerts', JSON.stringify(newSnoozed));
+    setActiveSnoozeId(null);
 
     // Adjust index if needed
     if (currentIndex >= alerts.length - 1) {
       setCurrentIndex(Math.max(0, alerts.length - 2));
     }
+  };
+
+  const toggleSnoozeMenu = (e, alert) => {
+    e.stopPropagation();
+    const alertId = `${alert.device_id}-${alert.timestamp}`;
+    setActiveSnoozeId(activeSnoozeId === alertId ? null : alertId);
   };
 
   // Ensure safe index access in case alerts array changes size
@@ -220,14 +271,43 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
                             <span className="text-xs text-gray-500">
                               {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : ''}
                             </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 opacity-0 group-hover/item:opacity-100 hover:bg-red-500/20 hover:text-red-400 transition-all"
-                              onClick={(e) => handleDismiss(e, alert)}
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
+                            {activeSnoozeId === `${alert.device_id}-${alert.timestamp}` ? (
+                              <div
+                                className="flex items-center gap-1 bg-black/50 rounded-md p-0.5 border border-gray-700 animate-in fade-in slide-in-from-right-2 duration-200"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {[1, 2, 5].map((mins) => (
+                                  <Button
+                                    key={mins}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-[10px] text-gray-300 hover:bg-orange-500/20 hover:text-orange-400"
+                                    onClick={(e) => handleSnooze(e, alert, mins)}
+                                  >
+                                    {mins}m
+                                  </Button>
+                                ))}
+                                <div className="w-px h-3 bg-gray-700 mx-0.5" />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 hover:bg-gray-800 text-gray-400 hover:text-white"
+                                  onClick={(e) => toggleSnoozeMenu(e, alert)}
+                                >
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover/item:opacity-100 hover:bg-orange-500/20 hover:text-orange-400 transition-all"
+                                onClick={(e) => toggleSnoozeMenu(e, alert)}
+                                title="Snooze..."
+                              >
+                                <BellOff className="w-3 h-3" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -237,17 +317,6 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
               </div>
             </DialogContent>
           </Dialog>
-
-          {/* Dismiss Button (Ticker View) */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 hover:bg-red-500/20 hover:text-red-400 border-l border-gray-800 ml-1"
-            onClick={(e) => handleDismiss(e, currentAlert)}
-            title="Dismiss alert"
-          >
-            <X className="w-3 h-3" />
-          </Button>
         </div>
       </div>
 

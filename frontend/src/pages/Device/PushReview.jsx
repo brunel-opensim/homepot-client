@@ -91,10 +91,6 @@ export default function PushReview() {
       try {
         const deviceData = await api.devices.getDeviceById(id);
         setDevice(deviceData);
-        setPayloadConfig((prev) => ({
-          ...prev,
-          body: `Executing ${selectedCommand} on ${deviceData.name}`,
-        }));
       } catch (err) {
         console.error('Failed to load device:', err);
       } finally {

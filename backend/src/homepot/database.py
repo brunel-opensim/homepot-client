@@ -175,15 +175,15 @@ class DatabaseService:
     @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
         """Get async database session."""
-        async with self.session_maker() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
-            finally:
-                await session.close()
+        session = self.session_maker()
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
     # User operations
     async def create_user(
@@ -302,6 +302,7 @@ class DatabaseService:
         config: Optional[dict] = None,
         api_key_hash: Optional[str] = None,
         last_seen: Optional[datetime.datetime] = None,
+        is_monitored: bool = False,
     ) -> Device:
         """Create a new device."""
         async with self.get_session() as session:
@@ -315,6 +316,7 @@ class DatabaseService:
                 status=DeviceStatus.UNKNOWN,
                 api_key_hash=api_key_hash,
                 last_seen=last_seen,
+                is_monitored=is_monitored,
             )
             session.add(device)
             await session.flush()

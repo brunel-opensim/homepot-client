@@ -24,6 +24,7 @@ if [ $# -eq 0 ]; then
     echo "  job_outcomes               - Show job execution outcomes"
     echo "  push_logs                  - Show push notification logs"
     echo "  error_logs                 - Show recent errors"
+    echo "  alerts                     - Show active alerts"
     echo "  count                      - Count rows in all tables"
     echo "  schema [table]             - Show table structure"
     echo "  where                      - Show where PostgreSQL stores data"
@@ -138,6 +139,13 @@ ORDER BY timestamp DESC
 LIMIT 10;
 EOF
         ;;
+    alerts)
+        psql -h localhost -U homepot_user -d homepot_db <<EOF
+SELECT id, device_id, category as type, severity, status, title, timestamp
+FROM alerts 
+ORDER BY timestamp DESC;
+EOF
+        ;;
     device_metrics)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
 SELECT m.id, d.device_id, m.cpu_percent, m.memory_percent, m.transaction_count, m.timestamp 
@@ -166,7 +174,8 @@ EOF
         ;;
     count)
         psql -h localhost -U homepot_user -d homepot_db <<EOF
-SELECT 'api_request_logs' as table_name, COUNT(*) as rows FROM api_request_logs
+SELECT 'alerts' as table_name, COUNT(*) as rows FROM alerts
+UNION ALL SELECT 'api_request_logs', COUNT(*) FROM api_request_logs
 UNION ALL SELECT 'audit_logs', COUNT(*) FROM audit_logs
 UNION ALL SELECT 'configuration_history', COUNT(*) FROM configuration_history
 UNION ALL SELECT 'device_metrics', COUNT(*) FROM device_metrics
