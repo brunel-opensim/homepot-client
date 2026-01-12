@@ -351,9 +351,19 @@ def google_callback(code: str, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == user_email).first()
 
     if not db_user:
+        # Generate safe username (Collision Check)
+        base_username = user_email.split("@")[0]
+        final_username = base_username
+
+        counter = 1
+        # Check if username exists and append suffix if needed
+        while db.query(models.User).filter(models.User.username == final_username).first():
+            final_username = f"{base_username}{counter}"
+            counter += 1
+
         db_user = models.User(
             email=user_email,
-            username=idinfo.get("name", user_email.split("@")[0]),
+            username=final_username,
             full_name=idinfo.get("name"),
             hashed_password=hash_password(os.urandom(24).hex()),
             is_admin=False,
