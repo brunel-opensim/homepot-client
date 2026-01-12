@@ -1,7 +1,7 @@
 """API endpoints for analytics data collection and querying."""
 
-import logging
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status

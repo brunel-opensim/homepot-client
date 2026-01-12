@@ -53,12 +53,12 @@ Example usage:
 """
 
 import asyncio
+from datetime import datetime
 import json
 import logging
 import ssl
-import uuid
-from datetime import datetime
 from typing import Any, Dict, List, Optional
+import uuid
 
 try:
     import paho.mqtt.client as mqtt

@@ -1,8 +1,8 @@
 """Tests for push notification acknowledgment endpoint."""
 
-import uuid
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
+import uuid
 
 import pytest
 

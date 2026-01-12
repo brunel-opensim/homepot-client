@@ -1,8 +1,8 @@
 """Imports for the app."""
 
 import logging
-import os
 from logging.handlers import RotatingFileHandler
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

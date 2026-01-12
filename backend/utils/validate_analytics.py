@@ -22,9 +22,9 @@ Purpose:
     - Independent of frontend implementation
 """
 
+from datetime import datetime
 import sys
 import time
-from datetime import datetime
 
 import requests
 

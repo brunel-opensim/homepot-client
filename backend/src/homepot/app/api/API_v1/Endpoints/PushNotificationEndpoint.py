@@ -4,10 +4,10 @@
 # Note: Type checking disabled for this file due to dynamic audit logging API
 # TODO: Update audit logging calls to match current AuditLogger signature
 
-import logging
-import uuid
 from datetime import datetime
+import logging
 from typing import Any, Dict, List, Optional
+import uuid
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field

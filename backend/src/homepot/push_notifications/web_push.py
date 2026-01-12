@@ -52,12 +52,12 @@ Example usage:
 
 import asyncio
 import base64
+from datetime import datetime
 import json
 import logging
-import uuid
-from datetime import datetime
 from typing import Any, Dict, List
 from urllib.parse import urlparse
+import uuid
 
 try:
     from pywebpush import WebPushException, webpush

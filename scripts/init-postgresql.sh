@@ -97,6 +97,27 @@ sudo -u postgres psql -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb
     echo -e "${GREEN}TimescaleDB extension enabled${NC}" || \
     echo -e "${YELLOW}! TimescaleDB not available (using standard PostgreSQL)${NC}"
 
+# Create .env file if it doesn't exist
+if [ ! -f "backend/.env" ]; then
+    echo "Creating backend/.env from example..."
+    if [ -f "backend/.env.example" ]; then
+        cp backend/.env.example backend/.env
+        # Update connection string in .env
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS sed requires empty string for -i backup
+            sed -i '' "s|DATABASE__URL=.*|DATABASE__URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}|" backend/.env
+        else
+            # Linux sed
+            sed -i "s|DATABASE__URL=.*|DATABASE__URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}|" backend/.env
+        fi
+        echo -e "${GREEN}Created backend/.env with correct database credentials${NC}"
+    else
+        echo -e "${YELLOW}! backend/.env.example not found, skipping .env creation${NC}"
+    fi
+else
+    echo -e "${YELLOW}backend/.env already exists, skipping creation${NC}"
+fi
+
 echo ""
 
 # Setup .pgpass for convenient access

@@ -13,8 +13,8 @@ Usage:
     python backend/utils/create_analytics_tables.py
 """
 
-import sys
 from pathlib import Path
+import sys
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError

@@ -1,17 +1,18 @@
 """Tests for device command management."""
 
+import asyncio
 import os
 import secrets
 import tempfile
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import homepot.database
 from homepot.app.auth_utils import hash_password
 from homepot.config import reload_settings
+import homepot.database
 from homepot.models import Base, Device
 
 
@@ -32,8 +33,12 @@ def mock_db_url(monkeypatch):
 
     # Reset the database service singleton so it picks up the new settings
     if homepot.database._db_service is not None:
-        # We can't await close() here easily in a sync fixture, but we can just clear the reference
-        # The file cleanup will handle the old DB file
+        try:
+            # Properly close the previous async engine to clean up threads/loops
+            asyncio.run(homepot.database._db_service.close())
+        except Exception:
+            # If loop is already closed or other error, just proceed
+            pass
         homepot.database._db_service = None
 
     # Create new sync engine for the temp DB (for create_all)

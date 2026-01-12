@@ -1,7 +1,7 @@
 """API endpoints for managing site operating schedules."""
 
-import logging
 from datetime import time
+import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException

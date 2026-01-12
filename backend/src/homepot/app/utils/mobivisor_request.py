@@ -9,8 +9,8 @@ import logging
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse, urlunparse
 
-import httpx
 from fastapi import HTTPException
+import httpx
 
 import homepot.config as config_module
 

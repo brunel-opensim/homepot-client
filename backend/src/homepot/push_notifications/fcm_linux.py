@@ -45,8 +45,8 @@ Example usage:
 import asyncio
 import json
 import logging
-import time
 from pathlib import Path
+import time
 from typing import Any, Dict, List, Optional
 
 import aiohttp
