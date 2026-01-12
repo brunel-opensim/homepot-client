@@ -322,7 +322,7 @@ def google_login() -> dict:
 
 
 @router.get("/callback")
-def google_callback(code: str, db: Session = Depends(get_db)):
+def google_callback(code: str, db: Session = Depends(get_db)) -> RedirectResponse:
     """Backend-only callback: exchanges code, sets cookie and redirects to frontend."""
     # 1. Exchange code for Google tokens
     token_data = {
@@ -357,7 +357,9 @@ def google_callback(code: str, db: Session = Depends(get_db)):
 
         counter = 1
         # Check if username exists and append suffix if needed
-        while db.query(models.User).filter(models.User.username == final_username).first():
+        while (
+            db.query(models.User).filter(models.User.username == final_username).first()
+        ):
             final_username = f"{base_username}{counter}"
             counter += 1
 
