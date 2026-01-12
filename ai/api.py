@@ -8,8 +8,8 @@ import uuid
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-import yaml
 from sqlalchemy import and_, select
+import yaml
 
 from homepot.app.models.AnalyticsModel import Alert
 from homepot.database import get_database_service
