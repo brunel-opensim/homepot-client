@@ -1,8 +1,8 @@
 """Quick script to check error logs."""
 
 import asyncio
-import sys
 from pathlib import Path
+import sys
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 

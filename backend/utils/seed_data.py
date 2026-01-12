@@ -16,12 +16,12 @@ Usage:
 """
 
 import asyncio
-import random
-import sys
 from datetime import datetime
 from datetime import time as dt_time
 from datetime import timedelta, timezone
 from pathlib import Path
+import random
+import sys
 
 # Add backend to path
 sys.path.insert(0, str(Path.cwd() / "backend" / "src"))

@@ -5,10 +5,10 @@ device management tasks as shown in the POS payment gateway scenario.
 """
 
 import asyncio
-import logging
-import uuid
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any, Dict, List, Optional
+import uuid
 
 from homepot.app.models.AnalyticsModel import JobOutcome
 from homepot.config import get_settings

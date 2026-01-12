@@ -1,12 +1,11 @@
 """API endpoints for managing user in the HomePot system."""
 
+from datetime import datetime, timezone
 import logging
 import os
-from datetime import datetime, timezone
 from typing import Dict, Generator, Literal, Optional, cast
 from urllib.parse import urlencode
 
-import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import RedirectResponse
@@ -14,6 +13,7 @@ from google.auth.transport import requests as google_requests
 
 # SSO Imports
 from google.oauth2 import id_token
+import requests
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import (

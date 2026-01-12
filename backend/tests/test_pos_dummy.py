@@ -17,8 +17,8 @@ could break the core HOMEPOT functionality.
 import os
 import tempfile
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -126,8 +126,8 @@ class TestPOSDummy:
         issues before we attempt any actual functionality testing.
         """
         # Test core application imports  # noqa: F401
-        from homepot import config  # noqa: F401
         from homepot import agents, audit, client, database, main, models, orchestrator
+        from homepot import config  # noqa: F401
 
         # Verify FastAPI app exists
         assert hasattr(main, "app"), "FastAPI app not found in main module"

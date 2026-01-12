@@ -6,12 +6,12 @@ cause issues with SQLite cleanup.
 """
 
 import os
+from pathlib import Path
 import platform
 import tempfile
 import time
-import warnings
-from pathlib import Path
 from typing import Generator
+import warnings
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine

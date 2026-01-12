@@ -11,12 +11,12 @@ The tests use httpx for async HTTP testing and cover the full API surface.
 
 import os
 import time
-import uuid
 from typing import AsyncGenerator
+import uuid
 
+from fastapi.testclient import TestClient
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 
 def generate_random_id(prefix: str) -> str:

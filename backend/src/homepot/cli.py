@@ -3,9 +3,9 @@
 This module provides the main entry point for the HOMEPOT Client CLI.
 """
 
-import typer
 from rich.console import Console
 from rich.panel import Panel
+import typer
 
 from homepot import __version__
 

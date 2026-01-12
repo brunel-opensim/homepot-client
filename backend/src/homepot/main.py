@@ -6,10 +6,10 @@ exposing REST API endpoints for device management and monitoring.
 """
 
 import asyncio
-import logging
-import time
 from contextlib import asynccontextmanager
 from datetime import datetime
+import logging
+import time
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 
 from fastapi import (

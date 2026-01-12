@@ -4,8 +4,8 @@ import logging
 import time
 from typing import Callable, Optional
 
-import jwt
 from fastapi import Request, Response
+import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 

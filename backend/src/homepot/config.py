@@ -163,6 +163,7 @@ class CorsSettings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Any) -> Any:
+        """Parse CORS origins from string or list."""
         if isinstance(v, str) and not v.startswith("["):
             return [origin.strip() for origin in v.split(",")]
         return v

@@ -1,7 +1,7 @@
 """Integration tests for the traffic generator utility."""
 
-import sys
 from pathlib import Path
+import sys
 
 import httpx
 import pytest
@@ -9,10 +9,10 @@ import pytest
 # Ensure backend is in path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from homepot.app.main import app  # noqa: E402
-
 # Now we can import from utils because we added __init__.py
 from utils.generate_traffic import simulate_user_traffic  # noqa: E402
+
+from homepot.app.main import app  # noqa: E402
 
 
 @pytest.mark.asyncio

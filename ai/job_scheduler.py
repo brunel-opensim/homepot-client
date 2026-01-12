@@ -5,8 +5,8 @@ optimal times for job execution, maximizing success probability and
 minimizing business disruption.
 """
 
-import logging
 from datetime import datetime, timedelta
+import logging
 from typing import Any, Dict, List, Optional
 
 from .analytics_service import AIAnalyticsService

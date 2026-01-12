@@ -7,8 +7,8 @@ used across the test suite.
 import asyncio
 from typing import Any, Dict, Generator
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 # Configure asyncio for testing
 pytest_plugins = ("pytest_asyncio",)

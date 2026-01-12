@@ -2,8 +2,8 @@
 
 import secrets
 
-import pytest
 from httpx import AsyncClient
+import pytest
 
 from homepot.app.auth_utils import hash_password
 from homepot.database import get_database_service

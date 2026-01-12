@@ -1,8 +1,8 @@
 """Tests for AI Context Builder."""
 
+from datetime import datetime, time
 import os
 import sys
-from datetime import datetime, time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

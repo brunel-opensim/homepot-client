@@ -8,9 +8,9 @@ push notification services including:
 - Certificate-based authentication (APNs)
 """
 
-import time
 from abc import ABC, abstractmethod
 from pathlib import Path
+import time
 from typing import Any, Dict, Optional, Type
 
 try:

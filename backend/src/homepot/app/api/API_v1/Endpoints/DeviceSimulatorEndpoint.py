@@ -1,8 +1,8 @@
 """API endpoints for simulating device metrics submission (testing/demo purposes)."""
 
+from datetime import datetime
 import logging
 import random
-from datetime import datetime
 from typing import Dict
 
 from fastapi import APIRouter, HTTPException

@@ -1,7 +1,7 @@
 """Module for building rich context for the AI from various data sources."""
 
-import logging
 from datetime import datetime, timedelta
+import logging
 from typing import Optional
 
 from sqlalchemy import String, and_, cast, select

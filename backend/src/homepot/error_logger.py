@@ -4,9 +4,9 @@ This module provides a unified interface for logging errors to the error_logs
 table for AI analysis and system health monitoring.
 """
 
+from datetime import datetime
 import logging
 import traceback
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 from homepot.app.models.AnalyticsModel import ErrorLog

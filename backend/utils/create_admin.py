@@ -4,10 +4,10 @@
 Usage: python backend/utils/create_admin.py
 """
 
-import sys
 from datetime import datetime, timezone
 from getpass import getpass
 from pathlib import Path
+import sys
 
 # Add the src directory to the python path
 src_dir = Path(__file__).resolve().parent.parent / "src"

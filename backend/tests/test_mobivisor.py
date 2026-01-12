@@ -6,9 +6,9 @@ Tests mock the httpx client to avoid actual API calls during testing.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from fastapi.testclient import TestClient
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 from homepot.app.main import app
 
