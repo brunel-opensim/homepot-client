@@ -97,6 +97,6 @@ pydantic[email]==2.12.5  # Pydantic with email validation support
 # Type stubs for mypy
 types-passlib==1.7.7.20250602  # Type stubs for passlib
 types-requests==2.32.4.20250913  # Type stubs for requests
-types-google-auth==2.0.0.20240430  # Type stubs for google-auth
+types-google-auth  # Type stubs for google-auth
 types-psutil==7.0.0.20251001  # Type stubs for psutil
 types-PyYAML==6.0.12.20250915  # Type stubs for PyYAML
