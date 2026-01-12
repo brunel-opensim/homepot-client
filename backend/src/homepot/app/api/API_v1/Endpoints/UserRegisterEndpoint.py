@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 import requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import RedirectResponse
 from google.auth.transport import requests as google_requests
 
 # SSO Imports
@@ -40,6 +41,8 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 # Cookie settings
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax" or "strict" or "none"
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 
 # Configure logging
@@ -308,8 +311,8 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/" + "token"  # nosec
 def google_login() -> dict:
     """Return the URL for Google sign-in."""
     params = {
-        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
@@ -319,15 +322,15 @@ def google_login() -> dict:
 
 
 @router.get("/callback")
-def google_callback(code: str, db: Session = Depends(get_db)) -> dict:
-    """Backend-only callback: exchanges code and returns JSON user data."""
+def google_callback(code: str, db: Session = Depends(get_db)):
+    """Backend-only callback: exchanges code, sets cookie and redirects to frontend."""
     # 1. Exchange code for Google tokens
     token_data = {
-        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
         "code": code,
         "grant_type": "authorization_code",
-        "redirect_uri": os.getenv("GOOGLE_REDIRECT_URI"),
+        "redirect_uri": GOOGLE_REDIRECT_URI,
     }
     token_response = requests.post(GOOGLE_TOKEN_URL, data=token_data, timeout=10)
     if token_response.status_code != 200:
@@ -338,7 +341,7 @@ def google_callback(code: str, db: Session = Depends(get_db)) -> dict:
     # 2. Verify Google User
     try:
         idinfo = id_token.verify_oauth2_token(
-            id_token_str, google_requests.Request(), os.getenv("GOOGLE_CLIENT_ID")
+            id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID
         )
     except Exception as e:
         logger.error(f"Google Verification Failed: {str(e)}")
@@ -365,17 +368,18 @@ def google_callback(code: str, db: Session = Depends(get_db)) -> dict:
     access_token = create_access_token(
         {"sub": db_user.email, "is_admin": db_user.is_admin}
     )
-    # 5. Return JSON (Pure Backend Response)
-    return response(
-        success=True,
-        message="SSO Login successful",
-        data={
-            "access_token": access_token,
-            "user": {
-                "email": db_user.email,
-                "username": db_user.username,
-                "role": db_user.role,
-                "is_admin": db_user.is_admin,
-            },
-        },
+
+    # 5. Set Cookie and Redirect to Frontend
+    response_redirect = RedirectResponse(url=f"{FRONTEND_URL}/dashboard")
+    response_redirect.set_cookie(
+        key=COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
+        max_age=ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,
+        path="/",
     )
+
+    logger.info(f"SSO Login successful for {db_user.email}, redirecting to dashboard.")
+    return response_redirect
