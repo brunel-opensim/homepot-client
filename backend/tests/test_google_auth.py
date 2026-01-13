@@ -44,7 +44,9 @@ def test_google_login_url_generation():
         assert response.status_code == 200
         data = response.json()
         assert "auth_url" in data
-        assert data["auth_url"].startswith("https://accounts.google.com/o/oauth2/v2/auth")
+        assert data["auth_url"].startswith(
+            "https://accounts.google.com/o/oauth2/v2/auth"
+        )
         assert "client_id=test-client-id" in data["auth_url"]
 
 
