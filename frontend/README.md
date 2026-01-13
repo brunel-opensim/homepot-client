@@ -15,6 +15,10 @@ Homepot is a modern React application built with **Vite** and **Tailwind CSS**, 
 
 ## Installation
 
+**Prerequisites:**
+- **Node.js**: Version 20.19+ or 22.12+ is required (Vite 7 requirement).
+- **nvm (optional)**: Recommended for managing Node versions. A `.nvmrc` file is provided.
+
 Clone the repository and install dependencies:
 
 ```bash

@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 import logging
-import os
 from typing import Dict, Generator, Literal, Optional, cast
 from urllib.parse import urlencode
 
@@ -120,7 +119,7 @@ def login(
         if not db_user:
             logger.warning(f"Login failed: User {user.email} not found")
             raise HTTPException(status_code=401, detail="Invalid email")
-        
+
         hashed_pw: str = db_user.hashed_password  # type: ignore
         if not verify_password(user.password, hashed_pw):
             logger.warning(f"Login failed for {user.email}")
@@ -300,6 +299,11 @@ def google_callback(code: str, db: Session = Depends(get_db)) -> RedirectRespons
     # 1. Exchange code for Google tokens
     tokens = exchange_google_code(code)
     id_token_str = tokens.get("id_token")
+    if not isinstance(id_token_str, str):
+        logger.error(f"Invalid or missing id_token in Google response: {tokens}")
+        raise HTTPException(
+            status_code=400, detail="Invalid token response from Google"
+        )
 
     # 2. Verify Google User
     idinfo = verify_google_token(id_token_str)

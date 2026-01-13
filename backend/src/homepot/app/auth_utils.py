@@ -3,19 +3,18 @@
 from datetime import datetime, timedelta, timezone
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Literal, Optional, cast
+from typing import Any, Optional, cast
 
-import jwt
-import requests
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
+import jwt
 from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
+import requests
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -42,29 +41,34 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # nosec # noqa: S105
 
 # Cookie and Frontend Settings
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax", "strict", or "none"
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-def validate_google_config():
+
+def validate_google_config() -> bool:
     """Validate that Google SSO configuration is present and log status."""
     missing = []
-    if not GOOGLE_CLIENT_ID: missing.append("GOOGLE_CLIENT_ID")
-    if not GOOGLE_CLIENT_SECRET: missing.append("GOOGLE_CLIENT_SECRET")
-    if not GOOGLE_REDIRECT_URI: missing.append("GOOGLE_REDIRECT_URI")
-    
+    if not GOOGLE_CLIENT_ID:
+        missing.append("GOOGLE_CLIENT_ID")
+    if not GOOGLE_CLIENT_SECRET:
+        missing.append("GOOGLE_CLIENT_SECRET")
+    if not GOOGLE_REDIRECT_URI:
+        missing.append("GOOGLE_REDIRECT_URI")
+
     if missing:
         logger.warning(
-            f"CRITICAL: Google SSO functionality will be disabled. "
+            "CRITICAL: Google SSO functionality will be disabled. "
             f"Missing environment variables: {', '.join(missing)}"
         )
         return False
-    
+
     logger.info("Google SSO configuration validated successfully.")
     return True
+
 
 # Validate on module load
 validate_google_config()
@@ -134,7 +138,8 @@ def get_current_user(
     # Debug logging for cookie issues
     if not token:
         logger.warning(
-            f"Auth Debug: No token in cookie '{COOKIE_NAME}'. Cookies present: {list(request.cookies.keys())}"
+            f"Auth Debug: No token in cookie '{COOKIE_NAME}'. "
+            f"Cookies present: {list(request.cookies.keys())}"
         )
     else:
         logger.info(f"Auth Debug: Token found in cookie '{COOKIE_NAME}'")
@@ -230,7 +235,7 @@ def exchange_google_code(code: str) -> dict:
         "grant_type": "authorization_code",
         "redirect_uri": GOOGLE_REDIRECT_URI,
     }
-    
+
     try:
         token_response = requests.post(GOOGLE_TOKEN_URL, data=token_data, timeout=10)
         if token_response.status_code != 200:
@@ -246,7 +251,7 @@ def verify_google_token(id_token_str: str) -> dict:
     """Verify Google ID token and return user info."""
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=500, detail="Google Client ID not configured")
-        
+
     try:
         idinfo = id_token.verify_oauth2_token(
             id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID
@@ -278,5 +283,5 @@ def get_or_create_google_user(db: Session, idinfo: dict) -> User:
         db.commit()
         db.refresh(user)
         logger.info(f"New user created via Google SSO: {user_email}")
-    
+
     return cast(User, user)
