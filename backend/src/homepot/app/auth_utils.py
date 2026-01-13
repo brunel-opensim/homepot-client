@@ -3,11 +3,16 @@
 from datetime import datetime, timedelta, timezone
 import logging
 import os
-from typing import Any, Optional, cast
+from datetime import datetime, timedelta, timezone
+from typing import Any, Literal, Optional, cast
 
+import jwt
+import requests
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
-import jwt
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -16,7 +21,10 @@ from sqlalchemy.orm import Session
 
 from homepot.app.schemas.schemas import UserDict
 from homepot.database import get_db
-from homepot.models import Device
+from homepot.models import Device, User
+
+# Ensure environment variables are loaded
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +36,38 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 COOKIE_NAME = "access_token"
 API_KEY_HEADER_NAME = "X-API-Key"
 DEVICE_ID_HEADER_NAME = "X-Device-ID"
+
+# Google SSO Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+# Cookie and Frontend Settings
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax", "strict", or "none"
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+def validate_google_config():
+    """Validate that Google SSO configuration is present and log status."""
+    missing = []
+    if not GOOGLE_CLIENT_ID: missing.append("GOOGLE_CLIENT_ID")
+    if not GOOGLE_CLIENT_SECRET: missing.append("GOOGLE_CLIENT_SECRET")
+    if not GOOGLE_REDIRECT_URI: missing.append("GOOGLE_REDIRECT_URI")
+    
+    if missing:
+        logger.warning(
+            f"CRITICAL: Google SSO functionality will be disabled. "
+            f"Missing environment variables: {', '.join(missing)}"
+        )
+        return False
+    
+    logger.info("Google SSO configuration validated successfully.")
+    return True
+
+# Validate on module load
+validate_google_config()
 
 # Use HTTPBearer instead of OAuth2PasswordBearer
 security = HTTPBearer(auto_error=False)
@@ -176,3 +216,67 @@ async def get_current_device(
         )
 
     return device
+
+
+def exchange_google_code(code: str) -> dict:
+    """Exchange authorization code for tokens."""
+    if not validate_google_config():
+        raise HTTPException(status_code=500, detail="Google SSO not configured")
+
+    token_data = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "code": code,
+        "grant_type": "authorization_code",
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+    }
+    
+    try:
+        token_response = requests.post(GOOGLE_TOKEN_URL, data=token_data, timeout=10)
+        if token_response.status_code != 200:
+            logger.error(f"Google Token Exchange Failed: {token_response.text}")
+            raise HTTPException(status_code=400, detail="Token exchange failed")
+        return cast(dict, token_response.json())
+    except requests.RequestException as e:
+        logger.error(f"Request to Google failed: {str(e)}")
+        raise HTTPException(status_code=503, detail="Service unavailable (Google)")
+
+
+def verify_google_token(id_token_str: str) -> dict:
+    """Verify Google ID token and return user info."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google Client ID not configured")
+        
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+        return cast(dict, idinfo)
+    except Exception as e:
+        logger.error(f"Google Verification Failed: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+
+def get_or_create_google_user(db: Session, idinfo: dict) -> User:
+    """Find or create a user based on Google idinfo."""
+    user_email = idinfo["email"]
+    user = db.query(User).filter(User.email == user_email).first()
+
+    if not user:
+        # Create new user
+        user = User(
+            email=user_email,
+            username=idinfo.get("name", user_email.split("@")[0]),
+            full_name=idinfo.get("name"),
+            hashed_password=hash_password(os.urandom(24).hex()),
+            is_admin=False,
+            role="Client",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info(f"New user created via Google SSO: {user_email}")
+    
+    return cast(User, user)

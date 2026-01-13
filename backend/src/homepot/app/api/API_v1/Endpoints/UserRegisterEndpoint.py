@@ -6,44 +6,32 @@ import os
 from typing import Dict, Generator, Literal, Optional, cast
 from urllib.parse import urlencode
 
-from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import RedirectResponse
-from google.auth.transport import requests as google_requests
-
-# SSO Imports
-from google.oauth2 import id_token
-import requests
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import (
     ACCESS_TOKEN_EXPIRE_HOURS,
     COOKIE_NAME,
+    COOKIE_SAMESITE,
+    COOKIE_SECURE,
+    FRONTEND_URL,
+    GOOGLE_AUTH_URL,
+    GOOGLE_CLIENT_ID,
+    GOOGLE_REDIRECT_URI,
     TokenData,
     create_access_token,
+    exchange_google_code,
     get_current_user,
+    get_or_create_google_user,
     hash_password,
     require_role,
+    verify_google_token,
     verify_password,
 )
 from homepot.app.models import UserRegisterModel as models
 from homepot.app.schemas import schemas
 from homepot.database import SessionLocal
-
-# Load the .env file
-load_dotenv()
-
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
-
-
-# Cookie settings
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax" or "strict" or "none"
-
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -74,7 +62,6 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
         if db_user:
             logger.warning(f"Signup failed: Email {user.email} already registered")
             raise HTTPException(status_code=400, detail="Email already registered")
-            # return {"status_code": 400, "detail": "Email already registered"}
 
         # Handle username (generate from email if missing)
         final_username = user.username
@@ -87,7 +74,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
         if db_username:
             logger.warning(f"Signup failed: Username {final_username} already taken")
             raise HTTPException(status_code=400, detail="Username already taken")
-            # return {"status_code": 400, "detail": "Username already taken"}
+
         # Determine if admin based on role
         user_role = user.role if user.role else "Client"
         is_admin_user = user_role.lower() == "admin"
@@ -101,7 +88,6 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
             is_admin=is_admin_user,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
-            # last_login=datetime.now(timezone.utc),
         )
 
         db.add(new_user)
@@ -116,9 +102,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
             data={"access_token": create_access_token({"sub": new_user.email})},
         )
     except HTTPException as e:
-        # re-raise without modifying it
         raise e
-
     except Exception as e:
         logger.error(f"Signup error for {user.email}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -136,6 +120,7 @@ def login(
         if not db_user:
             logger.warning(f"Login failed: User {user.email} not found")
             raise HTTPException(status_code=401, detail="Invalid email")
+        
         hashed_pw: str = db_user.hashed_password  # type: ignore
         if not verify_password(user.password, hashed_pw):
             logger.warning(f"Login failed for {user.email}")
@@ -151,20 +136,15 @@ def login(
             {"sub": db_user.email, "is_admin": db_user.is_admin}
         )
 
-        logger.info(
-            f"Setting cookie: secure={COOKIE_SECURE}, samesite={COOKIE_SAMESITE}"
-        )
-
-        # Set httpOnly cookie (not accessible via JavaScript - XSS protection)
+        # Set httpOnly cookie
         api_response.set_cookie(
             key=COOKIE_NAME,
             value=access_token,
-            httponly=True,  # Prevents JavaScript access (XSS protection)
-            secure=COOKIE_SECURE,  # Only send over HTTPS in production
-            # CSRF protection
+            httponly=True,
+            secure=COOKIE_SECURE,
             samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
-            max_age=ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,  # Cookie expiry in seconds
-            path="/",  # Cookie available for all paths
+            max_age=ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,
+            path="/",
         )
 
         return response(
@@ -233,11 +213,10 @@ def delete_user(
     """Delete a user by email."""
     try:
         user = db.query(models.User).filter(models.User.email == email).first()
-        # Case 1: User does NOT exist
         if not user:
             logger.warning(f"Delete failed - user not found: {email}")
             raise HTTPException(status_code=401, detail="Invalid email")
-        # Delete the user
+
         db.delete(user)
         db.commit()
 
@@ -247,9 +226,7 @@ def delete_user(
             success=True, message="User deleted successfully.", data={"email": email}
         )
     except HTTPException:
-        # Re-raise original intended errors (401, 404, etc.)
         raise
-
     except Exception as e:
         logger.error(f"Internal server error while deleting user {email}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -303,10 +280,6 @@ def get_me(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/" + "token"  # nosec
-
-
 @router.get("/login")
 def google_login() -> dict:
     """Return the URL for Google sign-in."""
@@ -325,57 +298,15 @@ def google_login() -> dict:
 def google_callback(code: str, db: Session = Depends(get_db)) -> RedirectResponse:
     """Backend-only callback: exchanges code, sets cookie and redirects to frontend."""
     # 1. Exchange code for Google tokens
-    token_data = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
-        "code": code,
-        "grant_type": "authorization_code",
-        "redirect_uri": GOOGLE_REDIRECT_URI,
-    }
-    token_response = requests.post(GOOGLE_TOKEN_URL, data=token_data, timeout=10)
-    if token_response.status_code != 200:
-        logger.error(f"Google Token Exchange Failed: {token_response.text}")
-        raise HTTPException(status_code=400, detail="Token exchange failed")
-    tokens = token_response.json()
+    tokens = exchange_google_code(code)
     id_token_str = tokens.get("id_token")
+
     # 2. Verify Google User
-    try:
-        idinfo = id_token.verify_oauth2_token(
-            id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID
-        )
-    except Exception as e:
-        logger.error(f"Google Verification Failed: {str(e)}")
-        raise HTTPException(status_code=401, detail="Invalid Google token")
+    idinfo = verify_google_token(id_token_str)
+
     # 3. Find/Create User in DB
-    user_email = idinfo["email"]
-    db_user = db.query(models.User).filter(models.User.email == user_email).first()
+    db_user = get_or_create_google_user(db, idinfo)
 
-    if not db_user:
-        # Generate safe username (Collision Check)
-        base_username = user_email.split("@")[0]
-        final_username = base_username
-
-        counter = 1
-        # Check if username exists and append suffix if needed
-        while (
-            db.query(models.User).filter(models.User.username == final_username).first()
-        ):
-            final_username = f"{base_username}{counter}"
-            counter += 1
-
-        db_user = models.User(
-            email=user_email,
-            username=final_username,
-            full_name=idinfo.get("name"),
-            hashed_password=hash_password(os.urandom(24).hex()),
-            is_admin=False,
-            role="Client",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-        db.add(db_user)
-        db.commit()
-        db.refresh(db_user)
     # 4. Generate App JWT
     access_token = create_access_token(
         {"sub": db_user.email, "is_admin": db_user.is_admin}
