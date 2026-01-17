@@ -1,0 +1,72 @@
+```mermaid
+---
+config:
+  layout: elk
+---
+%%{init: { 'themeVariables': { 'fontSize': '20px', 'fontFamily': 'Arial' } }}%%
+flowchart TB
+ subgraph Auth["Auth Mechanisms"]
+        JWT["HttpOnly Cookies<br>Anti-XSS JWT"]
+        Keys["Immutable API Keys<br>Bcrypt Hashed"]
+  end
+ subgraph IAM["Pillar 1: Identity & Access Management"]
+    direction TB
+        Human["Human Oversight"]
+        Device["Machine Fleet"]
+        Auth
+        RBAC{"RBAC Policy<br>Least Privilege"}
+  end
+ subgraph ShiftLeft["Shift-Left"]
+        CICD["CI/CD Pipeline<br>npm audit &amp; Vuln Scan"]
+  end
+ subgraph Runtime["Runtime Defence"]
+        Pydantic["Pydantic Schemas<br>Reject Malformed Packets"]
+  end
+ subgraph AppSec["Pillar 3: Application Security"]
+    direction TB
+        Dev["Developer"]
+        ShiftLeft
+        Runtime
+  end
+ subgraph Transport["Edge-to-Cloud"]
+        TLS["TLS 1.3 Encryption"]
+  end
+ subgraph PrivateNet["Docker Network Isolation"]
+        DB[("PostgreSQL<br>No Public Access")]
+  end
+ subgraph Network["Pillar 2: Zero Trust Network"]
+    direction TB
+        Gateway["API Gateway"]
+        Transport
+        PrivateNet
+  end
+    Human -- Login --> JWT
+    Device -- Connect --> Keys
+    JWT --> TLS
+    Keys --> TLS
+    TLS --> Gateway
+    Gateway --> RBAC
+    GW_Valid["GW_Valid"] -- Validated --> DB
+    Dev -- Commit --> CICD
+    CICD -- Deploy --> Gateway
+    Gateway -- Input Data --> Pydantic
+    Pydantic -- Sanitized --> DB
+
+     JWT:::mechanism
+     Keys:::mechanism
+     RBAC:::mechanism
+     CICD:::mechanism
+     Pydantic:::mechanism
+     DB:::secure
+     TLS:::auth
+     Gateway:::auth
+     Device:::auth
+     Human:::auth
+     Dev:::auth
+     GW_Valid:::auth
+    classDef pillar fill:#f0f8ff,stroke:#004488,stroke-width:2px,color:#000,font-size:20px,font-weight:bold
+    classDef mechanism fill:#ffffff,stroke:#00bfff,stroke-width:2px,color:#333,font-size:18px
+    classDef secure fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000,font-size:18px
+    classDef auth fill:#000000,stroke:#ffffff,stroke-width:2px,color:#ECECEC,font-size:18px,font-weight:bold
+
+```

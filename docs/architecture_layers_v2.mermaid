@@ -1,0 +1,85 @@
+```mermaid
+graph TD
+    %% Styling
+    classDef layer fill:#f0f8ff,stroke:#0055a4,stroke-width:2px,color:#000;
+    classDef component fill:#ffffff,stroke:#0055a4,stroke-width:1px,color:#333;
+    classDef db fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px,color:#000;
+
+    %% --- Layer 1: Control Panel ---
+    subgraph L1 [Layer 1: Control Panel  Dashboard]
+        direction TB
+        SPA[React SPA]
+        Auth[Auth Context]
+        Vis[Real-time Visualizations]
+        JobMgr[Job Management]
+    end
+    class L1 layer
+    class SPA,Auth,Vis,JobMgr component
+
+    %% --- Layer 2: API Gateway ---
+    subgraph L2 [Layer 2: API Gateway]
+        direction TB
+        REST[FastAPI REST]
+        WS[WebSocket Real-time]
+        MQTT_GW[MQTT Broker Interface]
+        Push_GW[Unified Push Gateway]
+    end
+    class L2 layer
+    class REST,WS,MQTT_GW,Push_GW component
+
+    %% --- Layer 3: Service Layer ---
+    subgraph L3 [Layer 3: Service Layer]
+        direction TB
+        AI[Cognitive Engine / LLM]
+        Resolver[Device Resolver]
+        Celery[Job Scheduler / Celery]
+        Audit[Audit Compliance]
+    end
+    class L3 layer
+    class AI,Resolver,Celery,Audit component
+
+    %% --- Layer 4: Data Layer ---
+    subgraph L4 [Layer 4: Data Layer]
+        direction TB
+        PG[(PostgreSQL - State)]
+        TS[(TimescaleDB - Metrics)]
+        Chroma[(ChromaDB - Vectors)]
+    end
+    class L4 layer
+    class PG,TS,Chroma db
+
+    %% --- Layer 5: Edge Layer ---
+    subgraph L5 [Layer 5: Edge Layer]
+        direction TB
+        POS[Managed POS - Linux/Android]
+        BYOD[Staff BYOD - iOS/Mobile]
+        IoT[IoT Sensors - MQTT]
+    end
+    class L5 layer
+    class POS,BYOD,IoT component
+
+    %% --- Connections ---
+
+    %% Edge to Gateway
+    POS <-->|HTTPS/MQTT| MQTT_GW
+    BYOD <-->|HTTPS/Push| Push_GW
+    IoT -->|MQTT Pub| MQTT_GW
+
+    %% Control Panel to Gateway
+    SPA <-->|REST API| REST
+    Vis <-->|WSS| WS
+    Auth -->|JWT/Login| REST
+    JobMgr -->|Dispatch| REST
+
+    %% Gateway to Service
+    REST <--> Resolver
+    REST --> Celery
+    MQTT_GW --> AI
+    Push_GW <--> Celery
+
+    %% Service to Data
+    Celery --> PG
+    AI <--> Chroma
+    Resolver --> TS
+    Audit --> PG
+```
