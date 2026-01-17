@@ -98,86 +98,75 @@ plugins:
 nav:
   - Home: index.md
   
-  - Product Vision:
-      - Commercial Strategy: product-vision.md
+  - Project Info:
+      - Product Vision: product-vision.md
       - Compliance Matrix: architecture-compliance-matrix.md
+      - Getting Started:
+          - Quick Start: getting-started.md
+          - Running Locally: running-locally.md
+          - Complete Setup: complete-website-setup.md
 
-  - Getting Started:
-      - Quick Start: getting-started.md
-      - Accessing Dashboard: accessing-dashboard.md
-      - Running Locally: running-locally.md
-      - Complete Setup: complete-website-setup.md
-      - Website Testing: website-testing-guide.md
-  
-  - User Guides:
-      - Authentication Guide: authentication-guide.md
-      - Device Registration: device-registration.md
-      - MDM Configuration: device-configuration-mdm.md
-      - POS Management: pos-management.md
-      - Real-time Dashboard: real-time-dashboard.md
-      - Agent Simulation: agent-simulation.md
-      - Real Device Transition: real-device-transition.md
-      - API Testing: api-testing-guide.md
-      - Device Metrics Collection: device-metrics-collection.md
-  
-  - API Reference:
-      - Authentication: user-authentication-api.md
-      - Devices:
-          - Get Devices by Site: devices-by-site-endpoint.md
-  
-  - Development:
-      - Development Guide: development-guide.md
-      - Testing Guide: testing-guide.md
-      - Frontend Testing: frontend-testing-guide.md
-      - Collaboration: collaboration-guide.md
-      - Monorepo Structure: monorepo-migration.md
-  
-  - Database:
-      - Database Guide: database-guide.md
-      - Fresh Database Setup: fresh-database-setup.md
-      - PostgreSQL Migration: postgresql-migration-complete.md
-      - TimescaleDB Integration: timescaledb-integration.md
-  
-  - Push Notifications:
-      - Overview: push-notification.md
-      - Payload Structure: push-notification-payloads.md
-      - Analytics Roadmap: push-analytics-roadmap.md
-      - FCM (Linux/Android): fcm-linux-integration.md
-      - WNS (Windows): wns-windows-integration.md
-      - APNs (Apple): apns-apple-integration.md
-      - Web Push: web-push-integration.md
-      - MQTT (IoT): mqtt-push-integration.md
-  
-  - Integrations:
-      - Mobivisor Integration: mobivisor-integration.md
-      - Mobivisor Roadmap: mobivisor-integration-roadmap.md
-      - Mobivisor Diagram: HomepotMobivisor.md
-      - POS Dummy: POSDummy.md
-      - POS Dummy Integration: POSDummy-Integration.md
-  
-  - Deployment:
-      - Deployment Guide: deployment-guide.md
-      - Frontend CI/CD: frontend-ci-cd.md
-  
-  - AI & Analytics:
-      - Executive Summary: ai-roadmap-executive-summary.md
-      - Full Roadmap: ai-roadmap.md
-      - Infrastructure Implementation: ai-infrastructure.md
-      - Implementation Details: ai-implementation.md
-      - Memory Inspection: ai-memory-inspection.md
-      - Context Builder: ai-context-builder.md
+  - Layer 1 - Control Panel:
+      - Overview: accessing-dashboard.md
+      - Real-time Monitoring: real-time-dashboard.md
+      - Authentication Flow: authentication-guide.md
+      - Frontend Analytics: frontend-analytics-integration.md
+      - Testing: frontend-testing-guide.md
+      - UI Examples: visual-examples.md
+
+  - Layer 2 - API Gateway:
+      - API Reference:
+          - Authentication: user-authentication-api.md
+          - Device Endpoints: devices-by-site-endpoint.md
+      - Testing Guidelines: api-testing-guide.md
+      - Unified Push Gateway:
+          - Overview: push-notification.md
+          - Payload Structure: push-notification-payloads.md
+          - MQTT (IoT): mqtt-push-integration.md
+          - FCM (Android): fcm-linux-integration.md
+          - APNs (Apple): apns-apple-integration.md
+          - WNS (Windows): wns-windows-integration.md
+          - Web Push: web-push-integration.md
+
+  - Layer 3 - Service Layer:
+      - AI & Cognitive Engine:
+          - Roadmap: ai-roadmap.md
+          - Implementation: ai-implementation.md
+          - Context Builder: ai-context-builder.md
+          - Anomaly Detection: anomaly-detection.md
+          - Memory Inspection: ai-memory-inspection.md
+      - Audit System: audit-compliance.md
+      - Background Analytics: backend-analytics.md
+
+  - Layer 4 - Data Layer:
+      - Database Architecture: database-guide.md
+      - Setup & Migration:
+          - Fresh Setup: fresh-database-setup.md
+          - Postgres Migration: postgresql-migration-complete.md
+      - Telemetry Storage:
+          - TimescaleDB Integration: timescaledb-integration.md
+          - Metrics Validation: database-metrics-validation.md
       - Data Collection: analytics-data-collection.md
-      - Data Collection Guide: data-collection-guide.md
-      - Data Collection Suite: data-collection-suite.md
-      - Example Data: analytics-example-data.md
-      - Backend Analytics: backend-analytics.md
-      - Frontend Analytics Integration: frontend-analytics-integration.md
-  
-  - Reference:
-      - Visual Examples: visual-examples.md
-      - Audit & Compliance: audit-compliance.md
-      - GitHub Permissions: github-permissions-guide.md
+
+  - Layer 5 - Edge Layer:
+      - Device Management:
+          - Registration: device-registration.md
+          - Metrics Collection: device-metrics-collection.md
+          - Configuration (MDM): device-configuration-mdm.md
+      - Platform Integration:
+          - Mobivisor (Android): mobivisor-integration.md
+          - POS System (Dummy): POSDummy-Integration.md
+      - Agents & Simulation:
+          - Agent Simulation: agent-simulation.md
+          - Real Device Transition: real-device-transition.md
+
+  - Dev & Ops:
+      - Development Guide: development-guide.md
+      - Deployment: deployment-guide.md
+      - CI/CD Pipelines: frontend-ci-cd.md
+      - Monorepo Structure: monorepo-migration.md
       - Repository Health: repository-health.md
+      - Collaboration: collaboration-guide.md
 
 # Extra
 extra:
