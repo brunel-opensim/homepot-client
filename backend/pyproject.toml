@@ -60,6 +60,9 @@ dependencies = [
     "redis>=5.0.0",
     # Real-time communication
     "websockets>=12.0",
+    # Authentication
+    "google-auth>=2.23.0",
+    "google-auth-oauthlib>=1.1.0",
     # Testing runtime dependency for factories
     "greenlet>=2.0.0",
 ]
