@@ -960,6 +960,9 @@ validate_git_hygiene() {
 validate_tests() {
     log_info "  Running essential tests..."
     
+    # Export test secret key for validation (required by auth_utils)
+    export SECRET_KEY="test-secret-key-for-validation"
+    
     # Check if we have a tests directory
     if [[ ! -d "backend/tests/" ]]; then
         log_warning "No backend/tests/ directory found"

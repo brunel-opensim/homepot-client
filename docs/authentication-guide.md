@@ -42,7 +42,7 @@ The Login page mirrors the Sign Up experience with a tabbed interface.
 
 1.  **Select Identity:** Choose "ENGINEER" or "CLIENT".
 2.  **Enter Credentials:** Email and Password.
-3.  **SSO (Coming Soon):** The "Sign in with SSO" button is a placeholder for future Enterprise Single Sign-On integration.
+3.  **Google SSO:** Users can now sign in using their Google account. This automatically creates a "Client" account if one does not exist.
 
 ## Default Credentials (Development)
 
@@ -65,5 +65,7 @@ The `users` table includes:
 - `is_admin` (Boolean flag derived from role)
 
 ### Security
+- **Rate Limiting:** Public authentication endpoints (Login/Signup) are protected against brute-force attacks (e.g., 5 req/min).
+- **Secret Key:** Application startup enforces the presence of a strong `SECRET_KEY` environment variable.
 - **HTTPOnly Cookies:** Session tokens (JWT) are stored in secure, HTTPOnly cookies to prevent XSS attacks.
 - **CSRF Protection:** SameSite cookie policies are enforced.
