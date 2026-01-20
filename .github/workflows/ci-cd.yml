@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+env:
+  SECRET_KEY: ci_test_secret_key
+
 jobs:
   code-quality:
     name: Code Quality

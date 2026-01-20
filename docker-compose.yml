@@ -38,6 +38,8 @@ services:
       - PYTHONPATH=/app
       - HOMEPOT_DEBUG=${HOMEPOT_DEBUG:-false}
       - DATABASE__URL=postgresql://${POSTGRES_USER:-homepot_user}:${POSTGRES_PASSWORD:-homepot_dev_password}@postgres:5432/${POSTGRES_DB:-homepot_db}
+      - SECRET_KEY=${SECRET_KEY}
+
     volumes:
       # Always mount logs
       - ${HOMEPOT_LOGS_DIR:-./logs}:/app/logs

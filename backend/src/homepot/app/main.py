@@ -6,9 +6,12 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from homepot.app.api.API_v1.Api import api_v1_router
 from homepot.app.middleware.analytics import AnalyticsMiddleware
+from homepot.app.utils.limiter import limiter
 from homepot.config import get_settings
 
 # Configure Log Rotation
@@ -42,18 +45,19 @@ cors_origins = get_settings().cors.cors_origins
 
 # App declaration
 app = FastAPI(
-    ttitle="HOMEPOT Client API",
+    title="HOMEPOT Client API",
     description="REST API for HOMEPOT device management and monitoring",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
     # lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
 
 
 # Create tables
 # database.CreateTables()
-
 
 # CORS settings
 app.add_middleware(
