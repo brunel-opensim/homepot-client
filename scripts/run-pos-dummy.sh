@@ -108,6 +108,9 @@ setup_environment() {
         return 1
     fi
     
+    # Export dummy secret key for integration tests
+    export SECRET_KEY="pos-dummy-secret-key-value"
+    
     # Check for required files
     if [[ ! -f "backend/tests/test_pos_dummy.py" ]]; then
         log_error "POSDummy test file not found: backend/tests/test_pos_dummy.py"
