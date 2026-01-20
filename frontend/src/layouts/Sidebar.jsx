@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Map, Monitor, PlusCircle, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Map, Monitor, PlusCircle, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import ProfileModal from '@/components/ui/ProfileModal';
 
 export default function Sidebar() {
   const { logout, user } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const navItems = [
     { to: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
@@ -75,14 +77,20 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-800">
-        <div className="flex items-center gap-3 px-2 mb-4">
-          <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold">
-            {user?.username?.[0]?.toUpperCase() || 'U'}
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="w-full flex items-center gap-3 px-2 mb-4 py-2 rounded-md hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-sm font-bold">
+            {user?.fullName?.[0]?.toUpperCase() || user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
-          <div className="flex-1 overflow-hidden">
-            <p className="text-sm font-medium truncate">{user?.isAdmin ? 'Admin' : 'User'}</p>
+          <div className="flex-1 overflow-hidden text-left">
+            <p className="text-sm font-medium truncate">
+              {user?.fullName || user?.username || (user?.isAdmin ? 'Admin' : 'User')}
+            </p>
+            <p className="text-xs text-slate-400 truncate">View profile</p>
           </div>
-        </div>
+        </button>
         <button
           onClick={logout}
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-slate-800 rounded-md transition-colors"
@@ -91,6 +99,8 @@ export default function Sidebar() {
           <span>Sign Out</span>
         </button>
       </div>
+
+      <ProfileModal open={profileOpen} onOpenChange={setProfileOpen} user={user} />
     </div>
   );
 }

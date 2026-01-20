@@ -90,15 +90,39 @@ export default function LoginForm({
             </div>
           )}
 
-          <div className="text-center flex justify-center items-center mb-4 gap-2">
+          {/* SSO Button - More prominent for Engineers (Coming Soon) */}
+          {activeTab === 'ENGINEER' && (
             <button
               type="button"
-              className="text-teal-400 hover:text-teal-300 text-sm transition-colors duration-200"
+              disabled
+              title="Coming Soon"
+              className="w-full mb-4 py-3 px-4 bg-gray-800 border border-gray-600 rounded-lg text-gray-500 font-medium text-sm cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Sign in with SSO
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Sign in with SSO (Coming Soon)
             </button>
+          )}
 
-            <div className="h-4 w-px bg-gray-600"></div>
+          <div className="text-center flex justify-center items-center mb-4 gap-2">
+            {activeTab === 'CLIENT' && (
+              <>
+                <button
+                  type="button"
+                  disabled
+                  title="Coming Soon"
+                  className="text-gray-500 text-sm cursor-not-allowed"
+                >
+                  SSO (Coming Soon)
+                </button>
+                <div className="h-4 w-px bg-gray-600"></div>
+              </>
+            )}
 
             <button
               onClick={onNavigateToSignUp}
