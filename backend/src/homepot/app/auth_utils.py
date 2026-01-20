@@ -35,8 +35,10 @@ if not _SECRET_KEY:
 SECRET_KEY: str = _SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 1
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 COOKIE_NAME = "access_token"
+REFRESH_COOKIE_NAME = "refresh_token"
 API_KEY_HEADER_NAME = "X-API-Key"
 DEVICE_ID_HEADER_NAME = "X-Device-ID"
 
@@ -102,7 +104,15 @@ def create_access_token(
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
+    return cast(str, jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM))
+
+
+def create_refresh_token(data: dict[str, Any]) -> str:
+    """Create a JWT refresh token with long expiration."""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "type": "refresh"})
     return cast(str, jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM))
 
 

@@ -7,10 +7,12 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
+import jwt
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import (
     ACCESS_TOKEN_EXPIRE_HOURS,
+    ALGORITHM,
     COOKIE_NAME,
     COOKIE_SAMESITE,
     COOKIE_SECURE,
@@ -18,8 +20,12 @@ from homepot.app.auth_utils import (
     GOOGLE_AUTH_URL,
     GOOGLE_CLIENT_ID,
     GOOGLE_REDIRECT_URI,
+    REFRESH_COOKIE_NAME,
+    REFRESH_TOKEN_EXPIRE_DAYS,
+    SECRET_KEY,
     TokenData,
     create_access_token,
+    create_refresh_token,
     exchange_google_code,
     get_current_user,
     get_or_create_google_user,
@@ -136,12 +142,12 @@ def login(
 
         logger.info(f"User logged in: {db_user.email}")
 
-        # Create JWT token
-        access_token = create_access_token(
-            {"sub": db_user.email, "is_admin": db_user.is_admin}
-        )
+        # Create JWT tokens
+        token_data = {"sub": db_user.email, "is_admin": db_user.is_admin}
+        access_token = create_access_token(token_data)
+        refresh_token = create_refresh_token(token_data)
 
-        # Set httpOnly cookie
+        # Set httpOnly cookies
         api_response.set_cookie(
             key=COOKIE_NAME,
             value=access_token,
@@ -151,12 +157,22 @@ def login(
             max_age=ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,
             path="/",
         )
+        api_response.set_cookie(
+            key=REFRESH_COOKIE_NAME,
+            value=refresh_token,
+            httponly=True,
+            secure=COOKIE_SECURE,
+            samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
+            max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+            path="/",
+        )
 
         return response(
             success=True,
             message="Login successful",
             data={
                 "access_token": access_token,
+                "refresh_token": refresh_token,
                 "username": db_user.username,
                 "is_admin": db_user.is_admin,
             },
@@ -246,10 +262,57 @@ def logout(logout_response: Response) -> dict:
         secure=COOKIE_SECURE,
         samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
     )
+    logout_response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        path="/",
+        secure=COOKIE_SECURE,
+        samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
+    )
     return response(
         success=True,
         message="Logged out successfully",
     )
+
+
+@router.post("/refresh", response_model=dict)
+def refresh_token(request: Request, api_response: Response) -> dict:
+    """Refresh the access token using a refresh token from cookies."""
+    token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if not token:
+        raise HTTPException(status_code=401, detail="Refresh token missing")
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+
+        email = payload.get("sub")
+        is_admin = payload.get("is_admin", False)
+
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+
+        # Generate new access token
+        new_access_token = create_access_token({"sub": email, "is_admin": is_admin})
+
+        # Update the access token cookie
+        api_response.set_cookie(
+            key=COOKIE_NAME,
+            value=new_access_token,
+            httponly=True,
+            secure=COOKIE_SECURE,
+            samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
+            max_age=ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,
+            path="/",
+        )
+
+        return response(
+            success=True,
+            message="Token refreshed successfully",
+            data={"access_token": new_access_token},
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
 
 @router.get("/me", response_model=dict, status_code=status.HTTP_200_OK)
@@ -329,12 +392,12 @@ def google_callback(
     # 3. Find/Create User in DB
     db_user = get_or_create_google_user(db, idinfo)
 
-    # 4. Generate App JWT
-    access_token = create_access_token(
-        {"sub": db_user.email, "is_admin": db_user.is_admin}
-    )
+    # 4. Generate App JWTs
+    token_payload = {"sub": db_user.email, "is_admin": db_user.is_admin}
+    access_token = create_access_token(token_payload)
+    refresh_token = create_refresh_token(token_payload)
 
-    # 5. Set Cookie and Redirect to Frontend
+    # 5. Set Cookies and Redirect to Frontend
     response_redirect = RedirectResponse(url=f"{FRONTEND_URL}/dashboard")
     response_redirect.set_cookie(
         key=COOKIE_NAME,
@@ -343,6 +406,15 @@ def google_callback(
         secure=COOKIE_SECURE,
         samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
         max_age=ACCESS_TOKEN_EXPIRE_HOURS * 60 * 60,
+        path="/",
+    )
+    response_redirect.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=cast(Literal["lax", "strict", "none"], COOKIE_SAMESITE),
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/",
     )
 
