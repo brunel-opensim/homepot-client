@@ -37,7 +37,18 @@ echo -e "Target Model: ${GREEN}$MODEL${NC}"
 # 2. Check/Install Ollama
 if ! command -v ollama &> /dev/null; then
     echo -e "${YELLOW}Ollama not found. Installing...${NC}"
-    curl -fsSL https://ollama.com/install.sh | sh
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v brew &> /dev/null; then
+             echo -e "${YELLOW}Detected macOS. Installing via Homebrew...${NC}"
+             brew install ollama || { echo -e "${RED}Homebrew install failed.${NC}"; exit 1; }
+        else
+             echo -e "${RED}Error: Homebrew not found. Please install Ollama manually from https://ollama.com/download${NC}"
+             exit 1
+        fi
+    else
+        # Linux / other
+        curl -fsSL https://ollama.com/install.sh | sh
+    fi
 else
     echo -e "${GREEN}Ollama is already installed.${NC}"
 fi
@@ -68,6 +79,8 @@ fi
 
 # 4. Pull Model
 echo -e "Checking model availability..."
+echo -e "Ollama Version: ${GREEN}$(ollama --version 2>&1)${NC}"
+
 # We use 'ollama list' to check if model exists, if not pull it
 if ollama list | grep -q "$MODEL"; then
     echo -e "${GREEN}Model '$MODEL' is already available.${NC}"

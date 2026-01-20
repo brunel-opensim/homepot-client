@@ -166,6 +166,44 @@ install_dependencies() {
     fi
 }
 
+# Check Node.js and Install Frontend Dependencies
+install_frontend() {
+    log_info "Checking Node.js configuration..."
+    
+    if ! command -v node &> /dev/null; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            log_warning "Node.js not found. Attempting install via Homebrew..."
+            if command -v brew &> /dev/null; then
+                brew install node || { log_error "Failed to install Node.js"; exit 1; }
+            else
+                log_error "Homebrew not found. Please install Node.js manually."
+                exit 1
+            fi
+        else
+             log_error "Node.js not found. Please install Node.js (v22 recommended)."
+             exit 1
+        fi
+    fi
+    
+    local node_version
+    node_version=$(node --version)
+    log_success "Using Node.js $node_version"
+
+    if [[ -d "frontend" ]]; then
+        log_info "Installing frontend dependencies..."
+        if cd frontend && npm install; then
+            log_success "Frontend dependencies installed"
+            cd ..
+        else
+            log_error "Frontend installation failed"
+            cd ..
+            exit 1
+        fi
+    else
+        log_warning "frontend/ directory not found. Skipping."
+    fi
+}
+
 verify_installation() {
     log_info "Verifying installation..."
     if ! python -c "import homepot" 2>/dev/null; then
@@ -201,6 +239,7 @@ main() {
     check_python
     setup_venv
     install_dependencies
+    install_frontend
     verify_installation
     show_next_steps
 }
