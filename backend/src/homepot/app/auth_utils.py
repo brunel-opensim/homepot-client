@@ -240,7 +240,7 @@ async def get_current_device(
 def exchange_google_code(code: str) -> dict:
     """Exchange authorization code for tokens."""
     if not validate_google_config():
-        raise HTTPException(status_code=500, detail="Google SSO not configured")
+        raise HTTPException(status_code=503, detail="Google SSO not configured")
 
     token_data = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -264,7 +264,7 @@ def exchange_google_code(code: str) -> dict:
 def verify_google_token(id_token_str: str) -> dict:
     """Verify Google ID token and return user info."""
     if not GOOGLE_CLIENT_ID:
-        raise HTTPException(status_code=500, detail="Google Client ID not configured")
+        raise HTTPException(status_code=503, detail="Google Client ID not configured")
 
     try:
         idinfo = id_token.verify_oauth2_token(
