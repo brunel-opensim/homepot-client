@@ -14,6 +14,29 @@ It is a collaborative, multi-partner project that aims to unify the way organisa
 The HOMEPOT Client is one of the building blocks of this vision.
 It is designed as a flexible, extensible client system that enables secure, scalable interactions with devices in real-world scenarios such as retail, hospitality, and industrial operations.
 
+## Quick Start (macOS & Linux)
+
+We recommend running the project locally without Docker for the best development experience.
+
+1.  **Install & Setup**:
+    ```bash
+    chmod +x scripts/*.sh
+    ./scripts/install.sh
+    ./scripts/setup-ollama.sh
+    ```
+
+2.  **Initialize Database**:
+    ```bash
+    ./scripts/init-postgresql.sh
+    ```
+
+3.  **Run**:
+    ```bash
+    ./scripts/start-website.sh
+    ```
+
+See [docs/getting-started.md](docs/getting-started.md) for full details.
+
 ## Documentation
 
 **Complete documentation is available at: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
