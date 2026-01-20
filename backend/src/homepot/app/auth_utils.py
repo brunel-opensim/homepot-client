@@ -29,9 +29,13 @@ logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecret")
+_SECRET_KEY = os.getenv("SECRET_KEY")
+if not _SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is not set!")
+SECRET_KEY: str = _SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24
+ACCESS_TOKEN_EXPIRE_HOURS = 1
+
 COOKIE_NAME = "access_token"
 API_KEY_HEADER_NAME = "X-API-Key"
 DEVICE_ID_HEADER_NAME = "X-Device-ID"

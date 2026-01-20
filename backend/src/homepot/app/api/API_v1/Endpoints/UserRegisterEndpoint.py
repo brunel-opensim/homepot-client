@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Generator, Literal, Optional, cast
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,7 @@ from homepot.app.auth_utils import (
 )
 from homepot.app.models import UserRegisterModel as models
 from homepot.app.schemas import schemas
+from homepot.app.utils.limiter import limiter
 from homepot.database import SessionLocal
 
 # Configure logging
@@ -54,7 +55,10 @@ def response(success: bool, message: str, data: Optional[dict] = None) -> dict:
 
 
 @router.post("/signup", response_model=dict, status_code=status.HTTP_201_CREATED)
-def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
+@limiter.limit("5/minute")
+def signup(
+    request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)
+) -> dict:
     """User Registration and Authentication Endpoints."""
     try:
         db_user = db.query(models.User).filter(models.User.email == user.email).first()
@@ -108,7 +112,9 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/login", response_model=dict, status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
 def login(
+    request: Request,
     user: schemas.UserLogin,
     api_response: Response,
     db: Session = Depends(get_db),
@@ -280,8 +286,17 @@ def get_me(
 
 
 @router.get("/login")
-def google_login() -> dict:
+@limiter.limit("10/minute")
+def google_login(request: Request) -> dict:
     """Return the URL for Google sign-in."""
+    from homepot.app.auth_utils import validate_google_config
+
+    if not validate_google_config():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google SSO is not configured or unavailable",
+        )
+
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": GOOGLE_REDIRECT_URI,
@@ -294,7 +309,10 @@ def google_login() -> dict:
 
 
 @router.get("/callback")
-def google_callback(code: str, db: Session = Depends(get_db)) -> RedirectResponse:
+@limiter.limit("10/minute")
+def google_callback(
+    request: Request, code: str, db: Session = Depends(get_db)
+) -> RedirectResponse:
     """Backend-only callback: exchanges code, sets cookie and redirects to frontend."""
     # 1. Exchange code for Google tokens
     tokens = exchange_google_code(code)

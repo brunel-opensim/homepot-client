@@ -19,6 +19,8 @@ google-auth==2.45.0  # Required for Google ID token verification
 google-auth-oauthlib==1.2.2  # For OAuth2 flows
 requests==2.32.5  # Required for token exchange requests
 pyjwt[crypto]==2.10.1  # For JWT token generation
+slowapi==0.1.9  # For rate limiting public endpoints
+
 
 # Background Tasks and Queues
 celery==5.6.0  # Distributed task queue for background processing
