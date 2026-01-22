@@ -392,6 +392,18 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
         if request.device_id:
             full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
 
+        # Insert Defined System Roles to prevent hallucination
+        full_context += (
+            "\n[SYSTEM ROLES DEFINITIONS]\n"
+            "The HOMEPOT Client system currently defines the following roles:\n"
+            "1. 'Admin' (also referred to as 'Engineer'): Full system access, including "
+            "device management, logs, and system configuration.\n"
+            "2. 'Client' (also referred to as 'User'): Limited access, primarily for "
+            "monitoring assigned devices and receiving notifications.\n"
+            "There are currently NO other defined roles (e.g., 'Agent Operator' is NOT "
+            "a valid role).\n"
+        )
+
         # Get static system knowledge
         system_knowledge = knowledge.get_full_system_context()
 
