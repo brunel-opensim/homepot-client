@@ -78,6 +78,7 @@ class AIQueryRequest(BaseModel):
     query: str = Field(..., description="The question or prompt for the AI")
     context: Optional[str] = Field(None, description="Optional context for the query")
     device_id: Optional[str] = Field(None, description="Optional device ID for context")
+    role: Optional[str] = Field(None, description="User role of the requester")
     history: Optional[list[ChatMessage]] = Field(
         default_factory=list, description="Conversation history for short-term memory"
     )
@@ -384,6 +385,9 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
 
         if request.context:
             full_context += f"\n[USER CONTEXT]\n{request.context}"
+
+        if request.role:
+            full_context += f"\n[REQUESTER ROLE]\n{request.role}"
 
         if request.device_id:
             full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"

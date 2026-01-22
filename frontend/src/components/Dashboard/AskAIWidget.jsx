@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, Send, Loader2, AlertCircle, Trash2, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function AskAIWidget() {
+  const { user } = useAuth();
   // Load initial state from localStorage if available to persist context on refresh/navigation
   const [query, setQuery] = useState(() => localStorage.getItem('homepot_ai_query') || '');
   const [response, setResponse] = useState(() => localStorage.getItem('homepot_ai_response') || null);
@@ -74,7 +76,8 @@ export default function AskAIWidget() {
     setResponse(null);
 
     try {
-      const result = await api.ai.query(query);
+      const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
+      const result = await api.ai.query(query, null, userRole);
       // The backend returns { response: "..." }
       setResponse(result.response);
     } catch (err) {
