@@ -125,7 +125,7 @@ export default function AskAIWidget() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-0 top-0 h-6 w-6 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm"
+                className="absolute right-0 top-0 h-6 w-6 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-transparent"
                 onClick={handleCopy}
                 title="Copy to clipboard"
               >
