@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
+from sqlalchemy.orm import selectinload
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -78,6 +79,7 @@ class AIQueryRequest(BaseModel):
     query: str = Field(..., description="The question or prompt for the AI")
     context: Optional[str] = Field(None, description="Optional context for the query")
     device_id: Optional[str] = Field(None, description="Optional device ID for context")
+    role: Optional[str] = Field(None, description="User role of the requester")
     history: Optional[list[ChatMessage]] = Field(
         default_factory=list, description="Conversation history for short-term memory"
     )
@@ -329,14 +331,28 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
         # 3. Build Real-Time System Context
         db_service = await get_database_service()
         async with db_service.get_session() as session:
-            # Get Sites
-            result = await session.execute(select(Site).where(Site.is_active.is_(True)))
+            # Get Sites with Devices
+            result = await session.execute(
+                select(Site)
+                .options(selectinload(Site.devices))
+                .where(Site.is_active.is_(True))
+            )
             sites = result.scalars().all()
 
             site_context = "[CURRENT SYSTEM STATUS]\n"
             site_context += f"Total Sites: {len(sites)}\n"
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
+                if site.devices:
+                    site_context += "  Devices:\n"
+                    for d in site.devices:
+                        site_context += (
+                            f"    * Name: {d.name}\n"
+                            f"      ID: {d.device_id}\n"
+                            f"      Type: {d.device_type}\n"
+                            f"      Status: {d.status}\n"
+                            f"      IP: {d.ip_address or 'N/A'}\n"
+                        )
 
             # Get Push Notification Stats (Last 24 hours)
             one_day_ago = datetime.utcnow() - timedelta(days=1)
@@ -385,8 +401,23 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
         if request.context:
             full_context += f"\n[USER CONTEXT]\n{request.context}"
 
+        if request.role:
+            full_context += f"\n[REQUESTER ROLE]\n{request.role}"
+
         if request.device_id:
             full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
+
+        # Insert Defined System Roles to prevent hallucination
+        full_context += (
+            "\n[SYSTEM ROLES DEFINITIONS]\n"
+            "The HOMEPOT Client system currently defines the following roles:\n"
+            "1. 'Admin' (also referred to as 'Engineer'): Full system access, including "
+            "device management, logs, and system configuration.\n"
+            "2. 'Client' (also referred to as 'User'): Limited access, primarily for "
+            "monitoring assigned devices and receiving notifications.\n"
+            "There are currently NO other defined roles (e.g., 'Agent Operator' is NOT "
+            "a valid role).\n"
+        )
 
         # Get static system knowledge
         system_knowledge = knowledge.get_full_system_context()

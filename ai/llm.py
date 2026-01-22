@@ -56,9 +56,17 @@ class LLMService:
 
             messages.append({"role": "user", "content": full_prompt})
 
+            # Extract options from config with type safety
+            temperature = float(self.config["llm"].get("temperature", 0.7))
+            context_window = int(self.config["llm"].get("context_window", 4096))
+
             response = self.client.chat(
                 model=self.model,
                 messages=messages,
+                options={
+                    "temperature": temperature,
+                    "num_ctx": context_window,
+                },
             )
 
             return str(response["message"]["content"])

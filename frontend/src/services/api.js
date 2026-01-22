@@ -526,11 +526,15 @@ const api = {
      * Query the AI with a natural language question
      * @param {string} query - The user's question
      * @param {string} [deviceId] - Optional device context
+     * @param {string} [role] - Optional user role context
      */
-    query: async (query, deviceId = null) => {
+    query: async (query, deviceId = null, role = null) => {
       const payload = { query };
       if (deviceId) {
         payload.device_id = deviceId;
+      }
+      if (role) {
+        payload.role = role;
       }
       // Increase timeout for AI queries as model cold-start can take time
       const response = await apiClient.post('/ai/query', payload, { timeout: 60000 });
