@@ -21,7 +21,6 @@ requests==2.32.5  # Required for token exchange requests
 pyjwt[crypto]==2.10.1  # For JWT token generation
 slowapi==0.1.9  # For rate limiting public endpoints
 
-
 # Background Tasks and Queues
 celery==5.6.0  # Distributed task queue for background processing
 redis==7.1.0  # Python client for Redis (used as Celery broker/backend)
