@@ -22,7 +22,7 @@ const Signup = () => {
   // Smart Role Selection: Update role based on active tab
   useEffect(() => {
     if (activeTab === 'ENGINEER') {
-      setRole('Engineer'); // Engineer tab -> Engineer role
+      setRole('Admin'); // Engineer tab -> Admin role
     } else {
       setRole('Client'); // Client tab -> Client role
     }
