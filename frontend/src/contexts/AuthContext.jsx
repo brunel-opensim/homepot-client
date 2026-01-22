@@ -32,6 +32,8 @@ export function AuthProvider({ children }) {
           username: resp.data.username,
           email: resp.data.email,
           isAdmin: resp.data.is_admin,
+          fullName: resp.data.full_name,
+          role: resp.data.role,
         });
         setIsAuthenticated(true);
       } else {
@@ -77,7 +79,10 @@ export function AuthProvider({ children }) {
         // Set user from response data (token is in httpOnly cookie)
         const userData = {
           username: resp.data.username,
+          email: resp.data.email,
           isAdmin: resp.data.is_admin,
+          fullName: resp.data.full_name,
+          role: resp.data.role || (resp.data.is_admin ? 'Admin' : 'User'),
         };
         setUser(userData);
         setIsAuthenticated(true);
@@ -87,7 +92,13 @@ export function AuthProvider({ children }) {
 
       return { success: false, error: resp?.message || 'Login failed' };
     } catch (err) {
-      return { success: false, error: err?.response?.data?.detail || err.message };
+      // Extract error message safely
+      const errorDetail = err?.response?.data?.detail;
+      const errorMessage =
+        typeof errorDetail === 'string'
+          ? errorDetail
+          : err?.message || 'Invalid credentials. Please try again.';
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -115,7 +126,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const value = { user, isAuthenticated, loading, login, signup, logout, checkAuth };
+  // Clear auth state without navigation (useful when already on login page)
+  const clearAuth = async () => {
+    try {
+      await api.auth.logout();
+    } catch {
+      // ignore errors
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  };
+
+  const value = { user, isAuthenticated, loading, login, signup, logout, clearAuth, checkAuth };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

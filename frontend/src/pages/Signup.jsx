@@ -6,6 +6,7 @@ import SignupForm from '@/components/Auth/SignupForm';
 const Signup = () => {
   const [activeTab, setActiveTab] = useState('ENGINEER');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
@@ -21,9 +22,9 @@ const Signup = () => {
   // Smart Role Selection: Update role based on active tab
   useEffect(() => {
     if (activeTab === 'ENGINEER') {
-      setRole('Admin'); // Map Engineer tab to Admin/Engineer role
+      setRole('Admin'); // Engineer tab -> Admin role
     } else {
-      setRole('User'); // Default for Client tab
+      setRole('Client'); // Client tab -> Client role
     }
   }, [activeTab]);
 
@@ -127,16 +128,16 @@ const Signup = () => {
             setActiveTab={setActiveTab}
             name={name}
             setName={setName}
+            username={username}
+            setUsername={setUsername}
             email={email}
             setEmail={setEmail}
             password={password}
             setPassword={setPassword}
-            role={role}
-            setRole={setRole}
             loading={loading}
             errorMsg={errorMsg}
             successMsg={successMsg}
-            onSubmit={() => handleSignUp({ full_name: name, email, password, role, activeTab })}
+            onSubmit={() => handleSignUp({ full_name: name, username, email, password, role })}
             onNavigateToSignIn={handleNavigateToSignIn}
           />
 

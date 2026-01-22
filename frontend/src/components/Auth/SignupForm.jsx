@@ -1,17 +1,16 @@
 import React from 'react';
-import Dropdown from '@/components/ui/dropdown';
 
 export default function SignupForm({
   activeTab,
   setActiveTab,
   name,
   setName,
+  username,
+  setUsername,
   email,
   setEmail,
   password,
   setPassword,
-  role,
-  setRole,
   loading,
   errorMsg,
   successMsg,
@@ -72,6 +71,18 @@ export default function SignupForm({
 
           <div>
             <input
+              name="username"
+              autoComplete="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              className="w-full px-4 py-4 bg-gray-800/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all duration-200"
+            />
+          </div>
+
+          <div>
+            <input
               name="email"
               autoComplete="email"
               type="email"
@@ -94,18 +105,20 @@ export default function SignupForm({
             />
           </div>
 
-          {/* Role selection - Only show for Client tab, Engineer/Admin is auto-assigned */}
+          {/* Role selection - Hidden since role is auto-assigned based on tab */}
+          {/* Engineer tab -> Admin role, Client tab -> Client role */}
+          {activeTab === 'ENGINEER' && (
+            <div className="p-3 bg-teal-900/30 border border-teal-700/50 rounded-lg">
+              <p className="text-teal-300 text-sm text-center">
+                Registering as an Engineer (Admin access)
+              </p>
+            </div>
+          )}
           {activeTab === 'CLIENT' && (
-            <div>
-              <Dropdown
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                placeholder="Select Role"
-                options={[
-                  { label: 'User', value: 'User' },
-                  { label: 'Manager', value: 'Manager' },
-                ]}
-              />
+            <div className="p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
+              <p className="text-blue-300 text-sm text-center">
+                Registering as a Client (Device management access)
+              </p>
             </div>
           )}
 
@@ -124,13 +137,11 @@ export default function SignupForm({
           <div className="text-center flex justify-center items-center gap-2">
             <button
               type="button"
-              className={`text-sm transition-colors duration-200 ${
-                activeTab === 'ENGINEER'
-                  ? 'text-teal-400 hover:text-teal-300 font-bold'
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
+              disabled
+              title="Coming Soon"
+              className="text-gray-500 text-sm cursor-not-allowed"
             >
-              Sign up with SSO
+              SSO (Coming Soon)
             </button>
 
             <div className="h-4 w-px bg-gray-600"></div>
