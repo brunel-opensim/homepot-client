@@ -342,9 +342,7 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             site_context = "[CURRENT SYSTEM STATUS]\n"
             site_context += f"Total Sites: {len(sites)}\n"
             for site in sites:
-                site_context += (
-                    f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
-                )
+                site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
                 if site.devices:
                     site_context += "  Devices:\n"
                     for d in site.devices:

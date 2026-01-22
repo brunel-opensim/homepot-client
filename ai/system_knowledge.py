@@ -75,22 +75,22 @@ class SystemKnowledge:
     def get_database_schema_info(self) -> str:
         """Extract database schema from SQLAlchemy models."""
         schema = ["Database Schema (derived from SQLAlchemy models):"]
-        
+
         model_files = [
             "backend/src/homepot/models.py",
-            "backend/src/homepot/app/models/AnalyticsModel.py"
+            "backend/src/homepot/app/models/AnalyticsModel.py",
         ]
 
         for rel_path in model_files:
             full_path = os.path.join(self.root_path, rel_path)
             if not os.path.exists(full_path):
                 continue
-                
+
             try:
                 with open(full_path, "r") as f:
                     content = f.read()
                     lines = content.split("\n")
-                    
+
                     current_table = None
                     for line in lines:
                         line = line.strip()
