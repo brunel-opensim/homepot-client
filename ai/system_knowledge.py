@@ -72,9 +72,45 @@ class SystemKnowledge:
 
         return "\n".join(structure)
 
+    def get_database_schema_info(self) -> str:
+        """Extract database schema from SQLAlchemy models."""
+        schema = ["Database Schema (derived from SQLAlchemy models):"]
+        
+        model_files = [
+            "backend/src/homepot/models.py",
+            "backend/src/homepot/app/models/AnalyticsModel.py"
+        ]
+
+        for rel_path in model_files:
+            full_path = os.path.join(self.root_path, rel_path)
+            if not os.path.exists(full_path):
+                continue
+                
+            try:
+                with open(full_path, "r") as f:
+                    content = f.read()
+                    lines = content.split("\n")
+                    
+                    current_table = None
+                    for line in lines:
+                        line = line.strip()
+                        if line.startswith("class ") and "(Base)" in line:
+                            current_table = line.split("class ")[1].split("(")[0]
+                            schema.append(f"\nTable: {current_table}")
+                        elif current_table and " = Column(" in line:
+                            # Extract column name and type roughly
+                            col_name = line.split(" = ")[0]
+                            col_def = line.split("Column(")[1].split(")")[0]
+                            schema.append(f"  - {col_name}: {col_def}")
+            except Exception as e:
+                logger.error(f"Failed to parse model file {rel_path}: {e}")
+
+        return "\n".join(schema)
+
     def get_full_system_context(self) -> str:
-        """Combine overview and structure into a single context string."""
+        """Combine overview, structure, and DB schema into a single context string."""
         return (
             f"SYSTEM IDENTITY:\n{self.get_system_overview()}\n\n"
+            f"{self.get_database_schema_info()}\n\n"
             f"{self.get_project_structure()}"
         )
