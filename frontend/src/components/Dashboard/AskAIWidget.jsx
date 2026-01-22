@@ -125,17 +125,19 @@ export default function AskAIWidget() {
               {error}
             </div>
           ) : response ? (
-            <div className="relative group">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-6 w-6 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-transparent"
-                onClick={handleCopy}
-                title="Copy to clipboard"
-              >
-                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-              </Button>
-              <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 pr-6">
+            <div className="relative group min-h-full">
+              <div className='sticky top-0 float-right z-10'>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-transparent bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 dark:border-gray-800"
+                  onClick={handleCopy}
+                  title="Copy to clipboard"
+                >
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                </Button>
+              </div>
+              <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 pr-0">
                 <ReactMarkdown>{response}</ReactMarkdown>
               </div>
             </div>
