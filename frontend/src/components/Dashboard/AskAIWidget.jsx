@@ -126,7 +126,7 @@ export default function AskAIWidget() {
             </div>
           ) : response ? (
             <div className="relative group min-h-full">
-              <div className='sticky top-0 float-right z-10'>
+              <div className="sticky top-0 float-right z-10">
                 <Button
                   variant="ghost"
                   size="icon"
