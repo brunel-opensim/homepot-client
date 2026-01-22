@@ -151,6 +151,8 @@ export default function AskAIWidget() {
         <form onSubmit={handleAsk} className="flex gap-2">
           <input
             type="text"
+            spellCheck="true"
+            lang="en"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="e.g., How is our system performing today?"
