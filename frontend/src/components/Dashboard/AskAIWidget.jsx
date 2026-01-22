@@ -10,7 +10,9 @@ export default function AskAIWidget() {
   const { user } = useAuth();
   // Load initial state from localStorage if available to persist context on refresh/navigation
   const [query, setQuery] = useState(() => localStorage.getItem('homepot_ai_query') || '');
-  const [response, setResponse] = useState(() => localStorage.getItem('homepot_ai_response') || null);
+  const [response, setResponse] = useState(
+    () => localStorage.getItem('homepot_ai_response') || null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
@@ -48,19 +50,19 @@ export default function AskAIWidget() {
     let interval;
     if (loading) {
       const messages = [
-        "Reviewing conversation history...",
-        "Accessing long-term memory & vector store...",
-        "Scanning active sites & devices...",
-        "Analyzing push notification metrics...",
-        "Checking for system anomalies...",
-        "Synthesizing insights..."
+        'Reviewing conversation history...',
+        'Accessing long-term memory & vector store...',
+        'Scanning active sites & devices...',
+        'Analyzing push notification metrics...',
+        'Checking for system anomalies...',
+        'Synthesizing insights...',
       ];
       let i = 0;
       setLoadingMessage(messages[0]);
       interval = setInterval(() => {
-        i = (i + 1);
+        i = i + 1;
         if (i < messages.length) {
-            setLoadingMessage(messages[i]);
+          setLoadingMessage(messages[i]);
         }
       }, 1500); // Change message every 1.5 seconds
     }
@@ -96,9 +98,9 @@ export default function AskAIWidget() {
           System Diagnostics AI
         </CardTitle>
         {(response || query) && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={clearHistory}
             className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 transition-colors"
             title="Clear AI Context"
@@ -113,7 +115,9 @@ export default function AskAIWidget() {
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
-              <span className="text-xs animate-pulse transition-all duration-300">{loadingMessage}</span>
+              <span className="text-xs animate-pulse transition-all duration-300">
+                {loadingMessage}
+              </span>
             </div>
           ) : error ? (
             <div className="flex items-center text-red-500 gap-2 h-full justify-center">
