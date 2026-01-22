@@ -28,12 +28,18 @@ export function AuthProvider({ children }) {
     try {
       const resp = await api.auth.me();
       if (resp?.success && resp?.data) {
+        // Normalize role: If Admin/Engineer privileges exist but role says 'Client', fix display
+        let role = resp.data.role;
+        if (resp.data.is_admin && (!role || role === 'Client' || role === 'User')) {
+          role = 'Admin';
+        }
+
         setUser({
           username: resp.data.username,
           email: resp.data.email,
           isAdmin: resp.data.is_admin,
           fullName: resp.data.full_name,
-          role: resp.data.role,
+          role: role,
         });
         setIsAuthenticated(true);
       } else {
@@ -77,12 +83,20 @@ export function AuthProvider({ children }) {
 
       if (resp?.success && resp?.data) {
         // Set user from response data (token is in httpOnly cookie)
+        // Normalize role: If Admin/Engineer privileges exist but role says 'Client', fix display
+        let role = resp.data.role;
+        if (resp.data.is_admin && (!role || role === 'Client' || role === 'User')) {
+          role = 'Admin';
+        } else if (!role) {
+          role = resp.data.is_admin ? 'Admin' : 'User';
+        }
+
         const userData = {
           username: resp.data.username,
           email: resp.data.email,
           isAdmin: resp.data.is_admin,
           fullName: resp.data.full_name,
-          role: resp.data.role || (resp.data.is_admin ? 'Admin' : 'User'),
+          role: role,
         };
         setUser(userData);
         setIsAuthenticated(true);

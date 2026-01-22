@@ -88,7 +88,11 @@ export default function Sidebar() {
             <p className="text-sm font-medium truncate">
               {user?.fullName || user?.username || (user?.isAdmin ? 'Admin' : 'User')}
             </p>
-            <p className="text-xs text-slate-400 truncate">View profile</p>
+            <p
+              className={`text-xs truncate ${user?.role === 'Engineer' ? 'text-indigo-400' : 'text-slate-400'}`}
+            >
+              {user?.role || 'View Profile'}
+            </p>
           </div>
         </button>
         <button

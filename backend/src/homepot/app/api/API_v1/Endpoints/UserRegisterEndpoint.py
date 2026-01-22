@@ -86,7 +86,8 @@ def signup(
 
         # Determine if admin based on role
         user_role = user.role if user.role else "Client"
-        is_admin_user = user_role.lower() == "admin"
+        # Admin and Engineer both get is_admin=True for now, but role string differs
+        is_admin_user = user_role.lower() in ["admin", "engineer"]
 
         new_user = models.User(
             email=user.email,
@@ -175,6 +176,8 @@ def login(
                 "refresh_token": refresh_token,
                 "username": db_user.username,
                 "is_admin": db_user.is_admin,
+                "full_name": db_user.full_name,
+                "role": db_user.role,
             },
         )
 
