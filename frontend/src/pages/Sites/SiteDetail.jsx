@@ -124,91 +124,93 @@ export default function SiteDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground py-6 px-4">
-      <div className="container mx-auto max-w-7xl">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/sites', { replace: true })}
-          className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Sites
-        </Button>
+    <div className="h-full flex flex-col overflow-hidden bg-[#0b0e13] p-2">
+      <div className="container mx-auto max-w-7xl h-full flex flex-col">
+        {/* Fixed Header Section */}
+        <div className="shrink-0 mb-4 space-y-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/sites', { replace: true })}
+            className="pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Sites
+          </Button>
 
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2 text-white">{site.name}</h1>
-            <div className="flex items-center text-gray-400">
-              <MapPin className="h-4 w-4 mr-1.5" />
-              {site.location || 'No location specified'}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight mb-2 text-white">{site.name}</h1>
+              <div className="flex items-center text-gray-400">
+                <MapPin className="h-4 w-4 mr-1.5" />
+                {site.location || 'No location specified'}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleToggleMonitor}
+                className={`bg-transparent border ${
+                  site.is_monitored
+                    ? 'text-yellow-400 border-yellow-400 hover:bg-yellow-400/10'
+                    : 'text-gray-400 border-gray-400 hover:bg-gray-400/10'
+                }`}
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                {site.is_monitored ? 'Monitored' : 'Add to Dashboard'}
+              </Button>
+              <Button
+                onClick={() => navigate('/dashboard')}
+                className="bg-transparent border text-gray-400 border-gray-400 hover:bg-gray-400/10"
+              >
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Exit
+              </Button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleToggleMonitor}
-              className={`bg-transparent border ${
-                site.is_monitored
-                  ? 'text-yellow-400 border-yellow-400 hover:bg-yellow-400/10'
-                  : 'text-gray-400 border-gray-400 hover:bg-gray-400/10'
-              }`}
-            >
-              <Activity className="h-4 w-4 mr-2" />
-              {site.is_monitored ? 'Monitored' : 'Add to Dashboard'}
-            </Button>
-            <Button
-              onClick={() => navigate('/dashboard')}
-              className="bg-transparent border text-gray-400 border-gray-400 hover:bg-gray-400/10"
-            >
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Exit
-            </Button>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="p-4 bg-card border-border">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-teal-500/10 rounded-full">
+                  <Server className="h-6 w-6 text-teal-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400 font-medium">Total Devices</p>
+                  <h3 className="text-2xl font-bold text-white">
+                    {site.devices_count || devices.length || 0}
+                  </h3>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4 bg-card border-border">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-green-500/10 rounded-full">
+                  <Activity className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-400 font-medium">Status</p>
+                  <h3 className="text-2xl font-bold text-green-500">Active</h3>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4 bg-card border-border md:col-span-1 col-span-1">
+              <h2 className="text-sm font-semibold mb-1 text-gray-400">Description</h2>
+              <p className="text-gray-300 text-sm line-clamp-2">
+                {site.description || 'No description provided for this site.'}
+              </p>
+            </Card>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="p-6 bg-card border-border">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-teal-500/10 rounded-full">
-                <Server className="h-6 w-6 text-teal-500" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-400 font-medium">Total Devices</p>
-                <h3 className="text-2xl font-bold text-white">
-                  {site.devices_count || devices.length || 0}
-                </h3>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 bg-card border-border">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-500/10 rounded-full">
-                <Activity className="h-6 w-6 text-green-500" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-400 font-medium">Status</p>
-                <h3 className="text-2xl font-bold text-green-500">Active</h3>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-white">Description</h2>
-          <Card className="p-6 bg-card border-border">
-            <p className="text-gray-300">
-              {site.description || 'No description provided for this site.'}
-            </p>
-          </Card>
-        </div>
-
-        <div>
-          <h2 className="text-xl font-semibold mb-4 text-white">Associated Devices</h2>
+        {/* Scrollable Devices Section */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <h2 className="text-xl font-semibold mb-4 text-white shrink-0">Associated Devices</h2>
           {devices.length > 0 ? (
-            <div className="rounded-md border border-border bg-card">
-              <div className="relative w-full overflow-auto">
+            <div className="rounded-md border border-border bg-card flex-1 overflow-hidden relative">
+              <div className="absolute inset-0 overflow-auto">
                 <table className="w-full caption-bottom text-sm text-left">
-                  <thead className="[&_tr]:border-b border-border">
+                  <thead className="[&_tr]:border-b border-border sticky top-0 bg-card z-10">
                     <tr className="border-b border-border transition-colors hover:bg-muted/50">
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Name</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Type</th>

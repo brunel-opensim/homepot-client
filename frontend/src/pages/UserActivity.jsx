@@ -63,7 +63,7 @@ export default function UserActivityDashboard() {
         });
 
         setMostVisited(
-          counted.slice(0, 10).map((item) => ({
+          counted.slice(0, 8).map((item) => ({
             ...item,
             percent: Math.round((item.count / max) * 100),
           }))
@@ -111,59 +111,59 @@ export default function UserActivityDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex justify-center items-center">
+      <div className="h-full bg-slate-950 flex justify-center items-center">
         <Loader2 className="h-8 w-8 text-teal-400 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-200">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/dashboard')}
-            className="pl-0 hover:pl-1 transition-all text-slate-400 hover:text-white hover:bg-transparent mb-2"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <h1 className="text-3xl font-bold text-white tracking-tight">User Activity</h1>
-          <p className="text-slate-400 mt-1">
-            Track user interactions, page views, and system usage.
-          </p>
-        </div>
+    <div className="h-full bg-slate-950 p-2 text-slate-200 flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="shrink-0 mb-4">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/dashboard')}
+          className="pl-0 hover:pl-1 transition-all text-slate-400 hover:text-white hover:bg-transparent mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Dashboard
+        </Button>
+        <h1 className="text-2xl font-bold text-white tracking-tight">User Activity</h1>
+        <p className="text-slate-400 text-sm mt-1">
+          Track user interactions, page views, and system usage.
+        </p>
+      </div>
 
+      <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0">
           <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
               <CardTitle className="text-sm font-medium text-slate-400">Total Activities</CardTitle>
               <Activity className="h-4 w-4 text-teal-400" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-0">
               <div className="text-2xl font-bold text-white">{stats.total}</div>
               <p className="text-xs text-slate-500 mt-1">Recorded events</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
               <CardTitle className="text-sm font-medium text-slate-400">Active Users</CardTitle>
               <Users className="h-4 w-4 text-blue-400" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-0">
               <div className="text-2xl font-bold text-white">{stats.uniqueUsers}</div>
               <p className="text-xs text-slate-500 mt-1">Unique sessions</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
               <CardTitle className="text-sm font-medium text-slate-400">Top Page</CardTitle>
               <FileText className="h-4 w-4 text-purple-400" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-0">
               <div className="text-lg font-bold text-white truncate" title={stats.topPage}>
                 {stats.topPage}
               </div>
@@ -172,16 +172,16 @@ export default function UserActivityDashboard() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 pb-1">
           {/* Recent Activities Table */}
-          <Card className="lg:col-span-2 bg-slate-900/50 border-slate-800 flex flex-col">
-            <CardHeader>
+          <Card className="lg:col-span-2 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden">
+            <CardHeader className="shrink-0 p-4">
               <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
                 <Clock className="w-5 h-5 text-slate-400" />
                 Recent Activities
               </CardTitle>
             </CardHeader>
-            <div className="flex-1 overflow-auto max-h-[600px]">
+            <div className="flex-1 overflow-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs uppercase bg-slate-900/80 text-slate-400 sticky top-0 z-10 backdrop-blur-sm">
                   <tr>
@@ -228,22 +228,22 @@ export default function UserActivityDashboard() {
           </Card>
 
           {/* Most Visited Pages */}
-          <Card className="bg-slate-900/50 border-slate-800 h-fit">
-            <CardHeader>
+          <Card className="bg-slate-900/50 border-slate-800 h-full overflow-hidden">
+            <CardHeader className="shrink-0 p-3 pb-2">
               <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
                 <FileText className="w-5 h-5 text-slate-400" />
                 Most Visited Pages
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-1">
               {mostVisited.length === 0 ? (
                 <p className="text-slate-500 text-sm text-center py-8">
                   No page visit data available.
                 </p>
               ) : (
-                <div className="space-y-5">
+                <div className="space-y-3">
                   {mostVisited.map((item, idx) => (
-                    <div key={idx} className="space-y-2">
+                    <div key={idx} className="space-y-1">
                       <div className="flex justify-between text-sm">
                         <span
                           className="text-slate-300 font-medium truncate max-w-[200px]"
@@ -253,7 +253,7 @@ export default function UserActivityDashboard() {
                         </span>
                         <span className="text-slate-400 font-mono">{item.count} visits</span>
                       </div>
-                      <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full transition-all duration-500"
                           style={{ width: `${item.percent}%` }}
