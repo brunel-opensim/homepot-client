@@ -143,75 +143,75 @@ export default function AgentList() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex justify-center items-center">
+      <div className="h-full bg-slate-950 flex justify-center items-center">
         <Loader2 className="h-8 w-8 text-teal-400 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-200">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <Button
-              variant="ghost"
-              onClick={() => navigate('/dashboard')}
-              className="pl-0 hover:pl-1 transition-all text-slate-400 hover:text-white hover:bg-transparent mb-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-            <h1 className="text-3xl font-bold text-white tracking-tight">Device Agents</h1>
-            <p className="text-slate-400 mt-1">
-              Monitor real-time status and health of connected agents.
-            </p>
-          </div>
+    <div className="h-full bg-slate-950 p-2 text-slate-200 flex flex-col overflow-hidden">
+      {/* Header Section */}
+      <div className="shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
           <Button
-            onClick={fetchAgents}
-            disabled={refreshing}
-            className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="pl-0 hover:pl-1 transition-all text-slate-400 hover:text-white hover:bg-transparent mb-2"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh List
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
           </Button>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Device Agents</h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Monitor real-time status and health of connected agents.
+          </p>
         </div>
+        <Button
+          onClick={fetchAgents}
+          disabled={refreshing}
+          className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh List
+        </Button>
+      </div>
 
+      <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 shrink-0">
           <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
               <CardTitle className="text-sm font-medium text-slate-400">Total Agents</CardTitle>
               <Server className="h-4 w-4 text-slate-400" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-0">
               <div className="text-2xl font-bold text-white">{totalAgents}</div>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
               <CardTitle className="text-sm font-medium text-emerald-400">Online</CardTitle>
               <Activity className="h-4 w-4 text-emerald-400" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-0">
               <div className="text-2xl font-bold text-white">{onlineAgents}</div>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-slate-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
               <CardTitle className="text-sm font-medium text-red-400">Offline</CardTitle>
               <AlertTriangle className="h-4 w-4 text-red-400" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 pt-0">
               <div className="text-2xl font-bold text-white">{offlineAgents}</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Agents Table */}
-        <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm overflow-hidden">
-          <div className="relative w-full overflow-auto">
+        <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
+          <div className="relative w-full overflow-auto flex-1">
             <table className="w-full text-sm text-left">
               <thead className="text-xs uppercase bg-slate-900/80 text-slate-400 border-b border-slate-800">
                 <tr>
@@ -271,7 +271,11 @@ export default function AgentList() {
                   </tr>
                 ) : (
                   sortedAgents.map((agent) => (
-                    <tr key={agent.device_id} className="hover:bg-slate-800/50 transition-colors">
+                    <tr
+                      key={agent.device_id}
+                      className="hover:bg-slate-800/50 transition-colors cursor-pointer hover:bg-slate-800/70"
+                      onClick={() => navigate(`/device/${agent.device_id}`)}
+                    >
                       <td className="px-6 py-4 font-medium text-white">{agent.device_id}</td>
                       <td className="px-6 py-4">{getStatusBadge(agent.uptime)}</td>
                       <td className="px-6 py-4">{getHealthIcon(agent.last_health_check)}</td>
@@ -282,8 +286,11 @@ export default function AgentList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/device/${agent.device_id}`)}
                           className="text-teal-400 hover:text-teal-300 hover:bg-teal-400/10 h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/device/${agent.device_id}`);
+                          }}
                         >
                           View Details
                         </Button>

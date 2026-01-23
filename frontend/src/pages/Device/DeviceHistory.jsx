@@ -130,36 +130,46 @@ export default function DeviceHistory() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex justify-center items-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground py-6 px-4">
-      <div className="container mx-auto max-w-4xl">
+    <div className="h-full bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-2 font-sans flex flex-col overflow-hidden">
+      <div className="max-w-4xl mx-auto w-full h-full flex flex-col">
         {toast && <Toast {...toast} onClose={() => setToast(null)} />}
 
-        <Button
-          variant="ghost"
-          onClick={() => navigate(`/device/${id}`)}
-          className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Device
-        </Button>
+        <div className="shrink-0 mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(`/device/${id}`)}
+            className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Device
+          </Button>
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-white">Push History</h1>
-          <p className="text-gray-400">
-            History of push commands for <span className="text-teal-400">{device?.name}</span>
-          </p>
+          <div className="flex justify-between items-end">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-white">Push History</h1>
+              <p className="text-sm text-gray-400">
+                History of push commands for <span className="text-teal-400">{device?.name}</span>
+              </p>
+            </div>
+            <Button
+              onClick={() => navigate(`/device/${id}/push-review`)}
+              className="bg-teal-600 hover:bg-teal-500 text-white h-9"
+            >
+              Compose New
+            </Button>
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto pr-1 space-y-2">
           {history.length === 0 ? (
-            <Card className="p-8 text-center bg-card border-border text-gray-400">
+            <Card className="p-8 text-center bg-[#06181c] border-[#0e2f37] text-gray-400">
               <Clock className="h-12 w-12 mx-auto mb-4 opacity-20" />
               <p>No push history found for this device.</p>
             </Card>
@@ -167,37 +177,37 @@ export default function DeviceHistory() {
             history.map((item, index) => (
               <Card
                 key={item.id || index}
-                className="p-4 bg-card border-border hover:border-teal-500/50 transition-colors group"
+                className="p-3 bg-[#06181c] border-[#0e2f37] hover:border-teal-500/50 transition-colors group"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4 flex-1">
+                  <div className="flex items-start gap-3 flex-1">
                     <div className="mt-1">
                       {item.status === 'success' ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500" />
                       ) : item.status === 'failed' ? (
-                        <XCircle className="h-5 w-5 text-red-500" />
+                        <XCircle className="h-4 w-4 text-red-500" />
                       ) : (
-                        <Clock className="h-5 w-5 text-yellow-500" />
+                        <Clock className="h-4 w-4 text-yellow-500" />
                       )}
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-white">
+                        <h3 className="text-sm font-medium text-white truncate">
                           {item.title || item.action_type || 'Push Command'}
                         </h3>
                         {item.config_version && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-400 border border-teal-500/20 whitespace-nowrap">
                             v{item.config_version}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-400 mt-1">
+                      <p className="text-xs text-gray-400 mt-0.5">
                         {new Date(item.timestamp).toLocaleString()}
                       </p>
 
                       {/* Preview of details (truncated) */}
                       {item.details && (
-                        <div className="mt-2 text-xs text-gray-500 font-mono truncate max-w-md">
+                        <div className="mt-1.5 text-[10px] text-gray-500 font-mono truncate max-w-md">
                           {typeof item.details === 'string'
                             ? item.details
                             : JSON.stringify(item.details)}
@@ -206,35 +216,35 @@ export default function DeviceHistory() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleReuse(item)}
-                      className="h-8 border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800"
+                      className="h-7 px-2 border-gray-700 bg-transparent text-gray-300 hover:text-white hover:bg-gray-800 text-xs"
                       title="Reuse Command"
                     >
-                      <RefreshCw className="h-4 w-4 mr-2" />
+                      <RefreshCw className="h-3 w-3 mr-1" />
                       Reuse
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => openDetails(item)}
-                      className="h-8 border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800"
+                      className="h-7 px-2 border-gray-700 bg-transparent text-gray-300 hover:text-white hover:bg-gray-800 text-xs"
                       title="View Details"
                     >
-                      <Eye className="h-4 w-4 mr-2" />
+                      <Eye className="h-3 w-3 mr-1" />
                       Details
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => confirmDelete(item)}
-                      className="h-8 border-red-900/30 text-red-400 hover:text-red-300 hover:bg-red-900/20 hover:border-red-900/50"
+                      className="h-7 w-7 p-0 border-red-900/30 bg-transparent text-red-400 hover:text-red-300 hover:bg-red-900/20 hover:border-red-900/50"
                       title="Delete Record"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>

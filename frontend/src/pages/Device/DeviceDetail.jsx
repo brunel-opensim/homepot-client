@@ -667,85 +667,87 @@ export default function Device() {
         </div>
       )}
 
-      <div className="min-h-screen bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-6 sm:p-10 font-sans">
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (location.state?.from === 'site' && location.state?.siteId) {
-              navigate(`/sites/${location.state.siteId}`);
-            } else if (device?.site_id) {
-              navigate(`/sites/${device.site_id}`);
-            } else {
-              navigate('/device');
-            }
-          }}
-          className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          {location.state?.from === 'site' || device?.site_id ? 'Back to Site' : 'Back'}
-        </Button>
+      <div className="h-full bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-2 font-sans flex flex-col overflow-hidden">
+        <div className="max-w-7xl mx-auto w-full h-full flex flex-col">
+          {/* Fixed Header Section */}
+          <div className="shrink-0 space-y-2 mb-4">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                if (location.state?.from === 'site' && location.state?.siteId) {
+                  navigate(`/sites/${location.state.siteId}`);
+                } else if (device?.site_id) {
+                  navigate(`/sites/${device.site_id}`);
+                } else {
+                  navigate('/device');
+                }
+              }}
+              className="pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {location.state?.from === 'site' || device?.site_id ? 'Back to Site' : 'Back'}
+            </Button>
 
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl bg-gradient-to-tr from-teal-400 to-cyan-400 flex items-center justify-center shadow-[0_6px_24px_rgba(2,136,153,0.18)] ring-1 ring-white/5">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-9 h-9 text-[#022426]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
+            <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-xl bg-gradient-to-tr from-teal-400 to-cyan-400 flex items-center justify-center shadow-[0_6px_24px_rgba(2,136,153,0.18)] ring-1 ring-white/5">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-9 h-9 text-[#022426]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12h6M9 16h6M8 8h8M5 21h14a1 1 0 001-1V8a1 1 0 00-1-1H5a1 1 0 00-1 1v12a1 1 0 001 1z"
+                    />
+                  </svg>
+                </div>
+
+                <div className="leading-tight">
+                  <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+                    {device?.name || device?.device_id || 'Unknown Device'}
+                  </h1>
+
+                  <div className="flex items-center gap-2 mt-1 text-sm text-emerald-300">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.14)] inline-block" />
+                    <span className="font-medium">
+                      {device?.status ? device.status.toUpperCase() : 'UNKNOWN'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
+                    {device?.device_id || 'NO ID'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <ActionButton
+                  onClick={handleToggleMonitor}
+                  className={device?.is_monitored ? 'text-yellow-400 border-yellow-400' : ''}
                 >
-                  <path
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12h6M9 16h6M8 8h8M5 21h14a1 1 0 001-1V8a1 1 0 00-1-1H5a1 1 0 00-1 1v12a1 1 0 001 1z"
-                  />
-                </svg>
+                  {device?.is_monitored ? 'Monitored' : 'Add to Dashboard'}
+                </ActionButton>
+
+                <ActionButton onClick={handleDirectConnect} className="flex items-center gap-2">
+                  <Radio className="w-4 h-4" />
+                  Direct Connect
+                </ActionButton>
+
+                <ActionButton onClick={() => navigate('/dashboard')}>Exit</ActionButton>
               </div>
-
-              <div className="leading-tight">
-                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                  {device?.name || device?.device_id || 'Unknown Device'}
-                </h1>
-
-                <div className="flex items-center gap-2 mt-1 text-sm text-emerald-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.14)] inline-block" />
-                  <span className="font-medium">
-                    {device?.status ? device.status.toUpperCase() : 'UNKNOWN'}
-                  </span>
-                </div>
-                <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
-                  {device?.device_id || 'NO ID'}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <ActionButton
-                onClick={handleToggleMonitor}
-                className={device?.is_monitored ? 'text-yellow-400 border-yellow-400' : ''}
-              >
-                {device?.is_monitored ? 'Monitored' : 'Add to Dashboard'}
-              </ActionButton>
-
-              <ActionButton onClick={handleDirectConnect} className="flex items-center gap-2">
-                <Radio className="w-4 h-4" />
-                Direct Connect
-              </ActionButton>
-
-              <ActionButton onClick={() => navigate('/dashboard')}>Exit</ActionButton>
-            </div>
-          </header>
+            </header>
+          </div>
 
           {/* Main Layout: Right Actions (Sidebar) + Left Content */}
-          <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+          <div className="flex flex-col lg:flex-row gap-4 items-stretch flex-1 min-h-0 overflow-hidden">
             {/* Main Column: Context & History */}
-            <div className="w-full lg:w-3/4 flex flex-col gap-6">
+            <div className="w-full lg:w-3/4 flex flex-col gap-4 h-full overflow-hidden">
               {/* Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 shrink-0">
                 {statCards.map((metric) => (
                   <StatBlock
                     key={metric.key}
@@ -758,8 +760,8 @@ export default function Device() {
               </div>
 
               {/* Activity Tabs */}
-              <div className="bg-[#06181c] border border-[#0e3b3f] rounded-xl overflow-hidden shadow-sm flex flex-col flex-1">
-                <div className="flex border-b border-[#0e3b3f] bg-[#041014] overflow-x-auto">
+              <div className="bg-[#06181c] border border-[#0e3b3f] rounded-xl overflow-hidden shadow-sm flex flex-col flex-1 min-h-0">
+                <div className="flex border-b border-[#0e3b3f] bg-[#041014] overflow-x-auto shrink-0">
                   <button
                     onClick={() => setActiveTab('logs')}
                     className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -807,7 +809,7 @@ export default function Device() {
                   </button>
                 </div>
 
-                <div className="p-4 min-h-[300px] flex-1">
+                <div className="p-4 flex-1 overflow-auto">
                   {activeTab === 'logs' && <LogsWidget logs={errorLogs} />}
                   {activeTab === 'audit' && <AuditWidget audit={auditLogs} />}
                   {activeTab === 'jobs' && <JobHistoryWidget jobs={jobHistory} />}
@@ -817,7 +819,7 @@ export default function Device() {
             </div>
 
             {/* Sidebar Column: Identity & Actions */}
-            <div className="w-full lg:w-1/4 space-y-4">
+            <div className="w-full lg:w-1/4 space-y-4 overflow-y-auto pr-1">
               <DeviceInfoWidget device={device} />
 
               {actions.length > 0 && (

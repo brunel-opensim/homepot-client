@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
+import WorldMapImage from '@/assets/images/world-map.png';
 
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
@@ -212,18 +213,18 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-screen bg-black text-gray-200 p-4 flex flex-col overflow-hidden">
+    <div className="h-full bg-black text-gray-200 p-2 flex flex-col overflow-hidden rounded-2xl shadow-xl border border-gray-800">
       {/* Main Content: Two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0 overflow-hidden">
         {/* Left Column: Connected Sites */}
-        <Card className="col-span-2 relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover h-full flex flex-col">
+        <Card className="col-span-2 relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover h-full flex flex-col overflow-hidden">
           {/* Overlay for opacity */}
-          <div className="absolute inset-0 bg-black/40 rounded-xl"></div>
+          <div className="absolute inset-0 bg-black/40 rounded-xl z-0"></div>
 
-          <CardContent className="p-4 relative z-10 flex flex-col h-full">
-            <h2 className="text-lg font-semibold text-white mb-4">Monitored Resources</h2>
+          <CardContent className="p-3 relative z-10 flex flex-col h-full overflow-hidden">
+            <h2 className="text-lg font-semibold text-white mb-2 shrink-0">Monitored Resources</h2>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               {sites.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
                   <p>No items monitored.</p>
@@ -237,28 +238,31 @@ export default function Dashboard() {
             </div>
 
             {/* Buttons */}
-            <div className="flex justify-center gap-4 mt-4 shrink-0 flex-wrap">
+            <div className="flex justify-center gap-2 mt-2 shrink-0 flex-wrap">
               <Button
+                size="sm"
                 onClick={() => {
                   navigate('/data-collection');
                 }}
-                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10 h-8 text-xs"
               >
                 Data Collection
               </Button>
               <Button
+                size="sm"
                 onClick={() => {
                   navigate('/useractivity');
                 }}
-                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10 h-8 text-xs"
               >
                 User Activity
               </Button>
               <Button
+                size="sm"
                 onClick={() => {
                   navigate('/agents');
                 }}
-                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10"
+                className="bg-transparent text-teal-400 border border-teal-400 hover:bg-teal-400/10 h-8 text-xs"
               >
                 Agents
               </Button>
@@ -266,14 +270,16 @@ export default function Dashboard() {
           </CardContent>
 
           {/* World Map Background */}
-          <img
-            src="src/assets/images/world-map.png"
-            alt="World Map"
-            className="absolute inset-0 w-full h-full object-cover opacity-20"
-          />
+          <div className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none">
+            <img
+              src={WorldMapImage}
+              alt="World Map"
+              className="w-full h-full object-cover opacity-20"
+            />
+          </div>
 
           {/* Glowing Site Dots */}
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none z-10">
             {sites.map((site, index) => (
               <span
                 key={index}
@@ -289,122 +295,126 @@ export default function Dashboard() {
         </Card>
 
         {/* Right Column: Heartbeat, Active Alerts, AI Assistant */}
-        <div className="flex flex-col gap-4 h-full min-h-0 overflow-y-auto pr-1">
+        <div className="flex flex-col gap-2 h-full min-h-0 overflow-hidden pr-1">
           {/* CPU Usage removed to give more space to AI Assistant */}
 
-          <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
-            <CardContent className="p-4">
-              <h2 className="text-lg font-semibold text-white mb-2">System Pulse</h2>
-              <div className="flex space-x-2">
-                {Array.from({ length: 10 }).map((_, i) => {
-                  // Calculate if this circle should be active based on load_score
-                  // i=0 -> 10%, i=1 -> 20%, ..., i=9 -> 100%
-                  // We light up if load_score is "close" to this threshold or higher
-                  // e.g. load=12 -> i=0 (10%) is active, i=1 (20%) is inactive
-                  // Using Math.ceil(load / 10) logic:
-                  // load=1-10 -> 1 circle
-                  // load=11-20 -> 2 circles
-                  const activeCount = Math.ceil((systemPulse.load_score || 0) / 10);
-                  const isActive = i < activeCount;
+          <div className="flex-none">
+            <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
+              <CardContent className="p-3">
+                <h2 className="text-sm font-semibold text-white mb-1">System Pulse</h2>
+                <div className="flex space-x-2">
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    // Calculate if this circle should be active based on load_score
+                    // i=0 -> 10%, i=1 -> 20%, ..., i=9 -> 100%
+                    // We light up if load_score is "close" to this threshold or higher
+                    // e.g. load=12 -> i=0 (10%) is active, i=1 (20%) is inactive
+                    // Using Math.ceil(load / 10) logic:
+                    // load=1-10 -> 1 circle
+                    // load=11-20 -> 2 circles
+                    const activeCount = Math.ceil((systemPulse.load_score || 0) / 10);
+                    const isActive = i < activeCount;
 
-                  // Equalizer Color Logic
-                  let colorClass = 'bg-gray-800';
-                  if (isActive) {
-                    if (i < 6) {
-                      // 10% - 60%: Green
-                      colorClass = 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
-                    } else if (i < 8) {
-                      // 70% - 80%: Yellow/Orange
-                      colorClass = 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]';
-                    } else {
-                      // 90% - 100%: Red
-                      colorClass = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]';
+                    // Equalizer Color Logic
+                    let colorClass = 'bg-gray-800';
+                    if (isActive) {
+                      if (i < 6) {
+                        // 10% - 60%: Green
+                        colorClass = 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
+                      } else if (i < 8) {
+                        // 70% - 80%: Yellow/Orange
+                        colorClass = 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]';
+                      } else {
+                        // 90% - 100%: Red
+                        colorClass = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]';
+                      }
                     }
-                  }
 
-                  return (
-                    <span
-                      key={i}
-                      className={`w-4 h-4 rounded-full transition-all duration-300 ${colorClass} ${isActive ? 'scale-110' : 'scale-100'}`}
-                    ></span>
-                  );
-                })}
-              </div>
-              <div className="flex flex-col mt-2">
-                <p className="text-xs text-gray-400 flex justify-between w-full font-mono">
-                  <span>
-                    Load:{' '}
-                    <span
-                      className={
-                        systemPulse.load_score >= 90
-                          ? 'text-red-400 font-bold'
-                          : systemPulse.load_score >= 70
-                            ? 'text-yellow-400'
-                            : 'text-green-400'
-                      }
-                    >
-                      {systemPulse.load_score}%
+                    return (
+                      <span
+                        key={i}
+                        className={`w-3 h-3 rounded-full transition-all duration-300 ${colorClass} ${isActive ? 'scale-110' : 'scale-100'}`}
+                      ></span>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-col mt-1">
+                  <p className="text-[10px] text-gray-400 flex justify-between w-full font-mono">
+                    <span>
+                      Load:{' '}
+                      <span
+                        className={
+                          systemPulse.load_score >= 90
+                            ? 'text-red-400 font-bold'
+                            : systemPulse.load_score >= 70
+                              ? 'text-yellow-400'
+                              : 'text-green-400'
+                        }
+                      >
+                        {systemPulse.load_score}%
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-gray-700">|</span>
-                  <span>
-                    Jobs:{' '}
-                    <span
-                      className={
-                        systemPulse.active_jobs > 5
-                          ? 'text-red-400 font-bold'
-                          : systemPulse.active_jobs > 0
-                            ? 'text-yellow-400'
-                            : 'text-green-400'
-                      }
-                    >
-                      {systemPulse.active_jobs > 0 ? systemPulse.active_jobs : 'IDLE'}
+                    <span className="text-gray-700">|</span>
+                    <span>
+                      Jobs:{' '}
+                      <span
+                        className={
+                          systemPulse.active_jobs > 5
+                            ? 'text-red-400 font-bold'
+                            : systemPulse.active_jobs > 0
+                              ? 'text-yellow-400'
+                              : 'text-green-400'
+                        }
+                      >
+                        {systemPulse.active_jobs > 0 ? systemPulse.active_jobs : 'IDLE'}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-gray-700">|</span>
-                  <span>
-                    CPU:{' '}
-                    <span
-                      className={
-                        (systemPulse.cpu_percent || 0) >= 90
-                          ? 'text-red-400 font-bold'
-                          : (systemPulse.cpu_percent || 0) >= 70
-                            ? 'text-yellow-400'
-                            : 'text-green-400'
-                      }
-                    >
-                      {Math.round(systemPulse.cpu_percent || 0)}%
+                    <span className="text-gray-700">|</span>
+                    <span>
+                      CPU:{' '}
+                      <span
+                        className={
+                          (systemPulse.cpu_percent || 0) >= 90
+                            ? 'text-red-400 font-bold'
+                            : (systemPulse.cpu_percent || 0) >= 70
+                              ? 'text-yellow-400'
+                              : 'text-green-400'
+                        }
+                      >
+                        {Math.round(systemPulse.cpu_percent || 0)}%
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-gray-700">|</span>
-                  <span>
-                    Mem:{' '}
-                    <span
-                      className={
-                        (systemPulse.memory_percent || 0) >= 90
-                          ? 'text-red-400 font-bold'
-                          : (systemPulse.memory_percent || 0) >= 70
-                            ? 'text-yellow-400'
-                            : 'text-green-400'
-                      }
-                    >
-                      {Math.round(systemPulse.memory_percent || 0)}%
+                    <span className="text-gray-700">|</span>
+                    <span>
+                      Mem:{' '}
+                      <span
+                        className={
+                          (systemPulse.memory_percent || 0) >= 90
+                            ? 'text-red-400 font-bold'
+                            : (systemPulse.memory_percent || 0) >= 70
+                              ? 'text-yellow-400'
+                              : 'text-green-400'
+                        }
+                      >
+                        {Math.round(systemPulse.memory_percent || 0)}%
+                      </span>
                     </span>
-                  </span>
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
-            <CardContent className="p-4">
-              <h2 className="text-lg font-semibold text-white mb-2">Active Alerts</h2>
-              <ActiveAlertsTicker alerts={alerts} />
-            </CardContent>
-          </Card>
+          <div className="flex-none">
+            <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
+              <CardContent className="p-3">
+                <h2 className="text-sm font-semibold text-white mb-1">Active Alerts</h2>
+                <ActiveAlertsTicker alerts={alerts} />
+              </CardContent>
+            </Card>
+          </div>
 
           {/* AI Assistant Widget */}
-          <div className="flex-1 min-h-[200px]">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <AskAIWidget />
           </div>
         </div>

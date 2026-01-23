@@ -120,30 +120,30 @@ export default function DeviceRegistration() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground py-6 px-4">
+    <div className="h-full overflow-y-auto bg-background text-foreground p-2 text-sm">
       <div className="container mx-auto max-w-2xl">
         <Button
           variant="ghost"
           onClick={() => navigate(getBackTarget())}
-          className="mb-4 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
+          className="mb-2 pl-0 hover:pl-1 transition-all text-gray-400 hover:text-white hover:bg-transparent"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           {getBackLabel()}
         </Button>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-white">Register New Device</h1>
-          <p className="text-gray-400">Add a new device to a site in your network.</p>
+        <div className="mb-4">
+          <h1 className="text-xl font-bold tracking-tight text-white">Register New Device</h1>
+          <p className="text-sm text-gray-400">Add a new device to a site in your network.</p>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-md mb-6 text-sm">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-md mb-4 text-sm">
             {error}
           </div>
         )}
 
-        <Card className="p-6 bg-card border-border">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <Card className="p-4 bg-card border-border">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Site Selection */}
             <div className="space-y-2">
               <label htmlFor="site_id" className="text-sm font-medium leading-none text-gray-300">

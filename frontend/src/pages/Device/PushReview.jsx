@@ -241,14 +241,15 @@ export default function PushReview() {
     }
   };
 
-  if (loading) return <div className="p-10 text-center text-slate-400">Loading...</div>;
+  if (loading)
+    return <div className="h-full flex items-center justify-center text-slate-400">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-6 sm:p-10 font-sans">
+    <div className="h-full bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-2 font-sans flex flex-col overflow-hidden">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto w-full h-full flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="shrink-0 flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -259,8 +260,8 @@ export default function PushReview() {
               Back to Push History
             </Button>
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Compose Command</h1>
-              <div className="text-sm text-slate-400">
+              <h1 className="text-xl font-semibold tracking-tight">Compose Command</h1>
+              <div className="text-xs text-slate-400">
                 Target: <span className="text-teal-400">{device?.name}</span> ({id})
               </div>
             </div>
@@ -268,7 +269,7 @@ export default function PushReview() {
           <Button
             onClick={handleSend}
             disabled={sending || !!jsonError}
-            className={`px-6 ${jsonError ? 'bg-slate-700 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-500 text-white'}`}
+            className={`px-4 h-9 ${jsonError ? 'bg-slate-700 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-500 text-white'}`}
           >
             {sending ? (
               'Sending...'
@@ -281,22 +282,22 @@ export default function PushReview() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0 overflow-hidden">
           {/* Left Column: Command Builder */}
-          <div className="space-y-6">
-            <div className="bg-[#06181c] border border-[#0e2f37] rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-6">
+          <div className="h-full overflow-y-auto pr-1">
+            <div className="bg-[#06181c] border border-[#0e2f37] rounded-xl p-4 h-full flex flex-col">
+              <div className="flex items-center gap-2 mb-4 shrink-0">
                 <Terminal className="h-5 w-5 text-teal-400" />
-                <h2 className="text-lg font-medium text-teal-100">Command Configuration</h2>
+                <h2 className="text-md font-medium text-teal-100">Command Configuration</h2>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 flex-1">
                 {/* Command Selector */}
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">
+                  <label className="block text-xs text-slate-400 mb-1 uppercase tracking-wider">
                     Command Type
                   </label>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 gap-1">
                     <select
                       value={selectedCommand}
                       onChange={(e) => setSelectedCommand(e.target.value)}
@@ -308,14 +309,14 @@ export default function PushReview() {
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-[10px] text-slate-500 mt-1">
                       {COMMAND_TEMPLATES[selectedCommand]?.description || 'Custom command'}
                     </p>
                   </div>
                 </div>
 
                 {/* JSON Data Editor */}
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs text-slate-400 uppercase tracking-wider">
                       Command Parameters (JSON)
@@ -330,51 +331,51 @@ export default function PushReview() {
                     <textarea
                       value={commandData}
                       onChange={(e) => handleDataChange(e.target.value)}
-                      className={`w-full bg-[#020817] border ${jsonError ? 'border-red-500/50' : 'border-[#0e3b3f]'} rounded-lg px-4 py-3 text-sm font-mono text-blue-300 focus:outline-none focus:border-teal-500 transition-all h-64 resize-none leading-relaxed`}
+                      className={`w-full bg-[#020817] border ${jsonError ? 'border-red-500/50' : 'border-[#0e3b3f]'} rounded-lg px-3 py-2 text-xs font-mono text-blue-300 focus:outline-none focus:border-teal-500 transition-all h-48 resize-none leading-relaxed`}
                       spellCheck="false"
                     />
                   </div>
                 </div>
 
                 {/* Notification Envelope Settings */}
-                <div className="pt-4 border-t border-[#0e2f37] space-y-4">
+                <div className="pt-3 border-t border-[#0e2f37] space-y-3">
                   <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-2">
                     <MessageSquare className="h-3 w-3" /> Notification Envelope
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2">
-                      <label className="block text-xs text-slate-400 mb-1.5">Title</label>
+                      <label className="block text-[10px] text-slate-400 mb-1">Title</label>
                       <input
                         type="text"
                         value={payloadConfig.title}
                         onChange={(e) =>
                           setPayloadConfig((prev) => ({ ...prev, title: e.target.value }))
                         }
-                        className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
+                        className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1.5">Priority</label>
+                      <label className="block text-[10px] text-slate-400 mb-1">Priority</label>
                       <select
                         value={payloadConfig.priority}
                         onChange={(e) =>
                           setPayloadConfig((prev) => ({ ...prev, priority: e.target.value }))
                         }
-                        className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
+                        className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
                       >
                         <option value="high">High (Immediate)</option>
                         <option value="normal">Normal</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1.5">TTL (Seconds)</label>
+                      <label className="block text-[10px] text-slate-400 mb-1">TTL (Seconds)</label>
                       <input
                         type="number"
                         value={payloadConfig.ttl}
                         onChange={(e) =>
                           setPayloadConfig((prev) => ({ ...prev, ttl: parseInt(e.target.value) }))
                         }
-                        className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
+                        className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-2 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500"
                       />
                     </div>
                   </div>
@@ -384,9 +385,9 @@ export default function PushReview() {
           </div>
 
           {/* Right Column: JSON Payload Preview */}
-          <div className="space-y-6">
-            <div className="bg-[#020817] border border-[#1e293b] rounded-xl overflow-hidden flex flex-col h-full sticky top-6">
-              <div className="bg-[#0f172a] px-4 py-3 border-b border-[#1e293b] flex items-center justify-between">
+          <div className="h-full min-h-0">
+            <div className="bg-[#020817] border border-[#1e293b] rounded-xl overflow-hidden flex flex-col h-full">
+              <div className="bg-[#0f172a] px-4 py-3 border-b border-[#1e293b] flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <FileJson className="h-4 w-4 text-blue-400" />
                   <span className="text-sm font-medium text-slate-300">Final Payload Preview</span>
@@ -396,13 +397,13 @@ export default function PushReview() {
                 </div>
               </div>
 
-              <div className="p-4 overflow-auto flex-1">
+              <div className="p-4 overflow-auto flex-1 min-h-0">
                 <pre className="font-mono text-xs text-blue-300 leading-relaxed">
                   {JSON.stringify(payloadPreview, null, 2)}
                 </pre>
               </div>
 
-              <div className="bg-[#0f172a]/50 px-4 py-3 border-t border-[#1e293b]">
+              <div className="bg-[#0f172a]/50 px-4 py-3 border-t border-[#1e293b] shrink-0">
                 <p className="text-xs text-slate-500">
                   This payload will be sent to the device via FCM/APNs. The device agent will
                   intercept the <code>{selectedCommand}</code> command.
