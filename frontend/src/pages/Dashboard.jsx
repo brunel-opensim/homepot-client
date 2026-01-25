@@ -68,6 +68,7 @@ export default function Dashboard() {
           if (anomalyData && anomalyData.anomalies) {
             anomalies = anomalyData.anomalies;
             finalAlerts = anomalies.map((a) => ({
+              id: a.id,
               message:
                 a.reasons && a.reasons.length > 0
                   ? `${a.device_name}: ${a.reasons[0]}`

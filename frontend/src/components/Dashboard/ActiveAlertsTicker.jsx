@@ -183,6 +183,11 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
               <span className={`text-sm font-semibold truncate ${styles.textClass}`}>
+                {currentAlert?.id && (
+                  <span className="mr-1 opacity-70 border border-current px-1 rounded font-mono">
+                    #{currentAlert.id}
+                  </span>
+                )}
                 {currentAlert?.message?.split(':')[0] || 'Alert'}
               </span>
               <span className="text-xs text-gray-500 shrink-0">
@@ -265,6 +270,11 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
                       <div className="flex-1">
                         <div className="flex justify-between">
                           <span className={`font-medium ${alertStyles.textClass}`}>
+                            {alert.id && (
+                              <span className="mr-2 text-xs opacity-70 border border-current px-1 rounded font-mono">
+                                #{alert.id}
+                              </span>
+                            )}
                             {alert.message || 'Alert'}
                           </span>
                           <div className="flex items-center gap-2">

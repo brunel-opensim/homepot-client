@@ -1214,6 +1214,19 @@ validate_tests() {
             failed=true
         fi
     fi
+
+    # AI Analysis Modes
+    if [ -f "backend/tests/test_analysis_modes.py" ]; then
+        echo -n "    AI Analysis Modes tests: "
+        log_verbose "Running: cd backend && python -m pytest tests/test_analysis_modes.py -q --no-cov"
+        if (cd backend && python -m pytest tests/test_analysis_modes.py -q --no-cov) >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "AI Analysis Modes tests failed - check Analysis Modes implementation"
+            failed=true
+        fi
+    fi
     
     # NEW: Integration test fixture validation
     echo -n "    Integration test fixtures: "

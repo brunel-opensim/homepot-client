@@ -26,8 +26,18 @@ import sys
 # Add backend to path
 sys.path.insert(0, str(Path.cwd() / "backend" / "src"))
 
+import os
+import sys
+
 # Monkey patch bcrypt to work with passlib (bcrypt >= 4.0.0 compatibility)
 import bcrypt
+
+# Add project root to path to allow importing 'ai' module
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from ai.anomaly_detection import AnomalyDetector
 
 from homepot.app.models.AnalyticsModel import (
     Alert,
@@ -193,42 +203,72 @@ def generate_problematic_metrics(device_id: int) -> list[DeviceMetrics]:
 
 
 def generate_active_alerts(device_id: str, site_id: int) -> list[Alert]:
-    """Generate sample active alerts for AI testing."""
+    """Generate sample active alerts for AI testing using real detection logic."""
     alerts = []
+    detector = AnomalyDetector()
 
     # Scenario 1: High CPU Usage
-    # We will simulate this by creating an alert AND corresponding high CPU metrics
-    # so the detection logic would agree with the alert if it ran.
-    high_cpu_alert = Alert(
-        device_id=device_id,
-        site_id=site_id,
-        title="[DEMO] High CPU Usage",
-        description="CPU utilization > 90% (Sustainable) - Simulation Test",
-        severity="warning",
-        category="hardware",
-        status="active",
-        ai_confidence=0.85,
-        ai_recommendation="Check for runaway processes or background updates.",
-        timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
-        - timedelta(minutes=10),
-    )
+    # Metric that triggers the detector
+    cpu_metrics = {
+        "cpu_percent": 92.5,
+        "memory_percent": 45.0,
+        "disk_percent": 20.0,
+        "network_latency_ms": 15,
+        "error_rate": 0.01,
+    }
+
+    score, reasons = detector.check_anomaly(cpu_metrics)
+    # reasons will look like: ['High CPU: 92.5%']
+
+    if reasons:
+        high_cpu_alert = Alert(
+            device_id=device_id,
+            site_id=site_id,
+            title=f"[DEMO] {reasons[0]} (Simulated)",  # Keep [DEMO] but use real reason
+            description=f"Detected by Anomaly Engine. Score: {score:.2f}. CPU utilization > 90% (Sustainable) - Simulation Test",
+            severity="warning",
+            category="hardware",
+            status="active",
+            ai_confidence=score,
+            ai_recommendation="Check for runaway processes or background updates.",
+            timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
+            - timedelta(minutes=10),
+        )
+        alerts.append(high_cpu_alert)
 
     # Scenario 2: Network Latency Spike
-    network_alert = Alert(
-        device_id=device_id,
-        site_id=site_id,
-        title="[DEMO] Network Latency Critical",
-        description="Latency > 200ms observed for 5 minutes - Simulation Test",
-        severity="critical",
-        category="network",
-        status="active",
-        ai_confidence=0.92,
-        ai_recommendation="Inspect switch logs and bandwidth usage.",
-        timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
-        - timedelta(minutes=5),
-    )
+    net_metrics = {
+        "cpu_percent": 12.0,
+        "memory_percent": 30.0,
+        "disk_percent": 20.0,
+        "network_latency_ms": 600,  # Very high latency to ensure trigger
+        "error_rate": 0.0,
+    }
 
-    return [high_cpu_alert, network_alert]
+    score, reasons = detector.check_anomaly(net_metrics)
+    # reasons will look like: ['High Latency: 600ms']
+
+    if reasons:
+        network_alert = Alert(
+            device_id=device_id,
+            site_id=site_id,
+            title=f"[DEMO] {reasons[0]} (Simulated)",
+            description=f"Detected by Anomaly Engine. Score: {score:.2f}. Latency > 200ms observed for 5 minutes - Simulation Test",
+            severity="critical",
+            category="network",
+            status="active",
+            ai_confidence=score,
+            ai_recommendation="Inspect switch logs and bandwidth usage.",
+            timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
+            - timedelta(minutes=5),
+        )
+        alerts.append(network_alert)
+
+    # Just in case detection failed, we force it for the second one if empty (debugging)
+    if len(reasons) == 0:
+        print(f"WARNING: Network anomaly detection failed for metrics: {net_metrics}")
+
+    return alerts
 
 
 async def init_database():

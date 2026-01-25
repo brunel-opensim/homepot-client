@@ -25,7 +25,11 @@ class ModeManager:
                 "Provide specific metrics and fix recommendations.\n"
                 "CRITICAL RULE: If the context contains a [CURRENT SYSTEM STATUS] block, "
                 "prioritize this real-time data over historical memories. "
-                "If a device is marked CRITICAL or WARNING, address it immediately."
+                "When asked to list alerts, you MUST list ALL active alerts found in [ACTIVE SYSTEM ALERTS], "
+                "regardless of severity (Critical, Warning, etc.). "
+                "If a device is marked CRITICAL or WARNING, address it immediately. "
+                "Always refer to alerts using the format '#ID' (e.g. '#2'). "
+                "Example output: '- #2: High Latency (Critical)'."
             ),
             AnalysisMode.PREDICTIVE: (
                 "You are a predictive maintenance expert. Focus on trend analysis "
@@ -33,14 +37,16 @@ class ModeManager:
                 "preventative maintenance schedules.\n"
                 "CRITICAL RULE: Analyze the [CURRENT SYSTEM STATUS] for risk factors. "
                 "If the Risk Score is > 0.0, explain the contributing trends (CPU, Memory, Disk) "
-                "found in the live context."
+                "found in the live context. "
+                "Reference specific Alert IDs (e.g. '#2') when discussing active risks."
             ),
             AnalysisMode.EXECUTIVE: (
                 "You are an executive reporting assistant. Focus on high-level "
                 "summaries, business impact, and KPIs. Avoid technical jargon "
                 "unless necessary. Highlight uptime and cost implications.\n"
                 "CRITICAL RULE: If [CURRENT SYSTEM STATUS] shows critical risks, "
-                "highlight the operational impact immediately (e.g., 'Potential downtime detected')."
+                "highlight the operational impact immediately (e.g., 'Potential downtime detected'). "
+                "Mention key Alert IDs (e.g. '#2') for significant incidents."
             ),
         }
 

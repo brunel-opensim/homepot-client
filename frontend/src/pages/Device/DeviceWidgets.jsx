@@ -149,6 +149,11 @@ export const AlertsWidget = ({ alerts = [] }) => {
                 <div
                   className={`text-sm font-medium ${isCritical ? 'text-red-400' : 'text-orange-300'}`}
                 >
+                  {alert.id !== undefined && alert.id !== null && (
+                    <span className="inline-block mr-2 px-1.5 py-0.5 text-[10px] border border-current rounded font-mono bg-black/20">
+                      #{alert.id}
+                    </span>
+                  )}
                   {alert.message}
                 </div>
                 <div className="flex items-center gap-2 mt-1">
