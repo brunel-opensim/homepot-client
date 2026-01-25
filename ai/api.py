@@ -12,6 +12,7 @@ from sqlalchemy import and_, select
 import yaml
 
 from homepot.app.models.AnalyticsModel import Alert
+from homepot.models import Device
 from homepot.database import get_database_service
 
 from .analysis_modes import ModeManager
@@ -268,45 +269,54 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
             try:
                 db_service = await get_database_service()
                 async with db_service.get_session() as session:
-                    for reason in anomaly_reasons:
-                        # Heuristic mapping for properties
-                        severity = "warning"
-                        if "System Failure" in reason or "High Instability" in reason:
-                            severity = "critical"
-                        elif "High Error Rate" in reason:
-                            severity = "error"
-
-                        category = "hardware"
-                        if "Latency" in reason:
-                            category = "network"
-                        elif "Error" in reason or "Failure" in reason:
-                            category = "software"
-
-                        # Check for existing active alert to avoid duplicates
-                        stmt = select(Alert).where(
-                            and_(
-                                Alert.device_id == request.device_id,
-                                Alert.title == reason,
-                                Alert.status == "active",
-                            )
+                    # Verify device exists to avoid "Unknown Device" alerts
+                    device_check = await session.execute(
+                        select(Device).where(Device.device_id == request.device_id)
+                    )
+                    if not device_check.scalar_one_or_none():
+                        logger.warning(
+                            f"Skipping alert creation for unknown device_id: {request.device_id}"
                         )
-                        result = await session.execute(stmt)
-                        existing_alert = result.scalar_one_or_none()
+                    else:
+                        for reason in anomaly_reasons:
+                            # Heuristic mapping for properties
+                            severity = "warning"
+                            if "System Failure" in reason or "High Instability" in reason:
+                                severity = "critical"
+                            elif "High Error Rate" in reason:
+                                severity = "error"
 
-                        if not existing_alert:
-                            # Create new alert
-                            alert = Alert(
-                                device_id=request.device_id,
-                                title=reason,
-                                description=f"Detected by AnomalyDetector (Score: {anomaly_score:.2f})",
-                                severity=severity,
-                                category=category,
-                                status="active",
-                                ai_confidence=anomaly_score,
-                                ai_recommendation="Analysis pending...",
+                            category = "hardware"
+                            if "Latency" in reason:
+                                category = "network"
+                            elif "Error" in reason or "Failure" in reason:
+                                category = "software"
+
+                            # Check for existing active alert to avoid duplicates
+                            stmt = select(Alert).where(
+                                and_(
+                                    Alert.device_id == request.device_id,
+                                    Alert.title == reason,
+                                    Alert.status == "active",
+                                )
                             )
-                            session.add(alert)
-                    await session.commit()
+                            result = await session.execute(stmt)
+                            existing_alert = result.scalar_one_or_none()
+
+                            if not existing_alert:
+                                # Create new alert
+                                alert = Alert(
+                                    device_id=request.device_id,
+                                    title=reason,
+                                    description=f"Detected by AnomalyDetector (Score: {anomaly_score:.2f})",
+                                    severity=severity,
+                                    category=category,
+                                    status="active",
+                                    ai_confidence=anomaly_score,
+                                    ai_recommendation="Analysis pending...",
+                                )
+                                session.add(alert)
+                        await session.commit()
             except Exception as e:
                 logger.error(f"Failed to persist alerts: {e}")
 
