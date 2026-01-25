@@ -671,7 +671,7 @@ class ContextBuilder:
         context_lines = ["[ACTIVE ALERTS]"]
         for alert in alerts:
             context_lines.append(
-                f"- [{alert.severity.upper()}] {alert.title}: {alert.description}"
+                f"- [ID: {alert.id}] [{alert.severity.upper()}] {alert.title}: {alert.description}"
             )
         return "\n".join(context_lines)
 

@@ -229,6 +229,7 @@ export default function Device() {
             if (alertsData && Array.isArray(alertsData)) {
               combinedAlerts = combinedAlerts.concat(
                 alertsData.map((a) => ({
+                  id: a.id,
                   message: `${a.title}: ${a.description}`,
                   severity: a.severity,
                   timestamp: a.timestamp,
