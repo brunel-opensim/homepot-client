@@ -102,13 +102,49 @@ async def get_system_anomalies() -> Dict[str, Any]:
             all_devices = all_devices_result.scalars().all()
             device_map = {d.device_id: d.name for d in all_devices}
 
+            # 2. Fetch Active Alerts from Database (Persistent Context) FIRST
+            # We want to prioritize persistent alerts which have IDs.
+            alerts_result = await session.execute(
+                select(Alert).where(Alert.status == "active")
+            )
+            active_alerts = alerts_result.scalars().all()
+            
+            # Track which devices have active alerts to avoid duplication
+            alerted_devices = set()
+
+            for alert in active_alerts:
+                alerted_devices.add(alert.device_id)
+                anomalies.append(
+                    {
+                        "id": alert.id,
+                        "device_id": alert.device_id,
+                        "device_name": device_map.get(alert.device_id, "Unknown Device"),
+                        "score": round(alert.ai_confidence or 0.8, 2),
+                        "reasons": [alert.title, alert.description],
+                        "severity": alert.severity,
+                        "metrics": {
+                            "source": "persistent_alert",
+                            "category": alert.category,
+                        },
+                        "timestamp": (
+                            alert.timestamp.isoformat()
+                            if alert.timestamp
+                            else datetime.utcnow().isoformat()
+                        ),
+                    }
+                )
+
             # Filter for monitored devices to run active detection
             monitored_devices = [d for d in all_devices if d.is_monitored]
 
             for device in monitored_devices:
+                # If device already has an active alert, skip live detection to prefer the persistent one (with ID)
+                if device.device_id in alerted_devices:
+                    continue
+
                 device_metrics: Dict[str, Any] = {}
 
-                # 2. Get latest metrics
+                # 3. Get latest metrics
                 metrics_result = await session.execute(
                     select(DeviceMetrics)
                     .where(DeviceMetrics.device_id == device.id)
@@ -127,7 +163,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                         }
                     )
 
-                # 3. Get Flapping Count (last 1 hour)
+                # 4. Get Flapping Count (last 1 hour)
                 # Temporarily disabled for DEMO to prevent noise alerts from simulation
                 device_metrics["flapping_count"] = 0.0
 
@@ -142,7 +178,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                 # )
                 # device_metrics["flapping_count"] = float(flapping_result.scalar() or 0)
 
-                # 4. Get Consecutive Failures
+                # 5. Get Consecutive Failures
                 # Simplified: Check last 5 health checks
                 health_result = await session.execute(
                     select(HealthCheck)
@@ -179,7 +215,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                 except Exception as e:
                     logger.error(f"Failed to sync device status: {e}")
 
-                # 5. Run Detection
+                # 6. Run Detection
                 score, reasons = detector.check_anomaly(device_metrics)
 
                 if score > 0:
@@ -194,36 +230,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                             "timestamp": datetime.utcnow().isoformat(),
                         }
                     )
-
-        # 6. Fetch Active Alerts from Database (Persistent Context)
-        # This ensures that alerts created by other services (or seed data) are visible
-        alerts_result = await session.execute(
-            select(Alert).where(Alert.status == "active")
-        )
-        active_alerts = alerts_result.scalars().all()
-
-        for alert in active_alerts:
-            # Avoid duplicating if the detector also caught it (simple check by device_id)
-            # For now, we append them to showcase the persistent alerts.
-            anomalies.append(
-                {
-                    "device_id": alert.device_id,
-                    "device_name": device_map.get(alert.device_id, "Unknown Device"),
-                    "score": round(alert.ai_confidence or 0.8, 2),
-                    "reasons": [alert.title, alert.description],
-                    "severity": alert.severity,
-                    "metrics": {
-                        "source": "persistent_alert",
-                        "category": alert.category,
-                    },
-                    "timestamp": (
-                        alert.timestamp.isoformat()
-                        if alert.timestamp
-                        else datetime.utcnow().isoformat()
-                    ),
-                }
-            )
-
+        
         # Sort by score descending
         anomalies.sort(key=lambda x: float(str(x["score"])), reverse=True)
 
