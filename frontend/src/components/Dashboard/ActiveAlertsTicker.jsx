@@ -183,6 +183,7 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
               <span className={`text-sm font-semibold truncate ${styles.textClass}`}>
+                {currentAlert?.id && <span className="mr-1 opacity-70">[ID:{currentAlert.id}]</span>}
                 {currentAlert?.message?.split(':')[0] || 'Alert'}
               </span>
               <span className="text-xs text-gray-500 shrink-0">
