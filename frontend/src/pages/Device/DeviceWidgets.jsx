@@ -149,14 +149,14 @@ export const AlertsWidget = ({ alerts = [] }) => {
                 <div
                   className={`text-sm font-medium ${isCritical ? 'text-red-400' : 'text-orange-300'}`}
                 >
+                  {alert.id !== undefined && alert.id !== null && (
+                    <span className="inline-block mr-2 px-1.5 py-0.5 text-[10px] border border-current rounded font-mono bg-black/20">
+                      #{alert.id}
+                    </span>
+                  )}
                   {alert.message}
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                  {alert.id && (
-                    <div className="text-[10px] text-slate-400 font-mono bg-slate-800/50 px-1 rounded">
-                      ID: {alert.id}
-                    </div>
-                  )}
                   <div className="text-xs text-slate-500">
                     {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString() : 'Just now'}
                   </div>

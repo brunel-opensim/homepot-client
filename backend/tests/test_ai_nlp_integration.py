@@ -87,7 +87,9 @@ class TestAINLPIntegration(unittest.IsolatedAsyncioTestCase):
         call_args = mock_llm.generate_response.call_args
         context_passed = call_args[1]["context"]
 
-        self.assertNotIn("[CURRENT SYSTEM STATUS]", context_passed)
+        # Should have global context but NOT specific device context
+        self.assertIn("[CURRENT SYSTEM STATUS]", context_passed)
+        self.assertNotIn(f"Device ID: {self.device_id}", context_passed)
         mock_predictor.predict_device_failure.assert_not_called()
 
 

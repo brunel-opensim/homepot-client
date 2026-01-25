@@ -8,10 +8,10 @@ class PromptManager:
 
     @staticmethod
     def build_live_context(
-        device_id: str,
-        prediction: Dict[str, Any],
-        risk_factors: List[str],
-        recent_events: List[Any],
+        device_id: str | None,
+        prediction: Dict[str, Any] | None,
+        risk_factors: List[str] | None,
+        recent_events: List[Any] | None,
         context_data: Dict[str, str],
     ) -> str:
         """Construct the live context section of the prompt."""
@@ -29,14 +29,24 @@ class PromptManager:
         metrics_ctx = context_data.get("metrics", "")
         alert_ctx = context_data.get("alert", "")
 
+        if not device_id:
+            # Global/Dashboard View Context
+            return (
+                f"\n[CURRENT SYSTEM STATUS]\n"
+                f"\n{alert_ctx}\n\n"
+                f"{api_ctx}\n"
+                f"----------------------------------------\n"
+            )
+
+        # Device-Specific View Context
         return (
-            f"[CURRENT SYSTEM STATUS]\n"
+            f"\n[CURRENT SYSTEM STATUS]\n"
             f"Device ID: {device_id}\n"
-            f"Risk Level: {prediction.get('risk_level', 'UNKNOWN')}\n"
-            f"Failure Probability: {prediction.get('failure_probability', 0.0)}\n"
-            f"Risk Factors: {', '.join(risk_factors)}\n"
+            f"Risk Level: {prediction.get('risk_level', 'UNKNOWN') if prediction else 'UNKNOWN'}\n"
+            f"Failure Probability: {prediction.get('failure_probability', 0.0) if prediction else 0.0}\n"
+            f"Risk Factors: {', '.join(risk_factors or [])}\n"
             f"Recent Events: {recent_events}\n"
-            f"{alert_ctx}\n"
+            f"\n{alert_ctx}\n\n"
             f"{job_ctx}\n"
             f"{error_ctx}\n"
             f"{config_ctx}\n"

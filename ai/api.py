@@ -12,8 +12,8 @@ from sqlalchemy import and_, select
 import yaml
 
 from homepot.app.models.AnalyticsModel import Alert
-from homepot.models import Device
 from homepot.database import get_database_service
+from homepot.models import Device
 
 from .analysis_modes import ModeManager
 from .anomaly_detection import AnomalyDetector
@@ -109,27 +109,39 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
 
         # 3. Retrieve Real-Time Device Context (The "Senses")
         live_context = ""
-        if request.device_id:
-            try:
-                # Get failure prediction
-                prediction = await failure_predictor.predict_device_failure(
-                    request.device_id
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                # Always Fetch Alert Context (Global or Device-Specific)
+                alert_context = await context_builder.get_alert_context(
+                    device_id=request.device_id, session=session
                 )
 
-                # Get recent raw events
-                recent_events = event_store.get_recent_events(
-                    request.device_id, limit=5
-                )
+                context_data = {"alert": alert_context}
 
-                risk_factors = [
-                    f.get("name", "Unknown") for f in prediction.get("risk_factors", [])
-                ]
-                # Fetch additional context concurrently
-                db_service = await get_database_service()
-                async with db_service.get_session() as session:
+                prediction = None
+                risk_factors = None
+                recent_events = None
+
+                if request.device_id:
                     # Resolve Device ID
                     resolver = DeviceResolver(session)
                     device_int_id = await resolver.resolve(request.device_id)
+
+                    # Get failure prediction
+                    prediction = await failure_predictor.predict_device_failure(
+                        request.device_id
+                    )
+
+                    # Get recent raw events
+                    recent_events = event_store.get_recent_events(
+                        request.device_id, limit=5
+                    )
+
+                    risk_factors = [
+                        f.get("name", "Unknown")
+                        for f in prediction.get("risk_factors", [])
+                    ]
 
                     (
                         job_context,
@@ -142,7 +154,6 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                         site_context,
                         metadata_context,
                         metrics_context,
-                        alert_context,
                         user_context,
                     ) = await asyncio.gather(
                         context_builder.get_job_context(session=session),
@@ -183,9 +194,6 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                             session=session,
                             device_int_id=device_int_id,
                         ),
-                        context_builder.get_alert_context(
-                            device_id=request.device_id, session=session
-                        ),
                         (
                             context_builder.get_user_context(
                                 user_id=request.user_id, session=session
@@ -195,20 +203,31 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                         ),
                     )
 
-                context_data = {
-                    "job": job_context,
-                    "error": error_context,
-                    "config": config_context,
-                    "audit": audit_context,
-                    "api": api_context,
-                    "state": state_context,
-                    "push": push_context,
-                    "site": site_context,
-                    "metadata": metadata_context,
-                    "metrics": metrics_context,
-                    "alert": alert_context,
-                    "user": user_context,
-                }
+                    context_data.update(
+                        {
+                            "job": job_context,
+                            "error": error_context,
+                            "config": config_context,
+                            "audit": audit_context,
+                            "api": api_context,
+                            "state": state_context,
+                            "push": push_context,
+                            "site": site_context,
+                            "metadata": metadata_context,
+                            "metrics": metrics_context,
+                            "user": user_context,
+                        }
+                    )
+
+                else:
+                    # Global/Dashboard View Context
+                    api_context = await context_builder.get_api_context(session=session)
+                    user_context = ""
+                    if request.user_id:
+                        user_context = await context_builder.get_user_context(
+                            user_id=request.user_id, session=session
+                        )
+                    context_data.update({"api": api_context, "user": user_context})
 
                 live_context = PromptManager.build_live_context(
                     request.device_id,
@@ -217,10 +236,8 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                     recent_events,
                     context_data,
                 )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to fetch live context for {request.device_id}: {e}"
-                )
+        except Exception as e:
+            logger.warning(f"Failed to fetch live context: {e}")
 
         # 4. Combine Contexts
         full_context = PromptManager.build_full_prompt(
@@ -281,7 +298,10 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
                         for reason in anomaly_reasons:
                             # Heuristic mapping for properties
                             severity = "warning"
-                            if "System Failure" in reason or "High Instability" in reason:
+                            if (
+                                "System Failure" in reason
+                                or "High Instability" in reason
+                            ):
                                 severity = "critical"
                             elif "High Error Rate" in reason:
                                 severity = "error"

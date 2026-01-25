@@ -108,7 +108,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                 select(Alert).where(Alert.status == "active")
             )
             active_alerts = alerts_result.scalars().all()
-            
+
             # Track which devices have active alerts to avoid duplication
             alerted_devices = set()
 
@@ -118,7 +118,9 @@ async def get_system_anomalies() -> Dict[str, Any]:
                     {
                         "id": alert.id,
                         "device_id": alert.device_id,
-                        "device_name": device_map.get(alert.device_id, "Unknown Device"),
+                        "device_name": device_map.get(
+                            alert.device_id, "Unknown Device"
+                        ),
                         "score": round(alert.ai_confidence or 0.8, 2),
                         "reasons": [alert.title, alert.description],
                         "severity": alert.severity,
@@ -138,7 +140,8 @@ async def get_system_anomalies() -> Dict[str, Any]:
             monitored_devices = [d for d in all_devices if d.is_monitored]
 
             for device in monitored_devices:
-                # If device already has an active alert, skip live detection to prefer the persistent one (with ID)
+                # If device already has an active alert, skip live detection
+                # to prefer the persistent one (with ID)
                 if device.device_id in alerted_devices:
                     continue
 
@@ -230,7 +233,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                             "timestamp": datetime.utcnow().isoformat(),
                         }
                     )
-        
+
         # Sort by score descending
         anomalies.sort(key=lambda x: float(str(x["score"])), reverse=True)
 
@@ -390,9 +393,12 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             if active_alerts:
                 for alert in active_alerts:
                     site_context += (
-                        f"- Alert: {alert.title} (Severity: {alert.severity}) "
-                        f"on Device: {alert.device_id}. "
-                        f"Description: {alert.description}\n"
+                        f"- **ALERT RECORD**:\n"
+                        f"  ID: #{alert.id}\n"
+                        f"  Severity: {alert.severity}\n"
+                        f"  Device: {alert.device_id}\n"
+                        f"  Title: {alert.title}\n"
+                        f"  Description: {alert.description}\n\n"
                     )
             else:
                 site_context += "No active alerts.\n"
@@ -455,6 +461,8 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
                 "- Use the provided [CURRENT SYSTEM STATUS] and [RELEVANT MEMORIES] "
                 "to ground your answers in facts.\n"
                 "- If you don't know something, admit it. Do not hallucinate system details.\n"
+                "- When listing alerts, use the explicit 'ID' field provided in "
+                "the [ACTIVE SYSTEM ALERTS] section. Format as '#ID'. Do not guess IDs.\n"
                 "- Be concise, professional, and technical where appropriate."
             ),
         )

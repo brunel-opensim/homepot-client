@@ -241,8 +241,33 @@ export default function Device() {
             // 2. AI Anomalies
             if (anomalyData && anomalyData.anomalies) {
               const deviceAnomalies = anomalyData.anomalies.filter((a) => a.device_id === id);
+
+              // Create a set of "signatures" from existing alerts to avoid duplicates
+              const existingSignatures = new Set(
+                combinedAlerts.map((a) => a.message.toLowerCase())
+              );
+
+              const newAnomalies = deviceAnomalies.filter((anom) => {
+                if (!anom.reasons || anom.reasons.length === 0) return true;
+
+                // Check if any reason is already covered by an existing alert
+                // Anomaly Reason: "High CPU: 92%"
+                // DB Alert Message: "[DEMO] High CPU: 92%..."
+                const isCovered = anom.reasons.some((r) => {
+                  const reasonKey = r.split(':')[0].toLowerCase(); // "high cpu"
+                  // Check if any existing alert contains this key phrase
+                  for (let sig of existingSignatures) {
+                    if (sig.includes(reasonKey)) return true;
+                  }
+                  return false;
+                });
+
+                return !isCovered;
+              });
+
               combinedAlerts = combinedAlerts.concat(
-                deviceAnomalies.map((a) => ({
+                newAnomalies.map((a) => ({
+                  id: null, // AI Anomalies are transient, so no ID
                   message:
                     a.reasons && a.reasons.length > 0
                       ? `Anomaly: ${a.reasons[0]}`
@@ -356,18 +381,63 @@ export default function Device() {
         .catch((err) => console.debug('Job poll skipped', err));
 
       // 5. Fetch Alerts - Live
-      api.devices
-        .getAlerts(id)
-        .then((alertsData) => {
-          if (alertsData) {
-            const mappedAlerts = alertsData.map((a) => ({
-              message: `${a.title}: ${a.description}`,
-              severity: a.severity,
-              timestamp: a.timestamp,
-              source: 'Monitor',
-            }));
-            setAlerts(mappedAlerts);
+      // We must fetch from DB alerts AND AI to maintain the unified list.
+      // Currently, the polling only updates from DB, and overwrites the initial merged list!
+      // This is why IDs disappear after the first render (polling overwrites merged state).
+
+      Promise.all([
+        api.devices.getAlerts(id),
+        api.ai.getAnomalies().catch(() => ({ anomalies: [] })),
+      ])
+        .then(([alertsData, anomalyData]) => {
+          let combinedAlerts = [];
+
+          if (alertsData && Array.isArray(alertsData)) {
+            combinedAlerts = combinedAlerts.concat(
+              alertsData.map((a) => ({
+                id: a.id,
+                message: `${a.title}: ${a.description}`,
+                severity: a.severity,
+                timestamp: a.timestamp,
+                source: 'Monitor',
+              }))
+            );
           }
+
+          if (anomalyData && anomalyData.anomalies) {
+            const deviceAnomalies = anomalyData.anomalies.filter((a) => a.device_id === id);
+
+            // Create duplicates check based on message signatures
+            const existingSignatures = new Set(combinedAlerts.map((a) => a.message.toLowerCase()));
+
+            const newAnomalies = deviceAnomalies.filter((anom) => {
+              if (!anom.reasons || anom.reasons.length === 0) return true;
+              const isCovered = anom.reasons.some((r) => {
+                const reasonKey = r.split(':')[0].toLowerCase();
+                for (let sig of existingSignatures) {
+                  if (sig.includes(reasonKey)) return true;
+                }
+                return false;
+              });
+              return !isCovered;
+            });
+
+            combinedAlerts = combinedAlerts.concat(
+              newAnomalies.map((a) => ({
+                id: null,
+                message:
+                  a.reasons && a.reasons.length > 0
+                    ? `Anomaly: ${a.reasons[0]}`
+                    : `Anomaly Detected (Score: ${a.score})`,
+                severity: a.severity === 'critical' ? 'critical' : 'warning',
+                timestamp: a.timestamp,
+                source: 'AI Analysis',
+              }))
+            );
+          }
+
+          combinedAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          setAlerts(combinedAlerts);
         })
         .catch((err) => console.debug('Alerts poll skipped', err));
     }, 2000);
