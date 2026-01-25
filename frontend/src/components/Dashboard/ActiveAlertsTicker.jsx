@@ -266,6 +266,7 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
                       <div className="flex-1">
                         <div className="flex justify-between">
                           <span className={`font-medium ${alertStyles.textClass}`}>
+                            {alert.id && <span className="mr-2 text-xs opacity-70 border border-current px-1 rounded font-mono">#{alert.id}</span>}
                             {alert.message || 'Alert'}
                           </span>
                           <div className="flex items-center gap-2">
