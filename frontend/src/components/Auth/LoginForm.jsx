@@ -1,5 +1,6 @@
 // frontend/src/components/Auth/LoginForm.jsx
-import React from 'react';
+import React, { useState } from 'react';
+import SSOModal from './SSOModal';
 
 export default function LoginForm({
   activeTab,
@@ -15,6 +16,7 @@ export default function LoginForm({
   onNavigateToSignUp,
 }) {
   const activeColor = activeTab === 'ENGINEER' ? 'indigo' : 'teal';
+  const [ssoOpen, setSsoOpen] = useState(false);
 
   return (
     <>
@@ -129,13 +131,12 @@ export default function LoginForm({
             </div>
           )}
 
-          {/* SSO Button - More prominent for Engineers (Coming Soon) */}
+          {/* SSO Button - More prominent for Engineers */}
           {activeTab === 'ENGINEER' && (
             <button
               type="button"
-              disabled
-              title="Coming Soon"
-              className="w-full mb-4 py-3 px-4 bg-gray-800 border border-gray-600 rounded-lg text-gray-500 font-medium text-sm cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={() => setSsoOpen(true)}
+              className="w-full mb-4 py-3 px-4 bg-gray-800 border border-cyan-500/40 rounded-lg text-cyan-400 font-medium text-sm hover:bg-gray-700 hover:border-cyan-400 transition-all duration-300 flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path
@@ -144,7 +145,7 @@ export default function LoginForm({
                   clipRule="evenodd"
                 />
               </svg>
-              Sign in with SSO (Coming Soon)
+              Sign in with SSO
             </button>
           )}
 
@@ -153,9 +154,8 @@ export default function LoginForm({
               <>
                 <button
                   type="button"
-                  disabled
-                  title="Coming Soon"
-                  className="text-gray-500 text-sm cursor-not-allowed hover:text-gray-400 transition-colors"
+                  onClick={() => setSsoOpen(true)}
+                  className="text-teal-400 text-sm hover:text-teal-300 transition-colors"
                 >
                   SSO
                 </button>
@@ -231,6 +231,8 @@ export default function LoginForm({
           </button>
         </div>
       </form>
+
+      <SSOModal open={ssoOpen} onOpenChange={setSsoOpen} />
     </>
   );
 }

@@ -93,6 +93,15 @@ const api = {
     },
 
     /**
+     * Get Google SSO auth URL
+     * Returns: { auth_url: "https://accounts.google.com/..." }
+     */
+    googleLogin: async () => {
+      const response = await apiClient.get('/auth/login');
+      return response.data;
+    },
+
+    /**
      * Logout - clears httpOnly cookie on server
      */
     logout: async () => {
