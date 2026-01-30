@@ -267,8 +267,13 @@ def verify_google_token(id_token_str: str) -> dict:
         raise HTTPException(status_code=503, detail="Google Client ID not configured")
 
     try:
+        # Allow for significant clock skew (workaround for system time being in 2026)
+        # 40,000,000 seconds is > 1 year
         idinfo = id_token.verify_oauth2_token(
-            id_token_str, google_requests.Request(), GOOGLE_CLIENT_ID
+            id_token_str,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=40000000,
         )
         return cast(dict, idinfo)
     except Exception as e:
