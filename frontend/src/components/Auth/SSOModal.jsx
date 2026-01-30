@@ -65,7 +65,10 @@ export default function SSOModal({ open, onOpenChange }) {
               >
                 SSO Configuration
               </h2>
-              <p className="text-gray-400 text-sm tracking-wide" style={{ fontFamily: "'Inter', sans-serif" }}>
+              <p
+                className="text-gray-400 text-sm tracking-wide"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
                 Secure single sign-on authentication
               </p>
             </div>
@@ -85,8 +88,18 @@ export default function SSOModal({ open, onOpenChange }) {
           {/* Error message */}
           {error && (
             <div className="p-4 bg-red-950/60 border border-red-500/30 rounded-xl text-red-300 text-sm text-center backdrop-blur-sm flex items-center justify-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <svg
+                className="w-4 h-4 flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
               </svg>
               {error}
             </div>
@@ -158,7 +171,12 @@ export default function SSOModal({ open, onOpenChange }) {
                     viewBox="0 0 24 24"
                     stroke="currentColor"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
                   </svg>
                 </>
               )}
@@ -183,7 +201,10 @@ export default function SSOModal({ open, onOpenChange }) {
               </svg>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-gray-300 font-medium" style={{ fontFamily: "'Inter', sans-serif" }}>
+              <p
+                className="text-xs text-gray-300 font-medium"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
                 Enterprise Security
               </p>
               <p
