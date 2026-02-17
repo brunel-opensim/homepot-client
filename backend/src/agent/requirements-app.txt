@@ -1,3 +1,0 @@
-httpx==0.27.0
-psutil==5.9.8
-platformdirs==4.2.2
