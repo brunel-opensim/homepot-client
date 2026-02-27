@@ -18,7 +18,6 @@ class DatabaseSettings(BaseSettings):
             # "postgresql://homepot_user:homepot_dev_password@"
             # "localhost:5432/homepot_db"
             "postgresql://postgres:Gowtham%40123@localhost:5432/Homebot"
-
         ),
         description="Database URL (PostgreSQL)",
     )

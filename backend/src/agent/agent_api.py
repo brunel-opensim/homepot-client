@@ -6,6 +6,7 @@ from agent.utils.device_dna import collect_device_dna
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 class DeviceRegister(BaseModel):
     device_id: str
     site_id: str
@@ -26,7 +27,4 @@ async def register_device(payload: DeviceRegister):
         raise
     except Exception as e:
         logger.error("Device registration failed", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to register device"
-        )
+        raise HTTPException(status_code=500, detail="Failed to register device")
