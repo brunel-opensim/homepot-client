@@ -85,8 +85,4 @@ api_v1_router.include_router(
 )
 
 # Agent APIs
-api_v1_router.include_router(
-    agent_router,
-    prefix="/agent",
-    tags=["Agent"]
-)
+api_v1_router.include_router(agent_router, prefix="/agent", tags=["Agent"])
