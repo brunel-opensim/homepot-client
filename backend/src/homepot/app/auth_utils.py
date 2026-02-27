@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 from typing import Any, Optional, cast
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request, status
@@ -23,7 +24,12 @@ from homepot.database import get_db
 from homepot.models import Device, User
 
 # Ensure environment variables are loaded
-load_dotenv()
+# load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parents[3]
+env_path = BASE_DIR / ".env.example"
+
+load_dotenv(dotenv_path=env_path)
 
 logger = logging.getLogger(__name__)
 
