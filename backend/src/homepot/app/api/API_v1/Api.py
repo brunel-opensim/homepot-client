@@ -1,6 +1,7 @@
 """API router managing for all Endpoints in the HomePot system."""
 
 from fastapi import APIRouter
+from agent import agent_router
 
 from .Endpoints import (
     AgentsEndpoints,
@@ -81,4 +82,11 @@ api_v1_router.include_router(
 api_v1_router.include_router(AnalyticsEndpoint.router, tags=["Analytics"])
 api_v1_router.include_router(
     AIEndpoint.router, prefix="/ai", tags=["AI & Machine Learning"]
+)
+
+# Agent APIs
+api_v1_router.include_router(
+    agent_router,
+    prefix="/agent",
+    tags=["Agent"]
 )
