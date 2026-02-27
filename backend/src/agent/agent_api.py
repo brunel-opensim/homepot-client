@@ -1,6 +1,8 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import logging
+
 from agent.utils.device_dna import collect_device_dna
 
 logger = logging.getLogger(__name__)

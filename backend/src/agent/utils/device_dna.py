@@ -1,8 +1,9 @@
+import platform
 import socket
 import uuid
-import platform
-import psutil
+
 import httpx
+import psutil
 
 
 def get_local_ip():
