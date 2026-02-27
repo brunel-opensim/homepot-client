@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from agent.router import agent_router
+from agent import agent_router
 
 from .Endpoints import (
     AgentsEndpoints,
