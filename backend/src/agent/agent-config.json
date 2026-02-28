@@ -1,0 +1,5 @@
+{
+  "agent_id": "agent-0012",
+  "site_id": "site-1234",
+  "backend_url": "http://localhost:8000"
+}
