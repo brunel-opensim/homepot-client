@@ -1,38 +1,35 @@
-import platform
+from typing import Optional, Dict, Any
 import socket
 import uuid
-
-import httpx
+import platform
 import psutil
+import httpx
 
 
-def get_local_ip():
+def get_local_ip() -> Optional[str]:
     """Get primary local IP address"""
     try:
         for iface, addrs in psutil.net_if_addrs().items():
             for addr in addrs:
-                if addr.family == socket.AF_INET and not addr.address.startswith(
-                    "127."
-                ):
+                if addr.family == socket.AF_INET and not addr.address.startswith("127."):
                     return addr.address
     except Exception:
         pass
     return None
 
 
-def get_wan_ip(payload):
+def get_wan_ip(payload: Any) -> Optional[str]:
     """Get public WAN IP"""
     try:
         with httpx.Client(timeout=5.0) as client:
-            # response = client.get("https://api.ipify.org")
-            response = client.get(payload.backend_url)
+            response = client.get("https://api.ipify.org")
             response.raise_for_status()
             return response.text.strip()
     except Exception:
         return None
 
 
-def get_mac_address():
+def get_mac_address() -> Optional[str]:
     """Get primary MAC address"""
     try:
         mac = uuid.getnode()
@@ -41,7 +38,7 @@ def get_mac_address():
         return None
 
 
-def collect_device_dna(payload):
+def collect_device_dna(payload: Any) -> Dict[str, Optional[str]]:
     """Collect static Device DNA"""
     return {
         "local_ip": get_local_ip(),
