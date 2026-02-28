@@ -17,7 +17,7 @@ class DeviceRegister(BaseModel):
 
 
 @agent_router.post("/register")
-async def register_device(payload: DeviceRegister):
+async def register_device(payload: DeviceRegister) -> Dict[str, Any]:
     try:
         return {
             "status": "success",
