@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from agent.utils.device_dna import collect_device_dna
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+agent_router = APIRouter()
 
 
 class DeviceRegister(BaseModel):
@@ -16,7 +16,7 @@ class DeviceRegister(BaseModel):
     api_key: str
 
 
-@router.post("/register")
+@agent_router.post("/register")
 async def register_device(payload: DeviceRegister):
     try:
         return {
