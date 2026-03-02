@@ -6,6 +6,7 @@ used across the test suite.
 
 import asyncio
 from typing import Any, Dict, Generator
+import pytest_asyncio
 
 from fastapi.testclient import TestClient
 import pytest
@@ -80,7 +81,7 @@ def invalid_config() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def async_client():
     """Create an async test client for the HOMEPOT application."""
     from httpx import ASGITransport, AsyncClient
