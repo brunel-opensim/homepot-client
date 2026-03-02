@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -17,7 +18,7 @@ class DeviceRegister(BaseModel):
 
 
 @router.post("/register")
-async def register_devices(payload: DeviceRegister):
+async def register_devices(payload: DeviceRegister) -> Dict[str, Any]:
     try:
         return {
             "status": "success",
@@ -27,6 +28,6 @@ async def register_devices(payload: DeviceRegister):
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.error("Device registration failed", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to register device")
