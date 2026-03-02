@@ -54,7 +54,7 @@ cryptography==46.0.3  # For VAPID key generation and encryption (Web Push)
 paho-mqtt==2.1.0  # For MQTT push notifications (IoT/OT devices)
 
 # Testing
-pytest==9.0.2  # The pytest framework makes it easy to write small tests
+pytest==8.2.2  # The pytest framework makes it easy to write small tests
 pytest-asyncio==1.3.0  # Pytest support for asyncio
 pytest-cov==7.0.0  # Coverage reporting for pytest
 pytest-mock==3.15.1  # Thin-wrapper around the mock package for easier use with pytest
