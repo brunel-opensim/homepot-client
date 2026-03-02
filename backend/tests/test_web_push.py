@@ -2,7 +2,7 @@
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
-
+import pytest_asyncio
 import pytest
 
 from homepot.push_notifications.base import PushNotificationPayload, PushPriority
@@ -39,7 +39,7 @@ def sample_subscription():
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def web_push_provider(web_push_config):
     """Create and initialize a Web Push provider for testing."""
     provider = WebPushProvider(web_push_config)
