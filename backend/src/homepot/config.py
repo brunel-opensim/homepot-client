@@ -17,7 +17,6 @@ class DatabaseSettings(BaseSettings):
         default=(
             "postgresql://homepot_user:homepot_dev_password@"
             "localhost:5432/homepot_db"
-
         ),
         description="Database URL (PostgreSQL)",
     )
