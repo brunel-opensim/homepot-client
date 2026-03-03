@@ -1,6 +1,7 @@
 """API router managing for all Endpoints in the HomePot system."""
 
 from fastapi import APIRouter
+
 from homepot.agent.agent_api import router
 
 from .Endpoints import (
