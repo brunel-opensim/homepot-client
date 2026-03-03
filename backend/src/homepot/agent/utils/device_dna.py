@@ -1,9 +1,10 @@
-from typing import Optional, Dict, Any
-import socket
-import uuid
 import platform
-import psutil
+import socket
+from typing import Any, Dict, Optional
+import uuid
+
 import httpx
+import psutil
 
 
 def get_local_ip() -> Optional[str]:
