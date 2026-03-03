@@ -15,9 +15,8 @@ class DatabaseSettings(BaseSettings):
 
     url: str = Field(
         default=(
-            # "postgresql://homepot_user:homepot_dev_password@"
-            # "localhost:5432/homepot_db"
-            "postgresql://postgres:Gowtham%40123@localhost:5432/Homebot"
+            "postgresql://homepot_user:homepot_dev_password@"
+            "localhost:5432/homepot_db"
 
         ),
         description="Database URL (PostgreSQL)",
