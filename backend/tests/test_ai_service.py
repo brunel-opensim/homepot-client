@@ -114,7 +114,6 @@ async def test_analyze_endpoint_logic():
         patch("ai.llm.LLMService") as MockLLM,
         patch("ai.anomaly_detection.AnomalyDetector") as MockDetector,
     ):
-
         # Import api inside the patch context
         from ai import api
 

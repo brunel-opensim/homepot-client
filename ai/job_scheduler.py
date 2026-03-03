@@ -185,7 +185,9 @@ class PredictiveJobScheduler:
                         "impact": (
                             "positive"
                             if health_score > 0.8
-                            else "neutral" if health_score > 0.6 else "negative"
+                            else "neutral"
+                            if health_score > 0.6
+                            else "negative"
                         ),
                     }
                 )

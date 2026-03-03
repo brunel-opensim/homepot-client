@@ -86,7 +86,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -166,7 +165,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -217,7 +215,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -254,7 +251,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -308,7 +304,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -358,7 +353,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -432,7 +426,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -468,7 +461,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials with refresh capability
             mock_credentials = Mock()
             mock_credentials.token = None  # No initial token
@@ -513,7 +505,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
@@ -590,7 +581,6 @@ class TestFCMLinuxProvider:
                 "google.oauth2.service_account.Credentials.from_service_account_file"
             ) as mock_creds,
         ):
-
             # Mock credentials
             mock_credentials = Mock()
             mock_credentials.token = "test-access-token"
