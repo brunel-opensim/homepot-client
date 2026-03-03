@@ -10,16 +10,16 @@ from homepot.agent.utils.device_dna import collect_device_dna
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
- """Handles agent API endpoints and business logic."""
 class DeviceRegister(BaseModel):
+  """Handles agent API endpoints and business logic."""
     device_id: str
     site_id: str
     backend_url: str
     api_key: str
 
-"""Execute agent-related operation."""
 @router.post("/register")
 async def register_device(payload: DeviceRegister) -> Dict[str, Any]:
+ """Execute agent-related operation."""
     try:
         return {
             "status": "success",
