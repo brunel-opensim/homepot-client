@@ -10,7 +10,9 @@ def get_local_ip() -> Optional[str]:
     try:
         for iface, addrs in psutil.net_if_addrs().items():
             for addr in addrs:
-                if addr.family == socket.AF_INET and not addr.address.startswith("127."):
+                if addr.family == socket.AF_INET and not addr.address.startswith(
+                    "127."
+                ):
                     return addr.address
     except Exception:
         pass
