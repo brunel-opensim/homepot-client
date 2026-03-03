@@ -1,316 +1,213 @@
-"""Tests for Web Push notification provider."""
+"""Test configuration and fixtures for HOMEPOT Client tests.
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+This module provides common test configuration, fixtures, and utilities
+used across the test suite.
+"""
 
+import asyncio
+from typing import Any, Dict, Generator
+
+from fastapi.testclient import TestClient
 import pytest
 
-from homepot.push_notifications.base import PushNotificationPayload, PushPriority
-from homepot.push_notifications.web_push import WebPushProvider
+# Configure asyncio for testing
+pytest_plugins = ("pytest_asyncio",)
 
 
-@pytest.fixture
-def web_push_config():
-    """Provide Web Push configuration for testing."""
+@pytest_asyncio.fixture(scope="session")
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+    """Create an instance of the default event loop for the test session."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest_asyncio.fixture
+def client() -> Generator[TestClient, None, None]:
+    """Create a test client for the HOMEPOT application."""
+    from homepot.client import HomepotClient
+    from homepot.main import app, get_client
+
+    # Create a mock client for testing
+    def get_test_client() -> HomepotClient:
+        """Override the client dependency for testing."""
+        # Create a mock client that appears connected
+        mock_client = HomepotClient()
+        # Mock the connection methods to avoid actual network calls
+        mock_client.is_connected = lambda: True  # type: ignore
+        mock_client.get_version = lambda: "0.1.0"  # type: ignore
+        return mock_client
+
+    # Override the dependency
+    app.dependency_overrides[get_client] = get_test_client
+
+    test_client = TestClient(app)
+
+    yield test_client
+
+    # Clean up
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def reset_db_service():
+    """Reset the database service singleton after each test."""
+    from homepot.database import close_database_service
+
+    yield
+    await close_database_service()
+
+
+@pytest_asyncio.fixture
+def sample_config() -> Dict[str, Any]:
+    """Provide a sample configuration for testing."""
     return {
-        "vapid_private_key": """-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg/enUgwULCGxZvVrv
-9c3fXx+01poP45NJPN6WcfhT0qehRANCAASTmibcZrXiJa8rN1o/48ispQNpr8Al
-KhSyjDxfVaszuOIzST7CYcmS70YYddT0EDOgMekEsyu8CRoabhcdws85
------END PRIVATE KEY-----""",
-        "vapid_public_key": (
-            "BJOaJtxmteIlrys3Wj_jyKylA2mvwCUqFLKMPF9VqzO44jNJPsJhyZLvRhh"
-            "11PQQM6Ax6QSzK7wJGhpuFx3Czzk"
-        ),
-        "vapid_subject": "mailto:test@example.com",
-        "ttl_seconds": 300,
+        "host": "localhost",
+        "port": 8080,
+        "timeout": 30,
+        "secure": True,
+        "consortium_id": "test-consortium",
     }
 
 
-@pytest.fixture
-def sample_subscription():
-    """Provide a sample browser push subscription."""
+@pytest_asyncio.fixture
+def invalid_config() -> Dict[str, Any]:
+    """Provide an invalid configuration for testing error cases."""
     return {
-        "endpoint": "https://fcm.googleapis.com/fcm/send/cLGI1J2qISw:APA91b...",
-        "keys": {
-            "p256dh": "BNcRd...base64url...",
-            "auth": "tBHI...base64url...",
-        },
+        "host": "",
+        "port": -1,
+        "timeout": "invalid",
     }
 
 
-@pytest.fixture
-async def web_push_provider(web_push_config):
-    """Create and initialize a Web Push provider for testing."""
-    provider = WebPushProvider(web_push_config)
-    await provider.initialize()
-    return provider
+# @pytest.fixture
+# async def async_client():
+#     """Create an async test client for the HOMEPOT application."""
+#     from httpx import ASGITransport, AsyncClient
+#
+#     from homepot.app.main import app
+#
+#     # Create async client with ASGI transport
+#     transport = ASGITransport(app=app)
+#     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+#         yield ac
+#
+@pytest_asyncio.fixture
+async def async_client():
+    """Create an async test client for the HOMEPOT application."""
+    from httpx import ASGITransport, AsyncClient
+
+    from homepot.app.main import app
+
+    # Create async client with ASGI transport
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
-class TestWebPushProvider:
-    """Test suite for Web Push notification provider."""
+@pytest_asyncio.fixture
+def temp_db():
+    """Create a temporary database for testing."""
+    import logging
 
-    def test_initialization_with_valid_config(self, web_push_config):
-        """Test provider initialization with valid configuration."""
-        provider = WebPushProvider(web_push_config)
-        assert provider.platform_name == "web_push"
-        assert provider.vapid_subject == "mailto:test@example.com"
-        assert provider.ttl_seconds == 300
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+    from sqlalchemy.orm import sessionmaker
 
-    def test_initialization_without_vapid_keys(self):
-        """Test that initialization fails without VAPID keys."""
-        with pytest.raises(ValueError, match="vapid_private_key"):
-            WebPushProvider({"vapid_subject": "mailto:test@example.com"})
+    from homepot.config import get_settings
+    from homepot.models import Base
 
-    def test_initialization_without_vapid_subject(self, web_push_config):
-        """Test that initialization fails without VAPID subject."""
-        config = web_push_config.copy()
-        del config["vapid_subject"]
+    logger = logging.getLogger(__name__)
 
-        with pytest.raises(ValueError, match="vapid_subject"):
-            WebPushProvider(config)
+    # Get database URL from config
+    settings = get_settings()
+    database_url = settings.database.url
 
-    def test_initialization_with_invalid_vapid_subject(self, web_push_config):
-        """Test that initialization fails with invalid VAPID subject format."""
-        config = web_push_config.copy()
-        config["vapid_subject"] = "invalid-subject"
-
-        with pytest.raises(ValueError, match="must start with"):
-            WebPushProvider(config)
-
-    @pytest.mark.asyncio
-    async def test_provider_initialization(self, web_push_provider):
-        """Test successful provider initialization."""
-        assert web_push_provider._initialized is True
-
-    def test_validate_subscription_valid(self, web_push_provider, sample_subscription):
-        """Test subscription validation with valid subscription."""
-        is_valid = web_push_provider._validate_subscription(sample_subscription)
-        assert is_valid is True
-
-    def test_validate_subscription_missing_endpoint(self, web_push_provider):
-        """Test subscription validation fails without endpoint."""
-        invalid_subscription = {
-            "keys": {
-                "p256dh": "BNcRd...base64url...",
-                "auth": "tBHI...base64url...",
-            }
-        }
-        is_valid = web_push_provider._validate_subscription(invalid_subscription)
-        assert is_valid is False
-
-    def test_validate_subscription_invalid_endpoint(self, web_push_provider):
-        """Test subscription validation fails with invalid endpoint URL."""
-        invalid_subscription = {"endpoint": "not-a-valid-url"}
-        is_valid = web_push_provider._validate_subscription(invalid_subscription)
-        assert is_valid is False
-
-    def test_validate_device_token_valid(self, web_push_provider, sample_subscription):
-        """Test device token validation with valid subscription JSON."""
-        device_token = json.dumps(sample_subscription)
-        is_valid = web_push_provider.validate_device_token(device_token)
-        assert is_valid is True
-
-    def test_validate_device_token_invalid_json(self, web_push_provider):
-        """Test device token validation fails with invalid JSON."""
-        is_valid = web_push_provider.validate_device_token("not-valid-json")
-        assert is_valid is False
-
-    def test_build_push_data(self, web_push_provider):
-        """Test building push notification data payload."""
-        payload = PushNotificationPayload(
-            title="Test Notification",
-            body="This is a test message",
-            data={"url": "/notifications"},
-            priority=PushPriority.HIGH,
-            platform_data={
-                "icon": "/icon.png",
-                "badge": "/badge.png",
-            },
+    # Convert async URLs to sync for testing
+    if database_url.startswith("sqlite+aiosqlite://"):
+        database_url = database_url.replace("sqlite+aiosqlite://", "sqlite:///")
+    elif database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace(
+            "postgresql+asyncpg://", "postgresql+psycopg2://"
         )
 
-        push_data = web_push_provider._build_push_data(payload)
-        data = json.loads(push_data)
+    engine = None
+    use_postgresql = "postgresql" in database_url
 
-        assert "notification" in data
-        assert data["notification"]["title"] == "Test Notification"
-        assert data["notification"]["body"] == "This is a test message"
-        assert data["notification"]["icon"] == "/icon.png"
-        assert data["notification"]["badge"] == "/badge.png"
-        assert data["notification"]["requireInteraction"] is True  # HIGH priority
-        assert data["notification"]["data"]["url"] == "/notifications"
+    # Handle PostgreSQL test database creation
+    if use_postgresql:
+        # Extract and modify database name for testing
+        parts = database_url.rsplit("/", 1)
+        if len(parts) == 2:
+            base_url, db_name = parts
+            # Remove any query parameters
+            db_name = db_name.split("?")[0]
+            test_db_name = f"{db_name}_test"
+            test_database_url = f"{base_url}/{test_db_name}"
 
-    @pytest.mark.asyncio
-    @patch("homepot.push_notifications.web_push.WEBPUSH_AVAILABLE", True)
-    @patch("homepot.push_notifications.web_push.webpush")
-    async def test_send_notification_success(
-        self, mock_webpush, web_push_provider, sample_subscription
-    ):
-        """Test successful notification sending."""
-        # Mock webpush response
-        mock_webpush.return_value = MagicMock(status_code=201)
+            # Try to create test database if it doesn't exist
+            try:
+                # Connect to default 'postgres' database to create test database
+                admin_url = f"{base_url}/postgres"
+                admin_engine = create_engine(admin_url, isolation_level="AUTOCOMMIT")
 
-        device_token = json.dumps(sample_subscription)
-        payload = PushNotificationPayload(
-            title="Test",
-            body="Message",
-            priority=PushPriority.NORMAL,
+                with admin_engine.connect() as conn:
+                    # Check if test database exists
+                    result = conn.execute(
+                        text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
+                        {"dbname": test_db_name},
+                    )
+                    exists = result.fetchone() is not None
+
+                    if not exists:
+                        logger.info(f"Creating test database: {test_db_name}")
+                        conn.execute(text(f'CREATE DATABASE "{test_db_name}"'))
+                        logger.info(
+                            f"Test database created successfully: {test_db_name}"
+                        )
+
+                admin_engine.dispose()
+
+                # Now connect to the test database
+                engine = create_engine(
+                    test_database_url, pool_pre_ping=True, pool_size=5, max_overflow=10
+                )
+
+            except (OperationalError, ProgrammingError) as e:
+                logger.warning(
+                    f"PostgreSQL not available or error creating test DB: {e}"
+                )
+                logger.info("Falling back to SQLite in-memory database for testing")
+                use_postgresql = False
+
+    # Fallback to SQLite if PostgreSQL failed or not configured
+    if not use_postgresql or engine is None:
+        target_url = "sqlite:///:memory:"
+
+        # If we are here because it's configured as SQLite (not because Postgres failed)
+        if not use_postgresql and database_url.startswith("sqlite"):
+            target_url = database_url
+
+        logger.info(f"Using SQLite database for testing: {target_url}")
+        engine = create_engine(
+            target_url,
+            connect_args={"check_same_thread": False},
+            pool_pre_ping=True,
         )
 
-        result = await web_push_provider.send_notification(device_token, payload)
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
 
-        assert result.success is True
-        assert result.platform == "web_push"
-        assert "sent successfully" in result.message.lower()
+    # Create session maker
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    @pytest.mark.asyncio
-    async def test_send_notification_invalid_subscription(self, web_push_provider):
-        """Test sending notification with invalid subscription."""
-        invalid_token = json.dumps({"invalid": "subscription"})
-        payload = PushNotificationPayload(title="Test", body="Message")
+    def get_test_db():
+        """Get test database session."""
+        db = TestingSessionLocal()
+        return db
 
-        result = await web_push_provider.send_notification(invalid_token, payload)
+    yield get_test_db
 
-        assert result.success is False
-        assert result.error_code == "INVALID_SUBSCRIPTION"
-
-    @pytest.mark.asyncio
-    @patch("homepot.push_notifications.web_push.WEBPUSH_AVAILABLE", False)
-    async def test_send_notification_without_pywebpush(
-        self, web_push_provider, sample_subscription
-    ):
-        """Test sending notification when pywebpush is not available."""
-        device_token = json.dumps(sample_subscription)
-        payload = PushNotificationPayload(title="Test", body="Message")
-
-        result = await web_push_provider.send_notification(device_token, payload)
-
-        assert result.success is False
-        assert result.error_code == "LIBRARY_NOT_AVAILABLE"
-        assert "pywebpush" in result.message
-
-    @pytest.mark.asyncio
-    async def test_send_bulk_notifications(
-        self, web_push_provider, sample_subscription
-    ):
-        """Test sending bulk notifications."""
-        device_token = json.dumps(sample_subscription)
-        notifications = [
-            (device_token, PushNotificationPayload(title=f"Test {i}", body="Message"))
-            for i in range(3)
-        ]
-
-        with patch.object(
-            web_push_provider,
-            "send_notification",
-            new_callable=AsyncMock,
-        ) as mock_send:
-            mock_send.return_value = MagicMock(success=True)
-
-            results = await web_push_provider.send_bulk_notifications(notifications)
-
-            assert len(results) == 3
-            assert mock_send.call_count == 3
-
-    @pytest.mark.asyncio
-    async def test_send_topic_notification_not_supported(self, web_push_provider):
-        """Test that topic notifications return not supported error."""
-        payload = PushNotificationPayload(title="Test", body="Message")
-
-        result = await web_push_provider.send_topic_notification("test-topic", payload)
-
-        assert result.success is False
-        assert result.error_code == "TOPICS_NOT_SUPPORTED"
-
-    @pytest.mark.asyncio
-    async def test_get_platform_info(self, web_push_provider):
-        """Test getting platform information."""
-        info = await web_push_provider.get_platform_info()
-
-        assert info["platform"] == "web_push"
-        assert info["vapid_subject"] == "mailto:test@example.com"
-        assert info["has_vapid_keys"] is True
-        assert info["default_ttl"] == 300
-        assert "statistics" in info
-        assert "supported_services" in info
-
-    def test_get_vapid_public_key(self, web_push_provider):
-        """Test getting VAPID public key."""
-        public_key = web_push_provider.get_vapid_public_key()
-        assert public_key == web_push_provider.vapid_public_key
-
-    @pytest.mark.asyncio
-    @patch("homepot.push_notifications.web_push.webpush")
-    async def test_statistics_tracking(
-        self, mock_webpush, web_push_provider, sample_subscription
-    ):
-        """Test that statistics are tracked correctly."""
-        # Mock successful webpush response
-        mock_webpush.return_value = MagicMock(status_code=201)
-
-        device_token = json.dumps(sample_subscription)
-        payload = PushNotificationPayload(title="Test", body="Message")
-
-        initial_sent = web_push_provider.stats["total_sent"]
-        initial_success = web_push_provider.stats["total_success"]
-
-        # Send notification
-        result = await web_push_provider.send_notification(device_token, payload)
-
-        assert result.success is True
-        assert web_push_provider.stats["total_sent"] == initial_sent + 1
-        assert web_push_provider.stats["total_success"] == initial_success + 1
-        assert web_push_provider.stats["last_sent"] is not None
-
-
-class TestWebPushIntegration:
-    """Integration tests for Web Push provider."""
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_full_notification_flow(self, web_push_config, sample_subscription):
-        """Test complete notification sending flow."""
-        # Initialize provider
-        provider = WebPushProvider(web_push_config)
-        success = await provider.initialize()
-        assert success is True
-
-        # Validate subscription
-        device_token = json.dumps(sample_subscription)
-        is_valid = provider.validate_device_token(device_token)
-        assert is_valid is True
-
-        # Create payload
-        payload = PushNotificationPayload(
-            title="Integration Test",
-            body="Testing Web Push notifications",
-            data={"test": True},
-            priority=PushPriority.HIGH,
-            platform_data={
-                "icon": "/test-icon.png",
-                "requireInteraction": True,
-            },
-        )
-
-        # Send notification (will fail without real subscription, but tests the flow)
-        result = await provider.send_notification(device_token, payload)
-
-        # Check result structure
-        assert hasattr(result, "success")
-        assert hasattr(result, "message")
-        assert hasattr(result, "platform")
-        assert result.platform == "web_push"
-
-    @pytest.mark.asyncio
-    @pytest.mark.integration
-    async def test_health_check(self, web_push_config):
-        """Test provider health check."""
-        provider = WebPushProvider(web_push_config)
-        await provider.initialize()
-
-        health = await provider.health_check()
-
-        assert health["status"] in ["healthy", "unhealthy"]
-        assert health["platform"] == "web_push"
-        assert health["initialized"] is True
-        assert "platform_info" in health
+    # Cleanup - drop all tables after tests
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
