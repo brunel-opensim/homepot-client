@@ -116,16 +116,14 @@ class EventStore:
                 # For now, we only support metrics updates in this table
                 return
 
-            query = text(
-                """
+            query = text("""
                 INSERT INTO device_metrics (
                     device_id, timestamp, cpu_percent, memory_percent,
                     disk_percent, network_latency_ms, error_rate
                 ) VALUES (
                     :device_id, :timestamp, :cpu, :memory, :disk, :latency, :error_rate
                 )
-            """
-            )
+            """)
 
             with self.engine.connect() as conn:
                 conn.execute(
@@ -155,14 +153,12 @@ class EventStore:
         # Fallback to DB if cache empty
         if self.engine:
             try:
-                query = text(
-                    """
+                query = text("""
                     SELECT * FROM device_metrics
                     WHERE device_id = :device_id
                     ORDER BY timestamp DESC
                     LIMIT :limit
-                """
-                )
+                """)
                 with self.engine.connect() as conn:
                     result = conn.execute(
                         query, {"device_id": device_id, "limit": limit}

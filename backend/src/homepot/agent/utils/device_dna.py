@@ -8,6 +8,7 @@ import uuid
 import httpx
 import psutil
 
+
 def get_local_ip() -> Optional[str]:
     """Retrieve the first non-loopback local IPv4 address."""
     try:
