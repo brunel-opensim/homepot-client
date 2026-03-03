@@ -9,7 +9,8 @@ def load_agent_config() -> Dict[str, Any]:
     """Load the agent configuration from the JSON file."""
     config_path = Path(__file__).parent / "agent-config.json"
     with config_path.open("r", encoding="utf-8") as file:
-        return json.load(file)
+        data = json.load(file)
+    return cast(Dict[str, Any], data)
 
 
 if __name__ == "__main__":
