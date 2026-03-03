@@ -1,1 +1,5 @@
-from homepot.agent.agent_api import router
+"""Agent package for Homepot backend."""
+
+from .agent_api import router
+
+__all__ = ["router"]
