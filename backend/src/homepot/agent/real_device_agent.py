@@ -2,8 +2,8 @@
 import json
 from pathlib import Path
 
-"""Connect and initialize the real device agent."""
 def load_agent_config():
+    """Connect and initialize the real device agent."""
     config_path = Path(__file__).parent / "agent-config.json"
     with open(config_path, "r") as f:
         return json.load(f)
