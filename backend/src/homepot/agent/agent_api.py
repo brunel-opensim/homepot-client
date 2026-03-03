@@ -4,7 +4,7 @@ from typing import Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from agent.utils.device_dna import collect_device_dna
+from homepot.agent.utils.device_dna import collect_device_dna
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

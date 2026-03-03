@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from agent.agent_api import router
+from homepot.agent.agent_api import router
 
 from .Endpoints import (
     AgentsEndpoints,
