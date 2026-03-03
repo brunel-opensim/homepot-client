@@ -1,4 +1,5 @@
-"""API routes for agent-related operations in the Homepot backend."""    
+"""API routes for agent-related operations in the Homepot backend."""
+
 import logging
 from typing import Any, Dict
 
@@ -10,16 +11,19 @@ from homepot.agent.utils.device_dna import collect_device_dna
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 class DeviceRegister(BaseModel):
-  """Handles agent API endpoints and business logic."""
+    """Schema for device registration request."""
+
     device_id: str
     site_id: str
     backend_url: str
     api_key: str
 
+
 @router.post("/register")
 async def register_device(payload: DeviceRegister) -> Dict[str, Any]:
- """Execute agent-related operation."""
+    """Register a device and return collected device DNA information."""
     try:
         return {
             "status": "success",
