@@ -6,6 +6,7 @@ used across the test suite.
 
 import asyncio
 from typing import Any, Dict, Generator
+import pytest_asyncio
 
 from fastapi.testclient import TestClient
 import pytest
@@ -14,7 +15,7 @@ import pytest
 pytest_plugins = ("pytest_asyncio",)
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Create an instance of the default event loop for the test session."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
@@ -22,7 +23,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     loop.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def client() -> Generator[TestClient, None, None]:
     """Create a test client for the HOMEPOT application."""
     from homepot.client import HomepotClient
@@ -49,7 +50,7 @@ def client() -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def reset_db_service():
     """Reset the database service singleton after each test."""
     from homepot.database import close_database_service
@@ -58,7 +59,7 @@ async def reset_db_service():
     await close_database_service()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def sample_config() -> Dict[str, Any]:
     """Provide a sample configuration for testing."""
     return {
@@ -70,7 +71,7 @@ def sample_config() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def invalid_config() -> Dict[str, Any]:
     """Provide an invalid configuration for testing error cases."""
     return {
@@ -80,7 +81,19 @@ def invalid_config() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture
+# @pytest.fixture
+# async def async_client():
+#     """Create an async test client for the HOMEPOT application."""
+#     from httpx import ASGITransport, AsyncClient
+#
+#     from homepot.app.main import app
+#
+#     # Create async client with ASGI transport
+#     transport = ASGITransport(app=app)
+#     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+#         yield ac
+#
+@pytest_asyncio.fixture
 async def async_client():
     """Create an async test client for the HOMEPOT application."""
     from httpx import ASGITransport, AsyncClient
@@ -93,7 +106,7 @@ async def async_client():
         yield ac
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def temp_db():
     """Create a temporary database for testing."""
     import logging
