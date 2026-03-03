@@ -1,3 +1,4 @@
+"""Utility functions for generating and validating device DNA."""
 import platform
 import socket
 from typing import Any, Dict, Optional
@@ -37,7 +38,7 @@ def get_mac_address() -> Optional[str]:
     except Exception:
         return None
 
-
+"""Generate a unique DNA signature for a device."""
 def collect_device_dna(payload: Any) -> Dict[str, Optional[str]]:
     return {
         "local_ip": get_local_ip(),
