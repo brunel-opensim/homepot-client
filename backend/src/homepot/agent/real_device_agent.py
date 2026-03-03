@@ -2,8 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict
-
+from typing import Any, Dict, cast
 
 def load_agent_config() -> Dict[str, Any]:
     """Load the agent configuration from the JSON file."""
