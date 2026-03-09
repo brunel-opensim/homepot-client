@@ -1,6 +1,6 @@
-# Complete HOMEPOT Website Setup Guide
+# Complete HOMEPOT Dashboard Setup Guide
 
-This guide provides step-by-step instructions to run the complete HOMEPOT website with full frontend-backend integration.
+This guide provides step-by-step instructions to run the complete HOMEPOT dashboard with full frontend-backend integration.
 
 ## Table of Contents
 
@@ -38,7 +38,7 @@ Use the provided script to start everything automatically:
 
 ```bash
 # From the repository root
-./scripts/start-website.sh
+./scripts/start-dashboard.sh
 ```
 
 This script will:
@@ -46,7 +46,7 @@ This script will:
 2. Start the backend server on `http://localhost:8000`
 3. Switch to Node.js 22
 4. Start the frontend server on `http://localhost:5173`
-5. Open the website in your browser
+5. Open the dashboard in your browser
 
 ## Manual Setup
 
@@ -106,7 +106,7 @@ VITE v7.2.1  ready in 188 ms
 ➜  Network: use --host to expose
 ```
 
-### Step 3: Access the Website
+### Step 3: Access the Dashboard
 
 Open your browser and navigate to:
 ```
@@ -145,7 +145,7 @@ curl -H "Content-Type: application/json" \
 
 ### 3. Full Integration Test
 
-1. **Open the website**: `http://localhost:5173`
+1. **Open the dashboard**: `http://localhost:5173`
 2. **Login Page**: You should see the login form
 3. **Create Account**: Click "Sign up" to create a new account
 4. **Dashboard**: After login, you should see:

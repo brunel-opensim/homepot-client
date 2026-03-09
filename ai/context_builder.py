@@ -668,7 +668,7 @@ class ContextBuilder:
         if not alerts:
             return "No active alerts."
 
-        context_lines = ["*** ACTIVE ALERTS ***"]
+        context_lines = ["[ACTIVE SYSTEM ALERTS]"]
         for alert in alerts:
             context_lines.append(
                 f"- #{alert.id} [{alert.severity.upper()}] {alert.title}: {alert.description}"

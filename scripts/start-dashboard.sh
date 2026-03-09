@@ -1,12 +1,12 @@
 #!/bin/bash
 
 ################################################################################
-# HOMEPOT Complete Website Startup Script
+# HOMEPOT Complete Dashboard Startup Script
 #
 # This script starts both the backend and frontend servers for the complete
-# HOMEPOT website experience with full integration.
+# HOMEPOT dashboard experience with full integration.
 #
-# Usage: ./scripts/start-website.sh
+# Usage: ./scripts/start-dashboard.sh
 ################################################################################
 
 set -e
@@ -25,7 +25,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║                                                                ║${NC}"
-echo -e "${CYAN}║                  HOMEPOT COMPLETE WEBSITE SETUP                ║${NC}"
+echo -e "${CYAN}║                  HOMEPOT COMPLETE DASHBOARD SETUP                ║${NC}"
 echo -e "${CYAN}║                                                                ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -118,7 +118,7 @@ if port_in_use 8000; then
         print_success "Killed existing process on port 8000"
     else
         print_error "Cannot start backend - port 8000 is in use"
-        echo -e "${YELLOW}Tip: Run ./scripts/stop-website.sh to clean up old processes${NC}"
+        echo -e "${YELLOW}Tip: Run ./scripts/stop-dashboard.sh to clean up old processes${NC}"
         exit 1
     fi
 else
@@ -294,7 +294,7 @@ echo ""
 echo -e "${YELLOW}Quick Commands:${NC}"
 echo -e "  ${CYAN}View backend logs:${NC}  tail -f $REPO_ROOT/logs/backend.log"
 echo -e "  ${CYAN}View frontend logs:${NC} tail -f $REPO_ROOT/logs/frontend.log"
-echo -e "  ${CYAN}Stop all services:${NC}  $REPO_ROOT/scripts/stop-website.sh"
+echo -e "  ${CYAN}Stop all services:${NC}  $REPO_ROOT/scripts/stop-dashboard.sh"
 echo -e "  ${CYAN}Test API:${NC}           curl http://localhost:8000/api/v1/sites/"
 echo ""
 echo -e "${GREEN}Next Steps:${NC}"
@@ -303,22 +303,22 @@ echo -e "  2. You'll be redirected to login page"
 echo -e "  3. Create an account using the signup form"
 echo -e "  4. Login and explore the dashboard"
 echo ""
-echo -e "${CYAN}For detailed testing, see: docs/complete-website-setup.md${NC}"
+echo -e "${CYAN}For detailed testing, see: docs/complete-dashboard-setup.md${NC}"
 echo ""
 
 echo -e "${YELLOW}NOTE: To restart the system cleanly:${NC}"
-echo -e "  1. Stop services: ${CYAN}./scripts/stop-website.sh${NC}"
-echo -e "  2. Start again:   ${CYAN}./scripts/start-website.sh${NC}"
+echo -e "  1. Stop services: ${CYAN}./scripts/stop-dashboard.sh${NC}"
+echo -e "  2. Start again:   ${CYAN}./scripts/start-dashboard.sh${NC}"
 echo ""
 
 # Optional: Open browser automatically
 if command_exists xdg-open; then
-    print_info "Opening website in browser..."
+    print_info "Opening dashboard in browser..."
     sleep 2
     xdg-open http://localhost:5173 2>/dev/null || true
 elif command_exists open; then
     # macOS
-    print_info "Opening website in browser..."
+    print_info "Opening dashboard in browser..."
     sleep 2
     open http://localhost:5173 2>/dev/null || true
 fi

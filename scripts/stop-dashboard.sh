@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ################################################################################
-# HOMEPOT Website Stop Script
+# HOMEPOT Dashboard Stop Script
 #
 # This script stops both the backend and frontend servers.
 #
-# Usage: ./scripts/stop-website.sh
+# Usage: ./scripts/stop-dashboard.sh
 ################################################################################
 
 # Colors for output

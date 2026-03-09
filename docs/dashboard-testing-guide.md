@@ -1,6 +1,6 @@
-# HOMEPOT Website Integration Testing Guide
+# HOMEPOT Dashboard Integration Testing Guide
 
-This guide will help you manually test the complete HOMEPOT website integration.
+This guide will help you manually test the complete HOMEPOT dashboard integration.
 
 ## Current Status
 
@@ -20,7 +20,7 @@ This guide will help you manually test the complete HOMEPOT website integration.
 
 ### 1. Homepage & Routing ✓
 
-**Test:** Open the website
+**Test:** Open the dashboard
 ```
 URL: http://localhost:5173
 ```
