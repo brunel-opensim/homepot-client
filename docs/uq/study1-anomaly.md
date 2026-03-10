@@ -1,11 +1,11 @@
 # Study 1 — Anomaly Detector Sensitivity Analysis
 
 **Status:** Implemented and executed.  
-**Script:** [`run_anomaly_uq.py`](run_anomaly_uq.py)  
-**Model wrapper:** [`anomaly_runner.py`](anomaly_runner.py)  
-**Model under analysis:** [`ai/anomaly_detection.py`](../../ai/anomaly_detection.py)
+**Script:** `uq/study1_anomaly/run_anomaly_uq.py`  
+**Model wrapper:** `uq/study1_anomaly/anomaly_runner.py`  
+**Model under analysis:** `ai/anomaly_detection.py`
 
-> For setup instructions and an overview of all studies, see [`uq/README.md`](../README.md).
+> For setup instructions and an overview of all studies, see [UQ Overview](overview.md).
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## Background and motivation
 
-The `AnomalyDetector` class in [`ai/anomaly_detection.py`](../../ai/anomaly_detection.py)
+The `AnomalyDetector` class in `ai/anomaly_detection.py`
 is responsible for deciding whether a POS device is behaving abnormally. It is called
 by the AI API layer and its score directly influences what alerts operators see.
 
@@ -68,13 +68,13 @@ points**. Each point is a specific combination of values for all seven metrics. 
 `AnomalyDetector` is run once at each point. The PCE fitting and statistical analysis
 then take milliseconds.
 
-The campaign is orchestrated by [`run_anomaly_uq.py`](run_anomaly_uq.py) using the
-following EasyVVUQ components:
+The campaign is orchestrated by `run_anomaly_uq.py` using the following EasyVVUQ
+components:
+
 - `PCESampler` — generates the 2 187 input combinations
-- `GenericEncoder` — writes each combination to `input.json` using
-  [`anomaly_runner.template`](anomaly_runner.template)
-- `ExecuteLocal` — runs [`anomaly_runner.py`](anomaly_runner.py) once per sample,
-  which imports `AnomalyDetector` from [`ai/anomaly_detection.py`](../../ai/anomaly_detection.py)
+- `GenericEncoder` — writes each combination to `input.json` using `anomaly_runner.template`
+- `ExecuteLocal` — runs `anomaly_runner.py` once per sample,
+  which imports `AnomalyDetector` from `ai/anomaly_detection.py`
   and writes the result to `output.json`
 - `JSONDecoder` — collects results into the campaign database
 - `PCEAnalysis` — fits the polynomial and computes statistics
@@ -126,6 +126,7 @@ For a `Uniform(a, b)` input with a binary threshold check at value $T$:
 $$P(\text{fires}) = \frac{b - T}{b - a}$$
 
 Both extremes collapse the Sobol index toward zero:
+
 - **Fires rarely (~0%)** → the metric almost never changes the score → Sobol ≈ 0
 - **Fires almost always (~100%)** → the metric adds a near-constant offset to every score → variance ≈ 0 → Sobol ≈ 0
 
@@ -142,7 +143,7 @@ this in mind:
 | `flapping_count` | Uniform | 0 – 10 per hr | 5 | ~50% | Balanced; fires half the time |
 | `consecutive_failures` | Uniform | 0 – 15 | 3 | ~80% | Extended max to 15 to cover severe multi-hour outage scenarios |
 
-These are defined in [`run_anomaly_uq.py`](run_anomaly_uq.py) in the `vary` dictionary.
+These are defined in `run_anomaly_uq.py` in the `vary` dictionary.
 
 ### How the pipeline works end-to-end
 
@@ -201,6 +202,8 @@ The score distribution is heavily saturated toward 1.0. The alert fatigue proble
 identified in [What the results mean](#what-the-results-mean-for-the-homepot-system)
 persists and requires the weight/threshold changes in Recommendations B and C.
 
+![Distribution of anomaly scores across PCE sample space](images/hist_anomaly_score.png)
+
 ### First-order Sobol sensitivity indices
 
 Recall that a Sobol index answers: *"If I vary only this metric — leaving all others
@@ -218,8 +221,9 @@ an index of 0.0 means the metric is completely invisible to the detector.
 | `memory_percent` | **0.000** | **~0%** | Same as CPU. |
 | `disk_percent` | **0.000** | **~0%** | Same as CPU. |
 
-> **These results reflect the detector after [Recommendation A](#recommendation-a--fix-the-config-key-bugs-implemented)
-> was applied, run with calibrated input ranges.**
+> These results reflect the detector after [Recommendation A](#recommendation-a--fix-the-config-key-bugs-implemented) was applied, run with calibrated input ranges.
+
+![Anomaly score: Sobol sensitivity indices (PCE order 2)](images/sobol_anomaly_score.png)
 
 ### Why does error_rate have a Sobol index of 0.000?
 
@@ -237,6 +241,7 @@ This is the **saturation paradox**:
 > A parameter that fires almost *all* the time looks statistically identical to a
 > parameter that fires almost *none* of the time — both have near-zero Sobol indices.
 > The difference is:
+>
 > - A parameter that never fires doesn't affect the score at all.
 > - A parameter that **always fires** raises the baseline score for *every* device,
 >   inflating the mean toward 1.0 and suppressing variance.
@@ -261,9 +266,8 @@ effects* — combinations of metrics that jointly push scores to the cap.
 
 During analysis, the anomalously low Sobol index for `network_latency_ms` (0.042
 despite a substantial weight of +0.40) prompted inspection of
-[`ai/anomaly_detection.py`](../../ai/anomaly_detection.py) lines 38–39. The code was
-loading two thresholds using **different dictionary keys** than the ones present in
-[`ai/config.yaml`](../../ai/config.yaml):
+`ai/anomaly_detection.py` lines 38–39. The code was loading two thresholds using
+**different dictionary keys** than the ones present in `ai/config.yaml`:
 
 | Key in `config.yaml` | Key the code was looking for | Effect |
 |---|---|---|
@@ -298,169 +302,61 @@ factor). The resource checks are nearly invisible to the scoring system at the c
   invisible to the alerting system.
 
 This may or may not match operational intent. Consecutive health check failures are
-a strong real-time signal of an already-broken device. But a device visibly running
-out of CPU or memory is likely to fail *soon*, and the current detector gives operators
-very little early warning of that trajectory.
+a strong signal of device unavailability. But extremely high CPU or memory usage
+for extended periods is also operationally significant. The current weights make
+availability the only thing that matters.
 
-### 2. Alert fatigue from a saturated score distribution
+### 2. The 90% resource thresholds are effectively dead zones
 
-A mean anomaly score of **0.958** across uniformly sampled device states means the
-detector fires near-maximum severity for the majority of the realistic input space.
-In a production fleet this would manifest as most devices appearing permanently at
-critical severity — a classic **alert fatigue** problem where genuine emergencies are
-buried in background noise.
+At 90% CPU/memory/disk thresholds, these checks fire in only ~11% of samples. In
+most realistic device states, they never fire. Lowering the thresholds (or raising
+the weights) would make them contribute meaningfully.
 
-An effective anomaly detector should produce a score distribution peaked near zero
-for normal operation, rising sharply only for genuinely abnormal states. The current
-distribution peaks near 1.0. This is caused by the combination of:
-- High weights (+0.80, +0.60) for stability metrics that fire frequently across the
-  input space.
-- Resource thresholds set at near-exhaustion levels (90–95%), which still allow each
-  resource metric to contribute 0.20 to the score across a meaningful fraction of
-  samples.
+### 3. Alert fatigue is baked in by design
 
-### 3. Config customisation was silently broken for two metrics — now fixed
+With a mean score of 0.958 across all calibrated inputs, operators will receive
+critical alerts for 9 out of 10 device states in the input space covered by this
+study. This will make the alerting system unreliable in practice — if everything
+is critical, nothing is.
 
-The purpose of `ai/config.yaml` is to let operators tune the detector's behaviour
-without touching source code. However, before the fix, `ai/anomaly_detection.py`
-looked for dictionary keys with *different names* (`"max_latency_ms"` and
-`"max_error_rate"`) that did not exist in the config file. Python's `.get()` method
-returns the fallback default silently when a key is not found — no error is raised,
-no warning is logged.
+### 4. Config/code misalignment was detectable only by UQ
 
-The consequences of this **silent disconnect** were:
-
-- An operator who lowered `network_latency_ms` from 200 to 100 in `config.yaml` to
-  make the detector more sensitive to slow networks would see no change in behaviour.
-- A developer who raised `error_rate` to reduce false positives during a known
-  degraded period would have no effect on the running system.
-
-**This has been fixed** (Recommendation A). Both `.get()` calls now use the correct
-keys matching `config.yaml`.
+The config key bugs found during this study would not be caught by unit tests that
+mock the config reading, or by integration tests that only check a small number of
+hand-picked input combinations. The bug was only visible because the UQ analysis
+showed a lower-than-expected Sobol index for `network_latency_ms`, which prompted
+a detailed code inspection.
 
 ---
 
 ## Recommended changes
 
-The following changes are **recommended**, not implemented. They should be reviewed
-against operational requirements before applying, as they will change the alert
-behaviour seen by operators.
+### Recommendation A — Fix the config key bugs *(Implemented)*
 
-All changes affect two files:
-[`ai/anomaly_detection.py`](../../ai/anomaly_detection.py) and
-[`ai/config.yaml`](../../ai/config.yaml).
+The two mismatched config keys in `ai/anomaly_detection.py` have been corrected:
 
----
+- `"max_latency_ms"` → `"network_latency_ms"` (matches `config.yaml` key)
+- `"max_error_rate"` → `"error_rate"` (matches `config.yaml` key)
 
-### Recommendation A — Fix the config key bugs (Implemented)
+This ensures that changes to `ai/config.yaml` are actually reflected in the
+running system.
 
-**Risk: low. Value: high. These are correctness fixes.**
+### Recommendation B — Lower resource-metric thresholds
 
-This recommendation has been applied to
-[`ai/anomaly_detection.py`](../../ai/anomaly_detection.py). The two incorrect `.get()`
-key names were replaced:
+Lower the CPU, memory, and disk thresholds from 90% to a more operationally
+meaningful level (e.g. 80%) so that resource pressure fires in a larger fraction
+of realistic device states and contributes to score variance. This can be done
+solely via `ai/config.yaml` without touching the scoring code.
 
-```python
-# BEFORE (bug) — keys not found in config.yaml; hardcoded defaults used silently
-"error_rate": config_thresholds.get("max_error_rate", 0.05),
-"network_latency_ms": config_thresholds.get("max_latency_ms", 500.0),
+### Recommendation C — Rebalance the weights
 
-# AFTER (fixed) — keys now match config.yaml exactly
-"error_rate": config_thresholds.get("error_rate", 0.05),
-"network_latency_ms": config_thresholds.get("network_latency_ms", 200.0),
-```
+The +0.80 weight for `consecutive_failures` is approximately 4× the resource
+weights. Consider whether this extreme dominance reflects operational intent.
+A more balanced weighting (e.g. +0.50 / +0.30 / +0.20 tiers) would give each
+category a fairer share of score variance.
 
-**Measured effect:** `network_latency_ms` Sobol index rose from 0.042 (pre-fix) to
-0.138 (post-fix with calibrated ranges). Operators can now tune `network_latency_ms`
-and `error_rate` in `config.yaml` with confidence that the running system will respond.
+### Recommendation D — Re-run after production telemetry is available
 
----
-
-### Recommendation B — Lower the resource thresholds to warning level
-
-**Risk: moderate (more devices will trigger resource alerts). Value: early warning.**
-
-The current thresholds of 90–95% mean the detector only reacts when resources are
-nearly exhausted. Lowering them to warning-level values lets the detector flag devices
-under pressure before they fail.
-
-In [`ai/config.yaml`](../../ai/config.yaml):
-
-```yaml
-# CURRENT
-anomaly_detection:
-  thresholds:
-    cpu_percent: 90.0
-    memory_percent: 90.0
-    disk_percent: 90.0       # Note: code default is 95.0
-
-# RECOMMENDED
-anomaly_detection:
-  thresholds:
-    cpu_percent: 75.0        # Flags sustained high load before near-exhaustion
-    memory_percent: 80.0
-    disk_percent: 85.0
-```
-
-With these thresholds the resource checks will fire in approximately 42%, 33%, and
-25% of samples respectively (versus ~11% each currently), increasing their Sobol
-indices from ~0.000 to an estimated ~0.08–0.12 each.
-
----
-
-### Recommendation C — Rebalance the scoring weights
-
-**Risk: moderate (changes which device states trigger critical alerts). Value: balance.**
-
-The current weights create roughly a **10× imbalance** between the stability metrics
-(`consecutive_failures`, `flapping`) and the resource metrics (CPU/memory/disk).
-The recommended weights below reduce this imbalance while keeping the correct priority
-ordering.
-
-In [`ai/anomaly_detection.py`](../../ai/anomaly_detection.py), change the `score +=`
-lines in `check_anomaly()`:
-
-```python
-# CURRENT weights
-score += 0.8   # consecutive_failures
-score += 0.6   # flapping_count
-score += 0.5   # error_rate
-score += 0.4   # network_latency_ms
-score += 0.2   # cpu_percent
-score += 0.2   # memory_percent
-score += 0.2   # disk_percent
-
-# RECOMMENDED weights
-score += 0.5   # consecutive_failures  — still the single highest; critical on its own
-score += 0.4   # flapping_count
-score += 0.4   # error_rate
-score += 0.3   # network_latency_ms
-score += 0.35  # cpu_percent
-score += 0.35  # memory_percent
-score += 0.35  # disk_percent
-```
-
-**What this means in practice for key device states:**
-
-| Device state | Current score | Recommended score |
-|---|---|---|
-| CPU + memory + disk all over threshold | 0.60 | **1.0** (capped) |
-| `consecutive_failures` alone (≥ 3) | 0.80 | 0.50 *(still actionable)* |
-| `consecutive_failures` + high CPU | 1.0 | 0.85 |
-| High error rate only | 0.50 | 0.40 |
-| All seven metrics over threshold | 1.0 | 1.0 |
-
----
-
-### Predicted impact after all three recommendations
-
-To validate the effect of the recommendations, re-run Study 1 after implementing them:
-
-```bash
-HOMEPOT_PATH=$(pwd) .venv/bin/python uq/study1_anomaly/run_anomaly_uq.py
-```
-
-After the changes, no single metric should dominate. The detector's score will reflect
-a balanced view of all device health dimensions, and the score distribution will be
-less skewed toward 1.0 — reducing alert fatigue while increasing sensitivity to
-resource-related degradation.
+Replace the Uniform input distributions with distributions fitted to observed
+fleet telemetry. This will give production-accurate Sobol indices and may reveal
+additional imbalances in the current weight structure.

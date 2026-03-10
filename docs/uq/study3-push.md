@@ -1,11 +1,11 @@
 # Study 3 — Push Notification Delivery Reliability UQ
 
 **Status:** Implemented and executed.  
-**Script:** [`run_push_uq.py`](run_push_uq.py)  
-**Model runner:** [`push_runner.py`](push_runner.py)  
+**Script:** `uq/study3_push/run_push_uq.py`  
+**Model runner:** `uq/study3_push/push_runner.py`  
 **Model under analysis:** Push notification delivery (probabilistic model)
 
-> For setup instructions and an overview of all studies, see [`uq/README.md`](../README.md).
+> For setup instructions and an overview of all studies, see [UQ Overview](overview.md).
 
 ---
 
@@ -104,8 +104,7 @@ Study 3 uses the same **EasyVVUQ `MCSampler` + `QMCAnalysis`** framework as Stud
 ### Why this method
 
 - Saltelli/QMC provides robust estimates of moments and Sobol sensitivity indices
-- The deterministic runner isolates input uncertainty from Monte Carlo noise in the
-  model evaluations
+- The deterministic runner isolates input uncertainty from Monte Carlo noise in the model evaluations
 - Separate prior-sensitivity campaigns make assumption risk explicit
 
 **Note on scipy compatibility:** chaospy 4.3.2 calls `scipy.special.btdtri` which
@@ -143,12 +142,6 @@ EasyVVUQ campaign  (run_push_uq.py)
 HOMEPOT_PATH=$(pwd) .venv/bin/python uq/study3_push/run_push_uq.py
 ```
 
-Four plots are saved to `figs/`:
-- `failure_rate_hist.png` — histogram of per-device failure rate across the joint MC
-- `p_at_least_k.png` — $P(\text{at least }k\text{ of 50 receive})$ for $k=40\ldots 50$
-- `confidence_vs_fleet_size.png` — delivery confidence as a function of fleet size
-- `failure_sensitivity.png` — comparison of failure distributions under three priors
-
 ---
 
 ## Results
@@ -162,6 +155,8 @@ The campaign ran successfully: **20,000 Saltelli samples (N_MC=5,000)**.
 | `expected_failures` | **1.27** | 1.55 | 0.07 | 3.21 | devices |
 | `failure_rate` | **5.00%** | 4.75% | 0.55% | 11.4% | fraction |
 | `campaign_time_ms` | **471.8** | 34.8 | 441.9 | 491.3 | ms |
+
+![Distribution of failure rate (n ~ DiscreteUniform(1,50), p ~ Beta(19,1), N_MC=5,000)](images/failure_rate_hist.png)
 
 ### First-order Sobol indices
 
@@ -189,6 +184,12 @@ The campaign ran successfully: **20,000 Saltelli samples (N_MC=5,000)**.
 | 49 | 29.83% |
 | 50 | **8.44%** |
 
+![P(at least k of 50 devices receive notification)](images/p_at_least_k.png)
+
+### Campaign time and zero-failure probability vs fleet size
+
+![Campaign time and zero-failure probability vs fleet size](images/confidence_vs_fleet_size.png)
+
 ### Sensitivity to `success_rate` assumption
 
 Three additional EasyVVUQ campaigns (N_MC = 1,000 each) explore how the Beta prior
@@ -202,6 +203,8 @@ on `success_rate` changes the failure rate distribution and Sobol decomposition:
 
 *S₁ estimates slightly exceed 1.0 due to Saltelli estimator noise on a near-exact
 functional relationship (failure_rate = 1 − success_rate).*
+
+![Sensitivity to success_rate assumption — three Beta priors compared](images/failure_sensitivity.png)
 
 ---
 
@@ -219,7 +222,7 @@ functional relationship (failure_rate = 1 − success_rate).*
 ### Sensitivity interpretation
 
 - `failure_rate` is almost entirely controlled by uncertainty in `success_rate`, as
-  expected from the identity $\text{failure_rate}=1-p$.
+  expected from the identity $\text{failure\_rate}=1-p$.
 - `campaign_time_ms` is almost entirely controlled by `num_devices`; reliability
   uncertainty does not materially affect this time model.
 - `expected_failures` is influenced by both, but primarily by `success_rate`.
@@ -242,7 +245,7 @@ functional relationship (failure_rate = 1 − success_rate).*
 3. Report two reliability views in product dashboards:
    - $P(\ge k\text{ successes} \mid n)$ for key thresholds
    - Worst-decile (P90/P95) expected failures
-4. For large campaigns, design fallback behavior explicitly for non-negligible shortfall
+4. For large campaigns, design fallback behaviour explicitly for non-negligible shortfall
    probabilities (for example retries, delayed second wave, or channel failover).
 5. Keep the deterministic UQ runner for sensitivity attribution, and complement it with
    scenario tests that include correlated failures.

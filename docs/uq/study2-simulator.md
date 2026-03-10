@@ -1,26 +1,26 @@
 # Study 2 — Device Simulator Scenario Boundary Validation
 
-**Status:** Implemented and executed.   
-**Script:** [`run_simulator_uq.py`](run_simulator_uq.py)  
-**Model wrapper:** [`anomaly_runner.py`](anomaly_runner.py)
-**Model under analysis:** [`backend/.../DeviceSimulatorEndpoint.py`](../../backend/src/homepot/app/api/API_v1/Endpoints/DeviceSimulatorEndpoint.py) — `_generate_metrics_for_scenario()`
+**Status:** Implemented and executed.  
+**Script:** `uq/study2_simulator/run_simulator_uq.py`  
+**Model wrapper:** `uq/study2_simulator/anomaly_runner.py`  
+**Model under analysis:** `backend/src/homepot/app/api/API_v1/Endpoints/DeviceSimulatorEndpoint.py` — `_generate_metrics_for_scenario()`
 
-> For setup instructions and an overview of all studies, see [`uq/README.md`](../README.md).
+> For setup instructions and an overview of all studies, see [UQ Overview](overview.md).
 
 ---
 
 ## Table of Contents
 
-1. [Study purpose (plain-language overview)](#study-purpose-plain-language-overview)
-1. [Background and motivation](#background-and-motivation)
-2. [Methodology](#methodology)
-3. [Results](#results)
-4. [Key findings](#key-findings)
-5. [Recommendations](#recommendations)
+1. [Study purpose](#study-purpose)
+2. [Background and motivation](#background-and-motivation)
+3. [Methodology](#methodology)
+4. [Results](#results)
+5. [Key findings](#key-findings)
+6. [Recommendations](#recommendations)
 
 ---
 
-## Study purpose (plain-language overview)
+## Study purpose
 
 Study 2 asks a practical question: **does the simulator generate scenario data that the
 anomaly detector interprets in the way operators expect?**
@@ -41,9 +41,10 @@ Specifically, Study 2 looks at three things:
 
 This is important because the simulator is used to seed test and demo data. If scenario
 definitions and detector logic are misaligned, teams can get misleading confidence from
-dashboard behavior or alerting tests. Study 2 therefore serves as a **calibration and
+dashboard behaviour or alerting tests. Study 2 therefore serves as a **calibration and
 quality-control check** for simulator-generated data under the current detector design.
 
+---
 
 ## Background and motivation
 
@@ -52,14 +53,14 @@ The device simulator generates synthetic device metrics in six named scenarios:
 scenario is defined by hand-picked `random.uniform(low, high)` ranges for each metric
 in `_generate_metrics_for_scenario()`.
 
-These scenarios are used to populate the database for testing and dashboards. There is
-currently no guarantee that:
+These scenarios are used to populate the database for testing and dashboards. There was
+previously no guarantee that:
 
 1. The scenarios produce **statistically distinct** anomaly scores — a "healthy" device
    might score the same as a "degraded" one.
 2. "Healthy" samples do not accidentally score above the anomaly threshold (false
    positives in the test data used to validate the alerting system).
-3. Scenario labels correspond to expected detector behavior (for example, whether a
+3. Scenario labels correspond to expected detector behaviour (for example, whether a
    scenario named for one stressor is not in practice dominated by another metric in
    the detector's threshold logic).
 
@@ -69,16 +70,17 @@ currently no guarantee that:
 
 ### Why EasyVVUQ MCSampler
 
-Study 2 uses EasyVVUQ so that all three studies share a consistent campaign/analysis framework and, so that **Sobol sensitivity indices** are available from the same Saltelli
-sample set. 
+Study 2 uses EasyVVUQ so that all three studies share a consistent campaign/analysis
+framework and so that **Sobol sensitivity indices** are available from the same Saltelli
+sample set.
 
 EasyVVUQ's `MCSampler` generates a **Saltelli sampling plan**: two independent base
 matrices $A$ and $B$ of size $N_{MC} \times d$ are drawn (Latin-hypercube by default),
-then $d$ crossed matrices $A_B^{(i)}$ are formed. Total samples $= N_{MC} \times (d + 2)$.
+then $d$ crossed matrices $A_B^{(i)}$ are formed. Total samples = $N_{MC} \times (d + 2)$.
 The resulting sample set supports unbiased first-order Sobol index estimation via
 `QMCAnalysis`.
 
-**Why Monte Carlo, not Stochastic Collocation:** the `AnomalyDetector` is 
+**Why Monte Carlo, not Stochastic Collocation:** the `AnomalyDetector` is
 **piecewise-constant** — it contains only threshold comparisons, producing step
 discontinuities in the input-output map. Polynomial surrogates (SC or PCE) require
 very high order to approximate discontinuities accurately. Plain MC (Saltelli plan)
@@ -86,7 +88,7 @@ is unbiased and free of Gibbs-like artefacts.
 
 ### Sampling plan
 
-- **d = 7** inputs per scenario, **N_MC = 300** → 7 x 300 = **2,700 Saltelli samples per scenario**
+- **d = 7** inputs per scenario, **N_MC = 300** → 7 × 300 = **2,700 Saltelli samples per scenario**
 - 6 scenarios × 2,700 = **16 200 total `AnomalyDetector` calls**
 - Continuous `cp.Uniform` distributions for all inputs; fixed-zero parameters use
   `cp.Uniform(0, ε)` with ε = 0.001 so they participate in the Saltelli plan without
@@ -98,7 +100,7 @@ is unbiased and free of Gibbs-like artefacts.
 For each scenario, the 7 `AnomalyDetector` inputs are assigned `cp.Uniform`
 distributions whose bounds are derived from `_generate_metrics_for_scenario()`.
 `flapping_count` and `consecutive_failures` are assigned scenario-appropriate ranges
-matching the values now generated by the simulator:
+matching the values generated by the simulator:
 
 | Scenario | cpu % | mem % | disk % | error_rate | latency ms | flapping | consec. failures |
 |---|---|---|---|---|---|---|---|
@@ -142,12 +144,6 @@ EasyVVUQ campaign  (run_simulator_uq.py)
 HOMEPOT_PATH=$(pwd) .venv/bin/python uq/study2_simulator/run_simulator_uq.py
 ```
 
-Three plots are saved to `figs/`:
-- `scenario_violin.png` — violin plot comparing score distributions across all six scenarios
-- `scenario_severity_bands.png` — stacked bar chart showing the fraction of each scenario
-  in Normal / Moderate / Critical severity bands
-- `sobol_heatmap.png` — heatmap of first-order Sobol indices (7 metrics × 6 scenarios)
-
 ---
 
 ## Results
@@ -165,6 +161,10 @@ The campaign ran successfully: **16,200 Saltelli samples (N_MC=300, 2,700 per sc
 | degraded | 0.971 | 0.103 | 1.000 | 1.000 | 1.000 | 100.0% | 92.3% |
 | offline | **0.981** | 0.059 | 1.000 | 1.000 | 1.000 | **100.0%** | **100.0%** |
 
+![Anomaly score by simulator scenario — violin plot](images/scenario_violin.png)
+
+![Score severity bands by simulator scenario](images/scenario_severity_bands.png)
+
 ### First-order Sobol indices (fraction of score variance explained by each input)
 
 | Scenario | consec. fail | flapping | error rate | latency ms | CPU % | mem % | disk % |
@@ -180,6 +180,8 @@ The campaign ran successfully: **16,200 Saltelli samples (N_MC=300, 2,700 per sc
 estimator on near-binary step functions with small N_MC. The qualitative finding
 (near-total control by that parameter) is reliable.*
 
+![First-order Sobol indices — score sensitivity by scenario and metric](images/sobol_heatmap.png)
+
 ### Why can first-order Sobol estimates be > 1?
 
 In theory, true first-order Sobol indices satisfy $0 \leq S_1 \leq 1$. In practice, the
@@ -189,7 +191,7 @@ are not mathematically constrained to remain within $[0,1]$.
 In this study, occasional overshoot happens because:
 
 - the anomaly model is threshold-based (piecewise/step-like),
-- several scenarios are near-binary in output behavior, and
+- several scenarios are near-binary in output behaviour, and
 - finite-sample variance and bootstrap noise can push estimates above 1 (or below 0).
 
 This does **not** indicate the analysis is invalid. It indicates estimator noise around a
@@ -253,7 +255,9 @@ estimated index.
    - adding a duration/sustained-high-CPU condition.
 
 3. **Align scenario naming with dominant score drivers.**
-   In `low_memory`, variance is driven primarily by `error_rate` rather than memory. Either rebalance input ranges to make memory the principal driver, or rename/document the scenario so operators are not misled.
+   In `low_memory`, variance is driven primarily by `error_rate` rather than memory. Either
+   rebalance input ranges to make memory the principal driver, or rename/document the
+   scenario so operators are not misled.
 
 4. **Use Study 2 as a regression gate after detector/simulator changes.**
    Re-run this study whenever thresholds, weights, or scenario ranges change; monitor:
@@ -261,5 +265,6 @@ estimated index.
    - scenario separation at 0.3 and 0.8,
    - Sobol-dominant parameters per scenario.
 
-5. **Document expected behavior explicitly for stakeholders.**
-   Add a short ops note that CPU spikes alone may remain non-alerting unless accompanied by other instability signals, until detector tuning is updated.
+5. **Document expected behaviour explicitly for stakeholders.**
+   Add a short ops note that CPU spikes alone may remain non-alerting unless accompanied
+   by other instability signals, until detector tuning is updated.
