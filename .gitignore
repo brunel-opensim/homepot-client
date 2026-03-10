@@ -238,3 +238,8 @@ coverage/
 *.sqlite3
 *.db-journal
 ai/data/
+
+# UQ — campaign working directories and runtime-generated plots (recreated on each run)
+uq/study1_anomaly/campaign_anomaly_uq/
+uq/study2_simulator/campaign_*/
+uq/study3_push/campaign_*/
