@@ -122,9 +122,9 @@ study (gitignored, created at runtime).
 
 | # | Study | Model under analysis | Method | Samples | Status |
 |---|---|---|---|---|---|
-| 1 | [Anomaly Detector Sensitivity](study1_anomaly/STUDY.md) | `ai/anomaly_detection.py` | PCE order 2, Sobol | 2 187 | ✅ Done |
-| 2 | [Simulator Scenario Boundary Validation](study2_simulator/STUDY.md) | `DeviceSimulatorEndpoint._generate_metrics_for_scenario()` | MCSampler / Saltelli, Sobol | 16 200 | ✅ Done |
-| 3 | [Push Notification Delivery Reliability](study3_push/STUDY.md) | Push notification delivery model | MCSampler / Saltelli, Sobol | 20 000 + 12 000 | ✅ Done |
+| 1 | [Anomaly Detector Sensitivity](../docs/uq/study1-anomaly.md) | `ai/anomaly_detection.py` | PCE order 2, Sobol | 2 187 | ✅ Done |
+| 2 | [Simulator Scenario Boundary Validation](../docs/uq/study2-simulator.md) | `DeviceSimulatorEndpoint._generate_metrics_for_scenario()` | MCSampler / Saltelli, Sobol | 16 200 | ✅ Done |
+| 3 | [Push Notification Delivery Reliability](../docs/uq/study3-push.md) | Push notification delivery model | MCSampler / Saltelli, Sobol | 20 000 + 12 000 | ✅ Done |
 
 ---
 
