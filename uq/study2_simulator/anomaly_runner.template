@@ -1,0 +1,10 @@
+{
+    "outfile": "$outfile",
+    "cpu_percent": $cpu_percent,
+    "memory_percent": $memory_percent,
+    "disk_percent": $disk_percent,
+    "error_rate": $error_rate,
+    "network_latency_ms": $network_latency_ms,
+    "flapping_count": $flapping_count,
+    "consecutive_failures": $consecutive_failures
+}
