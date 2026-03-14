@@ -104,14 +104,14 @@ nav:
       - Getting Started:
           - Quick Start: getting-started.md
           - Running Locally: running-locally.md
-          - Complete Setup: complete-website-setup.md
+          - Complete Setup: complete-dashboard-setup.md
 
   - Layer 1 - Control Panel:
       - Overview: accessing-dashboard.md
       - Real-time Monitoring: real-time-dashboard.md
       - Authentication Flow: authentication-guide.md
       - Frontend Analytics: frontend-analytics-integration.md
-      - Testing: frontend-testing-guide.md
+      - Testing: dashboard-testing-guide.md
       - UI Examples: visual-examples.md
 
   - Layer 2 - API Gateway:

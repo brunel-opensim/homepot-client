@@ -32,7 +32,7 @@ We recommend running the project locally without Docker for the best development
 
 3.  **Run**:
     ```bash
-    ./scripts/start-website.sh
+    ./scripts/start-dashboard.sh
     ```
 
 See [docs/getting-started.md](docs/getting-started.md) for full details.
@@ -111,7 +111,7 @@ Working on the UI? Here's the fastest way to get started:
 ./scripts/init-postgresql.sh
 
 # 2. Start both backend and frontend
-./scripts/start-website.sh
+./scripts/start-dashboard.sh
 ```
 
 This will start:
@@ -119,7 +119,7 @@ This will start:
 - **Frontend**: http://localhost:5173
 - **Test Account**: `admin@homepot.com` / `homepot_dev_password`
 
-**See [Complete Website Setup Guide](docs/complete-website-setup.md) and [Website Testing Guide](docs/website-testing-guide.md)**
+**See [Complete Dashboard Setup Guide](docs/complete-dashboard-setup.md) and [Dashboard Testing Guide](docs/dashboard-testing-guide.md)**
 
 ### Analytics (Data Collection for AI)
 

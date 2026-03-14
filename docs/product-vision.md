@@ -22,18 +22,18 @@ This is the centralized management console. It is a pure web application (PWA) a
     *   **Incident Response:** Viewing anomalies detected by the AI Engine (WP4) and triggering remote wipes or locks.
     *   **User Management:** Provisioning staff accounts.
 
-### 2. HOMEPOT Workspace (User App)
+### 2. HOMEPOT User App
 *Target Audience: Employees, Remote Workers, BYOD Users*
 
-This is the "Super App" for the end-user. While it is built on the same React technology as the web platform, it is packaged as a **Native Wrapper** (using React Native or Capacitor) to gain access to OS-level APIs.
+This is a lightweight application installed on the device that acts as a bridge between the hardware and the HOMEPOT Dashboard. Instead of wrapping a full workspace, it functions as a dedicated communication agent.
 
 *   **Platform:** Mobile App (iOS/Android), Desktop App (Windows/macOS)
 *   **Key Functions:**
-    *   **Corporate Sandbox:** A secure container for accessing work email, documents, and internal portals.
-    *   **"Work Mode" Toggle:** A clear switch to separate Personal vs. Work contexts on BYOD devices.
-    *   **Local Agent:** Runs in the background (Service Worker) to collect telemetry and heartbeat signals.
-    *   **Access Gateway:** Provides VPN-less secure access to the intranet (Zero Trust).
-    *   **Offline Capability:** Caches critical work data for non-connected environments.
+    *   **Communication Bridge:** Facilitates secure bi-directional communication between the device and the Dashboard.
+    *   **Device Telemetry:** Collects and transmits performance metrics and status updates.
+    *   **Command Execution:** Receives and processes management commands from the admin console.
+    *   **Connectivity Management:** Ensures persistent connection for real-time monitoring.
+    *   **Simple Interface:** Provides essential status information to the user without complex workspace features.
 
 ## Integration Architectures
 
@@ -42,16 +42,16 @@ To satisfy the D3.1 requirements while maintaining flexibility, HOMEPOT employs 
 
 | Feature | Managed Endpoint (MDM) | Lightweight Endpoint (BYOD) |
 | :--- | :--- | :--- |
-| **Control Level** | OS-Level (Root) | App-Level (Sandbox) |
+| **Control Level** | OS-Level (Root) | App-Level (Bridge) |
 | **Deployment** | Corporate Issued | User Owned |
-| **Agent Type** | System Service | HOMEPOT Workspace |
-| **Privacy** | Low (Full Device Visibility) | High (Work Container Only) |
+| **Agent Type** | System Service | HOMEPOT User App |
+| **Privacy** | Low (Full Device Visibility) | High (Telemetry Only) |
 | **Use Case** | High-security, Fixed POS | Remote Work, Contractors |
 
-### The "Workspace" Wrapper
-The `HOMEPOT Workspace` application effectively serves as the "Lightweight Agent" required by the D3.1 architecture.
-*   It does **not** take over the user's phone.
-*   It **does** ensure that corporate data *inside* the app is managed, encrypted, and wipeable.
+### The "User App" Bridge
+The `HOMEPOT User App` effectively serves as the "Communication Bridge" required by the real-device transition.
+*   It does **not** act as a containerized workspace wrapper.
+*   It **does** act as a relay for telemetry and management commands between the device OS and the Dashboard.
 
 ## Commercial Rollout Phases
 
@@ -59,10 +59,10 @@ The `HOMEPOT Workspace` application effectively serves as the "Lightweight Agent
     *   Fully functional `HOMEPOT Control` via Web PWA.
     *   Basic device telemetry reporting via Browser APIs.
 
-2.  **Phase 2: The "Workspace" Wrapper**
-    *   Wrapping the existing React frontend into a Native Binary.
-    *   Enabling "Background Sync" for reliable telemetry.
-    *   Implementing Biometric Auth (FaceID/TouchID) for app entry.
+2.  **Phase 2: The User App Bridge**
+    *   Developing the standalone User App for facilitating device communication.
+    *   Enabling reliable "Bridge" connectivity for real-time telemetry.
+    *   Implementing device registration and secure handshake protocols.
 
 3.  **Phase 3: AI-Driven Security**
     *   Integrating the `AnalysisMode` engine to block access if the device shows "abnormal behavior" (e.g., accessed from a new country at 3 AM).
