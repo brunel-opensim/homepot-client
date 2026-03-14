@@ -9,12 +9,14 @@ This repository is private and restricted to HOMEPOT consortium members only. Pl
 ## Getting Started
 
 1. **Repository Access**: Ensure you have been added to the HOMEPOT project team on GitHub
-2. **Clone the Repository**:
+2. **Fork the Repository**: Click **Fork** on https://github.com/brunel-opensim/homepot-client to create your own copy under your GitHub account
+3. **Clone your Fork**:
    ```bash
-   git clone https://github.com/brunel-opensim/homepot-client.git
+   git clone https://github.com/<your-username>/homepot-client.git
    cd homepot-client
+   git remote add upstream https://github.com/brunel-opensim/homepot-client.git
    ```
-3. **Development Setup**: Follow the setup instructions in the main README.md
+4. **Development Setup**: Follow the setup instructions in the main README.md
 
 ## Development Workflow
 
@@ -24,7 +26,7 @@ This repository is private and restricted to HOMEPOT consortium members only. Pl
 
 **Main Branch Protection Rules:**
 - **No direct pushes to `main`** - All changes must go through pull requests
-- **Require 2+ reviewer approvals** for all pull requests to main
+- **Require 1 reviewer approval** for all pull requests to main
 - **All CI/CD checks must pass** (tests, security scans, code quality)
 - **Conversations must be resolved** before merging
 - **Branches must be up-to-date** before merging
@@ -34,8 +36,7 @@ This repository is private and restricted to HOMEPOT consortium members only. Pl
 
 We follow a Git Flow branching model:
 
-- `main`: Production-ready code
-- `develop`: Integration branch for features
+- `main`: Production-ready code and integration branch for features
 - `feature/*`: Feature development branches
 - `release/*`: Release preparation branches
 - `hotfix/*`: Critical bug fixes
@@ -43,8 +44,8 @@ We follow a Git Flow branching model:
 ### Creating a Feature Branch
 
 ```bash
-git checkout develop
-git pull origin develop
+git checkout main
+git pull origin main
 git checkout -b feature/your-feature-name
 ```
 
@@ -142,12 +143,12 @@ security(auth): implement token validation Closes #89
 
 ### Pull Request Process
 
-1. Ensure your branch is up to date with `develop`
-2. Create a pull request targeting `develop` (or `main` for releases)
+1. Ensure your branch is up to date with `main`
+2. Create a pull request targeting `main`
 3. Include a clear description of changes
 4. Reference any related issues
 5. Ensure all CI/CD checks pass
-6. Request review from at least **2 consortium members**
+6. Request review from at least **1 consortium member**
 7. Address review feedback promptly
 8. **All conversations must be resolved** before merging
 
@@ -161,8 +162,8 @@ security(auth): implement token validation Closes #89
 - Emergency hotfix authority
 
 **Maintainer (Senior Developers):**
-- Can approve pull requests (2+ approvals required)
-- Can merge to develop branch
+- Can approve pull requests (1 approval required)
+- Can merge to main branch
 - Cannot bypass protection policies
 
 **Write (Active Contributors):**
