@@ -38,9 +38,7 @@ def mock_db_url(monkeypatch):
         db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
     )
     Base.metadata.create_all(bind=new_engine)
-    new_session_local = sessionmaker(
-        bind=new_engine, autocommit=False, autoflush=False
-    )
+    new_session_local = sessionmaker(bind=new_engine, autocommit=False, autoflush=False)
 
     monkeypatch.setattr(homepot.database, "sync_engine", new_engine)
     monkeypatch.setattr(homepot.database, "SessionLocal", new_session_local)
@@ -55,9 +53,7 @@ def mock_db_url(monkeypatch):
             pass
 
 
-def _seed_device(
-    api_key: str, *, site_code: str = "site-agent-1", active: bool = True
-):
+def _seed_device(api_key: str, *, site_code: str = "site-agent-1", active: bool = True):
     """Seed a site and device record for registration tests."""
     db = homepot.database.SessionLocal()
     try:
@@ -116,14 +112,11 @@ def test_register_rejects_site_mismatch(client: TestClient):
 
     assert response.status_code == 401
     assert (
-        response.json()["detail"]
-        == "Device is not authorized for the requested site"
+        response.json()["detail"] == "Device is not authorized for the requested site"
     )
 
 
-def test_register_returns_dna_for_authorized_device(
-    client: TestClient, monkeypatch
-):
+def test_register_returns_dna_for_authorized_device(client: TestClient, monkeypatch):
     """Registration should succeed for pre-authorized devices."""
     valid_key = secrets.token_urlsafe(32)
     _seed_device(valid_key)
