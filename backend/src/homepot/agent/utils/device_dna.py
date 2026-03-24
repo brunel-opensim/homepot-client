@@ -8,6 +8,13 @@ import uuid
 import httpx
 import psutil
 
+# Public IP lookup is best-effort metadata collection and depends on external services.
+PUBLIC_IP_SERVICES = (
+    "https://api.ipify.org",
+    "https://ifconfig.me/ip",
+    "https://icanhazip.com",
+)
+
 
 def get_local_ip() -> Optional[str]:
     """Retrieve the first non-loopback local IPv4 address."""
@@ -23,15 +30,22 @@ def get_local_ip() -> Optional[str]:
     return None
 
 
-def get_wan_ip(payload: Any) -> Optional[str]:
-    """Retrieve the public (WAN) IP address using an external service."""
+def get_wan_ip(payload: Any = None) -> Optional[str]:
+    """Retrieve the public (WAN) IP address using external fallback services."""
     try:
         with httpx.Client(timeout=5.0) as client:
-            response = client.get("https://api.ipify.org")
-            response.raise_for_status()
-            return response.text.strip()
+            for service_url in PUBLIC_IP_SERVICES:
+                try:
+                    response = client.get(service_url)
+                    response.raise_for_status()
+                    wan_ip = response.text.strip()
+                    if wan_ip:
+                        return wan_ip
+                except Exception:
+                    continue
     except Exception:
         return None
+    return None
 
 
 def get_mac_address() -> Optional[str]:
