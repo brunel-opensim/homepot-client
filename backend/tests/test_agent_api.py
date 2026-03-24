@@ -55,7 +55,9 @@ def mock_db_url(monkeypatch):
             pass
 
 
-def _seed_device(api_key: str, *, site_code: str = "site-agent-1", active: bool = True):
+def _seed_device(
+    api_key: str, *, site_code: str = "site-agent-1", active: bool = True
+):
     """Seed a site and device record for registration tests."""
     db = homepot.database.SessionLocal()
     try:
