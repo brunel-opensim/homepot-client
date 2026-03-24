@@ -16,6 +16,18 @@ PUBLIC_IP_SERVICES = (
 )
 
 
+def _fetch_public_ip(client: httpx.Client, service_url: str) -> Optional[str]:
+    """Fetch the public IP from a single service, returning None on failure."""
+    try:
+        response = client.get(service_url)
+        response.raise_for_status()
+        wan_ip = response.text.strip()
+    except Exception:
+        return None
+
+    return wan_ip or None
+
+
 def get_local_ip() -> Optional[str]:
     """Retrieve the first non-loopback local IPv4 address."""
     try:
@@ -35,14 +47,9 @@ def get_wan_ip(payload: Any = None) -> Optional[str]:
     try:
         with httpx.Client(timeout=5.0) as client:
             for service_url in PUBLIC_IP_SERVICES:
-                try:
-                    response = client.get(service_url)
-                    response.raise_for_status()
-                    wan_ip = response.text.strip()
-                    if wan_ip:
-                        return wan_ip
-                except Exception:
-                    continue
+                wan_ip = _fetch_public_ip(client, service_url)
+                if wan_ip:
+                    return wan_ip
     except Exception:
         return None
     return None
