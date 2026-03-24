@@ -55,9 +55,7 @@ def mock_db_url(monkeypatch):
             pass
 
 
-def _seed_device(
-    api_key: str, *, site_code: str = "site-agent-1", active: bool = True
-):
+def _seed_device(api_key: str, *, site_code: str = "site-agent-1", active: bool = True):
     """Seed a site and device record for registration tests."""
     db = homepot.database.SessionLocal()
     try:
@@ -121,7 +119,9 @@ def test_register_rejects_site_mismatch(client: TestClient):
     )
 
 
-def test_register_returns_dna_for_authorized_device(client: TestClient, monkeypatch):
+def test_register_returns_dna_for_authorized_device(
+    client: TestClient, monkeypatch
+):
     """Registration should succeed for pre-authorized devices."""
     valid_key = secrets.token_urlsafe(32)
     _seed_device(valid_key)
