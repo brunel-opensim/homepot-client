@@ -193,19 +193,16 @@ def require_role(required_role: str) -> Any:
     return role_checker
 
 
-async def get_current_device(
-    api_key: str = Depends(api_key_header),
-    device_id: str = Depends(device_id_header),
-    db: Session = Depends(get_db),
+def authenticate_device_credentials(
+    db: Session, device_id: str, api_key: str
 ) -> Device:
-    """Authenticate device using API Key and Device ID."""
+    """Authenticate a device using its device ID and plaintext API key."""
     if not api_key or not device_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing X-API-Key or X-Device-ID header",
         )
 
-    # Fetch device by ID
     result = db.execute(select(Device).where(Device.device_id == device_id))
     device = result.scalars().first()
 
@@ -221,8 +218,7 @@ async def get_current_device(
             detail="Device not configured for API Key authentication",
         )
 
-    # Verify API Key
-    if not verify_password(api_key, device.api_key_hash):  # type: ignore
+    if not verify_password(api_key, device.api_key_hash):  # type: ignore[arg-type]
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API Key",
@@ -235,6 +231,15 @@ async def get_current_device(
         )
 
     return device
+
+
+async def get_current_device(
+    api_key: str = Depends(api_key_header),
+    device_id: str = Depends(device_id_header),
+    db: Session = Depends(get_db),
+) -> Device:
+    """Authenticate device using API Key and Device ID."""
+    return authenticate_device_credentials(db=db, device_id=device_id, api_key=api_key)
 
 
 def exchange_google_code(code: str) -> dict:

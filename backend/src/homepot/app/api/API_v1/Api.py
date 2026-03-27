@@ -2,6 +2,8 @@
 
 from fastapi import APIRouter
 
+from homepot.agent.agent_api import router
+
 from .Endpoints import (
     AgentsEndpoints,
     AIEndpoint,
@@ -82,3 +84,6 @@ api_v1_router.include_router(AnalyticsEndpoint.router, tags=["Analytics"])
 api_v1_router.include_router(
     AIEndpoint.router, prefix="/ai", tags=["AI & Machine Learning"]
 )
+
+# Agent APIs
+api_v1_router.include_router(router, prefix="/agent", tags=["Agent"])
