@@ -3,9 +3,9 @@
 from . import (
     AgentHeartbeatEndpoint,
     AgentRegisterEndpoint,
+    AgentsEndpoints,
     AgentStatusEndpoint,
     AgentTelemetryEndpoint,
-    AgentsEndpoints,
     AIEndpoint,
     AnalyticsEndpoint,
     ClientEndpoint,

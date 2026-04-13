@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
-from sqlalchemy import Result, create_engine, delete, select, text, inspect
+from sqlalchemy import Result, create_engine, delete, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 

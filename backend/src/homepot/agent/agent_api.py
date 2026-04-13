@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from homepot.agent.utils.device_dna import collect_device_dna
-from homepot.app.auth_utils import authenticate_device_credentials, API_KEY_HEADER_NAME
+from homepot.app.auth_utils import API_KEY_HEADER_NAME, authenticate_device_credentials
 from homepot.database import get_db
 from homepot.models import Site
 

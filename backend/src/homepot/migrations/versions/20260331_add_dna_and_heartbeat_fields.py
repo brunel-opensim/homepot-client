@@ -8,7 +8,6 @@ Create Date: 2026-03-31
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision = "20260331_add_dna_heartbeat"
 down_revision = None

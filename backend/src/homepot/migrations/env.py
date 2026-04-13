@@ -19,7 +19,6 @@ if str(SRC_ROOT) not in sys.path:
 from homepot.config import get_settings  # noqa: E402
 from homepot.models import Base  # noqa: E402
 
-
 config = context.config
 
 if config.config_file_name is not None:

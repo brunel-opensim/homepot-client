@@ -10,10 +10,10 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-import homepot.database
-from homepot.config import reload_settings
-from homepot.models import Base, Device, Site
 from homepot.app.models.AnalyticsModel import DeviceMetrics
+from homepot.config import reload_settings
+import homepot.database
+from homepot.models import Base, Device, Site
 
 
 @pytest.fixture(autouse=True)
