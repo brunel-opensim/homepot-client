@@ -83,10 +83,12 @@ def root() -> dict:
     """Root endpoint to test if the API is alive."""
     return {"message": "I Am Alive"}
 
+
 @app.on_event("startup")
 async def initialize_database() -> None:
     """Initialize database schema when the API process starts."""
     await get_database_service()
+
 
 # Incluse all routes from API v1
 app.include_router(api_v1_router, prefix="/api/v1")

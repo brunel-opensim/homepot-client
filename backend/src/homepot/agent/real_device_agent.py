@@ -85,9 +85,7 @@ async def send_registration(
             "local_ip": get_local_ip(),
             "wan_ip": get_wan_ip(),
         }
-        register_url = (
-            f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
-        )
+        register_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
         if not await post_json(client, register_url, payload):
             retry_queue.enqueue({"url": register_url, "payload": payload})
     except Exception as e:

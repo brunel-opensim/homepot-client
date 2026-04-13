@@ -199,9 +199,7 @@ def require_role(required_role: str) -> Any:
     return role_checker
 
 
-def authenticate_device_credentials(
-    db: Session, device_id: str
-) -> Device:
+def authenticate_device_credentials(db: Session, device_id: str) -> Device:
     """Authenticate a device using its device ID and plaintext API key."""
     if not device_id:
         raise HTTPException(

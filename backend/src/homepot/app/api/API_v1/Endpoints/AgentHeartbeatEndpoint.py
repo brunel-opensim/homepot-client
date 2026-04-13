@@ -36,4 +36,3 @@ def update_heartbeat(
     except Exception as e:
         logger.error("Unexpected heartbeat error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-

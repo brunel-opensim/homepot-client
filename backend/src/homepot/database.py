@@ -48,6 +48,7 @@ try:
 except ImportError:
     logger.warning("Could not import AnalyticsModel. Tables may not be created.")
 
+
 def _ensure_device_dna_columns(bind: Any) -> None:
     """Ensure new DNA and heartbeat columns exist on the devices table.
 

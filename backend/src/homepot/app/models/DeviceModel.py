@@ -7,4 +7,3 @@ SQLAlchemy Device model declared in homepot.models to avoid duplicate tables.
 from homepot.models import Base, Device
 
 __all__ = ["Base", "Device"]
-

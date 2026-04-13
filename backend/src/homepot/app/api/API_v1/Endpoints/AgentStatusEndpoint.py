@@ -33,4 +33,3 @@ def get_device_status(device_id: str, db: Session = Depends(get_db)) -> Dict[str
     except Exception as e:
         logger.error("Unexpected status error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-

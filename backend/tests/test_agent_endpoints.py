@@ -38,9 +38,7 @@ def mock_db_url(monkeypatch):
         db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
     )
     Base.metadata.create_all(bind=new_engine)
-    new_session_local = sessionmaker(
-        bind=new_engine, autocommit=False, autoflush=False
-    )
+    new_session_local = sessionmaker(bind=new_engine, autocommit=False, autoflush=False)
 
     monkeypatch.setattr(homepot.database, "sync_engine", new_engine)
     monkeypatch.setattr(homepot.database, "SessionLocal", new_session_local)
@@ -207,9 +205,11 @@ def test_provision_returns_credentials_and_hashes_key(client: TestClient):
     created_device_id = payload["data"]["device_id"]
     db = homepot.database.SessionLocal()
     try:
-        device = db.execute(
-            select(Device).where(Device.device_id == created_device_id)
-        ).scalars().first()
+        device = (
+            db.execute(select(Device).where(Device.device_id == created_device_id))
+            .scalars()
+            .first()
+        )
         assert device is not None
         assert device.api_key_hash is not None
     finally:

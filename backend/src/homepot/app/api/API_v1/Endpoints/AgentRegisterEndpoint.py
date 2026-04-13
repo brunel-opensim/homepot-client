@@ -36,4 +36,3 @@ def register_and_update_device_dna(
     except Exception as e:
         logger.error("Unexpected register error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
