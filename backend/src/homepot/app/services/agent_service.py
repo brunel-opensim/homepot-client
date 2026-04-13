@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 import secrets
-from typing import Sequence
+from typing import Any, Dict, Sequence, cast
 
 from sqlalchemy.orm import Session
 
@@ -190,9 +190,12 @@ class AgentService:
                 wan_ip=None,
             )
 
-            created.api_key_hash = hash_password(api_key)
+            created_obj = cast(Any, created)
+            created_obj.api_key_hash = hash_password(api_key)
 
-            existing_config = created.config or {}
+            existing_config: Dict[str, Any] = dict(
+                cast(Dict[str, Any], created_obj.config or {})
+            )
             existing_config.update(
                 {
                     "provisioned_by": payload.user_identity,
@@ -202,8 +205,8 @@ class AgentService:
                     "device_token": device_token,
                 }
             )
-            created.config = existing_config
-            created.last_heartbeat_at = None
+            created_obj.config = existing_config
+            created_obj.last_heartbeat_at = None
 
             self.repository.save_device(created)
 

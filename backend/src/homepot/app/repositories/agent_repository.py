@@ -1,7 +1,7 @@
 """Repository layer for agent device and telemetry database operations."""
 
 from datetime import datetime
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -66,10 +66,11 @@ class AgentRepository:
         wan_ip: Optional[str],
     ) -> Device:
         """Update device DNA fields during registration."""
-        device.mac_address = mac_address
-        device.os_details = os_details
-        device.local_ip = local_ip
-        device.wan_ip = wan_ip
+        device_obj = cast(Any, device)
+        device_obj.mac_address = mac_address
+        device_obj.os_details = os_details
+        device_obj.local_ip = local_ip
+        device_obj.wan_ip = wan_ip
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)
@@ -77,7 +78,7 @@ class AgentRepository:
 
     def update_last_heartbeat(self, device: Device, heartbeat_at: datetime) -> Device:
         """Update the latest heartbeat timestamp for a device."""
-        device.last_heartbeat_at = heartbeat_at
+        cast(Any, device).last_heartbeat_at = heartbeat_at
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)

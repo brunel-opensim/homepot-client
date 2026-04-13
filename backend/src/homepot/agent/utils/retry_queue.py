@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 
 class RetryQueue:
@@ -17,7 +17,10 @@ class RetryQueue:
         if not self.path.exists():
             return []
         try:
-            return json.loads(self.path.read_text(encoding="utf-8"))
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return cast(List[Dict[str, Any]], data)
+            return []
         except Exception:
             return []
 

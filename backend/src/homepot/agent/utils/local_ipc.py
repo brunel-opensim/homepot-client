@@ -1,7 +1,7 @@
 """Local IPC server helpers used by the real device agent."""
 
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,13 +36,13 @@ def create_local_ipc_app(initial_state: LocalAgentState) -> FastAPI:
     def get_status() -> Dict[str, Any]:
         """Return current agent runtime status."""
         with app.state.state_lock:
-            return app.state.agent_state.model_dump()
+            return cast(Dict[str, Any], app.state.agent_state.model_dump())
 
     @app.get("/ipc/status")
     def get_status_alias() -> Dict[str, Any]:
         """Alias endpoint for UI clients that namespace IPC routes."""
         with app.state.state_lock:
-            return app.state.agent_state.model_dump()
+            return cast(Dict[str, Any], app.state.agent_state.model_dump())
 
     @app.get("/health")
     def health() -> Dict[str, str]:
