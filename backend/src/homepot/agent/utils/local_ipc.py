@@ -46,7 +46,7 @@ def create_local_ipc_app(initial_state: LocalAgentState) -> FastAPI:
 
     @app.get("/health")
     def health() -> Dict[str, str]:
-        """Basic health endpoint for local IPC consumers."""
+        """Return basic health status for local IPC consumers."""
         return {"status": "ok"}
 
     @app.get("/last-telemetry")

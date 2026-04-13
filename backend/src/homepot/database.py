@@ -56,7 +56,6 @@ def _ensure_device_dna_columns(bind: Any) -> None:
     This helper applies safe additive `ALTER TABLE` statements so existing
     deployments can pick up newly added `Device` fields without dropping data.
     """
-
     inspector = inspect(bind)
     if "devices" not in inspector.get_table_names():
         return
