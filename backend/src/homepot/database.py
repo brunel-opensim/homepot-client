@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
-from sqlalchemy import Result, create_engine, delete, select, text
+from sqlalchemy import Result, create_engine, delete, select, text, inspect
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -47,6 +47,67 @@ try:
     )
 except ImportError:
     logger.warning("Could not import AnalyticsModel. Tables may not be created.")
+
+def _ensure_device_dna_columns(bind: Any) -> None:
+    """Ensure new DNA and heartbeat columns exist on the devices table.
+
+    Important: SQLAlchemy `create_all()` does not alter existing tables.
+    This helper applies safe additive `ALTER TABLE` statements so existing
+    deployments can pick up newly added `Device` fields without dropping data.
+    """
+
+    inspector = inspect(bind)
+    if "devices" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("devices")}
+    dialect = bind.dialect.name
+
+    if dialect == "sqlite":
+        ddl_map = {
+            "os_details": "ALTER TABLE devices ADD COLUMN os_details VARCHAR(255)",
+            "local_ip": "ALTER TABLE devices ADD COLUMN local_ip VARCHAR(45)",
+            "wan_ip": "ALTER TABLE devices ADD COLUMN wan_ip VARCHAR(45)",
+            "last_heartbeat_at": (
+                "ALTER TABLE devices ADD COLUMN last_heartbeat_at DATETIME"
+            ),
+        }
+    elif dialect == "postgresql":
+        ddl_map = {
+            "os_details": "ALTER TABLE devices ADD COLUMN os_details VARCHAR(255)",
+            "local_ip": "ALTER TABLE devices ADD COLUMN local_ip VARCHAR(45)",
+            "wan_ip": "ALTER TABLE devices ADD COLUMN wan_ip VARCHAR(45)",
+            "last_heartbeat_at": (
+                "ALTER TABLE devices ADD COLUMN last_heartbeat_at "
+                "TIMESTAMP WITH TIME ZONE"
+            ),
+        }
+    else:
+        ddl_map = {
+            "os_details": "ALTER TABLE devices ADD COLUMN os_details VARCHAR(255)",
+            "local_ip": "ALTER TABLE devices ADD COLUMN local_ip VARCHAR(45)",
+            "wan_ip": "ALTER TABLE devices ADD COLUMN wan_ip VARCHAR(45)",
+            "last_heartbeat_at": (
+                "ALTER TABLE devices ADD COLUMN last_heartbeat_at TIMESTAMP"
+            ),
+        }
+
+    for column_name, ddl in ddl_map.items():
+        if column_name in existing_columns:
+            continue
+        try:
+            bind.execute(text(ddl))
+            logger.info("Added missing devices.%s column", column_name)
+        except Exception as e:
+            error_text = str(e).lower()
+            duplicate_markers = (
+                "duplicate column",
+                "already exists",
+            )
+            if any(marker in error_text for marker in duplicate_markers):
+                logger.info("devices.%s already exists, skipping", column_name)
+                continue
+            raise
 
 
 class DatabaseService:
@@ -100,6 +161,7 @@ class DatabaseService:
 
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                await conn.run_sync(_ensure_device_dna_columns)
 
             logger.info("Database initialized successfully")
 

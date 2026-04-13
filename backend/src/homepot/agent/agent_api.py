@@ -4,16 +4,18 @@ import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from homepot.agent.utils.device_dna import collect_device_dna
-from homepot.app.auth_utils import authenticate_device_credentials
+from homepot.app.auth_utils import authenticate_device_credentials, API_KEY_HEADER_NAME
 from homepot.database import get_db
 from homepot.models import Site
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+api_key_header = APIKeyHeader(name=API_KEY_HEADER_NAME, auto_error=False)
 
 
 class DeviceRegister(BaseModel):
@@ -21,12 +23,10 @@ class DeviceRegister(BaseModel):
 
     device_id: str
     site_id: str
-    backend_url: str
-    api_key: str
 
 
 @router.post("/register")
-async def register_device(
+async def register_and_collect_device_dna(
     payload: DeviceRegister, db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Register a pre-authorized device and return collected device DNA."""
@@ -34,7 +34,6 @@ async def register_device(
         device = authenticate_device_credentials(
             db=db,
             device_id=payload.device_id,
-            api_key=payload.api_key,
         )
 
         site = db.get(Site, device.site_id)
@@ -48,7 +47,7 @@ async def register_device(
             "status": "success",
             "device_id": payload.device_id,
             "site_id": payload.site_id,
-            "dna_received": collect_device_dna(payload),
+            "dna_received": collect_device_dna(),
         }
     except HTTPException:
         raise

@@ -1,0 +1,4882 @@
+[
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:44:45.295988+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:44:45.546421+00:00",
+      "cpu_usage": 62.5,
+      "memory_usage": 83.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:40:03.122852+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:40:03.123850+00:00",
+      "cpu_usage": 100.0,
+      "memory_usage": 79.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:34:58.249387+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:34:58.466348+00:00",
+      "cpu_usage": 37.5,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:28:23.293335+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:28:23.954365+00:00",
+      "cpu_usage": 90.0,
+      "memory_usage": 85.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:22:48.718965+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:22:48.966282+00:00",
+      "cpu_usage": 67.3,
+      "memory_usage": 86.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:16:12.828711+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:16:13.049879+00:00",
+      "cpu_usage": 57.1,
+      "memory_usage": 80.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:10:39.266281+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:10:39.465308+00:00",
+      "cpu_usage": 66.0,
+      "memory_usage": 86.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:05:05.471094+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:05:05.679103+00:00",
+      "cpu_usage": 60.4,
+      "memory_usage": 81.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:59:31.589118+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:59:31.767743+00:00",
+      "cpu_usage": 37.5,
+      "memory_usage": 87.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:52:57.169200+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:52:57.466706+00:00",
+      "cpu_usage": 33.3,
+      "memory_usage": 84.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:48:22.631044+00:00",
+      "cpu_usage": 95.2,
+      "memory_usage": 76.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:48:22.630047+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:39:03.999113+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:39:04.143684+00:00",
+      "cpu_usage": 70.8,
+      "memory_usage": 84.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:28:26.012490+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:28:26.169517+00:00",
+      "cpu_usage": 57.1,
+      "memory_usage": 87.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:19:50.865713+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:19:50.867967+00:00",
+      "cpu_usage": 54.2,
+      "memory_usage": 90.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:12:05.477784+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:12:05.640543+00:00",
+      "cpu_usage": 77.2,
+      "memory_usage": 83.1,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:48:17.760118+00:00",
+      "cpu_usage": 64.6,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:47:16.985052+00:00",
+      "cpu_usage": 89.5,
+      "memory_usage": 83.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:46:15.930152+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:46:16.181141+00:00",
+      "cpu_usage": 66.7,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:45:15.157545+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:45:15.421897+00:00",
+      "cpu_usage": 56.1,
+      "memory_usage": 82.7,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:44:14.402531+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:44:14.642529+00:00",
+      "cpu_usage": 68.8,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:43:13.632646+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:42:12.888679+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:41:12.000805+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:40:11.231349+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:39:10.496622+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:38:09.788441+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:37:09.168148+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:37:09.169145+00:00",
+      "cpu_usage": 64.3,
+      "memory_usage": 80.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:30:34.201281+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:30:34.203437+00:00",
+      "cpu_usage": 76.3,
+      "memory_usage": 83.2,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:26:40.492366+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:26:40.493363+00:00",
+      "cpu_usage": 66.7,
+      "memory_usage": 83.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T10:27:54.115757+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T10:27:54.116753+00:00",
+      "cpu_usage": 85.7,
+      "memory_usage": 75.5,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/device-dna",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "site_id": "site-1234",
+      "device_name": null,
+      "device_type": "physical_terminal",
+      "mac_address": "e4:54:e8:91:41:eb",
+      "os_details": null,
+      "local_ip": "169.254.167.196",
+      "wan_ip": "122.164.81.27"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/device-dna",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "site_id": "site-1234",
+      "device_name": null,
+      "device_type": "physical_terminal",
+      "mac_address": "e4:54:e8:91:41:eb",
+      "os_details": null,
+      "local_ip": "169.254.167.196",
+      "wan_ip": "122.164.81.27"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/device-dna",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "site_id": "site-1234",
+      "device_name": null,
+      "device_type": "physical_terminal",
+      "mac_address": "e4:54:e8:91:41:eb",
+      "os_details": null,
+      "local_ip": "169.254.167.196",
+      "wan_ip": "122.164.81.27"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/device-dna",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "site_id": "site-1234",
+      "device_name": null,
+      "device_type": "physical_terminal",
+      "mac_address": "e4:54:e8:91:41:eb",
+      "os_details": null,
+      "local_ip": "169.254.167.196",
+      "wan_ip": "122.164.81.27"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:37:39.294948+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:37:39.558966+00:00",
+      "cpu_usage": 67.9,
+      "memory_usage": 81.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:38:09.975717+00:00",
+      "cpu_usage": 33.3,
+      "memory_usage": 81.5,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:38:40.113631+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:38:40.364461+00:00",
+      "cpu_usage": 70.8,
+      "memory_usage": 82.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:39:10.724810+00:00",
+      "cpu_usage": 65.3,
+      "memory_usage": 82.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:39:40.873281+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:39:41.105984+00:00",
+      "cpu_usage": 57.1,
+      "memory_usage": 83.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:40:11.470928+00:00",
+      "cpu_usage": 48.0,
+      "memory_usage": 83.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:40:41.610809+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:40:41.877018+00:00",
+      "cpu_usage": 67.2,
+      "memory_usage": 84.0,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:41:12.256523+00:00",
+      "cpu_usage": 81.2,
+      "memory_usage": 83.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:41:42.395176+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:41:42.660524+00:00",
+      "cpu_usage": 100.0,
+      "memory_usage": 83.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:42:13.132438+00:00",
+      "cpu_usage": 72.9,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:42:43.264352+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:42:43.513985+00:00",
+      "cpu_usage": 42.9,
+      "memory_usage": 82.2,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:43:13.882509+00:00",
+      "cpu_usage": 47.9,
+      "memory_usage": 81.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:43:44.005501+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:43:44.270582+00:00",
+      "cpu_usage": 47.9,
+      "memory_usage": 82.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:44:44.780521+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:44:45.030342+00:00",
+      "cpu_usage": 42.9,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:45:45.539468+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:45:45.787981+00:00",
+      "cpu_usage": 62.5,
+      "memory_usage": 82.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:46:46.318104+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:46:46.585859+00:00",
+      "cpu_usage": 43.8,
+      "memory_usage": 84.1,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:47:16.719743+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:47:47.123814+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:47:47.358967+00:00",
+      "cpu_usage": 73.7,
+      "memory_usage": 83.5,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:48:17.493947+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:48:47.909099+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:48:48.170948+00:00",
+      "cpu_usage": 100.0,
+      "memory_usage": 85.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:49:18.439622+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:49:18.811723+00:00",
+      "cpu_usage": 57.1,
+      "memory_usage": 85.1,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:49:48.734045+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:49:48.936532+00:00",
+      "cpu_usage": 75.0,
+      "memory_usage": 85.0,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:50:19.062676+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:50:19.325540+00:00",
+      "cpu_usage": 42.9,
+      "memory_usage": 85.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:50:49.439544+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:50:49.706588+00:00",
+      "cpu_usage": 100.0,
+      "memory_usage": 87.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:51:19.841597+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:51:20.089159+00:00",
+      "cpu_usage": 43.4,
+      "memory_usage": 88.5,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:51:50.216941+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:51:50.531424+00:00",
+      "cpu_usage": 75.0,
+      "memory_usage": 88.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:52:20.673506+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:52:20.921102+00:00",
+      "cpu_usage": 57.1,
+      "memory_usage": 86.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:52:51.057052+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:52:51.307481+00:00",
+      "cpu_usage": 46.9,
+      "memory_usage": 86.7,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:53:21.431750+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:53:21.683217+00:00",
+      "cpu_usage": 70.2,
+      "memory_usage": 86.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:53:51.820002+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:53:52.067292+00:00",
+      "cpu_usage": 100.0,
+      "memory_usage": 87.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:54:22.587432+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:54:22.726286+00:00",
+      "cpu_usage": 45.8,
+      "memory_usage": 87.7,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:54:52.867722+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:54:53.100373+00:00",
+      "cpu_usage": 68.8,
+      "memory_usage": 87.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:55:23.237728+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:55:23.485764+00:00",
+      "cpu_usage": 87.5,
+      "memory_usage": 87.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:55:53.617296+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:55:53.883779+00:00",
+      "cpu_usage": 52.1,
+      "memory_usage": 87.5,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:56:24.014421+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:56:24.263235+00:00",
+      "cpu_usage": 63.2,
+      "memory_usage": 87.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:56:54.398590+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:56:54.649893+00:00",
+      "cpu_usage": 88.7,
+      "memory_usage": 85.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:57:24.766911+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:57:25.029671+00:00",
+      "cpu_usage": 57.9,
+      "memory_usage": 85.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:57:55.139092+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:57:55.402975+00:00",
+      "cpu_usage": 42.9,
+      "memory_usage": 84.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:58:25.520822+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:58:25.785870+00:00",
+      "cpu_usage": 45.8,
+      "memory_usage": 82.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:58:55.927311+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:58:56.175249+00:00",
+      "cpu_usage": 35.4,
+      "memory_usage": 83.0,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:59:26.311103+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:59:26.560369+00:00",
+      "cpu_usage": 62.5,
+      "memory_usage": 83.1,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:59:56.712045+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T13:59:56.945374+00:00",
+      "cpu_usage": 69.4,
+      "memory_usage": 82.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:00:27.067520+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:00:27.333166+00:00",
+      "cpu_usage": 39.6,
+      "memory_usage": 82.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:00:57.475640+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:00:57.708630+00:00",
+      "cpu_usage": 67.3,
+      "memory_usage": 83.1,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:01:27.844977+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:01:28.092921+00:00",
+      "cpu_usage": 67.9,
+      "memory_usage": 84.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:01:58.210936+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:01:58.475771+00:00",
+      "cpu_usage": 64.6,
+      "memory_usage": 83.5,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:02:28.604175+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:02:28.853857+00:00",
+      "cpu_usage": 39.6,
+      "memory_usage": 83.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:02:58.978951+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:02:59.243541+00:00",
+      "cpu_usage": 64.0,
+      "memory_usage": 83.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:03:29.360670+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:03:29.623475+00:00",
+      "cpu_usage": 75.0,
+      "memory_usage": 83.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:03:59.755889+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:04:00.004241+00:00",
+      "cpu_usage": 50.0,
+      "memory_usage": 83.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:04:30.119821+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:04:30.397524+00:00",
+      "cpu_usage": 46.9,
+      "memory_usage": 85.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:05:00.508018+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:05:00.774191+00:00",
+      "cpu_usage": 43.8,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:05:30.886055+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:05:31.152680+00:00",
+      "cpu_usage": 50.0,
+      "memory_usage": 84.7,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:06:01.282649+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:06:01.547898+00:00",
+      "cpu_usage": 52.6,
+      "memory_usage": 84.7,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:06:31.676047+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:06:31.941344+00:00",
+      "cpu_usage": 47.9,
+      "memory_usage": 85.1,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:07:02.067014+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:07:02.328448+00:00",
+      "cpu_usage": 64.3,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:07:32.463717+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:07:32.731680+00:00",
+      "cpu_usage": 57.1,
+      "memory_usage": 83.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:08:02.848241+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:08:03.114154+00:00",
+      "cpu_usage": 60.4,
+      "memory_usage": 84.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:08:33.257693+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:08:33.506915+00:00",
+      "cpu_usage": 43.8,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:09:03.650250+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:09:03.885684+00:00",
+      "cpu_usage": 82.8,
+      "memory_usage": 84.7,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:09:34.025978+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:09:34.257961+00:00",
+      "cpu_usage": 64.6,
+      "memory_usage": 85.0,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:10:04.409192+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:10:04.639918+00:00",
+      "cpu_usage": 66.1,
+      "memory_usage": 82.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:10:34.774712+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:10:35.009101+00:00",
+      "cpu_usage": 64.6,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:11:05.145630+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:11:05.377652+00:00",
+      "cpu_usage": 93.8,
+      "memory_usage": 85.7,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:11:35.188622+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:11:35.533172+00:00",
+      "cpu_usage": 68.8,
+      "memory_usage": 84.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:12:35.805285+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:12:36.054679+00:00",
+      "cpu_usage": 43.8,
+      "memory_usage": 83.0,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:13:06.178600+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:13:06.444440+00:00",
+      "cpu_usage": 66.7,
+      "memory_usage": 83.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:13:36.562415+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:13:36.844297+00:00",
+      "cpu_usage": 87.5,
+      "memory_usage": 83.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:14:06.859573+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:14:06.967088+00:00",
+      "cpu_usage": 68.4,
+      "memory_usage": 85.4,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:14:37.160822+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:14:37.364777+00:00",
+      "cpu_usage": 60.4,
+      "memory_usage": 78.2,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:15:07.483472+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:15:07.745633+00:00",
+      "cpu_usage": 91.2,
+      "memory_usage": 86.9,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:15:37.897599+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:15:38.143931+00:00",
+      "cpu_usage": 94.0,
+      "memory_usage": 93.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:16:08.280471+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:16:08.545495+00:00",
+      "cpu_usage": 100.0,
+      "memory_usage": 91.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:16:38.730910+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:16:38.980507+00:00",
+      "cpu_usage": 75.4,
+      "memory_usage": 92.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:17:09.097951+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:17:09.410229+00:00",
+      "cpu_usage": 70.8,
+      "memory_usage": 92.6,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:17:39.379111+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:17:39.548601+00:00",
+      "cpu_usage": 87.8,
+      "memory_usage": 91.8,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:18:09.684124+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:18:09.931481+00:00",
+      "cpu_usage": 77.1,
+      "memory_usage": 92.3,
+      "disk_usage": 33.0
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/device-dna",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "site_id": "site-1234",
+      "device_name": null,
+      "device_type": "physical_terminal",
+      "mac_address": "e4:54:e8:91:41:eb",
+      "os_details": null,
+      "local_ip": "169.254.167.196",
+      "wan_ip": "122.164.81.27"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:20:21.004454+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:20:21.268541+00:00",
+      "cpu_usage": 81.6,
+      "memory_usage": 91.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:20:51.398536+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:20:51.662504+00:00",
+      "cpu_usage": 45.8,
+      "memory_usage": 91.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:21:21.787963+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:21:22.053651+00:00",
+      "cpu_usage": 76.0,
+      "memory_usage": 91.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:21:52.174377+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:21:52.441434+00:00",
+      "cpu_usage": 75.5,
+      "memory_usage": 92.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:22:22.561309+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:22:22.871242+00:00",
+      "cpu_usage": 65.5,
+      "memory_usage": 91.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:22:52.855417+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:22:52.995015+00:00",
+      "cpu_usage": 50.0,
+      "memory_usage": 91.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:23:23.144210+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:23:23.377187+00:00",
+      "cpu_usage": 68.4,
+      "memory_usage": 91.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:23:53.488737+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:23:53.753551+00:00",
+      "cpu_usage": 52.1,
+      "memory_usage": 90.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:24:23.891369+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:24:24.140525+00:00",
+      "cpu_usage": 53.6,
+      "memory_usage": 91.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:24:54.264683+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:24:54.531503+00:00",
+      "cpu_usage": 67.9,
+      "memory_usage": 90.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:25:24.672291+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:25:24.909385+00:00",
+      "cpu_usage": 76.0,
+      "memory_usage": 88.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:25:55.043044+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:25:55.293304+00:00",
+      "cpu_usage": 63.2,
+      "memory_usage": 88.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:26:25.422371+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:26:25.684058+00:00",
+      "cpu_usage": 66.1,
+      "memory_usage": 91.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:26:55.451364+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:26:55.810164+00:00",
+      "cpu_usage": 55.4,
+      "memory_usage": 90.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:27:25.736551+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:27:25.938783+00:00",
+      "cpu_usage": 81.0,
+      "memory_usage": 88.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:27:55.752817+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:27:56.063694+00:00",
+      "cpu_usage": 75.0,
+      "memory_usage": 87.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:28:56.317833+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:28:56.555526+00:00",
+      "cpu_usage": 72.1,
+      "memory_usage": 87.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:29:26.716018+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:29:26.951607+00:00",
+      "cpu_usage": 62.1,
+      "memory_usage": 87.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:29:57.071239+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:29:57.329915+00:00",
+      "cpu_usage": 44.6,
+      "memory_usage": 88.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:30:27.447147+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:30:27.712246+00:00",
+      "cpu_usage": 39.6,
+      "memory_usage": 88.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:30:57.837836+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:30:58.086655+00:00",
+      "cpu_usage": 47.9,
+      "memory_usage": 88.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:31:28.218331+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:31:28.467732+00:00",
+      "cpu_usage": 53.6,
+      "memory_usage": 88.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:31:58.592246+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:31:58.842392+00:00",
+      "cpu_usage": 60.7,
+      "memory_usage": 84.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:32:28.978437+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:32:29.226229+00:00",
+      "cpu_usage": 50.0,
+      "memory_usage": 84.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:32:59.342999+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:32:59.608119+00:00",
+      "cpu_usage": 57.1,
+      "memory_usage": 82.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:33:29.741084+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:33:30.008432+00:00",
+      "cpu_usage": 45.8,
+      "memory_usage": 82.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:34:00.124699+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:34:00.388706+00:00",
+      "cpu_usage": 61.4,
+      "memory_usage": 82.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:34:30.555944+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:34:30.818579+00:00",
+      "cpu_usage": 41.7,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:35:00.943657+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:35:01.208482+00:00",
+      "cpu_usage": 37.5,
+      "memory_usage": 84.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:35:31.343701+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:35:31.592960+00:00",
+      "cpu_usage": 44.6,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:36:01.712089+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:36:01.975832+00:00",
+      "cpu_usage": 60.4,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:36:32.107340+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:36:32.359550+00:00",
+      "cpu_usage": 51.8,
+      "memory_usage": 84.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:37:02.480540+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:37:02.746735+00:00",
+      "cpu_usage": 67.9,
+      "memory_usage": 84.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:37:32.498963+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:37:32.873825+00:00",
+      "cpu_usage": 82.5,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:38:02.768265+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:38:02.997471+00:00",
+      "cpu_usage": 60.7,
+      "memory_usage": 84.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:38:33.741009+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:38:33.771446+00:00",
+      "cpu_usage": 39.6,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:39:34.283752+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:39:34.549105+00:00",
+      "cpu_usage": 77.1,
+      "memory_usage": 84.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:40:04.688947+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:40:04.954051+00:00",
+      "cpu_usage": 62.1,
+      "memory_usage": 84.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:40:35.075389+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:40:35.342018+00:00",
+      "cpu_usage": 63.2,
+      "memory_usage": 84.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:41:05.460351+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:41:05.722953+00:00",
+      "cpu_usage": 54.0,
+      "memory_usage": 84.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:41:35.843907+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:41:36.110665+00:00",
+      "cpu_usage": 67.9,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:42:06.231108+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:42:06.496337+00:00",
+      "cpu_usage": 56.1,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:42:36.628898+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:42:36.878397+00:00",
+      "cpu_usage": 66.7,
+      "memory_usage": 81.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:48:54.358376+00:00",
+      "cpu_usage": 17.5,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:48:54.685532+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:49:24.735255+00:00",
+      "cpu_usage": 34.6,
+      "memory_usage": 85.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:49:24.984894+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:49:55.121426+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 85.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:49:55.278398+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:50:25.516713+00:00",
+      "cpu_usage": 16.1,
+      "memory_usage": 85.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:50:25.618754+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:50:55.924069+00:00",
+      "cpu_usage": 22.8,
+      "memory_usage": 84.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:50:56.025533+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:51:26.280301+00:00",
+      "cpu_usage": 21.2,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:51:26.382025+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:51:56.676174+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:51:56.677569+00:00",
+      "cpu_usage": 31.2,
+      "memory_usage": 84.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:52:26.811172+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:52:27.075661+00:00",
+      "cpu_usage": 18.8,
+      "memory_usage": 83.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:53:27.470197+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:53:27.610597+00:00",
+      "cpu_usage": 19.2,
+      "memory_usage": 83.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:53:57.766854+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:53:57.999517+00:00",
+      "cpu_usage": 21.8,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:54:28.138736+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:54:28.387892+00:00",
+      "cpu_usage": 14.6,
+      "memory_usage": 84.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:54:58.511748+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:54:58.773543+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 84.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:55:28.906513+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:55:29.171340+00:00",
+      "cpu_usage": 19.6,
+      "memory_usage": 85.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:55:59.318590+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:55:59.567635+00:00",
+      "cpu_usage": 29.4,
+      "memory_usage": 84.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:56:29.699256+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:56:29.965456+00:00",
+      "cpu_usage": 14.6,
+      "memory_usage": 87.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:57:00.106209+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:57:00.355982+00:00",
+      "cpu_usage": 14.6,
+      "memory_usage": 87.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:57:30.485828+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:57:30.750366+00:00",
+      "cpu_usage": 13.7,
+      "memory_usage": 87.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:58:00.876858+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:58:01.139144+00:00",
+      "cpu_usage": 17.3,
+      "memory_usage": 84.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:58:31.273721+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:58:31.521260+00:00",
+      "cpu_usage": 60.4,
+      "memory_usage": 85.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:59:01.294619+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T14:59:01.651434+00:00",
+      "cpu_usage": 33.3,
+      "memory_usage": 87.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:00:01.899118+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:00:02.165569+00:00",
+      "cpu_usage": 60.2,
+      "memory_usage": 86.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:00:32.378550+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:00:32.644979+00:00",
+      "cpu_usage": 29.1,
+      "memory_usage": 87.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:01:02.777796+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:01:03.023760+00:00",
+      "cpu_usage": 16.3,
+      "memory_usage": 87.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:01:33.153882+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:01:33.419154+00:00",
+      "cpu_usage": 24.5,
+      "memory_usage": 87.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:02:03.557786+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:02:03.806290+00:00",
+      "cpu_usage": 24.5,
+      "memory_usage": 87.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:02:33.926918+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:02:34.188601+00:00",
+      "cpu_usage": 14.3,
+      "memory_usage": 87.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:03:04.327135+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:03:04.576387+00:00",
+      "cpu_usage": 100.0,
+      "memory_usage": 81.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:03:34.804184+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:03:35.021394+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 81.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:04:05.150250+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:04:05.414189+00:00",
+      "cpu_usage": 33.3,
+      "memory_usage": 81.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:04:35.190139+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:04:35.548372+00:00",
+      "cpu_usage": 34.5,
+      "memory_usage": 81.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:05:35.839035+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:05:36.071119+00:00",
+      "cpu_usage": 18.4,
+      "memory_usage": 81.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:06:06.190000+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:06:06.469959+00:00",
+      "cpu_usage": 37.5,
+      "memory_usage": 81.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:06:36.593895+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:06:36.854215+00:00",
+      "cpu_usage": 18.8,
+      "memory_usage": 82.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:07:06.994911+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:07:07.246523+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 79.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:07:37.365452+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:07:37.631352+00:00",
+      "cpu_usage": 25.0,
+      "memory_usage": 79.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:08:07.762745+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:08:08.028315+00:00",
+      "cpu_usage": 20.8,
+      "memory_usage": 78.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:08:38.171474+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:08:38.420634+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 85.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:09:08.544471+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:09:08.808588+00:00",
+      "cpu_usage": 26.5,
+      "memory_usage": 85.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:09:38.940718+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:09:39.203960+00:00",
+      "cpu_usage": 51.8,
+      "memory_usage": 85.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:10:08.989507+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:10:09.348524+00:00",
+      "cpu_usage": 81.6,
+      "memory_usage": 85.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:11:09.592320+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:11:09.842653+00:00",
+      "cpu_usage": 18.0,
+      "memory_usage": 86.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:11:39.987454+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:11:40.251005+00:00",
+      "cpu_usage": 37.5,
+      "memory_usage": 88.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:12:10.389467+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:12:10.638700+00:00",
+      "cpu_usage": 37.5,
+      "memory_usage": 88.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:12:40.757785+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:12:41.022342+00:00",
+      "cpu_usage": 30.6,
+      "memory_usage": 83.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:13:11.155286+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:13:11.465957+00:00",
+      "cpu_usage": 41.7,
+      "memory_usage": 80.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:13:41.460774+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:13:41.616378+00:00",
+      "cpu_usage": 25.0,
+      "memory_usage": 80.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:14:11.735153+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:14:12.015688+00:00",
+      "cpu_usage": 48.2,
+      "memory_usage": 81.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:14:42.129206+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:14:42.440316+00:00",
+      "cpu_usage": 44.6,
+      "memory_usage": 80.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:15:12.423650+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:15:12.577767+00:00",
+      "cpu_usage": 42.9,
+      "memory_usage": 80.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:15:42.440600+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:15:42.705369+00:00",
+      "cpu_usage": 17.9,
+      "memory_usage": 80.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:16:43.188155+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:16:43.436770+00:00",
+      "cpu_usage": 80.4,
+      "memory_usage": 82.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:17:13.639782+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:17:13.875805+00:00",
+      "cpu_usage": 14.3,
+      "memory_usage": 80.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:17:44.008968+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:17:44.241853+00:00",
+      "cpu_usage": 18.8,
+      "memory_usage": 82.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:18:14.379277+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:18:14.644017+00:00",
+      "cpu_usage": 28.6,
+      "memory_usage": 80.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:18:44.783084+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:18:45.031580+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 80.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:19:15.169073+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:19:15.418078+00:00",
+      "cpu_usage": 45.8,
+      "memory_usage": 82.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:19:45.567393+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:19:45.817554+00:00",
+      "cpu_usage": 44.0,
+      "memory_usage": 83.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:20:15.957764+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:20:16.207683+00:00",
+      "cpu_usage": 40.4,
+      "memory_usage": 84.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:20:46.335255+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:20:46.587030+00:00",
+      "cpu_usage": 64.6,
+      "memory_usage": 84.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:21:16.361542+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:21:16.702837+00:00",
+      "cpu_usage": 69.6,
+      "memory_usage": 85.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:21:48.217254+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:21:48.218252+00:00",
+      "cpu_usage": 26.8,
+      "memory_usage": 85.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:22:18.344898+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:22:18.609758+00:00",
+      "cpu_usage": 25.9,
+      "memory_usage": 86.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:23:19.104165+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:23:19.339245+00:00",
+      "cpu_usage": 10.4,
+      "memory_usage": 88.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:23:49.461226+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:23:49.714250+00:00",
+      "cpu_usage": 91.8,
+      "memory_usage": 86.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:24:19.825901+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:24:20.090399+00:00",
+      "cpu_usage": 44.9,
+      "memory_usage": 87.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:24:50.301425+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:24:50.488222+00:00",
+      "cpu_usage": 35.7,
+      "memory_usage": 87.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:25:20.621558+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:25:20.886247+00:00",
+      "cpu_usage": 27.1,
+      "memory_usage": 88.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:25:51.005027+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:25:51.269739+00:00",
+      "cpu_usage": 10.7,
+      "memory_usage": 87.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:26:21.405214+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:26:21.655305+00:00",
+      "cpu_usage": 37.7,
+      "memory_usage": 88.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:26:51.768446+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:26:52.044567+00:00",
+      "cpu_usage": 32.1,
+      "memory_usage": 88.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:27:22.778491+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:27:22.780023+00:00",
+      "cpu_usage": 26.9,
+      "memory_usage": 88.7,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:27:52.912600+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:27:53.179126+00:00",
+      "cpu_usage": 33.3,
+      "memory_usage": 88.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:28:54.131360+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:28:54.363989+00:00",
+      "cpu_usage": 26.8,
+      "memory_usage": 85.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:29:24.493715+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:29:24.744037+00:00",
+      "cpu_usage": 14.6,
+      "memory_usage": 86.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:29:54.875554+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:29:55.142955+00:00",
+      "cpu_usage": 28.8,
+      "memory_usage": 85.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:30:25.261466+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:30:25.527309+00:00",
+      "cpu_usage": 14.6,
+      "memory_usage": 84.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:30:55.644939+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:30:55.910405+00:00",
+      "cpu_usage": 14.0,
+      "memory_usage": 84.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:31:26.031025+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:31:26.294104+00:00",
+      "cpu_usage": 14.3,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:31:56.402961+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:31:56.668542+00:00",
+      "cpu_usage": 10.4,
+      "memory_usage": 84.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:32:26.788247+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:32:27.052074+00:00",
+      "cpu_usage": 28.6,
+      "memory_usage": 84.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:32:57.181611+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:32:57.446981+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 84.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:33:27.581902+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:33:27.828647+00:00",
+      "cpu_usage": 20.4,
+      "memory_usage": 82.5,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:33:57.946569+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:33:58.211730+00:00",
+      "cpu_usage": 47.9,
+      "memory_usage": 82.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:34:27.967999+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:34:28.345535+00:00",
+      "cpu_usage": 64.9,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:35:28.581697+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:35:28.849382+00:00",
+      "cpu_usage": 25.0,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:35:58.975326+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:35:59.237197+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 82.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:36:29.355216+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:36:29.620001+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 82.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:36:59.747419+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:37:00.012004+00:00",
+      "cpu_usage": 14.6,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:37:30.132923+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:37:30.398149+00:00",
+      "cpu_usage": 14.6,
+      "memory_usage": 82.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:38:00.522155+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:38:00.787363+00:00",
+      "cpu_usage": 30.6,
+      "memory_usage": 82.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:38:30.912594+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:38:31.179367+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 80.4,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:39:01.295795+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:39:01.559824+00:00",
+      "cpu_usage": 22.9,
+      "memory_usage": 79.8,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:40:42.368667+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:40:42.510482+00:00",
+      "cpu_usage": 16.7,
+      "memory_usage": 81.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:41:12.631392+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:41:12.897388+00:00",
+      "cpu_usage": 20.8,
+      "memory_usage": 81.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:41:43.019440+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:41:43.282408+00:00",
+      "cpu_usage": 21.4,
+      "memory_usage": 83.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:42:13.419707+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:42:13.651755+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 83.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:42:43.779676+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:42:44.030859+00:00",
+      "cpu_usage": 16.1,
+      "memory_usage": 83.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:43:14.145230+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:43:14.409223+00:00",
+      "cpu_usage": 25.5,
+      "memory_usage": 83.0,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:43:44.544075+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:43:44.793743+00:00",
+      "cpu_usage": 29.2,
+      "memory_usage": 82.9,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:44:14.918201+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:44:15.183926+00:00",
+      "cpu_usage": 25.0,
+      "memory_usage": 83.2,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:45:15.679920+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:45:15.932342+00:00",
+      "cpu_usage": 12.5,
+      "memory_usage": 83.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:45:46.059902+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:45:46.308745+00:00",
+      "cpu_usage": 10.4,
+      "memory_usage": 83.1,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:46:16.437173+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:46:16.700706+00:00",
+      "cpu_usage": 18.8,
+      "memory_usage": 83.3,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
+  }
+]

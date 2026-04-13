@@ -42,7 +42,7 @@ def get_local_ip() -> Optional[str]:
     return None
 
 
-def get_wan_ip(payload: Any = None) -> Optional[str]:
+def get_wan_ip() -> Optional[str]:
     """Retrieve the public (WAN) IP address using external fallback services."""
     try:
         with httpx.Client(timeout=5.0) as client:
@@ -64,11 +64,11 @@ def get_mac_address() -> Optional[str]:
         return None
 
 
-def collect_device_dna(payload: Any) -> Dict[str, Optional[str]]:
+def collect_device_dna() -> Dict[str, Optional[str]]:
     """Collect device identification data and return it as a dictionary."""
     return {
         "local_ip": get_local_ip(),
-        "wan_ip": get_wan_ip(payload),
+        "wan_ip": get_wan_ip(),
         "mac_address": get_mac_address(),
         "os_name": platform.system(),
         "os_version": platform.release(),
