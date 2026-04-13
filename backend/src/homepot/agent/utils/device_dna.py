@@ -64,8 +64,9 @@ def get_mac_address() -> Optional[str]:
         return None
 
 
-def collect_device_dna() -> Dict[str, Optional[str]]:
+def collect_device_dna(payload: Any = None) -> Dict[str, Optional[str]]:
     """Collect device identification data and return it as a dictionary."""
+    _ = payload  # Backward-compatible argument for existing call-sites/tests.
     return {
         "local_ip": get_local_ip(),
         "wan_ip": get_wan_ip(),

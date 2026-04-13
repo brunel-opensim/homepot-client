@@ -4878,5 +4878,25 @@
       "disk_usage": 33.0,
       "site_id": "site-1234"
     }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/heartbeat",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:46:46.832858+00:00",
+      "status": "ONLINE",
+      "site_id": "site-1234"
+    }
+  },
+  {
+    "url": "http://localhost:8001/api/v1/agent/telemetry",
+    "payload": {
+      "device_id": "physical-pos-001",
+      "timestamp": "2026-04-13T15:46:47.097531+00:00",
+      "cpu_usage": 33.9,
+      "memory_usage": 83.6,
+      "disk_usage": 33.0,
+      "site_id": "site-1234"
+    }
   }
 ]

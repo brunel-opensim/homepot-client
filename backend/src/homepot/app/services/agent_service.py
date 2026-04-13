@@ -244,7 +244,7 @@ class AgentService:
                 heartbeat_utc = heartbeat_utc.replace(tzinfo=timezone.utc)
 
             current_time = _utc_now()
-            is_online = (current_time - heartbeat_utc) < timedelta(minutes=2)
+            is_online = (current_time - heartbeat_utc) <= timedelta(minutes=2)
 
             return {
                 "device_id": device.device_id,
