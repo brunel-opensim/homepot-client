@@ -199,7 +199,7 @@ def require_role(required_role: str) -> Any:
     return role_checker
 
 
-def authenticate_device_credentials(db: Session, device_id: str) -> Device:
+def authenticate_device_credentials(db: Session, device_id: str, api_key: str) -> Device:
     """Authenticate a device using its device ID and plaintext API key."""
     if not device_id:
         raise HTTPException(
@@ -216,17 +216,17 @@ def authenticate_device_credentials(db: Session, device_id: str) -> Device:
             detail="Invalid Device ID",
         )
 
-    # if not device.api_key_hash:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_401_UNAUTHORIZED,
-    #         detail="Device not configured for API Key authentication",
-    #     )
-    #
-    # if not verify_password(api_key, device.api_key_hash):  # type: ignore[arg-type]
-    #     raise HTTPException(
-    #         status_code=status.HTTP_401_UNAUTHORIZED,
-    #         detail="Invalid API Key",
-    #     )
+    if not device.api_key_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Device not configured for API Key authentication",
+        )
+
+    if not verify_password(api_key, device.api_key_hash):  # type: ignore[arg-type]
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+        )
 
     if not device.is_active:
         raise HTTPException(

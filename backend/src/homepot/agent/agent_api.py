@@ -23,6 +23,8 @@ class DeviceRegister(BaseModel):
 
     device_id: str
     site_id: str
+    backend_url: str
+    api_key: str
 
 
 @router.post("/register")
@@ -34,6 +36,7 @@ async def register_and_collect_device_dna(
         device = authenticate_device_credentials(
             db=db,
             device_id=payload.device_id,
+            api_key=Depends(api_key_header),
         )
 
         site = db.get(Site, device.site_id)
