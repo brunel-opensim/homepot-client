@@ -1,5 +1,5 @@
 {
-  "backend_url": "http://localhost:8001",
+  "backend_url": "http://localhost:8000",
   "device_id": "physical-pos-001",
   "site_id": "site-1234",
   "api_key": "replace-with-provisioned-secret",
