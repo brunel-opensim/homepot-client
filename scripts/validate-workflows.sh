@@ -471,11 +471,11 @@ validate_code_quality() {
     # Black formatting
     if command -v black >/dev/null 2>&1; then
         echo -n "    Black formatting: "
-        log_verbose "Running: black --check backend/ backend/tests/ ai/"
-        if black --check backend/ backend/tests/ ai/ 2>/dev/null; then
+        log_verbose "Running: black --check backend/ backend/tests/ ai/ uq/"
+        if black --check backend/ backend/tests/ ai/ uq/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: black backend/ backend/tests/ ai/${NC}"
+            echo -e "${RED}Failed - run: black backend/ backend/tests/ ai/ uq/${NC}"
             failed=true
         fi
     else
@@ -485,11 +485,11 @@ validate_code_quality() {
     # isort import sorting (NEW - matches CI/CD)
     if command -v isort >/dev/null 2>&1; then
         echo -n "    Import sorting (isort): "
-        log_verbose "Running: isort --check-only backend/ backend/tests/ ai/"
-        if isort --check-only backend/ backend/tests/ ai/ 2>/dev/null; then
+        log_verbose "Running: isort --check-only backend/ backend/tests/ ai/ uq/"
+        if isort --check-only backend/ backend/tests/ ai/ uq/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: isort backend/ backend/tests/ ai/${NC}"
+            echo -e "${RED}Failed - run: isort backend/ backend/tests/ ai/ uq/${NC}"
             failed=true
         fi
     else
@@ -499,11 +499,11 @@ validate_code_quality() {
     # flake8 linting
     if command -v flake8 >/dev/null 2>&1; then
         echo -n "    Linting (flake8): "
-        log_verbose "Running: flake8 backend/ backend/tests/ ai/"
-        if flake8 backend/ backend/tests/ ai/ 2>/dev/null; then
+        log_verbose "Running: flake8 backend/ backend/tests/ ai/ uq/"
+        if flake8 backend/ backend/tests/ ai/ uq/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/ ai/${NC}"
+            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/ ai/ uq/${NC}"
             failed=true
         fi
     else
@@ -513,11 +513,11 @@ validate_code_quality() {
     # MyPy type checking (NEW - matches CI/CD)
     if command -v mypy >/dev/null 2>&1; then
         echo -n "    Type checking (mypy): "
-        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/"
+        log_verbose "Running: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/ uq/"
         
         # Capture mypy output to check for specific errors
         local mypy_output
-        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/ 2>&1); then
+        if mypy_output=$(mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/ uq/ 2>&1); then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check for specific error types
@@ -532,7 +532,7 @@ validate_code_quality() {
                 log_verbose "This indicates missing dependencies in requirements.txt or missing type stubs"
                 log_verbose "Consider installing missing packages or type stubs (e.g., pip install types-*)"
             else
-                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/${NC}"
+                echo -e "${RED}Failed - run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/ uq/${NC}"
                 log_verbose "MyPy failed for other reasons"
                 if [[ "$VERBOSE" == true ]]; then
                     echo "$mypy_output" | head -10 | while read -r line; do
@@ -1228,6 +1228,20 @@ validate_tests() {
         fi
     fi
     
+    # UQ Tests
+    local uq_test_count=$(find uq -name "test_*.py" 2>/dev/null | grep -c .)
+    if [[ $uq_test_count -gt 0 ]]; then
+        echo -n "    UQ tests: "
+        log_verbose "Running: cd backend && python -m pytest ../uq/ -q --no-cov"
+        if (cd backend && python -m pytest ../uq/ -q --no-cov) >/dev/null 2>&1; then
+            echo -e "${GREEN}Passed${NC}"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "UQ tests failed - check UQ tests implementation"
+            failed=true
+        fi
+    fi
+
     # NEW: Integration test fixture validation
     echo -n "    Integration test fixtures: "
     if [ -f "backend/tests/test_homepot_integration.py" ]; then

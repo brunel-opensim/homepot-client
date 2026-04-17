@@ -35,8 +35,8 @@ class AnomalyDetector:
             "cpu_percent": config_thresholds.get("cpu_percent", 90.0),
             "memory_percent": config_thresholds.get("memory_percent", 90.0),
             "disk_percent": config_thresholds.get("disk_percent", 95.0),
-            "error_rate": config_thresholds.get("max_error_rate", 0.05),
-            "network_latency_ms": config_thresholds.get("max_latency_ms", 500.0),
+            "error_rate": config_thresholds.get("error_rate", 0.05),
+            "network_latency_ms": config_thresholds.get("network_latency_ms", 200.0),
             "flapping_count": config_thresholds.get("max_flapping_count", 5),
             "consecutive_failures": config_thresholds.get("consecutive_failures", 3),
         }

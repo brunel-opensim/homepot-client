@@ -246,6 +246,8 @@ def _generate_metrics_for_scenario(scenario: str) -> Dict:
             "is_healthy": True,
             "status": "healthy",
             "response_time_ms": random.randint(100, 200),
+            "flapping_count": random.randint(0, 1),
+            "consecutive_failures": 0,
             "system": {
                 "cpu_percent": round(random.uniform(50, 70), 1),
                 "memory_percent": round(random.uniform(60, 75), 1),
@@ -275,6 +277,8 @@ def _generate_metrics_for_scenario(scenario: str) -> Dict:
             "is_healthy": False,
             "status": "degraded",
             "response_time_ms": random.randint(300, 500),
+            "flapping_count": random.randint(1, 3),
+            "consecutive_failures": random.randint(0, 1),
             "system": {
                 "cpu_percent": round(random.uniform(85, 95), 1),
                 "memory_percent": round(random.uniform(70, 80), 1),
@@ -304,6 +308,8 @@ def _generate_metrics_for_scenario(scenario: str) -> Dict:
             "is_healthy": False,
             "status": "degraded",
             "response_time_ms": random.randint(400, 600),
+            "flapping_count": random.randint(1, 3),
+            "consecutive_failures": random.randint(0, 2),
             "system": {
                 "cpu_percent": round(random.uniform(65, 80), 1),
                 "memory_percent": round(random.uniform(90, 95), 1),
@@ -333,6 +339,8 @@ def _generate_metrics_for_scenario(scenario: str) -> Dict:
             "is_healthy": False,
             "status": "unhealthy",
             "response_time_ms": random.randint(500, 800),
+            "flapping_count": random.randint(2, 5),
+            "consecutive_failures": random.randint(1, 4),
             "system": {
                 "cpu_percent": round(random.uniform(60, 75), 1),
                 "memory_percent": round(random.uniform(70, 85), 1),
@@ -362,6 +370,8 @@ def _generate_metrics_for_scenario(scenario: str) -> Dict:
             "is_healthy": False,
             "status": "degraded",
             "response_time_ms": random.randint(600, 900),
+            "flapping_count": random.randint(3, 7),
+            "consecutive_failures": random.randint(2, 6),
             "system": {
                 "cpu_percent": round(random.uniform(85, 95), 1),
                 "memory_percent": round(random.uniform(85, 92), 1),
@@ -391,6 +401,8 @@ def _generate_metrics_for_scenario(scenario: str) -> Dict:
             "is_healthy": False,
             "status": "offline",
             "response_time_ms": 0,
+            "flapping_count": random.randint(5, 10),
+            "consecutive_failures": random.randint(6, 15),
             "system": {
                 "cpu_percent": 0.0,
                 "memory_percent": 0.0,

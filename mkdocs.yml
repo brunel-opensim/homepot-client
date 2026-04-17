@@ -167,6 +167,11 @@ nav:
       - Monorepo Structure: monorepo-migration.md
       - Repository Health: repository-health.md
       - Collaboration: collaboration-guide.md
+      - Uncertainty Quantification:
+          - Overview: uq/overview.md
+          - "Study 1: Anomaly Detector Sensitivity": uq/study1-anomaly.md
+          - "Study 2: Simulator Scenario Validation": uq/study2-simulator.md
+          - "Study 3: Push Notification Reliability": uq/study3-push.md
 
 # Extra
 extra:
