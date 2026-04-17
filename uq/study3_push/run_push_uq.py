@@ -37,12 +37,13 @@ Results are printed to stdout.  Four plots are saved to
 ``uq/study3_push/figs/``.
 """
 
-import os
-import sys
 from concurrent.futures import ThreadPoolExecutor
+import os
 from shutil import rmtree
+import sys
 
 import scipy.special
+
 # chaospy 4.3.2 still calls scipy.special.btdtri which was removed in scipy ≥ 1.14.
 # Alias to the replacement so the rest of the stack works unchanged.
 if not hasattr(scipy.special, "btdtri"):
@@ -56,7 +57,7 @@ import scipy.stats as spstats
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-STUDY_DIR    = os.path.dirname(os.path.abspath(__file__))
+STUDY_DIR = os.path.dirname(os.path.abspath(__file__))
 HOMEPOT_ROOT = os.environ.get(
     "HOMEPOT_PATH",
     os.path.abspath(os.path.join(STUDY_DIR, "../..")),
@@ -64,8 +65,8 @@ HOMEPOT_ROOT = os.environ.get(
 FIGS_DIR = os.path.join(STUDY_DIR, "figs")
 os.makedirs(FIGS_DIR, exist_ok=True)
 
-RUNNER_SCRIPT  = os.path.join(STUDY_DIR, "push_runner.py")
-TEMPLATE_FILE  = os.path.join(STUDY_DIR, "push_runner.template")
+RUNNER_SCRIPT = os.path.join(STUDY_DIR, "push_runner.py")
+TEMPLATE_FILE = os.path.join(STUDY_DIR, "push_runner.template")
 
 os.environ.setdefault("HOMEPOT_PATH", HOMEPOT_ROOT)
 print(f"[INFO] Homepot root: {HOMEPOT_ROOT}")
@@ -75,13 +76,13 @@ print(f"[INFO] Homepot root: {HOMEPOT_ROOT}")
 # ---------------------------------------------------------------------------
 params = {
     "success_rate": {"type": "float", "default": 0.95, "min": 0.0, "max": 1.0},
-    "num_devices":  {"type": "float", "default": 25.0, "min": 1.0, "max": 50.0},
-    "outfile":      {"type": "string", "default": "output.json"},
+    "num_devices": {"type": "float", "default": 25.0, "min": 1.0, "max": 50.0},
+    "outfile": {"type": "string", "default": "output.json"},
 }
 
 QOI_COLS = ["expected_failures", "failure_rate", "campaign_time_ms"]
 
-N_MC_MAIN = 5_000   # → 20 000 Saltelli samples (2 params → *4)
+N_MC_MAIN = 5_000  # → 20 000 Saltelli samples (2 params → *4)
 
 # ---------------------------------------------------------------------------
 # Shared encoder / decoder
@@ -100,7 +101,9 @@ decoder = uq.decoders.JSONDecoder(
 # Helper: run one EasyVVUQ campaign and return (analysis, collation_df)
 # ---------------------------------------------------------------------------
 
-def run_campaign(vary: dict, n_mc: int, seed: int, name: str):
+
+def run_campaign(vary: dict, n_mc: int, seed: int, name: str) -> tuple:
+    """Run campaign."""
     work_dir = os.path.join(STUDY_DIR, f"campaign_{name}")
     if os.path.exists(work_dir):
         rmtree(work_dir)
@@ -131,8 +134,10 @@ def run_campaign(vary: dict, n_mc: int, seed: int, name: str):
     campaign.draw_samples()
 
     n_total = n_mc * (len(vary) + 2)
-    print(f"[INFO] Campaign '{name}': {n_total:,} Saltelli samples "
-          f"(N_MC={n_mc}, {len(vary)} inputs)")
+    print(
+        f"[INFO] Campaign '{name}': {n_total:,} Saltelli samples "
+        f"(N_MC={n_mc}, {len(vary)} inputs)"
+    )
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         campaign.execute(pool=pool).collate()
@@ -140,7 +145,7 @@ def run_campaign(vary: dict, n_mc: int, seed: int, name: str):
     analysis = uq.analysis.QMCAnalysis(sampler=sampler, qoi_cols=QOI_COLS)
     campaign.apply_analysis(analysis)
     res = campaign.get_last_analysis()
-    df  = campaign.get_collation_result()
+    df = campaign.get_collation_result()
 
     rmtree(work_dir)
     return res, df
@@ -150,14 +155,14 @@ def run_campaign(vary: dict, n_mc: int, seed: int, name: str):
 # Main campaign — nominal priors
 # ---------------------------------------------------------------------------
 VARY_NOMINAL = {
-    "success_rate": cp.Beta(19.0, 1.0),          # mean = 0.95
-    "num_devices":  cp.DiscreteUniform(1, 50),    # integers 1–50 inclusive
+    "success_rate": cp.Beta(19.0, 1.0),  # mean = 0.95
+    "num_devices": cp.DiscreteUniform(1, 50),  # integers 1–50 inclusive
 }
 
 res_main, df_main = run_campaign(VARY_NOMINAL, N_MC_MAIN, seed=0, name="push3_nominal")
 
-scores_ef   = df_main["expected_failures"].values.astype(float)
-scores_fr   = df_main["failure_rate"].values.astype(float)
+scores_ef = df_main["expected_failures"].values.astype(float)
+scores_fr = df_main["failure_rate"].values.astype(float)
 scores_time = df_main["campaign_time_ms"].values.astype(float)
 
 # ---------------------------------------------------------------------------
@@ -166,19 +171,21 @@ scores_time = df_main["campaign_time_ms"].values.astype(float)
 print("\n" + "=" * 72)
 print("MAIN CAMPAIGN RESULTS  (EasyVVUQ MCSampler, nominal priors)")
 print("=" * 72)
-print(f"  N_MC={N_MC_MAIN} → {N_MC_MAIN*4:,} Saltelli samples\n")
+print(f"  N_MC={N_MC_MAIN} → {N_MC_MAIN * 4:,} Saltelli samples\n")
 
 for qoi, arr, unit in [
-    ("expected_failures",  scores_ef,   "devices"),
-    ("failure_rate",       scores_fr,   "fraction"),
-    ("campaign_time_ms",   scores_time, "ms"),
+    ("expected_failures", scores_ef, "devices"),
+    ("failure_rate", scores_fr, "fraction"),
+    ("campaign_time_ms", scores_time, "ms"),
 ]:
     mean = float(np.atleast_1d(res_main.describe(qoi, "mean")).flat[0])
-    std  = float(np.atleast_1d(res_main.describe(qoi, "std")).flat[0])
-    p10  = float(np.atleast_1d(res_main.describe(qoi, "10%")).flat[0])
-    p90  = float(np.atleast_1d(res_main.describe(qoi, "90%")).flat[0])
-    print(f"  {qoi:<22}  mean={mean:8.4f}  std={std:7.4f}  "
-          f"[P10={p10:.4f}, P90={p90:.4f}]  ({unit})")
+    std = float(np.atleast_1d(res_main.describe(qoi, "std")).flat[0])
+    p10 = float(np.atleast_1d(res_main.describe(qoi, "10%")).flat[0])
+    p90 = float(np.atleast_1d(res_main.describe(qoi, "90%")).flat[0])
+    print(
+        f"  {qoi:<22}  mean={mean:8.4f}  std={std:7.4f}  "
+        f"[P10={p10:.4f}, P90={p90:.4f}]  ({unit})"
+    )
 
 # ── Sobol indices ───────────────────────────────────────────────────────────
 print("\n" + "-" * 72)
@@ -188,7 +195,7 @@ print("  " + "-" * 52)
 for qoi in QOI_COLS:
     s1 = res_main.sobols_first(qoi)
     sr = float(np.atleast_1d(s1.get("success_rate", 0.0)).flat[0])
-    nd = float(np.atleast_1d(s1.get("num_devices",  0.0)).flat[0])
+    nd = float(np.atleast_1d(s1.get("num_devices", 0.0)).flat[0])
     print(f"  {qoi:<22}  {sr:14.4f}  {nd:12.4f}")
 
 # ---------------------------------------------------------------------------
@@ -197,18 +204,22 @@ for qoi in QOI_COLS:
 N_FIXED = 50
 # Filter collated samples with num_devices == 50 (exact match after int rounding)
 nd_vals = df_main["num_devices"].values.astype(float).round().astype(int)
-mask50  = (nd_vals == N_FIXED)
-p_arr   = 1.0 - df_main.loc[mask50, "failure_rate"].values.astype(float)
+mask50 = nd_vals == N_FIXED
+p_arr = 1.0 - df_main.loc[mask50, "failure_rate"].values.astype(float)
 
 if p_arr.size > 0:
-    k_values    = np.arange(N_FIXED - 10, N_FIXED + 1)
-    p_at_least_k = np.array([
-        spstats.binom.cdf(N_FIXED - k, N_FIXED, 1.0 - p_arr.mean()).item()
-        for k in k_values
-    ])
+    k_values = np.arange(N_FIXED - 10, N_FIXED + 1)
+    p_at_least_k = np.array(
+        [
+            spstats.binom.cdf(N_FIXED - k, N_FIXED, 1.0 - p_arr.mean()).item()
+            for k in k_values
+        ]
+    )
     print("\n" + "=" * 72)
-    print(f"P(at least k of {N_FIXED} devices succeed) — mean success_rate from "
-          f"n=50 subsample ({mask50.sum()} samples)")
+    print(
+        f"P(at least k of {N_FIXED} devices succeed) — mean success_rate from "
+        f"n=50 subsample ({mask50.sum()} samples)"
+    )
     print("=" * 72)
     print(f"  {'k':>5}   {'P(≥k)':>8}")
     print("  " + "-" * 18)
@@ -216,7 +227,7 @@ if p_arr.size > 0:
         bar = "█" * int(round(p * 20))
         print(f"  {k:>5}   {p:8.4f}  {bar}")
 else:
-    k_values     = np.array([])
+    k_values = np.array([])
     p_at_least_k = np.array([])
     print("[WARN] No samples with num_devices == 50 in main collation.")
 
@@ -224,9 +235,9 @@ else:
 # Sensitivity campaigns — three Beta priors
 # ---------------------------------------------------------------------------
 SENSITIVITY_SCENARIOS = {
-    "optimistic_beta95_5":  ("Optimistic  Beta(95,5)",  cp.Beta(95.0, 5.0)),
-    "nominal_beta19_1":     ("Nominal     Beta(19,1)",  cp.Beta(19.0, 1.0)),
-    "pessimistic_beta9_1":  ("Pessimistic Beta(9,1)",   cp.Beta(9.0,  1.0)),
+    "optimistic_beta95_5": ("Optimistic  Beta(95,5)", cp.Beta(95.0, 5.0)),
+    "nominal_beta19_1": ("Nominal     Beta(19,1)", cp.Beta(19.0, 1.0)),
+    "pessimistic_beta9_1": ("Pessimistic Beta(9,1)", cp.Beta(9.0, 1.0)),
 }
 N_MC_SENSITIVITY = 1_000
 
@@ -234,7 +245,7 @@ sens_results = {}
 for key, (label, prior) in SENSITIVITY_SCENARIOS.items():
     vary_s = {
         "success_rate": prior,
-        "num_devices":  cp.DiscreteUniform(1, 50),
+        "num_devices": cp.DiscreteUniform(1, 50),
     }
     r_s, df_s = run_campaign(vary_s, N_MC_SENSITIVITY, seed=7, name=f"push3_{key}")
     sens_results[key] = {
@@ -247,18 +258,20 @@ for key, (label, prior) in SENSITIVITY_SCENARIOS.items():
 print("\n" + "=" * 72)
 print("SENSITIVITY TO success_rate PRIOR  (n ~ DiscreteUniform(1,50))")
 print("=" * 72)
-print(f"\n  {'Prior':<32} {'E[fail rate]':>12} {'P10':>8} {'P90':>8} "
-      f"{'S1(p)':>8} {'S1(n)':>8}")
+print(
+    f"\n  {'Prior':<32} {'E[fail rate]':>12} {'P10':>8} {'P90':>8} "
+    f"{'S1(p)':>8} {'S1(n)':>8}"
+)
 print("  " + "-" * 80)
-for key, sr in sens_results.items():
-    r      = sr["analysis"]
-    label  = sr["label"]
-    mean   = float(np.atleast_1d(r.describe("failure_rate", "mean")).flat[0])
-    p10    = float(np.atleast_1d(r.describe("failure_rate", "10%")).flat[0])
-    p90    = float(np.atleast_1d(r.describe("failure_rate", "90%")).flat[0])
-    s1     = r.sobols_first("failure_rate")
-    s1_p   = float(np.atleast_1d(s1.get("success_rate", 0.0)).flat[0])
-    s1_n   = float(np.atleast_1d(s1.get("num_devices",  0.0)).flat[0])
+for key, s_result in sens_results.items():
+    r = s_result["analysis"]
+    label = s_result["label"]
+    mean = float(np.atleast_1d(r.describe("failure_rate", "mean")).flat[0])
+    p10 = float(np.atleast_1d(r.describe("failure_rate", "10%")).flat[0])
+    p90 = float(np.atleast_1d(r.describe("failure_rate", "90%")).flat[0])
+    s1 = r.sobols_first("failure_rate")
+    s1_p = float(np.atleast_1d(s1.get("success_rate", 0.0)).flat[0])
+    s1_n = float(np.atleast_1d(s1.get("num_devices", 0.0)).flat[0])
     print(f"  {label:<32} {mean:12.4f} {p10:8.4f} {p90:8.4f} {s1_p:8.4f} {s1_n:8.4f}")
 
 # ---------------------------------------------------------------------------
@@ -302,26 +315,45 @@ try:
         print(f"[INFO] P(at least k) chart saved     → {png2}")
 
     # 3. Delivery confidence vs fleet size (using campaign_time saturation curve)
-    n_arr    = df_main["num_devices"].values.astype(float).round().astype(int)
+    n_arr = df_main["num_devices"].values.astype(float).round().astype(int)
     time_arr = df_main["campaign_time_ms"].values.astype(float)
     fleet_sizes = np.arange(1, 51)
-    mean_time_by_n = np.array([
-        time_arr[n_arr == n].mean() if (n_arr == n).any()
-        else (100.0 + 400.0 * n / (n + 1.0))
-        for n in fleet_sizes
-    ])
-    p_zero_fail = np.array([
-        (df_main.loc[n_arr == n, "expected_failures"].values.astype(float) < 1.0).mean()
-        if (n_arr == n).any() else np.nan
-        for n in fleet_sizes
-    ])
+    mean_time_by_n = np.array(
+        [
+            (
+                time_arr[n_arr == n].mean()
+                if (n_arr == n).any()
+                else (100.0 + 400.0 * n / (n + 1.0))
+            )
+            for n in fleet_sizes
+        ]
+    )
+    p_zero_fail = np.array(
+        [
+            (
+                (
+                    df_main.loc[n_arr == n, "expected_failures"].values.astype(float)
+                    < 1.0
+                ).mean()
+                if (n_arr == n).any()
+                else np.nan
+            )
+            for n in fleet_sizes
+        ]
+    )
 
     fig3, ax3a = plt.subplots(figsize=(9, 4))
     ax3b = ax3a.twinx()
-    ax3a.plot(fleet_sizes, mean_time_by_n, color="steelblue",
-              label="Mean campaign time (ms)")
-    ax3b.plot(fleet_sizes, p_zero_fail * 100, color="darkorange", linestyle="--",
-              label="P(expected failures < 1) %")
+    ax3a.plot(
+        fleet_sizes, mean_time_by_n, color="steelblue", label="Mean campaign time (ms)"
+    )
+    ax3b.plot(
+        fleet_sizes,
+        p_zero_fail * 100,
+        color="darkorange",
+        linestyle="--",
+        label="P(expected failures < 1) %",
+    )
     ax3a.set_xlabel("Fleet / campaign size  n")
     ax3a.set_ylabel("Campaign time (ms)", color="steelblue")
     ax3b.set_ylabel("P(expected_failures < 1)  %", color="darkorange")
@@ -337,19 +369,21 @@ try:
     # 4. Sensitivity: failure_rate distributions for different priors
     senscols = {
         "optimistic_beta95_5": "#4CAF50",
-        "nominal_beta19_1":    "#2196F3",
+        "nominal_beta19_1": "#2196F3",
         "pessimistic_beta9_1": "#F44336",
     }
     fig4, ax4 = plt.subplots(figsize=(9, 4))
     bins = np.linspace(0.0, 0.25, 50)
     for key, color in senscols.items():
         label = sens_results[key]["label"].strip()
-        fr    = sens_results[key]["df"]["failure_rate"].values.astype(float)
+        fr = sens_results[key]["df"]["failure_rate"].values.astype(float)
         ax4.hist(fr, bins=bins, alpha=0.55, color=color, density=True, label=label)
     ax4.set_xlabel("Per-device failure rate")
     ax4.set_ylabel("Probability density")
-    ax4.set_title("Sensitivity to success_rate assumption\n"
-                  f"(n ~ DiscreteUniform(1,50), N_MC={N_MC_SENSITIVITY:,} each)")
+    ax4.set_title(
+        "Sensitivity to success_rate assumption\n"
+        f"(n ~ DiscreteUniform(1,50), N_MC={N_MC_SENSITIVITY:,} each)"
+    )
     ax4.legend(fontsize=9)
     plt.tight_layout()
     png4 = os.path.join(FIGS_DIR, "failure_sensitivity.png")
@@ -361,4 +395,3 @@ try:
 except ImportError:
     print("\n[INFO] matplotlib not found — skipping plots.")
     print("       Install with:  pip install matplotlib")
-

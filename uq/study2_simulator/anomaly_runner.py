@@ -31,8 +31,7 @@ logging.basicConfig(level=logging.WARNING)
 # Locate the homepot-client root so we can import from ai/
 # ---------------------------------------------------------------------------
 _HOMEPOT_PATH = os.environ.get(
-    "HOMEPOT_PATH",
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    "HOMEPOT_PATH", os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 )
 if _HOMEPOT_PATH not in sys.path:
     sys.path.insert(0, _HOMEPOT_PATH)

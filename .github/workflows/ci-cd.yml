@@ -38,16 +38,16 @@ jobs:
         pip install -e backend/
 
     - name: Run Black formatter check
-      run: black --check backend/src/homepot/ backend/tests/ ai/
+      run: black --check backend/src/homepot/ backend/tests/ ai/ uq/
 
     - name: Run isort import sorting check
-      run: isort --check-only backend/src/homepot/ backend/tests/ ai/
+      run: isort --check-only backend/src/homepot/ backend/tests/ ai/ uq/
 
     - name: Run flake8 linting
-      run: flake8 backend/src/homepot/ backend/tests/ ai/
+      run: flake8 backend/src/homepot/ backend/tests/ ai/ uq/
 
     - name: Run mypy type checking
-      run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/
+      run: mypy --config-file=backend/mypy.ini backend/src/homepot/ ai/ uq/
 
     - name: Validate documentation files
       run: |
@@ -113,6 +113,19 @@ jobs:
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
+        fi
+
+    - name: Run UQ tests
+      shell: bash
+      env:
+        DATABASE__URL: sqlite+aiosqlite:///./test.db
+      run: |
+        cd backend
+        if find ../uq/ -name "test_*.py" | grep -q .; then
+          echo "Running UQ tests..."
+          pytest ../uq/ --tb=short --durations=10
+        else
+          echo "No UQ tests found, skipping."
         fi
 
     - name: Upload coverage reports

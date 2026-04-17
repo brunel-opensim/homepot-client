@@ -33,14 +33,14 @@ Output is printed to stdout.  Three plots are saved to
 automatically after each scenario's analysis completes.
 """
 
-import os
-import sys
 from concurrent.futures import ThreadPoolExecutor
+import os
 from shutil import rmtree
+import sys
 
 try:
-    import easyvvuq as uq
     import chaospy as cp
+    import easyvvuq as uq
 except ImportError as exc:
     print(
         "\nERROR: Could not import easyvvuq or chaospy.\n"
@@ -55,12 +55,12 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-STUDY_DIR    = os.path.dirname(os.path.abspath(__file__))
+STUDY_DIR = os.path.dirname(os.path.abspath(__file__))
 HOMEPOT_ROOT = os.environ.get(
     "HOMEPOT_PATH",
     os.path.abspath(os.path.join(STUDY_DIR, "../..")),
 )
-FIGS_DIR      = os.path.join(STUDY_DIR, "figs")
+FIGS_DIR = os.path.join(STUDY_DIR, "figs")
 RUNNER_SCRIPT = os.path.join(STUDY_DIR, "anomaly_runner.py")
 TEMPLATE_FILE = os.path.join(STUDY_DIR, "anomaly_runner.template")
 os.makedirs(FIGS_DIR, exist_ok=True)
@@ -75,14 +75,14 @@ print(f"[INFO] Runner:         {RUNNER_SCRIPT}")
 # Wide bounds; actual sampling governed by per-scenario 'vary' dicts below.
 # ---------------------------------------------------------------------------
 params = {
-    "cpu_percent":          {"type": "float", "min": 0.0,  "max": 100.0, "default": 50.0},
-    "memory_percent":       {"type": "float", "min": 0.0,  "max": 100.0, "default": 50.0},
-    "disk_percent":         {"type": "float", "min": 0.0,  "max": 100.0, "default": 50.0},
-    "error_rate":           {"type": "float", "min": 0.0,  "max": 1.0,   "default": 0.05},
-    "network_latency_ms":   {"type": "float", "min": 0.0,  "max": 500.0, "default": 100.0},
-    "flapping_count":       {"type": "float", "min": 0.0,  "max": 15.0,  "default": 2.0},
-    "consecutive_failures": {"type": "float", "min": 0.0,  "max": 20.0,  "default": 1.0},
-    "outfile":              {"type": "string", "default": "output.json"},
+    "cpu_percent": {"type": "float", "min": 0.0, "max": 100.0, "default": 50.0},
+    "memory_percent": {"type": "float", "min": 0.0, "max": 100.0, "default": 50.0},
+    "disk_percent": {"type": "float", "min": 0.0, "max": 100.0, "default": 50.0},
+    "error_rate": {"type": "float", "min": 0.0, "max": 1.0, "default": 0.05},
+    "network_latency_ms": {"type": "float", "min": 0.0, "max": 500.0, "default": 100.0},
+    "flapping_count": {"type": "float", "min": 0.0, "max": 15.0, "default": 2.0},
+    "consecutive_failures": {"type": "float", "min": 0.0, "max": 20.0, "default": 1.0},
+    "outfile": {"type": "string", "default": "output.json"},
 }
 
 # ---------------------------------------------------------------------------
@@ -98,68 +98,75 @@ params = {
 # but never crosses any detector threshold.  Its Sobol index will be ~0,
 # confirming it contributes no variance — as expected.
 
-_EPS = 0.001   # near-zero range for "always-off" parameters
+_EPS = 0.001  # near-zero range for "always-off" parameters
 
 SCENARIOS: dict[str, dict[str, cp.Distribution]] = {
     "healthy": {
-        "cpu_percent":          cp.Uniform(50.0,  70.0),
-        "memory_percent":       cp.Uniform(60.0,  75.0),
-        "disk_percent":         cp.Uniform(50.0,  65.0),
-        "error_rate":           cp.Uniform(0.000, 0.020),   # always < 5% threshold
-        "network_latency_ms":   cp.Uniform(20.0,  50.0),    # always < 200ms threshold
-        "flapping_count":       cp.Uniform(0.0,   1.0),     # always < 5 threshold
-        "consecutive_failures": cp.Uniform(0.0,   _EPS),    # always < 3 threshold
+        "cpu_percent": cp.Uniform(50.0, 70.0),
+        "memory_percent": cp.Uniform(60.0, 75.0),
+        "disk_percent": cp.Uniform(50.0, 65.0),
+        "error_rate": cp.Uniform(0.000, 0.020),  # always < 5% threshold
+        "network_latency_ms": cp.Uniform(20.0, 50.0),  # always < 200ms threshold
+        "flapping_count": cp.Uniform(0.0, 1.0),  # always < 5 threshold
+        "consecutive_failures": cp.Uniform(0.0, _EPS),  # always < 3 threshold
     },
     "high_cpu": {
-        "cpu_percent":          cp.Uniform(85.0,  95.0),    # fires ~52% (threshold 90)
-        "memory_percent":       cp.Uniform(70.0,  80.0),
-        "disk_percent":         cp.Uniform(55.0,  70.0),
-        "error_rate":           cp.Uniform(0.012, 0.047),   # always < 5% threshold
-        "network_latency_ms":   cp.Uniform(50.0,  100.0),
-        "flapping_count":       cp.Uniform(1.0,   3.0),
-        "consecutive_failures": cp.Uniform(0.0,   1.0),
+        "cpu_percent": cp.Uniform(85.0, 95.0),  # fires ~52% (threshold 90)
+        "memory_percent": cp.Uniform(70.0, 80.0),
+        "disk_percent": cp.Uniform(55.0, 70.0),
+        "error_rate": cp.Uniform(0.012, 0.047),  # always < 5% threshold
+        "network_latency_ms": cp.Uniform(50.0, 100.0),
+        "flapping_count": cp.Uniform(1.0, 3.0),
+        "consecutive_failures": cp.Uniform(0.0, 1.0),
     },
     "low_memory": {
-        "cpu_percent":          cp.Uniform(65.0,  80.0),
-        "memory_percent":       cp.Uniform(90.0,  95.0),    # fires ~100% (always > 90)
-        "disk_percent":         cp.Uniform(60.0,  75.0),
-        "error_rate":           cp.Uniform(0.033, 0.125),   # sometimes > 5% threshold
-        "network_latency_ms":   cp.Uniform(40.0,  80.0),
-        "flapping_count":       cp.Uniform(1.0,   3.0),
-        "consecutive_failures": cp.Uniform(0.0,   2.0),
+        "cpu_percent": cp.Uniform(65.0, 80.0),
+        "memory_percent": cp.Uniform(90.0, 95.0),  # fires ~100% (always > 90)
+        "disk_percent": cp.Uniform(60.0, 75.0),
+        "error_rate": cp.Uniform(0.033, 0.125),  # sometimes > 5% threshold
+        "network_latency_ms": cp.Uniform(40.0, 80.0),
+        "flapping_count": cp.Uniform(1.0, 3.0),
+        "consecutive_failures": cp.Uniform(0.0, 2.0),
     },
     "high_errors": {
-        "cpu_percent":          cp.Uniform(60.0,  75.0),
-        "memory_percent":       cp.Uniform(70.0,  85.0),
-        "disk_percent":         cp.Uniform(65.0,  80.0),
-        "error_rate":           cp.Uniform(0.125, 0.600),   # always > 5% threshold
-        "network_latency_ms":   cp.Uniform(80.0,  150.0),
-        "flapping_count":       cp.Uniform(2.0,   5.0),     # straddles threshold of 5
-        "consecutive_failures": cp.Uniform(1.0,   4.0),     # straddles threshold of 3
+        "cpu_percent": cp.Uniform(60.0, 75.0),
+        "memory_percent": cp.Uniform(70.0, 85.0),
+        "disk_percent": cp.Uniform(65.0, 80.0),
+        "error_rate": cp.Uniform(0.125, 0.600),  # always > 5% threshold
+        "network_latency_ms": cp.Uniform(80.0, 150.0),
+        "flapping_count": cp.Uniform(2.0, 5.0),  # straddles threshold of 5
+        "consecutive_failures": cp.Uniform(1.0, 4.0),  # straddles threshold of 3
     },
     "degraded": {
-        "cpu_percent":          cp.Uniform(85.0,  95.0),
-        "memory_percent":       cp.Uniform(85.0,  92.0),
-        "disk_percent":         cp.Uniform(75.0,  90.0),    # straddles 90% threshold
-        "error_rate":           cp.Uniform(0.125, 0.650),
-        "network_latency_ms":   cp.Uniform(100.0, 200.0),   # straddles 200ms threshold
-        "flapping_count":       cp.Uniform(3.0,   7.0),     # straddles threshold of 5
-        "consecutive_failures": cp.Uniform(2.0,   6.0),     # straddles threshold of 3
+        "cpu_percent": cp.Uniform(85.0, 95.0),
+        "memory_percent": cp.Uniform(85.0, 92.0),
+        "disk_percent": cp.Uniform(75.0, 90.0),  # straddles 90% threshold
+        "error_rate": cp.Uniform(0.125, 0.650),
+        "network_latency_ms": cp.Uniform(100.0, 200.0),  # straddles 200ms threshold
+        "flapping_count": cp.Uniform(3.0, 7.0),  # straddles threshold of 5
+        "consecutive_failures": cp.Uniform(2.0, 6.0),  # straddles threshold of 3
     },
     "offline": {
         # Resource metrics all 0 — unreachable device; only stability checks fire.
-        "cpu_percent":          cp.Uniform(0.0,   _EPS),
-        "memory_percent":       cp.Uniform(0.0,   _EPS),
-        "disk_percent":         cp.Uniform(0.0,   _EPS),
-        "error_rate":           cp.Uniform(0.0,   _EPS),
-        "network_latency_ms":   cp.Uniform(0.0,   _EPS),
-        "flapping_count":       cp.Uniform(5.0,   10.0),    # always > 5 threshold
-        "consecutive_failures": cp.Uniform(6.0,   15.0),    # always >= 3 threshold
+        "cpu_percent": cp.Uniform(0.0, _EPS),
+        "memory_percent": cp.Uniform(0.0, _EPS),
+        "disk_percent": cp.Uniform(0.0, _EPS),
+        "error_rate": cp.Uniform(0.0, _EPS),
+        "network_latency_ms": cp.Uniform(0.0, _EPS),
+        "flapping_count": cp.Uniform(5.0, 10.0),  # always > 5 threshold
+        "consecutive_failures": cp.Uniform(6.0, 15.0),  # always >= 3 threshold
     },
 }
 
-SCENARIO_ORDER     = ["healthy", "high_cpu", "low_memory", "high_errors", "degraded", "offline"]
-ALERT_THRESHOLD    = 0.3
+SCENARIO_ORDER = [
+    "healthy",
+    "high_cpu",
+    "low_memory",
+    "high_errors",
+    "degraded",
+    "offline",
+]
+ALERT_THRESHOLD = 0.3
 CRITICAL_THRESHOLD = 0.8
 
 # ---------------------------------------------------------------------------
@@ -187,7 +194,7 @@ decoder = uq.decoders.JSONDecoder(
 scenario_results: dict[str, dict] = {}
 
 for scenario_name in SCENARIO_ORDER:
-    vary     = SCENARIOS[scenario_name]
+    vary = SCENARIOS[scenario_name]
     work_dir = os.path.join(STUDY_DIR, f"campaign_{scenario_name}")
     if os.path.exists(work_dir):
         rmtree(work_dir)
@@ -218,8 +225,10 @@ for scenario_name in SCENARIO_ORDER:
     campaign.draw_samples()
 
     n_saltelli = N_MC_PER_SCENARIO * (len(vary) + 2)
-    print(f"[INFO] Scenario '{scenario_name}': {n_saltelli} Saltelli samples "
-          f"(N_MC={N_MC_PER_SCENARIO})")
+    print(
+        f"[INFO] Scenario '{scenario_name}': {n_saltelli} Saltelli samples "
+        f"(N_MC={N_MC_PER_SCENARIO})"
+    )
 
     # Run up to 4 subprocesses concurrently — enough parallelism to be fast
     # without spawning thousands of Python processes simultaneously.
@@ -233,7 +242,7 @@ for scenario_name in SCENARIO_ORDER:
     campaign.apply_analysis(analysis)
     res = campaign.get_last_analysis()
 
-    df     = campaign.get_collation_result()
+    df = campaign.get_collation_result()
     scores = df["anomaly_score"].values.astype(float).flatten()
 
     sobols_first = {
@@ -253,15 +262,17 @@ for scenario_name in SCENARIO_ORDER:
 
     scenario_results[scenario_name] = {
         "analysis": res,
-        "scores":   scores,
+        "scores": scores,
         "sobols": sobols_first,
         "sobols_ci": sobols_first_ci,
     }
 
     # Campaign working dir is no longer needed — remove to save disk space.
     rmtree(work_dir)
-    print(f"       mean={scores.mean():.3f}  std={scores.std():.3f}  "
-          f"alert%={100*(scores >= ALERT_THRESHOLD).mean():.1f}%")
+    print(
+        f"       mean={scores.mean():.3f}  std={scores.std():.3f}  "
+        f"alert%={100 * (scores >= ALERT_THRESHOLD).mean():.1f}%"
+    )
 
 # ---------------------------------------------------------------------------
 # Print results — statistical summary
@@ -269,34 +280,51 @@ for scenario_name in SCENARIO_ORDER:
 print("\n" + "=" * 78)
 print("SCENARIO SCORE DISTRIBUTIONS  (EasyVVUQ MCSampler / QMCAnalysis)")
 print("=" * 78)
-print(f"  N_MC={N_MC_PER_SCENARIO} per scenario → {N_MC_PER_SCENARIO*9} Saltelli samples each\n")
-print(f"{'Scenario':<16} {'Mean':>6} {'Std':>6} {'P10':>6} {'P50':>6} {'P90':>6} "
-      f"{'≥0.3 (%)':>10} {'≥0.8 (%)':>10}")
+print(
+    f"  N_MC={N_MC_PER_SCENARIO} per scenario → {N_MC_PER_SCENARIO * 9} Saltelli samples each\n"
+)
+print(
+    f"{'Scenario':<16} {'Mean':>6} {'Std':>6} {'P10':>6} {'P50':>6} {'P90':>6} "
+    f"{'≥0.3 (%)':>10} {'≥0.8 (%)':>10}"
+)
 print("-" * 78)
 
 for name in SCENARIO_ORDER:
-    res  = scenario_results[name]["analysis"]
-    sc   = scenario_results[name]["scores"]
+    res = scenario_results[name]["analysis"]
+    sc = scenario_results[name]["scores"]
     mean = float(np.atleast_1d(res.describe("anomaly_score", "mean")).flat[0])
-    std  = float(np.atleast_1d(res.describe("anomaly_score", "std")).flat[0])
-    p10  = float(np.atleast_1d(res.describe("anomaly_score", "10%")).flat[0])
-    p50  = float(np.atleast_1d(res.describe("anomaly_score", "50%")).flat[0])
-    p90  = float(np.atleast_1d(res.describe("anomaly_score", "90%")).flat[0])
-    pct_alert    = 100.0 * (sc >= ALERT_THRESHOLD).mean()
+    std = float(np.atleast_1d(res.describe("anomaly_score", "std")).flat[0])
+    p10 = float(np.atleast_1d(res.describe("anomaly_score", "10%")).flat[0])
+    p50 = float(np.atleast_1d(res.describe("anomaly_score", "50%")).flat[0])
+    p90 = float(np.atleast_1d(res.describe("anomaly_score", "90%")).flat[0])
+    pct_alert = 100.0 * (sc >= ALERT_THRESHOLD).mean()
     pct_critical = 100.0 * (sc >= CRITICAL_THRESHOLD).mean()
-    print(f"{name:<16} {mean:6.3f} {std:6.3f} {p10:6.3f} {p50:6.3f} {p90:6.3f} "
-          f"{pct_alert:9.1f}% {pct_critical:9.1f}%")
+    print(
+        f"{name:<16} {mean:6.3f} {std:6.3f} {p10:6.3f} {p50:6.3f} {p90:6.3f} "
+        f"{pct_alert:9.1f}% {pct_critical:9.1f}%"
+    )
 
 # ---------------------------------------------------------------------------
 # Print Sobol indices
 # ---------------------------------------------------------------------------
 PARAM_LABELS = {
-    "cpu_percent": "CPU %", "memory_percent": "mem %", "disk_percent": "disk %",
-    "error_rate": "error rate", "network_latency_ms": "latency ms",
-    "flapping_count": "flapping", "consecutive_failures": "consec. fail",
+    "cpu_percent": "CPU %",
+    "memory_percent": "mem %",
+    "disk_percent": "disk %",
+    "error_rate": "error rate",
+    "network_latency_ms": "latency ms",
+    "flapping_count": "flapping",
+    "consecutive_failures": "consec. fail",
 }
-PARAM_ORDER = ["consecutive_failures", "flapping_count", "error_rate",
-               "network_latency_ms", "cpu_percent", "memory_percent", "disk_percent"]
+PARAM_ORDER = [
+    "consecutive_failures",
+    "flapping_count",
+    "error_rate",
+    "network_latency_ms",
+    "cpu_percent",
+    "memory_percent",
+    "disk_percent",
+]
 
 print("\n" + "=" * 78)
 print("FIRST-ORDER SOBOL INDICES PER SCENARIO  (value [95% bootstrap CI])")
@@ -326,7 +354,9 @@ for name in ("degraded", "offline", "high_errors"):
 
 print()
 print("NOTE: high_cpu alert rate confirms the detector is blind to CPU spikes alone.")
-print("      Sobol indices reveal which metric drives score variance within each scenario.")
+print(
+    "      Sobol indices reveal which metric drives score variance within each scenario."
+)
 
 # ---------------------------------------------------------------------------
 # Plots
@@ -335,21 +365,30 @@ try:
     import matplotlib.pyplot as plt
 
     SCENARIO_LABELS = {
-        "healthy": "Healthy", "high_cpu": "High CPU", "low_memory": "Low memory",
-        "high_errors": "High errors", "degraded": "Degraded", "offline": "Offline",
+        "healthy": "Healthy",
+        "high_cpu": "High CPU",
+        "low_memory": "Low memory",
+        "high_errors": "High errors",
+        "degraded": "Degraded",
+        "offline": "Offline",
     }
     COLORS = {
-        "healthy": "#2196F3", "high_cpu": "#FF9800", "low_memory": "#9C27B0",
-        "high_errors": "#F44336", "degraded": "#795548", "offline": "#212121",
+        "healthy": "#2196F3",
+        "high_cpu": "#FF9800",
+        "low_memory": "#9C27B0",
+        "high_errors": "#F44336",
+        "degraded": "#795548",
+        "offline": "#212121",
     }
 
     # 1. Violin plot
     fig, ax = plt.subplots(figsize=(10, 5))
-    data   = [scenario_results[s]["scores"] for s in SCENARIO_ORDER]
+    data = [scenario_results[s]["scores"] for s in SCENARIO_ORDER]
     labels = [SCENARIO_LABELS[s] for s in SCENARIO_ORDER]
 
-    parts = ax.violinplot(data, positions=range(len(SCENARIO_ORDER)),
-                          showmedians=True, showextrema=True)
+    parts = ax.violinplot(
+        data, positions=range(len(SCENARIO_ORDER)), showmedians=True, showextrema=True
+    )
     for body, s in zip(parts["bodies"], SCENARIO_ORDER):
         body.set_facecolor(COLORS[s])
         body.set_alpha(0.7)
@@ -359,16 +398,26 @@ try:
         parts[key].set_color("gray")
         parts[key].set_linewidth(1)
 
-    ax.axhline(ALERT_THRESHOLD,    color="orange", linestyle="--", linewidth=1.2,
-               label=f"Alert threshold ({ALERT_THRESHOLD})")
-    ax.axhline(CRITICAL_THRESHOLD, color="red",    linestyle="--", linewidth=1.2,
-               label=f"Critical threshold ({CRITICAL_THRESHOLD})")
+    ax.axhline(
+        ALERT_THRESHOLD,
+        color="orange",
+        linestyle="--",
+        linewidth=1.2,
+        label=f"Alert threshold ({ALERT_THRESHOLD})",
+    )
+    ax.axhline(
+        CRITICAL_THRESHOLD,
+        color="red",
+        linestyle="--",
+        linewidth=1.2,
+        label=f"Critical threshold ({CRITICAL_THRESHOLD})",
+    )
     ax.set_xticks(range(len(SCENARIO_ORDER)))
     ax.set_xticklabels(labels, rotation=15, ha="right")
     ax.set_ylabel("Anomaly score")
     ax.set_title(
         f"Anomaly score by simulator scenario  "
-        f"(EasyVVUQ MCSampler, {N_MC_PER_SCENARIO*9:,} Saltelli samples each)"
+        f"(EasyVVUQ MCSampler, {N_MC_PER_SCENARIO * 9:,} Saltelli samples each)"
     )
     ax.set_ylim(-0.05, 1.10)
     ax.legend(fontsize=9)
@@ -380,18 +429,22 @@ try:
     # 2. Stacked severity-band bar chart
     fig2, ax2 = plt.subplots(figsize=(9, 4))
     bands = [
-        ("Normal  (< 0.3)",    (0.0, ALERT_THRESHOLD),              "#4CAF50"),
+        ("Normal  (< 0.3)", (0.0, ALERT_THRESHOLD), "#4CAF50"),
         ("Moderate (0.3–0.8)", (ALERT_THRESHOLD, CRITICAL_THRESHOLD), "#FF9800"),
-        ("Critical (≥ 0.8)",   (CRITICAL_THRESHOLD, 1.01),           "#F44336"),
+        ("Critical (≥ 0.8)", (CRITICAL_THRESHOLD, 1.01), "#F44336"),
     ]
-    x       = np.arange(len(SCENARIO_ORDER))
+    x = np.arange(len(SCENARIO_ORDER))
     bottoms = np.zeros(len(SCENARIO_ORDER))
     for band_label, (lo, hi), color in bands:
-        fracs = np.array([
-            ((scenario_results[s]["scores"] >= lo) &
-             (scenario_results[s]["scores"] <  hi)).mean()
-            for s in SCENARIO_ORDER
-        ])
+        fracs = np.array(
+            [
+                (
+                    (scenario_results[s]["scores"] >= lo)
+                    & (scenario_results[s]["scores"] < hi)
+                ).mean()
+                for s in SCENARIO_ORDER
+            ]
+        )
         ax2.bar(x, fracs, bottom=bottoms, color=color, label=band_label, width=0.55)
         bottoms += fracs
     ax2.set_xticks(x)
@@ -405,23 +458,35 @@ try:
     print(f"[INFO] Severity bar chart saved  → {bar_png}")
 
     # 3. Sobol heatmap — which metric drives variance in each scenario?
-    sobol_matrix = np.array([
-        [scenario_results[s]["sobols"].get(p, 0.0) for p in PARAM_ORDER]
-        for s in SCENARIO_ORDER
-    ])
+    sobol_matrix = np.array(
+        [
+            [scenario_results[s]["sobols"].get(p, 0.0) for p in PARAM_ORDER]
+            for s in SCENARIO_ORDER
+        ]
+    )
     fig3, ax3 = plt.subplots(figsize=(10, 4))
     im = ax3.imshow(sobol_matrix, aspect="auto", cmap="YlOrRd", vmin=0, vmax=0.8)
     ax3.set_xticks(range(len(PARAM_ORDER)))
-    ax3.set_xticklabels([PARAM_LABELS[p] for p in PARAM_ORDER],
-                        rotation=30, ha="right", fontsize=9)
+    ax3.set_xticklabels(
+        [PARAM_LABELS[p] for p in PARAM_ORDER], rotation=30, ha="right", fontsize=9
+    )
     ax3.set_yticks(range(len(SCENARIO_ORDER)))
     ax3.set_yticklabels(labels, fontsize=9)
-    ax3.set_title("First-order Sobol indices — score sensitivity by scenario and metric")
+    ax3.set_title(
+        "First-order Sobol indices — score sensitivity by scenario and metric"
+    )
     for i in range(len(SCENARIO_ORDER)):
         for j in range(len(PARAM_ORDER)):
             val = sobol_matrix[i, j]
-            ax3.text(j, i, f"{val:.2f}", ha="center", va="center",
-                     fontsize=7, color="white" if val > 0.45 else "black")
+            ax3.text(
+                j,
+                i,
+                f"{val:.2f}",
+                ha="center",
+                va="center",
+                fontsize=7,
+                color="white" if val > 0.45 else "black",
+            )
     plt.colorbar(im, ax=ax3, label="First-order Sobol index")
     plt.tight_layout()
     sobol_png = os.path.join(FIGS_DIR, "sobol_heatmap.png")
@@ -433,4 +498,3 @@ try:
 except ImportError:
     print("\n[INFO] matplotlib not found — skipping plots.")
     print("       Install with:  pip install matplotlib")
-

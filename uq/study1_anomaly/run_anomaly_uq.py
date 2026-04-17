@@ -34,12 +34,12 @@ files inside uq/study1_anomaly/figs/.
 """
 
 import os
-import sys
 from shutil import rmtree
+import sys
 
 try:
-    import easyvvuq as uq
     import chaospy as cp
+    import easyvvuq as uq
 except ImportError as exc:
     print(
         "\nERROR: Could not import easyvvuq or chaospy.\n"
@@ -57,7 +57,9 @@ import numpy as np
 UQ_DIR = os.path.dirname(os.path.abspath(__file__))
 HOMEPOT_ROOT = os.environ.get(
     "HOMEPOT_PATH",
-    os.path.abspath(os.path.join(UQ_DIR, "../..")),  # script is uq/study1_anomaly/ → root is two levels up
+    os.path.abspath(
+        os.path.join(UQ_DIR, "../..")
+    ),  # script is uq/study1_anomaly/ → root is two levels up
 )
 
 CAMPAIGN_WORK_DIR = os.path.join(UQ_DIR, "campaign_anomaly_uq")
@@ -87,27 +89,32 @@ print(f"[INFO] Homepot root:      {HOMEPOT_ROOT}")
 #   flapping_count: 5, consecutive_failures: 3
 
 params = {
-    "cpu_percent":          {"type": "float", "min": 5.0,   "max": 100.0, "default": 50.0},
-    "memory_percent":       {"type": "float", "min": 10.0,  "max": 100.0, "default": 50.0},
-    "disk_percent":         {"type": "float", "min": 10.0,  "max": 100.0, "default": 50.0},
-    "error_rate":           {"type": "float", "min": 0.0,   "max": 0.50,  "default": 0.05},
-    "network_latency_ms":   {"type": "float", "min": 10.0,  "max": 1000.0,"default": 150.0},
-    "flapping_count":       {"type": "float", "min": 0.0,   "max": 10.0,  "default": 2.0},
-    "consecutive_failures": {"type": "float", "min": 0.0,   "max": 15.0,  "default": 2.0},
-    "outfile":              {"type": "string", "default": "output.json"},
+    "cpu_percent": {"type": "float", "min": 5.0, "max": 100.0, "default": 50.0},
+    "memory_percent": {"type": "float", "min": 10.0, "max": 100.0, "default": 50.0},
+    "disk_percent": {"type": "float", "min": 10.0, "max": 100.0, "default": 50.0},
+    "error_rate": {"type": "float", "min": 0.0, "max": 0.50, "default": 0.05},
+    "network_latency_ms": {
+        "type": "float",
+        "min": 10.0,
+        "max": 1000.0,
+        "default": 150.0,
+    },
+    "flapping_count": {"type": "float", "min": 0.0, "max": 10.0, "default": 2.0},
+    "consecutive_failures": {"type": "float", "min": 0.0, "max": 15.0, "default": 2.0},
+    "outfile": {"type": "string", "default": "output.json"},
 }
 
 # Ranges and distribution rationale: see VVUQ_PLAN.md §3.2 "Input distributions".
 # Key formula: P(fires) = (b - T) / (b - a)  for Uniform(a,b) with threshold T.
 # Sobol index collapses toward 0 at both extremes (fires never OR fires always).
 vary = {
-    "cpu_percent":          cp.Uniform(5.0,    100.0),
-    "memory_percent":       cp.Uniform(10.0,   100.0),
-    "disk_percent":         cp.Uniform(10.0,   100.0),
-    "error_rate":           cp.Uniform(0.0,    0.50),
-    "network_latency_ms":   cp.Uniform(10.0,   1000.0),
-    "flapping_count":       cp.Uniform(0.0,    10.0),
-    "consecutive_failures": cp.Uniform(0.0,    15.0),
+    "cpu_percent": cp.Uniform(5.0, 100.0),
+    "memory_percent": cp.Uniform(10.0, 100.0),
+    "disk_percent": cp.Uniform(10.0, 100.0),
+    "error_rate": cp.Uniform(0.0, 0.50),
+    "network_latency_ms": cp.Uniform(10.0, 1000.0),
+    "flapping_count": cp.Uniform(0.0, 10.0),
+    "consecutive_failures": cp.Uniform(0.0, 15.0),
 }
 
 
@@ -130,9 +137,7 @@ decoder = uq.decoders.JSONDecoder(
 # but we set it explicitly here for clarity.
 os.environ.setdefault("HOMEPOT_PATH", HOMEPOT_ROOT)
 
-execute = uq.actions.ExecuteLocal(
-    f"{sys.executable} {RUNNER_SCRIPT}"
-)
+execute = uq.actions.ExecuteLocal(f"{sys.executable} {RUNNER_SCRIPT}")
 
 actions = uq.actions.Actions(
     uq.actions.CreateRunDirectory(root=CAMPAIGN_WORK_DIR, flatten=True),
@@ -223,10 +228,12 @@ try:
     fig, ax = plt.subplots(figsize=(8, 4))
     params_sorted = sorted(sobols_scalar.items(), key=lambda x: x[1])
     names = [_label(p) for p, _ in params_sorted]
-    vals  = [v for _, v in params_sorted]
+    vals = [v for _, v in params_sorted]
     ax.barh(names, vals, color="steelblue")
     ax.set_xlabel("First-order Sobol index")
-    ax.set_title("Anomaly score: Sobol sensitivity indices (PCE order {})".format(POLY_ORDER))
+    ax.set_title(
+        "Anomaly score: Sobol sensitivity indices (PCE order {})".format(POLY_ORDER)
+    )
     plt.tight_layout()
     sobol_png = os.path.join(FIGS_DIR, "sobol_anomaly_score.png")
     plt.savefig(sobol_png, dpi=150)
