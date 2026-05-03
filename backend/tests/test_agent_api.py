@@ -1,8 +1,7 @@
-"""Tests for the agent registration API."""
+﻿"""Tests for the agent device DNA registration API."""
 
 import asyncio
 import os
-import secrets
 import tempfile
 
 from fastapi.testclient import TestClient
@@ -10,7 +9,6 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from homepot.app.auth_utils import hash_password
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import Base, Device, Site
@@ -53,98 +51,92 @@ def mock_db_url(monkeypatch):
             pass
 
 
-def _seed_device(api_key: str, *, site_code: str = "site-agent-1", active: bool = True):
-    """Seed a site and device record for registration tests."""
+def _seed_site(site_code: str = "site-agent-1") -> Site:
+    """Seed a site record for registration tests."""
     db = homepot.database.SessionLocal()
     try:
         site = Site(site_id=site_code, name="Agent Test Site", location="Lab")
         db.add(site)
         db.commit()
         db.refresh(site)
+        return site
+    finally:
+        db.close()
 
+
+def test_device_dna_requires_site_for_new_device(client: TestClient):
+    """Creating a new device without site_id should fail validation."""
+    response = client.post(
+        "/api/v1/agent/device-dna",
+        json={
+            "device_id": "agent-device-1",
+            "mac_address": "00:11:22:33:44:55",
+            "os_details": "Windows 11",
+            "local_ip": "192.168.1.20",
+            "wan_ip": "203.0.113.10",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "site_id" in response.json()["detail"]
+
+
+def test_device_dna_creates_new_device(client: TestClient):
+    """Device DNA endpoint should create new records when device does not exist."""
+    _seed_site("site-agent-1")
+
+    response = client.post(
+        "/api/v1/agent/device-dna",
+        json={
+            "device_id": "agent-device-1",
+            "site_id": "site-agent-1",
+            "device_name": "Front POS",
+            "device_type": "physical_terminal",
+            "mac_address": "00:11:22:33:44:55",
+            "os_details": "Windows 11",
+            "local_ip": "192.168.1.20",
+            "wan_ip": "203.0.113.10",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["data"]["device_id"] == "agent-device-1"
+    assert payload["data"]["created"] is True
+
+
+def test_device_dna_updates_existing_device(client: TestClient):
+    """Device DNA endpoint should update DNA fields for existing device records."""
+    site = _seed_site("site-agent-2")
+
+    db = homepot.database.SessionLocal()
+    try:
         device = Device(
-            device_id="agent-device-1",
+            device_id="agent-device-2",
             name="Agent Device",
-            device_type="gateway",
-            site_id=site.id,
-            api_key_hash=hash_password(api_key),
-            is_active=active,
+            device_type="physical_terminal",
+            site_id=int(site.id),
+            is_active=True,
         )
         db.add(device)
         db.commit()
     finally:
         db.close()
 
-
-def test_register_requires_valid_api_key(client: TestClient):
-    """Registration should reject devices with invalid credentials."""
-    valid_key = secrets.token_urlsafe(32)
-    _seed_device(valid_key)
-
     response = client.post(
-        "/api/v1/agent/register",
+        "/api/v1/agent/device-dna",
         json={
-            "device_id": "agent-device-1",
-            "site_id": "site-agent-1",
-            "backend_url": "https://backend.example.test",
-            "api_key": "wrong-key",
-        },
-    )
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid API Key"
-
-
-def test_register_rejects_site_mismatch(client: TestClient):
-    """Registration should reject devices presented for the wrong site."""
-    valid_key = secrets.token_urlsafe(32)
-    _seed_device(valid_key)
-
-    response = client.post(
-        "/api/v1/agent/register",
-        json={
-            "device_id": "agent-device-1",
-            "site_id": "other-site",
-            "backend_url": "https://backend.example.test",
-            "api_key": valid_key,
-        },
-    )
-
-    assert response.status_code == 401
-    assert (
-        response.json()["detail"] == "Device is not authorized for the requested site"
-    )
-
-
-def test_register_returns_dna_for_authorized_device(client: TestClient, monkeypatch):
-    """Registration should succeed for pre-authorized devices."""
-    valid_key = secrets.token_urlsafe(32)
-    _seed_device(valid_key)
-    expected_dna = {
-        "local_ip": "192.168.1.10",
-        "wan_ip": "203.0.113.5",
-        "mac_address": "00:11:22:33:44:55",
-        "os_name": "TestOS",
-        "os_version": "1.0",
-    }
-    monkeypatch.setattr(
-        "homepot.agent.agent_api.collect_device_dna", lambda payload: expected_dna
-    )
-
-    response = client.post(
-        "/api/v1/agent/register",
-        json={
-            "device_id": "agent-device-1",
-            "site_id": "site-agent-1",
-            "backend_url": "https://backend.example.test",
-            "api_key": valid_key,
+            "device_id": "agent-device-2",
+            "mac_address": "AA:BB:CC:DD:EE:FF",
+            "os_details": "Ubuntu 22.04",
+            "local_ip": "10.0.0.20",
+            "wan_ip": "198.51.100.20",
         },
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "success",
-        "device_id": "agent-device-1",
-        "site_id": "site-agent-1",
-        "dna_received": expected_dna,
-    }
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["data"]["device_id"] == "agent-device-2"
+    assert payload["data"]["created"] is False

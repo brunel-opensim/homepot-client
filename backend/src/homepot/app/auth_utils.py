@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 import logging
 import os
+from pathlib import Path
 from typing import Any, Optional, cast
 
 from dotenv import load_dotenv
@@ -23,7 +24,12 @@ from homepot.database import get_db
 from homepot.models import Device, User
 
 # Ensure environment variables are loaded
-load_dotenv()
+# load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parents[3]
+env_path = BASE_DIR / ".env.example"
+
+load_dotenv(dotenv_path=env_path)
 
 logger = logging.getLogger(__name__)
 
@@ -197,10 +203,10 @@ def authenticate_device_credentials(
     db: Session, device_id: str, api_key: str
 ) -> Device:
     """Authenticate a device using its device ID and plaintext API key."""
-    if not api_key or not device_id:
+    if not device_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing X-API-Key or X-Device-ID header",
+            detail="Missing X-Device-ID header",
         )
 
     result = db.execute(select(Device).where(Device.device_id == device_id))
@@ -239,7 +245,42 @@ async def get_current_device(
     db: Session = Depends(get_db),
 ) -> Device:
     """Authenticate device using API Key and Device ID."""
-    return authenticate_device_credentials(db=db, device_id=device_id, api_key=api_key)
+    if not api_key or not device_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing X-API-Key or X-Device-ID header",
+        )
+
+    # Fetch device by ID
+    result = db.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalars().first()
+
+    if not device:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Device ID",
+        )
+
+    if not device.api_key_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Device not configured for API Key authentication",
+        )
+
+    # Verify API Key
+    if not verify_password(api_key, device.api_key_hash):  # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+        )
+
+    if not device.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Device is inactive",
+        )
+
+    return device
 
 
 def exchange_google_code(code: str) -> dict:

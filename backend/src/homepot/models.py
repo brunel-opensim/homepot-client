@@ -150,8 +150,12 @@ class Device(Base):
     # Device specifications
     ip_address = Column(String(45), nullable=True)  # IPv4/IPv6
     mac_address = Column(String(17), nullable=True)
+    os_details = Column(String(255), nullable=True)
+    local_ip = Column(String(45), nullable=True)
+    wan_ip = Column(String(45), nullable=True)
     firmware_version = Column(String(50), nullable=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)
+    last_heartbeat_at = Column(DateTime(timezone=True), nullable=True)
 
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration

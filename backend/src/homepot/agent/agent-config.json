@@ -1,5 +1,12 @@
 {
-  "agent_id": "agent-0012",
+  "backend_url": "http://localhost:8000",
+  "device_id": "physical-pos-001",
   "site_id": "site-1234",
-  "backend_url": "http://localhost:8000"
+  "api_key": "replace-with-provisioned-secret",
+  "heartbeat_interval_seconds": 30,
+  "telemetry_interval_seconds": 30,
+  "retry_flush_interval_seconds": 60,
+  "ipc_enabled": true,
+  "ipc_host": "127.0.0.1",
+  "ipc_port": 8765
 }

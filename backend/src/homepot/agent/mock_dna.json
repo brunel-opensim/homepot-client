@@ -1,0 +1,9 @@
+﻿{
+  "device_id": "physical-pos-001",
+  "site_id": "site-1234",
+  "mac_address": "00:11:22:33:44:55",
+  "os_details": "Windows 11 Pro",
+  "local_ip": "192.168.1.20",
+  "wan_ip": "203.0.113.10",
+  "created": false
+}
