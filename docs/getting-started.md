@@ -65,3 +65,25 @@ Once the system is running, you can access:
 - **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 For detailed development information, refer to the [Development Guide](development-guide.md).
+
+## Troubleshooting
+
+### Login Page Returns 500 / Connection Refused (ECONNREFUSED)
+
+If you encounter a `500` error or "Connection Refused" when attempting to log in, it is likely that the Vite development server proxy is pointing to the wrong backend port.
+
+*   **Symptoms**: You see `Error: connect ECONNREFUSED 127.0.0.1:8001` in the frontend logs or terminal when trying to hit `/api/v1/auth/login`.
+*   **Fix**: Update the `target` port in the `frontend/vite.config.js` proxy settings to point to port `8000` (the default backend port).
+    ```javascript
+    export default defineConfig({
+      // ...
+      server: {
+        proxy: {
+          '/api': {
+            target: 'http://127.0.0.1:8000', // Ensure this points to port 8000
+            // ...
+          },
+        },
+      },
+    });
+    ```
