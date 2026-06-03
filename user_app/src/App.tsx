@@ -1,12 +1,16 @@
 import { AppProvider, useApp } from './context/AppContext'
 import SetupWizard from './views/SetupWizard'
 import HomeDashboard from './views/HomeDashboard'
+import Permissions from './views/Permissions'
+import DeviceInfo from './views/DeviceInfo'
 
 function AppContent() {
   const { currentView } = useApp()
 
   if (currentView === 'setup') return <SetupWizard />
   if (currentView === 'home') return <HomeDashboard />
+  if (currentView === 'permissions') return <Permissions />
+  if (currentView === 'settings') return <DeviceInfo />
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400 font-sans">
