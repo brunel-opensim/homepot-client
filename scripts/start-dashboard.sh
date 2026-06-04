@@ -311,16 +311,7 @@ echo -e "  1. Stop services: ${CYAN}./scripts/stop-dashboard.sh${NC}"
 echo -e "  2. Start again:   ${CYAN}./scripts/start-dashboard.sh${NC}"
 echo ""
 
-# Optional: Open browser automatically
-if command_exists xdg-open; then
-    print_info "Opening dashboard in browser..."
-    sleep 2
-    xdg-open http://localhost:5173 2>/dev/null || true
-elif command_exists open; then
-    # macOS
-    print_info "Opening dashboard in browser..."
-    sleep 2
-    open http://localhost:5173 2>/dev/null || true
-fi
+# Note: Removed automatic browser opening to eliminate terminal engagement dependency.
+print_info "Dashboard is ready. Please open http://localhost:5173 manually in your browser."
 
 exit 0
