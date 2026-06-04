@@ -115,6 +115,17 @@ http://localhost:5173
 
 You should be automatically redirected to the login page.
 
+### Testing Concurrently with User App
+
+If you are working on the device provisioning flow, you can run the HOMEPOT User App at the same time:
+
+```bash
+# In a third terminal:
+./scripts/start-userapp.sh
+```
+
+This will run the User App on **port 5174** (`http://localhost:5174`), avoiding port collisions with the Dashboard. This allows you to simulate registering a Site ID in the Dashboard and then claiming that Site ID locally in the User App Wizard.
+
 ## Verification
 
 ### 1. Backend Health Check

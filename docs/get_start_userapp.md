@@ -44,7 +44,9 @@ Avoids running `nvm use` every time you open a new terminal.
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start local dev server at http://localhost:5173 |
+| `./scripts/start-userapp.sh` | Automatically check requirements and start the App via `nohup` |
+| `./scripts/stop-userapp.sh` | Kill the `nohup` server processes running the user app |
+| `npm run dev` | Start local dev server at http://localhost:5174 |
 | `npm run build` | Production build → output to `dist/` |
 | `npm run preview` | Serve the production `dist/` build locally |
 | `npm run lint` | Run ESLint checks across all source files |
@@ -53,6 +55,18 @@ Avoids running `nvm use` every time you open a new terminal.
 
 ## Start the Dev Server
 
+### Option 1: Using the provided Startup Script (Recommended)
+This method automates Node version checking, port validation, and background logging.
+
+```bash
+# From the repo root
+./scripts/start-userapp.sh
+```
+
+**Note:** Logs go to `logs/userapp.log`. To stop it, run `./scripts/stop-userapp.sh`.
+
+### Option 2: Manual Start
+
 ```bash
 # From the repo root
 cd user_app
@@ -60,9 +74,16 @@ nvm use 20.19.6
 npm run dev
 ```
 
-Open **http://localhost:5173/** in your browser.
+Open **http://localhost:5174/** in your browser.
 
-Press `Ctrl+C` in the terminal to stop.
+Press `Ctrl+C` in the terminal to stop manual runs.
+
+---
+
+### Concurrent Testing with Dashboard
+
+By default, the Dashboard runs on port `5173`. The User App explicitly runs on port **`5174`**.
+You can run both at the same time to test the provisioning workflow by executing both `./scripts/start-dashboard.sh` and `./scripts/start-userapp.sh`.
 
 ---
 
