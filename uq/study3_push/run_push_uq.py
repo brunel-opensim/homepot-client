@@ -308,7 +308,9 @@ try:
         ax2.set_ylim(0, 1.10)
         ax2.set_xticks(k_values)
         for k, p in zip(k_values, p_at_least_k):
-            ax2.text(k, p + 0.015, f"{p:.3f}", ha="center", va="bottom", fontsize=8)
+            ax2.text(
+                float(k), p + 0.015, f"{p:.3f}", ha="center", va="bottom", fontsize=8
+            )
         plt.tight_layout()
         png2 = os.path.join(FIGS_DIR, "p_at_least_k.png")
         plt.savefig(png2, dpi=150)
@@ -377,7 +379,9 @@ try:
     for key, color in senscols.items():
         label = sens_results[key]["label"].strip()
         fr = sens_results[key]["df"]["failure_rate"].values.astype(float)
-        ax4.hist(fr, bins=bins, alpha=0.55, color=color, density=True, label=label)
+        ax4.hist(
+            fr, bins=bins.tolist(), alpha=0.55, color=color, density=True, label=label
+        )
     ax4.set_xlabel("Per-device failure rate")
     ax4.set_ylabel("Probability density")
     ax4.set_title(
