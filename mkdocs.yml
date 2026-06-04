@@ -160,6 +160,13 @@ nav:
           - Agent Simulation: agent-simulation.md
           - Real Device Transition: real-device-transition.md
 
+  - HOMEPOT User App:
+      - Getting Started: get_start_userapp.md
+      - Frontend Guide: user-app-frontend-guide.md
+      - Implementation Roadmap: user-app-implementation.md
+      - Team Tasks (GetFudo): getfudo-user-app-tasks.md
+      - Team Tasks (Dealdio): dealdio-user-app-tasks.md
+
   - Dev & Ops:
       - Development Guide: development-guide.md
       - Deployment: deployment-guide.md
