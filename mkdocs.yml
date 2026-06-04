@@ -164,6 +164,7 @@ nav:
       - Getting Started: get_start_userapp.md
       - Frontend Guide: user-app-frontend-guide.md
       - Implementation Roadmap: user-app-implementation.md
+      - Device Enrollment Roadmap: device-enrollment-roadmap.md
       - Team Tasks (GetFudo): getfudo-user-app-tasks.md
       - Team Tasks (Dealdio): dealdio-user-app-tasks.md
 
