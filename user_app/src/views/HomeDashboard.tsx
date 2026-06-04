@@ -63,7 +63,7 @@ export default function HomeDashboard() {
 
         {/* Gauge Rings */}
         <div className="px-5 pt-5">
-          <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-widest">System Telemetry</p>
+          <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-widest">Agent Resource Usage</p>
           <div className="flex justify-around">
             <GaugeRing label="CPU" value={MOCK_TELEMETRY.cpu} color="#10b981" />
             <GaugeRing label="Memory" value={MOCK_TELEMETRY.memory} color="#f59e0b" />

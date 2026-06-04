@@ -35,9 +35,12 @@ export default function Permissions() {
   const [showWarning, setShowWarning] = useState(false)
 
   function handleToggle(id: string) {
-    setPermissions(prev =>
-      prev.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p)
-    )
+    const updatedPermissions = permissions.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p)
+    setPermissions(updatedPermissions)
+
+    // TODO: Sync to backend immediately to notify Admin Dashboard
+    console.log(`Syncing permission ${id} to backend...`)
+
     setShowWarning(true)
     setTimeout(() => setShowWarning(false), 3000)
   }
@@ -92,7 +95,7 @@ export default function Permissions() {
             <span className="text-amber-400 text-sm">⚠</span>
             <p className="text-xs text-slate-300">
               {showWarning
-                ? 'Permission updated — changes apply immediately.'
+                ? 'Syncing changes to Admin Dashboard...'
                 : 'Changes apply immediately to the Admin Dashboard.'}
             </p>
           </div>
