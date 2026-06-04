@@ -389,7 +389,7 @@ try:
     parts = ax.violinplot(
         data, positions=range(len(SCENARIO_ORDER)), showmedians=True, showextrema=True
     )
-    for body, s in zip(parts["bodies"], SCENARIO_ORDER):
+    for body, s in zip(parts["bodies"], SCENARIO_ORDER):  # type: ignore
         body.set_facecolor(COLORS[s])
         body.set_alpha(0.7)
     parts["cmedians"].set_color("white")
