@@ -96,4 +96,4 @@ GitHub Actions workflows updated to reflect new paths:
 
 ## Questions?
 
-See the main [README.md](../README.md) or contact the development team.
+See the main [README.md](https://github.com/brunel-opensim/homepot-client/blob/main/README.md) or contact the development team.

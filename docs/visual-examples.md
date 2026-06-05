@@ -393,7 +393,7 @@ def get_db():
 ## Progressive Disclosure
 
 ??? question "How do I add a new site?"
-    See the [Database Guide](database-guide.md#adding-sites) for detailed instructions.
+    See the [Database Guide](database-guide.md) for detailed instructions.
 
 ??? question "How do I configure push notifications?"
     Check out the platform-specific guides:
@@ -414,8 +414,8 @@ def get_db():
 
 For more visual examples and usage instructions, see:
 
-- **[Images Directory README](images/README.md)** - Comprehensive guide to images
-- **[Images Quick Reference](images/QUICKREF.md)** - Quick examples
+- **[Images Directory README](https://github.com/brunel-opensim/homepot-client/tree/main/docs/images)** - Comprehensive guide to images
+- **[Images Quick Reference](https://github.com/brunel-opensim/homepot-client/tree/main/docs/images)** - Quick examples
 
 ---
 
