@@ -1,0 +1,43 @@
+name: Docs Check
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'docs/requirements.txt'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'docs/requirements.txt'
+
+jobs:
+  build-and-verify-docs:
+    name: Verify MkDocs Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+
+      - name: Build documentation (Strict Mode)
+        run: |
+          # The --strict flag will cause the build to fail if there are any warnings,
+          # such as broken links, bad formatting, or missing files.
+          mkdocs build --strict
