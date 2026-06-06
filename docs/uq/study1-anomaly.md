@@ -221,7 +221,7 @@ an index of 0.0 means the metric is completely invisible to the detector.
 | `memory_percent` | **0.000** | **~0%** | Same as CPU. |
 | `disk_percent` | **0.000** | **~0%** | Same as CPU. |
 
-> These results reflect the detector after [Recommendation A](#recommendation-a--fix-the-config-key-bugs-implemented) was applied, run with calibrated input ranges.
+> These results reflect the detector after [Recommendation A](#) was applied, run with calibrated input ranges.
 
 ![Anomaly score: Sobol sensitivity indices (PCE order 2)](images/sobol_anomaly_score.png)
 
@@ -274,7 +274,7 @@ despite a substantial weight of +0.40) prompted inspection of
 | `network_latency_ms: 200` | `"max_latency_ms"` — **not found** | Fell back to hardcoded **500ms** |
 | `error_rate: 0.05` | `"max_error_rate"` — **not found** | Fell back to hardcoded **0.05** |
 
-**[Recommendation A](#recommendation-a--fix-the-config-key-bugs-implemented) has been
+**[Recommendation A](#) has been
 implemented** — both keys are now corrected. The latency threshold is now read
 correctly from `config.yaml` as 200ms (down from the erroneous 500ms default).
 The effect is clearly visible in the updated Sobol indices: `network_latency_ms`

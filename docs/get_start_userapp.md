@@ -154,5 +154,5 @@ user_app/
 ## Related Docs
 
 - [User App Frontend Guide](user-app-frontend-guide.md) — full tech stack, page flow, API reference
-- [UI Wireframes](../ui-designs/user-app-wireframes.md) — 4-page layout sketches
+- [UI Wireframes](https://github.com/brunel-opensim/homepot-client/blob/main/ui-designs/user-app-wireframes.md) — 4-page layout sketches
 - [User App Implementation](user-app-implementation.md) — architecture and phase roadmap

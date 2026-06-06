@@ -7,10 +7,10 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 ### For New Users
 - **[Getting Started](getting-started.md)** - First time setup
 - **[Running Locally](running-locally.md)** - How to run the application
-- **[Integration Guide](integration-guide.md)** - Complete setup and usage guide
+- **[Integration Guide](getting-started.md)** - Complete setup and usage guide
 
 ### For Developers
-- **[Engineering TODO](engineering-todo.md)** - Task list with priorities
+- **[Engineering TODO](#)** - Task list with priorities
 - **[Development Guide](development-guide.md)** - How to contribute
 - **[Testing Guide](testing-guide.md)** - How to test your code
 - **[API Testing Guide](api-testing-guide.md)** - Manual API testing and validation
@@ -34,12 +34,12 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 ### Integration Guide
 **2000+ lines** - Your complete technical reference covering architecture, installation, API reference, frontend guide, push notifications (all 5 platforms), testing, deployment, and troubleshooting.
 
-[Read Integration Guide →](integration-guide.md)
+[Read Integration Guide →](getting-started.md)
 
 ### Engineering TODO
 **1500+ lines** - Clear, actionable task list with phase-by-phase breakdown, priorities, estimates, acceptance criteria, and quick reference commands.
 
-[Read Engineering TODO →](engineering-todo.md)
+[Read Engineering TODO →](#)
 
 ### PostgreSQL Migration
 **Complete migration from SQLite to PostgreSQL** - Production-ready database with async performance, proper timezone handling, and enterprise features.
