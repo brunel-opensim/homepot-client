@@ -17,6 +17,7 @@ on:
       - 'mkdocs.yml'
       - 'docs/requirements.txt'
       - '.github/workflows/docs-check.yml'
+  workflow_dispatch:
 
 jobs:
   build-and-verify-docs:
