@@ -4,4 +4,4 @@ mkdocs-material==9.6.22  # Material Design theme for MkDocs
 mkdocs-material-extensions==1.3.1  # Extension pack for MkDocs Material
 pymdown-extensions==10.16.1  # Extensions for Python Markdown
 markdown==3.9  # Python implementation of Markdown
-mkdocs-minify-plugin==0.8.0  # Minifies HTML/JS/CSS for MkDocs
+mkdocs-minify-plugin==0.8.0  # Minifies HTML/JS/CSS for MkDocsPygments==2.18.0
