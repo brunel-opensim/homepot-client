@@ -136,8 +136,8 @@ export default function Dashboard() {
               (d) => d.status && d.status.toLowerCase() === 'online'
             ).length;
 
-            // Sites contain multiple OS types
-            osList = ['windows', 'linux', 'apple', 'android', 'web', 'iot'];
+            // Sites contain multiple OS types. Let's use the ones provided by the backend!
+            osList = item.os_types || ['windows', 'linux', 'apple', 'android', 'web', 'iot'];
 
             // Alerts for site: Filter anomalies for devices in this site
             const siteDeviceIds = new Set(siteDevices.map((d) => d.device_id));

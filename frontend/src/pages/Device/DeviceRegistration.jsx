@@ -303,9 +303,10 @@ export default function DeviceRegistration() {
                 type="submit"
                 disabled={loading}
                 className="bg-teal-600 hover:bg-teal-700 text-white"
+                title="Create a pre-provisioned placeholder for secure environments"
               >
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Register Device
+                Pre-Provision Device (Secure & Managed)
               </Button>
             </div>
           </form>

@@ -80,6 +80,13 @@ class DeviceStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
+class EnrollmentMethod(str, Enum):
+    """Enrollment method enumeration for devices."""
+
+    PRE_PROVISIONED = "pre-provisioned"
+    SELF_ENROLLED = "self-enrolled"
+
+
 class CommandStatus(str, Enum):
     """Command status enumeration."""
 
@@ -146,6 +153,8 @@ class Device(Base):
     device_type = Column(String(50), nullable=False)  # DeviceType enum
     status = Column(String(20), default=DeviceStatus.UNKNOWN)
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
+    enrollment_method = Column(String(50), nullable=True)  # EnrollmentMethod enum
+    enrollment_token = Column(String(255), nullable=True)
 
     # Device specifications
     ip_address = Column(String(45), nullable=True)  # IPv4/IPv6

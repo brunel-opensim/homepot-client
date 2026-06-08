@@ -215,6 +215,7 @@ async def list_sites() -> Dict[str, List[Dict]]:
                         "is_monitored": site.is_monitored,
                         "status": status,
                         "os_types": list(os_types),
+                        "devices_count": len(devices),
                         "created_at": (
                             site.created_at.isoformat() if site.created_at else None
                         ),
@@ -498,3 +499,46 @@ async def toggle_site_monitor(site_id: str, monitor: bool) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to update site monitor status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/{site_id}/stats", tags=["Sites"])
+async def get_site_stats(site_id: str) -> Dict[str, Any]:
+    """Get device breakdown and statistics for a specific site."""
+    try:
+        db_service = await get_database_service()
+
+        # Verify site exists
+        site = await db_service.get_site_by_site_id(site_id)
+        if not site:
+            raise HTTPException(status_code=404, detail=f"Site '{site_id}' not found")
+
+        # Get devices for this site
+        devices = await db_service.get_devices_by_site_id(site_id)
+
+        # Calculate stats
+        total_devices = len(devices)
+        pre_provisioned = sum(
+            1
+            for d in devices
+            if getattr(d, "enrollment_method", None) == "pre-provisioned"
+        )
+        self_enrolled = sum(
+            1
+            for d in devices
+            if getattr(d, "enrollment_method", None) == "self-enrolled"
+        )
+
+        return {
+            "site_id": site_id,
+            "total_devices": total_devices,
+            "breakdown": {
+                "pre_provisioned": pre_provisioned,
+                "self_enrolled": self_enrolled,
+                "other": total_devices - (pre_provisioned + self_enrolled),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get site stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get site stats.")

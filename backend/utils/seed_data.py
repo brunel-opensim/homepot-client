@@ -394,7 +394,15 @@ async def init_database():
     print("\n=== Creating Devices ===")
 
     async def get_or_create_device(
-        device_id, name, device_type, site_id, ip_address, config, is_monitored=False
+        device_id,
+        name,
+        device_type,
+        site_id,
+        ip_address,
+        config,
+        is_monitored=False,
+        enrollment_method="pre-provisioned",
+        enrollment_token=None,
     ):
         existing = await db_service.get_device_by_device_id(device_id)
         if existing:
@@ -409,9 +417,11 @@ async def init_database():
             config=config,
             last_seen=datetime.now(timezone.utc),  # Set initial Last Seen
             is_monitored=is_monitored,
+            enrollment_method=enrollment_method,
+            enrollment_token=enrollment_token,
         )
         print(
-            f"Created device: {device.name} ({device_id}) [Monitored: {is_monitored}]"
+            f"Created device: {device.name} ({device_id}) [Monitored: {is_monitored}] [Method: {enrollment_method}]"
         )
         return device
 
@@ -443,6 +453,8 @@ async def init_database():
             "agent_version": "1.0.0-sim",
             "version": "1.0.0",
         },
+        enrollment_method="self-enrolled",
+        enrollment_token="SIM-TOKEN-WIN-02",  # noqa: S106
     )
     await get_or_create_device(
         "site1-macos-03",
@@ -498,6 +510,8 @@ async def init_database():
             "agent_version": "1.0.0-sim",
             "version": "1.0.0",
         },
+        enrollment_method="self-enrolled",
+        enrollment_token="SIM-TOKEN-LINUX-01",  # noqa: S106
     )
     await get_or_create_device(
         "site2-windows-02",
