@@ -34,6 +34,8 @@ class CreateDeviceRequest(BaseModel):
     ip_address: Optional[str] = None
     mac_address: Optional[str] = None
     firmware_version: Optional[str] = None
+    enrollment_method: Optional[str] = "pre-provisioned"
+    enrollment_token: Optional[str] = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -45,6 +47,8 @@ class CreateDeviceRequest(BaseModel):
                 "ip_address": "192.168.1.100",
                 "mac_address": "00:11:22:33:44:55",
                 "firmware_version": "1.0.0",
+                "enrollment_method": "pre-provisioned",
+                "enrollment_token": "secr3t-token",
             }
         }
     )
@@ -135,6 +139,87 @@ async def create_device(device_request: CreateDeviceRequest) -> Dict[str, Any]:
         logger.error(f"Failed to create device: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to create device. Please check server logs."
+        )
+
+
+@router.post("/sites/{site_id}/devices", tags=["Devices"])
+async def register_device_to_site(
+    site_id: str, device_request: CreateDeviceRequest
+) -> Dict[str, Any]:
+    """Register a device to a specific site with enrollment logic."""
+    try:
+        db_service = await get_database_service()
+
+        if site_id != device_request.site_id:
+            raise HTTPException(
+                status_code=400, detail="Site ID in URL must match payload"
+            )
+
+        # Verify site exists
+        site = await db_service.get_site_by_site_id(site_id)
+        if not site:
+            raise HTTPException(status_code=404, detail=f"Site {site_id} not found")
+
+        # Handle claiming pre-provisioned devices
+        if device_request.enrollment_method == "pre-provisioned":
+            existing_device = await db_service.get_device_by_device_id(
+                device_request.device_id
+            )
+            if existing_device:
+                # Update status and enrollment info
+                existing_device.status = "online"  # type: ignore
+                existing_device.enrollment_method = "pre-provisioned"  # type: ignore
+                if device_request.ip_address:
+                    existing_device.ip_address = device_request.ip_address  # type: ignore
+                async with db_service.get_session() as session:
+                    session.add(existing_device)
+                    await session.commit()
+                return {
+                    "message": "Device claimed successfully",
+                    "device_id": device_request.device_id,
+                }
+
+        # Otherwise verify device doesn't exist to create it
+        existing_device = await db_service.get_device_by_device_id(
+            device_request.device_id
+        )
+        if existing_device:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Device {device_request.device_id} already exists",
+            )
+
+        # Create new device using db_service
+        device = await db_service.create_device(
+            device_id=device_request.device_id,
+            name=device_request.name,
+            device_type=device_request.device_type,
+            site_id=int(site.id),  # type: ignore
+            ip_address=device_request.ip_address,
+        )
+
+        # Add the additional enrollment properties that create_device doesn't map directly
+        device.mac_address = device_request.mac_address  # type: ignore
+        device.firmware_version = device_request.firmware_version  # type: ignore
+        device.enrollment_method = device_request.enrollment_method  # type: ignore
+        device.enrollment_token = device_request.enrollment_token  # type: ignore
+        device.status = "online"  # type: ignore
+
+        async with db_service.get_session() as session:
+            session.add(device)
+            await session.commit()
+
+        return {
+            "message": "Device registered successfully",
+            "device_id": device.device_id,
+            "site_id": site.site_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error registering device to site {site_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to register device: {str(e)}"
         )
 
 
@@ -396,6 +481,7 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
                 "ip_address": d.ip_address,
                 "is_monitored": d.is_monitored,
                 "active_alerts": alert_map.get(d.device_id, 0),
+                "enrollment_method": getattr(d, "enrollment_method", "pre-provisioned"),
                 "last_seen": d.last_seen.isoformat() if d.last_seen else None,
                 "created_at": d.created_at.isoformat() if d.created_at else None,
                 "updated_at": d.updated_at.isoformat() if d.updated_at else None,

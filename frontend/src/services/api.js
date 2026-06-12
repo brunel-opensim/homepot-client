@@ -172,6 +172,11 @@ const api = {
       return response.data;
     },
 
+    stats: async (siteId) => {
+      const response = await apiClient.get(`/sites/${siteId}/stats`);
+      return response.data;
+    },
+
     /**
      * Create new site
      */

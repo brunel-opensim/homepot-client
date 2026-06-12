@@ -256,12 +256,20 @@ export default function SitesList() {
               </div>
 
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-white text-start truncate pr-16">
+                <h2
+                  className="text-lg font-semibold text-white text-start truncate pr-16"
+                  title={site.name}
+                >
                   {site.name}
                 </h2>
-                <p className="text-sm text-gray-400 mb-2 text-start truncate">
-                  {site.location || 'No location'}
-                </p>
+                <div className="flex flex-col gap-1 mt-1 mb-2">
+                  <p className="text-xs font-mono text-teal-400/70 text-start truncate">
+                    ID: {site.site_id || site.id}
+                  </p>
+                  <p className="text-sm text-gray-400 text-start truncate">
+                    {site.location || 'No location'}
+                  </p>
+                </div>
               </div>
 
               <div className="flex items-center space-x-3 mb-3">
@@ -285,11 +293,17 @@ export default function SitesList() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 mb-3">
-                <span
-                  className={`w-3 h-3 rounded-full ${site.status === 'Online' ? 'bg-green-400' : 'bg-red-500'}`}
-                ></span>
-                <span className="text-sm">{site.status}</span>
+              <div className="flex flex-col gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-3 h-3 rounded-full ${site.status === 'Online' ? 'bg-green-400' : 'bg-red-500'}`}
+                  ></span>
+                  <span className="text-sm">{site.status}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <span>Registered Devices:</span>
+                  <span className="font-semibold text-white">{site.devices_count || 0}</span>
+                </div>
               </div>
 
               {/* View Details button */}

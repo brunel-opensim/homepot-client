@@ -365,6 +365,8 @@ class DatabaseService:
         api_key_hash: Optional[str] = None,
         last_seen: Optional[datetime.datetime] = None,
         is_monitored: bool = False,
+        enrollment_method: Optional[str] = "pre-provisioned",
+        enrollment_token: Optional[str] = None,
     ) -> Device:
         """Create a new device."""
         async with self.get_session() as session:
@@ -379,6 +381,8 @@ class DatabaseService:
                 api_key_hash=api_key_hash,
                 last_seen=last_seen,
                 is_monitored=is_monitored,
+                enrollment_method=enrollment_method,
+                enrollment_token=enrollment_token,
             )
             session.add(device)
             await session.flush()

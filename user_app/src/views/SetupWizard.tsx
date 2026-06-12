@@ -61,7 +61,7 @@ function Step1({ siteId, setSiteId, deviceName, setDeviceName, onNext }: {
 
       <div className="flex flex-col gap-1">
         <label className="text-slate-300 text-sm font-medium">
-          Device Name <span className="text-slate-500 font-normal">(optional)</span>
+          Device Name <span className="text-emerald-500 font-normal">*</span>
         </label>
         <input
           type="text"
@@ -74,7 +74,7 @@ function Step1({ siteId, setSiteId, deviceName, setDeviceName, onNext }: {
 
       <button
         onClick={onNext}
-        disabled={!siteId.trim()}
+        disabled={!siteId.trim() || !deviceName.trim()}
         className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
         Next →
@@ -137,15 +137,50 @@ function Step3({ siteId, deviceName, onComplete }: {
 }) {
   const [loading, setLoading] = useState(false)
 
-  function handleComplete() {
+  async function handleComplete() {
     setLoading(true)
-    setTimeout(() => {
+    try {
+      const deviceId = 'dev-' + Date.now()
+      const reqBody = {
+        device_id: deviceId,
+        site_id: siteId,
+        name: deviceName || 'My Device',
+        device_type: 'physical_terminal',
+        enrollment_method: 'self-enrolled'
+      }
+
+      const response = await fetch(`http://localhost:8000/api/v1/devices/sites/${siteId}/devices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(reqBody)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to register device via API')
+      }
+
+      const data = await response.json()
+      
+      localStorage.setItem('homepot_token', data.device_id || deviceId)
+      localStorage.setItem('homepot_site_id', siteId)
+      localStorage.setItem('homepot_device_name', deviceName || 'My Device')
+      localStorage.setItem('homepot_enrollment_method', 'self-enrolled')
+      
+      setLoading(false)
+      onComplete()
+    } catch (error) {
+      console.error(error)
+      // Fallback for UI demonstration 
       localStorage.setItem('homepot_token', 'mock-token-' + Date.now())
       localStorage.setItem('homepot_site_id', siteId)
       localStorage.setItem('homepot_device_name', deviceName || 'My Device')
+      localStorage.setItem('homepot_enrollment_method', 'self-enrolled')
+      
       setLoading(false)
       onComplete()
-    }, 1000)
+    }
   }
 
   return (

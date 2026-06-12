@@ -79,6 +79,9 @@ const MetricCard = ({ sites, onItemClick }) => {
                 <h3 className="text-sm text-text font-semibold mb-0.5 truncate" title={s.site}>
                   {s.site}
                 </h3>
+                <p className="text-[10px] font-mono text-teal-400/80 mb-0.5 truncate" title={s.id}>
+                  {s.id}
+                </p>
                 <p
                   className={`text-xs text-start mb-0.5 ${
                     !isSite && s.online === 0 ? 'text-gray-400' : 'text-green-400'

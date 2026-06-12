@@ -25,6 +25,7 @@ export default function SiteDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [devices, setDevices] = useState([]);
+  const [stats, setStats] = useState(null);
 
   // Device deletion state
   const [deviceToDelete, setDeviceToDelete] = useState(null);
@@ -61,6 +62,13 @@ export default function SiteDetail() {
         devicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         setDevices(devicesList);
+
+        try {
+          const statsData = await api.sites.stats(id);
+          setStats(statsData);
+        } catch (err) {
+          console.error('Failed to load stats:', err);
+        }
       } catch (err) {
         console.error('Failed to load devices:', err);
       } finally {
@@ -139,7 +147,10 @@ export default function SiteDetail() {
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight mb-2 text-white">{site.name}</h1>
+              <h1 className="text-3xl font-bold tracking-tight mb-1 text-white">{site.name}</h1>
+              <div className="flex items-center text-teal-400/80 font-mono text-sm mb-2">
+                ID: {site.site_id || site.id}
+              </div>
               <div className="flex items-center text-gray-400">
                 <MapPin className="h-4 w-4 mr-1.5" />
                 {site.location || 'No location specified'}
@@ -176,8 +187,16 @@ export default function SiteDetail() {
                 <div>
                   <p className="text-sm text-gray-400 font-medium">Total Devices</p>
                   <h3 className="text-2xl font-bold text-white">
-                    {site.devices_count || devices.length || 0}
+                    {stats ? stats.total_devices : site.devices_count || devices.length || 0}
                   </h3>
+                  {stats && (
+                    <div className="flex gap-2 text-xs text-slate-400 mt-1">
+                      <span title="Self-Enrolled (User App)">
+                        👤 {stats.breakdown.self_enrolled}
+                      </span>
+                      <span title="Pre-Provisioned">🏢 {stats.breakdown.pre_provisioned}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -215,6 +234,9 @@ export default function SiteDetail() {
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Name</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Type</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Status</th>
+                      <th className="h-12 px-4 align-middle font-medium text-gray-400">
+                        Enrollment
+                      </th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">Alerts</th>
                       <th className="h-12 px-4 align-middle font-medium text-gray-400">
                         Last Seen
@@ -252,6 +274,19 @@ export default function SiteDetail() {
                             }`}
                           >
                             {device.status || 'Offline'}
+                          </span>
+                        </td>
+                        <td className="p-4 align-middle">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              device.enrollment_method === 'self-enrolled'
+                                ? 'bg-purple-500/10 text-purple-400'
+                                : 'bg-blue-500/10 text-blue-400'
+                            }`}
+                          >
+                            {device.enrollment_method === 'self-enrolled'
+                              ? 'Self-Enrolled'
+                              : 'Pre-Provisioned'}
                           </span>
                         </td>
                         <td className="p-4 align-middle">
