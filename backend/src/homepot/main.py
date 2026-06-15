@@ -1106,9 +1106,11 @@ async def websocket_status_endpoint(websocket: WebSocket) -> None:
                 sites = result.scalars().all()
 
                 for site in sites:
-                    # Get devices for this site
+                    # Get paired devices for this site (is_active=True)
                     device_result = await session.execute(
-                        select(Device).where(Device.site_id == site.id)
+                        select(Device).where(
+                            Device.site_id == site.id, Device.is_active.is_(True)
+                        )
                     )
                     devices = device_result.scalars().all()
 

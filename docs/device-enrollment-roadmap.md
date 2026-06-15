@@ -4,6 +4,12 @@ With the introduction of the HOMEPOT User App and the dual device registration m
 
 This document outlines the immediate next steps and assigns clear responsibilities to the respective teams.
 
+Based on the enrollment logic we've implemented, there are two distinct paths:
+
+Self-Enrolled (User-Initiated): The IT Admin creates a Site on the dashboard and securely provides the Site ID to the end-user. The user then enters this Site ID into the Setup Wizard on the User App. The backend uses that ID to associate their newly registered device with the correct site. (This is exactly why we surfaced the Site ID visibly on the Dashboard and Site Details pages).
+
+Pre-Provisioned (Admin-Initiated): The IT Admin already knows the device's unique identifier (like a serial number) and registers it to a site directly from the dashboard before the user even receives the device. When the user opens the app, it automatically syncs with its assigned site.
+
 ---
 
 ## 1. Dealdio (Backend Responsibilities)

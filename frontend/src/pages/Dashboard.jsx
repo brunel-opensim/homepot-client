@@ -147,7 +147,12 @@ export default function Dashboard() {
             onlineCount = item.status && item.status.toLowerCase() === 'online' ? 1 : 0;
 
             // Identify OS by name/description for single device
-            const normalizedName = (item.name || item.description || '').toLowerCase();
+            const normalizedName = (
+              item.os_details ||
+              item.name ||
+              item.description ||
+              ''
+            ).toLowerCase();
             if (normalizedName.includes('windows') || normalizedName.includes('win')) {
               osList = ['windows'];
             } else if (

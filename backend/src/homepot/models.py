@@ -77,6 +77,7 @@ class DeviceStatus(str, Enum):
     OFFLINE = "offline"
     MAINTENANCE = "maintenance"
     ERROR = "error"
+    UNPAIRED = "unpaired"
     UNKNOWN = "unknown"
 
 

@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 
-from sqlalchemy import Result, create_engine, delete, inspect, select, text
+from sqlalchemy import Result, create_engine, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -328,11 +328,14 @@ class DatabaseService:
             )
             return result.scalar_one_or_none()
 
-    async def get_devices_by_site_id(self, site_id: str) -> List[Device]:
+    async def get_devices_by_site_id(
+        self, site_id: str, include_unpaired: bool = False
+    ) -> List[Device]:
         """Get all devices for a site by site_id string (e.g., 'site-123').
 
         Args:
             site_id: Business ID of the site (string like 'site-123')
+            include_unpaired: If True, include soft-deleted 'unpaired' devices
 
         Returns:
             List of Device objects for the site (empty if site not found)
@@ -346,11 +349,14 @@ class DatabaseService:
 
         async with self.get_session() as session:
             # Query devices using INTEGER site.id FK
-            result = await session.execute(
-                select(Device)
-                .where(Device.site_id == site.id, Device.is_active.is_(True))
-                .order_by(Device.created_at.desc())
-            )
+            query = select(Device).where(Device.site_id == site.id)
+
+            if not include_unpaired:
+                query = query.where(Device.is_active.is_(True))
+
+            query = query.order_by(Device.created_at.desc())
+
+            result = await session.execute(query)
             return list(result.scalars().all())
 
     # Device operations
@@ -425,9 +431,9 @@ class DatabaseService:
             return device
 
     async def delete_device(self, device_id: str) -> bool:
-        """Delete a device and all associated data (hard delete)."""
+        """Unpair a device, retaining its historical data (soft delete)."""
         async with self.get_session() as session:
-            # 1. Get the device to find its integer ID
+            # 1. Get the device
             result = await session.execute(
                 select(Device).where(Device.device_id == device_id)
             )
@@ -436,48 +442,22 @@ class DatabaseService:
             if not device:
                 return False
 
-            device_pk = device.id
+            # 2. Soft delete the device
+            device.is_active = False  # type: ignore[assignment]
+            from homepot.models import AuditLog, DeviceStatus
 
-            # 2. Delete dependent data using integer ID (FKs)
-            # HealthChecks
-            await session.execute(
-                delete(HealthCheck).where(HealthCheck.device_id == device_pk)
+            device.status = DeviceStatus.UNPAIRED.value  # type: ignore[assignment]
+            device.api_key_hash = None  # type: ignore[assignment]
+            # Retain device.site_id for historical analytics
+
+            # 3. Add an audit log entry for this action
+            audit_log = AuditLog(
+                event_type="device_unpaired",
+                description=f"Device {device_id} was unpaired and archived.",
+                device_id=device.id,
+                site_id=device.site_id,
             )
-
-            # DeviceCommands
-            await session.execute(
-                delete(DeviceCommand).where(DeviceCommand.device_id == device_pk)
-            )
-
-            # AuditLogs
-            # First, delete AuditLogs associated with the device directly
-            await session.execute(
-                delete(AuditLog).where(AuditLog.device_id == device_pk)
-            )
-
-            # Second, delete AuditLogs associated with Jobs that are about to be deleted
-            # Find all job IDs for this device
-            jobs_result = await session.execute(
-                select(Job.id).where(Job.device_id == device_pk)
-            )
-            job_ids = jobs_result.scalars().all()
-
-            if job_ids:
-                await session.execute(
-                    delete(AuditLog).where(AuditLog.job_id.in_(job_ids))
-                )
-
-            # Jobs
-            await session.execute(delete(Job).where(Job.device_id == device_pk))
-
-            # 3. Delete dependent data using string ID
-            # DeviceMetrics
-            await session.execute(
-                delete(DeviceMetrics).where(DeviceMetrics.device_id == device_id)
-            )
-
-            # 4. Delete the Device itself
-            await session.execute(delete(Device).where(Device.id == device_pk))
+            session.add(audit_log)
 
             await session.commit()
             return True

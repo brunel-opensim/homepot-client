@@ -104,6 +104,15 @@ export default function SiteDetail() {
 
       // Remove from list
       setDevices((prev) => prev.filter((d) => (d.device_id || d.id) !== idToDelete));
+
+      // Update total counts immediately
+      setStats((prev) =>
+        prev ? { ...prev, total_devices: Math.max(0, prev.total_devices - 1) } : null
+      );
+      setSite((prev) =>
+        prev ? { ...prev, devices_count: Math.max(0, (prev.devices_count || 0) - 1) } : null
+      );
+
       setDeviceToDelete(null);
     } catch (err) {
       console.error('Failed to delete device:', err);
