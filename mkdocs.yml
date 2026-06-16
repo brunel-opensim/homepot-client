@@ -163,8 +163,8 @@ nav:
   - HOMEPOT User App:
       - Getting Started: get_start_userapp.md
       - Frontend Guide: user-app-frontend-guide.md
-        - Wireframes: user-app-wireframes.md
-        - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
+      - Wireframes: user-app-wireframes.md
+      - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
       - Team Tasks (Dealdio): dealdio-user-app-tasks.md
 
   - Dev & Ops:
