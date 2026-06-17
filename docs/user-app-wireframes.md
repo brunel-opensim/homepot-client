@@ -184,7 +184,8 @@ Page 1 is first-run only.
 │  ┌──────────────────────────┐   │
 │  │  🔌  Disconnect & Unpair │   │  ← red / danger
 │  └──────────────────────────┘   │
-│  Removes token, resets app      │
+│  Removes token, unpairs device  │
+│  (Soft delete) & resets app     │
 │                                 │
 │ ┌──────┬───────────┬─────────┐  │
 │ │ Home │   Perms   │Settings │  │

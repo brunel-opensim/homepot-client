@@ -300,7 +300,7 @@ run_check() {
 # 1. Validate YAML syntax
 validate_yaml() {
     local files_found=false
-    for file in .github/workflows/*.yml .github/workflows/*.yaml ai/*.yml ai/*.yaml; do
+    for file in .github/workflows/*.yml .github/workflows/*.yaml ai/*.yml ai/*.yaml .readthedocs.yaml; do
         [ -f "$file" ] || continue
         files_found=true
         log_verbose "Validating YAML file: $file"
@@ -830,7 +830,7 @@ validate_documentation() {
     log_info "  Checking documentation files..."
     
     # Check essential documentation files
-    local docs_files=("README.md" "CONTRIBUTING.md" "docs/index.md" "docs/getting-started.md")
+    local docs_files=("README.md" "CONTRIBUTING.md" "docs/index.md" "docs/getting-started.md" "mkdocs.yml" ".readthedocs.yaml")
     local failed=false
     
     for file in "${docs_files[@]}"; do
@@ -857,6 +857,26 @@ validate_documentation() {
             local doc_count=$(find docs/ -name "*.md" | wc -l)
             log_verbose "Found $doc_count markdown files in docs/ directory"
         fi
+    fi
+    
+    # MkDocs compilation check (matching docs-check.yml)
+    if command -v mkdocs >/dev/null 2>&1; then
+        echo -n "    MkDocs build (strict): "
+        log_verbose "Running: mkdocs build --strict"
+        local mkdocs_output
+        if mkdocs_output=$(mkdocs build --strict 2>&1); then
+            echo -e "${GREEN}Passed${NC}"
+            log_verbose "MkDocs built successfully with no warnings"
+        else
+            echo -e "${RED}Failed${NC}"
+            log_verbose "MkDocs build failed or produced warnings:"
+            echo "$mkdocs_output" | while read -r line; do
+                log_verbose "  $line"
+            done
+            failed=true
+        fi
+    else
+        log_warning "mkdocs not available, skipping strict build check"
     fi
     
     if [[ "$failed" == true ]]; then

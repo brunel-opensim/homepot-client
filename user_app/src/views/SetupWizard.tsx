@@ -31,11 +31,15 @@ function StepIndicator({ current }: { current: number }) {
   )
 }
 
-function Step1({ siteId, setSiteId, deviceName, setDeviceName, onNext }: {
+function Step1({ siteId, setSiteId, deviceName, setDeviceName, deviceType, setDeviceType, deviceOs, setDeviceOs, onNext }: {
   siteId: string
   setSiteId: (v: string) => void
   deviceName: string
   setDeviceName: (v: string) => void
+  deviceType: string
+  setDeviceType: (v: string) => void
+  deviceOs: string
+  setDeviceOs: (v: string) => void
   onNext: () => void
 }) {
   return (
@@ -61,7 +65,7 @@ function Step1({ siteId, setSiteId, deviceName, setDeviceName, onNext }: {
 
       <div className="flex flex-col gap-1">
         <label className="text-slate-300 text-sm font-medium">
-          Device Name <span className="text-emerald-500 font-normal">*</span>
+          Hostname <span className="text-emerald-500 font-normal">*</span>
         </label>
         <input
           type="text"
@@ -70,6 +74,41 @@ function Step1({ siteId, setSiteId, deviceName, setDeviceName, onNext }: {
           placeholder="e.g. Kasi-Laptop"
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-slate-300 text-sm font-medium">
+          Device Type <span className="text-red-400">*</span>
+        </label>
+        <select
+          value={deviceType}
+          onChange={e => setDeviceType(e.target.value)}
+          className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+        >
+          <option value="pos_terminal">POS Terminal</option>
+          <option value="virtual_terminal">Virtual Terminal</option>
+          <option value="kiosk">Kiosk</option>
+          <option value="tablet">Tablet</option>
+          <option value="mobile_scanner">Mobile Scanner</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-slate-300 text-sm font-medium">
+          Operating System <span className="text-red-400">*</span>
+        </label>
+        <select
+          value={deviceOs}
+          onChange={e => setDeviceOs(e.target.value)}
+          className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+        >
+          <option value="windows">Windows</option>
+          <option value="linux">Linux</option>
+          <option value="mac">macOS</option>
+          <option value="android">Android</option>
+          <option value="ios">iOS</option>
+          <option value="web">Web Browser</option>
+        </select>
       </div>
 
       <button
@@ -130,9 +169,12 @@ function Step2({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   )
 }
 
-function Step3({ siteId, deviceName, onComplete }: {
+function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }: {
   siteId: string
   deviceName: string
+  deviceType: string
+  deviceOs: string
+  onBack: () => void
   onComplete: () => void
 }) {
   const [loading, setLoading] = useState(false)
@@ -145,7 +187,8 @@ function Step3({ siteId, deviceName, onComplete }: {
         device_id: deviceId,
         site_id: siteId,
         name: deviceName || 'My Device',
-        device_type: 'physical_terminal',
+        device_type: deviceType,
+        os_details: deviceOs,
         enrollment_method: 'self-enrolled'
       }
 
@@ -166,6 +209,8 @@ function Step3({ siteId, deviceName, onComplete }: {
       localStorage.setItem('homepot_token', data.device_id || deviceId)
       localStorage.setItem('homepot_site_id', siteId)
       localStorage.setItem('homepot_device_name', deviceName || 'My Device')
+      localStorage.setItem('homepot_device_type', deviceType)
+      localStorage.setItem('homepot_device_os', deviceOs)
       localStorage.setItem('homepot_enrollment_method', 'self-enrolled')
       
       setLoading(false)
@@ -176,6 +221,8 @@ function Step3({ siteId, deviceName, onComplete }: {
       localStorage.setItem('homepot_token', 'mock-token-' + Date.now())
       localStorage.setItem('homepot_site_id', siteId)
       localStorage.setItem('homepot_device_name', deviceName || 'My Device')
+      localStorage.setItem('homepot_device_type', deviceType)
+      localStorage.setItem('homepot_device_os', deviceOs)
       localStorage.setItem('homepot_enrollment_method', 'self-enrolled')
       
       setLoading(false)
@@ -190,8 +237,8 @@ function Step3({ siteId, deviceName, onComplete }: {
       </div>
 
       <div>
-        <h2 className="text-slate-200 font-semibold text-base">All set!</h2>
-        <p className="text-slate-400 text-xs mt-1">Your device is ready to be provisioned.</p>
+        <h2 className="text-slate-200 font-semibold text-base">Review Settings</h2>
+        <p className="text-slate-400 text-xs mt-1">Please confirm your device details before provisioning.</p>
       </div>
 
       <div className="w-full bg-slate-700 rounded-lg p-3 text-left text-sm space-y-1">
@@ -200,25 +247,42 @@ function Step3({ siteId, deviceName, onComplete }: {
           <span className="text-slate-200 font-medium">{siteId}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-400">Device Name</span>
+          <span className="text-slate-400">Hostname</span>
           <span className="text-slate-200 font-medium">{deviceName || '—'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-slate-400">Device Type</span>
+          <span className="text-slate-200 font-medium capitalize">{deviceType.replace('_', ' ')}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-slate-400">Operating System</span>
+          <span className="text-slate-200 font-medium capitalize">{deviceOs}</span>
         </div>
       </div>
 
-      <button
-        onClick={handleComplete}
-        disabled={loading}
-        className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-      >
-        {loading ? (
-          <>
-            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Provisioning...
-          </>
-        ) : (
-          'Complete Setup'
-        )}
-      </button>
+      <div className="w-full flex gap-3 mt-2">
+        <button
+          onClick={onBack}
+          disabled={loading}
+          className="flex-1 py-3 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 disabled:opacity-60 font-semibold text-sm transition-colors"
+        >
+          Edit
+        </button>
+        <button
+          onClick={handleComplete}
+          disabled={loading}
+          className="flex-[2] py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Provisioning...
+            </>
+          ) : (
+            'Complete Setup'
+          )}
+        </button>
+      </div>
     </div>
   )
 }
@@ -228,6 +292,19 @@ export default function SetupWizard() {
   const [step, setStep] = useState(0)
   const [siteId, setSiteId] = useState('')
   const [deviceName, setDeviceName] = useState('')
+  const [deviceType, setDeviceType] = useState('pos_terminal')
+  
+  // Auto-detect Operating System for default selection
+  const detectOS = () => {
+    const ua = navigator.userAgent.toLowerCase()
+    if (ua.includes('win')) return 'windows'
+    if (ua.includes('mac')) return 'mac'
+    if (ua.includes('linux')) return 'linux'
+    if (ua.includes('android')) return 'android'
+    if (ua.includes('iphone') || ua.includes('ipad')) return 'ios'
+    return 'web'
+  }
+  const [deviceOs, setDeviceOs] = useState(detectOS())
 
   function handleComplete() {
     setIsProvisioned(true)
@@ -252,6 +329,10 @@ export default function SetupWizard() {
               setSiteId={setSiteId}
               deviceName={deviceName}
               setDeviceName={setDeviceName}
+              deviceType={deviceType}
+              setDeviceType={setDeviceType}
+              deviceOs={deviceOs}
+              setDeviceOs={setDeviceOs}
               onNext={() => setStep(1)}
             />
           )}
@@ -265,6 +346,9 @@ export default function SetupWizard() {
             <Step3
               siteId={siteId}
               deviceName={deviceName}
+              deviceType={deviceType}
+              deviceOs={deviceOs}
+              onBack={() => setStep(0)}
               onComplete={handleComplete}
             />
           )}

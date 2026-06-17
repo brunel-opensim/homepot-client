@@ -148,7 +148,9 @@ export default function DeviceList() {
                     <Activity size={14} />
                     Type
                   </span>
-                  <span className="text-gray-300">{device.device_type || 'Generic'}</span>
+                  <span className="text-gray-300 capitalize">
+                    {device.device_type?.replace(/_/g, ' ') || 'Generic'}
+                  </span>
                 </div>
               </div>
             </div>

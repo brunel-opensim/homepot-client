@@ -324,26 +324,28 @@ async def delete_site(site_id: str) -> Dict[str, str]:
             # Get all devices for this site to clean up their related data
             # We need both Integer IDs (for FKs) and String IDs (for Analytics)
             devices_result = await session.execute(
-                select(Device).where(Device.site_id == site.site_id)
+                select(Device).where(Device.site_id == site.id)
             )
             devices = devices_result.scalars().all()
             device_pk_ids = [d.id for d in devices]
             device_str_ids = [d.device_id for d in devices]
 
             # --- PHASE 1: Clean up Device-Specific Analytics & History ---
-            if device_str_ids:
+            if device_pk_ids:
                 # Device Metrics
                 await session.execute(
                     delete(DeviceMetrics).where(
-                        DeviceMetrics.device_id.in_(device_str_ids)
+                        DeviceMetrics.device_id.in_(device_pk_ids)
                     )
                 )
                 # Device State History
                 await session.execute(
                     delete(DeviceStateHistory).where(
-                        DeviceStateHistory.device_id.in_(device_str_ids)
+                        DeviceStateHistory.device_id.in_(device_pk_ids)
                     )
                 )
+
+            if device_str_ids:
                 # Push Notification Logs - Disabled due to missing device_id column
                 # await session.execute(
                 #     delete(PushNotificationLog).where(
@@ -370,7 +372,7 @@ async def delete_site(site_id: str) -> Dict[str, str]:
             # Site Operating Schedules
             await session.execute(
                 delete(SiteOperatingSchedule).where(
-                    SiteOperatingSchedule.site_id == site_str_id
+                    SiteOperatingSchedule.site_id == site_pk
                 )
             )
             # Configuration History (linked to site)
@@ -424,7 +426,7 @@ async def delete_site(site_id: str) -> Dict[str, str]:
             await session.execute(delete(Job).where(Job.site_id == site.id))
 
             # Delete associated Devices
-            await session.execute(delete(Device).where(Device.site_id == site.site_id))
+            await session.execute(delete(Device).where(Device.site_id == site.id))
 
             # Delete the Site itself
             await session.delete(site)

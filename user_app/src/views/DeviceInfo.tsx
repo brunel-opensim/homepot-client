@@ -5,9 +5,10 @@ import { useApp } from '../context/AppContext'
 const DNA_ROWS = [
   { label: 'Hostname', value: localStorage.getItem('homepot_device_name') || 'My-Device' },
   { label: 'Site ID', value: localStorage.getItem('homepot_site_id') || 'site-1234' },
+  { label: 'Device Type', value: (localStorage.getItem('homepot_device_type') || 'pos_terminal').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) },
   { label: 'MAC Addr', value: 'A1:B2:C3:D4:E5:F6' },
   { label: 'Local IP', value: '192.168.1.101' },
-  { label: 'OS', value: 'Linux 6.17' },
+  { label: 'OS', value: (localStorage.getItem('homepot_device_os') || 'web').replace(/\b\w/g, c => c.toUpperCase()) },
   { label: 'Agent Ver', value: 'v0.1.0' },
 ]
 
@@ -15,16 +16,36 @@ export default function DeviceInfo() {
   const { setCurrentView, setIsProvisioned } = useApp()
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'uptodate'>('idle')
   const [showConfirm, setShowConfirm] = useState(false)
+  const [unpairing, setUnpairing] = useState(false)
 
   function handleCheckUpdate() {
     setUpdateStatus('checking')
     setTimeout(() => setUpdateStatus('uptodate'), 2000)
   }
 
-  function handleUnpair() {
+  async function handleUnpair() {
+    setUnpairing(true)
+    const deviceId = localStorage.getItem('homepot_token')
+    
+    // Attempt to delete device from backend
+    if (deviceId && !deviceId.startsWith('mock-token-')) {
+      try {
+        await fetch(`http://localhost:8000/api/v1/device/${deviceId}`, {
+          method: 'DELETE',
+        })
+      } catch (error) {
+        console.error('Failed to delete device on backend:', error)
+      }
+    }
+
+    // Clean up local storage
     localStorage.removeItem('homepot_token')
     localStorage.removeItem('homepot_site_id')
     localStorage.removeItem('homepot_device_name')
+    localStorage.removeItem('homepot_device_type')
+    localStorage.removeItem('homepot_device_os')
+    localStorage.removeItem('homepot_enrollment_method')
+    
     setIsProvisioned(false)
     setCurrentView('setup')
   }
@@ -110,9 +131,17 @@ export default function DeviceInfo() {
                 </button>
                 <button
                   onClick={handleUnpair}
-                  className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors"
+                  disabled={unpairing}
+                  className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1"
                 >
-                  Yes, Unpair
+                  {unpairing ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Unpairing...
+                    </>
+                  ) : (
+                    'Yes, Unpair'
+                  )}
                 </button>
               </div>
             </div>

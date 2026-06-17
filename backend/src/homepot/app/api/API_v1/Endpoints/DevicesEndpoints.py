@@ -33,6 +33,7 @@ class CreateDeviceRequest(BaseModel):
     device_type: str
     ip_address: Optional[str] = None
     mac_address: Optional[str] = None
+    os_details: Optional[str] = None
     firmware_version: Optional[str] = None
     enrollment_method: Optional[str] = "pre-provisioned"
     enrollment_token: Optional[str] = None
@@ -108,6 +109,7 @@ async def create_device(device_request: CreateDeviceRequest) -> Dict[str, Any]:
             ip_address=device_request.ip_address,
             config={
                 "mac_address": device_request.mac_address,
+                "os_details": device_request.os_details,
                 "firmware_version": device_request.firmware_version,
             },
         )
@@ -200,6 +202,7 @@ async def register_device_to_site(
 
         # Add the additional enrollment properties that create_device doesn't map directly
         device.mac_address = device_request.mac_address  # type: ignore
+        device.os_details = device_request.os_details  # type: ignore
         device.firmware_version = device_request.firmware_version  # type: ignore
         device.enrollment_method = device_request.enrollment_method  # type: ignore
         device.enrollment_token = device_request.enrollment_token  # type: ignore
@@ -247,6 +250,7 @@ async def list_device() -> Dict[str, List[Dict]]:
                         "device_id": device.device_id,
                         "name": device.name,
                         "device_type": device.device_type,
+                        "os_details": device.os_details,
                         "status": device.status,
                         "ip_address": device.ip_address,
                         "is_monitored": device.is_monitored,
@@ -287,6 +291,8 @@ async def get_device(device_id: str) -> Dict[str, Any]:
             "device_type": device.device_type,
             "status": device.status,
             "ip_address": device.ip_address or "N/A",
+            "os_details": device.os_details
+            or (device.config.get("os_details") if device.config else "N/A"),
             "mac_address": device.mac_address
             or (device.config.get("mac_address") if device.config else "N/A"),
             "firmware_version": device.firmware_version
@@ -369,7 +375,7 @@ async def update_device(
 
 @router.delete("/device/{device_id}", tags=["Devices"])
 async def delete_device(device_id: str) -> Dict[str, Any]:
-    """Delete a device and all associated data."""
+    """Unpair a device and archive its associated data."""
     try:
         db_service = await get_database_service()
 
@@ -380,7 +386,7 @@ async def delete_device(device_id: str) -> Dict[str, Any]:
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
 
-        return {"message": f"Device '{device_id}' deleted successfully"}
+        return {"message": f"Device '{device_id}' unpaired and archived successfully"}
 
     except HTTPException:
         raise
@@ -427,11 +433,14 @@ async def toggle_device_monitor(device_id: str, monitor: bool) -> Dict[str, Any]
 
 
 @router.get("/sites/{site_id}/devices", tags=["Devices"])
-async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
+async def get_devices_by_site(
+    site_id: str, include_unpaired: bool = False
+) -> List[Dict[str, Any]]:
     """Get all devices for a specific site.
 
     Args:
         site_id: The site's business ID (e.g., 'site-123')
+        include_unpaired: Whether to include devices that were unbound/soft-deleted
 
     Returns:
         List of devices belonging to the site
@@ -448,7 +457,9 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
             raise HTTPException(status_code=404, detail=f"Site '{site_id}' not found")
 
         # Get devices for this site
-        devices = await db_service.get_devices_by_site_id(site_id)
+        devices = await db_service.get_devices_by_site_id(
+            site_id, include_unpaired=include_unpaired
+        )
 
         # Basic alert counting (can be optimized with a single query if needed)
         alert_map = {}
@@ -477,7 +488,14 @@ async def get_devices_by_site(site_id: str) -> List[Dict[str, Any]]:
                 "device_id": d.device_id,
                 "name": d.name,
                 "device_type": d.device_type,
+                "os_details": d.os_details,
                 "status": d.status,
+                "connectivity": "online" if d.status == "online" else "offline",
+                "pairing_status": (
+                    "unpaired"
+                    if not d.is_active or d.status == "unpaired"
+                    else "paired"
+                ),
                 "ip_address": d.ip_address,
                 "is_monitored": d.is_monitored,
                 "active_alerts": alert_map.get(d.device_id, 0),
