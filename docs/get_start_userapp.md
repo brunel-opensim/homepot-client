@@ -151,6 +151,130 @@ user_app/
 
 ---
 
+## Build Android APK
+
+This section covers how to package the User App as an Android APK for real device testing.
+
+---
+
+### Prerequisites for Android Build
+
+| Tool | Version | Check |
+|---|---|---|
+| Java JDK | 21 | `java -version` |
+| Android SDK | Any | Located at `~/android-sdk` or `~/.buildozer/android/platform/android-sdk` |
+
+**Install Java 21 if not installed:**
+```bash
+sudo apt install -y openjdk-21-jdk
+sudo update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+java -version
+```
+
+---
+
+### Step 1 — Install Capacitor
+
+```bash
+cd user_app
+npm install @capacitor/core @capacitor/cli @capacitor/android
+npx cap init "HOMEPOT Agent" "com.homepot.agent"
+```
+
+---
+
+### Step 2 — Build the React App
+
+```bash
+npm run build
+```
+
+This creates the `dist/` folder with the production build.
+
+---
+
+### Step 3 — Add Android Platform
+
+```bash
+npx cap add android
+npx cap copy
+```
+
+This creates the `android/` folder inside `user_app/`.
+
+---
+
+### Step 4 — Set Android SDK Path
+
+```bash
+echo "sdk.dir=$HOME/android-sdk" > user_app/android/local.properties
+```
+
+> If your Android SDK is in a different location, run `find $HOME -name "adb" 2>/dev/null` to find it and use that path.
+
+---
+
+### Step 5 — Build APK
+
+```bash
+cd user_app/android
+./gradlew assembleDebug
+```
+
+If you see a **duplicate Kotlin class** error, it is already fixed in `app/build.gradle`. If not, add this inside `app/build.gradle` before the `dependencies` block:
+
+```groovy
+configurations.all {
+    resolutionStrategy {
+        force "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22"
+    }
+}
+```
+
+Then run `./gradlew assembleDebug` again.
+
+---
+
+### Step 6 — Find the APK
+
+```bash
+ls user_app/android/app/build/outputs/apk/debug/
+# app-debug.apk  ← your APK file (approx. 4 MB)
+```
+
+---
+
+### Step 7 — Install on Android Device
+
+**Option A — Via ADB (USB cable):**
+```bash
+# Install ADB
+sudo apt install adb
+
+# Connect phone via USB and enable USB Debugging on the phone
+adb devices
+
+# Install APK
+adb install user_app/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+**Option B — Manual transfer:**
+Copy `app-debug.apk` to your Android device via USB or file sharing and open it to install.
+
+> **Note:** You may need to enable **"Install from unknown sources"** in your Android settings.
+
+---
+
+### Important Note
+
+The app currently uses `localhost:8000` as the backend URL. This will **not work** on a real Android device because `localhost` on the phone refers to the phone itself, not your laptop.
+
+A real server URL is required before backend features work on a physical device.
+
+---
+
 ## Related Docs
 
 - [User App Frontend Guide](user-app-frontend-guide.md) — full tech stack, page flow, API reference
