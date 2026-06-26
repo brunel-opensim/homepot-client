@@ -30,7 +30,7 @@ def load_agent_config() -> Dict[str, Any]:
     with config_path.open("r", encoding="utf-8") as f:
         data = cast(Dict[str, Any], json.load(f))
 
-    required = ["backend_url", "device_id", "site_id"]
+    required = ["backend_url", "device_id", "api_key", "site_id"]
     missing = [field for field in required if not data.get(field)]
     if missing:
         raise ValueError(f"Missing required config fields: {', '.join(missing)}")
@@ -44,12 +44,23 @@ def load_agent_config() -> Dict[str, Any]:
     return data
 
 
+def get_auth_headers(config: Dict[str, Any]) -> Dict[str, str]:
+    """Build the device credential headers required by agent endpoints."""
+    return {
+        "X-Device-ID": str(config["device_id"]),
+        "X-API-Key": str(config["api_key"]),
+    }
+
+
 async def post_json(
-    client: httpx.AsyncClient, url: str, payload: Dict[str, Any]
+    client: httpx.AsyncClient,
+    url: str,
+    payload: Dict[str, Any],
+    headers: Dict[str, str],
 ) -> bool:
     """Send JSON payload to backend and return True on HTTP success."""
     try:
-        response = await client.post(url, json=payload, timeout=10.0)
+        response = await client.post(url, json=payload, headers=headers, timeout=10.0)
         response.raise_for_status()
         return True
     except Exception as e:
@@ -66,12 +77,12 @@ async def send_registration(
     try:
         # Payload sent to POST /api/v1/agent/device-dna
         # {
-        #   "device_id": "physical-pos-001",
+        #   "device_id": "android-pos-001",
         #   "site_id": "site-1234",
         #   "device_name": "Front POS",
-        #   "device_type": "physical_terminal",
+        #   "device_type": "pos_terminal",
         #   "mac_address": "00:11:22:33:44:55",
-        #   "os_details": "Windows 11",
+        #   "os_details": "Android 13",
         #   "local_ip": "192.168.1.20",
         #   "wan_ip": "203.0.113.10"
         # }
@@ -79,14 +90,14 @@ async def send_registration(
             "device_id": config["device_id"],
             "site_id": config["site_id"],
             "device_name": config.get("device_name"),
-            "device_type": config.get("device_type", "physical_terminal"),
+            "device_type": config.get("device_type", "pos_terminal"),
             "mac_address": get_mac_address(),
             "os_details": config.get("os_details"),
             "local_ip": get_local_ip(),
             "wan_ip": get_wan_ip(),
         }
         register_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
-        if not await post_json(client, register_url, payload):
+        if not await post_json(client, register_url, payload, get_auth_headers(config)):
             retry_queue.enqueue({"url": register_url, "payload": payload})
     except Exception as e:
         logger.error("Registration payload build/send failed: %s", e, exc_info=True)
@@ -105,7 +116,7 @@ async def heartbeat_loop(
         try:
             # Payload sent to POST /api/v1/agent/heartbeat
             # {
-            #   "device_id": "physical-pos-001",
+            #   "device_id": "android-pos-001",
             #   "site_id": "site-1234",
             #   "status": "ONLINE",
             #   "timestamp": "2026-04-13T12:00:00Z"
@@ -115,7 +126,7 @@ async def heartbeat_loop(
                 site_id=config["site_id"],
                 status="ONLINE",
             )
-            ok = await post_json(client, url, payload)
+            ok = await post_json(client, url, payload, get_auth_headers(config))
             if ok:
                 if ipc_server is not None:
                     update_local_agent_state(
@@ -148,7 +159,7 @@ async def telemetry_loop(
         try:
             # Payload sent to POST /api/v1/agent/telemetry
             # {
-            #   "device_id": "physical-pos-001",
+            #   "device_id": "android-pos-001",
             #   "site_id": "site-1234",
             #   "cpu_usage": 20.1,
             #   "memory_usage": 55.4,
@@ -157,7 +168,7 @@ async def telemetry_loop(
             # }
             payload = build_telemetry_payload(config["device_id"])
             payload["site_id"] = config["site_id"]
-            ok = await post_json(client, url, payload)
+            ok = await post_json(client, url, payload, get_auth_headers(config))
             if ok and ipc_server is not None:
                 update_local_agent_state(
                     ipc_server.config.app,  # type: ignore[arg-type]
@@ -182,7 +193,12 @@ async def retry_flush_loop(
             queued_items = retry_queue.dequeue_all()
             pending: list[dict] = []
             for item in queued_items:
-                ok = await post_json(client, item["url"], item["payload"])
+                ok = await post_json(
+                    client,
+                    item["url"],
+                    item["payload"],
+                    get_auth_headers(config),
+                )
                 if not ok:
                     pending.append(item)
             if pending:

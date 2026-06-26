@@ -30,7 +30,7 @@ class AgentRegisterRequest(BaseModel):
         None, description="Human-friendly device name for new records"
     )
     device_type: str = Field(
-        default="physical_terminal", description="Device type for new records"
+        default="pos_terminal", description="Device type for new records"
     )
 
     model_config = ConfigDict(
@@ -43,7 +43,7 @@ class AgentRegisterRequest(BaseModel):
                 "wan_ip": "203.0.113.10",
                 "site_id": "site-001",
                 "device_name": "Front Desk POS 1",
-                "device_type": "physical_terminal",
+                "device_type": "pos_terminal",
             }
         }
     )

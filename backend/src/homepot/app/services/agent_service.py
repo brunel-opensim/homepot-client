@@ -185,7 +185,7 @@ class AgentService:
                 device_type=payload.device_type,
                 site_pk=int(site.id),
                 mac_address=None,
-                os_details=None,
+                os_details=payload.os_details,
                 local_ip=None,
                 wan_ip=None,
             )
@@ -202,6 +202,7 @@ class AgentService:
                     "provisioning_method": (
                         "sso" if payload.sso_token else "manual_identity"
                     ),
+                    "os": payload.os_details,
                     "device_token": device_token,
                 }
             )
