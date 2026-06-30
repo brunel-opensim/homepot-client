@@ -275,6 +275,8 @@ The app currently uses `localhost:8000` as the backend URL. This will **not work
 
 A real server URL is required before backend features work on a physical device.
 
+> **CI Note:** The Android APK build has been verified manually. CI does not currently run `./gradlew assembleDebug` or build the Android project automatically.
+
 ---
 
 ## Related Docs
