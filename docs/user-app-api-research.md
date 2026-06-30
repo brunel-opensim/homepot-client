@@ -6,7 +6,7 @@
 - **Method:** POST
 - **Endpoint:** `/api/v1/devices/provision`
 - **Page / Module:** Page 1 — Setup Wizard
-- **Status:** Already built — needs `enrollment_method` field added
+- **Status:** Already built — `enrollment_method` is planned and not yet in backend schema
 - **Backend file:** `backend/src/homepot/app/api/API_v1/Endpoints/DeviceProvisionEndpoint.py`
 
 **Request:**
@@ -17,7 +17,7 @@
   "user_identity": "kasi@company.com",
   "device_name": "Kasi-Laptop",
   "device_type": "physical_terminal",
-  "enrollment_method": "self-enrolled"
+  "enrollment_method": "self-enrolled"    // planned — not yet in backend schema
 }
 ```
 
@@ -90,7 +90,7 @@
   "status": "success",
   "message": "Telemetry saved successfully",
   "data": {
-    "saved": 1
+    "saved_count": 1
   }
 }
 ```
