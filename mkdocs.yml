@@ -152,6 +152,7 @@ nav:
       - Device Management:
           - Registration: device-registration.md
           - Metrics Collection: device-metrics-collection.md
+          - Peripheral Discovery: peripheral-discovery.md
           - Configuration (MDM): device-configuration-mdm.md
       - Platform Integration:
           - Mobivisor (Android): mobivisor-integration.md

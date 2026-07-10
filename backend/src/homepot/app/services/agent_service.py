@@ -40,6 +40,7 @@ class AgentService:
                     os_details=payload.os_details,
                     local_ip=payload.local_ip,
                     wan_ip=payload.wan_ip,
+                    peripherals=payload.peripherals,
                 )
 
                 return {
@@ -49,6 +50,7 @@ class AgentService:
                     "os_details": updated.os_details,
                     "local_ip": updated.local_ip,
                     "wan_ip": updated.wan_ip,
+                    "peripherals": updated.peripherals,
                     "created": False,
                 }
 

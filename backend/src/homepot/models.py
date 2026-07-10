@@ -166,6 +166,7 @@ class Device(Base):
     firmware_version = Column(String(50), nullable=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)
     last_heartbeat_at = Column(DateTime(timezone=True), nullable=True)
+    peripherals = Column(JSON, nullable=True)  # Attached device hardware
 
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration

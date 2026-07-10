@@ -64,6 +64,7 @@ class AgentRepository:
         os_details: Optional[str],
         local_ip: Optional[str],
         wan_ip: Optional[str],
+        peripherals: Optional[dict] = None,
     ) -> Device:
         """Update device DNA fields during registration."""
         device_obj = cast(Any, device)
@@ -71,6 +72,8 @@ class AgentRepository:
         device_obj.os_details = os_details
         device_obj.local_ip = local_ip
         device_obj.wan_ip = wan_ip
+        if peripherals is not None:
+            device_obj.peripherals = peripherals
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)

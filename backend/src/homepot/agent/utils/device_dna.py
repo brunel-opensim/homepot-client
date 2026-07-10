@@ -8,6 +8,8 @@ import uuid
 import httpx
 import psutil
 
+from homepot.agent.utils.real_device_discovery import get_connected_peripherals
+
 # Public IP lookup is best-effort metadata collection and depends on external services.
 PUBLIC_IP_SERVICES = (
     "https://api.ipify.org",
@@ -64,7 +66,7 @@ def get_mac_address() -> Optional[str]:
         return None
 
 
-def collect_device_dna(payload: Any = None) -> Dict[str, Optional[str]]:
+def collect_device_dna(payload: Any = None) -> Dict[str, Any]:
     """Collect device identification data and return it as a dictionary."""
     _ = payload  # Backward-compatible argument for existing call-sites/tests.
     return {
@@ -73,4 +75,5 @@ def collect_device_dna(payload: Any = None) -> Dict[str, Optional[str]]:
         "mac_address": get_mac_address(),
         "os_name": platform.system(),
         "os_version": platform.release(),
+        "peripherals": get_connected_peripherals(),
     }
