@@ -158,6 +158,7 @@ nav:
           - POS System (Dummy): POSDummy-Integration.md
       - Agents & Simulation:
           - Agent Simulation: agent-simulation.md
+          - Fleet Load Testing: fleet-simulation.md
           - Real Device Transition: real-device-transition.md
 
   - HOMEPOT User App:
