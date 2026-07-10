@@ -23,6 +23,9 @@ class AgentRegisterRequest(BaseModel):
     )
     local_ip: Optional[str] = Field(None, description="Local network IP address")
     wan_ip: Optional[str] = Field(None, description="Public/WAN IP address")
+    peripherals: Optional[dict] = Field(
+        None, description="Detailed dictionary of attached peripherals like printers"
+    )
     site_id: Optional[str] = Field(
         None, description="Business site ID (required when creating a new device)"
     )

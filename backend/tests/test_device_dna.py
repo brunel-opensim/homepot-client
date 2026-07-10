@@ -84,6 +84,11 @@ def test_collect_device_dna_aggregates_sources(monkeypatch):
     monkeypatch.setattr(device_dna, "get_mac_address", lambda: "aa:bb:cc:dd:ee:ff")
     monkeypatch.setattr(device_dna.platform, "system", lambda: "TestOS")
     monkeypatch.setattr(device_dna.platform, "release", lambda: "2026.1")
+    monkeypatch.setattr(
+        device_dna,
+        "get_connected_peripherals",
+        lambda: {"printers": [], "scanners": [], "card_readers": []},
+    )
 
     assert device_dna.collect_device_dna({"device_id": "x"}) == {
         "local_ip": "10.0.0.5",
@@ -91,4 +96,5 @@ def test_collect_device_dna_aggregates_sources(monkeypatch):
         "mac_address": "aa:bb:cc:dd:ee:ff",
         "os_name": "TestOS",
         "os_version": "2026.1",
+        "peripherals": {"printers": [], "scanners": [], "card_readers": []},
     }
