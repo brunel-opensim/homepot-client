@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
+import { apiBaseUrl } from '../config/api'
 
 const STEPS = ['Device Setup', 'SSO Login', 'Complete']
 
@@ -178,21 +179,21 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
   onComplete: () => void
 }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleComplete() {
     setLoading(true)
+    setError('')
     try {
-      const deviceId = 'dev-' + Date.now()
       const reqBody = {
-        device_id: deviceId,
         site_id: siteId,
-        name: deviceName || 'My Device',
+        user_identity: 'user-app-setup',
+        device_name: deviceName || 'My Device',
         device_type: deviceType,
-        os_details: deviceOs,
-        enrollment_method: 'self-enrolled'
+        os_details: deviceOs
       }
 
-      const response = await fetch(`http://localhost:8000/api/v1/devices/sites/${siteId}/devices`, {
+      const response = await fetch(`${apiBaseUrl}/devices/provision`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -201,32 +202,30 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
       })
 
       if (!response.ok) {
-        throw new Error('Failed to register device via API')
+        throw new Error('Provisioning failed. Check the site ID and backend connection.')
       }
 
       const data = await response.json()
+      const provisionedDevice = data.data
+      if (!provisionedDevice?.device_id || !provisionedDevice?.api_key) {
+        throw new Error('Provisioning response did not include device credentials.')
+      }
       
-      localStorage.setItem('homepot_token', data.device_id || deviceId)
+      localStorage.setItem('homepot_token', provisionedDevice.device_id)
+      localStorage.setItem('homepot_device_id', provisionedDevice.device_id)
       localStorage.setItem('homepot_site_id', siteId)
       localStorage.setItem('homepot_device_name', deviceName || 'My Device')
       localStorage.setItem('homepot_device_type', deviceType)
       localStorage.setItem('homepot_device_os', deviceOs)
       localStorage.setItem('homepot_enrollment_method', 'self-enrolled')
+      sessionStorage.setItem('homepot_api_key', provisionedDevice.api_key)
       
       setLoading(false)
       onComplete()
     } catch (error) {
       console.error(error)
-      // Fallback for UI demonstration 
-      localStorage.setItem('homepot_token', 'mock-token-' + Date.now())
-      localStorage.setItem('homepot_site_id', siteId)
-      localStorage.setItem('homepot_device_name', deviceName || 'My Device')
-      localStorage.setItem('homepot_device_type', deviceType)
-      localStorage.setItem('homepot_device_os', deviceOs)
-      localStorage.setItem('homepot_enrollment_method', 'self-enrolled')
-      
+      setError(error instanceof Error ? error.message : 'Provisioning failed.')
       setLoading(false)
-      onComplete()
     }
   }
 
@@ -283,6 +282,7 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
           )}
         </button>
       </div>
+      {error && <p className="w-full text-left text-xs text-red-400">{error}</p>}
     </div>
   )
 }
@@ -297,10 +297,10 @@ export default function SetupWizard() {
   // Auto-detect Operating System for default selection
   const detectOS = () => {
     const ua = navigator.userAgent.toLowerCase()
+    if (ua.includes('android')) return 'android'
     if (ua.includes('win')) return 'windows'
     if (ua.includes('mac')) return 'mac'
     if (ua.includes('linux')) return 'linux'
-    if (ua.includes('android')) return 'android'
     if (ua.includes('iphone') || ua.includes('ipad')) return 'ios'
     return 'web'
   }

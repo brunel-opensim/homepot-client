@@ -1,8 +1,11 @@
 {
   "backend_url": "http://localhost:8000",
-  "device_id": "physical-pos-001",
+  "device_id": "android-pos-001",
   "site_id": "site-1234",
   "api_key": "replace-with-provisioned-secret",
+  "device_name": "Android POS 1",
+  "device_type": "pos_terminal",
+  "os_details": "Android 13",
   "heartbeat_interval_seconds": 30,
   "telemetry_interval_seconds": 30,
   "retry_flush_interval_seconds": 60,

@@ -20,7 +20,10 @@ class DeviceProvisionRequest(BaseModel):
         None, description="Optional display name for the new device"
     )
     device_type: str = Field(
-        default="physical_terminal", description="Device type for provisioning"
+        default="pos_terminal", description="Device type for provisioning"
+    )
+    os_details: Optional[str] = Field(
+        None, description="Operating system name and version reported by the device"
     )
 
     model_config = ConfigDict(
@@ -30,7 +33,8 @@ class DeviceProvisionRequest(BaseModel):
                 "site_id": "site-001",
                 "user_identity": "agent.setup@dealdio.com",
                 "device_name": "Kitchen POS A",
-                "device_type": "physical_terminal",
+                "device_type": "pos_terminal",
+                "os_details": "Android 13",
             }
         }
     )
@@ -50,7 +54,7 @@ class DeviceProvisionResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "device_id": "physical-terminal-a1b2c3d4",
+                "device_id": "pos-terminal-a1b2c3d4",
                 "api_key": "mM2....",
                 "secret_key": "mM2....",
                 "device_token": "XQw2....",

@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from homepot.app.auth_utils import hash_password
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import Base, Device, Site
@@ -64,8 +65,12 @@ def _seed_site(site_code: str = "site-agent-1") -> Site:
         db.close()
 
 
-def test_device_dna_requires_site_for_new_device(client: TestClient):
-    """Creating a new device without site_id should fail validation."""
+def _device_headers(device_id: str, api_key: str) -> dict[str, str]:
+    return {"X-Device-ID": device_id, "X-API-Key": api_key}
+
+
+def test_device_dna_requires_device_credentials(client: TestClient):
+    """Device DNA updates require credentials issued during provisioning."""
     response = client.post(
         "/api/v1/agent/device-dna",
         json={
@@ -77,13 +82,28 @@ def test_device_dna_requires_site_for_new_device(client: TestClient):
         },
     )
 
-    assert response.status_code == 400
-    assert "site_id" in response.json()["detail"]
+    assert response.status_code == 401
 
 
-def test_device_dna_creates_new_device(client: TestClient):
-    """Device DNA endpoint should create new records when device does not exist."""
-    _seed_site("site-agent-1")
+def test_device_dna_updates_provisioned_device(client: TestClient):
+    """Device DNA endpoint should update a device created during provisioning."""
+    site = _seed_site("site-agent-1")
+    api_key = "test-api-key"
+    db = homepot.database.SessionLocal()
+    try:
+        db.add(
+            Device(
+                device_id="agent-device-1",
+                name="Front POS",
+                device_type="pos_terminal",
+                site_id=int(site.id),
+                api_key_hash=hash_password(api_key),
+                is_active=True,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
 
     response = client.post(
         "/api/v1/agent/device-dna",
@@ -91,19 +111,20 @@ def test_device_dna_creates_new_device(client: TestClient):
             "device_id": "agent-device-1",
             "site_id": "site-agent-1",
             "device_name": "Front POS",
-            "device_type": "physical_terminal",
+            "device_type": "pos_terminal",
             "mac_address": "00:11:22:33:44:55",
             "os_details": "Windows 11",
             "local_ip": "192.168.1.20",
             "wan_ip": "203.0.113.10",
         },
+        headers=_device_headers("agent-device-1", api_key),
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "success"
     assert payload["data"]["device_id"] == "agent-device-1"
-    assert payload["data"]["created"] is True
+    assert payload["data"]["created"] is False
 
 
 def test_device_dna_updates_existing_device(client: TestClient):
@@ -115,8 +136,9 @@ def test_device_dna_updates_existing_device(client: TestClient):
         device = Device(
             device_id="agent-device-2",
             name="Agent Device",
-            device_type="physical_terminal",
+            device_type="pos_terminal",
             site_id=int(site.id),
+            api_key_hash=hash_password("test-api-key"),
             is_active=True,
         )
         db.add(device)
@@ -133,6 +155,7 @@ def test_device_dna_updates_existing_device(client: TestClient):
             "local_ip": "10.0.0.20",
             "wan_ip": "198.51.100.20",
         },
+        headers=_device_headers("agent-device-2", "test-api-key"),
     )
 
     assert response.status_code == 200

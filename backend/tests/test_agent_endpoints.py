@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from homepot.app.auth_utils import hash_password
 from homepot.app.models.AnalyticsModel import DeviceMetrics
 from homepot.config import reload_settings
 import homepot.database
@@ -66,56 +67,65 @@ def _create_site(site_code: str = "site-agent-1") -> Site:
         db.close()
 
 
-def _create_device(device_id: str, site_pk: int) -> None:
+def _create_device(device_id: str, site_pk: int, api_key: str = "test-api-key") -> str:
     """Create a device row linked to a site primary key."""
     db = homepot.database.SessionLocal()
     try:
         device = Device(
             device_id=device_id,
             name="Agent Device",
-            device_type="physical_terminal",
+            device_type="pos_terminal",
             site_id=site_pk,
+            api_key_hash=hash_password(api_key),
             is_active=True,
         )
         db.add(device)
         db.commit()
     finally:
         db.close()
+    return api_key
 
 
-def test_register_creates_device(client: TestClient):
-    """POST /api/v1/agent/device-dna should create a device if not present."""
-    _create_site("site-agent-1")
+def _device_headers(device_id: str, api_key: str) -> dict[str, str]:
+    return {"X-Device-ID": device_id, "X-API-Key": api_key}
+
+
+def test_register_updates_authenticated_device(client: TestClient):
+    """POST /api/v1/agent/device-dna should update the provisioned device."""
+    site = _create_site("site-agent-1")
+    api_key = _create_device("agent-device-1", int(site.id))
     response = client.post(
         "/api/v1/agent/device-dna",
         json={
             "device_id": "agent-device-1",
             "site_id": "site-agent-1",
             "device_name": "Front POS",
-            "device_type": "physical_terminal",
+            "device_type": "pos_terminal",
             "mac_address": "00:11:22:33:44:55",
             "os_details": "Windows 11",
             "local_ip": "192.168.1.20",
             "wan_ip": "203.0.113.10",
         },
+        headers=_device_headers("agent-device-1", api_key),
     )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "success"
     assert payload["data"]["device_id"] == "agent-device-1"
-    assert payload["data"]["created"] is True
+    assert payload["data"]["created"] is False
 
 
 def test_heartbeat_updates_last_heartbeat(client: TestClient):
     """POST /api/v1/agent/heartbeat should update last heartbeat timestamp."""
     site = _create_site("site-heartbeat")
-    _create_device("heartbeat-device-1", int(site.id))
+    api_key = _create_device("heartbeat-device-1", int(site.id))
 
     now = datetime.now(timezone.utc).isoformat()
     response = client.post(
         "/api/v1/agent/heartbeat",
         json={"device_id": "heartbeat-device-1", "timestamp": now},
+        headers=_device_headers("heartbeat-device-1", api_key),
     )
 
     assert response.status_code == 200
@@ -128,7 +138,7 @@ def test_heartbeat_updates_last_heartbeat(client: TestClient):
 def test_telemetry_single_is_saved(client: TestClient):
     """POST /api/v1/agent/telemetry should persist a single telemetry record."""
     site = _create_site("site-telemetry-single")
-    _create_device("telemetry-device-1", int(site.id))
+    api_key = _create_device("telemetry-device-1", int(site.id))
 
     response = client.post(
         "/api/v1/agent/telemetry",
@@ -139,6 +149,7 @@ def test_telemetry_single_is_saved(client: TestClient):
             "disk_usage": 44.8,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
+        headers=_device_headers("telemetry-device-1", api_key),
     )
 
     assert response.status_code == 200
@@ -155,7 +166,7 @@ def test_telemetry_single_is_saved(client: TestClient):
 def test_telemetry_bulk_is_saved(client: TestClient):
     """POST /api/v1/agent/telemetry should persist multiple telemetry records."""
     site = _create_site("site-telemetry-bulk")
-    _create_device("telemetry-device-2", int(site.id))
+    api_key = _create_device("telemetry-device-2", int(site.id))
 
     now = datetime.now(timezone.utc)
     response = client.post(
@@ -176,6 +187,7 @@ def test_telemetry_bulk_is_saved(client: TestClient):
                 "timestamp": (now + timedelta(seconds=30)).isoformat(),
             },
         ],
+        headers=_device_headers("telemetry-device-2", api_key),
     )
 
     assert response.status_code == 200
@@ -192,7 +204,8 @@ def test_provision_returns_credentials_and_hashes_key(client: TestClient):
             "site_id": "site-provision",
             "user_identity": "setup.user@dealdio.com",
             "device_name": "Provisioned POS",
-            "device_type": "physical_terminal",
+            "device_type": "pos_terminal",
+            "os_details": "Android 13",
         },
     )
 
@@ -212,6 +225,8 @@ def test_provision_returns_credentials_and_hashes_key(client: TestClient):
         )
         assert device is not None
         assert device.api_key_hash is not None
+        assert device.device_type == "pos_terminal"
+        assert device.os_details == "Android 13"
     finally:
         db.close()
 
@@ -219,15 +234,38 @@ def test_provision_returns_credentials_and_hashes_key(client: TestClient):
 def test_status_returns_online_when_recent_heartbeat_exists(client: TestClient):
     """GET /api/v1/agent/{device_id}/status should return ONLINE for fresh heartbeat."""
     site = _create_site("site-status")
-    _create_device("status-device-1", int(site.id))
+    api_key = _create_device("status-device-1", int(site.id))
 
     recent = datetime.now(timezone.utc).isoformat()
     hb_response = client.post(
         "/api/v1/agent/heartbeat",
         json={"device_id": "status-device-1", "timestamp": recent},
+        headers=_device_headers("status-device-1", api_key),
     )
     assert hb_response.status_code == 200
 
     status_response = client.get("/api/v1/agent/status-device-1/status")
     assert status_response.status_code == 200
     assert status_response.json()["data"]["status"] == "ONLINE"
+
+
+def test_agent_telemetry_requires_matching_device_credentials(client: TestClient):
+    """Agent telemetry must reject missing or mismatched device credentials."""
+    site = _create_site("site-agent-auth")
+    api_key = _create_device("authenticated-device", int(site.id))
+    payload = {
+        "device_id": "authenticated-device",
+        "cpu_usage": 20.0,
+        "memory_usage": 30.0,
+        "disk_usage": 40.0,
+    }
+
+    missing_credentials = client.post("/api/v1/agent/telemetry", json=payload)
+    assert missing_credentials.status_code == 401
+
+    mismatched_device = client.post(
+        "/api/v1/agent/telemetry",
+        json=payload,
+        headers=_device_headers("other-device", api_key),
+    )
+    assert mismatched_device.status_code == 401

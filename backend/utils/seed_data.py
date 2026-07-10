@@ -495,6 +495,23 @@ async def init_database():
             "version": "1.0.0",
         },
     )
+    await get_or_create_device(
+        "site1-android-pos-06",
+        "Android POS 1-6",
+        DeviceType.POS_TERMINAL,
+        site1.id,
+        "10.1.6.10",
+        {
+            "os": "android",
+            "device_model": "Android POS Terminal",
+            "kiosk_mode": True,
+            "push_platform": "fcm_android",
+            "agent_version": "1.0.0-sim",
+            "version": "1.0.0",
+        },
+        is_monitored=True,
+        enrollment_method="self-enrolled",
+    )
 
     # Site 2 Devices
     print("--- Site 2 Devices ---")
