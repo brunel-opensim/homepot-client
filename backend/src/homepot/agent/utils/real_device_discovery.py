@@ -1,13 +1,13 @@
 """Real device and peripheral discovery utility for the HomePot Agent.
 
-This module discovers connected physical peripherals (printers, scanners, 
-card readers, etc.) via OS-level commands. It also includes an emulator 
+This module discovers connected physical peripherals (printers, scanners,
+card readers, etc.) via OS-level commands. It also includes an emulator
 toggle to generate realistic mock payloads for fleet load testing.
 """
 
 import os
 import platform
-import subprocess
+import subprocess  # noqa: S404
 from typing import Any, Dict, List
 
 # A flag we can set during simulated runs to bypass actual OS checks
@@ -17,7 +17,7 @@ USE_HARDWARE_EMULATOR = os.getenv("USE_HARDWARE_EMULATOR", "False").lower() == "
 
 def get_connected_peripherals() -> Dict[str, List[Dict[str, Any]]]:
     """Retrieve all connected peripherals, either real or emulated.
-    
+
     Returns:
         A dictionary containing lists of detected hardware categories.
     """
@@ -47,7 +47,7 @@ def _discover_printers() -> List[Dict[str, Any]]:
 def _get_windows_printers() -> List[Dict[str, Any]]:
     """Collect printers from Windows using PowerShell Get-Printer."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603, S607
             [
                 "powershell",
                 "-Command",
@@ -60,8 +60,8 @@ def _get_windows_printers() -> List[Dict[str, Any]]:
         if result.returncode != 0 or not result.stdout.strip():
             return []
 
-        # MVP: For now we just return the raw JSON string wrapper. 
-        # In a production iteration, we would `json.loads(result.stdout)` 
+        # MVP: For now we just return the raw JSON string wrapper.
+        # In a production iteration, we would `json.loads(result.stdout)`
         # and normalize the keys to match the expected schema.
         return [{"raw_output": result.stdout.strip(), "source": "windows_powershell"}]
     except Exception as exc:
@@ -71,7 +71,7 @@ def _get_windows_printers() -> List[Dict[str, Any]]:
 def _get_cups_printers() -> List[Dict[str, Any]]:
     """Collect printers from Linux/macOS using CUPS lpstat."""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603, S607
             ["lpstat", "-p"],
             capture_output=True,
             text=True,
