@@ -71,6 +71,7 @@ def _ensure_device_dna_columns(bind: Any) -> None:
             "last_heartbeat_at": (
                 "ALTER TABLE devices ADD COLUMN last_heartbeat_at DATETIME"
             ),
+            "peripherals": "ALTER TABLE devices ADD COLUMN peripherals JSON",
         }
     elif dialect == "postgresql":
         ddl_map = {
@@ -81,6 +82,7 @@ def _ensure_device_dna_columns(bind: Any) -> None:
                 "ALTER TABLE devices ADD COLUMN last_heartbeat_at "
                 "TIMESTAMP WITH TIME ZONE"
             ),
+            "peripherals": "ALTER TABLE devices ADD COLUMN peripherals JSON",
         }
     else:
         ddl_map = {
@@ -90,6 +92,7 @@ def _ensure_device_dna_columns(bind: Any) -> None:
             "last_heartbeat_at": (
                 "ALTER TABLE devices ADD COLUMN last_heartbeat_at TIMESTAMP"
             ),
+            "peripherals": "ALTER TABLE devices ADD COLUMN peripherals JSON",
         }
 
     for column_name, ddl in ddl_map.items():
