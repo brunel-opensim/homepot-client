@@ -49,8 +49,7 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     DeviceCommandsEndpoint.router, prefix="/devices", tags=["Device Commands"]
 )
-api_v1_router.include_router(JobsEndpoints.router, prefix="/jobs", tags=["Jobs"])
-api_v1_router.include_router(AgentsEndpoints.router, prefix="/agents", tags=["Agents"])
+api_v1_router.include_router(AgentsEndpoints.router, tags=["Agents"])
 api_v1_router.include_router(
     UserRegisterEndpoint.router, prefix="/auth", tags=["Authentication"]
 )
@@ -109,3 +108,8 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     DeviceProvisionEndpoint.router, prefix="/devices", tags=["Devices"]
 )
+
+# JobsEndpoints routes are already self-prefixed (e.g. "/sites/{site_id}/jobs").
+# Mounted last, without an additional prefix, so its generic "/{job_id}" status
+# route doesn't shadow more specific literal routes registered above it.
+api_v1_router.include_router(JobsEndpoints.router, tags=["Jobs"])

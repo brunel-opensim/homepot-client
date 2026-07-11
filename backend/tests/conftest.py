@@ -5,10 +5,15 @@ used across the test suite.
 """
 
 import asyncio
+import os
 from typing import Any, Dict, Generator
 
 from fastapi.testclient import TestClient
 import pytest
+
+# CRITICAL: Force all database connections to use SQLite in-memory for testing
+# This must happen before any local imports evaluate the settings globally
+os.environ["DATABASE__URL"] = "sqlite+aiosqlite:///:memory:"
 
 # Configure asyncio for testing
 pytest_plugins = ("pytest_asyncio",)
@@ -38,12 +43,22 @@ def client() -> Generator[TestClient, None, None]:
         mock_client.get_version = lambda: "0.1.0"  # type: ignore
         return mock_client
 
-    # Override the dependency
+    # Override the dependency for both locations it might be imported from natively
     app.dependency_overrides[get_client] = get_test_client
 
-    test_client = TestClient(app)
+    # Also override the one locally defined in HealthEndpoint
+    from homepot.app.api.API_v1.Endpoints.HealthEndpoint import (
+        get_client as get_health_client,
+    )
 
-    yield test_client
+    app.dependency_overrides[get_health_client] = get_test_client
+
+    # Use TestClient as a context manager so FastAPI's lifespan handlers run.
+    # This ensures the database service (and its in-memory SQLite schema) is
+    # initialized once, on a single persistent event loop, instead of being
+    # lazily (and inconsistently) initialized per-request.
+    with TestClient(app) as test_client:
+        yield test_client
 
     # Clean up
     app.dependency_overrides.clear()
@@ -102,6 +117,9 @@ def temp_db():
     from sqlalchemy.exc import OperationalError, ProgrammingError
     from sqlalchemy.orm import sessionmaker
 
+    # Importing registers ErrorLog (and other analytics tables) with
+    # Base.metadata so create_all() below also creates them.
+    from homepot.app.models.AnalyticsModel import ErrorLog  # noqa: F401
     from homepot.config import get_settings
     from homepot.models import Base
 
@@ -113,7 +131,7 @@ def temp_db():
 
     # Convert async URLs to sync for testing
     if database_url.startswith("sqlite+aiosqlite://"):
-        database_url = database_url.replace("sqlite+aiosqlite://", "sqlite:///")
+        database_url = database_url.replace("sqlite+aiosqlite://", "sqlite://")
     elif database_url.startswith("postgresql+asyncpg://"):
         database_url = database_url.replace(
             "postgresql+asyncpg://", "postgresql+psycopg2://"

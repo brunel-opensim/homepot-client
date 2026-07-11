@@ -362,3 +362,34 @@ curl "http://localhost:8000/agents/POS_TERMINAL_001/errors?period=7d"
 ---
 
 *Next: Learn about [Audit & Compliance](audit-compliance.md) features for enterprise logging and reporting.*
+
+## True Lifecycle Emulator
+
+In addition to the bulk-load Fleet Simulation (`scripts/run_fleet_simulation.py`), HOMEPOT provides a **True Lifecycle Emulator** (`scripts/run_lifecycle_emulator.py`). 
+
+Unlike the Fleet Simulator which bypasses frontend UI flows to hit raw endpoints for stress testing, the True Lifecycle Emulator replicates the exact deployment and installation flow a physical device (such as an Android POS tablet running the GetFudo User App) goes through.
+
+### How it Works
+
+1.  **Auto-Provisioning (`POST /api/v1/devices/provision`)**:
+    Instead of using manually configured `agent-config.json` files, the emulator acts like a User App going through the setup wizard. It authenticates with dummy SSO details and receives dynamically generated access credentials.
+2.  **State Persistence**: 
+    The generated `device_id` and `api_key` are persisted into an `agent-config.json` in the root directory.
+3.  **Real Agent Execution**: 
+    It spins up the actual `backend/src/homepot/agent/real_device_agent.py` as a subprocess.
+4.  **Hardware Emulation (`USE_HARDWARE_EMULATOR=true`)**: 
+    Because you are running the script on a host machine, hardware discovery is forcefully mocked to report standard POS peripherals (like Zebra barcode scanners and Epson thermal printers).
+
+### Usage
+
+This tool is primarily designed for User App UI developers and Backend integrators to trace full end-to-end device onboarding.
+
+```bash
+# Run the complete Android POS lifecycle loop
+python scripts/run_lifecycle_emulator.py \
+    --site "site-001" \
+    --name "Front Counter POS" \
+    --email "manager@dealdio.com"
+```
+
+*Note: Ensure the specified `--site` exists in your PostgreSQL database before executing. If it fails, examine the FastAPI logs.*

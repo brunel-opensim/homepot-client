@@ -31,7 +31,7 @@ class TestLiveAPI:
     def setup(self):
         """Verify system is running before each test."""
         try:
-            response = requests.get(f"{BASE_URL}/health", timeout=5)
+            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
             if response.status_code != 200:
                 pytest.skip("HOMEPOT system is not running or not healthy")
         except requests.exceptions.RequestException:
@@ -39,7 +39,7 @@ class TestLiveAPI:
 
     def test_system_health(self):
         """Test system health endpoint."""
-        response = requests.get(f"{BASE_URL}/health", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=TIMEOUT)
 
         assert response.status_code == 200
         data = response.json()
@@ -59,7 +59,7 @@ class TestLiveAPI:
 
     def test_list_sites(self):
         """Test listing all POS sites."""
-        response = requests.get(f"{BASE_URL}/sites", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/sites", timeout=TIMEOUT)
 
         assert response.status_code == 200
         sites = response.json()
@@ -73,12 +73,14 @@ class TestLiveAPI:
     def test_get_specific_site(self):
         """Test getting specific site details."""
         # First get list of sites
-        sites_response = requests.get(f"{BASE_URL}/sites", timeout=TIMEOUT)
+        sites_response = requests.get(f"{BASE_URL}/api/v1/sites", timeout=TIMEOUT)
         sites = sites_response.json()
 
         if sites:
             site_id = sites[0]["site_id"]
-            response = requests.get(f"{BASE_URL}/sites/{site_id}", timeout=TIMEOUT)
+            response = requests.get(
+                f"{BASE_URL}/api/v1/sites/{site_id}", timeout=TIMEOUT
+            )
 
             assert response.status_code == 200
             site = response.json()
@@ -88,7 +90,7 @@ class TestLiveAPI:
 
     def test_list_agents(self):
         """Test listing all active POS agents."""
-        response = requests.get(f"{BASE_URL}/agents", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/agents", timeout=TIMEOUT)
 
         assert response.status_code == 200
         agents = response.json()
@@ -106,12 +108,14 @@ class TestLiveAPI:
     def test_agent_details(self):
         """Test getting specific agent details."""
         # First get list of agents
-        agents_response = requests.get(f"{BASE_URL}/agents", timeout=TIMEOUT)
+        agents_response = requests.get(f"{BASE_URL}/api/v1/agents", timeout=TIMEOUT)
         agents = agents_response.json()
 
         if agents:
             device_id = agents[0]["device_id"]
-            response = requests.get(f"{BASE_URL}/agents/{device_id}", timeout=TIMEOUT)
+            response = requests.get(
+                f"{BASE_URL}/api/v1/agents/{device_id}", timeout=TIMEOUT
+            )
 
             assert response.status_code == 200
             agent = response.json()
@@ -121,7 +125,7 @@ class TestLiveAPI:
 
     def test_audit_events(self):
         """Test audit events endpoint."""
-        response = requests.get(f"{BASE_URL}/audit/events", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/audit/events", timeout=TIMEOUT)
 
         assert response.status_code == 200
         events = response.json()
@@ -137,7 +141,7 @@ class TestLiveAPI:
 
     def test_audit_statistics(self):
         """Test audit statistics endpoint."""
-        response = requests.get(f"{BASE_URL}/audit/statistics", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/audit/statistics", timeout=TIMEOUT)
 
         assert response.status_code == 200
         stats = response.json()
@@ -159,7 +163,7 @@ class TestLiveAPI:
 
         try:
             response = requests.post(
-                f"{BASE_URL}/sites", json=test_site, timeout=TIMEOUT
+                f"{BASE_URL}/api/v1/sites", json=test_site, timeout=TIMEOUT
             )
 
             assert response.status_code == 200
@@ -173,7 +177,7 @@ class TestLiveAPI:
                 site_id = data.get("site_id")
                 if site_id:
                     delete_response = requests.delete(
-                        f"{BASE_URL}/sites/{site_id}", timeout=TIMEOUT
+                        f"{BASE_URL}/api/v1/sites/{site_id}", timeout=TIMEOUT
                     )
                     if delete_response.status_code == 200:
                         print(f"Cleaned up Test Site: {site_id}")
@@ -183,13 +187,14 @@ class TestLiveAPI:
     def test_device_health(self):
         """Test device health checking."""
         # Get an agent first
-        agents_response = requests.get(f"{BASE_URL}/agents", timeout=TIMEOUT)
+        agents_response = requests.get(f"{BASE_URL}/api/v1/agents", timeout=TIMEOUT)
         agents = agents_response.json()
 
         if agents:
             device_id = agents[0]["device_id"]
             response = requests.get(
-                f"{BASE_URL}/devices/{device_id}/health", timeout=TIMEOUT
+                f"{BASE_URL}/api/v1/devices/{device_id}/api/v1/health/health",
+                timeout=TIMEOUT,
             )
 
             assert response.status_code == 200
@@ -200,13 +205,14 @@ class TestLiveAPI:
     def test_site_health(self):
         """Test site health monitoring."""
         # Get a site first
-        sites_response = requests.get(f"{BASE_URL}/sites", timeout=TIMEOUT)
+        sites_response = requests.get(f"{BASE_URL}/api/v1/sites", timeout=TIMEOUT)
         sites = sites_response.json()
 
         if sites:
             site_id = sites[0]["site_id"]
             response = requests.get(
-                f"{BASE_URL}/sites/{site_id}/health", timeout=TIMEOUT
+                f"{BASE_URL}/api/v1/sites/{site_id}/api/v1/health/health",
+                timeout=TIMEOUT,
             )
 
             assert response.status_code == 200
@@ -232,7 +238,7 @@ class TestLiveAPI:
     def test_agent_push_notification(self):
         """Test sending push notification to agent."""
         # Get an agent first
-        agents_response = requests.get(f"{BASE_URL}/agents", timeout=TIMEOUT)
+        agents_response = requests.get(f"{BASE_URL}/api/v1/agents", timeout=TIMEOUT)
         agents = agents_response.json()
 
         if agents:
@@ -244,7 +250,7 @@ class TestLiveAPI:
             }
 
             response = requests.post(
-                f"{BASE_URL}/agents/{device_id}/push",
+                f"{BASE_URL}/api/v1/agents/{device_id}/push",
                 json=notification,
                 timeout=TIMEOUT,
             )
@@ -264,26 +270,28 @@ class TestSystemValidation:
 
         # Phase 1: Core Infrastructure
         print("\nPhase 1: Core Infrastructure")
-        response = requests.get(f"{BASE_URL}/health", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=TIMEOUT)
         assert response.status_code == 200
         health = response.json()
         print(f"   Database & API: {health['status']}")
 
         # Phase 2: API Endpoints
         print("\nPhase 2: Enhanced API Endpoints")
-        sites_response = requests.get(f"{BASE_URL}/sites", timeout=TIMEOUT)
+        sites_response = requests.get(f"{BASE_URL}/api/v1/sites", timeout=TIMEOUT)
         sites = sites_response.json()
         print(f"   Sites Management: {len(sites)} sites")
 
         # Phase 3: Agent Simulation
         print("\nPhase 3: Agent Simulation")
-        agents_response = requests.get(f"{BASE_URL}/agents", timeout=TIMEOUT)
+        agents_response = requests.get(f"{BASE_URL}/api/v1/agents", timeout=TIMEOUT)
         agents = agents_response.json()
         print(f"   POS Agents: {len(agents)} active agents")
 
         # Phase 4: Audit Logging
         print("\nPhase 4: Audit Logging")
-        audit_response = requests.get(f"{BASE_URL}/audit/statistics", timeout=TIMEOUT)
+        audit_response = requests.get(
+            f"{BASE_URL}/api/v1/audit/statistics", timeout=TIMEOUT
+        )
         audit_stats = audit_response.json()
         print(f"   Audit Events: {audit_stats['total_events']} events logged")
 
@@ -292,7 +300,12 @@ class TestSystemValidation:
 
     def test_performance_benchmark(self):
         """Basic performance benchmark."""
-        endpoints = ["/health", "/sites", "/agents", "/audit/events"]
+        endpoints = [
+            "/api/v1/health/health",
+            "/api/v1/sites",
+            "/api/v1/agents",
+            "/api/v1/audit/events",
+        ]
 
         print("\nPerformance Benchmark")
         print("-" * 30)
@@ -314,7 +327,7 @@ class TestSystemValidation:
 def test_system_readiness():
     """Quick system readiness check."""
     try:
-        response = requests.get(f"{BASE_URL}/health", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
         data = response.json()
 
         if data.get("status") == "healthy":

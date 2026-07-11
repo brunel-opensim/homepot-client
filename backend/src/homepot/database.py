@@ -124,11 +124,23 @@ class DatabaseService:
         elif db_url.startswith("postgresql://"):
             db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
 
-        self.engine = create_async_engine(
-            db_url,
-            echo=settings.database.echo_sql,
-            future=True,
-        )
+        engine_kwargs: Dict[str, Any] = {
+            "echo": settings.database.echo_sql,
+            "future": True,
+        }
+
+        # SQLite ":memory:" databases are private to the connection that
+        # created them. Without pinning the async engine to a single shared
+        # connection (StaticPool), each new pooled connection would see a
+        # brand-new, empty in-memory database, causing intermittent
+        # "no such table" errors under concurrent/successive requests.
+        if db_url.startswith("sqlite+aiosqlite://") and ":memory:" in db_url:
+            from sqlalchemy.pool import StaticPool
+
+            engine_kwargs["poolclass"] = StaticPool
+            engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+        self.engine = create_async_engine(db_url, **engine_kwargs)
 
         self.session_maker = async_sessionmaker(
             self.engine,
@@ -798,15 +810,25 @@ _db_url = _settings.database.url
 
 # Convert async URLs to sync for this synchronous layer
 if _db_url.startswith("sqlite+aiosqlite://"):
-    _db_url = _db_url.replace("sqlite+aiosqlite://", "sqlite:///")
+    _db_url = _db_url.replace("sqlite+aiosqlite://", "sqlite://")
 elif _db_url.startswith("postgresql+asyncpg://"):
     _db_url = _db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 
 # Create sync engine
 if _db_url.startswith("sqlite"):
-    sync_engine = create_engine(
-        _db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
-    )
+    sync_engine_kwargs: Dict[str, Any] = {
+        "connect_args": {"check_same_thread": False},
+        "pool_pre_ping": True,
+    }
+    # SQLite ":memory:" databases are private to the connection that created
+    # them. Pin to a single shared connection (StaticPool) so all sessions
+    # see the same schema/data instead of each new connection getting a
+    # fresh, empty in-memory database.
+    if ":memory:" in _db_url:
+        from sqlalchemy.pool import StaticPool
+
+        sync_engine_kwargs["poolclass"] = StaticPool
+    sync_engine = create_engine(_db_url, **sync_engine_kwargs)
 elif _db_url.startswith("postgresql"):
     sync_engine = create_engine(
         _db_url, pool_pre_ping=True, pool_size=5, max_overflow=10
@@ -815,6 +837,15 @@ else:
     sync_engine = create_engine(_db_url)
 
 SessionLocal = sessionmaker(bind=sync_engine, autocommit=False, autoflush=False)
+
+# The sync engine is a completely separate connection from the async
+# DatabaseService's engine. For file-based/Postgres databases they both
+# point at the same underlying storage, but for SQLite ":memory:" URLs each
+# engine owns its own private in-memory database. Create the schema here too
+# so code paths that use `SessionLocal` (e.g. UserRegisterEndpoint) work
+# against an in-memory test database.
+if _db_url.startswith("sqlite") and ":memory:" in _db_url:
+    Base.metadata.create_all(bind=sync_engine)
 
 
 def get_db() -> Generator[Session, None, None]:
