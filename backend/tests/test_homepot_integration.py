@@ -189,7 +189,7 @@ class TestPhase2APIEndpoints:
 
         if sites:
             site_id = sites[0]["site_id"]
-            response = client.get(f"/api/v1/sites/{site_id}/api/v1/health/health")
+            response = client.get(f"/api/v1/health/sites/{site_id}/health")
 
             assert response.status_code == 200
             health = response.json()
@@ -317,7 +317,7 @@ class TestPhase3AgentSimulation:
 
         if agents:
             device_id = agents[0]["device_id"]
-            response = client.get(f"/api/v1/devices/{device_id}/api/v1/health/health")
+            response = client.get(f"/api/v1/health/devices/{device_id}/health")
 
             assert response.status_code == 200
             health = response.json()
@@ -440,11 +440,39 @@ class TestEndToEndWorkflows:
         assert job_status_response.status_code == 200
 
         # Step 5: Check site health
-        health_response = client.get(f"/api/v1/sites/{site_id}/api/v1/health/health")
+        health_response = client.get(f"/api/v1/health/sites/{site_id}/health")
         assert health_response.status_code == 200
 
     def test_agent_management_workflow(self, client: TestClient) -> None:
         """Test agent management workflow: list, monitor, notify, restart."""
+        # Setup: Ensure at least one device/agent exists to manage
+        site_id = generate_random_id("AGENT_WF_SITE")
+        client.post(
+            "/api/v1/sites",
+            json={
+                "site_id": site_id,
+                "name": "Agent Workflow Test Site",
+                "location": "Test Location",
+                "type": "test",
+            },
+        )
+        setup_device_id = generate_random_id("AGENT_WF_DEVICE")
+        client.post(
+            "/api/v1/devices/device",
+            json={
+                "site_id": site_id,
+                "device_id": setup_device_id,
+                "name": "Agent Workflow Test Device",
+                "device_type": "pos_terminal",
+                "location": "Test Counter",
+            },
+        )
+
+        # The in-memory agent simulator only discovers devices when it starts.
+        # Restart it here so it picks up the device created above.
+        client.post("/api/v1/agents/simulation/stop")
+        client.post("/api/v1/agents/simulation/start")
+
         # Step 1: Get all agents
         agents_response = client.get("/api/v1/agents")
         assert agents_response.status_code == 200
@@ -466,7 +494,7 @@ class TestEndToEndWorkflows:
 
         # Step 4: Check device health
         health_response = client.get(
-            f"/api/v1/devices/{device_id}/api/v1/health/health"
+            f"/api/v1/health/devices/{device_id}/health"
         )
         assert health_response.status_code == 200
 

@@ -937,6 +937,7 @@ async def trigger_health_check(device_id: str) -> Dict[str, Any]:
 
 
 @app.post("/devices/{device_id}/restart", tags=["Actions"])
+@app.post("/api/v1/devices/{device_id}/restart", tags=["Actions"])
 async def restart_device(device_id: str) -> Dict[str, Any]:
     """Restart the POS application on a device."""
     try:
@@ -973,6 +974,7 @@ async def restart_device(device_id: str) -> Dict[str, Any]:
 
 
 @app.get("/audit/events", tags=["Audit"])
+@app.get("/api/v1/audit/events", tags=["Audit"])
 async def get_audit_events(
     limit: int = 50, event_type: Optional[str] = None, hours: Optional[int] = None
 ) -> Dict[str, Any]:
@@ -1016,6 +1018,7 @@ async def get_audit_events(
 
 
 @app.get("/audit/statistics", tags=["Audit"])
+@app.get("/api/v1/audit/statistics", tags=["Audit"])
 async def get_audit_statistics(hours: int = 24) -> Dict[str, Any]:
     """Get audit event statistics for monitoring dashboard."""
     try:
@@ -1036,6 +1039,7 @@ async def get_audit_statistics(hours: int = 24) -> Dict[str, Any]:
 
 
 @app.get("/audit/event-types", tags=["Audit"])
+@app.get("/api/v1/audit/event-types", tags=["Audit"])
 async def get_audit_event_types() -> Dict[str, Any]:
     """Get all available audit event types."""
     return {

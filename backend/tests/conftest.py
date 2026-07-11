@@ -53,9 +53,12 @@ def client() -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_health_client] = get_test_client
 
-    test_client = TestClient(app)
-
-    yield test_client
+    # Use TestClient as a context manager so FastAPI's lifespan handlers run.
+    # This ensures the database service (and its in-memory SQLite schema) is
+    # initialized once, on a single persistent event loop, instead of being
+    # lazily (and inconsistently) initialized per-request.
+    with TestClient(app) as test_client:
+        yield test_client
 
     # Clean up
     app.dependency_overrides.clear()
@@ -117,6 +120,10 @@ def temp_db():
     from homepot.config import get_settings
     from homepot.models import Base
 
+    # Importing registers ErrorLog (and other analytics tables) with
+    # Base.metadata so create_all() below also creates them.
+    from homepot.app.models.AnalyticsModel import ErrorLog  # noqa: F401
+
     logger = logging.getLogger(__name__)
 
     # Get database URL from config
@@ -125,7 +132,7 @@ def temp_db():
 
     # Convert async URLs to sync for testing
     if database_url.startswith("sqlite+aiosqlite://"):
-        database_url = database_url.replace("sqlite+aiosqlite://", "sqlite:///")
+        database_url = database_url.replace("sqlite+aiosqlite://", "sqlite://")
     elif database_url.startswith("postgresql+asyncpg://"):
         database_url = database_url.replace(
             "postgresql+asyncpg://", "postgresql+psycopg2://"

@@ -153,23 +153,8 @@ async def create_pos_config_job(
         )
 
 
-@router.get("/{job_id}", tags=["Jobs"], response_model=JobStatusResponse)
-async def get_job_status(job_id: str) -> JobStatusResponse:
-    """Get job status and details (real-time tracking)."""
-    try:
-        orchestrator = await get_job_orchestrator()
-
-        job_status = await orchestrator.get_job_status(job_id)
-        if not job_status:
-            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-
-        return JobStatusResponse(**job_status)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get job status: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to get job status. Please check server logs.",
-        )
+# NOTE: Job status lookup is intentionally not duplicated here. It already
+# exists as `GET /jobs/{job_id}` directly on the app in homepot.main, which is
+# the path actually used by clients/tests. A generic "/{job_id}" route on this
+# router would act as a catch-all that could shadow other literal routes
+# mounted under /api/v1 (since this router is mounted without a prefix).
