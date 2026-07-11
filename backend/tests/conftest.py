@@ -117,12 +117,11 @@ def temp_db():
     from sqlalchemy.exc import OperationalError, ProgrammingError
     from sqlalchemy.orm import sessionmaker
 
-    from homepot.config import get_settings
-    from homepot.models import Base
-
     # Importing registers ErrorLog (and other analytics tables) with
     # Base.metadata so create_all() below also creates them.
     from homepot.app.models.AnalyticsModel import ErrorLog  # noqa: F401
+    from homepot.config import get_settings
+    from homepot.models import Base
 
     logger = logging.getLogger(__name__)
 

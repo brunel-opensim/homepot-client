@@ -493,9 +493,7 @@ class TestEndToEndWorkflows:
         assert push_response.status_code == 200
 
         # Step 4: Check device health
-        health_response = client.get(
-            f"/api/v1/health/devices/{device_id}/health"
-        )
+        health_response = client.get(f"/api/v1/health/devices/{device_id}/health")
         assert health_response.status_code == 200
 
         # Step 5: Restart device
