@@ -13,6 +13,11 @@ permissions:
 
 env:
   SECRET_KEY: ci_test_secret_key
+  # Ephemeral, throwaway credentials for the CI-only PostgreSQL instance.
+  # The database is destroyed with the runner, so this is not a real secret.
+  PG_TEST_USER: homepot_user
+  PG_TEST_PASSWORD: ci_test_password
+  PG_TEST_DB: homepot_test
 
 jobs:
   code-quality:
@@ -91,12 +96,36 @@ jobs:
         pip install -r backend/requirements.txt
         pip install -e backend/
 
+    - name: Install PostgreSQL 16 + TimescaleDB (Ubuntu only)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        set -e
+        sudo apt-get update
+        sudo apt-get install -y postgresql-16 postgresql-client-16
+
+        # Add the TimescaleDB apt repository and install the extension
+        # package matching PostgreSQL 16 (same major version used in prod).
+        curl -s https://packagecloud.io/install/repositories/timescale/timescaledb/script.deb.sh | sudo bash
+        sudo apt-get install -y timescaledb-2-postgresql-16
+
+        # Wire up shared_preload_libraries and other recommended settings,
+        # then restart for the change to take effect.
+        sudo timescaledb-tune --quiet --yes
+        sudo systemctl restart postgresql
+        pg_isready
+
+        # Create the throwaway CI test role/database and enable the extension.
+        sudo -u postgres psql -c "CREATE ROLE ${PG_TEST_USER} LOGIN PASSWORD '${PG_TEST_PASSWORD}';"
+        sudo -u postgres psql -c "CREATE DATABASE ${PG_TEST_DB} OWNER ${PG_TEST_USER};"
+        sudo -u postgres psql -d "${PG_TEST_DB}" -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+
     - name: Run unit tests
       shell: bash
       env:
-        # Use SQLite file-based DB for all platforms to avoid Docker dependency
-        # This aligns with the "normal execution" strategy
-        DATABASE__URL: sqlite+aiosqlite:///./test.db
+        # Ubuntu runs against real PostgreSQL + TimescaleDB (matching
+        # production). Windows/macOS use file-based SQLite since installing
+        # PostgreSQL without Docker isn't practical cross-platform there.
+        DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
       run: |
         cd backend
         # Run sequentially to avoid SQLite locking issues (no -n auto)
@@ -118,7 +147,7 @@ jobs:
     - name: Run UQ tests
       shell: bash
       env:
-        DATABASE__URL: sqlite+aiosqlite:///./test.db
+        DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
       run: |
         cd backend
         if find ../uq/ -name "test_*.py" | grep -q .; then

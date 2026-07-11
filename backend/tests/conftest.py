@@ -11,9 +11,11 @@ from typing import Any, Dict, Generator
 from fastapi.testclient import TestClient
 import pytest
 
-# CRITICAL: Force all database connections to use SQLite in-memory for testing
-# This must happen before any local imports evaluate the settings globally
-os.environ["DATABASE__URL"] = "sqlite+aiosqlite:///:memory:"
+# Default to SQLite in-memory for testing, unless a DATABASE__URL has
+# already been provided by the environment (e.g. CI providing a real
+# PostgreSQL/TimescaleDB test database). This must happen before any local
+# imports evaluate the settings globally.
+os.environ.setdefault("DATABASE__URL", "sqlite+aiosqlite:///:memory:")
 
 # Configure asyncio for testing
 pytest_plugins = ("pytest_asyncio",)
