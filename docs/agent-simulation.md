@@ -365,7 +365,7 @@ curl "http://localhost:8000/agents/POS_TERMINAL_001/errors?period=7d"
 
 ## True Lifecycle Emulator
 
-In addition to the bulk-load Fleet Simulation (`scripts/run_fleet_simulation.py`), HOMEPOT provides a **True Lifecycle Emulator** (`scripts/run_lifecycle_emulator.py`). 
+In addition to the bulk-load Fleet Simulation (`backend/utils/run_fleet_simulation.py`), HOMEPOT provides a **True Lifecycle Emulator** (`backend/utils/run_lifecycle_emulator.py`). 
 
 Unlike the Fleet Simulator which bypasses frontend UI flows to hit raw endpoints for stress testing, the True Lifecycle Emulator replicates the exact deployment and installation flow a physical device (such as an Android POS tablet running the GetFudo User App) goes through.
 
@@ -386,7 +386,7 @@ This tool is primarily designed for User App UI developers and Backend integrato
 
 ```bash
 # Run the complete Android POS lifecycle loop
-python scripts/run_lifecycle_emulator.py \
+python backend/utils/run_lifecycle_emulator.py \
     --site "site-001" \
     --name "Front Counter POS" \
     --email "manager@dealdio.com"

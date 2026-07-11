@@ -11,7 +11,7 @@ The **Fleet Simulation framework** allows developers to safely load-test the API
 - **New Feature Stress-Testing:** Provide a foundation to test nested payloads, such as the upcoming Printer array, mimicking real-world edge devices safely.
 
 ## Simulator Design
-The standalone runner script `scripts/run_fleet_simulation.py` acts as a driver to orchestrate multiple simulated edge devices using Python's `asyncio` and `httpx`.
+The standalone runner script `backend/utils/run_fleet_simulation.py` acts as a driver to orchestrate multiple simulated edge devices using Python's `asyncio` and `httpx`.
 
 ### Key Characteristics
 1. **Accurate Seed Mapping:** The simulation maps exactly to the realistic subset of expected mock devices defined in `backend/utils/seed_data.py` (e.g., `site1-linux-01`, `site2-macos-03`).
@@ -36,7 +36,7 @@ Ensure the HOMEPOT backend is fully running:
 ### Execution
 Run the fleet simulator from the project root:
 ```bash
-python3 scripts/run_fleet_simulation.py
+python3 backend/utils/run_fleet_simulation.py
 ```
 
 ### Interpreting Output
@@ -50,7 +50,7 @@ Average req/sec: 2.97
 ```
 
 ## Configuring the Simulation
-Developers can easily alter the load parameters within `scripts/run_fleet_simulation.py`:
+Developers can easily alter the load parameters within `backend/utils/run_fleet_simulation.py`:
 - `NUM_DEVICES`: *Currently configured to track the array of predefined seed records, but easily modifiable to scale into the hundreds.*
 - `SIMULATION_DURATION_SECONDS`: How long the load test runs. By default `60` seconds.
 - `CONCURRENT_REQUESTS_LIMIT`: Max simultaneous connections sent to the API. Increase alongside database pool optimizations.

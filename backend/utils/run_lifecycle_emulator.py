@@ -105,7 +105,7 @@ def spawn_real_agent_loop() -> None:
     env["USE_HARDWARE_EMULATOR"] = "true"
     env["API_BASE_URL"] = API_BASE_URL
     # Ensure we use python path pointing to our environment
-    env["PYTHONPATH"] = str(Path(__file__).parent.parent / "backend/src")
+    env["PYTHONPATH"] = str(Path(__file__).parent.parent.parent / "backend/src")
 
     # Command assumes running in repository root
     agent_script = Path("backend/src/homepot/agent/real_device_agent.py")
