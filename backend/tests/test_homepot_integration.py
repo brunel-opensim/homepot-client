@@ -79,7 +79,7 @@ class TestPhase1CoreInfrastructure:
 
     def test_health_endpoint(self, client: TestClient) -> None:
         """Test system health check endpoint."""
-        response = client.get("/health")
+        response = client.get("/api/v1/health/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -189,7 +189,7 @@ class TestPhase2APIEndpoints:
 
         if sites:
             site_id = sites[0]["site_id"]
-            response = client.get(f"/sites/{site_id}/health")
+            response = client.get(f"/sites/{site_id}/api/v1/health/health")
 
             assert response.status_code == 200
             health = response.json()
@@ -315,7 +315,7 @@ class TestPhase3AgentSimulation:
 
         if agents:
             device_id = agents[0]["device_id"]
-            response = client.get(f"/devices/{device_id}/health")
+            response = client.get(f"/devices/{device_id}/api/v1/health/health")
 
             assert response.status_code == 200
             health = response.json()
@@ -438,7 +438,7 @@ class TestEndToEndWorkflows:
         assert job_status_response.status_code == 200
 
         # Step 5: Check site health
-        health_response = client.get(f"/sites/{site_id}/health")
+        health_response = client.get(f"/sites/{site_id}/api/v1/health/health")
         assert health_response.status_code == 200
 
     def test_agent_management_workflow(self, client: TestClient) -> None:
@@ -461,7 +461,7 @@ class TestEndToEndWorkflows:
         assert push_response.status_code == 200
 
         # Step 4: Check device health
-        health_response = client.get(f"/devices/{device_id}/health")
+        health_response = client.get(f"/devices/{device_id}/api/v1/health/health")
         assert health_response.status_code == 200
 
         # Step 5: Restart device
@@ -472,7 +472,7 @@ class TestEndToEndWorkflows:
         """Test audit trail workflow: perform actions, verify logging."""
         # Perform several actions that should generate audit events
         actions = [
-            ("GET", "/health"),
+            ("GET", "/api/v1/health/health"),
             ("GET", "/sites"),
             ("GET", "/agents"),
             ("GET", "/audit/statistics"),
@@ -504,7 +504,7 @@ class TestSystemPerformance:
     def test_api_response_times(self, client: TestClient) -> None:
         """Test that API endpoints respond within acceptable time limits."""
         endpoints = [
-            "/health",
+            "/api/v1/health/health",
             "/sites",
             "/agents",
             "/audit/events",
@@ -525,7 +525,7 @@ class TestSystemPerformance:
         import concurrent.futures
 
         def make_request():
-            response = client.get("/health")
+            response = client.get("/api/v1/health/health")
             return response.status_code == 200
 
         # Test 10 concurrent requests
@@ -564,7 +564,7 @@ class TestAPIDocumentation:
 
         # Verify key endpoints are documented
         paths = schema["paths"]
-        assert "/health" in paths
+        assert "/api/v1/health/health" in paths
         assert "/sites" in paths
         assert "/agents" in paths
         assert "/audit/events" in paths
@@ -583,7 +583,7 @@ def test_system_integration_health_check():
 
     try:
         # Test if system is running and responsive
-        response = requests.get(f"{TEST_BASE_URL}/health", timeout=5)
+        response = requests.get(f"{TEST_BASE_URL}/api/v1/health/health", timeout=5)
         assert response.status_code == 200
 
         data = response.json()

@@ -5,10 +5,15 @@ used across the test suite.
 """
 
 import asyncio
+import os
 from typing import Any, Dict, Generator
 
 from fastapi.testclient import TestClient
 import pytest
+
+# CRITICAL: Force all database connections to use SQLite in-memory for testing
+# This must happen before any local imports evaluate the settings globally
+os.environ["DATABASE__URL"] = "sqlite+aiosqlite:///:memory:"
 
 # Configure asyncio for testing
 pytest_plugins = ("pytest_asyncio",)
@@ -38,8 +43,15 @@ def client() -> Generator[TestClient, None, None]:
         mock_client.get_version = lambda: "0.1.0"  # type: ignore
         return mock_client
 
-    # Override the dependency
+    # Override the dependency for both locations it might be imported from natively
     app.dependency_overrides[get_client] = get_test_client
+
+    # Also override the one locally defined in HealthEndpoint
+    from homepot.app.api.API_v1.Endpoints.HealthEndpoint import (
+        get_client as get_health_client,
+    )
+
+    app.dependency_overrides[get_health_client] = get_test_client
 
     test_client = TestClient(app)
 

@@ -33,7 +33,7 @@ class TestPerformance:
     def setup(self):
         """Verify system is running before each test."""
         try:
-            response = requests.get(f"{BASE_URL}/health", timeout=5)
+            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
             if response.status_code != 200:
                 pytest.skip("HOMEPOT system is not running")
         except requests.exceptions.RequestException:
@@ -43,11 +43,11 @@ class TestPerformance:
     def test_api_response_times(self):
         """Test response times for all major endpoints."""
         endpoints = [
-            ("/health", "Health Check"),
-            ("/sites", "Sites List"),
-            ("/agents", "Agents List"),
-            ("/audit/events", "Audit Events"),
-            ("/audit/statistics", "Audit Statistics"),
+            ("/api/v1/health/health", "Health Check"),
+            ("/api/v1/sites", "Sites List"),
+            ("/api/v1/agents", "Agents List"),
+            ("/api/v1/audit/events", "Audit Events"),
+            ("/api/v1/audit/statistics", "Audit Statistics"),
             ("/version", "Version Info"),
         ]
 
@@ -103,7 +103,7 @@ class TestPerformance:
 
         # Test different concurrency levels
         concurrency_levels = [5, 10, 20]
-        endpoint = "/health"  # Use lightweight endpoint
+        endpoint = "/api/v1/health/health"  # Use lightweight endpoint
 
         for concurrent_requests in concurrency_levels:
             print(f"\n   Testing {concurrent_requests} concurrent requests...")
@@ -148,7 +148,9 @@ class TestPerformance:
 
             # Make many requests
             for i in range(100):
-                response = requests.get(f"{BASE_URL}/health", timeout=TIMEOUT)
+                response = requests.get(
+                    f"{BASE_URL}/api/v1/health/health", timeout=TIMEOUT
+                )
                 assert response.status_code == 200
 
                 if i % 20 == 0:
@@ -178,11 +180,11 @@ class TestPerformance:
 
         # Test endpoints that likely involve database queries
         db_endpoints = [
-            ("/sites", "Sites Query"),
-            ("/agents", "Agents Query"),
-            ("/audit/events?limit=100", "Audit Events (100)"),
-            ("/audit/events?limit=1000", "Audit Events (1000)"),
-            ("/audit/statistics", "Audit Statistics"),
+            ("/api/v1/sites", "Sites Query"),
+            ("/api/v1/agents", "Agents Query"),
+            ("/api/v1/audit/events?limit=100", "Audit Events (100)"),
+            ("/api/v1/audit/events?limit=1000", "Audit Events (1000)"),
+            ("/api/v1/audit/statistics", "Audit Statistics"),
         ]
 
         for endpoint, name in db_endpoints:
@@ -251,7 +253,7 @@ class TestPerformance:
         for limit in large_limits:
             start = time.time()
             response = requests.get(
-                f"{BASE_URL}/audit/events?limit={limit}", timeout=TIMEOUT
+                f"{BASE_URL}/api/v1/audit/events?limit={limit}", timeout=TIMEOUT
             )
             end = time.time()
 
@@ -282,7 +284,7 @@ class TestPerformance:
 
         while time.time() - start_time < duration:
             try:
-                response = requests.get(f"{BASE_URL}/health", timeout=5)
+                response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
                 request_count += 1
 
                 if response.status_code != 200:
@@ -316,7 +318,7 @@ class TestScalability:
     @pytest.mark.performance
     def test_agent_scaling(self):
         """Test system behavior with many agents."""
-        response = requests.get(f"{BASE_URL}/agents", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/agents", timeout=TIMEOUT)
         assert response.status_code == 200
 
         agents = response.json()
@@ -327,7 +329,7 @@ class TestScalability:
 
         # Time the request
         start = time.time()
-        response = requests.get(f"{BASE_URL}/agents", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/agents", timeout=TIMEOUT)
         end = time.time()
 
         response_time = (end - start) * 1000
@@ -339,7 +341,7 @@ class TestScalability:
     @pytest.mark.performance
     def test_audit_data_scaling(self):
         """Test audit system performance with large event volumes."""
-        response = requests.get(f"{BASE_URL}/audit/statistics", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/audit/statistics", timeout=TIMEOUT)
         assert response.status_code == 200
 
         stats = response.json()
@@ -350,7 +352,9 @@ class TestScalability:
 
         # Test query performance with current event volume
         start = time.time()
-        response = requests.get(f"{BASE_URL}/audit/events?limit=100", timeout=TIMEOUT)
+        response = requests.get(
+            f"{BASE_URL}/api/v1/audit/events?limit=100", timeout=TIMEOUT
+        )
         end = time.time()
 
         response_time = (end - start) * 1000
@@ -367,7 +371,7 @@ if __name__ == "__main__":
 
     # Quick system check
     try:
-        response = requests.get(f"{BASE_URL}/health", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
         if response.status_code == 200:
             print("System Ready for Performance Testing")
             print("Usage: pytest tests/test_performance.py -v -m performance")

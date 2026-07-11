@@ -96,7 +96,7 @@ async def test_submit_health_check_with_full_metrics(
         "is_healthy": True,
         "response_time_ms": 150,
         "status_code": 200,
-        "endpoint": "/health",
+        "endpoint": "/metrics",
         "response_data": {"status": "healthy", "version": "1.2.3"},
         "system": {
             "cpu_percent": 65.5,
@@ -119,7 +119,7 @@ async def test_submit_health_check_with_full_metrics(
     }
 
     response = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload
+        f"/api/v1/devices/{device_id}/metrics", json=payload
     )
 
     # CI environments may not have database, accept both 200 (success) and 500 (no DB)
@@ -168,7 +168,7 @@ async def test_submit_health_check_minimal_data(
     }
 
     response = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload
+        f"/api/v1/devices/{device_id}/metrics", json=payload
     )
 
     # CI environments may not have database, accept both 200 (success) and 500 (no DB)
@@ -210,7 +210,7 @@ async def test_submit_health_check_unhealthy(async_client: AsyncClient, setup_de
     }
 
     response = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload
+        f"/api/v1/devices/{device_id}/metrics", json=payload
     )
 
     # CI environments may not have database, accept both 200 (success) and 500 (no DB)
@@ -232,7 +232,7 @@ async def test_submit_health_check_invalid_device(async_client: AsyncClient):
     }
 
     response = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload
+        f"/api/v1/devices/{device_id}/metrics", json=payload
     )
 
     # Should still accept but create health check without device_id link
@@ -398,7 +398,7 @@ async def test_metrics_data_structure(async_client: AsyncClient, setup_device):
     }
 
     response = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload
+        f"/api/v1/devices/{device_id}/metrics", json=payload
     )
 
     assert response.status_code == 200
@@ -438,7 +438,7 @@ async def test_multiple_metrics_submissions(async_client: AsyncClient, setup_dev
         "system": {"cpu_percent": 50.0},
     }
     response1 = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload1
+        f"/api/v1/devices/{device_id}/metrics", json=payload1
     )
     assert response1.status_code == 200
 
@@ -449,7 +449,7 @@ async def test_multiple_metrics_submissions(async_client: AsyncClient, setup_dev
         "system": {"cpu_percent": 60.0},
     }
     response2 = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload2
+        f"/api/v1/devices/{device_id}/metrics", json=payload2
     )
     assert response2.status_code == 200
 
@@ -477,7 +477,7 @@ async def test_metrics_validation_ranges(async_client: AsyncClient):
     }
 
     response = await async_client.post(
-        f"/api/v1/devices/{device_id}/health", json=payload
+        f"/api/v1/devices/{device_id}/metrics", json=payload
     )
 
     # Should either reject or accept and clamp values
