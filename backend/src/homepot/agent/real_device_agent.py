@@ -17,6 +17,7 @@ from homepot.agent.utils.local_ipc import (
     create_local_ipc_app,
     update_local_agent_state,
 )
+from homepot.agent.utils.real_device_discovery import get_connected_peripherals
 from homepot.agent.utils.retry_queue import RetryQueue
 from homepot.agent.utils.telemetry import build_telemetry_payload
 
@@ -95,6 +96,7 @@ async def send_registration(
             "os_details": config.get("os_details"),
             "local_ip": get_local_ip(),
             "wan_ip": get_wan_ip(),
+            "peripherals": get_connected_peripherals(),
         }
         register_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
         if not await post_json(client, register_url, payload, get_auth_headers(config)):
