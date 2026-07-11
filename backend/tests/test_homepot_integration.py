@@ -301,7 +301,9 @@ class TestPhase3AgentSimulation:
                 "action": "test_action",
             }
 
-            response = client.post(f"/api/v1/agents/{device_id}/push", json=notification)
+            response = client.post(
+                f"/api/v1/agents/{device_id}/push", json=notification
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -457,11 +459,15 @@ class TestEndToEndWorkflows:
 
         # Step 3: Send push notification
         notification = {"message": "Workflow test notification", "priority": "medium"}
-        push_response = client.post(f"/api/v1/agents/{device_id}/push", json=notification)
+        push_response = client.post(
+            f"/api/v1/agents/{device_id}/push", json=notification
+        )
         assert push_response.status_code == 200
 
         # Step 4: Check device health
-        health_response = client.get(f"/api/v1/devices/{device_id}/api/v1/health/health")
+        health_response = client.get(
+            f"/api/v1/devices/{device_id}/api/v1/health/health"
+        )
         assert health_response.status_code == 200
 
         # Step 5: Restart device
@@ -595,7 +601,9 @@ def test_system_integration_health_check():
         print(f"   Client Connected: {data.get('client_connected', 'Unknown')}")
 
     except requests.exceptions.RequestException as e:
-        pytest.skip(f"System is not running locally for this integration network test: {e}")
+        pytest.skip(
+            f"System is not running locally for this integration network test: {e}"
+        )
 
 
 if __name__ == "__main__":
