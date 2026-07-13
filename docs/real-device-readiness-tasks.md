@@ -6,11 +6,11 @@
 
 This document is based on a code-level audit of `backend/`, `frontend/`, and `user_app/` as of this writing. It builds on and does not duplicate the following existing docs — read those first for background:
 
-- [docs/real-device-transition.md](../docs/real-device-transition.md) — architecture/roadmap so far
-- [docs/real-device-agent.md](../docs/real-device-agent.md) — agent scaffold overview
-- [docs/dealdio-user-app-tasks.md](../docs/dealdio-user-app-tasks.md) / [docs/getfudo-user-app-tasks.md](../docs/getfudo-user-app-tasks.md) — Part 1/2 preparatory work (mostly delivered)
-- [docs/getfudo-preparatory-tasks.md](../docs/getfudo-preparatory-tasks.md) — API contracts already frozen
-- [docs/device-enrollment-roadmap.md](../docs/device-enrollment-roadmap.md) — enrollment method split (delivered)
+- [docs/real-device-transition.md](real-device-transition.md) — architecture/roadmap so far
+- [docs/real-device-agent.md](real-device-agent.md) — agent scaffold overview
+- [docs/dealdio-user-app-tasks.md](dealdio-user-app-tasks.md) / [docs/getfudo-user-app-tasks.md](getfudo-user-app-tasks.md) — Part 1/2 preparatory work (mostly delivered)
+- [docs/getfudo-preparatory-tasks.md](getfudo-preparatory-tasks.md) — API contracts already frozen
+- [docs/device-enrollment-roadmap.md](device-enrollment-roadmap.md) — enrollment method split (delivered)
 
 ---
 
@@ -119,7 +119,7 @@ This document is based on a code-level audit of `backend/`, `frontend/`, and `us
 ## 6. Suggested sequencing
 
 ```mermaid
-graph LR
+flowchart LR
     A[Dealdio: 3.2 Secure command endpoint] --> B[Dealdio: 3.1 Agent command loop]
     A --> C[Dealdio: 3.3 real/simulated flag]
     B --> D[Brunel: 5.2 round-trip integration tests]
@@ -134,9 +134,9 @@ graph LR
 
 ## 7. Definition of "real device integration ready"
 
-- [ ] Commands queued from the Dashboard are executed on a real device agent and status flows back within one poll interval.
-- [ ] Command queue endpoint requires authenticated admin/operator access.
-- [ ] Every device record is clearly tagged real or simulated, end-to-end (DB → API → Dashboard).
-- [ ] Agent ships as an installable, packaged binary with a service definition, not just a source script.
-- [ ] User App is a real Electron/Capacitor shell showing live IPC data, not static mock values.
-- [ ] 3–5 physical pilot devices run the packaged agent successfully for at least one full day with no manual intervention.
+- Commands queued from the Dashboard are executed on a real device agent and status flows back within one poll interval.
+- Command queue endpoint requires authenticated admin/operator access.
+- Every device record is clearly tagged real or simulated, end-to-end (DB → API → Dashboard).
+- Agent ships as an installable, packaged binary with a service definition, not just a source script.
+- User App is a real Electron/Capacitor shell showing live IPC data, not static mock values.
+- 3–5 physical pilot devices run the packaged agent successfully for at least one full day with no manual intervention.
