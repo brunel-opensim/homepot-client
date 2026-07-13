@@ -161,6 +161,7 @@ nav:
           - Agent Simulation: agent-simulation.md
           - Fleet Load Testing: fleet-simulation.md
           - Real Device Transition: real-device-transition.md
+          - Team Tasks (Readiness): real-device-readiness-tasks.md
 
   - HOMEPOT User App:
       - Getting Started: get_start_userapp.md
