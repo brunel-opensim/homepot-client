@@ -15,9 +15,9 @@ import asyncio
 import json
 import logging
 import os
-import subprocess
-import sys
 from pathlib import Path
+import subprocess  # noqa: S404
+import sys
 
 import httpx
 from rich.console import Console
@@ -116,7 +116,7 @@ def spawn_real_agent_loop() -> None:
 
     # Execute
     try:
-        subprocess.run(
+        subprocess.run(  # noqa: S603
             [sys.executable, str(agent_script)],
             env=env,
             check=True,
@@ -126,6 +126,7 @@ def spawn_real_agent_loop() -> None:
 
 
 async def main():
+    """Run the end-to-end device lifecycle emulation: provision, configure, and launch the agent."""
     parser = argparse.ArgumentParser(
         description="HOMEPOT True Lifecycle Emulator (Android POS mock)"
     )
@@ -150,7 +151,9 @@ async def main():
     provision_data = await provision_device(args.site, args.email, args.name)
 
     if not provision_data:
-        console.print("[bold red]Aborting Lifecycle. Provisioning step failed.[/bold red]")
+        console.print(
+            "[bold red]Aborting Lifecycle. Provisioning step failed.[/bold red]"
+        )
         sys.exit(1)
 
     # Step 2: Persist state

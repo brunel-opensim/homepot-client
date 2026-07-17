@@ -27,7 +27,15 @@ from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_memory import DeviceMemory  # noqa: E402
+from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
+from ai.gates import (  # noqa: E402
+    MODE_CAUTIONARY,
+    EnvelopeResult,
+    GateContext,
+    GateStatus,
+    build_default_envelope,
+)
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
@@ -406,34 +414,196 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             # Get Job Context if relevant
             job_context = await context_builder.get_job_context(session=session)
 
-        # 4. Assemble Final Context
-        full_context = (
-            f"{site_context}\n{job_context}\n{long_term_context}\n{short_term_context}"
-        )
+            # 4. Assemble Final Context
+            full_context = f"{site_context}\n{job_context}\n{long_term_context}\n{short_term_context}"
 
-        if request.context:
-            full_context += f"\n[USER CONTEXT]\n{request.context}"
+            if request.context:
+                full_context += f"\n[USER CONTEXT]\n{request.context}"
 
-        if request.role:
-            full_context += f"\n[REQUESTER ROLE]\n{request.role}"
+            if request.role:
+                full_context += f"\n[REQUESTER ROLE]\n{request.role}"
 
-        if request.device_id:
-            full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
+            if request.device_id:
+                full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
 
-        # Insert Defined System Roles to prevent hallucination
+            # Insert Defined System Roles to prevent hallucination
+            full_context += (
+                "\n[SYSTEM ROLES DEFINITIONS]\n"
+                "The HOMEPOT Client system currently defines the following roles:\n"
+                "1. 'Admin': Complete system access, including user management, logs, "
+                "and system configuration.\n"
+                "2. 'Engineer': Technical access, including device management, diagnostics, "
+                "and configurations (similar to Admin but focused on operations).\n"
+                "3. 'Client' (User): Limited access, primarily for monitoring assigned devices, views, and "
+                "receiving notifications.\n"
+                "There are currently NO other defined roles (e.g., 'Agent Operator' is NOT "
+                "a valid role).\n"
+            )
+
+            # 5. Validation-First Gates: Gate A -> B -> C (see ai/gates)
+            # AI inference is a downstream consumer of the operational data
+            # (paper Sec. 4). Gates no longer block inference outright --
+            # instead they determine how much trust is attached to the
+            # resulting recommendation (see [VALIDATION TRUST STATUS] below
+            # and the `trust` field always returned to the caller), so a
+            # technician can see, per-recommendation, how much confidence to
+            # place in it. Gates run BEFORE the AI Insights below because
+            # Gate B's result gates whether those insights are computed at
+            # all (see next step).
+            device_int_id = None
+            if request.device_id:
+                device_int_id = await DeviceResolver(session).resolve(request.device_id)
+
+            known_alert_ids = [alert.id for alert in active_alerts]
+            gate_context = GateContext(
+                session=session,
+                device_id=request.device_id,
+                device_int_id=device_int_id,
+                assembled_context=full_context,
+                known_alert_ids=known_alert_ids,
+            )
+            envelope = build_default_envelope()
+            trust = await envelope.run(gate_context)
+
+            # 6. AI Insights: surface the SAME anomaly/failure signals a
+            # technician would see elsewhere in the product, so the LLM's
+            # answer is grounded in all information available, not just raw
+            # metrics/alerts. Gated on Gate B (data integrity) having PASSED:
+            # anomaly detection and failure prediction are themselves derived
+            # from the same telemetry Gate B validates, so computing and
+            # presenting them when that data has already failed integrity
+            # checks would hand the LLM a confident-looking conclusion
+            # ("Risk Level: CRITICAL") built on data we've just determined is
+            # NOT trustworthy -- undermining the trust signal below. This
+            # also avoids the extra anomaly-scan/failure-prediction DB
+            # queries on every chat turn once the data is already known to
+            # be stale/incomplete/invalid. Best-effort: a failure here must
+            # not break chat.
+            data_integrity_passed = any(
+                g.gate_id == "B" and g.status == GateStatus.PASS
+                for g in trust.gate_results
+            )
+            if data_integrity_passed:
+                full_context += "\n[AI INSIGHTS: SYSTEM ANOMALIES]\n"
+                try:
+                    anomalies_payload = await get_system_anomalies()
+                    detected = anomalies_payload.get("anomalies") or []
+                    if detected:
+                        for a in detected:
+                            full_context += (
+                                f"- Device: {a.get('device_name')} ({a.get('device_id')}), "
+                                f"Severity: {a.get('severity')}, Score: {a.get('score')}, "
+                                f"Reasons: {', '.join(a.get('reasons') or [])}\n"
+                            )
+                    else:
+                        full_context += "No active anomalies detected.\n"
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to gather anomaly insights for AI context: {e}"
+                    )
+                    full_context += "Anomaly insights unavailable.\n"
+
+                if request.device_id:
+                    try:
+                        prediction = await FailurePredictor().predict_device_failure(
+                            request.device_id
+                        )
+                        risk_factor_names = [
+                            f.get("name", "Unknown")
+                            for f in prediction.get("risk_factors", [])
+                        ]
+                        full_context += (
+                            "\n[AI INSIGHTS: FAILURE PREDICTION]\n"
+                            f"Device: {request.device_id}\n"
+                            f"Risk Level: {prediction.get('risk_level', 'UNKNOWN')}\n"
+                            f"Failure Probability: {prediction.get('failure_probability', 0.0)}\n"
+                            f"Risk Factors: {', '.join(risk_factor_names)}\n"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to gather failure prediction for AI context: {e}"
+                        )
+                        full_context += (
+                            "\n[AI INSIGHTS: FAILURE PREDICTION]\nUnavailable.\n"
+                        )
+            else:
+                full_context += (
+                    "\n[AI INSIGHTS]\n"
+                    "Skipped: Gate B (data integrity) did not pass for this request, so "
+                    "anomaly-detection and failure-prediction analytics are withheld rather "
+                    "than presented as trustworthy derived conclusions.\n"
+                )
+
+            # 7. Re-validate Gate C against the FINAL context (base context +
+            # AI Insights appended above). Appending the insights blocks can
+            # grow the prompt past Gate C's bounded-context threshold, or in
+            # principle disturb its stable-block/ID-rule checks -- Gate C's
+            # whole purpose is "is the context about to be sent to the LLM
+            # fit for ingestion" (paper Sec. 4.3), so that question has to be
+            # re-asked against what's *actually* being sent, not just the
+            # pre-insight draft. We re-run the SAME Gate C instance used
+            # above (same overrides/thresholds) rather than introducing a
+            # new gate, since this is the same concern (context readiness),
+            # just re-checked at the point the context is complete. Only
+            # meaningful when the first pass was fully actionable -- if it
+            # already failed, trust is already capped and the insights
+            # section above was replaced with a short skip note that can't
+            # newly violate Gate C.
+            if trust.is_actionable:
+                gate_c = next(g for g in envelope.gates if g.gate_id == "C")
+                post_insight_result = await gate_c.run(
+                    GateContext(
+                        session=session,
+                        device_id=request.device_id,
+                        device_int_id=device_int_id,
+                        assembled_context=full_context,
+                        known_alert_ids=known_alert_ids,
+                    )
+                )
+                trust.gate_results.append(post_insight_result)
+                if post_insight_result.status != GateStatus.PASS:
+                    trust = EnvelopeResult(
+                        gate_results=trust.gate_results,
+                        trust_mode=MODE_CAUTIONARY,
+                        trust_score=min(
+                            trust.trust_score, MODE_CAUTIONARY.trust_ceiling
+                        ),
+                        failed_gate_id="C (post-insight)",
+                    )
+
+        # Surface the trust envelope directly in the context so the LLM can
+        # see -- and is instructed (below) to reflect in its answer -- exactly
+        # how much confidence to attach to what follows. The LLM always runs;
+        # gates condition its instructions rather than gating inference itself.
         full_context += (
-            "\n[SYSTEM ROLES DEFINITIONS]\n"
-            "The HOMEPOT Client system currently defines the following roles:\n"
-            "1. 'Admin': Complete system access, including user management, logs, and system configuration.\n"
-            "2. 'Engineer': Technical access, including device management, diagnostics, and configurations "
-            "(similar to Admin but focused on operations).\n"
-            "3. 'Client' (User): Limited access, primarily for monitoring assigned devices, views, and "
-            "receiving notifications.\n"
-            "There are currently NO other defined roles (e.g., 'Agent Operator' is NOT "
-            "a valid role).\n"
+            "\n[VALIDATION TRUST STATUS]\n"
+            f"{trust.label()}\n"
+            f"Trust score: {trust.trust_score:.2f} (0.0 = no trust, 1.0 = fully grounded)\n"
+            f"Actionable: {'yes' if trust.is_actionable else 'no'}\n"
         )
+        if not trust.is_actionable:
+            full_context += (
+                f"Failed gate: {trust.failed_gate_id} "
+                f"({trust.trust_mode.description})\n"
+            )
+            # Surface a SHORT, plain-English reason so the LLM can be
+            # specific ("telemetry is 340s stale") instead of just naming
+            # the failed gate -- without dumping the full per-check
+            # evidence tree (row counts, thresholds, timestamps) into the
+            # prompt. That full detail is reserved for the dashboard's
+            # expandable trust banner; the LLM only gets a 1-2 line digest
+            # so its answer -- and a technician reading it -- isn't
+            # overwhelmed with raw validation data.
+            failing_gate = trust.gate_results[-1] if trust.gate_results else None
+            failing_reasons = [
+                c.message
+                for c in (failing_gate.checks if failing_gate else [])
+                if not c.passed and c.message
+            ]
+            if failing_reasons:
+                full_context += f"Reason: {' '.join(failing_reasons[:2])}\n"
 
-        # Get static system knowledge
+        # Get static system knowledge (no DB access needed beyond this point)
         system_knowledge = knowledge.get_full_system_context()
 
         response = llm.generate_response(
@@ -452,23 +622,36 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
                 "error patterns, and resolutions to identify recurring issues.\n"
                 "3. System Knowledge: You are self-aware of the codebase structure, "
                 "file locations, and documentation.\n"
-                "4. Short-Term Memory: You maintain context of the current conversation.\n\n"
+                "4. Short-Term Memory: You maintain context of the current conversation.\n"
+                "5. AI Insights: anomaly detection and failure-prediction signals are "
+                "provided in [AI INSIGHTS: ...] blocks.\n\n"
                 "SYSTEM CONTEXT:\n"
                 f"{system_knowledge}\n\n"
                 "INSTRUCTIONS:\n"
                 "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
                 "general knowledge questions.\n"
-                "- Use the provided [CURRENT SYSTEM STATUS] and [RELEVANT MEMORIES] "
-                "to ground your answers in facts.\n"
+                "- Use the provided [CURRENT SYSTEM STATUS], [AI INSIGHTS: ...], and "
+                "[RELEVANT MEMORIES] blocks to ground your answers in facts.\n"
                 "- If you don't know something, admit it. Do not hallucinate system details.\n"
                 "- When listing alerts, use the explicit 'ID' field provided in "
                 "the [ACTIVE SYSTEM ALERTS] section. Format as '#ID'. Do not guess IDs.\n"
+                "- Uncertainty protocol: if telemetry or context evidence is incomplete, "
+                "state the gap explicitly instead of extrapolating an unsupported system state.\n"
+                "- Trust protocol: your context includes a [VALIDATION TRUST STATUS] block. "
+                "If 'Actionable' is 'no', you MUST explicitly tell the user their data could "
+                "not be fully validated (name the failed gate and trust score) and limit your "
+                "answer to cautionary, non-actionable observations -- never phrase a low-trust "
+                "answer as a confirmed diagnosis or a directive to act. If a 'Reason' line is "
+                "present, weave it in as ONE short supporting sentence (e.g. 'because telemetry "
+                "is 340s stale') -- do not list every validation check or invent additional "
+                "statistics beyond what's given.\n"
                 "- Be concise, professional, and technical where appropriate."
             ),
         )
         return {
             "response": response,
             "timestamp": datetime.utcnow().isoformat(),
+            "trust": trust.to_dict(),
         }
     except Exception as e:
         logger.error(f"AI query failed: {e}", exc_info=True)

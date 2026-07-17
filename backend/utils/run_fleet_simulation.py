@@ -79,9 +79,10 @@ async def setup_test_devices(device_ids: List[str], client: httpx.AsyncClient) -
             resp = await client.post(register_url, json=payload, timeout=5.0)
             if resp.status_code not in (200, 201, 409):
                 # 409 might mean already exists
-                pass 
+                pass
         except Exception:
             pass
+
 
 async def simulate_device(
     device_id: str, client: httpx.AsyncClient, semaphore: asyncio.Semaphore
@@ -92,7 +93,14 @@ async def simulate_device(
 
     while asyncio.get_event_loop().time() < end_time:
         async with semaphore:
-            scenarios = ["healthy", "healthy", "healthy", "high_cpu", "low_memory", "high_errors"]
+            scenarios = [
+                "healthy",
+                "healthy",
+                "healthy",
+                "high_cpu",
+                "low_memory",
+                "high_errors",
+            ]
             scenario = random.choice(scenarios)
 
             # In the future, this endpoint or a new one will receive the printer DNA payload
@@ -118,7 +126,6 @@ async def simulate_device(
 
 async def main() -> None:
     """Run the fleet simulation."""
-    
     # Extract the exact device IDs defined in seed_data.py
     seed_device_ids = [
         "site1-linux-01",
@@ -132,21 +139,26 @@ async def main() -> None:
         "site2-web-04",
         "site2-iot-05",
     ]
-    
+
     # We will simulate exactly the 10 seed devices
     device_ids = seed_device_ids
     num_active_devices = len(device_ids)
 
-    logger.info(f"Starting simulation of {num_active_devices} devices for {SIMULATION_DURATION_SECONDS}s")
-    
+    logger.info(
+        f"Starting simulation of {num_active_devices} devices for {SIMULATION_DURATION_SECONDS}s"
+    )
+
     # Use a semaphore to limit the number of strictly concurrent network requests
     # to avoid exhausting local ephemeral ports or instantly overwhelming the local DB
     semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS_LIMIT)
-    limits = httpx.Limits(max_keepalive_connections=CONCURRENT_REQUESTS_LIMIT, max_connections=CONCURRENT_REQUESTS_LIMIT)
-    
+    limits = httpx.Limits(
+        max_keepalive_connections=CONCURRENT_REQUESTS_LIMIT,
+        max_connections=CONCURRENT_REQUESTS_LIMIT,
+    )
+
     async with httpx.AsyncClient(limits=limits) as client:
         await setup_test_devices(device_ids, client)
-        
+
         tasks: List[asyncio.Task] = []
         for device_id in device_ids:
             task = asyncio.create_task(simulate_device(device_id, client, semaphore))

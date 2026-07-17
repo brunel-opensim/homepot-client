@@ -12,6 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from homepot.app.api.API_v1.Api import api_v1_router
 from homepot.app.middleware.analytics import AnalyticsMiddleware
 from homepot.app.utils.limiter import limiter
+from homepot.client import HomepotClient
 from homepot.config import get_settings
 from homepot.database import get_database_service
 
@@ -94,6 +95,26 @@ def root() -> dict:
 async def initialize_database() -> None:
     """Initialize database schema when the API process starts."""
     await get_database_service()
+
+
+@app.on_event("startup")
+async def initialize_client() -> None:
+    """Connect the HOMEPOT client and wire it into the endpoints that need it.
+
+    Without this, ``/api/v1/health/health`` and the ``/api/v1/client/*``
+    endpoints (``Depends(get_client)``) always return 503 "Client not
+    available" because their module-level ``client_instance`` is never set.
+    """
+    from homepot.app.api.API_v1.Endpoints import ClientEndpoint, HealthEndpoint
+
+    client_instance = HomepotClient()
+    try:
+        await client_instance.connect()
+        HealthEndpoint.client_instance = client_instance
+        ClientEndpoint.client_instance = client_instance
+        logging.getLogger(__name__).info("HOMEPOT Client connected successfully")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to connect client on startup: {e}")
 
 
 # Incluse all routes from API v1

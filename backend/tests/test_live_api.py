@@ -263,6 +263,16 @@ class TestLiveAPI:
 class TestSystemValidation:
     """High-level system validation tests."""
 
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Verify system is running before each test."""
+        try:
+            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+            if response.status_code != 200:
+                pytest.skip("HOMEPOT system is not running or not healthy")
+        except requests.exceptions.RequestException:
+            pytest.skip("HOMEPOT system is not accessible at http://localhost:8000")
+
     def test_complete_system_validation(self):
         """Comprehensive validation of the four-phase system."""
         print("\nHOMEPOT Four-Phase System Validation")
