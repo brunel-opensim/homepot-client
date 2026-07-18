@@ -315,6 +315,16 @@ class TestPerformance:
 class TestScalability:
     """Tests for system scalability characteristics."""
 
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Verify system is running before each test."""
+        try:
+            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+            if response.status_code != 200:
+                pytest.skip("HOMEPOT system is not running")
+        except requests.exceptions.RequestException:
+            pytest.skip("HOMEPOT system is not accessible")
+
     @pytest.mark.performance
     def test_agent_scaling(self):
         """Test system behavior with many agents."""

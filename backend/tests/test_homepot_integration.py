@@ -597,7 +597,9 @@ class TestAPIDocumentation:
         # Verify key endpoints are documented
         paths = schema["paths"]
         assert "/api/v1/health/health" in paths
-        assert "/api/v1/sites" in paths
+        # Registered with a trailing slash (matches frontend's
+        # `apiClient.get('/sites/')` in frontend/src/services/api.js).
+        assert "/api/v1/sites/" in paths
         assert "/api/v1/agents" in paths
         assert "/api/v1/audit/events" in paths
 

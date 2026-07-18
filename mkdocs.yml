@@ -133,6 +133,7 @@ nav:
           - Roadmap: ai-roadmap.md
           - Implementation: ai-implementation.md
           - Context Builder: ai-context-builder.md
+          - Trust & Validation Gates: ai-validation-gates.md
           - Anomaly Detection: anomaly-detection.md
           - Memory Inspection: ai-memory-inspection.md
       - Audit System: audit-compliance.md
