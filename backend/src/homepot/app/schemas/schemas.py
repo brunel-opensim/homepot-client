@@ -285,6 +285,82 @@ class HealthCheckRequest(BaseModel):
     )
 
 
+# ==================== Tenant & Membership Schemas ====================
+
+
+class TenantCreate(BaseModel):
+    """Schema for creating a new tenant."""
+
+    name: str
+    slug: str
+    settings: Optional[Dict[str, Any]] = None
+
+
+class TenantUpdate(BaseModel):
+    """Schema for updating a tenant."""
+
+    name: Optional[str] = None
+    settings: Optional[Dict[str, Any]] = None
+
+
+class TenantOut(BaseModel):
+    """Schema for tenant output (response)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    slug: str
+    settings: Optional[Dict[str, Any]] = None
+    is_active: bool
+    created_at: Any
+    updated_at: Any
+
+
+class TenantMembershipCreate(BaseModel):
+    """Schema for adding a user to a tenant."""
+
+    user_id: int
+    role: str = "member"  # admin, operator, installer, member
+
+
+class TenantMembershipOut(BaseModel):
+    """Schema for tenant membership output."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    tenant_id: int
+    role: str
+    created_at: Any
+
+
+class SiteMembershipCreate(BaseModel):
+    """Schema for adding a user to a site."""
+
+    user_id: int
+    role: str = "viewer"  # admin, operator, installer, viewer
+
+
+class SiteMembershipOut(BaseModel):
+    """Schema for site membership output."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    site_id: int
+    role: str
+    created_at: Any
+
+
+class UserOutWithTenant(UserOut):
+    """Extended user output with tenant info."""
+
+    tenant_id: Optional[int] = None
+
+
 # Alias for backward compatibility
 DeviceHealthCheckRequest = HealthCheckRequest
 AppMetrics = ApplicationMetrics

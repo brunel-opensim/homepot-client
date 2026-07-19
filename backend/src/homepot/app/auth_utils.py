@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request, status
@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from homepot.app.schemas.schemas import UserDict
 from homepot.database import get_db
-from homepot.models import Device, User
+from homepot.models import Device, SiteMembership, Tenant, TenantMembership, User
 
 # Ensure environment variables are loaded
 # load_dotenv()
@@ -328,6 +328,9 @@ def get_or_create_google_user(db: Session, idinfo: dict) -> User:
     user = db.query(User).filter(User.email == user_email).first()
 
     if not user:
+        # Assign to default tenant
+        default_tenant = db.query(Tenant).filter(Tenant.slug == "default").first()
+
         # Create new user
         user = User(
             email=user_email,
@@ -336,6 +339,7 @@ def get_or_create_google_user(db: Session, idinfo: dict) -> User:
             hashed_password=hash_password(os.urandom(24).hex()),
             is_admin=False,
             role="Client",
+            tenant_id=default_tenant.id if default_tenant else None,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -345,3 +349,158 @@ def get_or_create_google_user(db: Session, idinfo: dict) -> User:
         logger.info(f"New user created via Google SSO: {user_email}")
 
     return cast(User, user)
+
+
+# ---- Tenant & Site Authorization Guards ----
+
+
+def require_tenant_role(required_role: str) -> Any:
+    """Dependency to require a specific role within a user's primary tenant."""
+
+    def role_checker(
+        user_token: TokenData = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> Dict[str, Any]:
+        db_user = cast(
+            User, db.query(User).filter(User.email == user_token.email).first()
+        )
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User not found",
+            )
+
+        if db_user.is_admin:
+            return {
+                "email": cast(str, db_user.email),
+                "role": "Admin",
+                "user_id": cast(int, db_user.id),
+            }
+
+        if not db_user.tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not associated with any tenant",
+            )
+
+        membership = cast(
+            TenantMembership,
+            db.query(TenantMembership)
+            .filter(
+                TenantMembership.user_id == db_user.id,
+                TenantMembership.tenant_id == db_user.tenant_id,
+                TenantMembership.role == required_role,
+            )
+            .first(),
+        )
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires {required_role} role in tenant",
+            )
+
+        return {
+            "email": cast(str, db_user.email),
+            "role": cast(str, membership.role),
+            "user_id": cast(int, db_user.id),
+        }
+
+    return role_checker
+
+
+def require_site_access(site_id: int, minimum_role: str = "viewer") -> Any:
+    """Dependency to verify a user has at least the minimum role on a site.
+
+    Admins bypass this check. Role hierarchy: admin > operator > installer > viewer.
+    """
+    _ROLE_HIERARCHY: dict[str, int] = {
+        "admin": 4,
+        "operator": 3,
+        "installer": 2,
+        "viewer": 1,
+    }
+
+    def access_checker(
+        user_token: TokenData = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> Dict[str, Any]:
+        db_user = cast(
+            User, db.query(User).filter(User.email == user_token.email).first()
+        )
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User not found",
+            )
+
+        if db_user.is_admin:
+            return {
+                "email": cast(str, db_user.email),
+                "role": "Admin",
+                "user_id": cast(int, db_user.id),
+            }
+
+        min_level = _ROLE_HIERARCHY.get(minimum_role, 1)
+
+        if db_user.tenant_id:
+            tenant_membership = cast(
+                TenantMembership,
+                db.query(TenantMembership)
+                .filter(
+                    TenantMembership.user_id == db_user.id,
+                    TenantMembership.tenant_id == db_user.tenant_id,
+                )
+                .first(),
+            )
+            if tenant_membership:
+                tenant_level = _ROLE_HIERARCHY.get(cast(str, tenant_membership.role), 0)
+                if tenant_level >= min_level:
+                    return {
+                        "email": cast(str, db_user.email),
+                        "role": cast(str, tenant_membership.role),
+                        "user_id": cast(int, db_user.id),
+                    }
+
+        membership = cast(
+            SiteMembership,
+            db.query(SiteMembership)
+            .filter(
+                SiteMembership.user_id == db_user.id,
+                SiteMembership.site_id == site_id,
+            )
+            .first(),
+        )
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User does not have access to this site",
+            )
+
+        user_level = _ROLE_HIERARCHY.get(cast(str, membership.role), 0)
+        if user_level < min_level:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires at least '{minimum_role}' role on this site",
+            )
+
+        return {
+            "email": cast(str, db_user.email),
+            "role": cast(str, membership.role),
+            "user_id": cast(int, db_user.id),
+        }
+
+    return access_checker
+
+
+def get_current_user_id(
+    user_token: TokenData = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> int:
+    """Get the database user ID from the current authenticated user."""
+    db_user = cast(User, db.query(User).filter(User.email == user_token.email).first())
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    return cast(int, db_user.id)

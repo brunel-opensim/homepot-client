@@ -5,11 +5,13 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
 
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
 from homepot.error_logger import log_error
+from homepot.models import Device, Site
 
 client_instance: Optional[HomepotClient] = None
 
@@ -67,7 +69,9 @@ def get_client() -> HomepotClient:
 
 
 @router.post("/", tags=["Sites"], response_model=Dict[str, str])
-async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
+async def create_site(
+    site_request: CreateSiteRequest,
+) -> Dict[str, str]:
     """Create a new site for device management."""
     try:
         db_service = await get_database_service()
@@ -136,17 +140,9 @@ async def list_sites() -> Dict[str, List[Dict]]:
     try:
         db_service = await get_database_service()
 
-        # For demo, we'll create a simple query (in real app, add pagination)
-        from sqlalchemy import select
-
-        from homepot.models import Device, Site
-
         async with db_service.get_session() as session:
-            result = await session.execute(
-                select(Site)
-                .where(Site.is_active.is_(True))
-                .order_by(Site.created_at.desc())
-            )
+            query = select(Site).where(Site.is_active.is_(True))
+            result = await session.execute(query.order_by(Site.created_at.desc()))
             sites = result.scalars().all()
 
             site_list = []

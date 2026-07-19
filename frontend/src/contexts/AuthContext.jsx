@@ -40,6 +40,7 @@ export function AuthProvider({ children }) {
           isAdmin: resp.data.is_admin,
           fullName: resp.data.full_name,
           role: role,
+          tenantId: resp.data.tenant_id,
         });
         setIsAuthenticated(true);
       } else {
@@ -97,6 +98,7 @@ export function AuthProvider({ children }) {
           isAdmin: resp.data.is_admin,
           fullName: resp.data.full_name,
           role: role,
+          tenantId: resp.data.tenant_id,
         };
         setUser(userData);
         setIsAuthenticated(true);
