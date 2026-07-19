@@ -159,12 +159,12 @@ async def test_lifecycle_get_device_status_returns_three_dimensions(
     from datetime import datetime, timezone
 
     from homepot.app.services.agent_service import AgentService
-    from homepot.database import SessionLocal
 
+    get_test_db = temp_db
     unique_suffix = str(uuid.uuid4())[:8]
     device_id = f"test-dev-status-{unique_suffix}"
 
-    sync_db = SessionLocal()
+    sync_db = get_test_db()
     try:
         site = Site(
             site_id=f"test-site-status-{unique_suffix}",

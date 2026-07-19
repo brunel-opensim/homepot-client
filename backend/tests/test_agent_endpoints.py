@@ -14,7 +14,7 @@ from homepot.app.auth_utils import hash_password
 from homepot.app.models.AnalyticsModel import DeviceMetrics
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, Device, Site
+from homepot.models import Base, Device, LifecycleState, Site
 
 
 @pytest.fixture(autouse=True)
@@ -78,6 +78,7 @@ def _create_device(device_id: str, site_pk: int, api_key: str = "test-api-key") 
             site_id=site_pk,
             api_key_hash=hash_password(api_key),
             is_active=True,
+            lifecycle_state=LifecycleState.ACTIVE.value,
         )
         db.add(device)
         db.commit()
@@ -246,7 +247,7 @@ def test_status_returns_online_when_recent_heartbeat_exists(client: TestClient):
 
     status_response = client.get("/api/v1/agent/status-device-1/status")
     assert status_response.status_code == 200
-    assert status_response.json()["data"]["status"] == "ONLINE"
+    assert status_response.json()["data"]["connectivity_state"] == "online"
 
 
 def test_agent_telemetry_requires_matching_device_credentials(client: TestClient):
