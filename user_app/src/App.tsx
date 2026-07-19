@@ -3,10 +3,12 @@ import SetupWizard from './views/SetupWizard'
 import HomeDashboard from './views/HomeDashboard'
 import Permissions from './views/Permissions'
 import DeviceInfo from './views/DeviceInfo'
+import ClaimDevice from './views/ClaimDevice'
 
 function AppContent() {
   const { currentView } = useApp()
 
+  if (currentView === 'claim') return <ClaimDevice />
   if (currentView === 'setup') return <SetupWizard />
   if (currentView === 'home') return <HomeDashboard />
   if (currentView === 'permissions') return <Permissions />

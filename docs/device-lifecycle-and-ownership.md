@@ -297,5 +297,22 @@ Knowing a Site ID must not be sufficient to enrol or administer a device.
 - Device credentials only operate on that same device.
 - Unauthenticated provisioning and unpairing are rejected.
 
+PR 5: Implement pre-provisioned claiming
+**Dashboard:**
+- Administrator creates a pending device/enrolment intent.
+- Display claim status and expiry.
+- Allow token revocation and regeneration.
+**User App:**
+- Accept the claim token.
+- Present stable device evidence.
+- Securely receive and store credentials.
+Backend:
+- Validate token hash, scope, expiry, and unused state.
+- Consume the token atomically.
+- Create the lifecycle epoch.
+- Issue the API key only once.
+- Reject duplicate and concurrent claims.
+
+
 
 

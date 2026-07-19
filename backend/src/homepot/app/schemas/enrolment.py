@@ -42,8 +42,8 @@ class EnrolmentIntentApprove(BaseModel):
 
     status: str = Field(
         ...,
-        pattern="^(approved|rejected)$",
-        description="New status: approved or rejected",
+        pattern="^(approved|rejected|revoked)$",
+        description="New status: approved, rejected, or revoked",
     )
 
 
@@ -56,6 +56,9 @@ class EnrolmentIntentClaim(BaseModel):
     os_details: Optional[str] = Field(
         None, description="Operating system info reported by the device"
     )
+    expected_device_identity: Optional[str] = Field(
+        None, description="Stable device evidence (e.g. serial number, hardware ID)"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -64,6 +67,7 @@ class EnrolmentIntentClaim(BaseModel):
                 "device_name": "Kitchen POS A",
                 "device_type": "pos_terminal",
                 "os_details": "Android 13",
+                "expected_device_identity": "SN-12345",
             }
         }
     )
@@ -103,3 +107,4 @@ class EnrolmentIntentClaimResponse(BaseModel):
     device_id: str
     api_key: str
     site_id: str
+    epoch_id: str

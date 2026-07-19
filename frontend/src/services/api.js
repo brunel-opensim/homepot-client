@@ -614,6 +614,49 @@ const api = {
     },
   },
 
+  // ==================== Enrolment Intents ====================
+  enrolmentIntents: {
+    create: async (siteId, payload) => {
+      const response = await apiClient.post(
+        `/sites/${siteId}/enrolment-intents`,
+        payload
+      );
+      return response.data;
+    },
+
+    list: async (siteId, status = null, limit = 50, offset = 0) => {
+      const params = { limit, offset };
+      if (status) params.status = status;
+      const response = await apiClient.get(
+        `/sites/${siteId}/enrolment-intents`,
+        { params }
+      );
+      return response.data;
+    },
+
+    get: async (siteId, intentId) => {
+      const response = await apiClient.get(
+        `/sites/${siteId}/enrolment-intents/${intentId}`
+      );
+      return response.data;
+    },
+
+    updateStatus: async (siteId, intentId, payload) => {
+      const response = await apiClient.put(
+        `/sites/${siteId}/enrolment-intents/${intentId}`,
+        payload
+      );
+      return response.data;
+    },
+
+    regenerateToken: async (siteId, intentId) => {
+      const response = await apiClient.post(
+        `/sites/${siteId}/enrolment-intents/${intentId}/regenerate-token`
+      );
+      return response.data;
+    },
+  },
+
   ai: {
     /**
      * Query the AI with a natural language question

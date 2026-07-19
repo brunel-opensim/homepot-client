@@ -127,6 +127,7 @@ class EnrolmentIntentStatus(str, Enum):
     REJECTED = "rejected"
     CONSUMED = "consumed"
     EXPIRED = "expired"
+    REVOKED = "revoked"
 
 
 class CommandStatus(str, Enum):
@@ -280,6 +281,37 @@ class EnrolmentIntent(Base):
     creator = relationship("User", foreign_keys=[creator_id])
 
 
+class LifecycleEpoch(Base):
+    """A lifecycle epoch tracks a period in a device's operational life.
+
+    An epoch begins when a device is claimed (pre-provisioned flow) and
+    ends when the device is unpaired or retired.  Each claim creates a
+    new epoch; subsequent state transitions (active, suspended, etc.)
+    update the current epoch without ending it.
+    """
+
+    __tablename__ = "lifecycle_epochs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    epoch_id = Column(String(36), unique=True, index=True, nullable=False)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False, index=True)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    claimed_at = Column(DateTime(timezone=True), nullable=False)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    claim_token_hash = Column(String(255), nullable=True)
+    enrolment_method = Column(String(50), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    device = relationship(
+        "Device",
+        foreign_keys=[device_id],
+        back_populates="lifecycle_epochs",
+    )
+
+
 class Device(Base):
     """Device model representing end-points and OT devices."""
 
@@ -297,6 +329,11 @@ class Device(Base):
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
     enrollment_method = Column(String(50), nullable=True)  # EnrollmentMethod enum
     enrollment_token = Column(String(255), nullable=True)
+
+    # Current lifecycle epoch (set at claim time)
+    lifecycle_epoch_id = Column(
+        Integer, ForeignKey("lifecycle_epochs.id"), nullable=True
+    )
 
     # Device specifications
     ip_address = Column(String(45), nullable=True)  # IPv4/IPv6
@@ -406,6 +443,14 @@ class Device(Base):
 
     state_history = relationship(
         "DeviceStateHistory",
+        back_populates="device",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
+
+    lifecycle_epochs = relationship(
+        "LifecycleEpoch",
+        foreign_keys="LifecycleEpoch.device_id",
         back_populates="device",
         lazy="select",
         cascade="all, delete-orphan",

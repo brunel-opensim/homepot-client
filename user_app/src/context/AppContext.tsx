@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 
-type View = 'setup' | 'home' | 'permissions' | 'settings'
+type View = 'setup' | 'home' | 'permissions' | 'settings' | 'claim'
 
 interface DeviceInfo {
   deviceId: string
