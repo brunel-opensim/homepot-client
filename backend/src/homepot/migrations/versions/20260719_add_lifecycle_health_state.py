@@ -38,9 +38,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute(
-        "UPDATE devices SET health_state = 'unknown' WHERE health_state IS NULL"
-    )
+    op.execute("UPDATE devices SET health_state = 'unknown' WHERE health_state IS NULL")
 
     op.alter_column("devices", "lifecycle_state", nullable=False)
 

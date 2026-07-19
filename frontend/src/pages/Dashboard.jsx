@@ -144,7 +144,8 @@ export default function Dashboard() {
             itemAlerts = anomalies.filter((a) => siteDeviceIds.has(a.device_id));
           } else {
             // Single Device
-            onlineCount = item.connectivity_state && item.connectivity_state.toLowerCase() === 'online' ? 1 : 0;
+            onlineCount =
+              item.connectivity_state && item.connectivity_state.toLowerCase() === 'online' ? 1 : 0;
 
             // Identify OS by name/description for single device
             const normalizedName = (

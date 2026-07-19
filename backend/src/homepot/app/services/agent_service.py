@@ -39,7 +39,8 @@ class AgentService:
             if device:
                 if device.lifecycle_state == LifecycleState.PENDING.value:
                     self.lifecycle.transition(
-                        device, LifecycleState.ACTIVE,
+                        device,
+                        LifecycleState.ACTIVE,
                         changed_by=f"device:{payload.device_id}",
                         reason="Device registration completed",
                     )
@@ -267,16 +268,19 @@ class AgentService:
                     heartbeat_utc = heartbeat_utc.replace(tzinfo=timezone.utc)
                 current_time = _utc_now()
                 is_online = (current_time - heartbeat_utc) <= timedelta(minutes=2)
-                connectivity = ConnectivityState.ONLINE.value if is_online else ConnectivityState.OFFLINE.value
+                connectivity = (
+                    ConnectivityState.ONLINE.value
+                    if is_online
+                    else ConnectivityState.OFFLINE.value
+                )
 
             return {
                 "device_id": device.device_id,
-                "lifecycle_state": device.lifecycle_state or LifecycleState.PENDING.value,
+                "lifecycle_state": device.lifecycle_state
+                or LifecycleState.PENDING.value,
                 "connectivity_state": connectivity,
                 "health_state": device.health_state or HealthState.UNKNOWN.value,
-                "last_heartbeat_at": (
-                    heartbeat_utc.isoformat() if heartbeat else None
-                ),
+                "last_heartbeat_at": (heartbeat_utc.isoformat() if heartbeat else None),
             }
 
         except LookupError:
