@@ -17,6 +17,7 @@ from .Endpoints import (
     DeviceProvisionEndpoint,
     DevicesEndpoints,
     DeviceSimulatorEndpoint,
+    EnrolmentIntentsEndpoint,
     HealthEndpoint,
     JobsEndpoints,
     PushNotificationEndpoint,
@@ -111,6 +112,9 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(
     DeviceProvisionEndpoint.router, prefix="/devices", tags=["Devices"]
+)
+api_v1_router.include_router(
+    EnrolmentIntentsEndpoint.router, tags=["Enrolment Intents"]
 )
 
 # JobsEndpoints routes are already self-prefixed (e.g. "/sites/{site_id}/jobs").

@@ -119,6 +119,16 @@ class EnrollmentMethod(str, Enum):
     SELF_ENROLLED = "self-enrolled"
 
 
+class EnrolmentIntentStatus(str, Enum):
+    """Status of an enrolment intent."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CONSUMED = "consumed"
+    EXPIRED = "expired"
+
+
 class CommandStatus(str, Enum):
     """Command status enumeration."""
 
@@ -145,6 +155,11 @@ class Tenant(Base):
     # Relationships
     sites = relationship("Site", back_populates="tenant")
     memberships = relationship("TenantMembership", back_populates="tenant")
+    enrolment_intents = relationship(
+        "EnrolmentIntent",
+        back_populates="tenant",
+        foreign_keys="EnrolmentIntent.tenant_id",
+    )
 
 
 class TenantMembership(Base):
@@ -204,6 +219,11 @@ class User(Base):
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     tenant_memberships = relationship("TenantMembership", back_populates="user")
     site_memberships = relationship("SiteMembership", back_populates="user")
+    enrolment_intents = relationship(
+        "EnrolmentIntent",
+        back_populates="creator",
+        foreign_keys="EnrolmentIntent.creator_id",
+    )
 
 
 class Site(Base):
@@ -231,6 +251,33 @@ class Site(Base):
     devices = relationship("Device", back_populates="site")
     jobs = relationship("Job", back_populates="site")
     memberships = relationship("SiteMembership", back_populates="site")
+    enrolment_intents = relationship("EnrolmentIntent", back_populates="site")
+
+
+class EnrolmentIntent(Base):
+    """A durable enrolment-intent record representing a pending device enrolment."""
+
+    __tablename__ = "enrolment_intents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    intent_id = Column(String(36), unique=True, index=True, nullable=False)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    enrolment_method = Column(String(50), nullable=False)  # EnrollmentMethod enum
+    expected_device_identity = Column(String(100), nullable=True)
+    claim_token_hash = Column(String(255), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(20), default=EnrolmentIntentStatus.PENDING, nullable=False)
+    idempotency_key = Column(String(100), unique=True, index=True, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    site = relationship("Site", back_populates="enrolment_intents")
+    tenant = relationship("Tenant")
+    creator = relationship("User", foreign_keys=[creator_id])
 
 
 class Device(Base):
