@@ -1,13 +1,19 @@
 """API endpoints for managing device commands."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.orm import Session as SASession
 
-from homepot.app.auth_utils import get_current_device
-from homepot.database import get_database_service
-from homepot.models import CommandStatus, Device
+from homepot.app.auth_utils import (
+    UserDict,
+    get_current_device,
+    require_user,
+    verify_device_belongs_to_user,
+)
+from homepot.database import get_database_service, get_db
+from homepot.models import CommandStatus, Device, User
 
 router = APIRouter()
 
@@ -38,20 +44,31 @@ class CommandResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# 1. Queue Command (Admin/UI only - for now open)
+# 1. Queue Command (Requires user with operator access to the device's site)
 @router.post(
     "/{device_id}/commands",
     response_model=CommandResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def queue_command(
-    device_id: str, request: CreateCommandRequest
+    device_id: str,
+    request: CreateCommandRequest,
+    sync_db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> CommandResponse:
-    """Queue a command for a specific device (by device_id string)."""
+    """Queue a command for a specific device (by device_id string).
+
+    Requires operator-level access on the device's site.
+    """
+    db_user = cast(
+        User, sync_db.query(User).filter(User.email == current_user["email"]).first()
+    )
     db = await get_database_service()
     device = await db.get_device_by_device_id(device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
 
     command = await db.create_device_command(
         device_id=device.id,  # type: ignore

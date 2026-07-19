@@ -273,3 +273,29 @@ PR 1: Separate lifecycle, connectivity, and health
 - Allowed and rejected transition tests.
 - Dashboard/API representation tests.
 This should be the first code PR because every later security and real-device flow depends on these meanings.
+
+PR 2: Introduce tenant and site membership
+**Backend:**
+- Add Tenant or Organisation.
+- Assign every site to one tenant.
+- Add user-to-tenant/site membership and roles.
+- Migrate existing sites into a default tenant.
+- Define permissions for administrators, operators, installers, and devices.
+
+PR 3: Enforce ownership at API boundaries
+**Secure:**
+- device creation and listing;
+- device update and unpairing;
+- provisioning;
+- command creation;
+- site statistics;
+- telemetry and configuration access.
+Knowing a Site ID must not be sufficient to enrol or administer a device.
+**Important acceptance tests:**
+- User from tenant A cannot view or modify tenant B.
+- Site operator cannot act outside assigned sites.
+- Device credentials only operate on that same device.
+- Unauthenticated provisioning and unpairing are rejected.
+
+
+

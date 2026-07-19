@@ -1,40 +1,98 @@
 """Tests for site delete."""
 
-from typing import Any
-import uuid
+import asyncio
+from datetime import datetime, timezone
+import os
+import tempfile
+from typing import Any, Generator
 
+from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from homepot.models import Device, DeviceStatus, Site
+from homepot.app.auth_utils import create_access_token, hash_password
+from homepot.app.main import app
+from homepot.config import reload_settings
+import homepot.database
+from homepot.models import Base, Device, DeviceStatus, Site, User
 
 
-@pytest.mark.asyncio
-async def test_api_site_delete(temp_db: Any) -> None:
-    """Test backend site cascade deletion logic."""
-    from homepot.database import get_database_service
+@pytest.fixture
+def file_db(monkeypatch: Any) -> Generator[None, None, None]:
+    """Use a temp file-based SQLite DB so sync+async engines share data."""
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    db_url = f"sqlite:///{path}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setenv("DATABASE__URL", db_url)
+    reload_settings()
 
-    db_service = await get_database_service()
+    if homepot.database._db_service is not None:
+        try:
+            asyncio.run(homepot.database._db_service.close())
+        except Exception:
+            pass
+        homepot.database._db_service = None
 
-    unique_suffix = str(uuid.uuid4())[:8]
-    site_id = f"test-site-deletion-{unique_suffix}"
+    new_engine = create_engine(
+        db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
+    )
+    Base.metadata.create_all(bind=new_engine)
+    new_session_local = sessionmaker(bind=new_engine, autocommit=False, autoflush=False)
 
-    async with db_service.get_session() as session:
-        site = Site(site_id=site_id, name="Test Company Delete", is_active=True)
-        session.add(site)
-        await session.commit()
-        await session.refresh(site)
+    monkeypatch.setattr(homepot.database, "sync_engine", new_engine)
+    monkeypatch.setattr(homepot.database, "SessionLocal", new_session_local)
+
+    yield
+
+    new_engine.dispose()
+    if os.path.exists(path):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def test_api_site_delete(file_db: Any) -> None:
+    """Test backend site cascade deletion logic via the API."""
+    sync_db = homepot.database.SessionLocal()
+    try:
+        site = Site(
+            site_id="test-site-delete", name="Test Company Delete", is_active=True
+        )
+        sync_db.add(site)
+        sync_db.commit()
+        sync_db.refresh(site)
 
         device = Device(
-            device_id=f"dev-delete-{unique_suffix}",
+            device_id="dev-delete-001",
             name="Test POS",
             device_type="pos_terminal",
             site_id=site.id,
             is_active=False,
             status=DeviceStatus.UNPAIRED,
         )
-        session.add(device)
-        await session.commit()
+        sync_db.add(device)
+        sync_db.commit()
 
-    from homepot.app.api.API_v1.Endpoints.SitesEndpoint import delete_site
+        admin = User(
+            email="admin@delete.test",
+            username="admin_delete",
+            hashed_password=hash_password("pass"),
+            is_admin=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        sync_db.add(admin)
+        sync_db.commit()
+    finally:
+        sync_db.close()
 
-    await delete_site(site_id)
+    token = create_access_token({"sub": "admin@delete.test"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client = TestClient(app)
+    response = client.delete("/api/v1/sites/test-site-delete", headers=headers)
+    assert response.status_code == 200
+    assert "deleted" in response.json()["message"].lower()
