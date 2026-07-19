@@ -22,6 +22,8 @@ from homepot.models import (
     Device,
     DeviceCommand,
     DeviceStatus,
+    EnrolmentIntent,
+    EnrolmentIntentStatus,
     HealthCheck,
     Job,
     JobStatus,
@@ -778,6 +780,108 @@ class DatabaseService:
             await session.commit()
             await session.refresh(audit_log)
             return audit_log
+
+    async def create_enrolment_intent(
+        self,
+        intent_id: str,
+        site_id: int,
+        tenant_id: Optional[int],
+        enrolment_method: str,
+        claim_token_hash: Optional[str],
+        expires_at: datetime.datetime,
+        creator_id: int,
+        idempotency_key: Optional[str] = None,
+        expected_device_identity: Optional[str] = None,
+    ) -> EnrolmentIntent:
+        """Create a new enrolment intent."""
+        async with self.get_session() as session:
+            intent = EnrolmentIntent(
+                intent_id=intent_id,
+                site_id=site_id,
+                tenant_id=tenant_id,
+                enrolment_method=enrolment_method,
+                expected_device_identity=expected_device_identity,
+                claim_token_hash=claim_token_hash,
+                expires_at=expires_at,
+                creator_id=creator_id,
+                status=EnrolmentIntentStatus.PENDING,
+                idempotency_key=idempotency_key,
+            )
+            session.add(intent)
+            await session.flush()
+            await session.refresh(intent)
+            return intent
+
+    async def get_enrolment_intent_by_id(
+        self, intent_id: str
+    ) -> Optional[EnrolmentIntent]:
+        """Get an enrolment intent by its public intent_id."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(EnrolmentIntent).where(EnrolmentIntent.intent_id == intent_id)
+            )
+            return result.scalar_one_or_none()
+
+    async def get_enrolment_intent_by_idempotency_key(
+        self, idempotency_key: str
+    ) -> Optional[EnrolmentIntent]:
+        """Get an enrolment intent by its idempotency key."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(EnrolmentIntent).where(
+                    EnrolmentIntent.idempotency_key == idempotency_key
+                )
+            )
+            return result.scalar_one_or_none()
+
+    async def get_enrolment_intents_by_site(
+        self,
+        site_id: int,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[EnrolmentIntent]:
+        """List enrolment intents for a site, optionally filtered by status."""
+        async with self.get_session() as session:
+            query = select(EnrolmentIntent).where(EnrolmentIntent.site_id == site_id)
+            if status:
+                query = query.where(EnrolmentIntent.status == status)
+            query = query.order_by(EnrolmentIntent.created_at.desc())
+            query = query.limit(limit).offset(offset)
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
+    async def update_enrolment_intent_status(
+        self,
+        intent_id: str,
+        status: EnrolmentIntentStatus,
+        consumed_at: Optional[datetime.datetime] = None,
+    ) -> Optional[EnrolmentIntent]:
+        """Update the status of an enrolment intent."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(EnrolmentIntent).where(EnrolmentIntent.intent_id == intent_id)
+            )
+            intent = result.scalar_one_or_none()
+            if not intent:
+                return None
+            intent.status = status.value  # type: ignore[assignment]
+            if consumed_at:
+                intent.consumed_at = consumed_at  # type: ignore[assignment]
+            await session.flush()
+            await session.refresh(intent)
+            return intent
+
+    async def count_enrolment_intents_by_site(
+        self, site_id: int, status: Optional[str] = None
+    ) -> int:
+        """Count enrolment intents for a site."""
+        async with self.get_session() as session:
+            query = select(EnrolmentIntent).where(EnrolmentIntent.site_id == site_id)
+            if status:
+                query = query.where(EnrolmentIntent.status == status)
+            result = await session.execute(query)
+            return len(list(result.scalars().all()))
 
 
 # Global database service instance
