@@ -19,12 +19,10 @@ from homepot.models import (
     AuditLog,
     Base,
     CommandStatus,
-    ConnectivityState,
     Device,
     DeviceCommand,
     DeviceStatus,
     HealthCheck,
-    HealthState,
     Job,
     JobStatus,
     LifecycleState,
@@ -460,9 +458,9 @@ class DatabaseService:
             if not device:
                 return False
 
-            device.lifecycle_state = LifecycleState.UNPAIRED.value
-            device.is_active = False
-            device.api_key_hash = None
+            device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
+            device.is_active = False  # type: ignore[assignment]
+            device.api_key_hash = None  # type: ignore[assignment]
 
             audit_log = AuditLog(
                 event_type="device_unpaired",

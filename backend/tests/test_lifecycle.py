@@ -8,7 +8,6 @@ from sqlalchemy import select
 
 from homepot.database import get_database_service
 from homepot.models import Device, LifecycleState, Site
-from homepot.app.services.lifecycle_service import LifecycleService
 
 
 @pytest.mark.asyncio
@@ -69,7 +68,7 @@ async def test_lifecycle_active_device_online_connectivity(temp_db: Any) -> None
         await session.commit()
 
         from homepot.app.services.lifecycle_service import LifecycleService
-        from homepot.database import get_db, SessionLocal
+        from homepot.database import SessionLocal
 
         sync_db = SessionLocal()
         try:
@@ -153,7 +152,9 @@ async def test_lifecycle_unpaired_device_not_in_active_list(temp_db: Any) -> Non
 
 
 @pytest.mark.asyncio
-async def test_lifecycle_get_device_status_returns_three_dimensions(temp_db: Any) -> None:
+async def test_lifecycle_get_device_status_returns_three_dimensions(
+    temp_db: Any,
+) -> None:
     """The agent status endpoint should return lifecycle, connectivity, and health."""
     from datetime import datetime, timezone
 
@@ -165,7 +166,11 @@ async def test_lifecycle_get_device_status_returns_three_dimensions(temp_db: Any
 
     sync_db = SessionLocal()
     try:
-        site = Site(site_id=f"test-site-status-{unique_suffix}", name="Test Site", is_active=True)
+        site = Site(
+            site_id=f"test-site-status-{unique_suffix}",
+            name="Test Site",
+            is_active=True,
+        )
         sync_db.add(site)
         sync_db.commit()
         sync_db.refresh(site)

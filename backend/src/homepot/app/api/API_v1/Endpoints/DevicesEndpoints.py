@@ -1,7 +1,7 @@
 """API endpoints for managing Device in the HomePot system."""
 
+from datetime import datetime, timezone
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -10,11 +10,17 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import joinedload
 
 from homepot.app.models import AnalyticsModel as analytics_models
-from homepot.app.services.lifecycle_service import LifecycleService
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
-from homepot.models import AuditLog, ConnectivityState, Device, HealthState, LifecycleState
+from homepot.models import (
+    AuditLog,
+    ConnectivityState,
+    Device,
+    HealthState,
+    Job,
+    LifecycleState,
+)
 
 client_instance: Optional[HomepotClient] = None
 
@@ -272,7 +278,8 @@ async def list_device() -> Dict[str, List[Dict]]:
                         "os_details": device.os_details,
                         "lifecycle_state": device.lifecycle_state,
                         "connectivity_state": _compute_connectivity(device),
-                        "health_state": device.health_state or HealthState.UNKNOWN.value,
+                        "health_state": device.health_state
+                        or HealthState.UNKNOWN.value,
                         "status": device.status,
                         "ip_address": device.ip_address,
                         "is_monitored": device.is_monitored,
@@ -519,7 +526,8 @@ async def get_devices_by_site(
                 "health_state": d.health_state or HealthState.UNKNOWN.value,
                 "pairing_status": (
                     "unpaired"
-                    if d.lifecycle_state in (LifecycleState.UNPAIRED.value, LifecycleState.RETIRED.value)
+                    if d.lifecycle_state
+                    in (LifecycleState.UNPAIRED.value, LifecycleState.RETIRED.value)
                     else "paired"
                 ),
                 "status": d.status,
