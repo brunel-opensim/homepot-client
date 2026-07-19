@@ -2,17 +2,24 @@
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc, func, select
+from sqlalchemy.orm import Session as SASession
 from sqlalchemy.orm import joinedload
 
+from homepot.app.auth_utils import (
+    UserDict,
+    require_user,
+    verify_device_belongs_to_user,
+    verify_site_access_for_user,
+)
 from homepot.app.models import AnalyticsModel as analytics_models
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
-from homepot.database import get_database_service
+from homepot.database import get_database_service, get_db
 from homepot.models import (
     AuditLog,
     ConnectivityState,
@@ -20,6 +27,8 @@ from homepot.models import (
     HealthState,
     Job,
     LifecycleState,
+    Site,
+    User,
 )
 
 client_instance: Optional[HomepotClient] = None
@@ -103,9 +112,23 @@ class UpdateDeviceRequest(BaseModel):
 
 
 @router.post("/device", tags=["Devices"])
-async def create_device(device_request: CreateDeviceRequest) -> Dict[str, Any]:
+async def create_device(
+    device_request: CreateDeviceRequest,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
     """Create a new device."""
     try:
+        # Verify user has access to the target site
+        verify_site_access_for_user(
+            cast(
+                User, db.query(User).filter(User.email == current_user["email"]).first()
+            ),
+            device_request.site_id,
+            db,
+            minimum_role="operator",
+        )
+
         db_service = await get_database_service()
 
         # Check if device already exists
@@ -171,10 +194,23 @@ async def create_device(device_request: CreateDeviceRequest) -> Dict[str, Any]:
 
 @router.post("/sites/{site_id}/devices", tags=["Devices"])
 async def register_device_to_site(
-    site_id: str, device_request: CreateDeviceRequest
+    site_id: str,
+    device_request: CreateDeviceRequest,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
     """Register a device to a specific site with enrollment logic."""
     try:
+        # Verify user has operator-level access to the site
+        verify_site_access_for_user(
+            cast(
+                User, db.query(User).filter(User.email == current_user["email"]).first()
+            ),
+            site_id,
+            db,
+            minimum_role="operator",
+        )
+
         db_service = await get_database_service()
 
         if site_id != device_request.site_id:
@@ -252,19 +288,52 @@ async def register_device_to_site(
 
 
 @router.get("/device", tags=["Devices"])
-async def list_device() -> Dict[str, List[Dict]]:
-    """List all devices."""
+async def list_device(
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, List[Dict]]:
+    """List all devices (scoped to user's accessible sites)."""
     try:
+        current_db_user = (
+            db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not current_db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_user: User = current_db_user  # type: ignore[assignment]
+
         db_service = await get_database_service()
 
-        # For demo, we'll create a simple query (in real app, add pagination)
         async with db_service.get_session() as session:
-            result = await session.execute(
+            query = (
                 select(Device)
                 .options(joinedload(Device.site))
                 .where(Device.is_active.is_(True))
-                .order_by(Device.created_at.desc())
             )
+
+            # Non-admin users only see devices in their accessible sites
+            if not db_user.is_admin:
+                site_ids = [row[0] for row in db.query(Site.id).all()]
+                accessible_site_ids = set()
+                for sid in site_ids:
+                    site_obj = db.query(Site).filter(Site.id == sid).first()
+                    if not site_obj:
+                        continue
+                    try:
+                        verify_site_access_for_user(
+                            db_user,
+                            cast(str, site_obj.site_id),
+                            db,
+                        )
+                        accessible_site_ids.add(sid)
+                    except HTTPException:
+                        pass
+                if accessible_site_ids:
+                    query = query.where(Device.site_id.in_(accessible_site_ids))
+                else:
+                    return {"devices": []}
+
+            query = query.order_by(Device.created_at.desc())
+            result = await session.execute(query)
             devices = result.scalars().all()
 
             device_list = []
@@ -299,7 +368,11 @@ async def list_device() -> Dict[str, List[Dict]]:
 
 
 @router.get("/device/{device_id}", tags=["Devices"])
-async def get_device(device_id: str) -> Dict[str, Any]:
+async def get_device(
+    device_id: str,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
     """Get a specific Device by device_id."""
     try:
         db_service = await get_database_service()
@@ -311,6 +384,12 @@ async def get_device(device_id: str) -> Dict[str, Any]:
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
+
+        # Verify user can access this device's site
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_device_belongs_to_user(db_user, device, db)
 
         return {
             "site_id": device.site.site_id,
@@ -346,11 +425,28 @@ async def get_device(device_id: str) -> Dict[str, Any]:
 
 @router.put("/device/{device_id}", tags=["Devices"])
 async def update_device(
-    device_id: str, device_request: UpdateDeviceRequest
+    device_id: str,
+    device_request: UpdateDeviceRequest,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
     """Update an existing device."""
     try:
+        current_db_user = (
+            db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not current_db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_user: User = current_db_user  # type: ignore[assignment]
         db_service = await get_database_service()
+
+        # Verify access to the device before updating
+        existing = await db_service.get_device_by_device_id(device_id)
+        if not existing:
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
+        verify_device_belongs_to_user(db_user, existing, db, minimum_role="operator")
 
         # Prepare config update
         config_update = {}
@@ -367,11 +463,8 @@ async def update_device(
             ip_address=device_request.ip_address,
             config=config_update if config_update else None,
         )
-
         if not updated_device:
-            raise HTTPException(
-                status_code=404, detail=f"Device '{device_id}' not found"
-            )
+            raise HTTPException(status_code=500, detail="Failed to update device")
 
         # Get site for audit logging (need integer ID)
         site_pk = int(updated_device.site_id)
@@ -406,10 +499,28 @@ async def update_device(
 
 
 @router.delete("/device/{device_id}", tags=["Devices"])
-async def delete_device(device_id: str) -> Dict[str, Any]:
-    """Unpair a device and archive its associated data."""
+async def delete_device(
+    device_id: str,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Unpair a device and archive its associated data.
+
+    Requires operator-level access on the device's site.
+    """
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
         db_service = await get_database_service()
+
+        # Verify access before unpairing — operator role required
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
         success = await db_service.delete_device(device_id)
 
@@ -428,14 +539,18 @@ async def delete_device(device_id: str) -> Dict[str, Any]:
 
 
 @router.put("/device/{device_id}/monitor", tags=["Devices"])
-async def toggle_device_monitor(device_id: str, monitor: bool) -> Dict[str, Any]:
+async def toggle_device_monitor(
+    device_id: str,
+    monitor: bool,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
     """Toggle the monitoring status of a device."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
         db_service = await get_database_service()
-
-        from sqlalchemy import select
-
-        from homepot.models import Device
 
         async with db_service.get_session() as session:
             result = await session.execute(
@@ -447,6 +562,9 @@ async def toggle_device_monitor(device_id: str, monitor: bool) -> Dict[str, Any]
                 raise HTTPException(
                     status_code=404, detail=f"Device '{device_id}' not found"
                 )
+
+            # Verify access before modifying
+            verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
             device.is_monitored = monitor  # type: ignore
             await session.commit()
@@ -466,7 +584,10 @@ async def toggle_device_monitor(device_id: str, monitor: bool) -> Dict[str, Any]
 
 @router.get("/sites/{site_id}/devices", tags=["Devices"])
 async def get_devices_by_site(
-    site_id: str, include_unpaired: bool = False
+    site_id: str,
+    include_unpaired: bool = False,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> List[Dict[str, Any]]:
     """Get all devices for a specific site.
 
@@ -478,9 +599,15 @@ async def get_devices_by_site(
         List of devices belonging to the site
 
     Raises:
-        HTTPException: 404 if site not found
+        HTTPException: 404 if site not found, 403 if no access
     """
     try:
+        # Verify user can access this site
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_site_access_for_user(db_user, site_id, db)
+
         db_service = await get_database_service()
 
         # Verify site exists
@@ -552,9 +679,17 @@ async def get_devices_by_site(
 
 
 @router.get("/device/{device_id}/metrics", tags=["Devices"])
-async def get_device_metrics(device_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+async def get_device_metrics(
+    device_id: str,
+    limit: int = 100,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> List[Dict[str, Any]]:
     """Get performance metrics for a specific device."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             # First find the device PK
@@ -564,6 +699,7 @@ async def get_device_metrics(device_id: str, limit: int = 100) -> List[Dict[str,
             device = result.scalars().first()
             if not device:
                 raise HTTPException(status_code=404, detail="Device not found")
+            verify_device_belongs_to_user(db_user, device, db)
 
             # Fetch metrics
             metrics_result = await session.execute(
@@ -596,10 +732,16 @@ async def get_device_metrics(device_id: str, limit: int = 100) -> List[Dict[str,
 
 @router.get("/device/{device_id}/audit-logs", tags=["Devices"])
 async def get_device_audit_logs(
-    device_id: str, limit: int = 50
+    device_id: str,
+    limit: int = 50,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> List[Dict[str, Any]]:
     """Get audit logs for a specific device."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             # Find device PK
@@ -609,6 +751,7 @@ async def get_device_audit_logs(
             device = result.scalars().first()
             if not device:
                 raise HTTPException(status_code=404, detail="Device not found")
+            verify_device_belongs_to_user(db_user, device, db)
 
             # Fetch logs
             logs_result = await session.execute(
@@ -635,9 +778,17 @@ async def get_device_audit_logs(
 
 
 @router.get("/device/{device_id}/jobs", tags=["Devices"])
-async def get_device_jobs(device_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+async def get_device_jobs(
+    device_id: str,
+    limit: int = 50,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> List[Dict[str, Any]]:
     """Get job history for a specific device."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             result = await session.execute(
@@ -646,6 +797,7 @@ async def get_device_jobs(device_id: str, limit: int = 50) -> List[Dict[str, Any
             device = result.scalars().first()
             if not device:
                 raise HTTPException(status_code=404, detail="Device not found")
+            verify_device_belongs_to_user(db_user, device, db)
 
             jobs_result = await session.execute(
                 select(Job)
@@ -678,20 +830,38 @@ async def get_device_jobs(device_id: str, limit: int = 50) -> List[Dict[str, Any
 
 @router.get("/device/{device_id}/error-logs", tags=["Devices"])
 async def get_device_error_logs(
-    device_id: str, limit: int = 50
+    device_id: str,
+    limit: int = 50,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> List[Dict[str, Any]]:
     """Get error logs for a specific device."""
     try:
-        from sqlalchemy import String, cast
+        from sqlalchemy import String as SA_String
+        from sqlalchemy import cast as sa_cast
 
+        db_user_opt = cast(
+            "User", db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not db_user_opt:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_user: User = db_user_opt  # type: ignore[assignment]
         db_service = await get_database_service()
         async with db_service.get_session() as session:
+            dev_result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            dev = dev_result.scalars().first()
+            if dev:
+                verify_device_belongs_to_user(db_user, dev, db)
+
             # Query using the context JSON column since device_id column was removed
             errors_result = await session.execute(
                 select(analytics_models.ErrorLog)
                 .where(
-                    cast(
-                        analytics_models.ErrorLog.context["original_device_id"], String
+                    sa_cast(
+                        analytics_models.ErrorLog.context["original_device_id"],
+                        SA_String,
                     )
                     == f'"{device_id}"'
                 )
@@ -704,9 +874,9 @@ async def get_device_error_logs(
                 errors_result = await session.execute(
                     select(analytics_models.ErrorLog)
                     .where(
-                        cast(
+                        sa_cast(
                             analytics_models.ErrorLog.context["original_device_id"],
-                            String,
+                            SA_String,
                         )
                         == device_id
                     )
@@ -770,18 +940,31 @@ async def get_device_push_logs(device_id: str, limit: int = 50) -> List[Dict[str
 
 
 @router.get("/device/{device_id}/alerts", tags=["Devices"])
-async def get_device_alerts(device_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+async def get_device_alerts(
+    device_id: str,
+    limit: int = 5,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> List[Dict[str, Any]]:
     """Get active and recent alerts for a specific device."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
         db_service = await get_database_service()
         async with db_service.get_session() as session:
-            # Query active alerts first, then history
-            # For simplicity, we just fetch by device_id matching both status
+            dev_result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            dev = dev_result.scalars().first()
+            if not dev:
+                raise HTTPException(status_code=404, detail="Device not found")
+            verify_device_belongs_to_user(db_user, dev, db)
+
             alerts_result = await session.execute(
                 select(analytics_models.Alert)
                 .where(analytics_models.Alert.device_id == device_id)
                 .order_by(
-                    # Prioritize active alerts, then by time
                     desc(analytics_models.Alert.status == "active"),
                     desc(analytics_models.Alert.timestamp),
                 )
@@ -807,6 +990,8 @@ async def get_device_alerts(device_id: str, limit: int = 5) -> List[Dict[str, An
                 }
                 for a in alerts
             ]
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get alerts for {device_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")

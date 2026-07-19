@@ -1,17 +1,23 @@
 """API endpoints for managing sites in the HomePot system."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
+from sqlalchemy.orm import Session as SASession
 
+from homepot.app.auth_utils import (
+    UserDict,
+    require_user,
+    verify_site_access_for_user,
+)
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
-from homepot.database import get_database_service
+from homepot.database import get_database_service, get_db
 from homepot.error_logger import log_error
-from homepot.models import Device, Site
+from homepot.models import Device, Site, User
 
 client_instance: Optional[HomepotClient] = None
 
@@ -71,6 +77,7 @@ def get_client() -> HomepotClient:
 @router.post("/", tags=["Sites"], response_model=Dict[str, str])
 async def create_site(
     site_request: CreateSiteRequest,
+    current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, str]:
     """Create a new site for device management."""
     try:
@@ -135,13 +142,37 @@ async def create_site(
 
 
 @router.get("/", tags=["Sites"])
-async def list_sites() -> Dict[str, List[Dict]]:
-    """List all sites."""
+async def list_sites(
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, List[Dict]]:
+    """List all sites (scoped to user's accessible sites)."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:
             query = select(Site).where(Site.is_active.is_(True))
+
+            # Non-admin users only see sites they can access
+            if not db_user.is_admin:
+                all_sites = (await session.execute(select(Site))).scalars().all()
+                accessible_site_ids = []
+                for s in all_sites:
+                    try:
+                        site_id = cast(str, s.site_id)
+                        verify_site_access_for_user(db_user, site_id, db)
+                        accessible_site_ids.append(s.id)
+                    except HTTPException:
+                        pass
+                if accessible_site_ids:
+                    query = query.where(Site.id.in_(accessible_site_ids))
+                else:
+                    return {"sites": []}
+
             result = await session.execute(query.order_by(Site.created_at.desc()))
             sites = result.scalars().all()
 
@@ -237,9 +268,19 @@ async def list_sites() -> Dict[str, List[Dict]]:
 
 
 @router.get("/{site_id}", tags=["Sites"])
-async def get_site(site_id: str) -> Dict[str, Any]:
+async def get_site(
+    site_id: str,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
     """Get a specific site by site_id."""
     try:
+        # Verify access
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_site_access_for_user(db_user, site_id, db)
+
         db_service = await get_database_service()
 
         # Look up site by site_id
@@ -278,9 +319,21 @@ async def get_site(site_id: str) -> Dict[str, Any]:
 
 
 @router.delete("/{site_id}", tags=["Sites"])
-async def delete_site(site_id: str) -> Dict[str, str]:
-    """Delete a site and ALL associated resources (metrics, logs, history)."""
+async def delete_site(
+    site_id: str,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, str]:
+    """Delete a site and ALL associated resources (metrics, logs, history).
+
+    Requires operator-level access on the site.
+    """
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+
         db_service = await get_database_service()
         from sqlalchemy import delete, select
 
@@ -463,16 +516,22 @@ async def delete_site(site_id: str) -> Dict[str, str]:
 
 
 @router.put("/{site_id}/monitor", tags=["Sites"])
-async def toggle_site_monitor(site_id: str, monitor: bool) -> Dict[str, Any]:
+async def toggle_site_monitor(
+    site_id: str,
+    monitor: bool,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
     """Toggle the monitoring status of a site."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+
         db_service = await get_database_service()
 
-        # We need to implement update_site in db_service or do it manually here
-        # For now, let's do it manually via session
         from sqlalchemy import select
-
-        from homepot.models import Site
 
         async with db_service.get_session() as session:
             result = await session.execute(select(Site).where(Site.site_id == site_id))
@@ -500,9 +559,18 @@ async def toggle_site_monitor(site_id: str, monitor: bool) -> Dict[str, Any]:
 
 
 @router.get("/{site_id}/stats", tags=["Sites"])
-async def get_site_stats(site_id: str) -> Dict[str, Any]:
+async def get_site_stats(
+    site_id: str,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
     """Get device breakdown and statistics for a specific site."""
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_site_access_for_user(db_user, site_id, db)
+
         db_service = await get_database_service()
 
         # Verify site exists

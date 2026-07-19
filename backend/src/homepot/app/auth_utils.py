@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from homepot.app.schemas.schemas import UserDict
 from homepot.database import get_db
-from homepot.models import Device, SiteMembership, Tenant, TenantMembership, User
+from homepot.models import Device, Site, SiteMembership, Tenant, TenantMembership, User
 
 # Ensure environment variables are loaded
 # load_dotenv()
@@ -440,9 +440,16 @@ def require_site_access(site_id: int, minimum_role: str = "viewer") -> Any:
                 "user_id": cast(int, db_user.id),
             }
 
+        site = cast(Site, db.query(Site).filter(Site.id == site_id).first())
+        if not site:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Site not found",
+            )
+
         min_level = _ROLE_HIERARCHY.get(minimum_role, 1)
 
-        if db_user.tenant_id:
+        if db_user.tenant_id and site.tenant_id == db_user.tenant_id:
             tenant_membership = cast(
                 TenantMembership,
                 db.query(TenantMembership)
@@ -504,3 +511,124 @@ def get_current_user_id(
             detail="User not found",
         )
     return cast(int, db_user.id)
+
+
+# ---- Async-compatible Authorization Helpers ----
+
+_ROLE_HIERARCHY: dict[str, int] = {
+    "admin": 4,
+    "operator": 3,
+    "installer": 2,
+    "viewer": 1,
+}
+
+
+def require_user() -> Any:
+    """Dependency that returns the authenticated user dict.
+
+    Like get_current_user but returns a UserDict with email, role, and user_id.
+    """
+
+    def user_checker(
+        user_token: TokenData = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> UserDict:
+        db_user = cast(
+            User, db.query(User).filter(User.email == user_token.email).first()
+        )
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User not found",
+            )
+        return {
+            "email": cast(str, db_user.email),
+            "role": "Admin" if db_user.is_admin else cast(str, db_user.role),
+            "user_id": cast(int, db_user.id),
+        }
+
+    return user_checker
+
+
+def verify_site_access_for_user(
+    db_user: User,
+    site_str_id: str,
+    db: Session,
+    minimum_role: str = "viewer",
+) -> dict:
+    """Verify a user has at least the minimum role on a site (string ID).
+
+    Admins bypass this check.  Raises HTTPException on failure.
+    Returns the resolved Site object on success.
+    """
+    from homepot.models import Site, SiteMembership, TenantMembership
+
+    if db_user.is_admin:
+        return {"role": "Admin", "user_id": cast(int, db_user.id)}
+
+    site = db.query(Site).filter(Site.site_id == site_str_id).first()
+    if not site:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Site not found",
+        )
+
+    min_level = _ROLE_HIERARCHY.get(minimum_role, 1)
+
+    if db_user.tenant_id and site.tenant_id == db_user.tenant_id:
+        tm = cast(
+            TenantMembership,
+            db.query(TenantMembership)
+            .filter(
+                TenantMembership.user_id == db_user.id,
+                TenantMembership.tenant_id == db_user.tenant_id,
+            )
+            .first(),
+        )
+        if tm:
+            tm_level = _ROLE_HIERARCHY.get(cast(str, tm.role), 0)
+            if tm_level >= min_level:
+                return {
+                    "role": cast(str, tm.role),
+                    "user_id": cast(int, db_user.id),
+                }
+
+    sm = cast(
+        SiteMembership,
+        db.query(SiteMembership)
+        .filter(
+            SiteMembership.user_id == db_user.id,
+            SiteMembership.site_id == site.id,
+        )
+        .first(),
+    )
+    if not sm:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have access to this site",
+        )
+
+    user_level = _ROLE_HIERARCHY.get(cast(str, sm.role), 0)
+    if user_level < min_level:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Requires at least '{minimum_role}' role on this site",
+        )
+
+    return {"role": cast(str, sm.role), "user_id": cast(int, db_user.id)}
+
+
+def verify_device_belongs_to_user(
+    db_user: User,
+    device: Device,
+    db: Session,
+    minimum_role: str = "viewer",
+) -> None:
+    """Verify that a device's site is accessible by the user."""
+    site = cast("Site", db.query(Site).filter(Site.id == device.site_id).first())
+    if not site:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Device site not found",
+        )
+    verify_site_access_for_user(db_user, cast(str, site.site_id), db, minimum_role)

@@ -2,16 +2,22 @@
 
 from datetime import datetime
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy.orm import Session as SASession
 
+from homepot.app.auth_utils import (
+    UserDict,
+    require_user,
+    verify_site_access_for_user,
+)
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
-from homepot.database import get_database_service
-from homepot.models import JobPriority
+from homepot.database import get_database_service, get_db
+from homepot.models import JobPriority, User
 from homepot.orchestrator import get_job_orchestrator
 
 client_instance: Optional[HomepotClient] = None
@@ -66,15 +72,21 @@ class CreateJobRequest(BaseModel):
 
 @router.post("/sites/{site_id}/jobs", tags=["Jobs"], response_model=Dict[str, str])
 async def create_pos_config_job(
-    site_id: str, job_request: CreateJobRequest
+    site_id: str,
+    job_request: CreateJobRequest,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, str]:
     """Create a POS configuration update job (Step 1-2 from scenario).
 
-    This endpoint implements:
-    1. Tech logs in and selects site → Action: "Update POS payment config"
-    2. Core API enqueues a job to segment: site-123/pos-terminals
+    Requires operator-level access on the site.
     """
     try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+
         orchestrator = await get_job_orchestrator()
 
         # Create the job using orchestrator
@@ -142,6 +154,8 @@ async def create_pos_config_job(
             "status": "queued",
         }
 
+    except HTTPException:
+        raise
     except ValueError:
         raise HTTPException(
             status_code=404, detail="Operation failed. Please check server logs."

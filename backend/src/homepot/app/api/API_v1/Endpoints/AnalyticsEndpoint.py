@@ -72,6 +72,7 @@ async def log_user_activity(
 async def log_error(
     error: Dict[str, Any],
     db: Session = Depends(get_db),
+    current_user: Optional[TokenData] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Log application errors.
 
@@ -280,6 +281,7 @@ async def log_device_state_change(
 async def log_job_outcome(
     outcome: Dict[str, Any],
     db: Session = Depends(get_db),
+    current_user: Optional[TokenData] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Log job execution outcomes.
 

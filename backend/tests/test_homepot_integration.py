@@ -9,14 +9,26 @@ This test suite validates the complete HOMEPOT POS management system including:
 The tests use httpx for async HTTP testing and cover the full API surface.
 """
 
+import asyncio
+from datetime import datetime, timezone
 import os
+import tempfile
 import time
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, Generator
 import uuid
 
 from fastapi.testclient import TestClient
 import httpx
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from homepot.app.auth_utils import create_access_token, hash_password
+from homepot.config import reload_settings
+import homepot.database
+from homepot.models import Base, User
+
+TEST_USER_EMAIL = "integration@test.local"
 
 
 def generate_random_id(prefix: str) -> str:
@@ -24,22 +36,63 @@ def generate_random_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
-def ensure_user_exists(client: TestClient) -> None:
-    """Ensure a user exists (likely ID 1) for foreign key constraints."""
+@pytest.fixture(autouse=True)
+def file_db(monkeypatch: Any) -> Generator[None, None, None]:
+    """Use a temp file-based SQLite DB so sync+async engines share data."""
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    db_url = f"sqlite:///{path}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    monkeypatch.setenv("DATABASE__URL", db_url)
+    reload_settings()
+
+    if homepot.database._db_service is not None:
+        try:
+            asyncio.run(homepot.database._db_service.close())
+        except Exception:
+            pass
+        homepot.database._db_service = None
+
+    new_engine = create_engine(
+        db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
+    )
+    Base.metadata.create_all(bind=new_engine)
+    new_session_local = sessionmaker(bind=new_engine, autocommit=False, autoflush=False)
+    monkeypatch.setattr(homepot.database, "sync_engine", new_engine)
+    monkeypatch.setattr(homepot.database, "SessionLocal", new_session_local)
+
+    # Seed the test user
+    session = new_session_local()
     try:
-        # Try to register a user. Ignore if it fails (e.g. already exists).
-        # Using /api/v1/auth/signup based on UserRegisterEndpoint.py and route list
-        client.post(
-            "/api/v1/auth/signup",
-            json={
-                "username": "admin",
-                "email": "admin@example.com",
-                "password": "password123",
-            },
-        )
-        # We don't assert here because if user exists it returns 400, which is fine.
-    except Exception:
-        pass
+        existing = session.query(User).filter(User.email == TEST_USER_EMAIL).first()
+        if not existing:
+            user = User(
+                email=TEST_USER_EMAIL,
+                username="integration",
+                hashed_password=hash_password("testpassword123"),
+                is_admin=True,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            session.add(user)
+            session.commit()
+    finally:
+        session.close()
+
+    yield
+
+    new_engine.dispose()
+    if os.path.exists(path):
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def auth_headers() -> dict:
+    """Return Authorization headers with a valid Bearer token for the test user."""
+    token = create_access_token({"sub": TEST_USER_EMAIL})
+    return {"Authorization": f"Bearer {token}"}
 
 
 # Test Configuration
@@ -123,18 +176,19 @@ class TestPhase1CoreInfrastructure:
 class TestPhase2APIEndpoints:
     """Test Phase 2: Enhanced API Endpoints & WebSocket Dashboard."""
 
+    _headers: dict = {}
+
     def test_list_sites(self, client: TestClient) -> None:
         """Test listing all POS sites."""
-        response = client.get("/api/v1/sites")
+        TestPhase2APIEndpoints._headers = auth_headers()
+        response = client.get("/api/v1/sites", headers=TestPhase2APIEndpoints._headers)
 
         assert response.status_code == 200
         data = response.json()
         assert "sites" in data
         sites = data["sites"]
         assert isinstance(sites, list)
-        # assert len(sites) >= 14  # Removed hardcoded length check
 
-        # Verify site structure
         if sites:
             site = sites[0]
             assert "site_id" in site
@@ -143,14 +197,14 @@ class TestPhase2APIEndpoints:
 
     def test_get_specific_site(self, client: TestClient) -> None:
         """Test getting specific site information."""
-        # First get a site ID
-        sites_response = client.get("/api/v1/sites")
+        h = TestPhase2APIEndpoints._headers
+        sites_response = client.get("/api/v1/sites", headers=h)
         data = sites_response.json()
         sites = data.get("sites", [])
 
         if sites:
             site_id = sites[0]["site_id"]
-            response = client.get(f"/api/v1/sites/{site_id}")
+            response = client.get(f"/api/v1/sites/{site_id}", headers=h)
 
             assert response.status_code == 200
             site = response.json()
@@ -160,6 +214,7 @@ class TestPhase2APIEndpoints:
 
     def test_create_site(self, client: TestClient) -> None:
         """Test creating a new POS site."""
+        h = TestPhase2APIEndpoints._headers
         site_id = generate_random_id("TEST_SITE")
         test_site = {
             "site_id": site_id,
@@ -169,7 +224,7 @@ class TestPhase2APIEndpoints:
         }
 
         try:
-            response = client.post("/api/v1/sites", json=test_site)
+            response = client.post("/api/v1/sites", json=test_site, headers=h)
 
             assert response.status_code == 200
             data = response.json()
@@ -177,31 +232,29 @@ class TestPhase2APIEndpoints:
             assert "site_id" in data
             assert data["site_id"] == site_id
         finally:
-            # Clean up: Delete the test site
             if response.status_code == 200:
-                client.delete(f"/api/v1/sites/{site_id}")
+                client.delete(f"/api/v1/sites/{site_id}", headers=h)
 
     def test_site_health(self, client: TestClient) -> None:
         """Test site health monitoring."""
-        # Get a site ID first
-        sites_response = client.get("/api/v1/sites")
+        h = TestPhase2APIEndpoints._headers
+        sites_response = client.get("/api/v1/sites", headers=h)
         sites = sites_response.json().get("sites", [])
 
         if sites:
             site_id = sites[0]["site_id"]
-            response = client.get(f"/api/v1/health/sites/{site_id}/health")
+            response = client.get(f"/api/v1/health/sites/{site_id}/health", headers=h)
 
             assert response.status_code == 200
             health = response.json()
             assert "site_id" in health
-            # assert "status" in health # Removed as it depends on devices
             assert "health_percentage" in health
             assert health["site_id"] == site_id
 
     def test_device_registration(self, client: TestClient) -> None:
         """Test device registration at a site."""
-        # Get a site ID first
-        sites_response = client.get("/api/v1/sites")
+        h = TestPhase2APIEndpoints._headers
+        sites_response = client.get("/api/v1/sites", headers=h)
         sites = sites_response.json().get("sites", [])
 
         if sites:
@@ -215,7 +268,9 @@ class TestPhase2APIEndpoints:
                 "location": "Test Counter",
             }
 
-            response = client.post("/api/v1/devices/device", json=test_device)
+            response = client.post(
+                "/api/v1/devices/device", json=test_device, headers=h
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -225,9 +280,8 @@ class TestPhase2APIEndpoints:
 
     def test_job_creation(self, client: TestClient) -> None:
         """Test creating a job for a site."""
-        ensure_user_exists(client)
-        # Get a site ID first
-        sites_response = client.get("/api/v1/sites")
+        h = TestPhase2APIEndpoints._headers
+        sites_response = client.get("/api/v1/sites", headers=h)
         sites = sites_response.json().get("sites", [])
 
         if sites:
@@ -238,7 +292,9 @@ class TestPhase2APIEndpoints:
                 "config": {"test_setting": "test_value"},
             }
 
-            response = client.post(f"/api/v1/sites/{site_id}/jobs", json=test_job)
+            response = client.post(
+                f"/api/v1/sites/{site_id}/jobs", json=test_job, headers=h
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -251,46 +307,44 @@ class TestPhase2APIEndpoints:
 class TestPhase3AgentSimulation:
     """Test Phase 3: Realistic Agent Simulation & Health Checks."""
 
+    _headers: dict = {}
+
     def test_list_agents(self, client: TestClient) -> None:
         """Test listing all active POS agents."""
-        response = client.get("/api/v1/agents")
+        TestPhase3AgentSimulation._headers = auth_headers()
+        h = TestPhase3AgentSimulation._headers
+        response = client.get("/api/v1/agents", headers=h)
 
         assert response.status_code == 200
         data = response.json()
         assert "agents" in data
         agents = data["agents"]
         assert isinstance(agents, list)
-        # assert len(agents) >= 20  # Removed hardcoded length check
 
-        # Verify agent structure
         if agents:
             agent = agents[0]
             assert "device_id" in agent
-            # assert "site_id" in agent # Not returned by endpoint
-            # assert "status" in agent # Changed to state
             assert "state" in agent
-            # assert "last_heartbeat" in agent # Might be missing or named differently
 
     def test_get_specific_agent(self, client: TestClient) -> None:
         """Test getting specific agent information."""
-        # First get an agent ID
-        agents_response = client.get("/api/v1/agents")
+        h = TestPhase3AgentSimulation._headers
+        agents_response = client.get("/api/v1/agents", headers=h)
         agents = agents_response.json().get("agents", [])
 
         if agents:
             device_id = agents[0]["device_id"]
-            response = client.get(f"/api/v1/agents/{device_id}")
+            response = client.get(f"/api/v1/agents/{device_id}", headers=h)
 
             assert response.status_code == 200
             agent = response.json()
             assert agent["device_id"] == device_id
-            assert "state" in agent  # Changed from status
-            # assert "health_metrics" in agent # Might be missing
+            assert "state" in agent
 
     def test_agent_push_notification(self, client: TestClient) -> None:
         """Test sending push notification to agent."""
-        # Get an agent ID first
-        agents_response = client.get("/api/v1/agents")
+        h = TestPhase3AgentSimulation._headers
+        agents_response = client.get("/api/v1/agents", headers=h)
         agents = agents_response.json().get("agents", [])
 
         if agents:
@@ -302,7 +356,7 @@ class TestPhase3AgentSimulation:
             }
 
             response = client.post(
-                f"/api/v1/agents/{device_id}/push", json=notification
+                f"/api/v1/agents/{device_id}/push", json=notification, headers=h
             )
 
             assert response.status_code == 200
@@ -311,29 +365,31 @@ class TestPhase3AgentSimulation:
 
     def test_device_health_check(self, client: TestClient) -> None:
         """Test device health check functionality."""
-        # Get an agent ID first
-        agents_response = client.get("/api/v1/agents")
+        h = TestPhase3AgentSimulation._headers
+        agents_response = client.get("/api/v1/agents", headers=h)
         agents = agents_response.json().get("agents", [])
 
         if agents:
             device_id = agents[0]["device_id"]
-            response = client.get(f"/api/v1/health/devices/{device_id}/health")
+            response = client.get(
+                f"/api/v1/health/devices/{device_id}/health", headers=h
+            )
 
             assert response.status_code == 200
             health = response.json()
             assert "device_id" in health
-            assert "agent_state" in health  # Changed from status
-            assert "health" in health  # Changed from metrics based on error log
+            assert "agent_state" in health
+            assert "health" in health
 
     def test_device_restart(self, client: TestClient) -> None:
         """Test device restart functionality."""
-        # Get an agent ID first
-        agents_response = client.get("/api/v1/agents")
+        h = TestPhase3AgentSimulation._headers
+        agents_response = client.get("/api/v1/agents", headers=h)
         agents = agents_response.json().get("agents", [])
 
         if agents:
             device_id = agents[0]["device_id"]
-            response = client.post(f"/api/v1/devices/{device_id}/restart")
+            response = client.post(f"/api/v1/devices/{device_id}/restart", headers=h)
 
             assert response.status_code == 200
             data = response.json()
@@ -346,9 +402,13 @@ class TestPhase3AgentSimulation:
 class TestPhase4AuditLogging:
     """Test Phase 4: Comprehensive Audit Logging & System Metrics."""
 
+    _headers: dict = {}
+
     def test_audit_events(self, client: TestClient) -> None:
         """Test retrieving audit events."""
-        response = client.get("/api/v1/audit/events")
+        TestPhase4AuditLogging._headers = auth_headers()
+        h = TestPhase4AuditLogging._headers
+        response = client.get("/api/v1/audit/events", headers=h)
 
         assert response.status_code == 200
         data = response.json()
@@ -356,19 +416,17 @@ class TestPhase4AuditLogging:
         events = data["events"]
         assert isinstance(events, list)
 
-        # Verify event structure
         if events:
             event = events[0]
             assert "id" in event
             assert "event_type" in event
-            # assert "category" in event # Removed as it seems missing
             assert "description" in event
-            # assert "timestamp" in event # Might be created_at based on error log
             assert "created_at" in event
 
     def test_audit_statistics(self, client: TestClient) -> None:
         """Test audit statistics endpoint."""
-        response = client.get("/api/v1/audit/statistics")
+        h = TestPhase4AuditLogging._headers
+        response = client.get("/api/v1/audit/statistics", headers=h)
 
         assert response.status_code == 200
         stats_response = response.json()
@@ -377,29 +435,31 @@ class TestPhase4AuditLogging:
 
         assert "total_events" in stats
         assert "events_by_type" in stats
-        # assert "events_by_severity" in stats # This key is not in the response based on audit.py
         assert isinstance(stats["total_events"], int)
 
     def test_audit_event_types(self, client: TestClient) -> None:
         """Test getting available audit event types."""
-        response = client.get("/api/v1/audit/event-types")
+        h = TestPhase4AuditLogging._headers
+        response = client.get("/api/v1/audit/event-types", headers=h)
 
         assert response.status_code == 200
         data = response.json()
         assert "event_types" in data
         event_types = data["event_types"]
         assert isinstance(event_types, list)
-        assert len(event_types) >= 20  # Should have 20+ event types
+        assert len(event_types) >= 20
 
 
 @pytest.mark.integration
 class TestEndToEndWorkflows:
     """Test complete end-to-end workflows across all phases."""
 
+    _headers: dict = {}
+
     def test_complete_site_setup_workflow(self, client: TestClient) -> None:
         """Test create site, add device, create job, monitor health."""
-        ensure_user_exists(client)
-        # Step 1: Create a new site
+        TestEndToEndWorkflows._headers = auth_headers()
+        h = TestEndToEndWorkflows._headers
         site_id = generate_random_id("E2E_TEST_SITE")
         test_site = {
             "site_id": site_id,
@@ -408,10 +468,9 @@ class TestEndToEndWorkflows:
             "type": "test",
         }
 
-        site_response = client.post("/api/v1/sites", json=test_site)
+        site_response = client.post("/api/v1/sites", json=test_site, headers=h)
         assert site_response.status_code == 200
 
-        # Step 2: Register a device at the site
         test_device = {
             "site_id": site_id,
             "device_id": generate_random_id("E2E_TEST_DEVICE"),
@@ -420,32 +479,35 @@ class TestEndToEndWorkflows:
             "location": "Test Counter",
         }
 
-        device_response = client.post("/api/v1/devices/device", json=test_device)
+        device_response = client.post(
+            "/api/v1/devices/device", json=test_device, headers=h
+        )
         assert device_response.status_code == 200
 
-        # Step 3: Create a job for the site
         test_job = {
             "job_type": "config_update",
             "priority": "high",
             "config": {"test_setting": "e2e_value"},
         }
 
-        job_response = client.post(f"/api/v1/sites/{site_id}/jobs", json=test_job)
+        job_response = client.post(
+            f"/api/v1/sites/{site_id}/jobs", json=test_job, headers=h
+        )
         assert job_response.status_code == 200
         job_data = job_response.json()
         job_id = job_data["job_id"]
 
-        # Step 4: Check job status
         job_status_response = client.get(f"/jobs/{job_id}")
         assert job_status_response.status_code == 200
 
-        # Step 5: Check site health
-        health_response = client.get(f"/api/v1/health/sites/{site_id}/health")
+        health_response = client.get(
+            f"/api/v1/health/sites/{site_id}/health", headers=h
+        )
         assert health_response.status_code == 200
 
     def test_agent_management_workflow(self, client: TestClient) -> None:
         """Test agent management workflow: list, monitor, notify, restart."""
-        # Setup: Ensure at least one device/agent exists to manage
+        h = TestEndToEndWorkflows._headers
         site_id = generate_random_id("AGENT_WF_SITE")
         client.post(
             "/api/v1/sites",
@@ -455,6 +517,7 @@ class TestEndToEndWorkflows:
                 "location": "Test Location",
                 "type": "test",
             },
+            headers=h,
         )
         setup_device_id = generate_random_id("AGENT_WF_DEVICE")
         client.post(
@@ -466,63 +529,60 @@ class TestEndToEndWorkflows:
                 "device_type": "pos_terminal",
                 "location": "Test Counter",
             },
+            headers=h,
         )
 
-        # The in-memory agent simulator only discovers devices when it starts.
-        # Restart it here so it picks up the device created above.
-        client.post("/api/v1/agents/simulation/stop")
-        client.post("/api/v1/agents/simulation/start")
+        client.post("/api/v1/agents/simulation/stop", headers=h)
+        client.post("/api/v1/agents/simulation/start", headers=h)
 
-        # Step 1: Get all agents
-        agents_response = client.get("/api/v1/agents")
+        agents_response = client.get("/api/v1/agents", headers=h)
         assert agents_response.status_code == 200
         agents = agents_response.json().get("agents", [])
         assert len(agents) > 0
 
         device_id = agents[0]["device_id"]
 
-        # Step 2: Get specific agent details
-        agent_response = client.get(f"/api/v1/agents/{device_id}")
+        agent_response = client.get(f"/api/v1/agents/{device_id}", headers=h)
         assert agent_response.status_code == 200
 
-        # Step 3: Send push notification
         notification = {"message": "Workflow test notification", "priority": "medium"}
         push_response = client.post(
-            f"/api/v1/agents/{device_id}/push", json=notification
+            f"/api/v1/agents/{device_id}/push", json=notification, headers=h
         )
         assert push_response.status_code == 200
 
-        # Step 4: Check device health
-        health_response = client.get(f"/api/v1/health/devices/{device_id}/health")
+        health_response = client.get(
+            f"/api/v1/health/devices/{device_id}/health", headers=h
+        )
         assert health_response.status_code == 200
 
-        # Step 5: Restart device
-        restart_response = client.post(f"/api/v1/devices/{device_id}/restart")
+        restart_response = client.post(
+            f"/api/v1/devices/{device_id}/restart", headers=h
+        )
         assert restart_response.status_code == 200
 
     def test_audit_trail_workflow(self, client: TestClient) -> None:
         """Test audit trail workflow: perform actions, verify logging."""
-        # Perform several actions that should generate audit events
-        actions = [
-            ("GET", "/api/v1/health/health"),
-            ("GET", "/api/v1/sites"),
-            ("GET", "/api/v1/agents"),
-            ("GET", "/api/v1/audit/statistics"),
+        h = auth_headers()
+        endpoints = [
+            "/api/v1/health/health",
+            "/api/v1/sites",
+            "/api/v1/agents",
+            "/api/v1/audit/statistics",
         ]
 
-        for method, endpoint in actions:
-            if method == "GET":
-                response = client.get(endpoint)
-                assert response.status_code == 200
+        for endpoint in endpoints:
+            response = client.get(
+                endpoint, headers=h if endpoint != "/api/v1/health/health" else {}
+            )
+            assert response.status_code == 200
 
-        # Check that audit events were created
-        audit_response = client.get("/api/v1/audit/events")
+        audit_response = client.get("/api/v1/audit/events", headers=h)
         assert audit_response.status_code == 200
         events = audit_response.json().get("events", [])
         assert len(events) > 0
 
-        # Verify audit statistics updated
-        stats_response = client.get("/api/v1/audit/statistics")
+        stats_response = client.get("/api/v1/audit/statistics", headers=h)
         assert stats_response.status_code == 200
         stats = stats_response.json().get("statistics", {})
         assert stats.get("total_events", 0) > 0
@@ -535,8 +595,8 @@ class TestSystemPerformance:
 
     def test_api_response_times(self, client: TestClient) -> None:
         """Test that API endpoints respond within acceptable time limits."""
+        h = auth_headers()
         endpoints = [
-            "/api/v1/health/health",
             "/api/v1/sites",
             "/api/v1/agents",
             "/api/v1/audit/events",
@@ -545,12 +605,12 @@ class TestSystemPerformance:
 
         for endpoint in endpoints:
             start_time = time.time()
-            response = client.get(endpoint)
+            response = client.get(endpoint, headers=h)
             end_time = time.time()
 
             assert response.status_code == 200
             response_time = end_time - start_time
-            assert response_time < 2.0  # Should respond within 2 seconds
+            assert response_time < 2.0
 
     def test_concurrent_requests(self, client: TestClient) -> None:
         """Test system behavior under concurrent load."""
@@ -560,22 +620,19 @@ class TestSystemPerformance:
             response = client.get("/api/v1/health/health")
             return response.status_code == 200
 
-        # Test 10 concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(make_request) for _ in range(10)]
             results = [future.result() for future in futures]
 
-        # All requests should succeed
         assert all(results)
 
     def test_large_dataset_handling(self, client: TestClient) -> None:
         """Test system performance with large datasets."""
-        # Test endpoints that might return large amounts of data
-        response = client.get("/api/v1/audit/events?limit=1000")
+        h = auth_headers()
+        response = client.get("/api/v1/audit/events?limit=1000", headers=h)
         assert response.status_code == 200
 
         events = response.json().get("events", [])
-        # Should handle large result sets efficiently
         assert isinstance(events, list)
 
 

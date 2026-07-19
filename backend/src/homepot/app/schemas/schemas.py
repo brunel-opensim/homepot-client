@@ -1,6 +1,6 @@
 """Pydantic schemas for user registration, authentication, and device metrics."""
 
-from typing import Any, Dict, Optional, TypedDict
+from typing import Any, Dict, NotRequired, Optional, TypedDict
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -63,6 +63,7 @@ class UserDict(TypedDict):
 
     email: Optional[str]
     role: Optional[str]
+    user_id: NotRequired[int]
 
 
 # Device Metrics Schemas

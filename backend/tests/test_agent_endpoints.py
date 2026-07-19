@@ -10,11 +10,11 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from homepot.app.auth_utils import hash_password
+from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.app.models.AnalyticsModel import DeviceMetrics
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, Device, LifecycleState, Site
+from homepot.models import Base, Device, LifecycleState, Site, User
 
 
 @pytest.fixture(autouse=True)
@@ -198,6 +198,25 @@ def test_telemetry_bulk_is_saved(client: TestClient):
 def test_provision_returns_credentials_and_hashes_key(client: TestClient):
     """POST /api/v1/devices/provision should return credentials and persist hash."""
     _create_site("site-provision")
+
+    db = homepot.database.SessionLocal()
+    try:
+        admin = User(
+            email="admin@provision.test",
+            username="admin_provision",
+            hashed_password=hash_password("pass"),
+            is_admin=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(admin)
+        db.commit()
+    finally:
+        db.close()
+
+    token = create_access_token({"sub": "admin@provision.test"})
+    headers = {"Authorization": f"Bearer {token}"}
+
     response = client.post(
         "/api/v1/devices/provision",
         json={
@@ -208,6 +227,7 @@ def test_provision_returns_credentials_and_hashes_key(client: TestClient):
             "device_type": "pos_terminal",
             "os_details": "Android 13",
         },
+        headers=headers,
     )
 
     assert response.status_code == 200
