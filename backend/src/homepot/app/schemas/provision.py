@@ -13,8 +13,9 @@ class DeviceProvisionRequest(BaseModel):
         None, description="Optional SSO token used by setup wizard"
     )
     site_id: str = Field(..., min_length=1, description="Business site ID")
-    user_identity: str = Field(
-        ..., min_length=1, description="SSO user identity or email"
+    user_identity: Optional[str] = Field(
+        None,
+        description="Deprecated — ignored; authenticated user identity is used instead",
     )
     device_name: Optional[str] = Field(
         None, description="Optional display name for the new device"
@@ -50,6 +51,7 @@ class DeviceProvisionResponse(BaseModel):
     device_token: Optional[str] = None
     site_id: str
     created_at: datetime
+    epoch_id: Optional[str] = None
 
     model_config = ConfigDict(
         json_schema_extra={

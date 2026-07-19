@@ -35,12 +35,14 @@ def provision_device(
 ) -> Dict[str, Any]:
     """Provision a new device and return one-time credentials.
 
+    Uses the authenticated user's identity (from JWT) as the provisioning
+    authority rather than trusting the caller-provided ``user_identity``.
     Requires operator-level access on the target site.
     """
     logger.info(
-        "Device provision request received for site_id=%s user_identity=%s",
+        "Device provision request received for site_id=%s by user=%s",
         payload.site_id,
-        payload.user_identity,
+        current_user["email"],
     )
     try:
         db_user = cast(
@@ -51,7 +53,8 @@ def provision_device(
         )
 
         service = AgentService(db)
-        result = service.provision_device(payload)
+        user_email: str = current_user["email"] or ""  # type: ignore[assignment]
+        result = service.provision_device(payload, provisioned_by=user_email)
         response_data = DeviceProvisionResponse(**result)
         return {
             "status": "success",

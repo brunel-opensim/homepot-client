@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 from typing import Any, Dict, Sequence, cast
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -15,7 +16,13 @@ from homepot.app.schemas.agent import (
 )
 from homepot.app.schemas.provision import DeviceProvisionRequest
 from homepot.app.services.lifecycle_service import LifecycleService
-from homepot.models import ConnectivityState, HealthState, LifecycleState
+from homepot.models import (
+    ConnectivityState,
+    EnrollmentMethod,
+    HealthState,
+    LifecycleEpoch,
+    LifecycleState,
+)
 
 
 def _utc_now() -> datetime:
@@ -28,6 +35,7 @@ class AgentService:
 
     def __init__(self, db: Session) -> None:
         """Initialize service with a database-backed repository."""
+        self.db = db
         self.repository = AgentRepository(db)
         self.lifecycle = LifecycleService(db)
 
@@ -187,12 +195,16 @@ class AgentService:
         except Exception as e:
             raise Exception(f"Failed to save telemetry: {str(e)}")
 
-    def provision_device(self, payload: DeviceProvisionRequest) -> dict:
-        """Provision a new device and return one-time credentials."""
-        try:
-            if not payload.user_identity.strip():
-                raise ValueError("user_identity is required")
+    def provision_device(
+        self, payload: DeviceProvisionRequest, provisioned_by: str
+    ) -> dict:
+        """Provision a new device and return one-time credentials.
 
+        Uses the authenticated user's identity (``provisioned_by``) instead
+        of the caller-provided ``payload.user_identity``.  Atomically creates
+        the device, a lifecycle epoch, and device credentials.
+        """
+        try:
             site = self.repository.get_site_by_site_id(payload.site_id)
             if not site or not site.id:
                 raise LookupError(f"Site '{payload.site_id}' not found")
@@ -210,7 +222,8 @@ class AgentService:
                 os_details=payload.os_details,
                 local_ip=None,
                 wan_ip=None,
-                lifecycle_state=LifecycleState.ACTIVE.value,
+                lifecycle_state=LifecycleState.PENDING.value,
+                enrollment_method=EnrollmentMethod.SELF_ENROLLED.value,
             )
 
             created_obj = cast(Any, created)
@@ -221,7 +234,7 @@ class AgentService:
             )
             existing_config.update(
                 {
-                    "provisioned_by": payload.user_identity,
+                    "provisioned_by": provisioned_by,
                     "provisioning_method": (
                         "sso" if payload.sso_token else "manual_identity"
                     ),
@@ -234,14 +247,37 @@ class AgentService:
 
             self.repository.save_device(created)
 
+            # Create lifecycle epoch for the self-enrolment
+            epoch_id = str(uuid.uuid4())
+            epoch = LifecycleEpoch(
+                epoch_id=epoch_id,
+                device_id=created.id,
+                site_id=site.id,
+                tenant_id=site.tenant_id,
+                claimed_at=_utc_now(),
+                enrolment_method=EnrollmentMethod.SELF_ENROLLED.value,
+            )
+            self.db.add(epoch)
+            self.db.flush()
+
+            created.lifecycle_epoch_id = epoch.id  # type: ignore[assignment]
+
+            # Transition from PENDING to ACTIVE with audit trail
+            self.lifecycle.transition(
+                created,
+                LifecycleState.ACTIVE,
+                changed_by=f"user:{provisioned_by}",
+                reason="Self-enrolment via provision endpoint",
+            )
+
             return {
                 "device_id": created.device_id,
                 "api_key": api_key,
-                # Backward-compatible aliases for existing clients.
                 "secret_key": api_key,
                 "device_token": device_token,
                 "site_id": site.site_id,
                 "created_at": created.created_at,
+                "epoch_id": epoch_id,
             }
 
         except LookupError:
