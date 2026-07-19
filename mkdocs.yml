@@ -151,6 +151,7 @@ nav:
 
   - Layer 5 - Edge Layer:
       - Device Management:
+          - Lifecycle & Ownership: device-lifecycle-and-ownership.md
           - Registration: device-registration.md
           - Metrics Collection: device-metrics-collection.md
           - Peripheral Discovery: peripheral-discovery.md
