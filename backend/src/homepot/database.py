@@ -19,12 +19,15 @@ from homepot.models import (
     AuditLog,
     Base,
     CommandStatus,
+    ConnectivityState,
     Device,
     DeviceCommand,
     DeviceStatus,
     HealthCheck,
+    HealthState,
     Job,
     JobStatus,
+    LifecycleState,
     Site,
     User,
 )
@@ -399,6 +402,7 @@ class DatabaseService:
                 ip_address=ip_address,
                 config=config,
                 status=DeviceStatus.UNKNOWN,
+                lifecycle_state=LifecycleState.PENDING.value,
                 api_key_hash=api_key_hash,
                 last_seen=last_seen,
                 is_monitored=is_monitored,
@@ -448,7 +452,6 @@ class DatabaseService:
     async def delete_device(self, device_id: str) -> bool:
         """Unpair a device, retaining its historical data (soft delete)."""
         async with self.get_session() as session:
-            # 1. Get the device
             result = await session.execute(
                 select(Device).where(Device.device_id == device_id)
             )
@@ -457,15 +460,10 @@ class DatabaseService:
             if not device:
                 return False
 
-            # 2. Soft delete the device
-            device.is_active = False  # type: ignore[assignment]
-            from homepot.models import AuditLog, DeviceStatus
+            device.lifecycle_state = LifecycleState.UNPAIRED.value
+            device.is_active = False
+            device.api_key_hash = None
 
-            device.status = DeviceStatus.UNPAIRED.value  # type: ignore[assignment]
-            device.api_key_hash = None  # type: ignore[assignment]
-            # Retain device.site_id for historical analytics
-
-            # 3. Add an audit log entry for this action
             audit_log = AuditLog(
                 event_type="device_unpaired",
                 description=f"Device {device_id} was unpaired and archived.",

@@ -35,6 +35,13 @@ class AuditEventType(str, Enum):
     DEVICE_DELETED = "device_deleted"
     DEVICE_STATUS_CHANGED = "device_status_changed"
 
+    # Device lifecycle transitions
+    LIFECYCLE_TRANSITION = "lifecycle_transition"
+    DEVICE_SUSPENDED = "device_suspended"
+    DEVICE_RESUMED = "device_resumed"
+    DEVICE_UNPAIRED = "device_unpaired"
+    DEVICE_RETIRED = "device_retired"
+
     # Job management
     JOB_CREATED = "job_created"
     JOB_STARTED = "job_started"

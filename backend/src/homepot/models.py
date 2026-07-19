@@ -71,13 +71,44 @@ class DeviceType(str, Enum):
 
 
 class DeviceStatus(str, Enum):
-    """Device status enumeration."""
+    """Device status enumeration.
+
+    Deprecated: Use LifecycleState, ConnectivityState, and HealthState instead.
+    """
 
     ONLINE = "online"
     OFFLINE = "offline"
     MAINTENANCE = "maintenance"
     ERROR = "error"
     UNPAIRED = "unpaired"
+    UNKNOWN = "unknown"
+
+
+class LifecycleState(str, Enum):
+    """Device lifecycle state — the administrative management phase."""
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    UNPAIRED = "unpaired"
+    RETIRED = "retired"
+
+
+class ConnectivityState(str, Enum):
+    """Device connectivity — computed from authenticated heartbeat recency."""
+
+    UNKNOWN = "unknown"
+    ONLINE = "online"
+    OFFLINE = "offline"
+
+
+class HealthState(str, Enum):
+    """Device health — aggregated from health checks, metrics and errors."""
+
+    HEALTHY = "healthy"
+    WARNING = "warning"
+    ERROR = "error"
+    MAINTENANCE = "maintenance"
     UNKNOWN = "unknown"
 
 
@@ -152,7 +183,11 @@ class Device(Base):
     device_id = Column(String(100), unique=True, index=True, nullable=False)
     name = Column(String(100), nullable=False)
     device_type = Column(String(50), nullable=False)  # DeviceType enum
-    status = Column(String(20), default=DeviceStatus.UNKNOWN)
+    status = Column(
+        String(20), default=DeviceStatus.UNKNOWN
+    )  # DEPRECATED: use lifecycle_state, connectivity_state, health_state
+    lifecycle_state = Column(String(20), default=LifecycleState.PENDING, nullable=False)
+    health_state = Column(String(20), default=HealthState.UNKNOWN, nullable=True)
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
     enrollment_method = Column(String(50), nullable=True)  # EnrollmentMethod enum
     enrollment_token = Column(String(255), nullable=True)
@@ -177,6 +212,7 @@ class Device(Base):
     )  # Hashed API key for device authentication
 
     # Metadata
+    # DEPRECATED: use lifecycle_state — active/pending/suspended → True, unpaired/retired → False
     is_active = Column(Boolean, default=True)
     is_monitored = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)

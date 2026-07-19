@@ -249,3 +249,27 @@ At the time this document was introduced, the repository implements only part of
 - Unpairing does not yet revoke push-provider channels or expire outstanding commands and sessions.
 - Re-enrolment, transfer, suspension, retirement and concurrency rules are not represented.
 - Command-result ownership is checked after the update has been committed; ownership must be enforced before mutation.
+
+## Canonical state model
+PR 1: Separate lifecycle, connectivity, and health
+**Backend:**
+- Add explicit enums/fields:
+  - lifecycle_state: pending, active, suspended, unpaired, retired
+  - connectivity_state: computed as unknown, online, or offline
+  - health_state: for conditions such as healthy, warning, error, maintenance
+- Stop using the existing status field for all three dimensions.
+- Define a temporary migration mapping from existing values.
+- Centralise state transitions in a lifecycle service.
+- Prevent arbitrary endpoint code from changing lifecycle state directly.
+**Dashboard:**
+- Display lifecycle, connectivity, and health separately.
+- Exclude unpaired and retired devices from active fleet counts.
+- Do not describe an unpaired device as merely offline.
+**User App:**
+- Read the backend lifecycle state rather than inferring it from local storage.
+- Disable device operations when suspended, unpaired, or retired.
+**Tests:**
+- Database migration tests.
+- Allowed and rejected transition tests.
+- Dashboard/API representation tests.
+This should be the first code PR because every later security and real-device flow depends on these meanings.

@@ -14,6 +14,8 @@ from homepot.app.schemas.agent import (
     AgentTelemetryRequest,
 )
 from homepot.app.schemas.provision import DeviceProvisionRequest
+from homepot.app.services.lifecycle_service import LifecycleService
+from homepot.models import ConnectivityState, HealthState, LifecycleState
 
 
 def _utc_now() -> datetime:
@@ -27,6 +29,7 @@ class AgentService:
     def __init__(self, db: Session) -> None:
         """Initialize service with a database-backed repository."""
         self.repository = AgentRepository(db)
+        self.lifecycle = LifecycleService(db)
 
     def update_device(self, payload: AgentRegisterRequest) -> dict:
         """Update existing device DNA or create a new device."""
@@ -34,6 +37,13 @@ class AgentService:
             device = self.repository.get_device_by_device_id(payload.device_id)
 
             if device:
+                if device.lifecycle_state == LifecycleState.PENDING.value:
+                    self.lifecycle.transition(
+                        device, LifecycleState.ACTIVE,
+                        changed_by=f"device:{payload.device_id}",
+                        reason="Device registration completed",
+                    )
+
                 updated = self.repository.update_device_registration(
                     device=device,
                     mac_address=payload.mac_address,
@@ -46,6 +56,7 @@ class AgentService:
                 return {
                     "device_id": updated.device_id,
                     "site_id": updated.site.site_id if updated.site else None,
+                    "lifecycle_state": updated.lifecycle_state,
                     "mac_address": updated.mac_address,
                     "os_details": updated.os_details,
                     "local_ip": updated.local_ip,
@@ -70,11 +81,13 @@ class AgentService:
                 os_details=payload.os_details,
                 local_ip=payload.local_ip,
                 wan_ip=payload.wan_ip,
+                lifecycle_state=LifecycleState.ACTIVE.value,
             )
 
             return {
                 "device_id": created.device_id,
                 "site_id": site.site_id,
+                "lifecycle_state": created.lifecycle_state,
                 "mac_address": created.mac_address,
                 "os_details": created.os_details,
                 "local_ip": created.local_ip,
@@ -92,6 +105,8 @@ class AgentService:
             if not device:
                 raise LookupError(f"Device '{payload.device_id}' not found")
 
+            self.lifecycle.assert_active(device)
+
             updated = self.repository.update_last_heartbeat(device, payload.timestamp)
             return {
                 "device_id": updated.device_id,
@@ -101,6 +116,10 @@ class AgentService:
                     else payload.timestamp.isoformat()
                 ),
             }
+        except LookupError:
+            raise
+        except ValueError as e:
+            raise ValueError(str(e))
         except Exception as e:
             raise e
 
@@ -190,6 +209,7 @@ class AgentService:
                 os_details=payload.os_details,
                 local_ip=None,
                 wan_ip=None,
+                lifecycle_state=LifecycleState.ACTIVE.value,
             )
 
             created_obj = cast(Any, created)
@@ -231,31 +251,32 @@ class AgentService:
             raise Exception("Failed to provision device")
 
     def get_device_status(self, device_id: str) -> dict:
-        """Return computed ONLINE/OFFLINE status based on heartbeat recency."""
+        """Return lifecycle, connectivity, and health state for a device."""
         try:
             device = self.repository.get_device_by_device_id(device_id)
             if not device:
                 raise LookupError(f"Device '{device_id}' not found")
 
             heartbeat = device.last_heartbeat_at
+
             if not heartbeat:
-                return {
-                    "device_id": device.device_id,
-                    "last_heartbeat": None,
-                    "status": "OFFLINE",
-                }
-
-            heartbeat_utc = heartbeat
-            if heartbeat_utc.tzinfo is None:
-                heartbeat_utc = heartbeat_utc.replace(tzinfo=timezone.utc)
-
-            current_time = _utc_now()
-            is_online = (current_time - heartbeat_utc) <= timedelta(minutes=2)
+                connectivity = ConnectivityState.UNKNOWN.value
+            else:
+                heartbeat_utc = heartbeat
+                if heartbeat_utc.tzinfo is None:
+                    heartbeat_utc = heartbeat_utc.replace(tzinfo=timezone.utc)
+                current_time = _utc_now()
+                is_online = (current_time - heartbeat_utc) <= timedelta(minutes=2)
+                connectivity = ConnectivityState.ONLINE.value if is_online else ConnectivityState.OFFLINE.value
 
             return {
                 "device_id": device.device_id,
-                "last_heartbeat": heartbeat_utc.isoformat(),
-                "status": "ONLINE" if is_online else "OFFLINE",
+                "lifecycle_state": device.lifecycle_state or LifecycleState.PENDING.value,
+                "connectivity_state": connectivity,
+                "health_state": device.health_state or HealthState.UNKNOWN.value,
+                "last_heartbeat_at": (
+                    heartbeat_utc.isoformat() if heartbeat else None
+                ),
             }
 
         except LookupError:

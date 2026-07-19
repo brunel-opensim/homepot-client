@@ -40,6 +40,9 @@ def update_heartbeat(
     except LookupError as e:
         logger.error("Heartbeat failed: %s", e)
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        logger.error("Heartbeat rejected: %s", e)
+        raise HTTPException(status_code=403, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:

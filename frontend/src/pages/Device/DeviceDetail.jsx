@@ -783,11 +783,34 @@ export default function Device() {
                     {device?.name || device?.device_id || 'Unknown Device'}
                   </h1>
 
-                  <div className="flex items-center gap-2 mt-1 text-sm text-emerald-300">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.14)] inline-block" />
-                    <span className="font-medium">
-                      {device?.status ? device.status.toUpperCase() : 'UNKNOWN'}
+                  <div className="flex items-center gap-2 mt-1 text-sm">
+                    <span
+                      className={`w-2 h-2 rounded-full inline-block ${
+                        device.connectivity_state === 'online'
+                          ? 'bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.14)]'
+                          : device.connectivity_state === 'offline'
+                            ? 'bg-gray-500'
+                            : 'bg-yellow-500'
+                      }`}
+                    />
+                    <span
+                      className={`font-medium ${
+                        device.lifecycle_state === 'active'
+                          ? 'text-emerald-300'
+                          : device.lifecycle_state === 'suspended'
+                            ? 'text-orange-300'
+                            : device.lifecycle_state === 'unpaired'
+                              ? 'text-gray-400'
+                              : 'text-slate-400'
+                      }`}
+                    >
+                      {device.lifecycle_state ? device.lifecycle_state.toUpperCase() : 'UNKNOWN'}
                     </span>
+                    {device.health_state && device.health_state !== 'unknown' && (
+                      <span className="text-xs text-slate-500 ml-1">
+                        · {device.health_state.toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
                     {device?.device_id || 'NO ID'}

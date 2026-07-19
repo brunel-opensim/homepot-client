@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import TabBar from '../components/TabBar'
 import { useApp } from '../context/AppContext'
+import { apiBaseUrl } from '../config/api'
 
 const DNA_ROWS = [
   { label: 'Hostname', value: localStorage.getItem('homepot_device_name') || 'My-Device' },
@@ -26,26 +27,38 @@ export default function DeviceInfo() {
   async function handleUnpair() {
     setUnpairing(true)
     const deviceId = localStorage.getItem('homepot_token')
-    
-    // Attempt to delete device from backend
+    const apiKey = sessionStorage.getItem('homepot_api_key')
+
+    let backendSuccess = false
+
     if (deviceId && !deviceId.startsWith('mock-token-')) {
       try {
-        await fetch(`http://localhost:8000/api/v1/device/${deviceId}`, {
+        const res = await fetch(`${apiBaseUrl}/device/${deviceId}`, {
           method: 'DELETE',
+          headers: apiKey ? { 'X-Device-ID': deviceId, 'X-API-Key': apiKey } : {},
         })
+        backendSuccess = res.ok
+        if (!backendSuccess) {
+          const body = await res.json().catch(() => ({}))
+          console.error('Backend unpair rejected:', body.detail || res.status)
+        }
       } catch (error) {
-        console.error('Failed to delete device on backend:', error)
+        console.error('Network error during unpair:', error)
       }
     }
 
-    // Clean up local storage
+    if (!backendSuccess) {
+      alert('Unpair request failed on server. Token will be cleared locally for safety.')
+    }
+
     localStorage.removeItem('homepot_token')
     localStorage.removeItem('homepot_site_id')
     localStorage.removeItem('homepot_device_name')
     localStorage.removeItem('homepot_device_type')
     localStorage.removeItem('homepot_device_os')
     localStorage.removeItem('homepot_enrollment_method')
-    
+    sessionStorage.removeItem('homepot_api_key')
+
     setIsProvisioned(false)
     setCurrentView('setup')
   }

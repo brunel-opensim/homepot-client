@@ -1,16 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Monitor, ArrowLeft, Activity, Server } from 'lucide-react';
+import { Search, Monitor, ArrowLeft, Activity, Server, Wifi, WifiOff, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import api from '@/services/api';
 import { trackActivity, trackSearch } from '@/utils/analytics';
+
+const LIFECYCLE_COLORS = {
+  pending: 'bg-yellow-500/10 text-yellow-400',
+  active: 'bg-green-500/10 text-green-400',
+  suspended: 'bg-orange-500/10 text-orange-400',
+  unpaired: 'bg-gray-500/10 text-gray-400',
+  retired: 'bg-red-500/10 text-red-400',
+};
+
+const CONNECTIVITY_COLORS = {
+  online: 'text-green-400',
+  offline: 'text-gray-400',
+  unknown: 'text-gray-500',
+};
 
 export default function DeviceList() {
   const navigate = useNavigate();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [lifecycleFilter, setLifecycleFilter] = useState('');
 
   useEffect(() => {
     fetchDevices();
@@ -40,11 +54,11 @@ export default function DeviceList() {
       (device.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (device.device_id?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
-    const matchStatus = statusFilter
-      ? device.status?.toLowerCase() === statusFilter.toLowerCase()
+    const matchLifecycle = lifecycleFilter
+      ? device.lifecycle_state?.toLowerCase() === lifecycleFilter.toLowerCase()
       : true;
 
-    return matchSearch && matchStatus;
+    return matchSearch && matchLifecycle;
   });
 
   if (loading) {
@@ -89,16 +103,18 @@ export default function DeviceList() {
             />
           </div>
 
-          {/* Status Filter */}
+          {/* Lifecycle Filter */}
           <select
             className="bg-[#141a24] border border-[#1f2735] text-white w-full md:w-80 px-4 py-[10px] rounded-lg focus:outline-none focus:border-teal-500 transition-colors"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            value={lifecycleFilter}
+            onChange={(e) => setLifecycleFilter(e.target.value)}
           >
-            <option value="">All Statuses</option>
-            <option value="online">Online</option>
-            <option value="offline">Offline</option>
-            <option value="error">Error</option>
+            <option value="">All Lifecycle States</option>
+            <option value="pending">Pending</option>
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="unpaired">Unpaired</option>
+            <option value="retired">Retired</option>
           </select>
         </div>
       </div>
@@ -111,22 +127,21 @@ export default function DeviceList() {
               className="bg-[#141a24] border border-[#1f2735] rounded-xl p-5 hover:border-teal-400 transition-all flex flex-col group relative cursor-pointer"
               onClick={() => navigate(`/device/${device.device_id}`)}
             >
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 rounded-lg bg-[#1f2735] text-teal-400">
-                  <Monitor size={24} />
+                <div className="flex justify-between items-start mb-4">
+                  <div className="p-2 rounded-lg bg-[#1f2735] text-teal-400">
+                    <Monitor size={24} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${CONNECTIVITY_COLORS[device.connectivity_state] || 'text-gray-500'} bg-current shadow-[0_0_6px_currentColor]`} />
+                    <div
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        LIFECYCLE_COLORS[device.lifecycle_state] || 'bg-gray-500/10 text-gray-400'
+                      }`}
+                    >
+                      {device.lifecycle_state?.toUpperCase() || 'UNKNOWN'}
+                    </div>
+                  </div>
                 </div>
-                <div
-                  className={`px-2 py-1 rounded text-xs font-medium ${
-                    (device.status || '').toLowerCase() === 'online'
-                      ? 'bg-green-500/10 text-green-400'
-                      : (device.status || '').toLowerCase() === 'offline'
-                        ? 'bg-gray-500/10 text-gray-400'
-                        : 'bg-red-500/10 text-red-400'
-                  }`}
-                >
-                  {device.status?.toUpperCase() || 'UNKNOWN'}
-                </div>
-              </div>
 
               <div className="mb-4">
                 <h2 className="text-lg font-semibold text-white truncate">
