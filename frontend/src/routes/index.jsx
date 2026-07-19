@@ -29,6 +29,7 @@ const UserActivity = lazy(() => import('../pages/UserActivity'));
 
 const Agents = lazy(() => import('../pages/Agents'));
 const DataCollection = lazy(() => import('../pages/DataCollection'));
+const EnrolmentIntentsList = lazy(() => import('../pages/EnrolmentIntents/EnrolmentIntentsList'));
 
 export default function RoutesIndex() {
   return (
@@ -61,6 +62,7 @@ export default function RoutesIndex() {
           <Route path="sites/new" element={<SiteForm />} />
           <Route path="sites/:id/edit" element={<SiteForm />} />
           <Route path="sites/:id" element={<SiteDetail />} />
+          <Route path="sites/:id/enrolment-intents" element={<EnrolmentIntentsList />} />
           <Route path="sites" element={<SitesList />} />
           <Route path="device/:id" element={<Devices />} />
           <Route path="device/:id/settings" element={<DeviceSettings />} />

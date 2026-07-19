@@ -70,11 +70,10 @@ def create_enrolment_intent(
         )
         if not current_db_user:
             raise HTTPException(status_code=403, detail="User not found")
-        db_user: User = current_db_user  # type: ignore[assignment]
+        db_user: User = current_db_user
         site = _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
-        # Check idempotency
         if payload.idempotency_key:
             existing = (
                 db.query(EnrolmentIntent)
@@ -93,7 +92,6 @@ def create_enrolment_intent(
             hours=payload.expires_in_hours
         )
 
-        # Generate a one-time claim token
         claim_token = secrets.token_urlsafe(32)
         claim_token_hash = pwd_context.hash(claim_token)
 
@@ -149,7 +147,7 @@ def list_enrolment_intents(
         )
         if not current_db_user:
             raise HTTPException(status_code=403, detail="User not found")
-        db_user: User = current_db_user  # type: ignore[assignment]
+        db_user: User = current_db_user
         site = _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(db_user, site_id, db, minimum_role="viewer")
 
@@ -210,7 +208,7 @@ def get_enrolment_intent(
         )
         if not current_db_user:
             raise HTTPException(status_code=403, detail="User not found")
-        db_user: User = current_db_user  # type: ignore[assignment]
+        db_user: User = current_db_user
         _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(db_user, site_id, db, minimum_role="viewer")
 
@@ -254,7 +252,7 @@ def update_enrolment_intent_status(
     db: Session = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Approve or reject a pending enrolment intent.
+    """Approve, reject, or revoke a pending enrolment intent.
 
     Requires operator-level access on the target site.
     """
@@ -264,7 +262,7 @@ def update_enrolment_intent_status(
         )
         if not current_db_user:
             raise HTTPException(status_code=403, detail="User not found")
-        db_user: User = current_db_user  # type: ignore[assignment]
+        db_user: User = current_db_user
         _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
@@ -314,70 +312,85 @@ def claim_enrolment_intent(
     """Claim an enrolment intent using its one-time claim token.
 
     This endpoint is used by the device/app side (no user auth required).
-    On success, a device is created in PENDING lifecycle state and
-    device credentials are returned.
+    On success, a device is created in PENDING lifecycle state with a
+    lifecycle epoch record, and device credentials are returned.
+
+    Uses an atomic database operation (row-level locking) to prevent
+    duplicate and concurrent claims.
     """
+    import asyncio
+
     try:
-        intent = _get_intent_by_id_sync(db, intent_id)
-        if not intent:
-            raise HTTPException(status_code=404, detail="Enrolment intent not found")
 
-        # Validate intent is in a claimable state
-        if intent.status != EnrolmentIntentStatus.APPROVED:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Intent must be approved before claiming (current: {intent.status})",
-            )
-
-        if intent.expires_at and intent.expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="Enrolment intent has expired")
-
-        # Verify claim token
-        if not intent.claim_token_hash or not pwd_context.verify(
-            payload.claim_token, intent.claim_token_hash  # type: ignore[arg-type]
-        ):
-            raise HTTPException(status_code=401, detail="Invalid claim token")
-
-        # Create the device
-        new_device_id = f"{payload.device_type}-{secrets.token_hex(4)}"
-        api_key = secrets.token_urlsafe(32)
-        api_key_hash = pwd_context.hash(api_key)
-
-        async def _create_device() -> Any:
+        async def _claim() -> Dict[str, Any]:
             svc = await get_database_service()
-            device = await svc.create_device(
-                device_id=new_device_id,
-                name=payload.device_name or new_device_id,
-                device_type=payload.device_type,
-                site_id=intent.site_id,  # type: ignore[arg-type]
-                api_key_hash=api_key_hash,
-                enrollment_method=intent.enrolment_method,  # type: ignore[arg-type]
-            )
-            return device
-
-        # Mark intent as consumed
-        async def _consume_intent() -> None:
-            svc = await get_database_service()
-            await svc.update_enrolment_intent_status(
+            return await svc.claim_enrolment_intent_atomic(
                 intent_id=intent_id,
-                status=EnrolmentIntentStatus.CONSUMED,
-                consumed_at=datetime.now(timezone.utc),
+                claim_token=payload.claim_token,
+                device_name=payload.device_name,
+                device_type=payload.device_type,
+                os_details=payload.os_details,
+                expected_device_identity=payload.expected_device_identity,
             )
 
-        import asyncio
-
-        asyncio.run(_create_device())
-        asyncio.run(_consume_intent())
-
+        result = asyncio.run(_claim())
         return {
             "status": "success",
             "message": "Device claimed successfully",
-            "device_id": new_device_id,
-            "api_key": api_key,
-            "site_id": intent.site_id,  # type: ignore[arg-type]
+            "device_id": result["device_id"],
+            "api_key": result["api_key"],
+            "site_id": result["site_id"],
+            "epoch_id": result["epoch_id"],
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Failed to claim enrolment intent: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/sites/{site_id}/enrolment-intents/{intent_id}/regenerate-token",
+    tags=["Enrolment Intents"],
+    response_model=Dict[str, Any],
+)
+def regenerate_claim_token(
+    site_id: str,
+    intent_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Regenerate the claim token for an existing enrolment intent.
+
+    Requires operator-level access on the target site.
+    Only possible while the intent is still in PENDING or APPROVED status.
+    """
+    try:
+        current_db_user = (
+            db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not current_db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_user: User = current_db_user
+        _get_site_by_site_id(db, site_id)
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+
+        import asyncio
+
+        async def _regenerate() -> Dict[str, str]:
+            svc = await get_database_service()
+            return await svc.regenerate_claim_token(intent_id=intent_id)
+
+        result = asyncio.run(_regenerate())
+        return {
+            "status": "success",
+            "message": "Claim token regenerated",
+            "claim_token": result["claim_token"],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Failed to claim enrolment intent: %s", e, exc_info=True)
+        logger.error("Failed to regenerate claim token: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -178,6 +178,12 @@ export default function SiteDetail() {
                 {site.is_monitored ? 'Monitored' : 'Add to Dashboard'}
               </Button>
               <Button
+                onClick={() => navigate(`/sites/${site.site_id || site.id}/enrolment-intents`)}
+                className="bg-transparent border text-blue-400 border-blue-400 hover:bg-blue-400/10"
+              >
+                Enrolment Intents
+              </Button>
+              <Button
                 onClick={() => navigate('/dashboard')}
                 className="bg-transparent border text-gray-400 border-gray-400 hover:bg-gray-400/10"
               >

@@ -289,6 +289,7 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
 
 export default function SetupWizard() {
   const { setCurrentView, setIsProvisioned } = useApp()
+  const [showClaimOption, setShowClaimOption] = useState(false)
   const [step, setStep] = useState(0)
   const [siteId, setSiteId] = useState('')
   const [deviceName, setDeviceName] = useState('')
@@ -323,6 +324,16 @@ export default function SetupWizard() {
         <StepIndicator current={step} />
 
         <div className="border-t border-slate-700 pt-4">
+          <div className="mb-4">
+            <button
+              onClick={() => setCurrentView('claim')}
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+            >
+              Have a claim token? Click here to claim
+            </button>
+            <p className="text-center text-slate-500 text-xs mt-2">or set up a new device below</p>
+            <div className="mt-3 mb-2 border-t border-slate-700" />
+          </div>
           {step === 0 && (
             <Step1
               siteId={siteId}

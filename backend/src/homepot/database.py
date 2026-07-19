@@ -9,6 +9,7 @@ import datetime
 import logging
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
+import uuid
 
 from sqlalchemy import Result, create_engine, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -27,6 +28,7 @@ from homepot.models import (
     HealthCheck,
     Job,
     JobStatus,
+    LifecycleEpoch,
     LifecycleState,
     Site,
     User,
@@ -393,6 +395,7 @@ class DatabaseService:
         is_monitored: bool = False,
         enrollment_method: Optional[str] = "pre-provisioned",
         enrollment_token: Optional[str] = None,
+        os_details: Optional[str] = None,
     ) -> Device:
         """Create a new device."""
         async with self.get_session() as session:
@@ -410,6 +413,7 @@ class DatabaseService:
                 is_monitored=is_monitored,
                 enrollment_method=enrollment_method,
                 enrollment_token=enrollment_token,
+                os_details=os_details,
             )
             session.add(device)
             await session.flush()
@@ -882,6 +886,157 @@ class DatabaseService:
                 query = query.where(EnrolmentIntent.status == status)
             result = await session.execute(query)
             return len(list(result.scalars().all()))
+
+    async def claim_enrolment_intent_atomic(
+        self,
+        intent_id: str,
+        claim_token: str,
+        device_name: Optional[str],
+        device_type: str,
+        os_details: Optional[str],
+        expected_device_identity: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Atomically claim an enrolment intent and create the device.
+
+        Uses ``select_for_update`` to lock the intent row, preventing
+        duplicate or concurrent claims.  Validates token hash, expiry,
+        scope (expected_device_identity) and unused state.  On success
+        creates the device, records a lifecycle epoch, and marks the
+        intent as consumed — all in a single transaction.
+        """
+        import secrets as _secrets
+
+        from passlib.context import CryptContext as _CryptContext
+
+        _pwd = _CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+        async with self.get_session() as session:
+            # Lock the intent row for the duration of this transaction
+            result = await session.execute(
+                select(EnrolmentIntent)
+                .where(EnrolmentIntent.intent_id == intent_id)
+                .with_for_update()
+            )
+            intent = result.scalar_one_or_none()
+            if not intent:
+                raise ValueError("Enrolment intent not found")
+
+            # Validate unused state
+            if intent.status != EnrolmentIntentStatus.APPROVED:
+                raise ValueError(
+                    f"Intent must be approved before claiming (current: {intent.status})"
+                )
+
+            # Validate expiry
+            if intent.expires_at and intent.expires_at < datetime.datetime.now(
+                datetime.timezone.utc
+            ):
+                raise ValueError("Enrolment intent has expired")
+
+            # Validate token hash
+            if not intent.claim_token_hash or not _pwd.verify(
+                claim_token, intent.claim_token_hash  # type: ignore[arg-type]
+            ):
+                raise ValueError("Invalid claim token")
+
+            # Validate expected device identity if set
+            if (
+                intent.expected_device_identity
+                and expected_device_identity != intent.expected_device_identity
+            ):
+                raise ValueError(
+                    f"Expected device identity '{intent.expected_device_identity}' "
+                    f"does not match provided '{expected_device_identity}'"
+                )
+
+            # Create the device
+            new_device_id = f"{device_type}-{_secrets.token_hex(4)}"
+            api_key = _secrets.token_urlsafe(32)
+            api_key_hash = _pwd.hash(api_key)
+
+            device = Device(
+                device_id=new_device_id,
+                name=device_name or new_device_id,
+                device_type=device_type,
+                site_id=intent.site_id,
+                api_key_hash=api_key_hash,
+                os_details=os_details,
+                enrollment_method=intent.enrolment_method,
+                lifecycle_state=LifecycleState.PENDING.value,
+            )
+            session.add(device)
+            await session.flush()
+
+            # Create lifecycle epoch
+            epoch_id = str(uuid.uuid4())
+            epoch = LifecycleEpoch(
+                epoch_id=epoch_id,
+                device_id=device.id,
+                site_id=intent.site_id,
+                tenant_id=intent.tenant_id,
+                claimed_at=datetime.datetime.now(datetime.timezone.utc),
+                claim_token_hash=intent.claim_token_hash,
+                enrolment_method=intent.enrolment_method,
+            )
+            session.add(epoch)
+            await session.flush()
+
+            # Link device to its current lifecycle epoch
+            device.lifecycle_epoch_id = epoch.id  # type: ignore[assignment]
+
+            # Mark intent as consumed
+            intent.status = EnrolmentIntentStatus.CONSUMED.value  # type: ignore[assignment]
+            intent.consumed_at = datetime.datetime.now(datetime.timezone.utc)  # type: ignore[assignment]
+
+            await session.flush()
+            await session.refresh(device)
+            await session.refresh(epoch)
+
+        return {
+            "device_id": new_device_id,
+            "api_key": api_key,
+            "site_id": intent.site_id,
+            "epoch_id": epoch_id,
+        }
+
+    async def regenerate_claim_token(
+        self,
+        intent_id: str,
+    ) -> Dict[str, str]:
+        """Regenerate a claim token for an existing pending enrolment intent.
+
+        Returns the new token and its expiry.  Only works on intents
+        that are still in PENDING or APPROVED status.
+        """
+        import secrets as _secrets
+
+        from passlib.context import CryptContext as _CryptContext
+
+        _pwd = _CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(EnrolmentIntent)
+                .where(EnrolmentIntent.intent_id == intent_id)
+                .with_for_update()
+            )
+            intent = result.scalar_one_or_none()
+            if not intent:
+                raise ValueError("Enrolment intent not found")
+
+            if intent.status not in (
+                EnrolmentIntentStatus.PENDING,
+                EnrolmentIntentStatus.APPROVED,
+            ):
+                raise ValueError(
+                    f"Cannot regenerate token for intent in status '{intent.status}'"
+                )
+
+            new_token = _secrets.token_urlsafe(32)
+            intent.claim_token_hash = _pwd.hash(new_token)  # type: ignore[assignment]
+            await session.flush()
+
+            return {"claim_token": new_token}
 
 
 # Global database service instance
