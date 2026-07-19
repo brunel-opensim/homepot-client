@@ -16,18 +16,19 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Create the enrolment_intents table."""
     op.create_table(
         "enrolment_intents",
         sa.Column("id", sa.Integer(), primary_key=True, index=True),
-        sa.Column("intent_id", sa.String(length=36), unique=True, index=True, nullable=False),
+        sa.Column(
+            "intent_id", sa.String(length=36), unique=True, index=True, nullable=False
+        ),
         sa.Column("site_id", sa.Integer(), sa.ForeignKey("sites.id"), nullable=False),
-        sa.Column("tenant_id", sa.Integer(), sa.ForeignKey("tenants.id"), nullable=True),
         sa.Column(
-            "enrolment_method", sa.String(length=50), nullable=False
+            "tenant_id", sa.Integer(), sa.ForeignKey("tenants.id"), nullable=True
         ),
-        sa.Column(
-            "expected_device_identity", sa.String(length=100), nullable=True
-        ),
+        sa.Column("enrolment_method", sa.String(length=50), nullable=False),
+        sa.Column("expected_device_identity", sa.String(length=100), nullable=True),
         sa.Column("claim_token_hash", sa.String(length=255), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("consumed_at", sa.DateTime(timezone=True), nullable=True),
@@ -53,4 +54,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop the enrolment_intents table."""
     op.drop_table("enrolment_intents")
