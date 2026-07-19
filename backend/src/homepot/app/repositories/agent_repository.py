@@ -39,6 +39,7 @@ class AgentRepository:
         local_ip: Optional[str],
         wan_ip: Optional[str],
         lifecycle_state: str = LifecycleState.ACTIVE.value,
+        enrollment_method: Optional[str] = None,
     ) -> Device:
         """Create and persist a new device record."""
         device = Device(
@@ -52,6 +53,7 @@ class AgentRepository:
             wan_ip=wan_ip,
             is_active=True,
             lifecycle_state=lifecycle_state,
+            enrollment_method=enrollment_method,
         )
         self.db.add(device)
         self.db.commit()

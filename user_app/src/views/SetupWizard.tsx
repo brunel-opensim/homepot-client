@@ -124,30 +124,73 @@ function Step1({ siteId, setSiteId, deviceName, setDeviceName, deviceType, setDe
 }
 
 function Step2({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  function handleSSO() {
+  async function handleLogin() {
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
+    setError('')
+    try {
+      const response = await fetch(`${apiBaseUrl}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.detail || 'Login failed')
+      }
       onNext()
-    }, 1500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div className="flex flex-col gap-5 w-full">
       <div className="text-center">
         <h2 className="text-slate-200 font-semibold text-base">Sign in to your account</h2>
-        <p className="text-slate-400 text-xs mt-1">Use your company SSO credentials.</p>
+        <p className="text-slate-400 text-xs mt-1">Use your credentials to authorise device enrolment.</p>
       </div>
 
-      <div className="w-16 h-16 rounded-full bg-slate-700 border-2 border-slate-600 flex items-center justify-center mx-auto">
-        <span className="text-3xl">🔐</span>
+      {error && (
+        <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1">
+        <label className="text-slate-300 text-sm font-medium">Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="you@company.com"
+          disabled={loading}
+          className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 transition-colors"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-slate-300 text-sm font-medium">Password</label>
+        <input
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="Your password"
+          disabled={loading}
+          className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 transition-colors"
+        />
       </div>
 
       <button
-        onClick={handleSSO}
-        disabled={loading}
+        onClick={handleLogin}
+        disabled={loading || !email.trim() || !password.trim()}
         className="w-full py-3 rounded-lg bg-teal-600 hover:bg-teal-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
       >
         {loading ? (
@@ -156,12 +199,13 @@ function Step2({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
             Signing in...
           </>
         ) : (
-          '🔐  Login with SSO'
+          '🔐  Sign In'
         )}
       </button>
 
       <button
         onClick={onBack}
+        disabled={loading}
         className="w-full py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm transition-colors"
       >
         ← Back
@@ -187,7 +231,6 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
     try {
       const reqBody = {
         site_id: siteId,
-        user_identity: 'user-app-setup',
         device_name: deviceName || 'My Device',
         device_type: deviceType,
         os_details: deviceOs
@@ -198,6 +241,7 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify(reqBody)
       })
 

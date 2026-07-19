@@ -313,6 +313,12 @@ Backend:
 - Issue the API key only once.
 - Reject duplicate and concurrent claims.
 
+PR 6: Secure self-enrolment
+Replace caller-provided user_identity as authority:
+- Require authenticated user identity.
+- Verify permission to enrol into the selected site.
+- Atomically create device, assignment, lifecycle epoch, and credentials.
+- Persist enrollment_method = self-enrolled.
 
 
 
