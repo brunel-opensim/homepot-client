@@ -617,27 +617,19 @@ const api = {
   // ==================== Enrolment Intents ====================
   enrolmentIntents: {
     create: async (siteId, payload) => {
-      const response = await apiClient.post(
-        `/sites/${siteId}/enrolment-intents`,
-        payload
-      );
+      const response = await apiClient.post(`/sites/${siteId}/enrolment-intents`, payload);
       return response.data;
     },
 
     list: async (siteId, status = null, limit = 50, offset = 0) => {
       const params = { limit, offset };
       if (status) params.status = status;
-      const response = await apiClient.get(
-        `/sites/${siteId}/enrolment-intents`,
-        { params }
-      );
+      const response = await apiClient.get(`/sites/${siteId}/enrolment-intents`, { params });
       return response.data;
     },
 
     get: async (siteId, intentId) => {
-      const response = await apiClient.get(
-        `/sites/${siteId}/enrolment-intents/${intentId}`
-      );
+      const response = await apiClient.get(`/sites/${siteId}/enrolment-intents/${intentId}`);
       return response.data;
     },
 

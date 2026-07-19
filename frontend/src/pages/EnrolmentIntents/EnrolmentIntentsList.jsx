@@ -22,12 +22,7 @@ export default function EnrolmentIntentsList() {
   const fetchIntents = async () => {
     try {
       setLoading(true);
-      const data = await api.enrolmentIntents.list(
-        siteId,
-        statusFilter || null,
-        100,
-        0
-      );
+      const data = await api.enrolmentIntents.list(siteId, statusFilter || null, 100, 0);
       setIntents(data.intents || []);
       setTotal(data.total || 0);
     } catch (err) {
@@ -75,7 +70,8 @@ export default function EnrolmentIntentsList() {
   };
 
   const handleRevoke = async (intentId) => {
-    if (!window.confirm('Revoke this enrolment intent? The current token will no longer work.')) return;
+    if (!window.confirm('Revoke this enrolment intent? The current token will no longer work.'))
+      return;
     try {
       await api.enrolmentIntents.updateStatus(siteId, intentId, { status: 'revoked' });
       fetchIntents();
@@ -88,7 +84,9 @@ export default function EnrolmentIntentsList() {
     try {
       setRegenerating(intentId);
       const result = await api.enrolmentIntents.regenerateToken(siteId, intentId);
-      alert(`New claim token: ${result.claim_token}\n\nSave this token securely — it will not be shown again.`);
+      alert(
+        `New claim token: ${result.claim_token}\n\nSave this token securely — it will not be shown again.`
+      );
       fetchIntents();
     } catch (err) {
       console.error('Failed to regenerate token:', err);
@@ -133,7 +131,10 @@ export default function EnrolmentIntentsList() {
             Back to Site
           </button>
           <button
-            onClick={() => { setShowCreate(!showCreate); setCreateResult(null); }}
+            onClick={() => {
+              setShowCreate(!showCreate);
+              setCreateResult(null);
+            }}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
           >
             {showCreate ? 'Cancel' : 'Create Intent'}
@@ -152,19 +153,21 @@ export default function EnrolmentIntentsList() {
               <input
                 type="text"
                 value={createForm.expected_device_identity}
-                onChange={(e) => setCreateForm({ ...createForm, expected_device_identity: e.target.value })}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, expected_device_identity: e.target.value })
+                }
                 placeholder="e.g. serial number or hardware ID"
                 className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Expires In (hours)
-              </label>
+              <label className="block text-sm font-medium text-gray-700">Expires In (hours)</label>
               <input
                 type="number"
                 value={createForm.expires_in_hours}
-                onChange={(e) => setCreateForm({ ...createForm, expires_in_hours: parseInt(e.target.value) || 48 })}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, expires_in_hours: parseInt(e.target.value) || 48 })
+                }
                 min={1}
                 max={8760}
                 className="mt-1 block w-full border border-gray-300 rounded-md p-2 text-sm"
@@ -235,12 +238,24 @@ export default function EnrolmentIntentsList() {
           <table className="min-w-full bg-white border border-gray-200 rounded-lg">
             <thead>
               <tr className="bg-gray-50 border-b">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Intent ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Device Identity</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Intent ID
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Expires
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Device Identity
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Created
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -258,14 +273,16 @@ export default function EnrolmentIntentsList() {
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {intent.expires_at ? (
-                      <span className={new Date(intent.expires_at) < new Date() ? 'text-red-600' : ''}>
+                      <span
+                        className={new Date(intent.expires_at) < new Date() ? 'text-red-600' : ''}
+                      >
                         {new Date(intent.expires_at).toLocaleString()}
                       </span>
-                    ) : '-'}
+                    ) : (
+                      '-'
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm">
-                    {intent.expected_device_identity || '-'}
-                  </td>
+                  <td className="px-4 py-3 text-sm">{intent.expected_device_identity || '-'}</td>
                   <td className="px-4 py-3 text-sm">
                     {intent.created_at ? new Date(intent.created_at).toLocaleString() : '-'}
                   </td>
