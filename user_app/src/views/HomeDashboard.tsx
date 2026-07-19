@@ -1,23 +1,58 @@
 import { useState, useEffect } from 'react'
 import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
+import { apiBaseUrl } from '../config/api'
 
-const MOCK_TELEMETRY = { cpu: 42, memory: 61, disk: 28 }
-
-function now() {
-  return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+interface DeviceStatus {
+  lifecycle_state: string
+  connectivity_state: string
+  health_state: string
 }
 
 export default function HomeDashboard() {
   const deviceName = localStorage.getItem('homepot_device_name') || 'My Device'
-  const [heartbeat, setHeartbeat] = useState(now())
-  const [lastSync] = useState('just now')
-  const isOnline = true
+  const deviceId = localStorage.getItem('homepot_token')
+  const apiKey = sessionStorage.getItem('homepot_api_key')
+  const [status, setStatus] = useState<DeviceStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchStatus = async () => {
+    if (!deviceId) return
+    try {
+      const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/status`, {
+        headers: apiKey ? { 'X-Device-ID': deviceId, 'X-API-Key': apiKey } : {},
+      })
+      if (res.ok) {
+        const body = await res.json()
+        setStatus(body.data)
+      }
+    } catch {
+      // silently degrade — will show unknown
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const interval = setInterval(() => setHeartbeat(now()), 1000)
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  const connectivity = status?.connectivity_state || 'unknown'
+  const lifecycle = status?.lifecycle_state || 'unknown'
+  const isOnline = connectivity === 'online'
+
+  if (lifecycle === 'unpaired' || lifecycle === 'retired') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-8 text-center">
+          <p className="text-red-400 font-bold text-lg">Device {lifecycle}</p>
+          <p className="text-slate-400 text-sm mt-2">This device is no longer active. Please re-enrol.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
@@ -53,7 +88,12 @@ export default function HomeDashboard() {
               <p className={`font-bold text-sm ${isOnline ? 'text-emerald-400' : 'text-red-400'}`}>
                 {isOnline ? 'SECURE — ONLINE' : 'OFFLINE'}
               </p>
-              <p className="text-slate-400 text-xs mt-0.5">Last sync: {lastSync}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-slate-400 text-xs">Lifecycle: {lifecycle}</span>
+                {status?.health_state && status.health_state !== 'unknown' && (
+                  <span className="text-slate-500 text-xs">· {status.health_state}</span>
+                )}
+              </div>
             </div>
             <div className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${
               isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'
@@ -61,13 +101,23 @@ export default function HomeDashboard() {
           </div>
         </div>
 
+        {/* Suspended banner */}
+        {lifecycle === 'suspended' && (
+          <div className="px-5 pt-3">
+            <div className="bg-orange-950 border border-orange-800 rounded-xl p-3 text-center">
+              <p className="text-orange-400 text-xs font-medium">DEVICE SUSPENDED</p>
+              <p className="text-orange-300 text-xs mt-1">Contact your administrator to resume service.</p>
+            </div>
+          </div>
+        )}
+
         {/* Gauge Rings */}
         <div className="px-5 pt-5">
           <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-widest">Agent Resource Usage</p>
           <div className="flex justify-around">
-            <GaugeRing label="CPU" value={MOCK_TELEMETRY.cpu} color="#10b981" />
-            <GaugeRing label="Memory" value={MOCK_TELEMETRY.memory} color="#f59e0b" />
-            <GaugeRing label="Disk" value={MOCK_TELEMETRY.disk} color="#3b82f6" />
+            <GaugeRing label="CPU" value={42} color="#10b981" />
+            <GaugeRing label="Memory" value={61} color="#f59e0b" />
+            <GaugeRing label="Disk" value={28} color="#3b82f6" />
           </div>
           <p className="text-center text-slate-600 text-xs mt-2">
             Live data available after IPC connection (Phase 3)
@@ -81,7 +131,9 @@ export default function HomeDashboard() {
               <span className="text-red-400 text-sm animate-pulse">♥</span>
               <span className="text-slate-400 text-xs font-medium">Heartbeat</span>
             </div>
-            <span className="text-slate-200 text-xs font-mono">{heartbeat}</span>
+            <span className="text-slate-200 text-xs font-mono">
+              {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
           </div>
         </div>
 

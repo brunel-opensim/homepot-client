@@ -133,7 +133,7 @@ export default function Dashboard() {
             // Note: cached 'fetchedDevices' has all devices with site_id
             const siteDevices = fetchedDevices.filter((d) => d.site_id === item.site_id);
             onlineCount = siteDevices.filter(
-              (d) => d.status && d.status.toLowerCase() === 'online'
+              (d) => d.connectivity_state && d.connectivity_state.toLowerCase() === 'online'
             ).length;
 
             // Sites contain multiple OS types. Let's use the ones provided by the backend!
@@ -144,7 +144,8 @@ export default function Dashboard() {
             itemAlerts = anomalies.filter((a) => siteDeviceIds.has(a.device_id));
           } else {
             // Single Device
-            onlineCount = item.status && item.status.toLowerCase() === 'online' ? 1 : 0;
+            onlineCount =
+              item.connectivity_state && item.connectivity_state.toLowerCase() === 'online' ? 1 : 0;
 
             // Identify OS by name/description for single device
             const normalizedName = (

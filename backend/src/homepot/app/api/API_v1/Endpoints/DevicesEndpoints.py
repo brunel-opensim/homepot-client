@@ -1,5 +1,6 @@
 """API endpoints for managing Device in the HomePot system."""
 
+from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -12,13 +13,37 @@ from homepot.app.models import AnalyticsModel as analytics_models
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service
-from homepot.models import AuditLog, Device, Job
+from homepot.models import (
+    AuditLog,
+    ConnectivityState,
+    Device,
+    HealthState,
+    Job,
+    LifecycleState,
+)
 
 client_instance: Optional[HomepotClient] = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+_HEARTBEAT_ONLINE_SECONDS = 120
+
+
+def _compute_connectivity(device: Device) -> str:
+    """Return online/offline/unknown based on heartbeat recency."""
+    if not device.last_heartbeat_at:
+        return ConnectivityState.UNKNOWN.value
+    heartbeat = device.last_heartbeat_at
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - heartbeat
+    return (
+        ConnectivityState.ONLINE.value
+        if delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
+        else ConnectivityState.OFFLINE.value
+    )
 
 
 router = APIRouter()
@@ -251,6 +276,10 @@ async def list_device() -> Dict[str, List[Dict]]:
                         "name": device.name,
                         "device_type": device.device_type,
                         "os_details": device.os_details,
+                        "lifecycle_state": device.lifecycle_state,
+                        "connectivity_state": _compute_connectivity(device),
+                        "health_state": device.health_state
+                        or HealthState.UNKNOWN.value,
                         "status": device.status,
                         "ip_address": device.ip_address,
                         "is_monitored": device.is_monitored,
@@ -289,6 +318,9 @@ async def get_device(device_id: str) -> Dict[str, Any]:
             "device_id": device.device_id,
             "name": device.name,
             "device_type": device.device_type,
+            "lifecycle_state": device.lifecycle_state,
+            "connectivity_state": _compute_connectivity(device),
+            "health_state": device.health_state or HealthState.UNKNOWN.value,
             "status": device.status,
             "ip_address": device.ip_address or "N/A",
             "os_details": device.os_details
@@ -489,13 +521,16 @@ async def get_devices_by_site(
                 "name": d.name,
                 "device_type": d.device_type,
                 "os_details": d.os_details,
-                "status": d.status,
-                "connectivity": "online" if d.status == "online" else "offline",
+                "lifecycle_state": d.lifecycle_state,
+                "connectivity_state": _compute_connectivity(d),
+                "health_state": d.health_state or HealthState.UNKNOWN.value,
                 "pairing_status": (
                     "unpaired"
-                    if not d.is_active or d.status == "unpaired"
+                    if d.lifecycle_state
+                    in (LifecycleState.UNPAIRED.value, LifecycleState.RETIRED.value)
                     else "paired"
                 ),
+                "status": d.status,
                 "ip_address": d.ip_address,
                 "is_monitored": d.is_monitored,
                 "active_alerts": alert_map.get(d.device_id, 0),

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from homepot.app.models.AnalyticsModel import DeviceMetrics
-from homepot.models import Device, Site
+from homepot.models import Device, LifecycleState, Site
 
 
 class AgentRepository:
@@ -38,6 +38,7 @@ class AgentRepository:
         os_details: Optional[str],
         local_ip: Optional[str],
         wan_ip: Optional[str],
+        lifecycle_state: str = LifecycleState.ACTIVE.value,
     ) -> Device:
         """Create and persist a new device record."""
         device = Device(
@@ -50,6 +51,7 @@ class AgentRepository:
             local_ip=local_ip,
             wan_ip=wan_ip,
             is_active=True,
+            lifecycle_state=lifecycle_state,
         )
         self.db.add(device)
         self.db.commit()

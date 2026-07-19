@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from homepot.database import get_database_service
-from homepot.models import AuditLog, Device, DeviceStatus, Site
+from homepot.models import AuditLog, Device, DeviceStatus, LifecycleState, Site
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_device_unpair_soft_delete(temp_db: Any) -> None:
 
         assert fetched_device is not None
         assert fetched_device.is_active is False
-        assert fetched_device.status == DeviceStatus.UNPAIRED
+        assert fetched_device.lifecycle_state == LifecycleState.UNPAIRED.value
         assert fetched_device.api_key_hash is None
 
         audit_result = await session.execute(

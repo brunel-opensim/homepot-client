@@ -276,13 +276,26 @@ export default function SiteDetail() {
                         </td>
                         <td className="p-4 align-middle">
                           <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              device.status === 'online'
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              device.lifecycle_state === 'active'
                                 ? 'bg-green-500/10 text-green-500'
-                                : 'bg-red-500/10 text-red-500'
+                                : device.lifecycle_state === 'suspended'
+                                  ? 'bg-orange-500/10 text-orange-500'
+                                  : device.lifecycle_state === 'unpaired'
+                                    ? 'bg-gray-500/10 text-gray-500'
+                                    : 'bg-yellow-500/10 text-yellow-500'
                             }`}
                           >
-                            {device.status || 'Offline'}
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                device.connectivity_state === 'online'
+                                  ? 'bg-green-500'
+                                  : device.connectivity_state === 'offline'
+                                    ? 'bg-gray-500'
+                                    : 'bg-yellow-500'
+                              }`}
+                            />
+                            {device.lifecycle_state || 'Unknown'}
                           </span>
                         </td>
                         <td className="p-4 align-middle">
