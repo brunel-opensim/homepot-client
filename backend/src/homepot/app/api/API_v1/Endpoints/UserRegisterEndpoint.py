@@ -38,6 +38,7 @@ from homepot.app.models import UserRegisterModel as models
 from homepot.app.schemas import schemas
 from homepot.app.utils.limiter import limiter
 from homepot.database import SessionLocal
+from homepot.models import Tenant
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -89,6 +90,9 @@ def signup(
         # Admin and Engineer both get is_admin=True for now, but role string differs
         is_admin_user = user_role.lower() in ["admin", "engineer"]
 
+        # Assign to default tenant
+        default_tenant = db.query(Tenant).filter(Tenant.slug == "default").first()
+
         new_user = models.User(
             email=user.email,
             username=final_username,
@@ -96,6 +100,7 @@ def signup(
             hashed_password=hash_password(user.password),
             role=user_role,
             is_admin=is_admin_user,
+            tenant_id=default_tenant.id if default_tenant else None,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -178,6 +183,7 @@ def login(
                 "is_admin": db_user.is_admin,
                 "full_name": db_user.full_name,
                 "role": db_user.role,
+                "tenant_id": db_user.tenant_id,
             },
         )
 
@@ -342,6 +348,7 @@ def get_me(
                 "is_admin": db_user.is_admin,
                 "full_name": db_user.full_name,
                 "role": db_user.role,
+                "tenant_id": db_user.tenant_id,
             },
         )
     except HTTPException:

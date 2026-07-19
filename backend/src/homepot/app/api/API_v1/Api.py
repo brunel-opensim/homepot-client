@@ -22,6 +22,7 @@ from .Endpoints import (
     PushNotificationEndpoint,
     SiteSchedulesEndpoint,
     SitesEndpoint,
+    TenantsEndpoint,
     UIEndpoint,
     UserRegisterEndpoint,
 )
@@ -40,6 +41,9 @@ api_v1_router.include_router(
 api_v1_router.include_router(UIEndpoint.router, prefix="/ui", tags=["UI"])
 api_v1_router.include_router(ClientEndpoint.router, prefix="/client", tags=["Client"])
 api_v1_router.include_router(SitesEndpoint.router, prefix="/sites", tags=["Sites"])
+api_v1_router.include_router(
+    TenantsEndpoint.router, prefix="/tenants", tags=["Tenants"]
+)
 api_v1_router.include_router(
     SiteSchedulesEndpoint.router, prefix="/sites", tags=["Site Schedules"]
 )

@@ -129,6 +129,58 @@ class CommandStatus(str, Enum):
     EXPIRED = "expired"
 
 
+class Tenant(Base):
+    """Tenant/Organisation model for multi-tenancy support."""
+
+    __tablename__ = "tenants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    slug = Column(String(50), unique=True, index=True, nullable=False)
+    settings = Column(JSON, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    sites = relationship("Site", back_populates="tenant")
+    memberships = relationship("TenantMembership", back_populates="tenant")
+
+
+class TenantMembership(Base):
+    """User membership in a tenant with a role."""
+
+    __tablename__ = "tenant_memberships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    role = Column(String(50), default="member")  # admin, operator, installer, member
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    user = relationship("User", back_populates="tenant_memberships")
+    tenant = relationship("Tenant", back_populates="memberships")
+
+
+class SiteMembership(Base):
+    """User membership in a site with a role."""
+
+    __tablename__ = "site_memberships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
+    role = Column(String(50), default="viewer")  # admin, operator, installer, viewer
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    user = relationship("User", back_populates="site_memberships")
+    site = relationship("Site", back_populates="memberships")
+
+
 class User(Base):
     """User model for authentication."""
 
@@ -143,11 +195,15 @@ class User(Base):
     role = Column(String(50), default="Client")
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
     jobs = relationship("Job", back_populates="created_by_user")
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    tenant_memberships = relationship("TenantMembership", back_populates="user")
+    site_memberships = relationship("SiteMembership", back_populates="user")
 
 
 class Site(Base):
@@ -164,14 +220,17 @@ class Site(Base):
     location = Column(String(200), nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     is_monitored = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     # Relationships
+    tenant = relationship("Tenant", back_populates="sites")
     devices = relationship("Device", back_populates="site")
     jobs = relationship("Job", back_populates="site")
+    memberships = relationship("SiteMembership", back_populates="site")
 
 
 class Device(Base):

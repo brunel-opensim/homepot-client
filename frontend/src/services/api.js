@@ -526,6 +526,94 @@ const api = {
     },
   },
 
+  // ==================== Tenants ====================
+
+  tenants: {
+    list: async () => {
+      const response = await apiClient.get('/tenants/');
+      return response.data;
+    },
+
+    get: async (tenantId) => {
+      const response = await apiClient.get(`/tenants/${tenantId}`);
+      return response.data;
+    },
+
+    create: async (tenantData) => {
+      const response = await apiClient.post('/tenants/', tenantData);
+      return response.data;
+    },
+
+    update: async (tenantId, tenantData) => {
+      const response = await apiClient.put(`/tenants/${tenantId}`, tenantData);
+      return response.data;
+    },
+
+    delete: async (tenantId) => {
+      const response = await apiClient.delete(`/tenants/${tenantId}`);
+      return response.data;
+    },
+
+    // Tenant member management
+    listMembers: async (tenantId) => {
+      const response = await apiClient.get(`/tenants/${tenantId}/members`);
+      return response.data;
+    },
+
+    addMember: async (tenantId, memberData) => {
+      const response = await apiClient.post(`/tenants/${tenantId}/members`, memberData);
+      return response.data;
+    },
+
+    updateMemberRole: async (tenantId, membershipId, roleData) => {
+      const response = await apiClient.put(
+        `/tenants/${tenantId}/members/${membershipId}`,
+        roleData
+      );
+      return response.data;
+    },
+
+    removeMember: async (tenantId, membershipId) => {
+      const response = await apiClient.delete(`/tenants/${tenantId}/members/${membershipId}`);
+      return response.data;
+    },
+
+    // Site member management (scoped under a tenant)
+    listSiteMembers: async (tenantId, siteId) => {
+      const response = await apiClient.get(`/tenants/${tenantId}/sites/${siteId}/members`);
+      return response.data;
+    },
+
+    addSiteMember: async (tenantId, siteId, memberData) => {
+      const response = await apiClient.post(
+        `/tenants/${tenantId}/sites/${siteId}/members`,
+        memberData
+      );
+      return response.data;
+    },
+
+    updateSiteMemberRole: async (tenantId, siteId, membershipId, roleData) => {
+      const response = await apiClient.put(
+        `/tenants/${tenantId}/sites/${siteId}/members/${membershipId}`,
+        roleData
+      );
+      return response.data;
+    },
+
+    removeSiteMember: async (tenantId, siteId, membershipId) => {
+      const response = await apiClient.delete(
+        `/tenants/${tenantId}/sites/${siteId}/members/${membershipId}`
+      );
+      return response.data;
+    },
+
+    // My memberships
+    getMyMemberships: async () => {
+      const response = await apiClient.get('/tenants/me/memberships');
+      return response.data;
+    },
+  },
+
   ai: {
     /**
      * Query the AI with a natural language question

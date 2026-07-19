@@ -17,6 +17,7 @@ from . import (
     PushNotificationEndpoint,
     SiteSchedulesEndpoint,
     SitesEndpoint,
+    TenantsEndpoint,
     UIEndpoint,
     UserRegisterEndpoint,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "PushNotificationEndpoint",
     "SiteSchedulesEndpoint",
     "SitesEndpoint",
+    "TenantsEndpoint",
     "UIEndpoint",
     "UserRegisterEndpoint",
 ]
