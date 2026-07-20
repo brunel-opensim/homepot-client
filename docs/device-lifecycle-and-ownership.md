@@ -367,3 +367,25 @@ Create explicit records such as:
 - DeviceLifecycleEvent
 This provides historical ownership without rewriting old telemetry when a device moves.
 
+PR 11: Add suspend, resume, retire, and re-enrol
+Implement authorised transitions with audit reasons:
+- active → suspended
+- suspended → active
+- active/suspended → unpaired
+- unpaired → active through a new epoch
+- eligible states → retired
+Transfer between sites should create a new assignment and epoch, revoke old credentials, and require permission in both scopes.
+
+Linux real-device readiness
+Once the lifecycle and credential contract is stable:
+- package the Linux agent;
+- generate a persistent stable device identity;
+- secure credentials on disk or in a keyring;
+- configure backend URL and trust anchors;
+- implement authenticated DNA registration;
+- implement heartbeat and telemetry retry queues;
+- implement command polling/push wake-up;
+- implement command acknowledgement and result reporting;
+- add log rotation and service supervision;
+- test restart, network loss, token revocation, duplicate enrolment, and unpairing.
+The Linux agent should be the reference implementation for the later Windows agent.
