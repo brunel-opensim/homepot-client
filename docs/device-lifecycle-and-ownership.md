@@ -336,6 +336,27 @@ PR 7: Define the device credential contract
   - Android Keystore when that platform is implemented.
 This abstraction is particularly important because it allows simulations and real devices to use the same higher-level workflow.
 
+PR 8: Add an explicit unpair operation
+Replace semantic dependence on unauthenticated DELETE with something like:
+POST /api/v1/devices/{device_id}/unpair
+The backend should:
+- authenticate the caller;
+- verify site ownership;
+- validate the current lifecycle state;
+- support an idempotency key;
+- revoke device credentials;
+- revoke push-provider registrations;
+- expire outstanding commands and sessions;
+- set lifecycle_state = unpaired;
+- retain historical records; and
+- produce a complete audit event.
 
-
+PR 9: Correct the User App unpair flow
+The User App should:
+- send its authenticated unpair request;
+- check the HTTP response;
+- distinguish confirmed unpairing from network failure;
+- clear secure local credentials after confirmation;
+- show “server revocation pending” after a local-only reset;
+- prevent silent success on failed requests.
 
