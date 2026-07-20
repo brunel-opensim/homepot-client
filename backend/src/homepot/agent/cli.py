@@ -24,7 +24,11 @@ from homepot.agent.identity import (
     identity_path,
     reset_device_id,
 )
-from homepot.agent.real_device_agent import load_agent_config, run_agent
+from homepot.agent.real_device_agent import (
+    bootstrap_agent,
+    load_agent_config,
+    run_agent,
+)
 
 app = typer.Typer(
     name="homepot-agent",
@@ -84,6 +88,82 @@ def run(
         os.environ["HOMEPOT_AGENT_CONFIG"] = str(config.resolve())
     ensure_identity()
     asyncio.run(run_agent())
+
+
+# ---------------------------------------------------------------------------
+# bootstrap
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def bootstrap(
+    backend_url: str = typer.Argument(
+        ..., help="Backend URL (e.g. https://api.homepot.example.com)"
+    ),
+    intent_id: str = typer.Argument(
+        ..., help="Public ID of a pre-approved enrolment intent"
+    ),
+    claim_token: str = typer.Argument(
+        ..., help="One-time claim token created with the intent"
+    ),
+    device_name: Optional[str] = typer.Option(
+        None, "--device-name", help="Human-friendly display name for the device"
+    ),
+    device_type: str = typer.Option(
+        "pos_terminal", "--device-type", help="Device type identifier"
+    ),
+    os_details: Optional[str] = typer.Option(
+        None, "--os-details", help="OS version string reported by the device"
+    ),
+    run_after: bool = typer.Option(
+        False, "--run", help="Start the agent runtime loop after bootstrap"
+    ),
+) -> None:
+    """Provision this device by claiming an enrolment intent.
+
+    Generates a device identity, calls the backend claim endpoint,
+    persists the returned credentials, registers device DNA, and
+    optionally starts the full agent runtime (heartbeat / telemetry).
+    """
+    if run_after:
+
+        async def _bootstrap_and_run() -> None:
+            ensure_identity()
+            config = await bootstrap_agent(
+                backend_url=backend_url,
+                intent_id=intent_id,
+                claim_token=claim_token,
+                device_name=device_name,
+                device_type=device_type,
+                os_details=os_details,
+            )
+            logger.info(
+                "Device %s provisioned on site %s",
+                config["device_id"],
+                config["site_id"],
+            )
+            await run_agent()
+
+        asyncio.run(_bootstrap_and_run())
+    else:
+
+        async def _bootstrap() -> None:
+            ensure_identity()
+            config = await bootstrap_agent(
+                backend_url=backend_url,
+                intent_id=intent_id,
+                claim_token=claim_token,
+                device_name=device_name,
+                device_type=device_type,
+                os_details=os_details,
+            )
+            logger.info(
+                "Device %s provisioned on site %s",
+                config["device_id"],
+                config["site_id"],
+            )
+
+        asyncio.run(_bootstrap())
 
 
 def ensure_identity() -> str:

@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import ssl
 import threading
-from typing import Any, Dict, cast
+from typing import Any, Dict, Optional, cast
 
 import httpx
 from uvicorn import Config, Server
@@ -59,6 +59,15 @@ def load_agent_config() -> Dict[str, Any]:
         site_id = cred.get_metadata("site_id")
         if site_id:
             data["site_id"] = site_id
+        device_name = cred.get_metadata("device_name")
+        if device_name:
+            data["device_name"] = device_name
+        device_type = cred.get_metadata("device_type")
+        if device_type:
+            data["device_type"] = device_type
+        os_details = cred.get_metadata("os_details")
+        if os_details:
+            data["os_details"] = os_details
 
     data.setdefault("heartbeat_interval_seconds", 30)
     data.setdefault("telemetry_interval_seconds", 30)
@@ -286,6 +295,111 @@ def _build_tls_config(cred: CredentialStorage) -> Dict[str, Any]:
         tls_kw["cert"] = client_cert
 
     return tls_kw
+
+
+async def bootstrap_agent(
+    backend_url: str,
+    intent_id: str,
+    claim_token: str,
+    device_name: Optional[str] = None,
+    device_type: str = "pos_terminal",
+    os_details: Optional[str] = None,
+    expected_device_identity: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Provision this device by claiming an enrolment intent.
+
+    Steps
+    -----
+    1. Ensure a persistent device identity exists.
+    2. Call ``POST /api/v1/enrolment-intents/{intent_id}/claim``.
+    3. Persist the returned credentials in ``CredentialStorage``.
+    4. Register device DNA via ``POST /api/v1/agent/device-dna``.
+    5. Return the effective agent configuration.
+
+    Parameters
+    ----------
+    backend_url:
+        Root URL of the Homepot backend (e.g. ``https://api.example.com``).
+    intent_id:
+        The public ``intent_id`` of a pre-approved enrolment intent.
+    claim_token:
+        The one-time claim token created with the intent.
+    device_name:
+        Optional human-friendly display name for this device.
+    device_type:
+        Device type identifier (default ``"pos_terminal"``).
+    os_details:
+        Optional OS version string reported by the device.
+    expected_device_identity:
+        Optional stable hardware identifier for extra validation.
+    """
+    from homepot.agent.identity import get_or_create_device_id
+
+    device_identity = get_or_create_device_id()
+    logger.info("Bootstrapping with device identity: %s", device_identity)
+
+    cred = create_credential_storage()
+
+    claim_payload: Dict[str, Any] = {
+        "claim_token": claim_token,
+        "device_name": device_name or device_identity,
+        "device_type": device_type,
+        "os_details": os_details,
+    }
+    if expected_device_identity:
+        claim_payload["expected_device_identity"] = expected_device_identity
+
+    claim_url = f"{backend_url.rstrip('/')}/api/v1/enrolment-intents/{intent_id}/claim"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(claim_url, json=claim_payload, timeout=30.0)
+        response.raise_for_status()
+        result = await response.json()
+
+        device_id: str = result["device_id"]
+        api_key: str = result["api_key"]
+        site_id: str = result["site_id"]
+
+    cred.save(
+        {
+            "device_id": device_id,
+            "api_key": api_key,
+            "backend_url": backend_url,
+            "site_id": site_id,
+            "device_name": device_name or "",
+            "device_type": device_type,
+            "os_details": os_details or "",
+        }
+    )
+
+    logger.info("Device provisioned: %s (site: %s)", device_id, site_id)
+
+    config = load_agent_config()
+    tls_kw = _build_tls_config(cred)
+
+    try:
+        async with httpx.AsyncClient(**tls_kw) as client:
+            payload: Dict[str, Any] = {
+                "device_id": config["device_id"],
+                "site_id": config["site_id"],
+                "device_name": config.get("device_name"),
+                "device_type": config.get("device_type", "pos_terminal"),
+                "mac_address": get_mac_address(),
+                "os_details": config.get("os_details"),
+                "local_ip": get_local_ip(),
+                "wan_ip": get_wan_ip(),
+                "peripherals": get_connected_peripherals(),
+            }
+            dna_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
+            dna_resp = await client.post(
+                dna_url, json=payload, headers=get_auth_headers(config), timeout=30.0
+            )
+            dna_resp.raise_for_status()
+            logger.info("Device DNA registered: %s", device_id)
+    except Exception as e:
+        logger.warning("Device DNA registration failed during bootstrap: %s", e)
+
+    return config
 
 
 async def run_agent() -> None:
