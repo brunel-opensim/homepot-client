@@ -9,13 +9,12 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import typer
 
 from homepot.agent.credential_storage import (
     LinuxFileStorage,
-    SimulationStorage,
     create_credential_storage,
 )
 from homepot.agent.identity import (
@@ -38,7 +37,9 @@ logger = logging.getLogger(__name__)
 
 @app.callback()
 def _main(
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging"),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose logging"
+    ),
     config: Optional[Path] = typer.Option(
         None,
         "--config",
@@ -122,7 +123,9 @@ def reset_identity() -> None:
     if current:
         typer.echo(f"Removing identity: {current}")
         reset_device_id()
-        typer.echo("Identity removed.  Run 'homepot-agent identity' to generate a new one.")
+        typer.echo(
+            "Identity removed.  Run 'homepot-agent identity' to generate a new one."
+        )
     else:
         typer.echo("No identity to remove.")
 
@@ -225,21 +228,25 @@ def clear_credentials() -> None:
 
 
 def is_provisioned_str() -> str:
+    """Return 'yes' or 'no' indicating whether credentials exist."""
     cred = create_credential_storage()
     return yes_no(cred.is_provisioned())
 
 
 def yes_no(val: bool) -> str:
+    """Return 'yes' for True, 'no' for False."""
     return "yes" if val else "no"
 
 
 def mask_key(key: str) -> str:
+    """Mask all but the first and last 4 characters of an API key."""
     if len(key) <= 8:
         return "****"
     return key[:4] + "*" * (len(key) - 8) + key[-4:]
 
 
 def main() -> None:
+    """Entry point for the homepot-agent console script."""
     app()
 
 

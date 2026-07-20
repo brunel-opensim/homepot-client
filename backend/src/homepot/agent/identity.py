@@ -12,10 +12,9 @@ and re-enrolment.  The identity is stored in:
 
 import hashlib
 import logging
-import os
-import uuid
 from pathlib import Path
 from typing import Optional
+import uuid
 
 from platformdirs import user_data_dir
 
@@ -64,7 +63,9 @@ def _machine_id_identity() -> Optional[str]:
         raw = machine_id_path.read_text("utf-8").strip()
         if not raw:
             return None
-        salted = hashlib.sha256(f"homepot-device-identity:{raw}".encode()).hexdigest()[:32]
+        salted = hashlib.sha256(f"homepot-device-identity:{raw}".encode()).hexdigest()[
+            :32
+        ]
         return f"device-{salted}"
     except (OSError, PermissionError) as exc:
         logger.warning("Cannot read machine-id: %s", exc)
@@ -100,9 +101,7 @@ def get_or_create_device_id() -> str:
         if machine_id:
             logger.info("Derived device identity from machine-id: %s", machine_id)
             return machine_id
-        logger.warning(
-            "Cannot persist identity file; using ephemeral UUID: %s", new_id
-        )
+        logger.warning("Cannot persist identity file; using ephemeral UUID: %s", new_id)
         return new_id
 
 

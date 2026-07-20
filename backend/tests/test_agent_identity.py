@@ -10,15 +10,14 @@ Covers:
 """
 
 import os
-import tempfile
 from pathlib import Path
+import tempfile
 from unittest.mock import patch
 
 import pytest
 
 from homepot.agent.identity import (
     _generate_uuid_identity,
-    _identity_file_path,
     _machine_id_identity,
     get_device_id,
     get_or_create_device_id,
@@ -26,7 +25,6 @@ from homepot.agent.identity import (
     identity_path,
     reset_device_id,
 )
-
 
 # ============================================================================
 # Unit tests for internal helpers
@@ -183,14 +181,19 @@ class TestEdgeCases:
 
     def test_machine_id_with_newlines(self):
         with patch("homepot.agent.identity.Path.exists", return_value=True):
-            with patch("homepot.agent.identity.Path.read_text", return_value="abc123\n"):
+            with patch(
+                "homepot.agent.identity.Path.read_text", return_value="abc123\n"
+            ):
                 result = _machine_id_identity()
                 assert result is not None
                 assert result.startswith("device-")
 
     def test_machine_id_returns_none_on_read_error(self):
         with patch("homepot.agent.identity.Path.exists", return_value=True):
-            with patch("homepot.agent.identity.Path.read_text", side_effect=PermissionError("No")):
+            with patch(
+                "homepot.agent.identity.Path.read_text",
+                side_effect=PermissionError("No"),
+            ):
                 result = _machine_id_identity()
                 assert result is None
 

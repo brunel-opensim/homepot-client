@@ -3,16 +3,13 @@
 import asyncio
 import json
 import logging
-import os
 from pathlib import Path
 import threading
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, cast
 
 import httpx
 from uvicorn import Config, Server
 
-from homepot.agent.credential_storage import create_credential_storage
-from homepot.agent.identity import get_or_create_device_id
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
 from homepot.agent.utils.heartbeat import build_heartbeat_payload
 from homepot.agent.utils.local_ipc import (
@@ -25,58 +22,20 @@ from homepot.agent.utils.retry_queue import RetryQueue
 from homepot.agent.utils.telemetry import build_telemetry_payload
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_CONFIG_PATH = Path(__file__).parent / "agent-config.json"
-
-
-def _config_path() -> Path:
-    override = os.environ.get("HOMEPOT_AGENT_CONFIG")
-    if override:
-        return Path(override)
-    return _DEFAULT_CONFIG_PATH
+logging.basicConfig(level=logging.INFO)
 
 
 def load_agent_config() -> Dict[str, Any]:
-    """Load and validate the agent configuration.
+    """Load and validate the agent configuration JSON file."""
+    config_path = Path(__file__).parent / "agent-config.json"
+    with config_path.open("r", encoding="utf-8") as f:
+        data = cast(Dict[str, Any], json.load(f))
 
-    Resolution order:
-    1. ``HOMEPOT_AGENT_CONFIG`` environment variable.
-    2. ``agent-config.json`` shipped with the package.
-    """
-    config_path = _config_path()
-    try:
-        with config_path.open("r", encoding="utf-8") as f:
-            data = cast(Dict[str, Any], json.load(f))
-    except FileNotFoundError:
-        logger.warning("Config not found at %s; using defaults", config_path)
-        data = {}
-
-    # Fill in device identity from the identity module if not set
-    if not data.get("device_id"):
-        data["device_id"] = get_or_create_device_id()
-        logger.info("Using generated device identity: %s", data["device_id"])
-
-    # Fill in credentials from credential storage if not set
-    cred_storage = create_credential_storage()
-    if not data.get("api_key") and cred_storage.is_provisioned():
-        api_key = cred_storage.get_api_key()
-        if api_key:
-            data["api_key"] = api_key
-            logger.info("Using API key from credential storage")
-        site_id = cred_storage.get_metadata("site_id")
-        if site_id and not data.get("site_id"):
-            data["site_id"] = site_id
-
-    required = ["backend_url", "device_id"]
+    required = ["backend_url", "device_id", "api_key", "site_id"]
     missing = [field for field in required if not data.get(field)]
     if missing:
-        raise ValueError(
-            f"Missing required config fields: {', '.join(missing)}. "
-            "Set via config file or environment."
-        )
+        raise ValueError(f"Missing required config fields: {', '.join(missing)}")
 
-    data.setdefault("api_key", "")
-    data.setdefault("site_id", "")
     data.setdefault("heartbeat_interval_seconds", 30)
     data.setdefault("telemetry_interval_seconds", 30)
     data.setdefault("retry_flush_interval_seconds", 60)
@@ -117,6 +76,17 @@ async def send_registration(
 ) -> None:
     """Send initial device registration payload with static device DNA."""
     try:
+        # Payload sent to POST /api/v1/agent/device-dna
+        # {
+        #   "device_id": "android-pos-001",
+        #   "site_id": "site-1234",
+        #   "device_name": "Front POS",
+        #   "device_type": "pos_terminal",
+        #   "mac_address": "00:11:22:33:44:55",
+        #   "os_details": "Android 13",
+        #   "local_ip": "192.168.1.20",
+        #   "wan_ip": "203.0.113.10"
+        # }
         payload = {
             "device_id": config["device_id"],
             "site_id": config["site_id"],
@@ -146,6 +116,13 @@ async def heartbeat_loop(
     interval = int(config["heartbeat_interval_seconds"])
     while True:
         try:
+            # Payload sent to POST /api/v1/agent/heartbeat
+            # {
+            #   "device_id": "android-pos-001",
+            #   "site_id": "site-1234",
+            #   "status": "ONLINE",
+            #   "timestamp": "2026-04-13T12:00:00Z"
+            # }
             payload = build_heartbeat_payload(
                 config["device_id"],
                 site_id=config["site_id"],
@@ -155,7 +132,7 @@ async def heartbeat_loop(
             if ok:
                 if ipc_server is not None:
                     update_local_agent_state(
-                        ipc_server.config.app,
+                        ipc_server.config.app,  # type: ignore[arg-type]
                         status="ONLINE",
                         last_heartbeat=payload["timestamp"],
                     )
@@ -163,7 +140,7 @@ async def heartbeat_loop(
                 retry_queue.enqueue({"url": url, "payload": payload})
                 if ipc_server is not None:
                     update_local_agent_state(
-                        ipc_server.config.app,
+                        ipc_server.config.app,  # type: ignore[arg-type]
                         status="OFFLINE",
                     )
         except Exception as e:
@@ -182,12 +159,21 @@ async def telemetry_loop(
     interval = int(config["telemetry_interval_seconds"])
     while True:
         try:
+            # Payload sent to POST /api/v1/agent/telemetry
+            # {
+            #   "device_id": "android-pos-001",
+            #   "site_id": "site-1234",
+            #   "cpu_usage": 20.1,
+            #   "memory_usage": 55.4,
+            #   "disk_usage": 44.8,
+            #   "timestamp": "2026-04-13T12:00:30Z"
+            # }
             payload = build_telemetry_payload(config["device_id"])
             payload["site_id"] = config["site_id"]
             ok = await post_json(client, url, payload, get_auth_headers(config))
             if ok and ipc_server is not None:
                 update_local_agent_state(
-                    ipc_server.config.app,
+                    ipc_server.config.app,  # type: ignore[arg-type]
                     last_telemetry=payload,
                 )
             if not ok:

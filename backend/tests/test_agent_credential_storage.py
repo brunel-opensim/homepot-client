@@ -8,9 +8,9 @@ Mirrors the TypeScript credentialStorage tests coverage for:
 
 import json
 import os
+from pathlib import Path
 import sys
 import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -19,7 +19,6 @@ from homepot.agent.credential_storage import (
     SimulationStorage,
     create_credential_storage,
 )
-
 
 # ============================================================================
 # SimulationStorage
@@ -153,7 +152,9 @@ class TestLinuxFileStorage:
         assert mode == 0o600, f"Expected 0o600, got {oct(mode)}"
 
     def test_file_content_is_valid_json(self, temp_storage):
-        temp_storage.save({"api_key": "sk-json", "device_id": "d-json", "site_id": "s-1"})
+        temp_storage.save(
+            {"api_key": "sk-json", "device_id": "d-json", "site_id": "s-1"}
+        )
         raw = temp_storage._file_path.read_text("utf-8")
         data = json.loads(raw)
         assert data["api_key"] == "sk-json"
