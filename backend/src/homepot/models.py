@@ -312,6 +312,29 @@ class LifecycleEpoch(Base):
     )
 
 
+class DeviceCredential(Base):
+    """A single device API-credential version.
+
+    Each time a device is issued a new API key a ``DeviceCredential``
+    record is created.  The plaintext key is returned **only** at
+    issuance or rotation; only the hash is persisted.
+    """
+
+    __tablename__ = "device_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    credential_id = Column(String(36), unique=True, index=True, nullable=False)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False, index=True)
+    key_hash = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    rotated_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Relationships
+    device = relationship("Device", back_populates="credentials")
+
+
 class Device(Base):
     """Device model representing end-points and OT devices."""
 
@@ -451,6 +474,13 @@ class Device(Base):
     lifecycle_epochs = relationship(
         "LifecycleEpoch",
         foreign_keys="LifecycleEpoch.device_id",
+        back_populates="device",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
+
+    credentials = relationship(
+        "DeviceCredential",
         back_populates="device",
         lazy="select",
         cascade="all, delete-orphan",

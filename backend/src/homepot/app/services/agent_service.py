@@ -18,6 +18,7 @@ from homepot.app.schemas.provision import DeviceProvisionRequest
 from homepot.app.services.lifecycle_service import LifecycleService
 from homepot.models import (
     ConnectivityState,
+    DeviceCredential,
     EnrollmentMethod,
     HealthState,
     LifecycleEpoch,
@@ -261,6 +262,16 @@ class AgentService:
             self.db.flush()
 
             created.lifecycle_epoch_id = epoch.id  # type: ignore[assignment]
+
+            # Create tracked credential record
+            credential_id = str(uuid.uuid4())
+            credential = DeviceCredential(
+                credential_id=credential_id,
+                device_id=created.id,
+                key_hash=hash_password(api_key),
+                is_active=True,
+            )
+            self.db.add(credential)
 
             # Transition from PENDING to ACTIVE with audit trail
             self.lifecycle.transition(

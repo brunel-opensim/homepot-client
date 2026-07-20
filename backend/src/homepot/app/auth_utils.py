@@ -21,7 +21,15 @@ from sqlalchemy.orm import Session
 
 from homepot.app.schemas.schemas import UserDict
 from homepot.database import get_db
-from homepot.models import Device, Site, SiteMembership, Tenant, TenantMembership, User
+from homepot.models import (
+    Device,
+    LifecycleState,
+    Site,
+    SiteMembership,
+    Tenant,
+    TenantMembership,
+    User,
+)
 
 # Ensure environment variables are loaded
 # load_dotenv()
@@ -202,7 +210,11 @@ def require_role(required_role: str) -> Any:
 def authenticate_device_credentials(
     db: Session, device_id: str, api_key: str
 ) -> Device:
-    """Authenticate a device using its device ID and plaintext API key."""
+    """Authenticate a device using its device ID and plaintext API key.
+
+    Rejects credentials if the device is not in an active lifecycle state
+    (``PENDING``, ``SUSPENDED``, ``UNPAIRED``, ``RETIRED`` are rejected).
+    """
     if not device_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -218,6 +230,14 @@ def authenticate_device_credentials(
             detail="Invalid Device ID",
         )
 
+    # Reject inactive lifecycle states
+    if device.lifecycle_state not in (LifecycleState.ACTIVE.value,):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Device lifecycle state is '{device.lifecycle_state}'; "
+            "only 'active' devices may authenticate",
+        )
+
     if not device.api_key_hash:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -228,12 +248,6 @@ def authenticate_device_credentials(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API Key",
-        )
-
-    if not device.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Device is inactive",
         )
 
     return device
@@ -261,6 +275,14 @@ async def get_current_device(
             detail="Invalid Device ID",
         )
 
+    # Reject inactive lifecycle states
+    if device.lifecycle_state not in (LifecycleState.ACTIVE.value,):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Device lifecycle state is '{device.lifecycle_state}'; "
+            "only 'active' devices may authenticate",
+        )
+
     if not device.api_key_hash:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -272,12 +294,6 @@ async def get_current_device(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API Key",
-        )
-
-    if not device.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Device is inactive",
         )
 
     return device

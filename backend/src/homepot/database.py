@@ -22,6 +22,7 @@ from homepot.models import (
     CommandStatus,
     Device,
     DeviceCommand,
+    DeviceCredential,
     DeviceStatus,
     EnrolmentIntent,
     EnrolmentIntentStatus,
@@ -469,6 +470,17 @@ class DatabaseService:
             device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
             device.is_active = False  # type: ignore[assignment]
             device.api_key_hash = None  # type: ignore[assignment]
+
+            # Revoke all active credentials
+            cred_result = await session.execute(
+                select(DeviceCredential).where(
+                    DeviceCredential.device_id == device.id,
+                    DeviceCredential.is_active,
+                )
+            )
+            for cred in cred_result.scalars().all():
+                cred.is_active = False  # type: ignore[assignment]
+                cred.revoked_at = datetime.datetime.now(datetime.timezone.utc)  # type: ignore[assignment]
 
             audit_log = AuditLog(
                 event_type="device_unpaired",
@@ -983,6 +995,16 @@ class DatabaseService:
 
             # Link device to its current lifecycle epoch
             device.lifecycle_epoch_id = epoch.id  # type: ignore[assignment]
+
+            # Create tracked credential record
+            credential_id = str(uuid.uuid4())
+            credential = DeviceCredential(
+                credential_id=credential_id,
+                device_id=device.id,
+                key_hash=api_key_hash,
+                is_active=True,
+            )
+            session.add(credential)
 
             # Mark intent as consumed
             intent.status = EnrolmentIntentStatus.CONSUMED.value  # type: ignore[assignment]
