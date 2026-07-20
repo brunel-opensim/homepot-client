@@ -21,7 +21,8 @@ export default function DeviceInfo() {
   const { setCurrentView, setIsProvisioned } = useApp()
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'uptodate'>('idle')
   const [showConfirm, setShowConfirm] = useState(false)
-  const [unpairing, setUnpairing] = useState(false)
+  const [unpairStatus, setUnpairStatus] = useState<'idle' | 'unpairing' | 'confirmed' | 'pending-revocation' | 'error'>('idle')
+  const [unpairError, setUnpairError] = useState('')
   const [dnaRows, setDnaRows] = useState<DnaRow[]>([])
 
   useEffect(() => {
@@ -49,35 +50,55 @@ export default function DeviceInfo() {
   }
 
   async function handleUnpair() {
-    setUnpairing(true)
+    setUnpairStatus('unpairing')
+    setUnpairError('')
+    setShowConfirm(false)
     const deviceId = await credentialStorage.getDeviceId()
     const apiKey = await credentialStorage.getApiKey()
+    const idempotencyKey = `unpair-${deviceId}-${Date.now()}`
 
-    let backendSuccess = false
+    if (!deviceId || deviceId.startsWith('mock-token-')) {
+      await credentialStorage.clear()
+      setIsProvisioned(false)
+      setCurrentView('setup')
+      return
+    }
 
-    if (deviceId && !deviceId.startsWith('mock-token-')) {
-      try {
-        const res = await fetch(`${apiBaseUrl}/device/${deviceId}`, {
-          method: 'DELETE',
-          headers: apiKey ? { 'X-Device-ID': deviceId, 'X-API-Key': apiKey } : {},
-        })
-        backendSuccess = res.ok
-        if (!backendSuccess) {
-          const body = await res.json().catch(() => ({}))
-          console.error('Backend unpair rejected:', body.detail || res.status)
-        }
-      } catch (error) {
-        console.error('Network error during unpair:', error)
+    try {
+      const res = await fetch(
+        `${apiBaseUrl}/devices/device/${deviceId}/unpair`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey ? { 'X-Device-ID': deviceId, 'X-API-Key': apiKey } : {}),
+          },
+          body: JSON.stringify({
+            reason: 'User-initiated unpair from device settings',
+            idempotency_key: idempotencyKey,
+          }),
+        },
+      )
+
+      if (res.ok) {
+        setUnpairStatus('confirmed')
+        await credentialStorage.clear()
+        setIsProvisioned(false)
+        setCurrentView('setup')
+      } else {
+        const body = await res.json().catch(() => ({}))
+        setUnpairError(body.detail || `Server rejected unpair (${res.status})`)
+        setUnpairStatus('error')
       }
+    } catch {
+      // Network failure — perform local-only reset
+      await credentialStorage.clear()
+      setIsProvisioned(false)
+      setUnpairStatus('pending-revocation')
     }
+  }
 
-    if (!backendSuccess) {
-      alert('Unpair request failed on server. Token will be cleared locally for safety.')
-    }
-
-    await credentialStorage.clear()
-
-    setIsProvisioned(false)
+  function handleDismissPendingRevocation() {
     setCurrentView('setup')
   }
 
@@ -141,12 +162,57 @@ export default function DeviceInfo() {
 
         {/* Disconnect & Unpair */}
         <div className="px-5 pt-3 pb-5">
-          {!showConfirm ? (
+          {unpairStatus === 'pending-revocation' ? (
+            <div className="flex flex-col gap-2 bg-amber-950 border border-amber-800 rounded-xl p-4">
+              <p className="text-amber-300 text-xs font-medium text-center">
+                ⚠  Local reset — server revocation pending
+              </p>
+              <p className="text-amber-400 text-xs text-center">
+                The server could not be reached. Local credentials were cleared
+                but server revocation could not be confirmed.
+              </p>
+              <button
+                onClick={handleDismissPendingRevocation}
+                className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-colors"
+              >
+                Continue to setup
+              </button>
+            </div>
+          ) : unpairStatus === 'error' ? (
+            <div className="flex flex-col gap-2 bg-red-950 border border-red-800 rounded-xl p-4">
+              <p className="text-red-300 text-xs font-medium text-center">
+                ✗  Unpair failed
+              </p>
+              <p className="text-red-400 text-xs text-center">{unpairError}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setUnpairStatus('idle'); setUnpairError('') }}
+                  className="flex-1 py-2 rounded-lg border border-slate-600 text-slate-400 text-xs font-medium hover:text-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUnpair}
+                  className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : !showConfirm ? (
             <button
               onClick={() => setShowConfirm(true)}
-              className="w-full py-2.5 rounded-lg border border-red-800 bg-red-950 hover:bg-red-900 text-red-400 hover:text-red-300 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              disabled={unpairStatus === 'unpairing'}
+              className="w-full py-2.5 rounded-lg border border-red-800 bg-red-950 hover:bg-red-900 text-red-400 hover:text-red-300 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              🔌  Disconnect &amp; Unpair Device
+              {unpairStatus === 'unpairing' ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                  Unpairing...
+                </>
+              ) : (
+                '🔌  Disconnect &amp; Unpair Device'
+              )}
             </button>
           ) : (
             <div className="flex flex-col gap-2 bg-red-950 border border-red-800 rounded-xl p-4">
@@ -162,23 +228,15 @@ export default function DeviceInfo() {
                 </button>
                 <button
                   onClick={handleUnpair}
-                  disabled={unpairing}
-                  className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                  className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors"
                 >
-                  {unpairing ? (
-                    <>
-                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Unpairing...
-                    </>
-                  ) : (
-                    'Yes, Unpair'
-                  )}
+                  Yes, Unpair
                 </button>
               </div>
             </div>
           )}
           <p className="text-center text-slate-600 text-xs mt-2">
-            Removes token and resets app to setup wizard
+            Sends authenticated unpair request to server
           </p>
         </div>
 
