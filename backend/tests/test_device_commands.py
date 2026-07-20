@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, Device, Site, User
+from homepot.models import Base, Device, LifecycleState, Site, User
 
 
 @pytest.fixture(autouse=True)
@@ -124,6 +124,7 @@ def test_device_command_flow(client: TestClient):
             site_id=site.id,
             api_key_hash=api_key_hash,
             is_active=True,
+            lifecycle_state=LifecycleState.ACTIVE.value,
         )
         db.add(device)
         db.commit()

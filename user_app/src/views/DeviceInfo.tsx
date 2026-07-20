@@ -1,23 +1,47 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import TabBar from '../components/TabBar'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
+import { credentialStorage } from '../services/credentialStorage'
 
-const DNA_ROWS = [
-  { label: 'Hostname', value: localStorage.getItem('homepot_device_name') || 'My-Device' },
-  { label: 'Site ID', value: localStorage.getItem('homepot_site_id') || 'site-1234' },
-  { label: 'Device Type', value: (localStorage.getItem('homepot_device_type') || 'pos_terminal').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) },
-  { label: 'MAC Addr', value: 'A1:B2:C3:D4:E5:F6' },
-  { label: 'Local IP', value: '192.168.1.101' },
-  { label: 'OS', value: (localStorage.getItem('homepot_device_os') || 'web').replace(/\b\w/g, c => c.toUpperCase()) },
-  { label: 'Agent Ver', value: 'v0.1.0' },
-]
+function formatDeviceType(v: string) {
+  return v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function formatOs(v: string) {
+  return v.replace(/\b\w/g, c => c.toUpperCase())
+}
+
+interface DnaRow {
+  label: string
+  value: string
+}
 
 export default function DeviceInfo() {
   const { setCurrentView, setIsProvisioned } = useApp()
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'uptodate'>('idle')
   const [showConfirm, setShowConfirm] = useState(false)
   const [unpairing, setUnpairing] = useState(false)
+  const [dnaRows, setDnaRows] = useState<DnaRow[]>([])
+
+  useEffect(() => {
+    Promise.all([
+      credentialStorage.getMetadata('device_name'),
+      credentialStorage.getMetadata('site_id'),
+      credentialStorage.getMetadata('device_type'),
+      credentialStorage.getMetadata('device_os'),
+    ]).then(([deviceName, siteId, deviceType, deviceOs]) => {
+      setDnaRows([
+        { label: 'Hostname', value: deviceName || 'My-Device' },
+        { label: 'Site ID', value: siteId || 'site-1234' },
+        { label: 'Device Type', value: deviceType ? formatDeviceType(deviceType) : 'POS Terminal' },
+        { label: 'MAC Addr', value: 'A1:B2:C3:D4:E5:F6' },
+        { label: 'Local IP', value: '192.168.1.101' },
+        { label: 'OS', value: deviceOs ? formatOs(deviceOs) : 'Web' },
+        { label: 'Agent Ver', value: 'v0.1.0' },
+      ])
+    })
+  }, [])
 
   function handleCheckUpdate() {
     setUpdateStatus('checking')
@@ -26,8 +50,8 @@ export default function DeviceInfo() {
 
   async function handleUnpair() {
     setUnpairing(true)
-    const deviceId = localStorage.getItem('homepot_token')
-    const apiKey = sessionStorage.getItem('homepot_api_key')
+    const deviceId = await credentialStorage.getDeviceId()
+    const apiKey = await credentialStorage.getApiKey()
 
     let backendSuccess = false
 
@@ -51,13 +75,7 @@ export default function DeviceInfo() {
       alert('Unpair request failed on server. Token will be cleared locally for safety.')
     }
 
-    localStorage.removeItem('homepot_token')
-    localStorage.removeItem('homepot_site_id')
-    localStorage.removeItem('homepot_device_name')
-    localStorage.removeItem('homepot_device_type')
-    localStorage.removeItem('homepot_device_os')
-    localStorage.removeItem('homepot_enrollment_method')
-    sessionStorage.removeItem('homepot_api_key')
+    await credentialStorage.clear()
 
     setIsProvisioned(false)
     setCurrentView('setup')
@@ -82,11 +100,11 @@ export default function DeviceInfo() {
         <div className="px-5 pt-4">
           <p className="text-slate-500 text-xs font-medium uppercase tracking-widest mb-2">Device DNA</p>
           <div className="bg-slate-700 rounded-xl overflow-hidden border border-slate-600">
-            {DNA_ROWS.map((row, index) => (
+            {dnaRows.map((row, index) => (
               <div
                 key={row.label}
                 className={`flex items-center justify-between px-4 py-2.5 ${
-                  index < DNA_ROWS.length - 1 ? 'border-b border-slate-600' : ''
+                  index < dnaRows.length - 1 ? 'border-b border-slate-600' : ''
                 }`}
               >
                 <span className="text-slate-400 text-xs w-20">{row.label}</span>

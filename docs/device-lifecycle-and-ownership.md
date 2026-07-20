@@ -320,5 +320,22 @@ Replace caller-provided user_identity as authority:
 - Atomically create device, assignment, lifecycle epoch, and credentials.
 - Persist enrollment_method = self-enrolled.
 
+PR 7: Define the device credential contract
+**Backend:**
+- Return plaintext credentials only at issuance or rotation.
+- Store only hashes/verifiers.
+- Add credential ID, creation time, rotation time, and revocation time.
+- Reject credentials for inactive lifecycle states.
+- Support controlled credential rotation.
+**User App:**
+- Replace sessionStorage and misleading homepot_token usage.
+- Introduce a credential-storage abstraction:
+  - simulation storage for development;
+  - Linux secret/file storage with strict permissions;
+  - Windows Credential Manager or DPAPI;
+  - Android Keystore when that platform is implemented.
+This abstraction is particularly important because it allows simulations and real devices to use the same higher-level workflow.
+
+
 
 

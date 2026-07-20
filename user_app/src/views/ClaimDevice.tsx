@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { apiBaseUrl } from '../config/api';
+import { credentialStorage } from '../services/credentialStorage';
 
 export default function ClaimDevice() {
   const { setCurrentView, setDeviceInfo, setIsProvisioned } = useApp();
@@ -69,13 +70,15 @@ export default function ClaimDevice() {
 
       const result = await response.json();
 
-      localStorage.setItem('homepot_token', result.device_id);
-      localStorage.setItem('homepot_device_id', result.device_id);
-      localStorage.setItem('homepot_device_name', deviceName);
-      localStorage.setItem('homepot_device_type', form.deviceType);
-      localStorage.setItem('homepot_device_os', deviceOs);
-      localStorage.setItem('homepot_enrollment_method', 'pre-provisioned');
-      sessionStorage.setItem('homepot_api_key', result.api_key);
+      await credentialStorage.save({
+        deviceId: result.device_id,
+        apiKey: result.api_key,
+        siteId: result.site_id,
+        deviceName,
+        deviceType: form.deviceType,
+        deviceOs,
+        enrollmentMethod: 'pre-provisioned',
+      });
 
       setDeviceInfo({
         deviceId: result.device_id,

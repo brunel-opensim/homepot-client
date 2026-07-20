@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
 import { apiBaseUrl } from '../config/api'
+import { credentialStorage } from '../services/credentialStorage'
 
 interface DeviceStatus {
   lifecycle_state: string
@@ -10,11 +11,23 @@ interface DeviceStatus {
 }
 
 export default function HomeDashboard() {
-  const deviceName = localStorage.getItem('homepot_device_name') || 'My Device'
-  const deviceId = localStorage.getItem('homepot_token')
-  const apiKey = sessionStorage.getItem('homepot_api_key')
+  const [deviceName, setDeviceName] = useState('My Device')
+  const [deviceId, setDeviceId] = useState<string | null>(null)
+  const [apiKey, setApiKey] = useState<string | null>(null)
   const [status, setStatus] = useState<DeviceStatus | null>(null)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      credentialStorage.getDeviceId(),
+      credentialStorage.getApiKey(),
+      credentialStorage.getMetadata('device_name'),
+    ]).then(([did, key, name]) => {
+      if (did) setDeviceId(did)
+      if (key) setApiKey(key)
+      if (name) setDeviceName(name)
+    })
+  }, [])
 
   const fetchStatus = async () => {
     if (!deviceId) return

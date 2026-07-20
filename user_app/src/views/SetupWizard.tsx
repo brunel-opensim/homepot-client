@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
+import { credentialStorage } from '../services/credentialStorage'
 
 const STEPS = ['Device Setup', 'SSO Login', 'Complete']
 
@@ -255,14 +256,15 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
         throw new Error('Provisioning response did not include device credentials.')
       }
       
-      localStorage.setItem('homepot_token', provisionedDevice.device_id)
-      localStorage.setItem('homepot_device_id', provisionedDevice.device_id)
-      localStorage.setItem('homepot_site_id', siteId)
-      localStorage.setItem('homepot_device_name', deviceName || 'My Device')
-      localStorage.setItem('homepot_device_type', deviceType)
-      localStorage.setItem('homepot_device_os', deviceOs)
-      localStorage.setItem('homepot_enrollment_method', 'self-enrolled')
-      sessionStorage.setItem('homepot_api_key', provisionedDevice.api_key)
+      await credentialStorage.save({
+        deviceId: provisionedDevice.device_id,
+        apiKey: provisionedDevice.api_key,
+        siteId,
+        deviceName: deviceName || 'My Device',
+        deviceType,
+        deviceOs,
+        enrollmentMethod: 'self-enrolled',
+      })
       
       setLoading(false)
       onComplete()

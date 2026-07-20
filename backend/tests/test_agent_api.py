@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from homepot.app.auth_utils import hash_password
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, Device, Site
+from homepot.models import Base, Device, LifecycleState, Site
 
 
 @pytest.fixture(autouse=True)
@@ -99,6 +99,7 @@ def test_device_dna_updates_provisioned_device(client: TestClient):
                 site_id=int(site.id),
                 api_key_hash=hash_password(api_key),
                 is_active=True,
+                lifecycle_state=LifecycleState.ACTIVE.value,
             )
         )
         db.commit()
@@ -140,6 +141,7 @@ def test_device_dna_updates_existing_device(client: TestClient):
             site_id=int(site.id),
             api_key_hash=hash_password("test-api-key"),
             is_active=True,
+            lifecycle_state=LifecycleState.ACTIVE.value,
         )
         db.add(device)
         db.commit()
