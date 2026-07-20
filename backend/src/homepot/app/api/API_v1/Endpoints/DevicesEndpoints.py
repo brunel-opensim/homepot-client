@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session as SASession
@@ -22,8 +22,11 @@ from homepot.client import HomepotClient
 from homepot.database import get_database_service, get_db
 from homepot.models import (
     AuditLog,
+    CommandStatus,
     ConnectivityState,
     Device,
+    DeviceCommand,
+    DeviceCredential,
     HealthState,
     Job,
     LifecycleState,
@@ -535,6 +538,200 @@ async def delete_device(
         raise
     except Exception as e:
         logger.error(f"Failed to delete device {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+class UnpairDeviceRequest(BaseModel):
+    """Request model for explicitly unpairing a device."""
+
+    reason: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "reason": "Hardware refresh at store #42",
+                "idempotency_key": "unpair-abc123-20260720",
+            }
+        }
+    )
+
+
+@router.post("/device/{device_id}/unpair", tags=["Devices"])
+async def unpair_device(
+    device_id: str,
+    payload: UnpairDeviceRequest,
+    request: Request,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Explicitly unpair a device.
+
+    Authenticates the caller, verifies site ownership (operator+ role),
+    validates the current lifecycle state, supports idempotency,
+    revokes credentials and commands, transitions the device to
+    ``unpaired`` state, and produces a complete audit event.
+
+    Idempotency
+    -----------
+    Pass an ``idempotency_key`` in the request body.  If an unpair
+    audit log already exists for this device with the same key, the
+    endpoint returns the previously-completed result without re-applying
+    side-effects.
+    """
+    try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_service = await get_database_service()
+
+        # Look up the device
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
+
+        # Verify site ownership (operator+)
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+
+        # ----- Idempotency check -----
+        if payload.idempotency_key:
+            async with db_service.get_session() as session:
+                existing = await session.execute(
+                    select(AuditLog).where(
+                        AuditLog.device_id == device.id,
+                        AuditLog.event_type == "device_unpaired",
+                        AuditLog.event_metadata["idempotency_key"].as_string()
+                        == payload.idempotency_key,
+                    )
+                )
+                if existing.scalars().first():
+                    logger.info(
+                        "Idempotent unpair request for device=%s key=%s",
+                        device_id,
+                        payload.idempotency_key,
+                    )
+                    return {
+                        "status": "success",
+                        "message": f"Device '{device_id}' already unpaired",
+                        "device_id": device_id,
+                    }
+
+        # ----- Lifecycle validation -----
+        current_lifecycle = device.lifecycle_state
+        allowed = (
+            LifecycleState.ACTIVE.value,
+            LifecycleState.SUSPENDED.value,
+            # Allow re-unpair if somehow stuck in a transitional state
+        )
+        if current_lifecycle not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Device lifecycle state is '{current_lifecycle}'; "
+                    "only 'active' or 'suspended' devices may be unpaired"
+                ),
+            )
+
+        if current_lifecycle == LifecycleState.UNPAIRED.value:
+            return {
+                "status": "success",
+                "message": f"Device '{device_id}' is already unpaired",
+                "device_id": device_id,
+            }
+
+        now = datetime.now(timezone.utc)
+
+        # ----- Revoke credentials -----
+        async with db_service.get_session() as session:
+            cred_result = await session.execute(
+                select(DeviceCredential).where(
+                    DeviceCredential.device_id == device.id,
+                    DeviceCredential.is_active,
+                )
+            )
+            for cred in cred_result.scalars().all():
+                cred.is_active = False  # type: ignore[assignment]
+                cred.revoked_at = now  # type: ignore[assignment]
+
+        # ----- Expire outstanding commands -----
+        async with db_service.get_session() as session:
+            cmd_result = await session.execute(
+                select(DeviceCommand).where(
+                    DeviceCommand.device_id == device.id,
+                    DeviceCommand.status.in_(
+                        [CommandStatus.PENDING.value, CommandStatus.SENT.value]
+                    ),
+                )
+            )
+            for cmd in cmd_result.scalars().all():
+                cmd.status = CommandStatus.EXPIRED.value  # type: ignore[assignment]
+
+        # ----- Revoke push-provider registrations -----
+        # No persistent push-subscription table exists in this codebase.
+        # PushNotificationLog entries are historical records kept for audit.
+        # Placeholder for future push-provider revocation when a registry is added.
+
+        # ----- Expire sessions -----
+        # No device session table exists.  Sessions are implicitly tied to
+        # the validity of the DeviceCredential / api_key_hash; revoking
+        # those above is sufficient.
+
+        # ----- Update device -----
+        device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
+        device.is_active = False  # type: ignore[assignment]
+        device.api_key_hash = None  # type: ignore[assignment]
+
+        # ----- Audit event -----
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_UNPAIRED,
+            f"Device '{device.name}' ({device.device_id}) unpaired by "
+            f"{current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=int(device.id),
+            site_id=int(device.site_id) if device.site_id else None,
+            user_id=int(db_user.id),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            old_values={
+                "lifecycle_state": current_lifecycle,
+                "is_active": True,
+            },
+            new_values={
+                "lifecycle_state": LifecycleState.UNPAIRED.value,
+                "is_active": False,
+                "reason": payload.reason,
+            },
+            event_metadata={
+                "idempotency_key": payload.idempotency_key,
+                "unpair_endpoint": "POST /device/{device_id}/unpair",
+            },
+        )
+
+        logger.info(
+            "Device unpaired: %s by %s (reason=%s)",
+            device_id,
+            current_user["email"],
+            payload.reason,
+        )
+
+        return {
+            "status": "success",
+            "message": f"Device '{device_id}' unpaired successfully",
+            "device_id": device_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to unpair device {device_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
