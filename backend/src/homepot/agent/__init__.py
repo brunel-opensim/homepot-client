@@ -3,6 +3,7 @@
 from homepot.agent.agent_api import router
 from homepot.agent.credential_storage import (
     CredentialStorage,
+    KeyringCredentialStorage,
     LinuxFileStorage,
     SimulationStorage,
     create_credential_storage,
@@ -18,6 +19,7 @@ from homepot.agent.identity import (
 __all__ = [
     "router",
     "CredentialStorage",
+    "KeyringCredentialStorage",
     "LinuxFileStorage",
     "SimulationStorage",
     "create_credential_storage",

@@ -3,13 +3,16 @@
 import asyncio
 import json
 import logging
+import os
 from pathlib import Path
+import ssl
 import threading
 from typing import Any, Dict, cast
 
 import httpx
 from uvicorn import Config, Server
 
+from homepot.agent.credential_storage import CredentialStorage, create_credential_storage
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
 from homepot.agent.utils.heartbeat import build_heartbeat_payload
 from homepot.agent.utils.local_ipc import (
@@ -26,15 +29,33 @@ logging.basicConfig(level=logging.INFO)
 
 
 def load_agent_config() -> Dict[str, Any]:
-    """Load and validate the agent configuration JSON file."""
-    config_path = Path(__file__).parent / "agent-config.json"
+    """Load and validate the agent configuration JSON file.
+
+    Reads the default bundled config (or ``$HOMEPOT_AGENT_CONFIG``) and
+    overlays values from credential storage (``backend_url``, ``api_key``,
+    ``site_id``) so that provisioned settings always win.
+    """
+    config_path_str = os.environ.get("HOMEPOT_AGENT_CONFIG")
+    if config_path_str:
+        config_path = Path(config_path_str)
+    else:
+        config_path = Path(__file__).parent / "agent-config.json"
+
     with config_path.open("r", encoding="utf-8") as f:
         data = cast(Dict[str, Any], json.load(f))
 
-    required = ["backend_url", "device_id", "api_key", "site_id"]
-    missing = [field for field in required if not data.get(field)]
-    if missing:
-        raise ValueError(f"Missing required config fields: {', '.join(missing)}")
+    # Overlay provisioned values from credential storage
+    cred = create_credential_storage()
+    if cred.is_provisioned():
+        if cred.get_backend_url():
+            data["backend_url"] = cred.get_backend_url()
+        if cred.get_api_key():
+            data["api_key"] = cred.get_api_key()
+        if cred.get_device_id():
+            data["device_id"] = cred.get_device_id()
+        site_id = cred.get_metadata("site_id")
+        if site_id:
+            data["site_id"] = site_id
 
     data.setdefault("heartbeat_interval_seconds", 30)
     data.setdefault("telemetry_interval_seconds", 30)
@@ -241,13 +262,39 @@ def start_local_ipc_server(config: Dict[str, Any]) -> Server | None:
         return None
 
 
+def _build_tls_config(cred: CredentialStorage) -> Dict[str, Any]:
+    """Build an httpx-compatible TLS configuration from credential storage.
+
+    Returns a dict with keys ``verify`` and optionally ``cert`` that can be
+    unpacked into ``httpx.AsyncClient(...)``.
+    """
+    tls_kw: Dict[str, Any] = {"verify": cred.get_tls_verify()}
+
+    ca_cert = cred.get_tls_ca_cert()
+    if ca_cert:
+        ctx = ssl.create_default_context(cafile=ca_cert)
+        tls_kw["verify"] = ctx
+
+    client_cert = cred.get_tls_client_cert()
+    client_key = cred.get_tls_client_key()
+    if client_cert and client_key:
+        tls_kw["cert"] = (client_cert, client_key)
+    elif client_cert:
+        tls_kw["cert"] = client_cert
+
+    return tls_kw
+
+
 async def run_agent() -> None:
     """Run agent runtime tasks for registration, heartbeat, telemetry, and retry."""
     config = load_agent_config()
+    cred = create_credential_storage()
     retry_queue = RetryQueue()
     ipc_server = start_local_ipc_server(config)
 
-    async with httpx.AsyncClient() as client:
+    tls_kw = _build_tls_config(cred)
+
+    async with httpx.AsyncClient(**tls_kw) as client:
         await send_registration(client, config, retry_queue)
 
         await asyncio.gather(

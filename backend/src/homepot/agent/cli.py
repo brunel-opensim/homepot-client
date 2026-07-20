@@ -197,9 +197,12 @@ def credentials() -> None:
 
     device_id = cred.get_device_id()
     api_key = cred.get_api_key()
+    backend_url = cred.get_backend_url()
 
     typer.echo(f"Device ID:    {device_id}")
     typer.echo(f"API Key:      {mask_key(api_key or '')}")
+    typer.echo(f"Backend URL:  {backend_url or '(not set)'}")
+    typer.echo(f"TLS Verify:   {cred.get_tls_verify()}")
     typer.echo(f"Storage:      {type(cred).__name__}")
 
     if isinstance(cred, LinuxFileStorage):
@@ -209,6 +212,13 @@ def credentials() -> None:
         val = cred.get_metadata(meta_key)
         if val:
             typer.echo(f"{meta_key}: {val}")
+
+    ca_cert = cred.get_tls_ca_cert()
+    client_cert = cred.get_tls_client_cert()
+    if ca_cert:
+        typer.echo(f"TLS CA Cert:  {ca_cert}")
+    if client_cert:
+        typer.echo(f"TLS Client Cert: {client_cert}")
 
 
 @app.command()
@@ -220,6 +230,56 @@ def clear_credentials() -> None:
         typer.echo("Credentials cleared.")
     else:
         typer.echo("No credentials to clear.")
+
+
+# ---------------------------------------------------------------------------
+# backend-url
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def set_backend_url(
+    url: str = typer.Argument(
+        ..., help="Backend URL (e.g. https://api.homepot.example.com)"
+    ),
+) -> None:
+    """Set the backend URL for the agent to connect to."""
+    cred = create_credential_storage()
+    cred.set_backend_url(url)
+    typer.echo(f"Backend URL set to: {url}")
+
+
+# ---------------------------------------------------------------------------
+# tls
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def set_tls(
+    verify: bool = typer.Option(
+        True, "--verify/--no-verify", help="Enable/disable TLS verification"
+    ),
+    ca_cert: Optional[str] = typer.Option(
+        None, "--ca-cert", help="Path to CA certificate file or PEM content"
+    ),
+    client_cert: Optional[str] = typer.Option(
+        None, "--client-cert", help="Path to client certificate file or PEM content"
+    ),
+    client_key: Optional[str] = typer.Option(
+        None,
+        "--client-key",
+        help="Path to client private key file or PEM content",
+    ),
+) -> None:
+    """Set TLS configuration for backend communication."""
+    cred = create_credential_storage()
+    cred.set_tls_config(
+        verify=verify,
+        ca_cert=ca_cert,
+        client_cert=client_cert,
+        client_key=client_key,
+    )
+    typer.echo("TLS configuration updated.")
 
 
 # ---------------------------------------------------------------------------
