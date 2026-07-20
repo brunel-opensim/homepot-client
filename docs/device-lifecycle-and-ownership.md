@@ -360,3 +360,10 @@ The User App should:
 - show “server revocation pending” after a local-only reset;
 - prevent silent success on failed requests.
 
+PR 10: Add assignment and lifecycle history
+Create explicit records such as:
+- DeviceAssignment
+- DeviceLifecycleEpoch
+- DeviceLifecycleEvent
+This provides historical ownership without rewriting old telemetry when a device moves.
+
