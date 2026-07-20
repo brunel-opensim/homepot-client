@@ -12,8 +12,8 @@ and re-enrolment.  The identity is stored in:
 
 import hashlib
 import logging
-import tempfile
 from pathlib import Path
+import tempfile
 from typing import Optional
 import uuid
 
