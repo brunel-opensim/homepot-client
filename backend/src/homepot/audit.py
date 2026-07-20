@@ -41,6 +41,8 @@ class AuditEventType(str, Enum):
     DEVICE_RESUMED = "device_resumed"
     DEVICE_UNPAIRED = "device_unpaired"
     DEVICE_RETIRED = "device_retired"
+    DEVICE_RE_ENROLLED = "device_re_enrolled"
+    DEVICE_TRANSFERRED = "device_transferred"
 
     # Job management
     JOB_CREATED = "job_created"

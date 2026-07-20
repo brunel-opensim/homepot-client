@@ -376,7 +376,7 @@ Implement authorised transitions with audit reasons:
 - eligible states → retired
 Transfer between sites should create a new assignment and epoch, revoke old credentials, and require permission in both scopes.
 
-Linux real-device readiness
+## Linux real-device readiness
 Once the lifecycle and credential contract is stable:
 - package the Linux agent;
 - generate a persistent stable device identity;
@@ -389,3 +389,32 @@ Once the lifecycle and credential contract is stable:
 - add log rotation and service supervision;
 - test restart, network loss, token revocation, duplicate enrolment, and unpairing.
 The Linux agent should be the reference implementation for the later Windows agent.
+
+PR 12: Agent packaging & identity
+- Package the Python code as a proper Linux daemon (systemd service, deb/rpm, FHS layout)
+- Generate a persistent stable device identity (e.g. /etc/machine-id + salt, or a generated UUID stored in /var/lib/homepot/identity)
+- Placeholder for LinuxFileStorage in credentialStorage.ts → actually implement it on the Python side
+  
+PR 13: Linux credential storage
+- Implement real OS-protected credential storage (file with 0600 at ~/.homepot/credentials or a keyring integration)
+- Backend URL and TLS trust anchor configuration
+  
+PR 14: Authenticated agent bootstrap
+- Implement the full agent bootstrap flow: identity generation → DNA registration → heartbeat start
+- Move from manual TestClient provision to the agent calling /devices/provision itself
+
+PR 15: Heartbeat & telemetry with retry
+- Implement the heartbeat loop with authenticated X-Device-ID / X-API-Key
+- Add a retry queue for offline periods (exponential backoff, persistent queue on disk)
+
+PR 16: Command polling & push wake-up
+- Implement /devices/pending polling loop
+- Add push wake-up integration (MQTT/FCM) so the agent doesn't need to poll constantly
+
+PR 17: Command ack & result reporting
+- Implement /devices/{device_id}/commands/{command_id}/ack and result submission
+- Wire up to local IPC so the real device can execute commands
+
+PR 18: Production hardening
+- Log rotation, service supervision (systemd watchdog), graceful shutdown
+- Comprehensive failure tests: restart, network loss, token revocation, duplicate enrolment, unpairing
