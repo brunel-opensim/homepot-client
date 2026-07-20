@@ -173,6 +173,8 @@ class TestLinuxFileStorage:
 
     def test_file_permissions_are_strict(self, temp_storage):
         """Credentials file is created with 0o600 permissions."""
+        if sys.platform == "win32":
+            pytest.skip("Windows does not support Unix file permissions")
         temp_storage.save({"api_key": "sk-test", "device_id": "d1"})
         assert temp_storage._file_path.exists()
         mode = os.stat(temp_storage._file_path).st_mode & 0o777

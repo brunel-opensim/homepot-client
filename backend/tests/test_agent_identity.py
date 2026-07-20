@@ -11,6 +11,7 @@ Covers:
 
 import os
 from pathlib import Path
+import sys
 import tempfile
 from unittest.mock import patch
 
@@ -124,6 +125,8 @@ class TestGetOrCreateDeviceId:
 
     def test_id_file_has_correct_permissions(self, tmp_identity_dir):
         """Identity file is created with 0o644 permissions."""
+        if sys.platform == "win32":
+            pytest.skip("Windows does not support Unix file permissions")
         get_or_create_device_id()
         id_file = tmp_identity_dir / "identity"
         mode = os.stat(id_file).st_mode & 0o777
