@@ -1,0 +1,48 @@
+[Unit]
+Description=HOMEPOT Device Agent
+Documentation=https://github.com/brunel-opensim/homepot-client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=homepot
+Group=homepot
+RuntimeDirectory=homepot-agent
+RuntimeDirectoryMode=0755
+StateDirectory=homepot-agent
+StateDirectoryMode=0700
+CacheDirectory=homepot-agent
+CacheDirectoryMode=0755
+
+ExecStart=/usr/bin/homepot-agent run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Security hardening
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+LockPersonality=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

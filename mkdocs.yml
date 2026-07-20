@@ -161,6 +161,7 @@ nav:
           - POS System (Dummy): POSDummy-Integration.md
       - Agents & Simulation:
           - Agent Simulation: agent-simulation.md
+          - Agent Packaging & Identity: agent-packaging-and-identity.md
           - Fleet Load Testing: fleet-simulation.md
           - Real Device Transition: real-device-transition.md
           - Team Tasks (Readiness): real-device-readiness-tasks.md
