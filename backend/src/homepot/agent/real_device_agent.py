@@ -12,7 +12,10 @@ from typing import Any, Dict, cast
 import httpx
 from uvicorn import Config, Server
 
-from homepot.agent.credential_storage import CredentialStorage, create_credential_storage
+from homepot.agent.credential_storage import (
+    CredentialStorage,
+    create_credential_storage,
+)
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
 from homepot.agent.utils.heartbeat import build_heartbeat_payload
 from homepot.agent.utils.local_ipc import (
