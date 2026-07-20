@@ -26,8 +26,12 @@ def upgrade() -> None:
         sa.Column("assignment_reason", sa.String(100), nullable=True),
         sa.Column("assigned_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("unassigned_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("is_current", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "is_current", sa.Boolean(), nullable=False, server_default=sa.text("0")
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.ForeignKeyConstraint(
             ["device_id"],
             ["devices.id"],
