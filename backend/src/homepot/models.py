@@ -486,6 +486,21 @@ class Device(Base):
         cascade="all, delete-orphan",
     )
 
+    assignments = relationship(
+        "DeviceAssignment",
+        back_populates="device",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
+
+    lifecycle_events = relationship(
+        "DeviceLifecycleEvent",
+        foreign_keys="DeviceLifecycleEvent.device_id",
+        back_populates="device",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
+
 
 class DeviceCommand(Base):
     """Command queue for specific devices."""
@@ -631,6 +646,79 @@ class AuditLog(Base):
     # Relationships
     job = relationship("Job", back_populates="logs")
     device = relationship("Device", back_populates="audit_logs")
+
+
+class DeviceAssignment(Base):
+    """Assignment history: records which site a device belonged to.
+
+    Each row represents one assignment period.  Only one row per device
+    may have ``is_current = True`` at any time.  Historical rows are
+    retained so that old telemetry retains its ownership scope.
+    """
+
+    __tablename__ = "device_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    assignment_id = Column(String(36), unique=True, index=True, nullable=False)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False, index=True)
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+
+    assignment_reason = Column(
+        String(100), nullable=True
+    )  # e.g. "initial_enrolment", "transfer", "reassignment"
+    assigned_at = Column(DateTime(timezone=True), nullable=False)
+    unassigned_at = Column(DateTime(timezone=True), nullable=True)
+
+    is_current = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    # Relationships
+    device = relationship("Device", back_populates="assignments")
+    site = relationship("Site")
+    tenant = relationship("Tenant")
+
+
+class DeviceLifecycleEvent(Base):
+    """A single lifecycle-state transition for a device.
+
+    Every transition (pending → active, active → suspended,
+    active → unpaired, etc.) produces one event.  This provides
+    an auditable, ordered history independent of the AuditLog
+    (which is broader in scope).
+    """
+
+    __tablename__ = "device_lifecycle_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(String(36), unique=True, index=True, nullable=False)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False, index=True)
+    epoch_id = Column(
+        Integer, ForeignKey("lifecycle_epochs.id"), nullable=True, index=True
+    )
+
+    from_state = Column(String(20), nullable=True)  # previous lifecycle_state
+    to_state = Column(String(20), nullable=True)  # new lifecycle_state
+
+    triggered_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    triggered_by_device_id = Column(Integer, ForeignKey("devices.id"), nullable=True)
+
+    reason = Column(Text, nullable=True)
+    idempotency_key = Column(String(100), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    # Relationships
+    device = relationship(
+        "Device",
+        foreign_keys=[device_id],
+        back_populates="lifecycle_events",
+    )
+    triggered_by_device = relationship(
+        "Device",
+        foreign_keys=[triggered_by_device_id],
+    )
+    triggered_by_user = relationship("User")
+    epoch = relationship("LifecycleEpoch")
 
 
 # Database engine and session configuration
