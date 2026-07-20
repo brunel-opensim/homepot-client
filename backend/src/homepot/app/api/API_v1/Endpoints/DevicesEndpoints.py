@@ -1,9 +1,9 @@
 """API endpoints for managing Device in the HomePot system."""
 
-import uuid
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
@@ -869,7 +869,7 @@ async def suspend_device(
         await _record_lifecycle_event(
             db_service,
             device,
-            from_state=current_lifecycle,
+            from_state=str(current_lifecycle),
             to_state=LifecycleState.SUSPENDED.value,
             triggered_by_user_id=int(db_user.id),
             reason=payload.reason,
@@ -890,7 +890,10 @@ async def suspend_device(
             ip_address=ip_address,
             user_agent=user_agent,
             old_values={"lifecycle_state": current_lifecycle},
-            new_values={"lifecycle_state": LifecycleState.SUSPENDED.value, "reason": payload.reason},
+            new_values={
+                "lifecycle_state": LifecycleState.SUSPENDED.value,
+                "reason": payload.reason,
+            },
             event_metadata={"idempotency_key": payload.idempotency_key},
         )
 
@@ -954,7 +957,7 @@ async def resume_device(
         await _record_lifecycle_event(
             db_service,
             device,
-            from_state=current_lifecycle,
+            from_state=str(current_lifecycle),
             to_state=LifecycleState.ACTIVE.value,
             triggered_by_user_id=int(db_user.id),
             reason=payload.reason,
@@ -975,7 +978,10 @@ async def resume_device(
             ip_address=ip_address,
             user_agent=user_agent,
             old_values={"lifecycle_state": current_lifecycle},
-            new_values={"lifecycle_state": LifecycleState.ACTIVE.value, "reason": payload.reason},
+            new_values={
+                "lifecycle_state": LifecycleState.ACTIVE.value,
+                "reason": payload.reason,
+            },
             event_metadata={"idempotency_key": payload.idempotency_key},
         )
 
@@ -1085,7 +1091,7 @@ async def retire_device(
         await _record_lifecycle_event(
             db_service,
             device,
-            from_state=current_lifecycle,
+            from_state=str(current_lifecycle),
             to_state=LifecycleState.RETIRED.value,
             triggered_by_user_id=int(db_user.id),
             reason=payload.reason,
@@ -1161,7 +1167,9 @@ async def reenrol_device(
             raise HTTPException(status_code=404, detail="Device not found")
 
         # Verify access to the target site
-        verify_site_access_for_user(db_user, payload.site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, payload.site_id, db, minimum_role="operator"
+        )
 
         current_lifecycle = device.lifecycle_state
         if current_lifecycle != LifecycleState.UNPAIRED.value:
@@ -1174,7 +1182,9 @@ async def reenrol_device(
         # Validate target site exists
         site = db.query(Site).filter(Site.site_id == payload.site_id).first()
         if not site:
-            raise HTTPException(status_code=404, detail=f"Site '{payload.site_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Site '{payload.site_id}' not found"
+            )
 
         now = datetime.now(timezone.utc)
 
@@ -1225,6 +1235,7 @@ async def reenrol_device(
 
         # Issue new credential
         import secrets
+
         from homepot.app.auth_utils import hash_password
 
         new_api_key = secrets.token_urlsafe(32)
@@ -1243,7 +1254,7 @@ async def reenrol_device(
         await _record_lifecycle_event(
             db_service,
             device,
-            from_state=current_lifecycle,
+            from_state=str(current_lifecycle),
             to_state=LifecycleState.ACTIVE.value,
             triggered_by_user_id=int(db_user.id),
             reason=payload.reason or "re-enrolment",
@@ -1274,7 +1285,9 @@ async def reenrol_device(
 
         logger.info(
             "Device re-enrolled: %s -> site %s by %s",
-            device_id, payload.site_id, current_user["email"],
+            device_id,
+            payload.site_id,
+            current_user["email"],
         )
 
         return {
@@ -1339,13 +1352,18 @@ async def transfer_device(
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
         # Verify access on target site
-        verify_site_access_for_user(db_user, payload.target_site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, payload.target_site_id, db, minimum_role="operator"
+        )
 
         # Validate target site exists
-        target_site = db.query(Site).filter(Site.site_id == payload.target_site_id).first()
+        target_site = (
+            db.query(Site).filter(Site.site_id == payload.target_site_id).first()
+        )
         if not target_site:
             raise HTTPException(
-                status_code=404, detail=f"Target site '{payload.target_site_id}' not found"
+                status_code=404,
+                detail=f"Target site '{payload.target_site_id}' not found",
             )
 
         if device.site_id == target_site.id:
@@ -1424,6 +1442,7 @@ async def transfer_device(
 
         # Issue new credential
         import secrets
+
         from homepot.app.auth_utils import hash_password
 
         new_api_key = secrets.token_urlsafe(32)
@@ -1442,7 +1461,7 @@ async def transfer_device(
         await _record_lifecycle_event(
             db_service,
             device,
-            from_state=current_lifecycle,
+            from_state=str(current_lifecycle),
             to_state=LifecycleState.ACTIVE.value,
             triggered_by_user_id=int(db_user.id),
             reason=payload.reason or "transfer",
@@ -1463,7 +1482,10 @@ async def transfer_device(
             user_id=int(db_user.id),
             ip_address=ip_address,
             user_agent=user_agent,
-            old_values={"lifecycle_state": current_lifecycle, "site_id": str(device.site_id)},
+            old_values={
+                "lifecycle_state": current_lifecycle,
+                "site_id": str(device.site_id),
+            },
             new_values={
                 "lifecycle_state": LifecycleState.ACTIVE.value,
                 "site_id": payload.target_site_id,
@@ -1474,7 +1496,9 @@ async def transfer_device(
 
         logger.info(
             "Device transferred: %s -> site %s by %s",
-            device_id, payload.target_site_id, current_user["email"],
+            device_id,
+            payload.target_site_id,
+            current_user["email"],
         )
 
         return {
