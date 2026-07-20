@@ -221,12 +221,16 @@ async def retry_flush_loop(
     config: Dict[str, Any],
     retry_queue: RetryQueue,
 ) -> None:
-    """Flush queued failed payloads to backend at a fixed interval."""
+    """Flush queued failed payloads to backend at a fixed interval.
+
+    Uses :meth:`~RetryQueue.dequeue_ready` so that each item respects
+    exponential backoff.  Items that still fail are re-enqueued with an
+    incremented retry count via :meth:`~RetryQueue.requeue`.
+    """
     interval = int(config["retry_flush_interval_seconds"])
     while True:
         try:
-            queued_items = retry_queue.dequeue_all()
-            pending: list[dict] = []
+            queued_items = retry_queue.dequeue_ready()
             for item in queued_items:
                 ok = await post_json(
                     client,
@@ -235,10 +239,7 @@ async def retry_flush_loop(
                     get_auth_headers(config),
                 )
                 if not ok:
-                    pending.append(item)
-            if pending:
-                for item in pending:
-                    retry_queue.enqueue(item)
+                    retry_queue.requeue(item)
         except Exception as e:
             logger.error("Retry flush loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
