@@ -367,3 +367,11 @@ Create explicit records such as:
 - DeviceLifecycleEvent
 This provides historical ownership without rewriting old telemetry when a device moves.
 
+PR 11: Add suspend, resume, retire, and re-enrol
+Implement authorised transitions with audit reasons:
+- active → suspended
+- suspended → active
+- active/suspended → unpaired
+- unpaired → active through a new epoch
+- eligible states → retired
+Transfer between sites should create a new assignment and epoch, revoke old credentials, and require permission in both scopes.

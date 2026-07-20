@@ -1,5 +1,6 @@
 """API endpoints for managing Device in the HomePot system."""
 
+import uuid
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
@@ -25,10 +26,13 @@ from homepot.models import (
     CommandStatus,
     ConnectivityState,
     Device,
+    DeviceAssignment,
     DeviceCommand,
     DeviceCredential,
+    DeviceLifecycleEvent,
     HealthState,
     Job,
+    LifecycleEpoch,
     LifecycleState,
     Site,
     User,
@@ -732,6 +736,759 @@ async def unpair_device(
         raise
     except Exception as e:
         logger.error(f"Failed to unpair device {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers for lifecycle transitions
+# ---------------------------------------------------------------------------
+
+
+async def _record_lifecycle_event(
+    db_service: Any,
+    device: Device,
+    from_state: Optional[str],
+    to_state: str,
+    triggered_by_user_id: Optional[int] = None,
+    reason: Optional[str] = None,
+    idempotency_key: Optional[str] = None,
+    epoch_id: Optional[int] = None,
+) -> None:
+    """Persist a DeviceLifecycleEvent row."""
+    async with db_service.get_session() as session:
+        event = DeviceLifecycleEvent(
+            event_id=str(uuid.uuid4()),
+            device_id=device.id,
+            epoch_id=epoch_id,
+            from_state=from_state,
+            to_state=to_state,
+            triggered_by_user_id=triggered_by_user_id,
+            reason=reason,
+            idempotency_key=idempotency_key,
+        )
+        session.add(event)
+        await session.commit()
+
+
+class LifecycleTransitionRequest(BaseModel):
+    """Request body for lifecycle-state transitions."""
+
+    reason: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "reason": "Scheduled maintenance window",
+                "idempotency_key": "lifecycle-abc123",
+            }
+        }
+    )
+
+
+class TransferDeviceRequest(BaseModel):
+    """Request body for transferring a device between sites."""
+
+    target_site_id: str
+    reason: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "target_site_id": "site-456",
+                "reason": "Reallocation to store #456",
+                "idempotency_key": "transfer-abc123",
+            }
+        }
+    )
+
+
+class ReEnrolDeviceRequest(BaseModel):
+    """Request body for re-enrolling an unpaired device."""
+
+    site_id: str
+    device_name: Optional[str] = None
+    reason: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "site_id": "site-123",
+                "device_name": "Front POS (re-enrolled)",
+                "reason": "Hardware refresh complete",
+                "idempotency_key": "reenrol-abc123",
+            }
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Suspend
+# ---------------------------------------------------------------------------
+
+
+@router.post("/device/{device_id}/suspend", tags=["Devices"])
+async def suspend_device(
+    device_id: str,
+    payload: LifecycleTransitionRequest,
+    request: Request,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Suspend a device: ``active → suspended``.
+
+    Requires operator-level access on the device's site.
+    """
+    try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_service = await get_database_service()
+
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+
+        current_lifecycle = device.lifecycle_state
+        if current_lifecycle != LifecycleState.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Device lifecycle state is '{current_lifecycle}'; "
+                    "only 'active' devices may be suspended"
+                ),
+            )
+
+        device.lifecycle_state = LifecycleState.SUSPENDED.value  # type: ignore[assignment]
+
+        await _record_lifecycle_event(
+            db_service,
+            device,
+            from_state=current_lifecycle,
+            to_state=LifecycleState.SUSPENDED.value,
+            triggered_by_user_id=int(db_user.id),
+            reason=payload.reason,
+            idempotency_key=payload.idempotency_key,
+        )
+
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_SUSPENDED,
+            f"Device '{device.name}' ({device.device_id}) suspended by "
+            f"{current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=int(device.id),
+            site_id=int(device.site_id) if device.site_id else None,
+            user_id=int(db_user.id),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            old_values={"lifecycle_state": current_lifecycle},
+            new_values={"lifecycle_state": LifecycleState.SUSPENDED.value, "reason": payload.reason},
+            event_metadata={"idempotency_key": payload.idempotency_key},
+        )
+
+        logger.info("Device suspended: %s by %s", device_id, current_user["email"])
+
+        return {
+            "status": "success",
+            "message": f"Device '{device_id}' suspended",
+            "device_id": device_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to suspend device {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ---------------------------------------------------------------------------
+# Resume
+# ---------------------------------------------------------------------------
+
+
+@router.post("/device/{device_id}/resume", tags=["Devices"])
+async def resume_device(
+    device_id: str,
+    payload: LifecycleTransitionRequest,
+    request: Request,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Resume a suspended device: ``suspended → active``.
+
+    Requires operator-level access on the device's site.
+    """
+    try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_service = await get_database_service()
+
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+
+        current_lifecycle = device.lifecycle_state
+        if current_lifecycle != LifecycleState.SUSPENDED.value:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Device lifecycle state is '{current_lifecycle}'; "
+                    "only 'suspended' devices may be resumed"
+                ),
+            )
+
+        device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
+
+        await _record_lifecycle_event(
+            db_service,
+            device,
+            from_state=current_lifecycle,
+            to_state=LifecycleState.ACTIVE.value,
+            triggered_by_user_id=int(db_user.id),
+            reason=payload.reason,
+            idempotency_key=payload.idempotency_key,
+        )
+
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_RESUMED,
+            f"Device '{device.name}' ({device.device_id}) resumed by "
+            f"{current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=int(device.id),
+            site_id=int(device.site_id) if device.site_id else None,
+            user_id=int(db_user.id),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            old_values={"lifecycle_state": current_lifecycle},
+            new_values={"lifecycle_state": LifecycleState.ACTIVE.value, "reason": payload.reason},
+            event_metadata={"idempotency_key": payload.idempotency_key},
+        )
+
+        logger.info("Device resumed: %s by %s", device_id, current_user["email"])
+
+        return {
+            "status": "success",
+            "message": f"Device '{device_id}' resumed",
+            "device_id": device_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to resume device {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ---------------------------------------------------------------------------
+# Retire
+# ---------------------------------------------------------------------------
+
+
+@router.post("/device/{device_id}/retire", tags=["Devices"])
+async def retire_device(
+    device_id: str,
+    payload: LifecycleTransitionRequest,
+    request: Request,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Retire a device from eligible lifecycle states.
+
+    Eligible states: ``active``, ``suspended``, ``unpaired``.
+
+    Retired is a terminal state — the device cannot be re-enrolled
+    or transferred.  Requires operator-level access on the site.
+    """
+    try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_service = await get_database_service()
+
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+
+        current_lifecycle = device.lifecycle_state
+        eligible = (
+            LifecycleState.ACTIVE.value,
+            LifecycleState.SUSPENDED.value,
+            LifecycleState.UNPAIRED.value,
+        )
+        if current_lifecycle not in eligible:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Device lifecycle state is '{current_lifecycle}'; "
+                "only 'active', 'suspended', or 'unpaired' devices may be retired",
+            )
+
+        now = datetime.now(timezone.utc)
+        device.lifecycle_state = LifecycleState.RETIRED.value  # type: ignore[assignment]
+        device.is_active = False  # type: ignore[assignment]
+        device.api_key_hash = None  # type: ignore[assignment]
+
+        # Revoke active credentials
+        async with db_service.get_session() as session:
+            cred_result = await session.execute(
+                select(DeviceCredential).where(
+                    DeviceCredential.device_id == device.id,
+                    DeviceCredential.is_active,
+                )
+            )
+            for cred in cred_result.scalars().all():
+                cred.is_active = False  # type: ignore[assignment]
+                cred.revoked_at = now  # type: ignore[assignment]
+
+        # Expire pending commands
+        async with db_service.get_session() as session:
+            cmd_result = await session.execute(
+                select(DeviceCommand).where(
+                    DeviceCommand.device_id == device.id,
+                    DeviceCommand.status.in_(
+                        [CommandStatus.PENDING.value, CommandStatus.SENT.value]
+                    ),
+                )
+            )
+            for cmd in cmd_result.scalars().all():
+                cmd.status = CommandStatus.EXPIRED.value  # type: ignore[assignment]
+
+        # Close current epoch if open
+        if device.lifecycle_epoch_id:
+            async with db_service.get_session() as session:
+                epoch_result = await session.execute(
+                    select(LifecycleEpoch).where(
+                        LifecycleEpoch.id == device.lifecycle_epoch_id
+                    )
+                )
+                epoch = epoch_result.scalars().first()
+                if epoch and not epoch.ended_at:
+                    epoch.ended_at = now  # type: ignore[assignment]
+
+        await _record_lifecycle_event(
+            db_service,
+            device,
+            from_state=current_lifecycle,
+            to_state=LifecycleState.RETIRED.value,
+            triggered_by_user_id=int(db_user.id),
+            reason=payload.reason,
+            idempotency_key=payload.idempotency_key,
+        )
+
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_RETIRED,
+            f"Device '{device.name}' ({device.device_id}) retired by "
+            f"{current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=int(device.id),
+            site_id=int(device.site_id) if device.site_id else None,
+            user_id=int(db_user.id),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            old_values={"lifecycle_state": current_lifecycle, "is_active": True},
+            new_values={
+                "lifecycle_state": LifecycleState.RETIRED.value,
+                "is_active": False,
+                "reason": payload.reason,
+            },
+            event_metadata={"idempotency_key": payload.idempotency_key},
+        )
+
+        logger.info("Device retired: %s by %s", device_id, current_user["email"])
+
+        return {
+            "status": "success",
+            "message": f"Device '{device_id}' retired",
+            "device_id": device_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retire device {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ---------------------------------------------------------------------------
+# Re-enrol
+# ---------------------------------------------------------------------------
+
+
+@router.post("/device/{device_id}/reenrol", tags=["Devices"])
+async def reenrol_device(
+    device_id: str,
+    payload: ReEnrolDeviceRequest,
+    request: Request,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Re-enrol an unpaired device into a new lifecycle epoch.
+
+    The device must be in ``unpaired`` state.  A new epoch and
+    credentials are issued.  Requires operator-level access on
+    the target site.
+    """
+    try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_service = await get_database_service()
+
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        # Verify access to the target site
+        verify_site_access_for_user(db_user, payload.site_id, db, minimum_role="operator")
+
+        current_lifecycle = device.lifecycle_state
+        if current_lifecycle != LifecycleState.UNPAIRED.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Device lifecycle state is '{current_lifecycle}'; "
+                "only 'unpaired' devices may be re-enrolled",
+            )
+
+        # Validate target site exists
+        site = db.query(Site).filter(Site.site_id == payload.site_id).first()
+        if not site:
+            raise HTTPException(status_code=404, detail=f"Site '{payload.site_id}' not found")
+
+        now = datetime.now(timezone.utc)
+
+        # If the device is being re-enrolled to a different site, close
+        # the old assignment and create a new one
+        if device.site_id != site.id:
+            async with db_service.get_session() as session:
+                old_assignment_result = await session.execute(
+                    select(DeviceAssignment).where(
+                        DeviceAssignment.device_id == device.id,
+                        DeviceAssignment.is_current,
+                    )
+                )
+                old_assignment = old_assignment_result.scalars().first()
+                if old_assignment:
+                    old_assignment.is_current = False  # type: ignore[assignment]
+                    old_assignment.unassigned_at = now  # type: ignore[assignment]
+
+                new_assignment = DeviceAssignment(
+                    assignment_id=str(uuid.uuid4()),
+                    device_id=device.id,
+                    site_id=int(site.id),
+                    assignment_reason=payload.reason or "re-enrolment",
+                    assigned_at=now,
+                    is_current=True,
+                )
+                session.add(new_assignment)
+
+        # Update device
+        device.site_id = int(site.id)  # type: ignore[assignment]
+        if payload.device_name:
+            device.name = payload.device_name  # type: ignore[assignment]
+        device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
+        device.is_active = True  # type: ignore[assignment]
+
+        # Create new lifecycle epoch
+        async with db_service.get_session() as session:
+            new_epoch = LifecycleEpoch(
+                epoch_id=str(uuid.uuid4()),
+                device_id=device.id,
+                site_id=int(site.id),
+                claimed_at=now,
+                enrolment_method="re-enrolled",
+            )
+            session.add(new_epoch)
+            await session.flush()
+            device.lifecycle_epoch_id = new_epoch.id  # type: ignore[assignment]
+
+        # Issue new credential
+        import secrets
+        from homepot.app.auth_utils import hash_password
+
+        new_api_key = secrets.token_urlsafe(32)
+        new_key_hash = hash_password(new_api_key)
+
+        async with db_service.get_session() as session:
+            new_credential = DeviceCredential(
+                credential_id=str(uuid.uuid4()),
+                device_id=device.id,
+                key_hash=new_key_hash,
+                is_active=True,
+            )
+            session.add(new_credential)
+        device.api_key_hash = new_key_hash  # type: ignore[assignment]
+
+        await _record_lifecycle_event(
+            db_service,
+            device,
+            from_state=current_lifecycle,
+            to_state=LifecycleState.ACTIVE.value,
+            triggered_by_user_id=int(db_user.id),
+            reason=payload.reason or "re-enrolment",
+            idempotency_key=payload.idempotency_key,
+        )
+
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_RE_ENROLLED,
+            f"Device '{device.name}' ({device.device_id}) re-enrolled to site "
+            f"'{payload.site_id}' by {current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=int(device.id),
+            site_id=int(site.id),
+            user_id=int(db_user.id),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            old_values={"lifecycle_state": current_lifecycle},
+            new_values={
+                "lifecycle_state": LifecycleState.ACTIVE.value,
+                "site_id": payload.site_id,
+                "reason": payload.reason,
+            },
+            event_metadata={"idempotency_key": payload.idempotency_key},
+        )
+
+        logger.info(
+            "Device re-enrolled: %s -> site %s by %s",
+            device_id, payload.site_id, current_user["email"],
+        )
+
+        return {
+            "status": "success",
+            "message": f"Device '{device_id}' re-enrolled to site '{payload.site_id}'",
+            "device_id": device_id,
+            "api_key": new_api_key,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to re-enrol device {device_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ---------------------------------------------------------------------------
+# Transfer
+# ---------------------------------------------------------------------------
+
+
+@router.post("/device/{device_id}/transfer", tags=["Devices"])
+async def transfer_device(
+    device_id: str,
+    payload: TransferDeviceRequest,
+    request: Request,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Transfer a device between sites.
+
+    The caller must have operator+ access on **both** the source and
+    target sites.  The current lifecycle epoch is closed, a new epoch
+    and assignment are created, credentials are rotated, and a full
+    audit trail is produced.
+    """
+    try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        if not db_user:
+            raise HTTPException(status_code=403, detail="User not found")
+        db_service = await get_database_service()
+
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        current_lifecycle = device.lifecycle_state
+        eligible = (
+            LifecycleState.ACTIVE.value,
+            LifecycleState.SUSPENDED.value,
+        )
+        if current_lifecycle not in eligible:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Device lifecycle state is '{current_lifecycle}'; "
+                "only 'active' or 'suspended' devices may be transferred",
+            )
+
+        # Verify access on source site
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+
+        # Verify access on target site
+        verify_site_access_for_user(db_user, payload.target_site_id, db, minimum_role="operator")
+
+        # Validate target site exists
+        target_site = db.query(Site).filter(Site.site_id == payload.target_site_id).first()
+        if not target_site:
+            raise HTTPException(
+                status_code=404, detail=f"Target site '{payload.target_site_id}' not found"
+            )
+
+        if device.site_id == target_site.id:
+            raise HTTPException(
+                status_code=400,
+                detail="Device is already assigned to the target site",
+            )
+
+        now = datetime.now(timezone.utc)
+
+        # Close current assignment
+        async with db_service.get_session() as session:
+            current_assignment_result = await session.execute(
+                select(DeviceAssignment).where(
+                    DeviceAssignment.device_id == device.id,
+                    DeviceAssignment.is_current,
+                )
+            )
+            current_assignment = current_assignment_result.scalars().first()
+            if current_assignment:
+                current_assignment.is_current = False  # type: ignore[assignment]
+                current_assignment.unassigned_at = now  # type: ignore[assignment]
+
+            # Create new assignment
+            new_assignment = DeviceAssignment(
+                assignment_id=str(uuid.uuid4()),
+                device_id=device.id,
+                site_id=int(target_site.id),
+                assignment_reason=payload.reason or "transfer",
+                assigned_at=now,
+                is_current=True,
+            )
+            session.add(new_assignment)
+
+        # Close current epoch
+        if device.lifecycle_epoch_id:
+            async with db_service.get_session() as session:
+                epoch_result = await session.execute(
+                    select(LifecycleEpoch).where(
+                        LifecycleEpoch.id == device.lifecycle_epoch_id
+                    )
+                )
+                current_epoch = epoch_result.scalars().first()
+                if current_epoch and not current_epoch.ended_at:
+                    current_epoch.ended_at = now  # type: ignore[assignment]
+
+        # Update device
+        device.site_id = int(target_site.id)  # type: ignore[assignment]
+        device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
+        device.is_active = True  # type: ignore[assignment]
+
+        # Create new epoch
+        async with db_service.get_session() as session:
+            new_epoch = LifecycleEpoch(
+                epoch_id=str(uuid.uuid4()),
+                device_id=device.id,
+                site_id=int(target_site.id),
+                claimed_at=now,
+                enrolment_method="transferred",
+            )
+            session.add(new_epoch)
+            await session.flush()
+            device.lifecycle_epoch_id = new_epoch.id  # type: ignore[assignment]
+
+        # Revoke old credentials
+        async with db_service.get_session() as session:
+            cred_result = await session.execute(
+                select(DeviceCredential).where(
+                    DeviceCredential.device_id == device.id,
+                    DeviceCredential.is_active,
+                )
+            )
+            for cred in cred_result.scalars().all():
+                cred.is_active = False  # type: ignore[assignment]
+                cred.revoked_at = now  # type: ignore[assignment]
+
+        # Issue new credential
+        import secrets
+        from homepot.app.auth_utils import hash_password
+
+        new_api_key = secrets.token_urlsafe(32)
+        new_key_hash = hash_password(new_api_key)
+
+        async with db_service.get_session() as session:
+            new_credential = DeviceCredential(
+                credential_id=str(uuid.uuid4()),
+                device_id=device.id,
+                key_hash=new_key_hash,
+                is_active=True,
+            )
+            session.add(new_credential)
+        device.api_key_hash = new_key_hash  # type: ignore[assignment]
+
+        await _record_lifecycle_event(
+            db_service,
+            device,
+            from_state=current_lifecycle,
+            to_state=LifecycleState.ACTIVE.value,
+            triggered_by_user_id=int(db_user.id),
+            reason=payload.reason or "transfer",
+            idempotency_key=payload.idempotency_key,
+        )
+
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.DEVICE_TRANSFERRED,
+            f"Device '{device.name}' ({device.device_id}) transferred from site "
+            f"'{device.site_id if hasattr(device, 'site_id') else 'unknown'}' "
+            f"to '{payload.target_site_id}' by {current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=int(device.id),
+            site_id=int(target_site.id),
+            user_id=int(db_user.id),
+            ip_address=ip_address,
+            user_agent=user_agent,
+            old_values={"lifecycle_state": current_lifecycle, "site_id": str(device.site_id)},
+            new_values={
+                "lifecycle_state": LifecycleState.ACTIVE.value,
+                "site_id": payload.target_site_id,
+                "reason": payload.reason,
+            },
+            event_metadata={"idempotency_key": payload.idempotency_key},
+        )
+
+        logger.info(
+            "Device transferred: %s -> site %s by %s",
+            device_id, payload.target_site_id, current_user["email"],
+        )
+
+        return {
+            "status": "success",
+            "message": f"Device '{device_id}' transferred to site '{payload.target_site_id}'",
+            "device_id": device_id,
+            "target_site_id": payload.target_site_id,
+            "api_key": new_api_key,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to transfer device {device_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
