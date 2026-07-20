@@ -12,6 +12,7 @@ and re-enrolment.  The identity is stored in:
 
 import hashlib
 import logging
+import tempfile
 from pathlib import Path
 from typing import Optional
 import uuid
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 _IDENTITY_FILENAME = "identity"
 _VAR_LIB_PATH = Path("/var/lib/homepot")
-_FALLBACK_DIR = Path(user_data_dir("homepot", ensure_exists=True))
+_FALLBACK_DIR = Path(user_data_dir("homepot"))
 
 
 def _get_identity_dir() -> Path:
@@ -37,7 +38,14 @@ def _get_identity_dir() -> Path:
         test_file.unlink()
         return _VAR_LIB_PATH
     except (OSError, PermissionError):
+        pass
+    try:
+        _FALLBACK_DIR.mkdir(parents=True, exist_ok=True)
         return _FALLBACK_DIR
+    except (OSError, PermissionError):
+        tmp_dir = Path(tempfile.gettempdir()) / "homepot"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        return tmp_dir
 
 
 def _identity_file_path() -> Path:
