@@ -3,6 +3,7 @@
 Mirrors the TypeScript credentialStorage tests coverage for:
 - SimulationStorage (in-memory)
 - LinuxFileStorage (file on disk with 0o600 permissions)
+- KeyringCredentialStorage (OS keyring)
 - Factory function (create_credential_storage)
 """
 
@@ -11,10 +12,12 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from homepot.agent.credential_storage import (
+    KeyringCredentialStorage,
     LinuxFileStorage,
     SimulationStorage,
     create_credential_storage,
@@ -107,6 +110,68 @@ class TestSimulationStorage:
         s2.save({"device_id": "dev-2"})
         assert s1.get_device_id() == "dev-1"
         assert s2.get_device_id() == "dev-2"
+
+    # ------------------------------------------------------------------
+    # Backend URL helpers
+    # ------------------------------------------------------------------
+
+    def test_get_backend_url_returns_none_by_default(self):
+        """get_backend_url returns None before a URL is set."""
+        storage = SimulationStorage()
+        assert storage.get_backend_url() is None
+
+    def test_set_and_get_backend_url(self):
+        """set_backend_url persists the URL and get_backend_url retrieves it."""
+        storage = SimulationStorage()
+        storage.set_backend_url("https://api.example.com")
+        assert storage.get_backend_url() == "https://api.example.com"
+
+    def test_set_backend_url_overwrites(self):
+        """set_backend_url overwrites the previous URL."""
+        storage = SimulationStorage()
+        storage.set_backend_url("https://old.example.com")
+        storage.set_backend_url("https://new.example.com")
+        assert storage.get_backend_url() == "https://new.example.com"
+
+    # ------------------------------------------------------------------
+    # TLS config helpers
+    # ------------------------------------------------------------------
+
+    def test_tls_verify_defaults_to_true(self):
+        """get_tls_verify returns True when no TLS config is set."""
+        storage = SimulationStorage()
+        assert storage.get_tls_verify() is True
+
+    def test_set_tls_verify_false(self):
+        """set_tls_config with verify=False makes get_tls_verify return False."""
+        storage = SimulationStorage()
+        storage.set_tls_config(verify=False)
+        assert storage.get_tls_verify() is False
+
+    def test_set_tls_config_with_ca_cert(self):
+        """set_tls_config stores a CA cert path that get_tls_ca_cert retrieves."""
+        storage = SimulationStorage()
+        storage.set_tls_config(ca_cert="/etc/ssl/certs/ca.pem")
+        assert storage.get_tls_ca_cert() == "/etc/ssl/certs/ca.pem"
+
+    def test_set_tls_config_with_client_cert(self):
+        """set_tls_config stores client cert and key paths."""
+        storage = SimulationStorage()
+        storage.set_tls_config(
+            client_cert="/etc/ssl/client.pem",
+            client_key="/etc/ssl/client.key",
+        )
+        assert storage.get_tls_client_cert() == "/etc/ssl/client.pem"
+        assert storage.get_tls_client_key() == "/etc/ssl/client.key"
+
+    def test_set_tls_config_merge_preserves_other_fields(self):
+        """set_tls_config merges into existing credentials without clearing them."""
+        storage = SimulationStorage()
+        storage.save({"device_id": "d1", "site_id": "s1"})
+        storage.set_tls_config(verify=False)
+        assert storage.get_device_id() == "d1"
+        assert storage.get_metadata("site_id") == "s1"
+        assert storage.get_tls_verify() is False
 
 
 # ============================================================================
@@ -237,6 +302,176 @@ class TestLinuxFileStorage:
         assert temp_storage.get_device_id() == "d-fixed"
         assert temp_storage.get_api_key() == "sk-fixed"
 
+    # ------------------------------------------------------------------
+    # Backend URL helpers
+    # ------------------------------------------------------------------
+
+    def test_get_backend_url_returns_none_by_default(self, temp_storage):
+        """get_backend_url returns None before a URL is set."""
+        assert temp_storage.get_backend_url() is None
+
+    def test_set_and_get_backend_url(self, temp_storage):
+        """set_backend_url persists the URL and get_backend_url retrieves it."""
+        temp_storage.set_backend_url("https://api.example.com")
+        assert temp_storage.get_backend_url() == "https://api.example.com"
+
+    def test_backend_url_survives_reload(self, temp_storage):
+        """Backend URL persists across LinuxFileStorage instances."""
+        temp_storage.set_backend_url("https://persist.test")
+        storage2 = LinuxFileStorage(file_path=temp_storage._file_path)
+        assert storage2.get_backend_url() == "https://persist.test"
+
+    # ------------------------------------------------------------------
+    # TLS config helpers
+    # ------------------------------------------------------------------
+
+    def test_tls_verify_defaults_to_true(self, temp_storage):
+        """get_tls_verify returns True when no TLS config is set."""
+        assert temp_storage.get_tls_verify() is True
+
+    def test_set_tls_verify_false(self, temp_storage):
+        """set_tls_config with verify=False makes get_tls_verify return False."""
+        temp_storage.set_tls_config(verify=False)
+        assert temp_storage.get_tls_verify() is False
+
+    def test_set_tls_config_with_all_options(self, temp_storage):
+        """set_tls_config stores all TLS options correctly."""
+        temp_storage.set_tls_config(
+            verify=True,
+            ca_cert="/etc/ca.pem",
+            client_cert="/etc/client.pem",
+            client_key="/etc/client.key",
+        )
+        assert temp_storage.get_tls_verify() is True
+        assert temp_storage.get_tls_ca_cert() == "/etc/ca.pem"
+        assert temp_storage.get_tls_client_cert() == "/etc/client.pem"
+        assert temp_storage.get_tls_client_key() == "/etc/client.key"
+
+    def test_tls_config_merge_preserves_credentials(self, temp_storage):
+        """set_tls_config merges into existing credentials without clearing them."""
+        temp_storage.save({"device_id": "d1", "site_id": "s1"})
+        temp_storage.set_tls_config(verify=False, ca_cert="/etc/ca.pem")
+        assert temp_storage.get_device_id() == "d1"
+        assert temp_storage.get_metadata("site_id") == "s1"
+        assert temp_storage.get_tls_verify() is False
+        assert temp_storage.get_tls_ca_cert() == "/etc/ca.pem"
+
+
+# ============================================================================
+# KeyringCredentialStorage
+# ============================================================================
+
+
+@pytest.fixture
+def mock_keyring_module():
+    """Fixture that returns a mock ``keyring`` module with an in-memory backend."""
+    mock_kr = MagicMock()
+    store: dict = {}
+
+    def set_pw(service, username, password):
+        store[(service, username)] = password
+
+    def get_pw(service, username):
+        return store.get((service, username))
+
+    def del_pw(service, username):
+        store.pop((service, username), None)
+
+    mock_kr.set_password.side_effect = set_pw
+    mock_kr.get_password.side_effect = get_pw
+    mock_kr.delete_password.side_effect = del_pw
+
+    class FakeErrors:
+        class PasswordDeleteError(Exception):
+            pass
+
+    mock_kr.errors = FakeErrors
+
+    with patch.dict("sys.modules", {"keyring": mock_kr}):
+        yield mock_kr
+
+
+class TestKeyringCredentialStorage:
+    """Tests for the OS keyring credential storage."""
+
+    def test_requires_keyring_package(self):
+        """Require keyring package; raises ImportError when absent."""
+        with patch.dict("sys.modules", {"keyring": None}):
+            with pytest.raises(ImportError):
+                KeyringCredentialStorage()
+
+    def test_save_and_get_api_key(self, mock_keyring_module):
+        """Save an API key and verify it can be retrieved from the mock keyring."""
+        storage = KeyringCredentialStorage()
+        storage.save({"api_key": "sk-keyring-1", "device_id": "dev-kr-1"})
+        assert storage.get_api_key() == "sk-keyring-1"
+
+    def test_save_and_get_device_id(self, mock_keyring_module):
+        """Save a device ID and verify it can be retrieved."""
+        storage = KeyringCredentialStorage()
+        storage.save({"device_id": "dev-kr-42"})
+        assert storage.get_device_id() == "dev-kr-42"
+
+    def test_get_metadata(self, mock_keyring_module):
+        """Save metadata and verify it can be retrieved by key."""
+        storage = KeyringCredentialStorage()
+        storage.save({"device_name": "Keyring POS", "site_id": "site-kr"})
+        assert storage.get_metadata("device_name") == "Keyring POS"
+        assert storage.get_metadata("site_id") == "site-kr"
+
+    def test_get_api_key_before_save(self, mock_keyring_module):
+        """get_api_key returns None before any credentials are saved."""
+        storage = KeyringCredentialStorage()
+        assert storage.get_api_key() is None
+
+    def test_is_provisioned_true(self, mock_keyring_module):
+        """is_provisioned returns True after a device_id is saved."""
+        storage = KeyringCredentialStorage()
+        storage.save({"device_id": "d1"})
+        assert storage.is_provisioned() is True
+
+    def test_is_provisioned_false(self, mock_keyring_module):
+        """is_provisioned returns False when no credentials exist."""
+        storage = KeyringCredentialStorage()
+        assert storage.is_provisioned() is False
+
+    def test_clear_removes_all(self, mock_keyring_module):
+        """Remove all stored credentials and reset provisioned state."""
+        storage = KeyringCredentialStorage()
+        storage.save({"api_key": "sk-test", "device_id": "d1", "site_id": "s1"})
+        storage.clear()
+        assert storage.get_api_key() is None
+        assert storage.get_device_id() is None
+        assert storage.is_provisioned() is False
+
+    def test_save_merges_existing(self, mock_keyring_module):
+        """Save merges new fields into existing credentials."""
+        storage = KeyringCredentialStorage()
+        storage.save({"device_id": "d1", "device_name": "Old"})
+        storage.save({"device_name": "New", "site_id": "s1"})
+        assert storage.get_device_id() == "d1"
+        assert storage.get_metadata("device_name") == "New"
+        assert storage.get_metadata("site_id") == "s1"
+
+    def test_set_and_get_backend_url(self, mock_keyring_module):
+        """Backend URL is stored and retrievable via the keyring."""
+        storage = KeyringCredentialStorage()
+        storage.set_backend_url("https://keyring.example.com")
+        assert storage.get_backend_url() == "https://keyring.example.com"
+
+    def test_set_tls_config(self, mock_keyring_module):
+        """TLS configuration is stored correctly in the keyring."""
+        storage = KeyringCredentialStorage()
+        storage.set_tls_config(verify=False, ca_cert="/etc/ca.pem")
+        assert storage.get_tls_verify() is False
+        assert storage.get_tls_ca_cert() == "/etc/ca.pem"
+
+    def test_clear_on_empty_storage(self, mock_keyring_module):
+        """Clear on an empty storage does not raise."""
+        storage = KeyringCredentialStorage()
+        storage.clear()
+        assert storage.is_provisioned() is False
+
 
 # ============================================================================
 # Factory function
@@ -246,22 +481,34 @@ class TestLinuxFileStorage:
 class TestCreateCredentialStorage:
     """Tests for the create_credential_storage factory."""
 
-    def test_returns_storage_on_linux(self):
-        """Factory returns LinuxFileStorage on Linux, SimulationStorage elsewhere."""
-        storage = create_credential_storage()
-        if os.name == "posix" and sys.platform != "darwin":
-            assert isinstance(storage, LinuxFileStorage)
-        else:
-            assert isinstance(storage, SimulationStorage)
-
-    def test_accepts_custom_path(self):
-        """Factory accepts an optional storage_path argument."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / "custom" / "creds.json"
-            storage = create_credential_storage(storage_path=path)
+    def test_returns_file_storage_when_keyring_unavailable(self):
+        """Factory falls back to LinuxFileStorage when keyring is absent."""
+        with patch.dict("sys.modules", {"keyring": None}):
+            storage = create_credential_storage()
             if os.name == "posix" and sys.platform != "darwin":
                 assert isinstance(storage, LinuxFileStorage)
             else:
                 assert isinstance(storage, SimulationStorage)
-            storage.save({"device_id": "d1"})
-            assert storage.get_device_id() == "d1"
+
+    def test_accepts_custom_path(self):
+        """Factory accepts an optional storage_path argument."""
+        with patch.dict("sys.modules", {"keyring": None}):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                path = Path(tmpdir) / "custom" / "creds.json"
+                storage = create_credential_storage(storage_path=path)
+                if os.name == "posix" and sys.platform != "darwin":
+                    assert isinstance(storage, LinuxFileStorage)
+                else:
+                    assert isinstance(storage, SimulationStorage)
+                storage.save({"device_id": "d1"})
+                assert storage.get_device_id() == "d1"
+
+    def test_returns_keyring_when_available(self):
+        """Factory returns KeyringCredentialStorage when keyring is available."""
+        mock_kr = MagicMock()
+        with patch.dict("sys.modules", {"keyring": mock_kr}):
+            storage = create_credential_storage()
+            if os.name == "posix" and sys.platform != "darwin":
+                assert isinstance(storage, KeyringCredentialStorage)
+            else:
+                assert isinstance(storage, SimulationStorage)
