@@ -346,10 +346,10 @@ class DatabaseService:
         async with self.get_session() as session:
             result = await session.execute(
                 select(Device)
-                .options(joinedload(Device.site))
+                .options(joinedload(Device.site), joinedload(Device.credentials))
                 .where(Device.device_id == device_id, Device.is_active.is_(True))
             )
-            return result.scalar_one_or_none()
+            return result.unique().scalar_one_or_none()
 
     async def get_devices_by_site_id(
         self, site_id: str, include_unpaired: bool = False
@@ -364,6 +364,7 @@ class DatabaseService:
             List of Device objects for the site (empty if site not found)
         """
         from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
 
         # Verify site exists first (outside of the device query session to avoid nesting)
         site = await self.get_site_by_site_id(site_id)
@@ -372,7 +373,11 @@ class DatabaseService:
 
         async with self.get_session() as session:
             # Query devices using INTEGER site.id FK
-            query = select(Device).where(Device.site_id == site.id)
+            query = (
+                select(Device)
+                .options(joinedload(Device.credentials))
+                .where(Device.site_id == site.id)
+            )
 
             if not include_unpaired:
                 query = query.where(Device.is_active.is_(True))
@@ -380,7 +385,7 @@ class DatabaseService:
             query = query.order_by(Device.created_at.desc())
 
             result = await session.execute(query)
-            return list(result.scalars().all())
+            return list(result.unique().scalars().all())
 
     # Device operations
     async def create_device(

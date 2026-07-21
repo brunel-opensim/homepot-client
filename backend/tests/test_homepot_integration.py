@@ -588,6 +588,102 @@ class TestEndToEndWorkflows:
         assert stats.get("total_events", 0) > 0
 
 
+class TestDeviceSiteFields:
+    """Tests for PR 19: surface hidden device/site fields."""
+
+    _headers: dict = {}
+
+    def setup_method(self) -> None:
+        """Set auth headers before each test."""
+        if not TestDeviceSiteFields._headers:
+            TestDeviceSiteFields._headers = auth_headers()
+
+    def test_device_get_includes_last_heartbeat_at(self, client: TestClient) -> None:
+        """GET /devices/device/{device_id} includes last_heartbeat_at."""
+        h = TestDeviceSiteFields._headers
+        devices_resp = client.get("/api/v1/devices/device", headers=h)
+        assert devices_resp.status_code == 200
+        devices = devices_resp.json().get("devices", [])
+        if devices:
+            device_id = devices[0]["device_id"]
+            resp = client.get(f"/api/v1/devices/device/{device_id}", headers=h)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "last_heartbeat_at" in data
+            assert "credential_status" in data
+
+    def test_device_list_includes_new_fields(self, client: TestClient) -> None:
+        """GET /devices/device includes last_heartbeat_at and credential_status."""
+        h = TestDeviceSiteFields._headers
+        resp = client.get("/api/v1/devices/device", headers=h)
+        assert resp.status_code == 200
+        devices = resp.json().get("devices", [])
+        if devices:
+            d = devices[0]
+            assert "last_heartbeat_at" in d
+            assert "credential_status" in d
+
+    def test_devices_by_site_includes_new_fields(self, client: TestClient) -> None:
+        """GET /devices/sites/{site_id}/devices includes new fields."""
+        h = TestDeviceSiteFields._headers
+        sites_resp = client.get("/api/v1/sites", headers=h)
+        assert sites_resp.status_code == 200
+        sites = sites_resp.json().get("sites", [])
+        if sites:
+            site_id = sites[0]["site_id"]
+            resp = client.get(f"/api/v1/devices/sites/{site_id}/devices", headers=h)
+            assert resp.status_code == 200
+            devices = resp.json()
+            if devices:
+                d = devices[0]
+                assert "last_heartbeat_at" in d
+                assert "credential_status" in d
+
+    def test_site_list_includes_tenant_id(self, client: TestClient) -> None:
+        """GET /sites includes tenant_id."""
+        h = TestDeviceSiteFields._headers
+        resp = client.get("/api/v1/sites", headers=h)
+        assert resp.status_code == 200
+        sites = resp.json().get("sites", [])
+        if sites:
+            assert "tenant_id" in sites[0]
+
+    def test_site_get_includes_tenant_id(self, client: TestClient) -> None:
+        """GET /sites/{site_id} includes tenant_id."""
+        h = TestDeviceSiteFields._headers
+        sites_resp = client.get("/api/v1/sites", headers=h)
+        assert sites_resp.status_code == 200
+        sites = sites_resp.json().get("sites", [])
+        if sites:
+            site_id = sites[0]["site_id"]
+            resp = client.get(f"/api/v1/sites/{site_id}", headers=h)
+            assert resp.status_code == 200
+            assert "tenant_id" in resp.json()
+
+    def test_device_credentials_endpoint(self, client: TestClient) -> None:
+        """GET /devices/device/{device_id}/credentials returns history."""
+        h = TestDeviceSiteFields._headers
+        devices_resp = client.get("/api/v1/devices/device", headers=h)
+        assert devices_resp.status_code == 200
+        devices = devices_resp.json().get("devices", [])
+        if devices:
+            device_id = devices[0]["device_id"]
+            resp = client.get(
+                f"/api/v1/devices/device/{device_id}/credentials", headers=h
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "device_id" in data
+            assert "credentials" in data
+            assert isinstance(data["credentials"], list)
+            if data["credentials"]:
+                c = data["credentials"][0]
+                assert "credential_id" in c
+                assert "is_active" in c
+                assert "created_at" in c
+                assert "key_hash" not in c
+
+
 @pytest.mark.performance
 @skip_live_tests
 class TestSystemPerformance:
