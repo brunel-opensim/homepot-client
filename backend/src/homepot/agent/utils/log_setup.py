@@ -102,3 +102,4 @@ def reset_logging_config() -> None:
     root = logging.getLogger()
     for handler in list(root.handlers):
         root.removeHandler(handler)
+        handler.close()
