@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -87,9 +86,7 @@ class TestLogSetup:
     def test_rotating_file_handler_rotation(self, caplog, tmp_path):
         """Rotating file handler rotates files when max_bytes is exceeded."""
         log_path = tmp_path / "rotate.log"
-        configure_agent_logging(
-            log_file=str(log_path), max_bytes=50, backup_count=2
-        )
+        configure_agent_logging(log_file=str(log_path), max_bytes=50, backup_count=2)
         logger = logging.getLogger("rotate_test")
         for i in range(100):
             logger.info("line %03d — xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", i)
