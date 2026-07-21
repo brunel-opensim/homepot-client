@@ -43,6 +43,7 @@ client_instance: Optional[HomepotClient] = None
 
 # Background task for command expiry
 _command_expiry_task: Optional[asyncio.Task[None]] = None
+_intent_expiry_task: Optional[asyncio.Task[None]] = None
 
 
 async def _run_command_expiry_loop() -> None:
@@ -60,10 +61,24 @@ async def _run_command_expiry_loop() -> None:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
+async def _run_intent_expiry_loop() -> None:
+    """Periodically expire PENDING/APPROVED enrolment intents past expires_at."""
+    POLL_INTERVAL_SECONDS = 120
+    while True:
+        try:
+            db = await get_database_service()
+            expired = await db.expire_stale_enrolment_intents()
+            if expired:
+                logger.info(f"Expired {expired} stale enrolment intent(s)")
+        except Exception as e:
+            logger.error(f"Intent expiry error: {e}", exc_info=True)
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan events."""
-    global client_instance, _command_expiry_task
+    global client_instance, _command_expiry_task, _intent_expiry_task
 
     # Startup
     logger.info("Starting HOMEPOT Client application...")
@@ -79,6 +94,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start background command expiry task
     _command_expiry_task = asyncio.create_task(_run_command_expiry_loop())
     logger.info("Command expiry background task started")
+
+    # Start background enrolment intent expiry task
+    _intent_expiry_task = asyncio.create_task(_run_intent_expiry_loop())
+    logger.info("Enrolment intent expiry background task started")
 
     # Initialize job orchestrator
     try:
@@ -171,6 +190,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             pass
         _command_expiry_task = None
         logger.info("Command expiry background task stopped")
+
+    # Cancel background enrolment intent expiry task
+    if _intent_expiry_task is not None:
+        _intent_expiry_task.cancel()
+        try:
+            await _intent_expiry_task
+        except asyncio.CancelledError:
+            pass
+        _intent_expiry_task = None
+        logger.info("Enrolment intent expiry background task stopped")
 
     # Shutdown database
     try:
