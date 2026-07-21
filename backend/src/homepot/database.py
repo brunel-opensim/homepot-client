@@ -724,6 +724,43 @@ class DatabaseService:
                 return command
             return None
 
+    async def get_commands_for_device(
+        self, device_id: int, limit: int = 100, offset: int = 0
+    ) -> List[DeviceCommand]:
+        """Get all commands for a device, sorted by created_at descending."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(DeviceCommand)
+                .where(DeviceCommand.device_id == device_id)
+                .order_by(DeviceCommand.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            return list(result.scalars().all())
+
+    async def expire_stale_commands(self, ttl_seconds: int = 300) -> int:
+        """Mark PENDING and SENT commands older than ttl_seconds as EXPIRED.
+
+        Returns the number of commands expired.
+        """
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+            seconds=ttl_seconds
+        )
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(DeviceCommand).where(
+                    DeviceCommand.status.in_(
+                        [CommandStatus.PENDING, CommandStatus.SENT]
+                    ),
+                    DeviceCommand.created_at < cutoff,
+                )
+            )
+            commands = list(result.scalars().all())
+            for cmd in commands:
+                cmd.status = CommandStatus.EXPIRED  # type: ignore[assignment]
+            await session.commit()
+            return len(commands)
+
     # Health check operations
     async def create_health_check(
         self,
