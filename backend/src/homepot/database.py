@@ -912,6 +912,30 @@ class DatabaseService:
             result = await session.execute(query)
             return list(result.scalars().all())
 
+    async def expire_stale_enrolment_intents(self) -> int:
+        """Mark PENDING and APPROVED intents past their expires_at as EXPIRED.
+
+        Returns the number of intents expired.
+        """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(EnrolmentIntent).where(
+                    EnrolmentIntent.status.in_(
+                        [
+                            EnrolmentIntentStatus.PENDING,
+                            EnrolmentIntentStatus.APPROVED,
+                        ]
+                    ),
+                    EnrolmentIntent.expires_at < now,
+                )
+            )
+            intents = list(result.scalars().all())
+            for intent in intents:
+                intent.status = EnrolmentIntentStatus.EXPIRED  # type: ignore[assignment]
+            await session.commit()
+            return len(intents)
+
     async def update_enrolment_intent_status(
         self,
         intent_id: str,

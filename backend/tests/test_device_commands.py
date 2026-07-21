@@ -20,6 +20,8 @@ from homepot.models import (
     CommandStatus,
     Device,
     DeviceCommand,
+    EnrolmentIntent,
+    EnrolmentIntentStatus,
     LifecycleState,
     Site,
     User,
@@ -335,5 +337,74 @@ def test_expire_stale_commands(client: TestClient) -> None:
         cmd = db.query(DeviceCommand).filter(DeviceCommand.command_id == cmd_id).first()
         assert cmd is not None
         assert cmd.status == CommandStatus.EXPIRED
+    finally:
+        db.close()
+
+
+def test_expire_stale_enrolment_intents(client: TestClient) -> None:
+    """expire_stale_enrolment_intents marks past-expiry intents as EXPIRED."""
+    ctx = _setup_site_and_device(client)
+    site_id = ctx["site_id"]
+
+    db = homepot.database.SessionLocal()
+    intent_id = None
+    try:
+        site = db.query(Site).filter(Site.site_id == site_id).first()
+        assert site is not None
+
+        # Create an intent that expired 1 hour ago
+        intent = EnrolmentIntent(
+            intent_id="test-expired-intent",
+            site_id=site.id,
+            enrolment_method="pre-provisioned",
+            expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            creator_id=1,  # admin user
+            status=EnrolmentIntentStatus.PENDING,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(intent)
+
+        # Create a non-expired intent for comparison
+        active_intent = EnrolmentIntent(
+            intent_id="test-active-intent",
+            site_id=site.id,
+            enrolment_method="pre-provisioned",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            creator_id=1,
+            status=EnrolmentIntentStatus.PENDING,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(active_intent)
+        db.commit()
+        intent_id = intent.intent_id
+    finally:
+        db.close()
+
+    async def _expire():
+        svc = await homepot.database.get_database_service()
+        return await svc.expire_stale_enrolment_intents()
+
+    expired_count = asyncio.run(_expire())
+    assert expired_count >= 1
+
+    db = homepot.database.SessionLocal()
+    try:
+        expired = (
+            db.query(EnrolmentIntent)
+            .filter(EnrolmentIntent.intent_id == intent_id)
+            .first()
+        )
+        assert expired is not None
+        assert expired.status == EnrolmentIntentStatus.EXPIRED
+
+        active = (
+            db.query(EnrolmentIntent)
+            .filter(EnrolmentIntent.intent_id == "test-active-intent")
+            .first()
+        )
+        assert active is not None
+        assert active.status == EnrolmentIntentStatus.PENDING
     finally:
         db.close()
