@@ -341,7 +341,7 @@ async def list_device(
 
             query = query.order_by(Device.created_at.desc())
             result = await session.execute(query)
-            devices = result.scalars().all()
+            devices = result.unique().scalars().all()
 
             device_list = []
             for device in devices:
@@ -400,7 +400,7 @@ async def get_device(
                 .options(joinedload(Device.site), joinedload(Device.credentials))
                 .where(Device.device_id == device_id)
             )
-            device = result.scalar_one_or_none()
+            device = result.unique().scalar_one_or_none()
 
             if not device:
                 raise HTTPException(

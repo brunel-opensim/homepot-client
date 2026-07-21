@@ -349,7 +349,7 @@ class DatabaseService:
                 .options(joinedload(Device.site), joinedload(Device.credentials))
                 .where(Device.device_id == device_id, Device.is_active.is_(True))
             )
-            return result.scalar_one_or_none()
+            return result.unique().scalar_one_or_none()
 
     async def get_devices_by_site_id(
         self, site_id: str, include_unpaired: bool = False
@@ -385,7 +385,7 @@ class DatabaseService:
             query = query.order_by(Device.created_at.desc())
 
             result = await session.execute(query)
-            return list(result.scalars().all())
+            return list(result.unique().scalars().all())
 
     # Device operations
     async def create_device(
