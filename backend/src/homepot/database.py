@@ -4,6 +4,7 @@ This module provides async database operations and session management
 for the HOMEPOT system.
 """
 
+from collections import defaultdict
 from contextlib import asynccontextmanager
 import datetime
 import logging
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 import uuid
 
-from sqlalchemy import Result, create_engine, inspect, select, text
+from sqlalchemy import Result, create_engine, func, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -20,6 +21,7 @@ from homepot.models import (
     AuditLog,
     Base,
     CommandStatus,
+    ConnectivityState,
     Device,
     DeviceCommand,
     DeviceCredential,
@@ -27,6 +29,7 @@ from homepot.models import (
     EnrolmentIntent,
     EnrolmentIntentStatus,
     HealthCheck,
+    HealthState,
     Job,
     JobStatus,
     LifecycleEpoch,
@@ -1064,6 +1067,127 @@ class DatabaseService:
             await session.flush()
 
             return {"claim_token": new_token}
+
+    async def get_dashboard_summary(
+        self,
+        site_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Get dashboard aggregate counts, optionally scoped to a site.
+
+        Returns device counts grouped by lifecycle_state, connectivity_state,
+        and health_state, plus pending enrolment intents and command counts.
+        """
+        _HB_ONLINE_SECONDS = 120
+
+        async with self.get_session() as session:
+            # -- Device counts by lifecycle_state --
+            lifecycle_q = select(Device.lifecycle_state, func.count(Device.id)).where(
+                Device.is_active.is_(True)
+            )
+            if site_id is not None:
+                lifecycle_q = lifecycle_q.where(Device.site_id == site_id)
+            lifecycle_q = lifecycle_q.group_by(Device.lifecycle_state)
+            lifecycle_result = await session.execute(lifecycle_q)
+            lifecycle_counts: Dict[str, int] = {
+                row[0]: row[1] for row in lifecycle_result.all()
+            }
+
+            # -- Device counts by health_state --
+            health_q = select(
+                func.coalesce(Device.health_state, HealthState.UNKNOWN.value),
+                func.count(Device.id),
+            ).where(Device.is_active.is_(True))
+            if site_id is not None:
+                health_q = health_q.where(Device.site_id == site_id)
+            health_q = health_q.group_by(
+                func.coalesce(Device.health_state, HealthState.UNKNOWN.value)
+            )
+            health_result = await session.execute(health_q)
+            health_counts: Dict[str, int] = {
+                row[0]: row[1] for row in health_result.all()
+            }
+
+            # -- Fetch heartbeats to compute connectivity --
+            hb_q = select(Device.last_heartbeat_at).where(Device.is_active.is_(True))
+            if site_id is not None:
+                hb_q = hb_q.where(Device.site_id == site_id)
+            hb_result = await session.execute(hb_q)
+            connectivity_counts: Dict[str, int] = defaultdict(int)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            for hb in hb_result.scalars().all():
+                if hb is None:
+                    connectivity_counts[ConnectivityState.UNKNOWN.value] += 1
+                else:
+                    if hb.tzinfo is None:
+                        hb = hb.replace(tzinfo=datetime.timezone.utc)
+                    delta = now - hb
+                    if delta.total_seconds() <= _HB_ONLINE_SECONDS:
+                        connectivity_counts[ConnectivityState.ONLINE.value] += 1
+                    else:
+                        connectivity_counts[ConnectivityState.OFFLINE.value] += 1
+
+            # -- Total device count --
+            total_q = select(func.count(Device.id)).where(Device.is_active.is_(True))
+            if site_id is not None:
+                total_q = total_q.where(Device.site_id == site_id)
+            total_result = await session.execute(total_q)
+            total_devices = total_result.scalar() or 0
+
+            # -- Pending enrolment intents --
+            intents_q = select(func.count(EnrolmentIntent.id)).where(
+                EnrolmentIntent.status.in_(
+                    [
+                        EnrolmentIntentStatus.PENDING,
+                        EnrolmentIntentStatus.APPROVED,
+                    ]
+                )
+            )
+            if site_id is not None:
+                intents_q = intents_q.where(EnrolmentIntent.site_id == site_id)
+            intents_result = await session.execute(intents_q)
+            pending_intents = intents_result.scalar() or 0
+
+            # -- Pending / expired commands --
+            if site_id is not None:
+                pending_cmd_q = (
+                    select(func.count(DeviceCommand.id))
+                    .join(Device, DeviceCommand.device_id == Device.id)
+                    .where(
+                        DeviceCommand.status == CommandStatus.PENDING,
+                        Device.site_id == site_id,
+                    )
+                )
+                expired_cmd_q = (
+                    select(func.count(DeviceCommand.id))
+                    .join(Device, DeviceCommand.device_id == Device.id)
+                    .where(
+                        DeviceCommand.status == CommandStatus.EXPIRED,
+                        Device.site_id == site_id,
+                    )
+                )
+            else:
+                pending_cmd_q = select(func.count(DeviceCommand.id)).where(
+                    DeviceCommand.status == CommandStatus.PENDING
+                )
+                expired_cmd_q = select(func.count(DeviceCommand.id)).where(
+                    DeviceCommand.status == CommandStatus.EXPIRED
+                )
+
+            pending_cmds_result = await session.execute(pending_cmd_q)
+            pending_commands = pending_cmds_result.scalar() or 0
+
+            expired_cmds_result = await session.execute(expired_cmd_q)
+            expired_commands = expired_cmds_result.scalar() or 0
+
+        return {
+            "total_devices": total_devices,
+            "lifecycle_counts": dict(lifecycle_counts),
+            "connectivity_counts": dict(connectivity_counts),
+            "health_counts": dict(health_counts),
+            "pending_enrolment_intents": pending_intents,
+            "pending_commands": pending_commands,
+            "expired_commands": expired_commands,
+        }
 
 
 # Global database service instance

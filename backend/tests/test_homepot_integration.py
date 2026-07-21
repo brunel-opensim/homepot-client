@@ -684,6 +684,156 @@ class TestDeviceSiteFields:
                 assert "key_hash" not in c
 
 
+class TestDashboardAggregates:
+    """Tests for PR 20: dashboard aggregate endpoints."""
+
+    _headers: dict = {}
+
+    def setup_method(self) -> None:
+        """Set auth headers before each test."""
+        if not TestDashboardAggregates._headers:
+            TestDashboardAggregates._headers = auth_headers()
+
+    # -- helpers --
+
+    @staticmethod
+    def _create_site(client: TestClient, headers: dict) -> str:
+        site_id = generate_random_id("DASH_SITE")
+        resp = client.post(
+            "/api/v1/sites",
+            json={
+                "site_id": site_id,
+                "name": "Dashboard Site",
+                "location": "Test",
+                "type": "test",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200, f"Failed to create site: {resp.text}"
+        return site_id
+
+    @staticmethod
+    def _create_device(client: TestClient, headers: dict, site_id: str) -> str:
+        device_id = generate_random_id("DASH_DEV")
+        resp = client.post(
+            "/api/v1/devices/device",
+            json={
+                "site_id": site_id,
+                "device_id": device_id,
+                "name": f"Device {device_id}",
+                "device_type": "pos_terminal",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200, f"Failed to create device: {resp.text}"
+        return device_id
+
+    @staticmethod
+    def _set_device_state(
+        site_id_str: str, device_id_str: str, lifecycle: str, health: str
+    ) -> None:
+        """Update device lifecycle/health state directly in the DB."""
+        from homepot.database import SessionLocal
+        from homepot.models import Device, Site
+
+        db = SessionLocal()
+        try:
+            site = db.query(Site).filter(Site.site_id == site_id_str).first()
+            if site:
+                dev = (
+                    db.query(Device)
+                    .filter(
+                        Device.device_id == device_id_str, Device.site_id == site.id
+                    )
+                    .first()
+                )
+                if dev:
+                    dev.lifecycle_state = lifecycle
+                    dev.health_state = health
+                    db.commit()
+        finally:
+            db.close()
+
+    # -- tests --
+
+    def test_dashboard_summary_empty(self, client: TestClient) -> None:
+        """GET /dashboard/summary returns zeros when no data exists."""
+        h = TestDashboardAggregates._headers
+        resp = client.get("/api/v1/dashboard/summary", headers=h)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_devices"] == 0
+        assert data["lifecycle_counts"] == {}
+        assert data["connectivity_counts"] == {}
+        assert data["health_counts"] == {}
+        assert data["pending_enrolment_intents"] == 0
+        assert data["pending_commands"] == 0
+        assert data["expired_commands"] == 0
+
+    def test_dashboard_summary_with_devices(self, client: TestClient) -> None:
+        """GET /dashboard/summary returns correct counts after creating devices."""
+        h = TestDashboardAggregates._headers
+        site_id = self._create_site(client, h)
+        try:
+            d1 = self._create_device(client, h, site_id)
+            d2 = self._create_device(client, h, site_id)
+            d3 = self._create_device(client, h, site_id)
+            self._set_device_state(site_id, d1, "active", "healthy")
+            self._set_device_state(site_id, d2, "active", "warning")
+            self._set_device_state(site_id, d3, "suspended", "healthy")
+
+            resp = client.get("/api/v1/dashboard/summary", headers=h)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["total_devices"] == 3
+            assert data["lifecycle_counts"].get("active") == 2
+            assert data["lifecycle_counts"].get("suspended") == 1
+            assert data["health_counts"].get("healthy") == 2
+            assert data["health_counts"].get("warning") == 1
+        finally:
+            client.delete(f"/api/v1/sites/{site_id}", headers=h)
+
+    def test_site_dashboard(self, client: TestClient) -> None:
+        """GET /sites/{site_id}/dashboard returns scoped counts."""
+        h = TestDashboardAggregates._headers
+        site_a = self._create_site(client, h)
+        site_b = self._create_site(client, h)
+        try:
+            da1 = self._create_device(client, h, site_a)
+            da2 = self._create_device(client, h, site_a)
+            db1 = self._create_device(client, h, site_b)
+            self._set_device_state(site_a, da1, "active", "healthy")
+            self._set_device_state(site_a, da2, "active", "healthy")
+            self._set_device_state(site_b, db1, "active", "healthy")
+
+            resp_a = client.get(f"/api/v1/sites/{site_a}/dashboard", headers=h)
+            assert resp_a.status_code == 200
+            data_a = resp_a.json()
+            assert data_a["total_devices"] == 2
+            assert data_a["lifecycle_counts"].get("active") == 2
+
+            resp_b = client.get(f"/api/v1/sites/{site_b}/dashboard", headers=h)
+            assert resp_b.status_code == 200
+            data_b = resp_b.json()
+            assert data_b["total_devices"] == 1
+            assert data_b["lifecycle_counts"].get("active") == 1
+
+            resp_g = client.get("/api/v1/dashboard/summary", headers=h)
+            assert resp_g.status_code == 200
+            assert resp_g.json()["total_devices"] == 3
+        finally:
+            client.delete(f"/api/v1/sites/{site_a}", headers=h)
+            client.delete(f"/api/v1/sites/{site_b}", headers=h)
+
+    def test_dashboard_unauthorized(self, client: TestClient) -> None:
+        """Dashboard endpoints return 401 without auth."""
+        resp = client.get("/api/v1/dashboard/summary")
+        assert resp.status_code == 401
+
+        resp = client.get("/api/v1/sites/unknown/dashboard")
+        assert resp.status_code == 401
+
+
 @pytest.mark.performance
 @skip_live_tests
 class TestSystemPerformance:
