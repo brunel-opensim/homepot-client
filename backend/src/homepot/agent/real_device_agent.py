@@ -9,6 +9,7 @@ import ssl
 import threading
 from typing import Any, Dict, Optional, cast
 
+from fastapi import FastAPI
 import httpx
 from uvicorn import Config, Server
 
@@ -26,6 +27,7 @@ from homepot.agent.utils.heartbeat import build_heartbeat_payload
 from homepot.agent.utils.local_ipc import (
     LocalAgentState,
     create_local_ipc_app,
+    push_pending_command,
     update_local_agent_state,
 )
 from homepot.agent.utils.push_listener import create_push_listener
@@ -136,55 +138,157 @@ async def update_command_status(
     Sends ``PUT /api/v1/devices/{command_id}/status`` with the given status
     and optional result dict.  Returns ``True`` on success.
     """
-    url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/" f"{command_id}/status"
+    url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/{command_id}/status"
     payload = build_status_update_payload(command_id, status, result)
     return await post_json(client, url, payload, get_auth_headers(config))
+
+
+async def ack_command_backend(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+    device_id: str,
+    command_id: str,
+) -> bool:
+    """Acknowledge a command to the backend, transitioning it from PENDING to SENT.
+
+    Sends ``POST /api/v1/devices/{device_id}/commands/{command_id}/ack``.
+    Returns ``True`` on success.
+    """
+    url = (
+        f"{config['backend_url'].rstrip('/')}/api/v1/devices/"
+        f"{device_id}/commands/{command_id}/ack"
+    )
+    try:
+        response = await client.post(
+            url, headers=get_auth_headers(config), timeout=10.0
+        )
+        response.raise_for_status()
+        return True
+    except Exception as e:
+        logger.warning("ACK failed url=%s error=%s", url, e)
+        return False
 
 
 async def pending_commands_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
     retry_queue: RetryQueue,
+    ipc_server: Server | None,
     wake_event: asyncio.Event,
 ) -> None:
-    """Poll for pending commands, process them, and report results.
+    """Poll for pending commands, ACK them, and route to IPC or process locally.
 
-    Polls ``GET /api/v1/devices/pending`` at a fixed interval.  When
-    *wake_event* is set (e.g. by a push notification listener) the next poll
-    happens immediately.
+    Polls ``GET /api/v1/devices/pending`` at a fixed interval.  Each command
+    is acknowledged first (``POST …/ack``), then either exposed via IPC for
+    the real device to execute or processed locally by the agent.
     """
     url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/pending"
     interval = int(config["command_poll_interval_seconds"])
+    device_id = str(config["device_id"])
+    ipc_available = ipc_server is not None
     while True:
         try:
             data = await get_json(client, url, get_auth_headers(config))
             commands = parse_pending_commands(data)
             for command in commands:
                 cid = command.get("command_id", "")
-                result = process_command(command)
-                ok = await update_command_status(
-                    client,
-                    config,
-                    cid,
-                    result["status"],
-                    result.get("result"),
-                )
-                if not ok:
+                # 1. Ack to backend
+                acked = await ack_command_backend(client, config, device_id, cid)
+                if not acked:
                     retry_queue.enqueue(
                         {
                             "url": (
                                 f"{config['backend_url'].rstrip('/')}"
-                                f"/api/v1/devices/{cid}/status"
+                                f"/api/v1/devices/{device_id}/commands/{cid}/ack"
                             ),
-                            "payload": build_status_update_payload(
-                                cid, result["status"], result.get("result")
-                            ),
+                            "payload": {},
                         }
                     )
+                    continue
+                # 2. Route to IPC or process locally
+                if ipc_available:
+                    app = cast("FastAPI", ipc_server.config.app)  # type: ignore[union-attr]
+                    push_pending_command(app, command)
+                else:
+                    result = process_command(command)
+                    ok = await update_command_status(
+                        client,
+                        config,
+                        cid,
+                        result["status"],
+                        result.get("result"),
+                    )
+                    if not ok:
+                        retry_queue.enqueue(
+                            {
+                                "url": (
+                                    f"{config['backend_url'].rstrip('/')}"
+                                    f"/api/v1/devices/{cid}/status"
+                                ),
+                                "payload": build_status_update_payload(
+                                    cid, result["status"], result.get("result")
+                                ),
+                            }
+                        )
         except Exception as e:
             logger.error("Pending commands loop error: %s", e, exc_info=True)
         wake_event.clear()
         await asyncio.sleep(interval)
+
+
+async def command_result_loop(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+    retry_queue: RetryQueue,
+    ipc_server: Server | None,
+) -> None:
+    """Pick up command results submitted by the real device via IPC and forward to backend.
+
+    Polls the IPC result store at a fixed interval and submits each result
+    via ``PUT /api/v1/devices/{command_id}/status``.
+    """
+    interval = int(config.get("command_poll_interval_seconds", 60))
+    while True:
+        try:
+            if ipc_server is not None:
+                app = ipc_server.config.app  # type: ignore[arg-type]
+                while True:
+                    cid, result = _pop_next_result(app)
+                    if cid is None or result is None:
+                        break
+                    ok = await update_command_status(
+                        client,
+                        config,
+                        cid,
+                        result["status"],
+                        result.get("result"),
+                    )
+                    if not ok:
+                        retry_queue.enqueue(
+                            {
+                                "url": (
+                                    f"{config['backend_url'].rstrip('/')}"
+                                    f"/api/v1/devices/{cid}/status"
+                                ),
+                                "payload": build_status_update_payload(
+                                    cid, result["status"], result.get("result")
+                                ),
+                            }
+                        )
+        except Exception as e:
+            logger.error("Command result loop error: %s", e, exc_info=True)
+        await asyncio.sleep(interval)
+
+
+def _pop_next_result(app: Any) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Pop the first available command result from IPC storage."""
+    with app.state.state_lock:
+        keys = list(app.state.command_results.keys())
+        if not keys:
+            return (None, None)
+        cid = keys[0]
+        result = app.state.command_results.pop(cid)
+    return (cid, result)
 
 
 async def send_registration(
@@ -508,8 +612,9 @@ async def run_agent() -> None:
             telemetry_loop(client, config, retry_queue, ipc_server),
             retry_flush_loop(client, config, retry_queue),
             pending_commands_loop(
-                client, config, retry_queue, push_listener.wake_event
+                client, config, retry_queue, ipc_server, push_listener.wake_event
             ),
+            command_result_loop(client, config, retry_queue, ipc_server),
         )
 
 
