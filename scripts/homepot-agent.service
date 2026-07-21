@@ -5,7 +5,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=notify
 User=homepot
 Group=homepot
 RuntimeDirectory=homepot-agent
@@ -21,6 +21,11 @@ Restart=on-failure
 RestartSec=10
 StartLimitBurst=5
 StartLimitIntervalSec=60
+
+# Watchdog — agent sends WATCHDOG=1 every 10 s; systemd resets the
+# watchdog timer each time.  If 3 consecutive notifications are missed
+# (30 s) the service is restarted.
+WatchdogSec=30
 
 # Security hardening
 ProtectSystem=full

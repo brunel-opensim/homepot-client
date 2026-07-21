@@ -362,11 +362,16 @@ async def test_query_ai_always_calls_llm_even_when_not_actionable():
         async def run(self, context):
             return non_actionable_result
 
-    with patch.object(
-        AIEndpoint,
-        "get_ai_services",
-        return_value=(mock_llm, mock_knowledge, mock_memory),
-    ), patch.object(AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()):
+    with (
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
+        ),
+    ):
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
         response = await AIEndpoint.query_ai(request)
 
@@ -431,16 +436,20 @@ async def test_query_ai_includes_insights_when_gate_b_passes():
         async def run(self, context):
             return actionable_result
 
-    with patch.object(
-        AIEndpoint,
-        "get_ai_services",
-        return_value=(mock_llm, mock_knowledge, mock_memory),
-    ), patch.object(
-        AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
-    ), patch.object(
-        AIEndpoint,
-        "get_system_anomalies",
-        new=AsyncMock(return_value={"anomalies": []}),
+    with (
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
+        ),
+        patch.object(
+            AIEndpoint,
+            "get_system_anomalies",
+            new=AsyncMock(return_value={"anomalies": []}),
+        ),
     ):
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
         response = await AIEndpoint.query_ai(request)
@@ -505,16 +514,20 @@ async def test_query_ai_downgrades_trust_when_post_insight_gate_c_fails():
         async def run(self, context):
             return actionable_result
 
-    with patch.object(
-        AIEndpoint,
-        "get_ai_services",
-        return_value=(mock_llm, mock_knowledge, mock_memory),
-    ), patch.object(
-        AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
-    ), patch.object(
-        AIEndpoint,
-        "get_system_anomalies",
-        new=AsyncMock(return_value={"anomalies": []}),
+    with (
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
+        ),
+        patch.object(
+            AIEndpoint,
+            "get_system_anomalies",
+            new=AsyncMock(return_value={"anomalies": []}),
+        ),
     ):
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
         response = await AIEndpoint.query_ai(request)
