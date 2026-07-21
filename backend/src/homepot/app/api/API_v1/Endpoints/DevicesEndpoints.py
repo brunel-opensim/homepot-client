@@ -313,7 +313,7 @@ async def list_device(
         async with db_service.get_session() as session:
             query = (
                 select(Device)
-                .options(joinedload(Device.site))
+                .options(joinedload(Device.site), joinedload(Device.credentials))
                 .where(Device.is_active.is_(True))
             )
 
@@ -394,52 +394,61 @@ async def get_device(
     try:
         db_service = await get_database_service()
 
-        # Look up site by device_id
-        device = await db_service.get_device_by_device_id(device_id)
-
-        if not device:
-            raise HTTPException(
-                status_code=404, detail=f"Device '{device_id}' not found"
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(Device)
+                .options(joinedload(Device.site), joinedload(Device.credentials))
+                .where(Device.device_id == device_id)
             )
+            device = result.scalar_one_or_none()
 
-        # Verify user can access this device's site
-        db_user = cast(
-            User, db.query(User).filter(User.email == current_user["email"]).first()
-        )
-        verify_device_belongs_to_user(db_user, device, db)
+            if not device:
+                raise HTTPException(
+                    status_code=404, detail=f"Device '{device_id}' not found"
+                )
 
-        return {
-            "site_id": device.site.site_id,
-            "site_name": device.site.name if device.site else "Unknown Site",
-            "device_id": device.device_id,
-            "name": device.name,
-            "device_type": device.device_type,
-            "lifecycle_state": device.lifecycle_state,
-            "connectivity_state": _compute_connectivity(device),
-            "health_state": device.health_state or HealthState.UNKNOWN.value,
-            "status": device.status,
-            "ip_address": device.ip_address or "N/A",
-            "os_details": device.os_details
-            or (device.config.get("os_details") if device.config else "N/A"),
-            "mac_address": device.mac_address
-            or (device.config.get("mac_address") if device.config else "N/A"),
-            "firmware_version": device.firmware_version
-            or (device.config.get("firmware_version") if device.config else "N/A"),
-            "last_seen": device.last_seen.isoformat() if device.last_seen else None,
-            "last_heartbeat_at": (
-                device.last_heartbeat_at.isoformat()
-                if device.last_heartbeat_at
-                else None
-            ),
-            "credential_status": (
-                "active"
-                if any(c.is_active for c in (device.credentials or []))
-                else "inactive"
-            ),
-            "is_monitored": device.is_monitored,
-            "created_at": device.created_at.isoformat() if device.created_at else None,
-            "updated_at": device.updated_at.isoformat() if device.updated_at else None,
-        }
+            # Verify user can access this device's site
+            db_user = cast(
+                User, db.query(User).filter(User.email == current_user["email"]).first()
+            )
+            verify_device_belongs_to_user(db_user, device, db)
+
+            return {
+                "site_id": device.site.site_id,
+                "site_name": device.site.name if device.site else "Unknown Site",
+                "device_id": device.device_id,
+                "name": device.name,
+                "device_type": device.device_type,
+                "lifecycle_state": device.lifecycle_state,
+                "connectivity_state": _compute_connectivity(device),
+                "health_state": device.health_state or HealthState.UNKNOWN.value,
+                "status": device.status,
+                "ip_address": device.ip_address or "N/A",
+                "os_details": device.os_details
+                or (device.config.get("os_details") if device.config else "N/A"),
+                "mac_address": device.mac_address
+                or (device.config.get("mac_address") if device.config else "N/A"),
+                "firmware_version": device.firmware_version
+                or (device.config.get("firmware_version") if device.config else "N/A"),
+                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                "last_heartbeat_at": (
+                    device.last_heartbeat_at.isoformat()
+                    if device.last_heartbeat_at
+                    else None
+                ),
+                "credential_status": (
+                    "active"
+                    if any(c.is_active for c in (device.credentials or []))
+                    else "inactive"
+                ),
+                "is_monitored": device.is_monitored,
+                "created_at": (
+                    device.created_at.isoformat() if device.created_at else None
+                ),
+                "updated_at": (
+                    device.updated_at.isoformat() if device.updated_at else None
+                ),
+            }
 
     except HTTPException:
         raise
