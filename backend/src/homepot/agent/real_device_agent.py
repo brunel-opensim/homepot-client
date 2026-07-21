@@ -293,17 +293,17 @@ async def command_result_loop(
 async def _watchdog_loop(
     shutdown_event: asyncio.Event,
     interval: int = 10,
-    _sd_notify: object = None,  # injected by tests
+    _sd_notify: Any = None,  # injected by tests
 ) -> None:
     """Periodically notify systemd that the agent is alive (``WATCHDOG=1``).
 
     When ``systemd`` is not available or the ``systemd`` Python module is not
     installed this loop is a no-op.
     """
-    sd_notify = _sd_notify
+    sd_notify: Any = _sd_notify
     if sd_notify is None:
         try:
-            import systemd.daemon  # type: ignore[import-untyped]
+            import systemd.daemon  # type: ignore[import-untyped, import-not-found]
 
             sd_notify = systemd.daemon.notify
         except ImportError:
