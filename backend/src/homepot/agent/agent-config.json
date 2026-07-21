@@ -9,7 +9,12 @@
   "heartbeat_interval_seconds": 30,
   "telemetry_interval_seconds": 30,
   "retry_flush_interval_seconds": 60,
+  "command_poll_interval_seconds": 60,
   "ipc_enabled": true,
   "ipc_host": "127.0.0.1",
-  "ipc_port": 8765
+  "ipc_port": 8765,
+  "mqtt_broker_host": null,
+  "mqtt_broker_port": 1883,
+  "mqtt_username": null,
+  "mqtt_password": null
 }
