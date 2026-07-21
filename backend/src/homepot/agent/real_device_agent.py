@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import signal
 import ssl
 import threading
 from typing import Any, Dict, Optional, cast
@@ -30,13 +31,16 @@ from homepot.agent.utils.local_ipc import (
     push_pending_command,
     update_local_agent_state,
 )
+from homepot.agent.utils.log_setup import (
+    configure_agent_logging,
+    logging_config_from_config,
+)
 from homepot.agent.utils.push_listener import create_push_listener
 from homepot.agent.utils.real_device_discovery import get_connected_peripherals
 from homepot.agent.utils.retry_queue import RetryQueue
 from homepot.agent.utils.telemetry import build_telemetry_payload
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def load_agent_config() -> Dict[str, Any]:
@@ -84,6 +88,12 @@ def load_agent_config() -> Dict[str, Any]:
     data.setdefault("ipc_enabled", True)
     data.setdefault("ipc_host", "127.0.0.1")
     data.setdefault("ipc_port", 8765)
+    data.setdefault("log_level", "INFO")
+    data.setdefault("log_max_bytes", 10 * 1024 * 1024)
+    data.setdefault("log_backup_count", 5)
+    data.setdefault("watchdog_enabled", True)
+    data.setdefault("watchdog_interval_seconds", 10)
+    data.setdefault("shutdown_timeout_seconds", 30)
     return data
 
 
@@ -278,6 +288,46 @@ async def command_result_loop(
         except Exception as e:
             logger.error("Command result loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
+
+
+async def _watchdog_loop(
+    shutdown_event: asyncio.Event,
+    interval: int = 10,
+    _sd_notify: object = None,  # injected by tests
+) -> None:
+    """Periodically notify systemd that the agent is alive (``WATCHDOG=1``).
+
+    When ``systemd`` is not available or the ``systemd`` Python module is not
+    installed this loop is a no-op.
+    """
+    sd_notify = _sd_notify
+    if sd_notify is None:
+        try:
+            import systemd.daemon  # type: ignore[import-untyped]
+
+            sd_notify = systemd.daemon.notify
+        except ImportError:
+            pass
+
+    if sd_notify is None:
+        return
+
+    while not shutdown_event.is_set():
+        try:
+            sd_notify("WATCHDOG=1")
+        except Exception as exc:
+            logger.warning("systemd watchdog notification failed: %s", exc)
+        await _wait_with_shutdown(interval, shutdown_event)
+
+
+async def _wait_with_shutdown(interval: int, shutdown_event: asyncio.Event) -> None:
+    """Sleep for *interval* seconds or until *shutdown_event* is set."""
+    try:
+        await asyncio.wait_for(shutdown_event.wait(), timeout=interval)
+    except asyncio.TimeoutError:
+        pass
+    except asyncio.CancelledError:
+        shutdown_event.set()
 
 
 def _pop_next_result(app: Any) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
@@ -595,6 +645,11 @@ async def bootstrap_agent(
 async def run_agent() -> None:
     """Run agent runtime tasks: registration, heartbeat, telemetry, command polling, and retry."""
     config = load_agent_config()
+
+    # Configure logging with optional file rotation
+    log_kwargs = logging_config_from_config(config)
+    configure_agent_logging(**log_kwargs)
+
     cred = create_credential_storage()
     retry_queue = RetryQueue()
     ipc_server = start_local_ipc_server(config)
@@ -604,18 +659,86 @@ async def run_agent() -> None:
 
     tls_kw = _build_tls_config(cred)
 
+    shutdown_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    # Register signal handlers for graceful shutdown
+    shutdown_timeout = int(config.get("shutdown_timeout_seconds", 30))
+
+    def _handle_signal() -> None:
+        """Set the shutdown event and log the signal."""
+        logger.info("Shutdown signal received, stopping agent…")
+        shutdown_event.set()
+
+    try:
+        loop.add_signal_handler(signal.SIGTERM, _handle_signal)
+        loop.add_signal_handler(signal.SIGINT, _handle_signal)
+    except NotImplementedError:
+        logger.warning("Signal handlers not supported on this platform")
+
+    async def _shutdown_after_timeout() -> None:
+        """Force shutdown if the agent does not stop gracefully within the timeout."""
+        await asyncio.sleep(shutdown_timeout)
+        if not shutdown_event.is_set():
+            logger.warning(
+                "Shutdown timeout (%ss) reached, forcing exit", shutdown_timeout
+            )
+            shutdown_event.set()
+
+    # Start the forced-shutdown timer
+    asyncio.ensure_future(_shutdown_after_timeout())
+
+    async def _cancel_on_shutdown(tasks: list) -> None:
+        """Cancel all agent tasks when shutdown_event is set."""
+        await shutdown_event.wait()
+        for t in tasks:
+            t.cancel()
+
     async with httpx.AsyncClient(**tls_kw) as client:
         await send_registration(client, config, retry_queue)
 
-        await asyncio.gather(
-            heartbeat_loop(client, config, retry_queue, ipc_server),
-            telemetry_loop(client, config, retry_queue, ipc_server),
-            retry_flush_loop(client, config, retry_queue),
-            pending_commands_loop(
-                client, config, retry_queue, ipc_server, push_listener.wake_event
+        tasks = [
+            asyncio.ensure_future(
+                heartbeat_loop(client, config, retry_queue, ipc_server)
             ),
-            command_result_loop(client, config, retry_queue, ipc_server),
-        )
+            asyncio.ensure_future(
+                telemetry_loop(client, config, retry_queue, ipc_server)
+            ),
+            asyncio.ensure_future(retry_flush_loop(client, config, retry_queue)),
+            asyncio.ensure_future(
+                pending_commands_loop(
+                    client,
+                    config,
+                    retry_queue,
+                    ipc_server,
+                    push_listener.wake_event,
+                )
+            ),
+            asyncio.ensure_future(
+                command_result_loop(client, config, retry_queue, ipc_server)
+            ),
+            asyncio.ensure_future(
+                _watchdog_loop(
+                    shutdown_event,
+                    int(config.get("watchdog_interval_seconds", 10)),
+                )
+            ),
+        ]
+        asyncio.ensure_future(_cancel_on_shutdown(tasks))
+
+        try:
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            logger.info("Agent tasks cancelled, shutting down…")
+        except Exception as e:
+            logger.error("Agent runtime error: %s", e, exc_info=True)
+
+    logger.info("Agent stopped")
+
+    # Cleanup
+    await push_listener.stop()
+    if ipc_server is not None:
+        ipc_server.should_exit = True
 
 
 if __name__ == "__main__":

@@ -16,5 +16,12 @@
   "mqtt_broker_host": null,
   "mqtt_broker_port": 1883,
   "mqtt_username": null,
-  "mqtt_password": null
+  "mqtt_password": null,
+  "log_file": null,
+  "log_level": "INFO",
+  "log_max_bytes": 10485760,
+  "log_backup_count": 5,
+  "watchdog_enabled": true,
+  "watchdog_interval_seconds": 10,
+  "shutdown_timeout_seconds": 30
 }
