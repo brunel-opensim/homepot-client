@@ -106,7 +106,50 @@ async def get_pending_commands(
     ]
 
 
-# 3. Update Command Status (Device only)
+# 3. Ack Command (Device only)
+@router.post(
+    "/{device_id}/commands/{command_id}/ack",
+    response_model=CommandResponse,
+)
+async def ack_command(
+    device_id: str,
+    command_id: str,
+    current_device: Device = Depends(get_current_device),
+) -> CommandResponse:
+    """Acknowledge receipt of a command, transitioning it from PENDING to SENT.
+
+    Called by the agent after it fetches a pending command to confirm delivery.
+    """
+    if current_device.device_id != device_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Device ID mismatch",
+        )
+
+    db = await get_database_service()
+    updated = await db.update_command_status(
+        command_id=command_id,
+        status=CommandStatus.SENT,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Command not found")
+
+    if updated.device_id != current_device.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Command does not belong to this device",
+        )
+
+    return CommandResponse(
+        command_id=updated.command_id,  # type: ignore
+        command_type=updated.command_type,  # type: ignore
+        payload=updated.payload,  # type: ignore
+        status=updated.status,  # type: ignore
+        created_at=updated.created_at.isoformat(),  # type: ignore
+    )
+
+
+# 4. Update Command Status (Device only)
 @router.put("/{command_id}/status", response_model=CommandResponse)
 async def update_command_status(
     command_id: str,
