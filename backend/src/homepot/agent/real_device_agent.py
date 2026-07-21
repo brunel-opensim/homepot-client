@@ -16,6 +16,11 @@ from homepot.agent.credential_storage import (
     CredentialStorage,
     create_credential_storage,
 )
+from homepot.agent.utils.command_poller import (
+    build_status_update_payload,
+    parse_pending_commands,
+    process_command,
+)
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
 from homepot.agent.utils.heartbeat import build_heartbeat_payload
 from homepot.agent.utils.local_ipc import (
@@ -23,6 +28,7 @@ from homepot.agent.utils.local_ipc import (
     create_local_ipc_app,
     update_local_agent_state,
 )
+from homepot.agent.utils.push_listener import create_push_listener
 from homepot.agent.utils.real_device_discovery import get_connected_peripherals
 from homepot.agent.utils.retry_queue import RetryQueue
 from homepot.agent.utils.telemetry import build_telemetry_payload
@@ -72,6 +78,7 @@ def load_agent_config() -> Dict[str, Any]:
     data.setdefault("heartbeat_interval_seconds", 30)
     data.setdefault("telemetry_interval_seconds", 30)
     data.setdefault("retry_flush_interval_seconds", 60)
+    data.setdefault("command_poll_interval_seconds", 60)
     data.setdefault("ipc_enabled", True)
     data.setdefault("ipc_host", "127.0.0.1")
     data.setdefault("ipc_port", 8765)
@@ -100,6 +107,84 @@ async def post_json(
     except Exception as e:
         logger.warning("POST failed url=%s error=%s", url, e)
         return False
+
+
+async def get_json(
+    client: httpx.AsyncClient,
+    url: str,
+    headers: Dict[str, str],
+) -> Any:
+    """Send GET request to backend and return parsed JSON on success, or ``None``."""
+    try:
+        response = await client.get(url, headers=headers, timeout=10.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.warning("GET failed url=%s error=%s", url, e)
+        return None
+
+
+async def update_command_status(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+    command_id: str,
+    status: str,
+    result: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Report command execution result back to the backend.
+
+    Sends ``PUT /api/v1/devices/{command_id}/status`` with the given status
+    and optional result dict.  Returns ``True`` on success.
+    """
+    url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/" f"{command_id}/status"
+    payload = build_status_update_payload(command_id, status, result)
+    return await post_json(client, url, payload, get_auth_headers(config))
+
+
+async def pending_commands_loop(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+    retry_queue: RetryQueue,
+    wake_event: asyncio.Event,
+) -> None:
+    """Poll for pending commands, process them, and report results.
+
+    Polls ``GET /api/v1/devices/pending`` at a fixed interval.  When
+    *wake_event* is set (e.g. by a push notification listener) the next poll
+    happens immediately.
+    """
+    url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/pending"
+    interval = int(config["command_poll_interval_seconds"])
+    while True:
+        try:
+            data = await get_json(client, url, get_auth_headers(config))
+            commands = parse_pending_commands(data)
+            for command in commands:
+                cid = command.get("command_id", "")
+                result = process_command(command)
+                ok = await update_command_status(
+                    client,
+                    config,
+                    cid,
+                    result["status"],
+                    result.get("result"),
+                )
+                if not ok:
+                    retry_queue.enqueue(
+                        {
+                            "url": (
+                                f"{config['backend_url'].rstrip('/')}"
+                                f"/api/v1/devices/{cid}/status"
+                            ),
+                            "payload": build_status_update_payload(
+                                cid, result["status"], result.get("result")
+                            ),
+                        }
+                    )
+        except Exception as e:
+            logger.error("Pending commands loop error: %s", e, exc_info=True)
+        wake_event.clear()
+        await asyncio.sleep(interval)
 
 
 async def send_registration(
@@ -404,11 +489,14 @@ async def bootstrap_agent(
 
 
 async def run_agent() -> None:
-    """Run agent runtime tasks for registration, heartbeat, telemetry, and retry."""
+    """Run agent runtime tasks: registration, heartbeat, telemetry, command polling, and retry."""
     config = load_agent_config()
     cred = create_credential_storage()
     retry_queue = RetryQueue()
     ipc_server = start_local_ipc_server(config)
+
+    push_listener = create_push_listener(config)
+    await push_listener.start()
 
     tls_kw = _build_tls_config(cred)
 
@@ -419,6 +507,9 @@ async def run_agent() -> None:
             heartbeat_loop(client, config, retry_queue, ipc_server),
             telemetry_loop(client, config, retry_queue, ipc_server),
             retry_flush_loop(client, config, retry_queue),
+            pending_commands_loop(
+                client, config, retry_queue, push_listener.wake_event
+            ),
         )
 
 
