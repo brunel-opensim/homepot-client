@@ -3,7 +3,6 @@
 import asyncio
 import logging
 from pathlib import Path
-import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,22 +36,20 @@ class TestLogSetup:
         root = logging.getLogger()
         assert any(isinstance(h, logging.StreamHandler) for h in root.handlers)
 
-    def test_configure_with_log_file_creates_file(self):
+    def test_configure_with_log_file_creates_file(self, tmp_path):
         """configure_agent_logging with log_file creates the file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            log_path = Path(tmpdir) / "agent.log"
-            configure_agent_logging(log_file=str(log_path))
-            logging.getLogger("test").info("test message")
-            assert log_path.exists()
+        log_path = tmp_path / "agent.log"
+        configure_agent_logging(log_file=str(log_path))
+        logging.getLogger("test").info("test message")
+        assert log_path.exists()
 
-    def test_log_file_contains_message(self):
+    def test_log_file_contains_message(self, tmp_path):
         """Message written to logger appears in the log file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            log_path = Path(tmpdir) / "agent.log"
-            configure_agent_logging(log_file=str(log_path))
-            logging.getLogger("test").info("hello world")
-            content = log_path.read_text("utf-8")
-            assert "hello world" in content
+        log_path = tmp_path / "agent.log"
+        configure_agent_logging(log_file=str(log_path))
+        logging.getLogger("test").info("hello world")
+        content = log_path.read_text("utf-8")
+        assert "hello world" in content
 
     def test_double_configure_is_idempotent(self):
         """Calling configure_agent_logging twice does not add duplicate handlers."""
@@ -87,20 +84,17 @@ class TestLogSetup:
         result = logging_config_from_config({"log_level": "INVALID"})
         assert result["log_level"] == logging.INFO
 
-    def test_rotating_file_handler_rotation(self, caplog):
+    def test_rotating_file_handler_rotation(self, caplog, tmp_path):
         """Rotating file handler rotates files when max_bytes is exceeded."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            log_path = Path(tmpdir) / "rotate.log"
-            configure_agent_logging(
-                log_file=str(log_path), max_bytes=50, backup_count=2
-            )
-            logger = logging.getLogger("rotate_test")
-            # Write enough to trigger rotation
-            for i in range(100):
-                logger.info("line %03d — xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", i)
-            # The original file and at least one backup should exist
-            files = list(Path(tmpdir).glob("rotate.log*"))
-            assert len(files) >= 2
+        log_path = tmp_path / "rotate.log"
+        configure_agent_logging(
+            log_file=str(log_path), max_bytes=50, backup_count=2
+        )
+        logger = logging.getLogger("rotate_test")
+        for i in range(100):
+            logger.info("line %03d — xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", i)
+        files = list(tmp_path.glob("rotate.log*"))
+        assert len(files) >= 2
 
 
 # ============================================================================
@@ -206,53 +200,50 @@ class TestFailureScenarios:
     # Network loss — retry queue stores payloads for later delivery
     # ------------------------------------------------------------------
 
-    def test_network_loss_queues_payload(self):
+    def test_network_loss_queues_payload(self, tmp_path):
         """When POST fails, payload is queued in RetryQueue."""
         import httpx
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            queue = RetryQueue(queue_file=Path(tmpdir) / "retry.json")
-            assert len(queue) == 0
+        queue = RetryQueue(queue_file=tmp_path / "retry.json")
+        assert len(queue) == 0
 
-            transport = httpx.MockTransport(lambda _: httpx.Response(503))
-            httpx.Client(transport=transport)
+        transport = httpx.MockTransport(lambda _: httpx.Response(503))
+        httpx.Client(transport=transport)
 
-            url = "http://localhost/api/v1/agent/heartbeat"
-            payload = {"device_id": "d1"}
-            queue.enqueue({"url": url, "payload": payload})
-            assert len(queue) == 1
-            assert queue.load()[0]["url"] == url
+        url = "http://localhost/api/v1/agent/heartbeat"
+        payload = {"device_id": "d1"}
+        queue.enqueue({"url": url, "payload": payload})
+        assert len(queue) == 1
+        assert queue.load()[0]["url"] == url
 
-    def test_network_loss_backoff(self):
+    def test_network_loss_backoff(self, tmp_path):
         """Failed items get exponential backoff via requeue."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            queue = RetryQueue(queue_file=Path(tmpdir) / "retry.json")
-            queue.enqueue({"url": "http://localhost/api", "payload": {"k": "v"}})
-            items = queue.dequeue_all()
-            assert items[0]["retry_count"] == 0
-            queue.requeue(items[0])
-            items2 = queue.dequeue_all()
-            assert items2[0]["retry_count"] == 1
+        queue = RetryQueue(queue_file=tmp_path / "retry.json")
+        queue.enqueue({"url": "http://localhost/api", "payload": {"k": "v"}})
+        items = queue.dequeue_all()
+        assert items[0]["retry_count"] == 0
+        queue.requeue(items[0])
+        items2 = queue.dequeue_all()
+        assert items2[0]["retry_count"] == 1
 
-    def test_network_loss_dequeue_ready_respects_backoff(self):
+    def test_network_loss_dequeue_ready_respects_backoff(self, tmp_path):
         """dequeue_ready only returns items whose backoff has elapsed."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            queue = RetryQueue(queue_file=Path(tmpdir) / "retry.json")
-            from datetime import datetime, timedelta, timezone
+        queue = RetryQueue(queue_file=tmp_path / "retry.json")
+        from datetime import datetime, timedelta, timezone
 
-            future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-            queue.save(
-                [
-                    {
-                        "url": "http://localhost/api",
-                        "payload": {},
-                        "retry_count": 0,
-                        "next_retry_at": future,
-                    }
-                ]
-            )
-            ready = queue.dequeue_ready()
-            assert len(ready) == 0
+        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        queue.save(
+            [
+                {
+                    "url": "http://localhost/api",
+                    "payload": {},
+                    "retry_count": 0,
+                    "next_retry_at": future,
+                }
+            ]
+        )
+        ready = queue.dequeue_ready()
+        assert len(ready) == 0
 
     # ------------------------------------------------------------------
     # Token revocation — 401 responses
@@ -340,17 +331,14 @@ class TestFailureScenarios:
     # Retry resilience
     # ------------------------------------------------------------------
 
-    def test_retry_queue_survives_restart(self):
+    def test_retry_queue_survives_restart(self, tmp_path):
         """Retry queue persists to disk and survives a restart."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            qfile = Path(tmpdir) / "retry.json"
-            # First session
-            q1 = RetryQueue(queue_file=qfile)
-            q1.enqueue({"url": "http://a.com", "payload": {"k": "v"}})
-            assert len(q1) == 1
+        qfile = tmp_path / "retry.json"
+        q1 = RetryQueue(queue_file=qfile)
+        q1.enqueue({"url": "http://a.com", "payload": {"k": "v"}})
+        assert len(q1) == 1
 
-            # Second session (simulates restart)
-            q2 = RetryQueue(queue_file=qfile)
-            assert len(q2) == 1
-            items = q2.dequeue_all()
-            assert items[0]["url"] == "http://a.com"
+        q2 = RetryQueue(queue_file=qfile)
+        assert len(q2) == 1
+        items = q2.dequeue_all()
+        assert items[0]["url"] == "http://a.com"
