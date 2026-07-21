@@ -418,3 +418,46 @@ PR 17: Command ack & result reporting
 PR 18: Production hardening
 - Log rotation, service supervision (systemd watchdog), graceful shutdown
 - Comprehensive failure tests: restart, network loss, token revocation, duplicate enrolment, unpairing
+
+PR 19: Surface hidden device/site fields + credential status reader
+Expose data that already exists in the database but is not returned by
+any API response.
+
+| Change | Reason |
+|---|---|
+| Add `last_heartbeat_at` to `GET /devices/device/{device_id}` | Dashboard needs the raw timestamp for connectivity display |
+| Add `tenant_id` to site GET responses | Dashboard shows tenant assignment per site |
+| Add `credential_status` (derived from `device_credentials.is_active`) to device GET responses | Dashboard shows credential health without exposing secrets |
+| `GET /devices/device/{device_id}/credentials` — read-only credential history (version list with timestamps + `is_active`; no `key_hash`) | Dashboard metadata for troubleshooting |
+| Ensure `GET /agent/{device_id}/status` includes `last_heartbeat_at` | Consistency across agent endpoints |
+
+PR 20: Dashboard aggregate endpoint
+
+| Change | Reason |
+|---|---|
+| `GET /dashboard/summary` — global counts grouped by `lifecycle_state`, `connectivity_state`, `health_state` | Top-level dashboard KPIs |
+| `GET /sites/{site_id}/dashboard` — same breakdown scoped to one site | Per-site dashboard view |
+| Include `pending_enrolment_intents` count (intents in PENDING/APPROVED status) | Dashboard shows queue of devices waiting to enrol |
+| Include `pending_commands` and `expired_commands` counts | Dashboard shows outstanding work |
+
+PR 21: Device command history endpoint + auto-expiry scheduler
+
+| Change | Reason |
+|---|---|
+| `GET /devices/device/{device_id}/commands` — user-facing route returning all commands for a device (past, pending, expired) sorted by `created_at` | Dashboard needs command history per device |
+| Background scheduler that marks PENDING/SENT commands as EXPIRED after a TTL | Prevents stale commands from lingering |
+| *(Optional)* Add command counts to existing device GET responses | Quick glance at command load |
+
+PR 22: Enrolment intent auto-expiry scheduler
+
+| Change | Reason |
+|---|---|
+| Background scheduler that marks PENDING and APPROVED intents as EXPIRED when `expires_at < now()` | Without this, intents only expire at claim time |
+| Ensure intent counts in the dashboard summary are correct | Dashboard surfaces pending intents across all sites |
+
+PR 23: Modernise legacy agent endpoint + push-log stub fill
+
+| Change | Reason |
+|---|---|
+| Update `GET /agents` and `GET /agents/{device_id}` to use `lifecycle_state`, `connectivity_state`, `health_state` instead of the deprecated `status` field | Dashboard consumes this for the agent list view |
+| *(Optional)* Populate the stubbed `GET /device/{device_id}/push-logs` with real data from the push notifications table | Dashboard shows notification delivery status |

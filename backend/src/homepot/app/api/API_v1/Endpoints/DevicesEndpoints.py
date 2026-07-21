@@ -358,6 +358,16 @@ async def list_device(
                         or HealthState.UNKNOWN.value,
                         "status": device.status,
                         "ip_address": device.ip_address,
+                        "last_heartbeat_at": (
+                            device.last_heartbeat_at.isoformat()
+                            if device.last_heartbeat_at
+                            else None
+                        ),
+                        "credential_status": (
+                            "active"
+                            if any(c.is_active for c in (device.credentials or []))
+                            else "inactive"
+                        ),
                         "is_monitored": device.is_monitored,
                         "created_at": (
                             device.created_at.isoformat() if device.created_at else None
@@ -416,6 +426,16 @@ async def get_device(
             "firmware_version": device.firmware_version
             or (device.config.get("firmware_version") if device.config else "N/A"),
             "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+            "last_heartbeat_at": (
+                device.last_heartbeat_at.isoformat()
+                if device.last_heartbeat_at
+                else None
+            ),
+            "credential_status": (
+                "active"
+                if any(c.is_active for c in (device.credentials or []))
+                else "inactive"
+            ),
             "is_monitored": device.is_monitored,
             "created_at": device.created_at.isoformat() if device.created_at else None,
             "updated_at": device.updated_at.isoformat() if device.updated_at else None,
@@ -427,6 +447,50 @@ async def get_device(
         logger.error(f"Failed to get Device {device_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to get Device. Please check server logs."
+        )
+
+
+@router.get("/device/{device_id}/credentials", tags=["Devices"])
+async def get_device_credentials(
+    device_id: str,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Return credential history for a device (without secrets)."""
+    try:
+        db_service = await get_database_service()
+        device = await db_service.get_device_by_device_id(device_id)
+        if not device:
+            raise HTTPException(
+                status_code=404, detail=f"Device '{device_id}' not found"
+            )
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_device_belongs_to_user(db_user, device, db)
+
+        return {
+            "device_id": device.device_id,
+            "credentials": [
+                {
+                    "credential_id": c.credential_id,
+                    "is_active": c.is_active,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "rotated_at": c.rotated_at.isoformat() if c.rotated_at else None,
+                    "revoked_at": c.revoked_at.isoformat() if c.revoked_at else None,
+                }
+                for c in (device.credentials or [])
+            ],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"Failed to get credentials for Device {device_id}: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get device credentials. Please check server logs.",
         )
 
 
@@ -1641,6 +1705,14 @@ async def get_devices_by_site(
                 "active_alerts": alert_map.get(d.device_id, 0),
                 "enrollment_method": getattr(d, "enrollment_method", "pre-provisioned"),
                 "last_seen": d.last_seen.isoformat() if d.last_seen else None,
+                "last_heartbeat_at": (
+                    d.last_heartbeat_at.isoformat() if d.last_heartbeat_at else None
+                ),
+                "credential_status": (
+                    "active"
+                    if any(c.is_active for c in (d.credentials or []))
+                    else "inactive"
+                ),
                 "created_at": d.created_at.isoformat() if d.created_at else None,
                 "updated_at": d.updated_at.isoformat() if d.updated_at else None,
             }

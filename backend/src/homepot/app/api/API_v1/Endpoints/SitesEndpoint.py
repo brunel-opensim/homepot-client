@@ -236,6 +236,7 @@ async def list_sites(
                 site_list.append(
                     {
                         "site_id": site.site_id,
+                        "tenant_id": site.tenant_id,
                         "name": site.name,
                         "description": site.description,
                         "location": site.location,
@@ -291,6 +292,7 @@ async def get_site(
 
         return {
             "site_id": site.site_id,
+            "tenant_id": site.tenant_id,
             "name": site.name,
             "description": site.description,
             "location": site.location,
