@@ -25,6 +25,20 @@ class CreateCommandRequest(BaseModel):
     payload: Optional[Dict[str, Any]] = None
 
 
+class CommandHistoryResponse(BaseModel):
+    """Response model for command history listing."""
+
+    command_id: str
+    command_type: str
+    payload: Optional[Dict[str, Any]] = None
+    status: CommandStatus
+    result: Optional[Dict[str, Any]] = None
+    created_at: str
+    executed_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UpdateCommandStatusRequest(BaseModel):
     """Request model for updating command status."""
 
@@ -194,3 +208,42 @@ async def update_command_status(
         status=updated_command.status,  # type: ignore
         created_at=updated_command.created_at.isoformat(),  # type: ignore
     )
+
+
+# 5. Get Device Command History (User-facing)
+@router.get(
+    "/device/{device_id}/commands",
+    response_model=List[CommandHistoryResponse],
+)
+async def get_device_command_history(
+    device_id: str,
+    sync_db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> List[CommandHistoryResponse]:
+    """Get all commands for a device, sorted by created_at descending.
+
+    Requires viewer-level access on the device's site.
+    """
+    db_user = cast(
+        User, sync_db.query(User).filter(User.email == current_user["email"]).first()
+    )
+    db = await get_database_service()
+    device = await db.get_device_by_device_id(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="viewer")
+
+    commands = await db.get_commands_for_device(device.id)  # type: ignore
+    return [
+        CommandHistoryResponse(
+            command_id=cmd.command_id,  # type: ignore
+            command_type=cmd.command_type,  # type: ignore
+            payload=cmd.payload,  # type: ignore
+            status=cmd.status,  # type: ignore
+            result=cmd.result,  # type: ignore
+            created_at=cmd.created_at.isoformat(),  # type: ignore
+            executed_at=cmd.executed_at.isoformat() if cmd.executed_at else None,  # type: ignore
+        )
+        for cmd in commands
+    ]

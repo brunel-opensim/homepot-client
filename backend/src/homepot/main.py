@@ -41,11 +41,29 @@ logger = logging.getLogger(__name__)
 # Global client instance
 client_instance: Optional[HomepotClient] = None
 
+# Background task for command expiry
+_command_expiry_task: Optional[asyncio.Task[None]] = None
+
+
+async def _run_command_expiry_loop() -> None:
+    """Periodically expire stale PENDING/SENT commands."""
+    COMMAND_TTL_SECONDS = 300  # 5 minutes
+    POLL_INTERVAL_SECONDS = 60
+    while True:
+        try:
+            db = await get_database_service()
+            expired = await db.expire_stale_commands(ttl_seconds=COMMAND_TTL_SECONDS)
+            if expired:
+                logger.info(f"Expired {expired} stale command(s)")
+        except Exception as e:
+            logger.error(f"Command expiry error: {e}", exc_info=True)
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan events."""
-    global client_instance
+    global client_instance, _command_expiry_task
 
     # Startup
     logger.info("Starting HOMEPOT Client application...")
@@ -57,6 +75,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         raise
+
+    # Start background command expiry task
+    _command_expiry_task = asyncio.create_task(_run_command_expiry_loop())
+    logger.info("Command expiry background task started")
 
     # Initialize job orchestrator
     try:
@@ -139,6 +161,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Job orchestrator stopped")
     except Exception as e:
         logger.error(f"Error stopping orchestrator: {e}")
+
+    # Cancel background command expiry task
+    if _command_expiry_task is not None:
+        _command_expiry_task.cancel()
+        try:
+            await _command_expiry_task
+        except asyncio.CancelledError:
+            pass
+        _command_expiry_task = None
+        logger.info("Command expiry background task stopped")
 
     # Shutdown database
     try:
