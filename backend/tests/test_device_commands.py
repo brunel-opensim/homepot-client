@@ -408,3 +408,69 @@ def test_expire_stale_enrolment_intents(client: TestClient) -> None:
         assert active.status == EnrolmentIntentStatus.PENDING
     finally:
         db.close()
+
+
+def test_agent_list_includes_modern_state_fields(client: TestClient) -> None:
+    """GET /agents returns lifecycle_state, connectivity_state, health_state."""
+    ctx = _setup_site_and_device(client)
+    h = ctx["auth_headers"]
+    device_id = ctx["device_id"]
+
+    resp = client.get("/api/v1/agents", headers=h)
+    assert resp.status_code == 200
+    agents = resp.json().get("agents", [])
+    assert len(agents) > 0
+
+    agent = next((a for a in agents if a["device_id"] == device_id), None)
+    assert agent is not None, f"Device {device_id} not found in agent list"
+
+    assert "lifecycle_state" in agent
+    assert "connectivity_state" in agent
+    assert "health_state" in agent
+    assert "state" not in agent  # deprecated field removed
+
+    assert agent["lifecycle_state"] in (
+        "pending",
+        "active",
+        "suspended",
+        "unpaired",
+        "retired",
+    )
+    assert agent["connectivity_state"] in ("unknown", "online", "offline")
+    assert agent["health_state"] in (
+        "healthy",
+        "warning",
+        "error",
+        "maintenance",
+        "unknown",
+    )
+    assert "device_id" in agent
+    assert "config_version" in agent
+    assert "last_health_check" in agent
+    assert "uptime" in agent
+
+
+def test_agent_detail_includes_modern_state_fields(client: TestClient) -> None:
+    """GET /agents/{device_id} returns lifecycle_state, connectivity_state, health_state."""
+    ctx = _setup_site_and_device(client)
+    h = ctx["auth_headers"]
+    device_id = ctx["device_id"]
+
+    resp = client.get(f"/api/v1/agents/{device_id}", headers=h)
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert "lifecycle_state" in data
+    assert "connectivity_state" in data
+    assert "health_state" in data
+    assert "state" not in data  # deprecated field removed
+
+    assert data["lifecycle_state"] in (
+        "pending",
+        "active",
+        "suspended",
+        "unpaired",
+        "retired",
+    )
+    assert data["connectivity_state"] in ("unknown", "online", "offline")
+    assert data["device_id"] == device_id
