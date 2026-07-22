@@ -24,7 +24,7 @@ export default function AgentList() {
   const fetchAgents = async () => {
     try {
       setRefreshing(true);
-      const res = await api.agents.getListAgents();
+      const res = await api.agents.list();
       setAgents(res.agents || []);
     } catch (err) {
       console.error('Failed to fetch agents:', err);
@@ -55,17 +55,17 @@ export default function AgentList() {
         switch (sortConfig.key) {
           case 'status':
             // 1 for Online, 0 for Offline
-            aValue = a.uptime === 'running' || a.uptime === 'online' ? 1 : 0;
-            bValue = b.uptime === 'running' || b.uptime === 'online' ? 1 : 0;
+            aValue = a.connectivity_state === 'online' ? 1 : 0;
+            bValue = b.connectivity_state === 'online' ? 1 : 0;
             break;
           case 'health':
             // 1 for Healthy (has check), 0 for Unknown
-            aValue = a.last_health_check ? 1 : 0;
-            bValue = b.last_health_check ? 1 : 0;
+            aValue = a.health_state === 'healthy' ? 1 : 0;
+            bValue = b.health_state === 'healthy' ? 1 : 0;
             break;
           case 'last_seen':
-            aValue = a.last_health_check?.last_restart || '';
-            bValue = b.last_health_check?.last_restart || '';
+            aValue = a.last_heartbeat_at || '';
+            bValue = b.last_heartbeat_at || '';
             break;
           case 'device_id':
             aValue = a.device_id;
@@ -88,7 +88,7 @@ export default function AgentList() {
   }, [agents, sortConfig]);
 
   const getStatusBadge = (state) => {
-    const isOnline = state === 'running' || state === 'online';
+    const isOnline = state === 'online';
     return (
       <span
         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -105,8 +105,8 @@ export default function AgentList() {
     );
   };
 
-  const getHealthIcon = (lastCheck) => {
-    if (!lastCheck) {
+  const getHealthIcon = (healthState) => {
+    if (!healthState || healthState === 'unknown') {
       return (
         <span className="flex items-center gap-1.5 text-yellow-500 text-sm">
           <AlertTriangle className="w-4 h-4" />
@@ -115,10 +115,13 @@ export default function AgentList() {
       );
     }
 
+    const isHealthy = healthState === 'healthy';
     return (
-      <span className="flex items-center gap-1.5 text-emerald-400 text-sm">
-        <CheckCircle className="w-4 h-4" />
-        Healthy
+      <span
+        className={`flex items-center gap-1.5 ${isHealthy ? 'text-emerald-400' : 'text-red-400'} text-sm`}
+      >
+        {isHealthy ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+        {healthState.charAt(0).toUpperCase() + healthState.slice(1)}
       </span>
     );
   };
@@ -138,7 +141,7 @@ export default function AgentList() {
 
   // Calculate stats
   const totalAgents = agents.length;
-  const onlineAgents = agents.filter((a) => a.uptime === 'running' || a.uptime === 'online').length;
+  const onlineAgents = agents.filter((a) => a.connectivity_state === 'online').length;
   const offlineAgents = totalAgents - onlineAgents;
 
   if (loading) {
@@ -277,10 +280,10 @@ export default function AgentList() {
                       onClick={() => navigate(`/device/${agent.device_id}`)}
                     >
                       <td className="px-6 py-4 font-medium text-white">{agent.device_id}</td>
-                      <td className="px-6 py-4">{getStatusBadge(agent.uptime)}</td>
-                      <td className="px-6 py-4">{getHealthIcon(agent.last_health_check)}</td>
+                      <td className="px-6 py-4">{getStatusBadge(agent.connectivity_state)}</td>
+                      <td className="px-6 py-4">{getHealthIcon(agent.health_state)}</td>
                       <td className="px-6 py-4 text-slate-400 font-mono text-xs">
-                        {formatDate(agent.last_health_check?.last_restart)}
+                        {formatDate(agent.last_heartbeat_at)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button

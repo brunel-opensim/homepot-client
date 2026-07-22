@@ -12,6 +12,7 @@ import WorldMapImage from '@/assets/images/world-map.png';
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
+  const [summary, setSummary] = useState(null);
 
   useEffect(() => {
     // Poll system pulse every 1 second
@@ -47,7 +48,15 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Fetch Sites
+        // 1. Fetch Dashboard Summary
+        try {
+          const summaryData = await api.dashboard.summary();
+          setSummary(summaryData);
+        } catch (e) {
+          console.error('Failed to fetch dashboard summary', e);
+        }
+
+        // 2. Fetch Sites
         const sitesData = await api.sites.list();
         const fetchedSites = sitesData?.sites || [];
 
@@ -221,6 +230,42 @@ export default function Dashboard() {
 
   return (
     <div className="h-full bg-black text-gray-200 p-2 flex flex-col overflow-hidden rounded-2xl shadow-xl border border-gray-800">
+      {/* Summary Stats */}
+      {summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2 shrink-0">
+          <Card className="bg-[#080A0A] border border-gray-800">
+            <CardContent className="p-2 text-center">
+              <p className="text-xs text-gray-400">Total Devices</p>
+              <p className="text-xl font-bold text-white">{summary.total_devices || 0}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-[#080A0A] border border-gray-800">
+            <CardContent className="p-2 text-center">
+              <p className="text-xs text-gray-400">Online</p>
+              <p className="text-xl font-bold text-green-400">
+                {summary.connectivity_counts?.online || 0}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-[#080A0A] border border-gray-800">
+            <CardContent className="p-2 text-center">
+              <p className="text-xs text-gray-400">Offline</p>
+              <p className="text-xl font-bold text-red-400">
+                {summary.connectivity_counts?.offline || 0}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="bg-[#080A0A] border border-gray-800">
+            <CardContent className="p-2 text-center">
+              <p className="text-xs text-gray-400">Active</p>
+              <p className="text-xl font-bold text-teal-400">
+                {summary.lifecycle_counts?.active || 0}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Main Content: Two columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0 overflow-hidden">
         {/* Left Column: Connected Sites */}
