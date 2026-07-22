@@ -182,6 +182,11 @@ Write-Host "Setting startup type to Automatic..."
 Write-Host "Configuring service recovery (restart on failure)..."
 & sc.exe failure HomepotAgent reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
 
+Write-Host "Configuring Preshutdown timeout..."
+# Set the preshutdown timeout to 30 seconds so the agent has time to
+# clean up gracefully during system shutdown.
+& sc.exe config HomepotAgent preshutdown= 1 | Out-Null
+
 # ---------------------------------------------------------------------------
 # Start the service
 # ---------------------------------------------------------------------------
