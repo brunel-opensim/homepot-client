@@ -101,6 +101,7 @@ agent = [
     "psutil>=5.9.0",
     "platformdirs>=4.0.0",
     "keyring>=25.0.0",
+    "pywin32>=306; sys_platform == 'win32'",
 ]
 
 [project.urls]
