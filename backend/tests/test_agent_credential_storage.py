@@ -484,11 +484,13 @@ class TestCreateCredentialStorage:
     """Tests for the create_credential_storage factory."""
 
     def test_returns_file_storage_when_keyring_unavailable(self):
-        """Factory falls back to LinuxFileStorage when keyring is absent."""
+        """Factory falls back to platform file storage when keyring is absent."""
         with patch.dict("sys.modules", {"keyring": None}):
             storage = create_credential_storage()
             if os.name == "posix" and sys.platform != "darwin":
                 assert isinstance(storage, LinuxFileStorage)
+            elif sys.platform == "win32":
+                assert isinstance(storage, WindowsFileStorage)
             else:
                 assert isinstance(storage, SimulationStorage)
 
@@ -500,6 +502,8 @@ class TestCreateCredentialStorage:
                 storage = create_credential_storage(storage_path=path)
                 if os.name == "posix" and sys.platform != "darwin":
                     assert isinstance(storage, LinuxFileStorage)
+                elif sys.platform == "win32":
+                    assert isinstance(storage, WindowsFileStorage)
                 else:
                     assert isinstance(storage, SimulationStorage)
                 storage.save({"device_id": "d1"})
