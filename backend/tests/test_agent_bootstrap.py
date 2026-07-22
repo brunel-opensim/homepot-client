@@ -205,3 +205,104 @@ async def test_bootstrap_agent_passes_expected_identity(
         )
 
     assert sent_payload.get("expected_device_identity") == "SN-ABCDEF"
+
+
+async def test_bootstrap_agent_auto_detects_os_details(
+    mock_identity,
+    cred_storage,
+    agent_config_file,
+):
+    """When os_details is not provided, it is auto-detected from the platform."""
+    sent_payload = {}
+
+    async def _mock_post(url, json=None, **kwargs):
+        nonlocal sent_payload
+        mock_resp = AsyncMock()
+        mock_resp.raise_for_status = MagicMock()
+        if "/claim" in url:
+            sent_payload = json or {}
+            mock_resp.json.return_value = {
+                "device_id": "d-auto-os",
+                "api_key": "ak-auto-os",
+                "site_id": "s-auto-os",
+            }
+        elif "/device-dna" in url:
+            mock_resp.json.return_value = {"status": "success"}
+        return mock_resp
+
+    with patch("homepot.agent.real_device_agent.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client_cls.return_value.__aenter__.return_value = mock_client
+        mock_client.post = _mock_post
+
+        from homepot.agent.real_device_agent import bootstrap_agent
+
+        await bootstrap_agent(
+            backend_url="http://localhost:8000",
+            intent_id="intent-auto-os",
+            claim_token="tok-auto-os",
+        )
+
+    assert sent_payload.get("os_details") is not None
+    assert len(sent_payload["os_details"]) > 0
+
+
+async def test_bootstrap_agent_windows_credential_storage(
+    mock_identity,
+    mock_mac,
+    mock_ip,
+    mock_peripherals,
+    agent_config_file,
+):
+    """On Windows, bootstrap persists credentials via WindowsFileStorage."""
+    claim_response = {
+        "device_id": "win-device-001",
+        "api_key": "win-api-key-999",
+        "site_id": "site-win-001",
+        "epoch_id": "epoch-win-001",
+    }
+
+    async def _mock_post(url, **kwargs):
+        mock_resp = AsyncMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = claim_response
+        return mock_resp
+
+    from homepot.agent.credential_storage import WindowsFileStorage
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        storage_path = Path(tmpdir) / "Homepot" / "credentials"
+        win_storage = WindowsFileStorage(file_path=storage_path)
+
+        with patch("sys.platform", "win32"):
+            with patch(
+                "homepot.agent.real_device_agent.httpx.AsyncClient"
+            ) as mock_client_cls:
+                mock_client = AsyncMock()
+                mock_client_cls.return_value.__aenter__.return_value = mock_client
+                mock_client.post = _mock_post
+
+                with patch(
+                    "homepot.agent.real_device_agent.create_credential_storage",
+                    return_value=win_storage,
+                ):
+                    from homepot.agent.real_device_agent import bootstrap_agent
+
+                    config = await bootstrap_agent(
+                        backend_url="http://win-backend:8000",
+                        intent_id="intent-win-001",
+                        claim_token="tok-win-001",
+                        device_name="Windows POS",
+                        device_type="pos_terminal",
+                        os_details="Windows 11 Pro",
+                    )
+
+        assert config["device_id"] == "win-device-001"
+        assert config["site_id"] == "site-win-001"
+
+        assert win_storage.get_device_id() == "win-device-001"
+        assert win_storage.get_api_key() == "win-api-key-999"
+        assert win_storage.get_backend_url() == "http://win-backend:8000"
+        assert win_storage.get_metadata("site_id") == "site-win-001"
+        assert win_storage.get_metadata("device_name") == "Windows POS"
+        assert storage_path.exists()
