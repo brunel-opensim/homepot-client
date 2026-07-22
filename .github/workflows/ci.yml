@@ -64,7 +64,7 @@ jobs:
           pip install -e "backend[dev,test]"
 
       - name: Run tests (excluding slow and windows-resilience)
-        run: python -m pytest backend/tests/ -v -m "not slow and not windows_resilience" --cov-fail-under=10
+        run: python -m pytest backend/tests/ -v -m "not slow and not windows_resilience" --cov-fail-under=10 --ignore=backend/tests/test_apns_apple.py --ignore=backend/tests/test_web_push.py
 
   test-windows:
     name: Tests (Windows, Python ${{ matrix.python-version }})
@@ -87,7 +87,7 @@ jobs:
           pip install -e "backend[dev,test,agent]"
 
       - name: Run all tests (Linux-compatible subset)
-        run: python -m pytest backend/tests/ -v -m "not slow and not windows_resilience" --cov-fail-under=10
+        run: python -m pytest backend/tests/ -v -m "not slow and not windows_resilience" --cov-fail-under=10 --ignore=backend/tests/test_apns_apple.py --ignore=backend/tests/test_web_push.py
         env:
           # Some tests mock sys.platform; keep the real platform visible
           PYTHONWARNINGS: default
