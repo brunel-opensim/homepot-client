@@ -36,6 +36,7 @@ from homepot.agent.utils.log_setup import (
     configure_agent_logging,
     logging_config_from_config,
 )
+from homepot.agent.utils.proxy_settings import build_httpx_proxy_kwargs
 from homepot.agent.utils.push_listener import create_push_listener
 from homepot.agent.utils.real_device_discovery import get_connected_peripherals
 from homepot.agent.utils.retry_queue import RetryQueue
@@ -538,6 +539,17 @@ def _build_tls_config(cred: CredentialStorage) -> Dict[str, Any]:
     return tls_kw
 
 
+def _build_client_config(cred: CredentialStorage) -> Dict[str, Any]:
+    """Build an httpx-compatible client config combining TLS and proxy.
+
+    Returns a dict that can be unpacked into ``httpx.AsyncClient(...)``.
+    """
+    config: Dict[str, Any] = _build_tls_config(cred)
+    proxy_kw = build_httpx_proxy_kwargs()
+    config.update(proxy_kw)
+    return config
+
+
 async def bootstrap_agent(
     backend_url: str,
     intent_id: str,
@@ -596,7 +608,7 @@ async def bootstrap_agent(
 
     claim_url = f"{backend_url.rstrip('/')}/api/v1/enrolment-intents/{intent_id}/claim"
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(**build_httpx_proxy_kwargs()) as client:
         response = await client.post(claim_url, json=claim_payload, timeout=30.0)
         response.raise_for_status()
         result = await response.json()
@@ -620,10 +632,10 @@ async def bootstrap_agent(
     logger.info("Device provisioned: %s (site: %s)", device_id, site_id)
 
     config = load_agent_config()
-    tls_kw = _build_tls_config(cred)
+    client_kw = _build_client_config(cred)
 
     try:
-        async with httpx.AsyncClient(**tls_kw) as client:
+        async with httpx.AsyncClient(**client_kw) as client:
             payload: Dict[str, Any] = {
                 "device_id": config["device_id"],
                 "site_id": config["site_id"],
@@ -673,7 +685,7 @@ async def run_agent(
     push_listener = create_push_listener(config)
     await push_listener.start()
 
-    tls_kw = _build_tls_config(cred)
+    client_kw = _build_client_config(cred)
 
     if shutdown_event is None:
         shutdown_event = asyncio.Event()
@@ -711,7 +723,7 @@ async def run_agent(
         for t in tasks:
             t.cancel()
 
-    async with httpx.AsyncClient(**tls_kw) as client:
+    async with httpx.AsyncClient(**client_kw) as client:
         await send_registration(client, config, retry_queue)
 
         tasks = [
