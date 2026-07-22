@@ -26,8 +26,7 @@ def upgrade() -> None:
         sa.Column("health_state", sa.String(length=20), nullable=True),
     )
 
-    op.execute(
-        """
+    op.execute("""
         UPDATE devices
         SET lifecycle_state = CASE
             WHEN status = 'unpaired' OR is_active = false THEN 'unpaired'
@@ -35,8 +34,7 @@ def upgrade() -> None:
             WHEN status = 'unknown' AND is_active = true THEN 'pending'
             ELSE 'pending'
         END
-        """
-    )
+        """)
 
     op.execute("UPDATE devices SET health_state = 'unknown' WHERE health_state IS NULL")
 
