@@ -64,10 +64,10 @@ export default function SiteDetail() {
         setDevices(devicesList);
 
         try {
-          const statsData = await api.sites.stats(id);
+          const statsData = await api.sites.getDashboard(id);
           setStats(statsData);
         } catch (err) {
-          console.error('Failed to load stats:', err);
+          console.error('Failed to load dashboard stats:', err);
         }
       } catch (err) {
         console.error('Failed to load devices:', err);
@@ -206,10 +206,10 @@ export default function SiteDetail() {
                   </h3>
                   {stats && (
                     <div className="flex gap-2 text-xs text-slate-400 mt-1">
-                      <span title="Self-Enrolled (User App)">
-                        👤 {stats.breakdown.self_enrolled}
+                      <span title="Online">● {stats.connectivity_counts?.online || 0} online</span>
+                      <span title="Offline">
+                        ○ {stats.connectivity_counts?.offline || 0} offline
                       </span>
-                      <span title="Pre-Provisioned">🏢 {stats.breakdown.pre_provisioned}</span>
                     </div>
                   )}
                 </div>
@@ -222,8 +222,19 @@ export default function SiteDetail() {
                   <Activity className="h-6 w-6 text-green-500" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 font-medium">Status</p>
-                  <h3 className="text-2xl font-bold text-green-500">Active</h3>
+                  <p className="text-sm text-gray-400 font-medium">Devices by Health</p>
+                  <h3 className="text-2xl font-bold text-white">
+                    {stats?.health_counts
+                      ? Object.values(stats.health_counts).reduce((a, b) => a + b, 0)
+                      : 0}
+                  </h3>
+                  {stats?.health_counts && (
+                    <div className="flex gap-2 text-xs text-slate-400 mt-1">
+                      <span className="text-green-400">● {stats.health_counts.healthy || 0}</span>
+                      <span className="text-yellow-400">● {stats.health_counts.warning || 0}</span>
+                      <span className="text-red-400">● {stats.health_counts.critical || 0}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -329,8 +340,19 @@ export default function SiteDetail() {
                             </div>
                           )}
                         </td>
-                        <td className="p-4 align-middle text-gray-300">
-                          {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
+                        <td className="p-4 align-middle">
+                          <div className="flex flex-col">
+                            <span className="text-gray-300">
+                              {device.last_seen
+                                ? new Date(device.last_seen).toLocaleString()
+                                : 'Never'}
+                            </span>
+                            {device.last_heartbeat_at && (
+                              <span className="text-[10px] text-gray-500 font-mono">
+                                HB: {new Date(device.last_heartbeat_at).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-4 align-middle text-right">
                           <div className="flex justify-end gap-2">

@@ -463,14 +463,30 @@ export const DeviceInfoWidget = ({ device }) => (
         <span className="text-slate-400">Status</span>
         <span
           className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
-            device?.status === 'online'
+            device?.connectivity_state === 'online'
               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-              : device?.status === 'offline'
+              : device?.connectivity_state === 'offline'
                 ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                 : 'bg-slate-700 text-slate-300'
           }`}
         >
-          {device?.status || 'UNKNOWN'}
+          {device?.connectivity_state || 'UNKNOWN'}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Credential</span>
+        <span
+          className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
+            device?.credential_status === 'valid'
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : device?.credential_status === 'expiring'
+                ? 'bg-yellow-500/10 text-yellow-400'
+                : device?.credential_status === 'expired' || device?.credential_status === 'invalid'
+                  ? 'bg-red-500/10 text-red-400'
+                  : 'bg-slate-700 text-slate-300'
+          }`}
+        >
+          {device?.credential_status || 'N/A'}
         </span>
       </div>
       <div className="flex justify-between">
@@ -501,9 +517,84 @@ export const DeviceInfoWidget = ({ device }) => (
           {device?.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
         </span>
       </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Heartbeat</span>
+        <span className="text-slate-200 text-xs mt-0.5">
+          {device?.last_heartbeat_at ? new Date(device.last_heartbeat_at).toLocaleString() : 'N/A'}
+        </span>
+      </div>
     </div>
   </Card>
 );
+
+export const CommandHistoryWidget = ({ commands = [] }) => {
+  if (!commands || commands.length === 0) {
+    return (
+      <Card>
+        <h3 className="text-sm text-slate-300 font-medium mb-3">COMMAND HISTORY</h3>
+        <div className="border-t border-[#1f2735] mb-2"></div>
+        <div className="text-slate-500 text-xs italic text-center py-4">No commands sent yet</div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm text-slate-300 font-medium">COMMAND HISTORY</h3>
+        <span className="text-[10px] text-slate-500 font-mono">
+          LATEST {commands.length} COMMANDS
+        </span>
+      </div>
+      <div className="border-t border-[#1f2735] mb-2"></div>
+      <div className="space-y-3 text-sm max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+        {commands.map((cmd, i) => {
+          let StatusIcon = Activity;
+          let statusColor = 'text-slate-400';
+          if (cmd.status === 'completed' || cmd.status === 'delivered') {
+            StatusIcon = CheckCircle2;
+            statusColor = 'text-emerald-400';
+          } else if (cmd.status === 'failed' || cmd.status === 'error') {
+            StatusIcon = AlertCircle;
+            statusColor = 'text-red-400';
+          } else if (cmd.status === 'pending' || cmd.status === 'sent') {
+            StatusIcon = Loader2;
+            statusColor = 'text-blue-400';
+          }
+
+          return (
+            <div
+              key={i}
+              className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50"
+            >
+              <div className="flex items-center gap-3">
+                <StatusIcon
+                  className={`w-4 h-4 ${statusColor} ${cmd.status === 'pending' ? 'animate-spin' : ''}`}
+                />
+                <div className="flex flex-col">
+                  <span className="text-slate-200 font-medium font-mono text-xs">
+                    {cmd.command_type || cmd.action || 'Unknown'}
+                  </span>
+                  {cmd.payload && Object.keys(cmd.payload).length > 0 && (
+                    <span className="text-xs text-slate-500">
+                      {JSON.stringify(cmd.payload).substring(0, 60)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className={`text-xs uppercase font-bold ${statusColor}`}>{cmd.status}</span>
+                <span className="text-xs text-slate-500">
+                  {cmd.created_at ? new Date(cmd.created_at).toLocaleString() : ''}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+};
 
 export const DeviceActionsWidget = ({ actions, onActionClick, loadingAction }) => (
   <Card>
