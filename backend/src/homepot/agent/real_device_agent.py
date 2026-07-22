@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
 import signal
 import ssl
 import threading
@@ -577,6 +578,10 @@ async def bootstrap_agent(
 
     device_identity = get_or_create_device_id()
     logger.info("Bootstrapping with device identity: %s", device_identity)
+
+    if not os_details:
+        os_details = f"{platform.system()} {platform.release()}"
+        logger.info("Auto-detected OS details: %s", os_details)
 
     cred = create_credential_storage()
 
