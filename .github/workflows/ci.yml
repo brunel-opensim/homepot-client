@@ -32,7 +32,7 @@ jobs:
           pip install -e "backend[dev,test]"
 
       - name: Check formatting (black)
-        run: python -m black --check backend/src/
+        run: python -m black --check --fast backend/src/
 
       - name: Check imports (isort)
         run: python -m isort --check-only backend/src/
