@@ -3,7 +3,10 @@
 import asyncio
 import json
 import logging
+import sys
 from typing import Any, Dict, Optional
+
+from homepot.agent.utils.wns_push import WNSPushChannelManager
 
 logger = logging.getLogger(__name__)
 
@@ -11,12 +14,18 @@ logger = logging.getLogger(__name__)
 class PushWakeupListener:
     """Listens for push notifications and signals the command poller to wake up.
 
-    Supports MQTT subscription.  When a notification arrives on the device's
-    topic the internal ``asyncio.Event`` is set, allowing the polling loop to
-    check for pending commands immediately.
+    Supports MQTT subscription and WNS push channel registration.  When a
+    notification arrives on the device's MQTT topic the internal
+    ``asyncio.Event`` is set, allowing the polling loop to check for pending
+    commands immediately.
 
-    If no MQTT broker is configured the listener operates in *simulated* mode:
-    it never sets the event, and the polling loop relies on its own interval.
+    On Windows the listener also starts a :class:`WNSPushChannelManager` to
+    create / refresh a WNS push channel URI so the backend can push
+    notifications without MQTT.
+
+    If no MQTT broker is configured and WNS is unavailable the listener
+    operates in *simulated* mode: it never sets the event, and the polling
+    loop relies on its own interval.
     """
 
     def __init__(
@@ -28,6 +37,7 @@ class PushWakeupListener:
         mqtt_username: Optional[str] = None,
         mqtt_password: Optional[str] = None,
         topic_prefix: str = "devices",
+        wns_channel_mgr: Optional[WNSPushChannelManager] = None,
     ) -> None:
         """Initialise the listener with device identity and optional MQTT config."""
         self._device_id = device_id
@@ -38,14 +48,24 @@ class PushWakeupListener:
         self._topic = f"{topic_prefix}/{device_id}/commands"
         self._event = asyncio.Event()
         self._client: Any = None
+        self._wns_mgr = wns_channel_mgr
 
     @property
     def wake_event(self) -> asyncio.Event:
         """Return the ``asyncio.Event`` set when a push notification arrives."""
         return self._event
 
+    @property
+    def wns_channel_mgr(self) -> Optional[WNSPushChannelManager]:
+        """Return the optional WNS channel manager."""
+        return self._wns_mgr
+
     async def start(self) -> None:
-        """Connect to the MQTT broker and subscribe to the device topic."""
+        """Connect to the MQTT broker and start WNS channel registration."""
+        if self._wns_mgr is not None:
+            self._wns_mgr.get_or_create_channel()
+            self._wns_mgr.start_background_refresh()
+
         if not self._mqtt_host:
             logger.info(
                 "PushWakeupListener: no MQTT broker configured; "
@@ -101,7 +121,9 @@ class PushWakeupListener:
         self._event.set()
 
     async def stop(self) -> None:
-        """Disconnect from the MQTT broker and release resources."""
+        """Stop WNS refresh and disconnect from MQTT broker."""
+        if self._wns_mgr is not None:
+            await self._wns_mgr.stop_background_refresh()
         if self._client is not None:
             self._client.loop_stop()
             self._client.disconnect()
@@ -111,6 +133,7 @@ class PushWakeupListener:
 
 def create_push_listener(
     config: Dict[str, Any],
+    cred: Optional[Any] = None,
 ) -> PushWakeupListener:
     """Build a ``PushWakeupListener`` from agent configuration.
 
@@ -120,11 +143,19 @@ def create_push_listener(
     * ``mqtt_broker_port`` (default ``1883``)
     * ``mqtt_username``
     * ``mqtt_password``
+
+    If *cred* is supplied and the platform is Windows, a
+    :class:`WNSPushChannelManager` is attached for WNS push registration.
     """
+    wns_mgr: Optional[WNSPushChannelManager] = None
+    if sys.platform == "win32" and cred is not None:
+        wns_mgr = WNSPushChannelManager(cred)
+
     return PushWakeupListener(
         device_id=config.get("device_id", ""),
         mqtt_broker_host=config.get("mqtt_broker_host"),
         mqtt_broker_port=int(config.get("mqtt_broker_port", 1883)),
         mqtt_username=config.get("mqtt_username"),
         mqtt_password=config.get("mqtt_password"),
+        wns_channel_mgr=wns_mgr,
     )

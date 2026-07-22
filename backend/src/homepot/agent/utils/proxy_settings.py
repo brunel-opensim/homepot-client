@@ -23,6 +23,8 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
+from homepot.agent.utils.hostname_encoding import idna_encode_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,11 +41,12 @@ def _env_proxy() -> Dict[str, Optional[str]]:
     dict with keys ``http``, ``https``, ``no_proxy``.
     Values are ``None`` when the respective variable is not set.
     """
-    return {
+    raw = {
         "http": os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"),
         "https": os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy"),
         "no_proxy": os.environ.get("NO_PROXY") or os.environ.get("no_proxy"),
     }
+    return {k: idna_encode_url(v) if v else None for k, v in raw.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +117,11 @@ def _windows_ie_proxy() -> Dict[str, Optional[str]]:
                             result["https"] = server
     except (OSError, FileNotFoundError) as exc:
         logger.debug("Failed to read Windows IE proxy: %s", exc)
+
+    for key in ("http", "https", "no_proxy"):
+        val = result.get(key)
+        if val:
+            result[key] = idna_encode_url(val)
 
     return result
 
