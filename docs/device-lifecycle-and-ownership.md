@@ -461,3 +461,40 @@ PR 23: Modernise legacy agent endpoint + push-log stub fill
 |---|---|
 | Update `GET /agents` and `GET /agents/{device_id}` to use `lifecycle_state`, `connectivity_state`, `health_state` instead of the deprecated `status` field | Dashboard consumes this for the agent list view |
 | *(Optional)* Populate the stubbed `GET /device/{device_id}/push-logs` with real data from the push notifications table | Dashboard shows notification delivery status |
+
+## Frontend
+
+These five PRs deliver the backend API surface a dashboard UI would
+consume.  A separate frontend PR builds the React components that call
+these endpoints.
+
+PR 24: frontend/src/services/api.js — 3 new API methods:
+- dashboard.summary() → GET /dashboard/summary
+- sites.getDashboard(siteId) → GET /sites/{sid}/dashboard
+- devices.getCredentials(deviceId) → GET /device/{id}/credentials
+- devices.getCommands(deviceId) → GET /device/{did}/commands
+frontend/src/pages/Dashboard.jsx — Fetches dashboard.summary() and renders 4 aggregate stat cards (Total Devices, Online, Offline, Active) above the monitored resources.
+
+## Windows adaptation
+Only after the Linux real-device contract works:
+- implement stable Windows device identity;
+- use Windows Credential Manager or DPAPI;
+- package as a signed Windows service/MSI;
+- implement HTTPS and proxy handling;
+- add WNS or the selected wake-up mechanism;
+- implement service recovery and upgrades;
+- test restricted users, reboot, firewall, proxy, sleep/resume, and credential revocation.
+The backend APIs and lifecycle rules should remain platform-neutral.
+
+## Windows adaptation PRs
+
+| PR  | Focus | Description |
+| --- | ----- | ----------- |
+| W1  | **Stable Windows device identity** | Generate/persist a stable identity (e.g. from `WMID`/`Get-CimInstance Win32_ComputerSystemProduct` + salt, or a generated UUID in `%PROGRAMDATA%\Homepot\identity`). Add `WindowsIdentityProvider` to the agent. |
+| W2  | **Windows credential storage** | Implement `WindowsCredManager` using `keyring` with Credential Manager backend, or direct DPAPI via `crypt32`. Replace the `SimulationStorage` fallback on Windows. |
+| W3  | **Windows agent bootstrap & enrolment** | Wire identity + credential storage into the agent's bootstrap flow on Windows. Test end-to-end enrolment from a Windows host. |
+| W4  | **Windows service packaging** | Package the agent as a Windows service (pywin32), create an MSI (WiX or similar), handle `SERVICE_AUTO_START`, service recovery policy (restart on failure). |
+| W5  | **Windows proxy & HTTPS** | Read system-proxy settings (IE/WinHTTP proxy), configure `httpx`/`requests` to respect them. Validate Windows certificate store for TLS. |
+| W6  | **Agent-side WNS push wake-up** | The backend WNS provider is done; add the agent-side push channel registration and wake-up handler so the agent does not have to poll constantly on Windows. |
+| W7  | **Windows service recovery & upgrades** | Log rotation (Windows EventLog or rolling file), graceful shutdown via `SERVICE_CONTROL_PRESHUTDOWN`, atomic in-place upgrade strategy for MSI. |
+| W8  | **Windows resilience tests** | CI tests on `windows-latest` covering: restricted users, reboot resilience, firewall blocks, proxy misconfiguration, sleep/resume, credential revocation, duplicate enrolment. |
