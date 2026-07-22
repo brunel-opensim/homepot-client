@@ -8,6 +8,7 @@ from pathlib import Path
 import platform
 import signal
 import ssl
+import sys
 import threading
 from typing import Any, Dict, Optional, cast
 
@@ -26,6 +27,7 @@ from homepot.agent.utils.command_poller import (
 )
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
 from homepot.agent.utils.heartbeat import build_heartbeat_payload
+from homepot.agent.utils.hostname_encoding import idna_encode_url
 from homepot.agent.utils.local_ipc import (
     LocalAgentState,
     create_local_ipc_app,
@@ -64,8 +66,9 @@ def load_agent_config() -> Dict[str, Any]:
     # Overlay provisioned values from credential storage
     cred = create_credential_storage()
     if cred.is_provisioned():
-        if cred.get_backend_url():
-            data["backend_url"] = cred.get_backend_url()
+        backend_url = cred.get_backend_url()
+        if backend_url:
+            data["backend_url"] = idna_encode_url(backend_url)
         if cred.get_api_key():
             data["api_key"] = cred.get_api_key()
         if cred.get_device_id():
@@ -347,8 +350,15 @@ async def send_registration(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
     retry_queue: RetryQueue,
+    push_channel_uri: Optional[str] = None,
 ) -> None:
-    """Send initial device registration payload with static device DNA."""
+    """Send initial device registration payload with static device DNA.
+
+    Parameters
+    ----------
+    push_channel_uri:
+        Optional WNS push channel URI to register with the backend.
+    """
     try:
         # Payload sent to POST /api/v1/agent/device-dna
         # {
@@ -361,7 +371,7 @@ async def send_registration(
         #   "local_ip": "192.168.1.20",
         #   "wan_ip": "203.0.113.10"
         # }
-        payload = {
+        payload: Dict[str, Any] = {
             "device_id": config["device_id"],
             "site_id": config["site_id"],
             "device_name": config.get("device_name"),
@@ -372,6 +382,8 @@ async def send_registration(
             "wan_ip": get_wan_ip(),
             "peripherals": get_connected_peripherals(),
         }
+        if push_channel_uri:
+            payload["device_token"] = push_channel_uri
         register_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
         if not await post_json(client, register_url, payload, get_auth_headers(config)):
             retry_queue.enqueue({"url": register_url, "payload": payload})
@@ -636,6 +648,13 @@ async def bootstrap_agent(
 
     try:
         async with httpx.AsyncClient(**client_kw) as client:
+            wns_channel: Optional[str] = None
+            if sys.platform == "win32":
+                from homepot.agent.utils.wns_push import WNSPushChannelManager
+
+                wns_mgr = WNSPushChannelManager(cred)
+                wns_channel = wns_mgr.get_or_create_channel()
+
             payload: Dict[str, Any] = {
                 "device_id": config["device_id"],
                 "site_id": config["site_id"],
@@ -647,6 +666,8 @@ async def bootstrap_agent(
                 "wan_ip": get_wan_ip(),
                 "peripherals": get_connected_peripherals(),
             }
+            if wns_channel:
+                payload["device_token"] = wns_channel
             dna_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
             dna_resp = await client.post(
                 dna_url, json=payload, headers=get_auth_headers(config), timeout=30.0
@@ -682,10 +703,14 @@ async def run_agent(
     retry_queue = RetryQueue()
     ipc_server = start_local_ipc_server(config)
 
-    push_listener = create_push_listener(config)
+    push_listener = create_push_listener(config, cred=cred)
     await push_listener.start()
 
     client_kw = _build_client_config(cred)
+
+    push_channel_uri: Optional[str] = None
+    if push_listener.wns_channel_mgr is not None:
+        push_channel_uri = push_listener.wns_channel_mgr.get_stored_uri()
 
     if shutdown_event is None:
         shutdown_event = asyncio.Event()
@@ -724,7 +749,9 @@ async def run_agent(
             t.cancel()
 
     async with httpx.AsyncClient(**client_kw) as client:
-        await send_registration(client, config, retry_queue)
+        await send_registration(
+            client, config, retry_queue, push_channel_uri=push_channel_uri
+        )
 
         tasks = [
             asyncio.ensure_future(
