@@ -240,9 +240,13 @@ class TestGetOrCreateDeviceId:
 
     def test_falls_back_to_hardware_id_when_dir_unwritable(self, monkeypatch):
         """When the identity directory cannot be written, falls back to hardware ID."""
+        mock_path = MagicMock(spec=Path)
+        mock_path.exists.return_value = False
+        mock_path.parent = MagicMock()
+        mock_path.parent.mkdir.side_effect = PermissionError("No permission")
         monkeypatch.setattr(
             "homepot.agent.identity._identity_file_path",
-            lambda: Path("/nonexistent/homepot/identity"),
+            lambda: mock_path,
         )
         monkeypatch.setattr(
             "homepot.agent.identity._platform_machine_id",
