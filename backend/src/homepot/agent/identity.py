@@ -1,4 +1,4 @@
-"""Persistent stable device identity for the HOMEPOT agent.
+r"""Persistent stable device identity for the HOMEPOT agent.
 
 Generates and manages a stable device identity that survives restarts
 and re-enrolment.  The identity is stored in:
@@ -48,9 +48,9 @@ def _is_windows() -> bool:
 
 
 def _get_identity_dir() -> Path:
-    """Return the best writable directory for the identity file.
+    r"""Return the best writable directory for the identity file.
 
-    **Windows:** ``%PROGRAMDATA%\\Homepot`` or ``%APPDATA%\\Homepot``.
+    **Windows:** ``%PROGRAMDATA%\Homepot`` or ``%APPDATA%\Homepot``.
     **Linux:** ``/var/lib/homepot`` or XDG data dir.
     """
     if _is_windows():
@@ -129,11 +129,9 @@ def _windows_machine_id_identity() -> Optional[str]:
     Returns ``None`` if the command fails or the UUID is empty.
     """
     try:
-        result = subprocess.run(
-            [
-                "powershell", "-NoProfile", "-Command",
-                "Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID",
-            ],
+        result = subprocess.run(  # noqa: S603, S607  # hardcoded command, no user input
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID"],
             capture_output=True,
             text=True,
             timeout=10,

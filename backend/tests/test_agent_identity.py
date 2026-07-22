@@ -12,7 +12,7 @@ Covers:
 
 import os
 from pathlib import Path
-import subprocess
+import subprocess  # noqa: S404  # needed to mock subprocess.TimeoutExpired in tests
 import sys
 import tempfile
 from unittest.mock import MagicMock, patch
