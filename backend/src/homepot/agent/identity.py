@@ -39,8 +39,14 @@ _VAR_LIB_PATH = Path("/var/lib/homepot")
 _FALLBACK_DIR = Path(user_data_dir("homepot"))
 
 # Windows paths
-_WINDOWS_PROGRAMDATA = Path(os.environ.get("PROGRAMDATA", "C:\\ProgramData")) / "Homepot"
-_WINDOWS_APPDATA = Path(os.environ.get("APPDATA", "")) / "Homepot" if os.environ.get("APPDATA") else None
+_WINDOWS_PROGRAMDATA = (
+    Path(os.environ.get("PROGRAMDATA", "C:\\ProgramData")) / "Homepot"
+)
+_WINDOWS_APPDATA = (
+    Path(os.environ.get("APPDATA", "")) / "Homepot"
+    if os.environ.get("APPDATA")
+    else None
+)
 
 
 def _is_windows() -> bool:
@@ -130,8 +136,12 @@ def _windows_machine_id_identity() -> Optional[str]:
     """
     try:
         result = subprocess.run(  # noqa: S603, S607  # hardcoded command, no user input
-            ["powershell", "-NoProfile", "-Command",
-             "Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID"],
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID",
+            ],
             capture_output=True,
             text=True,
             timeout=10,

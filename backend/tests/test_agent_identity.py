@@ -359,7 +359,9 @@ class TestEdgeCases:
     def test_identity_persistence_survives_object_recreation(self, tmp_identity_dir):
         """Identity persists across re-creation of the directory reference."""
         first = get_or_create_device_id()
-        with patch("homepot.agent.identity._get_identity_dir", return_value=tmp_identity_dir):
+        with patch(
+            "homepot.agent.identity._get_identity_dir", return_value=tmp_identity_dir
+        ):
             second = get_or_create_device_id()
         assert first == second
 
@@ -392,10 +394,12 @@ class TestIsWindows:
         """_is_windows returns True when sys.platform is 'win32'."""
         with patch("homepot.agent.identity.sys.platform", "win32"):
             from homepot.agent.identity import _is_windows
+
             assert _is_windows() is True
 
     def test_returns_false_on_linux(self):
         """_is_windows returns False when sys.platform is 'linux'."""
         with patch("homepot.agent.identity.sys.platform", "linux"):
             from homepot.agent.identity import _is_windows
+
             assert _is_windows() is False
