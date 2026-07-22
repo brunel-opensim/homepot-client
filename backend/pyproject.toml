@@ -198,6 +198,7 @@ markers = [
     "live: marks tests that require live services",
     "api: marks tests for API functionality",
     "timescaledb: marks tests requiring TimescaleDB extension (run with -m timescaledb)",
+    "windows_resilience: marks Windows resilience tests (run on windows-latest CI)",
 ]
 asyncio_mode = "auto"
 # Windows-specific configuration for better file handling

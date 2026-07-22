@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "w[0-9]-**"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & typecheck (Linux)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "backend[dev,test]"
+
+      - name: Check formatting (black)
+        run: python -m black --check backend/src/
+
+      - name: Check imports (isort)
+        run: python -m isort --check-only backend/src/
+
+      - name: Lint (flake8)
+        run: python -m flake8 backend/src/
+
+      - name: Type check (mypy)
+        run: python -m mypy backend/src/
+
+  test-linux:
+    name: Tests (Linux, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "backend[dev,test]"
+
+      - name: Run tests (excluding slow and windows-resilience)
+        run: python -m pytest backend/tests/ -v -m "not slow and not windows_resilience" --cov-fail-under=10
+
+  test-windows:
+    name: Tests (Windows, Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "backend[dev,test,agent]"
+
+      - name: Run all tests (Linux-compatible subset)
+        run: python -m pytest backend/tests/ -v -m "not slow and not windows_resilience" --cov-fail-under=10
+        env:
+          # Some tests mock sys.platform; keep the real platform visible
+          PYTHONWARNINGS: default
+
+  test-windows-resilience:
+    name: Windows resilience tests
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "backend[dev,test,agent]"
+
+      - name: Run Windows resilience tests
+        run: python -m pytest backend/tests/ -v -m windows_resilience -x
+        env:
+          HOMEPOT_CI: "1"
