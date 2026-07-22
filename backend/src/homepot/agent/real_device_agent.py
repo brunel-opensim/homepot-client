@@ -647,8 +647,19 @@ async def bootstrap_agent(
     return config
 
 
-async def run_agent() -> None:
-    """Run agent runtime tasks: registration, heartbeat, telemetry, command polling, and retry."""
+async def run_agent(
+    shutdown_event: Optional[asyncio.Event] = None,
+) -> None:
+    """Run agent runtime tasks: registration, heartbeat, telemetry, command polling, and retry.
+
+    Parameters
+    ----------
+    shutdown_event:
+        Optional external event that triggers graceful shutdown.  When not
+        provided, the agent creates its own and wires it to SIGTERM/SIGINT.
+        Used by the Windows service wrapper to translate SvcStop into
+        an asyncio shutdown.
+    """
     config = load_agent_config()
 
     # Configure logging with optional file rotation
@@ -664,34 +675,35 @@ async def run_agent() -> None:
 
     tls_kw = _build_tls_config(cred)
 
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
+    if shutdown_event is None:
+        shutdown_event = asyncio.Event()
+        loop = asyncio.get_running_loop()
 
-    # Register signal handlers for graceful shutdown
-    shutdown_timeout = int(config.get("shutdown_timeout_seconds", 30))
+        shutdown_timeout = int(config.get("shutdown_timeout_seconds", 30))
 
-    def _handle_signal() -> None:
-        """Set the shutdown event and log the signal."""
-        logger.info("Shutdown signal received, stopping agent…")
-        shutdown_event.set()
-
-    try:
-        loop.add_signal_handler(signal.SIGTERM, _handle_signal)
-        loop.add_signal_handler(signal.SIGINT, _handle_signal)
-    except NotImplementedError:
-        logger.warning("Signal handlers not supported on this platform")
-
-    async def _shutdown_after_timeout() -> None:
-        """Force shutdown if the agent does not stop gracefully within the timeout."""
-        await asyncio.sleep(shutdown_timeout)
-        if not shutdown_event.is_set():
-            logger.warning(
-                "Shutdown timeout (%ss) reached, forcing exit", shutdown_timeout
-            )
+        def _handle_signal() -> None:
+            """Set the shutdown event and log the signal."""
+            logger.info("Shutdown signal received, stopping agent…")
             shutdown_event.set()
 
-    # Start the forced-shutdown timer
-    asyncio.ensure_future(_shutdown_after_timeout())
+        try:
+            loop.add_signal_handler(signal.SIGTERM, _handle_signal)
+            loop.add_signal_handler(signal.SIGINT, _handle_signal)
+        except NotImplementedError:
+            logger.warning("Signal handlers not supported on this platform")
+
+        async def _shutdown_after_timeout() -> None:
+            """Force shutdown if the agent does not stop gracefully within the timeout."""
+            await asyncio.sleep(shutdown_timeout)
+            if not shutdown_event.is_set():
+                logger.warning(
+                    "Shutdown timeout (%ss) reached, forcing exit", shutdown_timeout
+                )
+                shutdown_event.set()
+
+        asyncio.ensure_future(_shutdown_after_timeout())
+    else:
+        loop = asyncio.get_running_loop()
 
     async def _cancel_on_shutdown(tasks: list) -> None:
         """Cancel all agent tasks when shutdown_event is set."""
