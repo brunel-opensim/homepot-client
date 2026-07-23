@@ -37,13 +37,15 @@ def check_table_exists(engine, table_name: str) -> bool:
     """Check if a table exists in the database."""
     with engine.connect() as conn:
         result = conn.execute(
-            text("""
+            text(
+                """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables
                     WHERE table_schema = 'public'
                     AND table_name = :table_name
                 );
-            """),
+            """
+            ),
             {"table_name": table_name},
         )
         return result.scalar()
