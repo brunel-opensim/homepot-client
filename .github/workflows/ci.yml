@@ -26,7 +26,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e "backend[dev,test]"
+          pip install -e "backend[dev,test,agent]"
+          # Install type stubs for optional dependencies
+          pip install types-PyYAML types-passlib types-psutil 2>/dev/null || true
 
       - name: Check formatting (black)
         run: python -m black --check backend/src/
