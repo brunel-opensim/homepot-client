@@ -651,7 +651,7 @@ def get_accessible_site_ids(
     min_level = _ROLE_HIERARCHY.get(minimum_role, 1)
     allowed_roles = [role for role, val in _ROLE_HIERARCHY.items() if val >= min_level]
 
-    accessible_site_ids = set()
+    accessible_site_ids: set[int] = set()
 
     # 1. Check tenant-level access
     if db_user.tenant_id:

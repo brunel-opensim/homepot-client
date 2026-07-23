@@ -152,8 +152,8 @@ async def get_system_anomalies() -> Dict[str, Any]:
             device_ids_to_check = [d.id for d in devices_to_check]
 
             # Batch query DeviceMetrics and HealthCheck to eliminate N+1 queries
-            latest_metrics_by_device = {}
-            health_checks_by_device = {}
+            latest_metrics_by_device: Dict[Any, Any] = {}
+            health_checks_by_device: Dict[Any, Any] = {}
 
             if device_ids_to_check:
                 from sqlalchemy.orm import aliased

@@ -171,7 +171,7 @@ async def list_sites(
 
             # Batch fetch all devices for the retrieved sites to eliminate N+1 queries
             site_ids = [site.id for site in sites]
-            devices_by_site = {}
+            devices_by_site: Dict[Any, Any] = {}
             if site_ids:
                 devices_result = await session.execute(
                     select(Device).where(
