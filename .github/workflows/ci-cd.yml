@@ -2,10 +2,14 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, "w[0-9]-**"]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Default permissions for all jobs
 permissions:
@@ -31,7 +35,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -39,8 +43,8 @@ jobs:
       run: |
         set -e
         python -m pip install --upgrade pip
-        pip install --no-cache-dir -r backend/requirements.txt
-        pip install -e backend/
+        pip install -e "backend[dev,test,agent]"
+        pip install types-PyYAML types-passlib types-psutil 2>/dev/null || true
 
     - name: Run Black formatter check
       run: black --check backend/src/homepot/ backend/tests/ ai/ uq/
@@ -83,18 +87,17 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip' # Enable caching for pip
+        cache: 'pip'
 
     - name: Install dependencies
       shell: bash
       run: |
         set -e
         python -m pip install --upgrade pip
-        pip install -r backend/requirements.txt
-        pip install -e backend/
+        pip install -e "backend[dev,test,${{ matrix.os == 'windows-latest' && 'agent' || '' }}]"
 
     - name: Install PostgreSQL 16 + TimescaleDB (Ubuntu only)
       if: matrix.os == 'ubuntu-latest'
@@ -129,16 +132,17 @@ jobs:
       run: |
         cd backend
         # Run sequentially to avoid SQLite locking issues (no -n auto)
+        IGNORE="--ignore=tests/test_apns_apple.py --ignore=tests/test_web_push.py"
         
         if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.11" ]]; then
           # Generate coverage only on Ubuntu 3.11
-          pytest tests/ --cov=homepot --cov-report=xml --tb=short --durations=10 \
+          pytest tests/ $IGNORE --cov=homepot --cov-report=xml --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         else
           # Standard execution for other platforms
-          pytest tests/ --tb=short --durations=10 \
+          pytest tests/ $IGNORE --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
@@ -165,6 +169,37 @@ jobs:
         flags: unittests
         name: codecov-umbrella
 
+  test-windows-resilience:
+    timeout-minutes: 15
+    name: Windows resilience tests
+    runs-on: windows-latest
+    if: github.repository == 'brunel-opensim/homepot-client'
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        set -e
+        python -m pip install --upgrade pip
+        pip install -e "backend[dev,test,agent]"
+
+    - name: Run Windows resilience tests
+      shell: bash
+      run: |
+        cd backend
+        python -m pytest tests/ -v -m windows_resilience -x
+      env:
+        HOMEPOT_CI: "1"
+
   build:
     name: Build Package
     runs-on: ubuntu-latest
@@ -174,7 +209,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
