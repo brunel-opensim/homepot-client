@@ -1,11 +1,13 @@
 """API endpoints for managing agents in the HomePot system."""
 
+from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
 from homepot.client import HomepotClient
+from homepot.models import ConnectivityState, Device
 
 client_instance: Optional[HomepotClient] = None
 
@@ -22,6 +24,24 @@ def get_client() -> HomepotClient:
     if client_instance is None:
         raise HTTPException(status_code=503, detail="Client not available")
     return client_instance
+
+
+_HEARTBEAT_ONLINE_SECONDS = 120
+
+
+def _compute_connectivity(device: Device) -> str:
+    """Return online/offline/unknown based on heartbeat recency."""
+    if not device.last_heartbeat_at:
+        return ConnectivityState.UNKNOWN.value
+    heartbeat = device.last_heartbeat_at
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - heartbeat
+    return (
+        ConnectivityState.ONLINE.value
+        if delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
+        else ConnectivityState.OFFLINE.value
+    )
 
 
 @router.get("/agents", tags=["Agents"])
@@ -90,7 +110,9 @@ async def list_agents() -> Dict[str, List[Dict]]:
 
                 status_data = {
                     "device_id": device.device_id,
-                    "state": device.status,
+                    "lifecycle_state": device.lifecycle_state,
+                    "connectivity_state": _compute_connectivity(device),
+                    "health_state": device.health_state or "unknown",
                     "config_version": device.firmware_version or "unknown",
                     "last_health_check": hc_data,
                     "uptime": (
@@ -142,7 +164,9 @@ async def get_agent_status(device_id: str) -> Dict[str, Any]:
 
             return {
                 "device_id": device.device_id,
-                "state": device.status,
+                "lifecycle_state": device.lifecycle_state,
+                "connectivity_state": _compute_connectivity(device),
+                "health_state": device.health_state or "unknown",
                 "config_version": device.firmware_version or "unknown",
                 "last_health_check": latest_hc.response_data if latest_hc else None,
                 "uptime": (
