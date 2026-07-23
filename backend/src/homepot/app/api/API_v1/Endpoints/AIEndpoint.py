@@ -162,10 +162,12 @@ async def get_system_anomalies() -> Dict[str, Any]:
                 metrics_subq = (
                     select(
                         DeviceMetrics,
-                        func.row_number().over(
+                        func.row_number()
+                        .over(
                             partition_by=DeviceMetrics.device_id,
-                            order_by=DeviceMetrics.timestamp.desc()
-                        ).label("rn")
+                            order_by=DeviceMetrics.timestamp.desc(),
+                        )
+                        .label("rn"),
                     )
                     .where(DeviceMetrics.device_id.in_(device_ids_to_check))
                     .subquery()
@@ -181,10 +183,12 @@ async def get_system_anomalies() -> Dict[str, Any]:
                 health_subq = (
                     select(
                         HealthCheck,
-                        func.row_number().over(
+                        func.row_number()
+                        .over(
                             partition_by=HealthCheck.device_id,
-                            order_by=HealthCheck.timestamp.desc()
-                        ).label("rn")
+                            order_by=HealthCheck.timestamp.desc(),
+                        )
+                        .label("rn"),
                     )
                     .where(HealthCheck.device_id.in_(device_ids_to_check))
                     .subquery()

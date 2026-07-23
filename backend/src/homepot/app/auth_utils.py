@@ -666,9 +666,7 @@ def get_accessible_site_ids(
         )
         if tm_role:
             tenant_site_ids = (
-                db.query(Site.id)
-                .filter(Site.tenant_id == db_user.tenant_id)
-                .all()
+                db.query(Site.id).filter(Site.tenant_id == db_user.tenant_id).all()
             )
             accessible_site_ids.update(row[0] for row in tenant_site_ids)
 
@@ -684,9 +682,6 @@ def get_accessible_site_ids(
     accessible_site_ids.update(row[0] for row in site_memberships)
 
     return accessible_site_ids
-
-
-
 
 
 def verify_device_belongs_to_user(

@@ -144,16 +144,20 @@ def _get_homepot_resource_usage() -> tuple[float, float]:
         for pid in _ollama_pids_cache:
             try:
                 proc = psutil.Process(pid)
-                if proc.is_running() and proc.name() and "ollama" in proc.name().lower():
+                if (
+                    proc.is_running()
+                    and proc.name()
+                    and "ollama" in proc.name().lower()
+                ):
                     still_running.append(pid)
                     c_cpu, c_mem = _get_process_metrics(pid)
                     total_cpu += c_cpu
                     total_mem_percent += c_mem
             except Exception:
                 pass
-        
+
         _ollama_pids_cache = still_running
-        
+
         # If cache is empty, throttle the heavy process scan to at most once every 10 seconds
         now = time.time()
         if not _ollama_pids_cache and (now - _last_ollama_scan_time > 10.0):
@@ -166,7 +170,11 @@ def _get_homepot_resource_usage() -> tuple[float, float]:
                         c_cpu, c_mem = _get_process_metrics(pid)
                         total_cpu += c_cpu
                         total_mem_percent += c_mem
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                except (
+                    psutil.NoSuchProcess,
+                    psutil.AccessDenied,
+                    psutil.ZombieProcess,
+                ):
                     pass
     except Exception:
         pass
