@@ -60,7 +60,10 @@ from urllib.parse import urlparse
 import uuid
 
 try:
-    from pywebpush import WebPushException, webpush  # type: ignore[import-not-found, import-untyped]
+    from pywebpush import (  # type: ignore[import-not-found, import-untyped]
+        WebPushException,
+        webpush,
+    )
 
     WEBPUSH_AVAILABLE = True
 except ImportError:
