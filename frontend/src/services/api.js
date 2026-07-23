@@ -398,14 +398,14 @@ const api = {
     },
 
     getListAgents: async () => {
-      const response = await apiClient.get(`/agents/agents`);
+      const response = await apiClient.get(`/agents`);
       return response.data;
     },
     /**
      * Send push notification to agent
      */
     sendPush: async (deviceId, notificationData) => {
-      const response = await apiClient.post(`/agents/agents/${deviceId}/push`, notificationData);
+      const response = await apiClient.post(`/agents/${deviceId}/push`, notificationData);
       return response.data;
     },
 
@@ -413,7 +413,7 @@ const api = {
      * Start simulation
      */
     startSimulation: async () => {
-      const response = await apiClient.post('/agents/agents/simulation/start');
+      const response = await apiClient.post('/agents/simulation/start');
       return response.data;
     },
 
@@ -421,7 +421,7 @@ const api = {
      * Stop simulation
      */
     stopSimulation: async () => {
-      const response = await apiClient.post('/agents/agents/simulation/stop');
+      const response = await apiClient.post('/agents/simulation/stop');
       return response.data;
     },
 
@@ -429,7 +429,7 @@ const api = {
      * Get simulation status
      */
     getSimulationStatus: async () => {
-      const response = await apiClient.get('/agents/agents/simulation/status');
+      const response = await apiClient.get('/agents/simulation/status');
       return response.data;
     },
   },

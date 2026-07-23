@@ -6,6 +6,62 @@ Learn how HOMEPOT's realistic POS agent simulators work and how to manage them e
 
 HOMEPOT includes **23+ realistic POS agent simulators** that behave like real payment terminals, providing a comprehensive testing and demonstration environment.
 
+## Device Status Fields
+
+Every device in HOMEPOT has **three independent status fields** that together describe its current operational state:
+
+| Field | Values | Meaning |
+|-------|--------|---------|
+| `lifecycle_state` | `pending` → `active` → `suspended` → `retired` | Administrative lifecycle phase |
+| `connectivity_state` | `online`, `offline`, `unknown` | Computed from heartbeat recency (last 120s) |
+| `health_state` | `healthy`, `warning`, `error`, `unknown` | Derived from latest health check result |
+
+### Lifecycle State
+
+Devices start as `pending` when created by the seed script. When the agent manager starts and a `DeviceAgentSimulator` begins running for that device, the lifecycle transitions to `active` automatically:
+
+```python
+# In DeviceAgentSimulator.start() — backend/src/homepot/agents.py
+if device.lifecycle_state == LifecycleState.PENDING.value:
+    device.lifecycle_state = LifecycleState.ACTIVE.value
+```
+
+This simulates the real provisioning flow: a device is registered (pending), an agent picks it up and starts monitoring it (active).
+
+### Connectivity State
+
+Computed on every API response by `_compute_connectivity()` using `device.last_heartbeat_at`:
+
+- **`online`** — heartbeat received within the last 120 seconds
+- **`offline`** — heartbeat is older than 120 seconds
+- **`unknown`** — no heartbeat recorded (`last_heartbeat_at` is NULL)
+
+Every agent health check loop (runs every 2 seconds) updates `last_heartbeat_at` on the device record.
+
+### Health State
+
+Updated by the agent's health check loop on every cycle. Each health check simulates device diagnostics — CPU, memory, network latency, services status — and sets `health_state` to `healthy` (green) or `error` (red):
+
+```python
+# In DeviceAgentSimulator._run_health_check() — backend/src/homepot/agents.py
+device.health_state = (
+    HealthState.HEALTHY.value if is_healthy
+    else HealthState.ERROR.value
+)
+```
+
+### How They Display
+
+On the **Device Agents** page (`/agents`), the frontend shows:
+- **Status badge** (colored pill) — `lifecycle_state` (e.g., ACTIVE in green)
+- **Connectivity dot** (small glowing circle) — `connectivity_state` (green = online)
+- **Health icon** — `health_state` (green checkmark or red triangle)
+
+On the **Devices** page (`/devices`), each device card shows:
+- **Colored pill** — `lifecycle_state` (e.g., ACTIVE)
+- **Connectivity dot** — `connectivity_state` (online/offline/unknown)
+- **Device metrics** — from the latest health check data
+
 ## Agent State Machine
 
 Each agent follows a realistic lifecycle with the following states:

@@ -8,10 +8,9 @@ Verifies that:
 """
 
 import asyncio
-from datetime import datetime, timezone
 import os
 import tempfile
-from typing import Any, Generator, Optional
+from typing import Any, Generator
 
 from fastapi.testclient import TestClient
 import pytest
@@ -24,15 +23,14 @@ from homepot.app.auth_utils import (
 )
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import (
-    Base,
-    Device,
-    LifecycleState,
-    Site,
-    SiteMembership,
-    Tenant,
-    TenantMembership,
-    User,
+from homepot.models import Base, LifecycleState, Site
+from homepot.seed_factories import (
+    create_device_sync,
+    create_site_membership_sync,
+    create_site_sync,
+    create_tenant_membership_sync,
+    create_tenant_sync,
+    create_user_sync,
 )
 
 # ---------------------------------------------------------------------------
@@ -91,87 +89,6 @@ def client() -> Generator[TestClient, None, None]:
 # ---------------------------------------------------------------------------
 
 
-def _create_tenant(db: Any, slug: str, name: str) -> Tenant:
-    tenant = Tenant(slug=slug, name=name)
-    db.add(tenant)
-    db.commit()
-    db.refresh(tenant)
-    return tenant
-
-
-def _create_user(
-    db: Any,
-    email: str,
-    tenant: Optional[Tenant] = None,
-    is_admin: bool = False,
-) -> User:
-    user = User(
-        email=email,
-        username=email.split("@")[0],
-        hashed_password=hash_password("pass"),
-        tenant_id=tenant.id if tenant else None,
-        is_admin=is_admin,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-def _add_tenant_membership(
-    db: Any, user: User, tenant: Tenant, role: str = "admin"
-) -> TenantMembership:
-    tm = TenantMembership(user_id=user.id, tenant_id=tenant.id, role=role)
-    db.add(tm)
-    db.commit()
-    db.refresh(tm)
-    return tm
-
-
-def _add_site_membership(
-    db: Any, user: User, site: Site, role: str = "viewer"
-) -> SiteMembership:
-    sm = SiteMembership(user_id=user.id, site_id=site.id, role=role)
-    db.add(sm)
-    db.commit()
-    db.refresh(sm)
-    return sm
-
-
-def _create_site(db: Any, site_id: str, name: str, tenant: Tenant) -> Site:
-    site = Site(
-        site_id=site_id,
-        name=name,
-        tenant_id=tenant.id,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-    db.add(site)
-    db.commit()
-    db.refresh(site)
-    return site
-
-
-def _create_device(db: Any, device_id: str, name: str, site: Site) -> Device:
-    device = Device(
-        device_id=device_id,
-        name=name,
-        device_type="pos_terminal",
-        site_id=site.id,
-        is_active=True,
-        lifecycle_state=LifecycleState.ACTIVE.value,
-        api_key_hash=hash_password("device-key"),
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-    db.add(device)
-    db.commit()
-    db.refresh(device)
-    return device
-
-
 def _auth_header(email: str) -> dict[str, str]:
     token = create_access_token({"sub": email})
     return {"Authorization": f"Bearer {token}"}
@@ -191,25 +108,74 @@ def seeded_db(file_db: Any) -> Any:
     """Seed two tenants, each with site, device, and user, plus an admin user."""
     db = homepot.database.SessionLocal()
 
-    tenant_a = _create_tenant(db, "tenant-a", "Tenant A")
-    tenant_b = _create_tenant(db, "tenant-b", "Tenant B")
+    tenant_a = create_tenant_sync(db, name="Tenant A", slug="tenant-a")
+    tenant_b = create_tenant_sync(db, name="Tenant B", slug="tenant-b")
 
-    site_a = _create_site(db, "site-a-1", "Site A-1", tenant_a)
-    site_b = _create_site(db, "site-b-1", "Site B-1", tenant_b)
+    site_a = create_site_sync(
+        db, site_id="site-a-1", name="Site A-1", tenant_id=tenant_a.id
+    )
+    site_b = create_site_sync(
+        db, site_id="site-b-1", name="Site B-1", tenant_id=tenant_b.id
+    )
 
-    dev_a = _create_device(db, "dev-a-1", "Device A-1", site_a)
-    dev_b = _create_device(db, "dev-b-1", "Device B-1", site_b)
+    dev_a = create_device_sync(
+        db,
+        device_id="dev-a-1",
+        name="Device A-1",
+        device_type="pos_terminal",
+        site_id=site_a.id,
+        is_active=True,
+        lifecycle_state=LifecycleState.ACTIVE.value,
+        api_key_hash=hash_password("device-key"),
+    )
+    dev_b = create_device_sync(
+        db,
+        device_id="dev-b-1",
+        name="Device B-1",
+        device_type="pos_terminal",
+        site_id=site_b.id,
+        is_active=True,
+        lifecycle_state=LifecycleState.ACTIVE.value,
+        api_key_hash=hash_password("device-key"),
+    )
 
-    user_a = _create_user(db, "user.a@example.com", tenant_a)
-    user_b = _create_user(db, "user.b@example.com", tenant_b)
-    admin = _create_user(db, "admin@example.com", is_admin=True)
+    user_a = create_user_sync(
+        db,
+        email="user.a@example.com",
+        username="user.a",
+        password="pass",
+        tenant_id=tenant_a.id,
+    )
+    user_b = create_user_sync(
+        db,
+        email="user.b@example.com",
+        username="user.b",
+        password="pass",
+        tenant_id=tenant_b.id,
+    )
+    admin = create_user_sync(
+        db,
+        email="admin@example.com",
+        username="admin",
+        password="pass",
+        is_admin=True,
+    )
 
-    _add_tenant_membership(db, user_a, tenant_a, "admin")
-    _add_tenant_membership(db, user_b, tenant_b, "admin")
+    create_tenant_membership_sync(
+        db, user_id=user_a.id, tenant_id=tenant_a.id, role="admin"
+    )
+    create_tenant_membership_sync(
+        db, user_id=user_b.id, tenant_id=tenant_b.id, role="admin"
+    )
 
-    _add_site_membership(db, user_a, site_a, "operator")
-    _add_site_membership(db, user_b, site_b, "operator")
+    create_site_membership_sync(
+        db, user_id=user_a.id, site_id=site_a.id, role="operator"
+    )
+    create_site_membership_sync(
+        db, user_id=user_b.id, site_id=site_b.id, role="operator"
+    )
 
+    db.commit()
     db.close()
     return {
         "tenant_a": tenant_a,
@@ -577,8 +543,12 @@ class TestSiteOperatorScope:
         """A viewer-level user should be denied operator-level operations."""
         db = homepot.database.SessionLocal()
         site_a = db.query(Site).filter(Site.site_id == "site-a-1").first()
-        viewer_user = _create_user(db, "viewer@example.com")
-        _add_site_membership(db, viewer_user, site_a, "viewer")
+        viewer_user = create_user_sync(
+            db, email="viewer@example.com", username="viewer", password="pass"
+        )
+        create_site_membership_sync(
+            db, user_id=viewer_user.id, site_id=site_a.id, role="viewer"
+        )
         db.close()
 
         resp = client.put(
