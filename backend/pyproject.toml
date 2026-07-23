@@ -184,6 +184,7 @@ addopts = [
     "--cov-report=xml",
     "--cov-fail-under=10",
 ]
+asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
@@ -198,6 +199,7 @@ markers = [
     "live: marks tests that require live services",
     "api: marks tests for API functionality",
     "timescaledb: marks tests requiring TimescaleDB extension (run with -m timescaledb)",
+    "windows_resilience: marks Windows resilience tests (run on windows-latest CI)",
 ]
 asyncio_mode = "auto"
 # Windows-specific configuration for better file handling
