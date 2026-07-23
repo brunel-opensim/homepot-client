@@ -634,6 +634,61 @@ def verify_site_access_for_user(
     return {"role": cast(str, sm.role), "user_id": cast(int, db_user.id)}
 
 
+def get_accessible_site_ids(
+    db_user: User,
+    db: Session,
+    minimum_role: str = "viewer",
+) -> Optional[set[int]]:
+    """Get the set of site database IDs (integer IDs) that the user has access to.
+
+    If the user is an admin, returns None (all sites accessible).
+    """
+    if db_user.is_admin:
+        return None
+
+    from homepot.models import Site, SiteMembership, TenantMembership
+
+    min_level = _ROLE_HIERARCHY.get(minimum_role, 1)
+    allowed_roles = [role for role, val in _ROLE_HIERARCHY.items() if val >= min_level]
+
+    accessible_site_ids = set()
+
+    # 1. Check tenant-level access
+    if db_user.tenant_id:
+        tm_role = (
+            db.query(TenantMembership.role)
+            .filter(
+                TenantMembership.user_id == db_user.id,
+                TenantMembership.tenant_id == db_user.tenant_id,
+                TenantMembership.role.in_(allowed_roles),
+            )
+            .scalar()
+        )
+        if tm_role:
+            tenant_site_ids = (
+                db.query(Site.id)
+                .filter(Site.tenant_id == db_user.tenant_id)
+                .all()
+            )
+            accessible_site_ids.update(row[0] for row in tenant_site_ids)
+
+    # 2. Check site-level access
+    site_memberships = (
+        db.query(SiteMembership.site_id)
+        .filter(
+            SiteMembership.user_id == db_user.id,
+            SiteMembership.role.in_(allowed_roles),
+        )
+        .all()
+    )
+    accessible_site_ids.update(row[0] for row in site_memberships)
+
+    return accessible_site_ids
+
+
+
+
+
 def verify_device_belongs_to_user(
     db_user: User,
     device: Device,

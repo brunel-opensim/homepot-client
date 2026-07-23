@@ -13,6 +13,7 @@ from sqlalchemy.orm import joinedload
 
 from homepot.app.auth_utils import (
     UserDict,
+    get_accessible_site_ids,
     require_user,
     verify_device_belongs_to_user,
     verify_site_access_for_user,
@@ -319,21 +320,7 @@ async def list_device(
 
             # Non-admin users only see devices in their accessible sites
             if not db_user.is_admin:
-                site_ids = [row[0] for row in db.query(Site.id).all()]
-                accessible_site_ids = set()
-                for sid in site_ids:
-                    site_obj = db.query(Site).filter(Site.id == sid).first()
-                    if not site_obj:
-                        continue
-                    try:
-                        verify_site_access_for_user(
-                            db_user,
-                            cast(str, site_obj.site_id),
-                            db,
-                        )
-                        accessible_site_ids.add(sid)
-                    except HTTPException:
-                        pass
+                accessible_site_ids = get_accessible_site_ids(db_user, db)
                 if accessible_site_ids:
                     query = query.where(Device.site_id.in_(accessible_site_ids))
                 else:

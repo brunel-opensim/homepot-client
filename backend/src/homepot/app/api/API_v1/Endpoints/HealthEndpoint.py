@@ -53,6 +53,10 @@ def get_client() -> HomepotClient:
 # Global cache for Process objects to maintain CPU measurement state
 _process_cache: Dict[int, psutil.Process] = {}
 
+# Global cache for Ollama processes to avoid expensive system scans
+_ollama_pids_cache: List[int] = []
+_last_ollama_scan_time: float = 0.0
+
 
 def _get_process_metrics(pid: int) -> tuple[float, float]:
     """Get CPU and Memory for a specific PID using cached Process object."""
@@ -133,16 +137,37 @@ def _get_homepot_resource_usage() -> tuple[float, float]:
             pass
 
     # 3. AI Service (Ollama)
-    # Since Ollama runs as a separate service, we need to find it by name
+    # Since Ollama runs as a separate service, we cache its PIDs to avoid scanning all processes every second.
+    global _ollama_pids_cache, _last_ollama_scan_time
     try:
-        for proc in psutil.process_iter(["pid", "name"]):
+        still_running = []
+        for pid in _ollama_pids_cache:
             try:
-                if "ollama" in proc.info["name"].lower():
-                    c_cpu, c_mem = _get_process_metrics(proc.info["pid"])
+                proc = psutil.Process(pid)
+                if proc.is_running() and proc.name() and "ollama" in proc.name().lower():
+                    still_running.append(pid)
+                    c_cpu, c_mem = _get_process_metrics(pid)
                     total_cpu += c_cpu
                     total_mem_percent += c_mem
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            except Exception:
                 pass
+        
+        _ollama_pids_cache = still_running
+        
+        # If cache is empty, throttle the heavy process scan to at most once every 10 seconds
+        now = time.time()
+        if not _ollama_pids_cache and (now - _last_ollama_scan_time > 10.0):
+            _last_ollama_scan_time = now
+            for proc in psutil.process_iter(["pid", "name"]):
+                try:
+                    if proc.info["name"] and "ollama" in proc.info["name"].lower():
+                        pid = proc.info["pid"]
+                        _ollama_pids_cache.append(pid)
+                        c_cpu, c_mem = _get_process_metrics(pid)
+                        total_cpu += c_cpu
+                        total_mem_percent += c_mem
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
     except Exception:
         pass
 
