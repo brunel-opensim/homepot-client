@@ -30,7 +30,14 @@ from homepot.app.models.AnalyticsModel import (
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service
 from homepot.error_logger import log_error
-from homepot.models import Device, DeviceStatus, Job, JobPriority, JobStatus
+from homepot.models import (
+    Device,
+    DeviceStatus,
+    HealthState,
+    Job,
+    JobPriority,
+    JobStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +123,26 @@ class DeviceAgentSimulator:
         """Start the agent simulator."""
         self.is_running = True
         logger.info(f"Agent {self.device_id} started")
+
+        # Transition lifecycle from pending to active on first start
+        try:
+            db_service = await get_database_service()
+            from sqlalchemy import select
+
+            from homepot.models import Device, LifecycleState
+
+            async with db_service.get_session() as session:
+                result = await session.execute(
+                    select(Device).where(Device.device_id == self.device_id)
+                )
+                device = result.scalar_one_or_none()
+                if device and device.lifecycle_state == LifecycleState.PENDING.value:
+                    device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
+                    session.add(device)
+                    await session.commit()
+                    logger.info(f"Device {self.device_id} lifecycle: pending → active")
+        except Exception as e:
+            logger.warning(f"Failed to update lifecycle for {self.device_id}: {e}")
 
         # Audit Log: Agent Started
         try:
@@ -741,9 +768,12 @@ class DeviceAgentSimulator:
 
                         # Update Device Last Seen
                         # device object is already attached to the session
-                        device.last_seen = datetime.now(timezone.utc)  # type: ignore[assignment]
+                        now = datetime.now(timezone.utc)
+                        device.last_seen = now  # type: ignore[assignment]
+                        device.last_heartbeat_at = now  # type: ignore[assignment]
                         # Ensure status is consistent
                         device.status = "online" if is_healthy else "offline"  # type: ignore[assignment]
+                        device.health_state = HealthState.HEALTHY.value if is_healthy else HealthState.ERROR.value  # type: ignore[assignment]
                         db.add(device)
 
                         await db.commit()
