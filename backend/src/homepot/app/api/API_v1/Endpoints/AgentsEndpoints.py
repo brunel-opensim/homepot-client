@@ -1,13 +1,13 @@
 """API endpoints for managing agents in the HomePot system."""
 
+from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
-from homepot.app.api.API_v1.Endpoints.DevicesEndpoints import _compute_connectivity
 from homepot.client import HomepotClient
-from homepot.models import ConnectivityState, HealthState
+from homepot.models import ConnectivityState, Device
 
 client_instance: Optional[HomepotClient] = None
 
@@ -26,6 +26,24 @@ def get_client() -> HomepotClient:
     return client_instance
 
 
+_HEARTBEAT_ONLINE_SECONDS = 120
+
+
+def _compute_connectivity(device: Device) -> str:
+    """Return online/offline/unknown based on heartbeat recency."""
+    if not device.last_heartbeat_at:
+        return ConnectivityState.UNKNOWN.value
+    heartbeat = device.last_heartbeat_at
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - heartbeat
+    return (
+        ConnectivityState.ONLINE.value
+        if delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
+        else ConnectivityState.OFFLINE.value
+    )
+
+
 @router.get("/agents", tags=["Agents"])
 async def list_agents() -> Dict[str, List[Dict]]:
     """List all active agents and their status from the database."""
@@ -33,7 +51,7 @@ async def list_agents() -> Dict[str, List[Dict]]:
         from sqlalchemy import select
 
         from homepot.database import get_database_service
-        from homepot.models import Device, HealthCheck
+        from homepot.models import Device, DeviceStatus, HealthCheck
 
         db_service = await get_database_service()
         agents_status = []
@@ -85,23 +103,20 @@ async def list_agents() -> Dict[str, List[Dict]]:
                         hc_data["timestamp"] = latest_hc.timestamp.isoformat()
                 else:
                     # Log warning if no health check found for active device
-                    if _compute_connectivity(device) == ConnectivityState.ONLINE.value:
+                    if device.status == DeviceStatus.ONLINE:
                         logger.warning(
                             f"No health check found for online device {device.device_id} (PK: {device.id})"
                         )
 
-                conn = _compute_connectivity(device)
                 status_data = {
                     "device_id": device.device_id,
                     "lifecycle_state": device.lifecycle_state,
-                    "connectivity_state": conn,
-                    "health_state": device.health_state or HealthState.UNKNOWN.value,
+                    "connectivity_state": _compute_connectivity(device),
+                    "health_state": device.health_state or "unknown",
                     "config_version": device.firmware_version or "unknown",
                     "last_health_check": hc_data,
                     "uptime": (
-                        "running"
-                        if conn == ConnectivityState.ONLINE.value
-                        else "stopped"
+                        "running" if device.status == DeviceStatus.ONLINE else "stopped"
                     ),
                 }
                 agents_status.append(status_data)
@@ -122,7 +137,7 @@ async def get_agent_status(device_id: str) -> Dict[str, Any]:
         from sqlalchemy import desc, select
 
         from homepot.database import get_database_service
-        from homepot.models import Device, HealthCheck
+        from homepot.models import Device, DeviceStatus, HealthCheck
 
         db_service = await get_database_service()
 
@@ -147,16 +162,15 @@ async def get_agent_status(device_id: str) -> Dict[str, Any]:
             )
             latest_hc = hc_result.scalar_one_or_none()
 
-            conn = _compute_connectivity(device)
             return {
                 "device_id": device.device_id,
                 "lifecycle_state": device.lifecycle_state,
-                "connectivity_state": conn,
-                "health_state": device.health_state or HealthState.UNKNOWN.value,
+                "connectivity_state": _compute_connectivity(device),
+                "health_state": device.health_state or "unknown",
                 "config_version": device.firmware_version or "unknown",
                 "last_health_check": latest_hc.response_data if latest_hc else None,
                 "uptime": (
-                    "running" if conn == ConnectivityState.ONLINE.value else "stopped"
+                    "running" if device.status == DeviceStatus.ONLINE else "stopped"
                 ),
             }
 
