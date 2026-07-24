@@ -475,6 +475,49 @@ PR 24: frontend/src/services/api.js — 3 new API methods:
 - devices.getCommands(deviceId) → GET /device/{did}/commands
 frontend/src/pages/Dashboard.jsx — Fetches dashboard.summary() and renders 4 aggregate stat cards (Total Devices, Online, Offline, Active) above the monitored resources.
 
+### Site Detail device table
+
+The Site Detail page (`frontend/src/pages/Sites/SiteDetail.jsx`) displays a table of devices associated with a site. Each row pulls from `GET /sites/{site_id}/devices`.
+
+| Column | Field | Display |
+|---|---|---|
+| **Name** | `device.name` | Clickable link to Device Detail page |
+| **Type** | `device.device_type` | Uppercase, underscores replaced with spaces |
+| **Status** | `lifecycle_state` + `connectivity_state` + `health_state` | Badge + connectivity dot + health pill (see colour reference below) |
+| **Enrollment** | `device.enrollment_method` | Pill: `self-enrolled` (purple) or `Pre-Provisioned` (blue) |
+| **Alerts** | `device.active_alerts` | Count with icon; green checkmark when zero |
+| **Last Seen** | `device.last_seen` + `device.last_heartbeat_at` | Timestamp plus heartbeat timestamp on a second line |
+| **Actions** | — | Edit and Delete icon buttons |
+
+#### Status column colour reference
+
+**Lifecycle badge (background + text):**
+
+| State | Colour |
+|---|---|
+| `active` | green-500 on green-500/10 |
+| `suspended` | orange-500 on orange-500/10 |
+| `unpaired` | gray-500 on gray-500/10 |
+| `pending`, `retired`, or unknown | yellow-500 on yellow-500/10 |
+
+**Connectivity dot (within the lifecycle badge):**
+
+| State | Colour |
+|---|---|
+| `online` | green-500 |
+| `offline` | gray-500 |
+| `unknown` | yellow-500 |
+
+**Health pill (separate pill next to the lifecycle badge):**
+
+| State | Colour |
+|---|---|
+| `healthy` | green-400 on green-500/10 |
+| `warning` | yellow-400 on yellow-500/10 |
+| `error` | red-400 on red-500/10 |
+| `maintenance` | blue-400 on blue-500/10 |
+| `unknown` or absent | gray-400 on gray-500/10 |
+
 ## Windows adaptation
 Only after the Linux real-device contract works:
 - implement stable Windows device identity;
