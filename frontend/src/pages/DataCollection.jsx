@@ -225,7 +225,7 @@ export default function DataCollection() {
                       v{agent.config_version}
                     </p>
                   </div>
-                  {getStatusBadge(agent.state)}
+                  {getStatusBadge(agent.connectivity_state)}
                 </CardHeader>
                 <CardContent className="p-3 pt-3 space-y-3">
                   <div className="grid grid-cols-2 gap-2 text-xs">
