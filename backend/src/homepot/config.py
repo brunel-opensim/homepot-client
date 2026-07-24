@@ -14,11 +14,7 @@ class DatabaseSettings(BaseSettings):
     """Database configuration settings."""
 
     url: str = Field(
-        default=(
-            # "postgresql://homepot_user:homepot_dev_password@"
-            # "localhost:5432/homepot_db"
-            "postgresql://postgres:newpassword@localhost:5432/HP"
-        ),
+        default="postgresql://homepot_user:homepot_dev_password@localhost:15432/homepot_db",
         description="Database URL (PostgreSQL)",
     )
     echo_sql: bool = Field(default=False, description="Enable SQL query logging")
