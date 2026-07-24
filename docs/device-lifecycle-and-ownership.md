@@ -313,6 +313,36 @@ Backend:
 - Issue the API key only once.
 - Reject duplicate and concurrent claims.
 
+### Enrolment Intent creation flow (UI walkthrough)
+
+When an administrator clicks **Create Intent** on the Site Detail page:
+
+1. **Form submission**: A `POST /sites/{site_id}/enrolment-intents` is sent with optional fields (`expected_device_identity`, `expires_in_hours`, `idempotency_key`). The backend requires `operator`-level access on the target site.
+
+2. **Backend processing** (`EnrolmentIntentsEndpoint.py`):
+   - Creates a DB record with `status = pending` and a random UUID `intent_id`.
+   - Generates a cryptographically random claim token, hashes it with bcrypt, and stores only the hash.
+   - Returns the **plaintext claim token exactly once** in the response.
+
+3. **UI response**:
+   - The create form collapses.
+   - The intents list refreshes automatically.
+   - A **yellow result card** appears at the top showing the claim token in a monospace block, with the warning: *"It will not be shown again."*
+   - The new row appears in the table with a yellow **Pending** badge.
+
+4. **Subsequent actions** (per-row action buttons):
+   | Button | Status required | Effect |
+   |--------|----------------|--------|
+   | **Approve** | `pending` → `approved` | Token becomes active and ready for the installer to claim |
+   | **Reject** | `pending` → `rejected` | The intent is discarded, no further action possible |
+   | **Regen Token** | `pending` or `approved` | Generates a new token (old one becomes invalid), shown via browser `alert()` |
+   | **Revoke** | `pending` or `approved` → `revoked` | The intent is cancelled, token invalidated |
+
+5. **Important notes**:
+   - The claim token is only ever visible **at creation time** and **at regeneration time**. The backend stores only the bcrypt hash.
+   - The `alert()` for regeneration is a deliberate UX choice: unlike creation (which shows the token inline), regeneration is less common and the alert reinforces that the token must be saved immediately.
+   - The table marks expired intents with red text and an "Expired" label. Expired intents cannot be claimed.
+
 PR 6: Secure self-enrolment
 Replace caller-provided user_identity as authority:
 - Require authenticated user identity.
