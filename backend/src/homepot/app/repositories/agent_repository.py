@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from homepot.app.models.AnalyticsModel import DeviceMetrics
+from homepot.app.schemas.permissions import derive_capabilities
 from homepot.models import Device, LifecycleState, Site
 
 
@@ -74,6 +75,7 @@ class AgentRepository:
         device_obj = cast(Any, device)
         device_obj.mac_address = mac_address
         device_obj.os_details = os_details
+        device_obj.capabilities = derive_capabilities(os_details)
         device_obj.local_ip = local_ip
         device_obj.wan_ip = wan_ip
         if peripherals is not None:

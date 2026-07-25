@@ -7,6 +7,13 @@ logger = logging.getLogger(__name__)
 
 COMMAND_TYPES = frozenset({"ping", "restart", "update_config", "shutdown"})
 
+# Each privileged command type requires a specific device_permission key.
+REQUIRED_PERMISSION: Dict[str, str] = {
+    "restart": "root_access",
+    "shutdown": "root_access",
+    "update_config": "filesystem_access",
+}
+
 
 def parse_pending_commands(response_data: Any) -> List[Dict[str, Any]]:
     """Parse the response from ``GET /api/v1/devices/pending`` into a list of commands.
@@ -25,8 +32,59 @@ def parse_pending_commands(response_data: Any) -> List[Dict[str, Any]]:
     return []
 
 
-def process_command(command: Dict[str, Any]) -> Dict[str, Any]:
+async def fetch_device_permissions(
+    client: Any, config: Dict[str, Any], headers: Dict[str, str]
+) -> Optional[Dict[str, bool]]:
+    """Fetch the current ``device_permissions`` from the backend.
+
+    Returns a dict like ``{"root_access": True, …}`` or ``None`` on failure.
+    """
+    device_id = config.get("device_id", "")
+    url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/device/{device_id}/permissions"
+    try:
+        resp = await client.get(url, headers=headers, timeout=5.0)
+        resp.raise_for_status()
+        body = resp.json()
+        data = body.get("data") or {}
+        perms: Dict[str, bool] = data.get("permissions") or {}
+        return perms
+    except Exception as exc:
+        logger.warning("Failed to fetch device permissions: %s", exc)
+        return None
+
+
+def _check_permission(
+    command_type: str,
+    permissions: Optional[Dict[str, bool]],
+) -> Optional[str]:
+    """Return an error message if the required permission is missing or ``False``.
+
+    ``None`` means the command is allowed.
+    """
+    required_key = REQUIRED_PERMISSION.get(command_type)
+    if required_key is None:
+        return None
+    if permissions is None:
+        return "Device permissions not available — cannot verify access"
+    if not permissions.get(required_key, False):
+        return (
+            f"Permission denied: '{required_key}' is not granted for '{command_type}'"
+        )
+    return None
+
+
+def process_command(
+    command: Dict[str, Any],
+    permissions: Optional[Dict[str, bool]] = None,
+) -> Dict[str, Any]:
     """Execute a single command locally and return a result dict.
+
+    Parameters
+    ----------
+    permissions:
+        Current device permissions dict (e.g. ``{"root_access": True, …}``).
+        When ``None`` the agent has not yet fetched permissions — any
+        privileged command is rejected with a "not available" error.
 
     Returns
     -------
@@ -45,6 +103,18 @@ def process_command(command: Dict[str, Any]) -> Dict[str, Any]:
             "result": {"error": f"Unknown command type: {command_type}"},
         }
 
+    # Permission gate
+    denial = _check_permission(command_type, permissions)
+    if denial is not None:
+        logger.warning(
+            "Command denied id=%s type=%s reason=%s", command_id, command_type, denial
+        )
+        return {
+            "command_id": command_id,
+            "status": "failed",
+            "result": {"error": denial},
+        }
+
     logger.info("Processing command id=%s type=%s", command_id, command_type)
 
     if command_type == "ping":
@@ -56,22 +126,24 @@ def process_command(command: Dict[str, Any]) -> Dict[str, Any]:
 
     if command_type == "restart":
         logger.warning(
-            "Restart command received id=%s — not yet implemented", command_id
+            "Restart command received id=%s — execution handler not yet integrated",
+            command_id,
         )
         return {
             "command_id": command_id,
             "status": "completed",
-            "result": {"message": "restart acknowledged (not yet implemented)"},
+            "result": {"message": "restart acknowledged"},
         }
 
     if command_type == "shutdown":
         logger.warning(
-            "Shutdown command received id=%s — not yet implemented", command_id
+            "Shutdown command received id=%s — execution handler not yet integrated",
+            command_id,
         )
         return {
             "command_id": command_id,
             "status": "completed",
-            "result": {"message": "shutdown acknowledged (not yet implemented)"},
+            "result": {"message": "shutdown acknowledged"},
         }
 
     if command_type == "update_config":

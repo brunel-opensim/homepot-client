@@ -84,6 +84,8 @@ class AgentService:
             if not site or not site.id:
                 raise LookupError(f"Site '{payload.site_id}' not found")
 
+            from homepot.app.schemas.permissions import derive_capabilities
+
             created = self.repository.create_device(
                 device_id=payload.device_id,
                 name=payload.device_name or payload.device_id,
@@ -95,6 +97,10 @@ class AgentService:
                 wan_ip=payload.wan_ip,
                 lifecycle_state=LifecycleState.ACTIVE.value,
             )
+
+            created_obj = cast(Any, created)
+            created_obj.capabilities = derive_capabilities(payload.os_details)
+            self.repository.save_device(created)
 
             return {
                 "device_id": created.device_id,

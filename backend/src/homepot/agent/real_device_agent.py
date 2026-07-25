@@ -22,6 +22,7 @@ from homepot.agent.credential_storage import (
 )
 from homepot.agent.utils.command_poller import (
     build_status_update_payload,
+    fetch_device_permissions,
     parse_pending_commands,
     process_command,
 )
@@ -196,18 +197,64 @@ async def pending_commands_loop(
     Polls ``GET /api/v1/devices/pending`` at a fixed interval.  Each command
     is acknowledged first (``POST …/ack``), then either exposed via IPC for
     the real device to execute or processed locally by the agent.
+
+    Before processing privileged commands the agent fetches current
+    ``device_permissions`` from the backend and refuses commands that
+    the user has not granted.
     """
     url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/pending"
     interval = int(config["command_poll_interval_seconds"])
     device_id = str(config["device_id"])
     ipc_available = ipc_server is not None
+    cached_permissions: Optional[Dict[str, bool]] = None
     while True:
         try:
-            data = await get_json(client, url, get_auth_headers(config))
+            # Refresh permission cache on each poll cycle
+            headers = get_auth_headers(config)
+            fresh_perms = await fetch_device_permissions(client, config, headers)
+            if fresh_perms is not None:
+                cached_permissions = fresh_perms
+
+            data = await get_json(client, url, headers)
             commands = parse_pending_commands(data)
             for command in commands:
                 cid = command.get("command_id", "")
-                # 1. Ack to backend
+                # 1. Permission gate before ACK
+                from homepot.agent.utils.command_poller import _check_permission
+
+                denial = _check_permission(
+                    command.get("command_type", ""), cached_permissions
+                )
+                if denial is not None:
+                    logger.warning(
+                        "Command rejected before ACK id=%s type=%s reason=%s",
+                        cid,
+                        command.get("command_type"),
+                        denial,
+                    )
+                    result = {
+                        "command_id": cid,
+                        "status": "failed",
+                        "result": {"error": denial},
+                    }
+                    ok = await update_command_status(
+                        client, config, cid, result["status"], result.get("result")
+                    )
+                    if not ok:
+                        retry_queue.enqueue(
+                            {
+                                "url": (
+                                    f"{config['backend_url'].rstrip('/')}"
+                                    f"/api/v1/devices/{cid}/status"
+                                ),
+                                "payload": build_status_update_payload(
+                                    cid, result["status"], result.get("result")
+                                ),
+                            }
+                        )
+                    continue
+
+                # 2. Ack to backend
                 acked = await ack_command_backend(client, config, device_id, cid)
                 if not acked:
                     retry_queue.enqueue(
@@ -220,12 +267,12 @@ async def pending_commands_loop(
                         }
                     )
                     continue
-                # 2. Route to IPC or process locally
+                # 3. Route to IPC or process locally
                 if ipc_available:
                     app = cast("FastAPI", ipc_server.config.app)  # type: ignore[union-attr]
                     push_pending_command(app, command)
                 else:
-                    result = process_command(command)
+                    result = process_command(command, cached_permissions)
                     ok = await update_command_status(
                         client,
                         config,
