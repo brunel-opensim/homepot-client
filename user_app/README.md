@@ -95,13 +95,20 @@ Output goes to `release/`:
 ## Roadmap
 
 | PR | Focus |
-|---|---|
+|---|---|---|
 | **U1** ✅ | Standalone Electron desktop shell with routing, sign-in, and native storage |
 | **U2** ✅ | Device-credential auth — bootstrap key replaces SSO cookie login |
-| U3 | Device permissions DB model + API |
+| **U3** ✅ | Device permissions DB model + API (capabilities, admin-override) |
 | U4 | Wire Permissions UI to backend |
 | U5 | Agent-side permission enforcement |
 | U6 | Real device DNA reporting |
 | U7 | Error boundaries and tests |
 
 See [`docs/device-lifecycle-and-ownership.md`](../docs/device-lifecycle-and-ownership.md#user-app-prs) for details.
+
+## Trust model
+
+The User App governs **what** the backend is allowed to do on this device
+via the Permissions page.  Every push notification command is checked
+against the stored permissions before it is dispatched — see
+[`docs/agent-permissions-trust-model.md`](../docs/agent-permissions-trust-model.md).

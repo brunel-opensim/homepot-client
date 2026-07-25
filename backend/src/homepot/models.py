@@ -374,7 +374,9 @@ class Device(Base):
     device_permissions = Column(JSON, nullable=True)  # Device permission grants
 
     # OS capabilities — which permissions this device's OS can support
-    capabilities = Column(JSON, nullable=True)  # Derived from os_details at provision time
+    capabilities = Column(
+        JSON, nullable=True
+    )  # Derived from os_details at provision time
 
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration
