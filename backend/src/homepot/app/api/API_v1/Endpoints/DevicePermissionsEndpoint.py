@@ -6,16 +6,24 @@ Operators can read and override permissions via JWT auth.
 
 import copy
 import logging
-from typing import Any, Dict, cast
+from typing import Any, Dict, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
+import jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import (
+    ALGORITHM,
+    SECRET_KEY,
     UserDict,
+    api_key_header,
+    authenticate_device_credentials,
+    device_id_header,
     get_current_device,
     require_user,
+    security,
     verify_device_belongs_to_user,
 )
 from homepot.app.schemas.permissions import (
@@ -222,11 +230,19 @@ def admin_override_device_permissions(
 def get_device_permissions(
     device_id: str,
     db: Session = Depends(get_db),
-    current_user: UserDict = Depends(require_user()),
+    api_key: Optional[str] = Depends(api_key_header),
+    device_id_header_val: Optional[str] = Depends(device_id_header),
+    bearer_creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Dict[str, Any]:
     """Get permissions and capabilities for a device.
 
-    Requires operator-level access on the device's site.
+    Two authentication modes:
+    - **Device credentials**: pass ``X-Device-ID`` + ``X-API-Key`` headers.
+      The device can only read its own permissions.
+    - **Operator JWT**: pass ``Authorization: Bearer <token>``.
+      Requires operator-level access on the device's site.
+
+    When both are present, device-credential auth takes precedence.
     """
     try:
         device = db.query(Device).filter(Device.device_id == device_id).first()
@@ -235,10 +251,36 @@ def get_device_permissions(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
 
-        db_user = cast(
-            User, db.query(User).filter(User.email == current_user["email"]).first()
-        )
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        if api_key and device_id_header_val:
+            auth_device = authenticate_device_credentials(
+                db, device_id_header_val, api_key
+            )
+            if auth_device.device_id != device_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Device can only read its own permissions",
+                )
+        elif bearer_creds:
+            try:
+                payload = jwt.decode(
+                    bearer_creds.credentials, SECRET_KEY, algorithms=[ALGORITHM]
+                )
+                email = payload.get("sub")
+                if not email:
+                    raise HTTPException(
+                        status_code=401, detail="Invalid token: no email"
+                    )
+            except jwt.PyJWTError:
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+            db_user = cast(User, db.query(User).filter(User.email == email).first())
+            if not db_user:
+                raise HTTPException(status_code=403, detail="User not found")
+            verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        else:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required — provide device credentials or operator JWT",
+            )
 
         perms = _normalise_permissions(device.device_permissions)
         caps = _get_capabilities_dict(device)
@@ -246,11 +288,11 @@ def get_device_permissions(
         return _build_response(device_id, perms, caps, "Permissions retrieved")
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as h:
         logger.error(
             "Failed to get permissions for device %s: %s",
             device_id,
-            e,
+            h,
             exc_info=True,
         )
         raise HTTPException(

@@ -99,7 +99,7 @@ Output goes to `release/`:
 | **U1** ✅ | Standalone Electron desktop shell with routing, sign-in, and native storage |
 | **U2** ✅ | Device-credential auth — bootstrap key replaces SSO cookie login |
 | **U3** ✅ | Device permissions DB model + API (capabilities, admin-override) |
-| U4 | Wire Permissions UI to backend |
+| **U4** ✅ | Wire Permissions UI to backend (fetch, debounced PATCH, loading/error states, capability-aware) |
 | U5 | Agent-side permission enforcement |
 | U6 | Real device DNA reporting |
 | U7 | Error boundaries and tests |
