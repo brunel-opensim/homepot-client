@@ -102,7 +102,7 @@ Output goes to `release/`:
 | **U4** ✅ | Wire Permissions UI to backend (fetch, debounced PATCH, loading/error states, capability-aware) |
 | **U5** ✅ | Agent-side permission enforcement (fetch perms on poll, gate privileged commands, capability-aware DNA registration) |
 | **U6** ✅ | Real device DNA — fetch MAC, local IP, OS via device-credential auth, fall back to Electron IPC or credential storage |
-| U7 | Error boundaries and tests |
+| **U7** ✅ | Error boundaries, API service layer, unit tests (credentialStorage, API, views), integration tests |
 
 See [`docs/device-lifecycle-and-ownership.md`](../docs/device-lifecycle-and-ownership.md#user-app-prs) for details.
 
