@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
 import { apiBaseUrl } from '../config/api'
@@ -13,9 +13,9 @@ interface DeviceStatus {
 export default function HomeDashboard() {
   const [deviceName, setDeviceName] = useState('My Device')
   const [deviceId, setDeviceId] = useState<string | null>(null)
-  const [apiKey, setApiKey] = useState<string | null>(null)
   const [status, setStatus] = useState<DeviceStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const deviceIdRef = useRef<string | null>(null)
+  const apiKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -23,34 +23,33 @@ export default function HomeDashboard() {
       credentialStorage.getApiKey(),
       credentialStorage.getMetadata('device_name'),
     ]).then(([did, key, name]) => {
-      if (did) setDeviceId(did)
-      if (key) setApiKey(key)
+      if (did) { setDeviceId(did); deviceIdRef.current = did }
+      if (key) apiKeyRef.current = key
       if (name) setDeviceName(name)
     })
   }, [])
 
-  const fetchStatus = async () => {
-    if (!deviceId) return
-    try {
-      const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/status`, {
-        headers: apiKey ? { 'X-Device-ID': deviceId, 'X-API-Key': apiKey } : {},
-      })
-      if (res.ok) {
-        const body = await res.json()
-        setStatus(body.data)
-      }
-    } catch {
-      // silently degrade — will show unknown
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
+    async function fetchStatus() {
+      const dId = deviceIdRef.current
+      if (!dId) return
+      try {
+        const res = await fetch(`${apiBaseUrl}/agent/${dId}/status`, {
+          headers: apiKeyRef.current ? { 'X-Device-ID': dId, 'X-API-Key': apiKeyRef.current } : {},
+        })
+        if (res.ok) {
+          const body = await res.json()
+          setStatus(body.data)
+        }
+      } catch {
+        // silently degrade
+      }
+    }
+    if (!deviceIdRef.current) return
     fetchStatus()
     const interval = setInterval(fetchStatus, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [deviceId])
 
   const connectivity = status?.connectivity_state || 'unknown'
   const lifecycle = status?.lifecycle_state || 'unknown'

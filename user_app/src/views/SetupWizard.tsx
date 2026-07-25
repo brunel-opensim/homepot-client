@@ -1,11 +1,15 @@
 import { useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
 
-const STEPS = ['Device Setup', 'SSO Login', 'Complete']
+function formatDeviceType(v: string) {
+  return v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
 
 function StepIndicator({ current }: { current: number }) {
+  const STEPS = ['Device Setup', 'SSO Login', 'Complete']
   return (
     <div className="flex items-center justify-center gap-2 w-full">
       {STEPS.map((label, i) => (
@@ -33,17 +37,19 @@ function StepIndicator({ current }: { current: number }) {
   )
 }
 
-function Step1({ siteId, setSiteId, deviceName, setDeviceName, deviceType, setDeviceType, deviceOs, setDeviceOs, onNext }: {
-  siteId: string
-  setSiteId: (v: string) => void
-  deviceName: string
-  setDeviceName: (v: string) => void
-  deviceType: string
-  setDeviceType: (v: string) => void
-  deviceOs: string
-  setDeviceOs: (v: string) => void
-  onNext: () => void
-}) {
+function Step1() {
+  const navigate = useNavigate()
+  const { setupState, setSetupState } = useApp()
+  const [siteId, setSiteId] = useState(setupState.siteId)
+  const [deviceName, setDeviceName] = useState(setupState.deviceName)
+  const [deviceType, setDeviceType] = useState(setupState.deviceType)
+  const [deviceOs, setDeviceOs] = useState(setupState.deviceOs)
+
+  const handleNext = () => {
+    setSetupState({ siteId, deviceName, deviceType, deviceOs })
+    navigate('/signin')
+  }
+
   return (
     <div className="flex flex-col gap-5 w-full">
       <div className="text-center">
@@ -114,7 +120,7 @@ function Step1({ siteId, setSiteId, deviceName, setDeviceName, deviceType, setDe
       </div>
 
       <button
-        onClick={onNext}
+        onClick={handleNext}
         disabled={!siteId.trim() || !deviceName.trim()}
         className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
@@ -124,153 +130,54 @@ function Step1({ siteId, setSiteId, deviceName, setDeviceName, deviceType, setDe
   )
 }
 
-function Step2({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+function ReviewStep({ onBack }: { onBack: () => void }) {
+  const navigate = useNavigate()
+  const { setupState, setIsProvisioned } = useApp()
+  const { siteId, deviceName, deviceType, deviceOs } = setupState
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  async function handleLogin() {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await fetch(`${apiBaseUrl}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password }),
-      })
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err.detail || 'Login failed')
-      }
-      onNext()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-5 w-full">
-      <div className="text-center">
-        <h2 className="text-slate-200 font-semibold text-base">Sign in to your account</h2>
-        <p className="text-slate-400 text-xs mt-1">Use your credentials to authorise device enrolment.</p>
-      </div>
-
-      {error && (
-        <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-sm text-red-200">
-          {error}
-        </div>
-      )}
-
-      <div className="flex flex-col gap-1">
-        <label className="text-slate-300 text-sm font-medium">Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          placeholder="you@company.com"
-          disabled={loading}
-          className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 transition-colors"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-slate-300 text-sm font-medium">Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          placeholder="Your password"
-          disabled={loading}
-          className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 transition-colors"
-        />
-      </div>
-
-      <button
-        onClick={handleLogin}
-        disabled={loading || !email.trim() || !password.trim()}
-        className="w-full py-3 rounded-lg bg-teal-600 hover:bg-teal-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-      >
-        {loading ? (
-          <>
-            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Signing in...
-          </>
-        ) : (
-          '🔐  Sign In'
-        )}
-      </button>
-
-      <button
-        onClick={onBack}
-        disabled={loading}
-        className="w-full py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm transition-colors"
-      >
-        ← Back
-      </button>
-    </div>
-  )
-}
-
-function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }: {
-  siteId: string
-  deviceName: string
-  deviceType: string
-  deviceOs: string
-  onBack: () => void
-  onComplete: () => void
-}) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const isDev = import.meta.env.DEV
 
   async function handleComplete() {
     setLoading(true)
     setError('')
     try {
-      const reqBody = {
-        site_id: siteId,
-        device_name: deviceName || 'My Device',
-        device_type: deviceType,
-        os_details: deviceOs
+      if (isDev) {
+        await credentialStorage.save({
+          deviceId: `dev-device-${Date.now()}`,
+          apiKey: `dev-api-key-${crypto.randomUUID()}`,
+          siteId: siteId || 'dev-site',
+          deviceName: deviceName || 'Dev Device',
+          deviceType,
+          deviceOs,
+          enrollmentMethod: 'self-enrolled',
+        })
+        setLoading(false)
+        setIsProvisioned(true)
+        navigate('/home')
+        return
       }
 
+      const reqBody = { site_id: siteId, device_name: deviceName || 'My Device', device_type: deviceType, os_details: deviceOs }
       const response = await fetch(`${apiBaseUrl}/devices/provision`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(reqBody)
+        body: JSON.stringify(reqBody),
       })
 
-      if (!response.ok) {
-        throw new Error('Provisioning failed. Check the site ID and backend connection.')
-      }
+      if (!response.ok) throw new Error('Provisioning failed. Check the site ID and backend connection.')
 
       const data = await response.json()
-      const provisionedDevice = data.data
-      if (!provisionedDevice?.device_id || !provisionedDevice?.api_key) {
-        throw new Error('Provisioning response did not include device credentials.')
-      }
-      
-      await credentialStorage.save({
-        deviceId: provisionedDevice.device_id,
-        apiKey: provisionedDevice.api_key,
-        siteId,
-        deviceName: deviceName || 'My Device',
-        deviceType,
-        deviceOs,
-        enrollmentMethod: 'self-enrolled',
-      })
-      
+      const d = data.data
+      if (!d?.device_id || !d?.api_key) throw new Error('Provisioning response did not include device credentials.')
+
+      await credentialStorage.save({ deviceId: d.device_id, apiKey: d.api_key, siteId, deviceName: deviceName || 'My Device', deviceType, deviceOs, enrollmentMethod: 'self-enrolled' })
       setLoading(false)
-      onComplete()
-    } catch (error) {
-      console.error(error)
-      setError(error instanceof Error ? error.message : 'Provisioning failed.')
+      setIsProvisioned(true)
+      navigate('/home')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Provisioning failed.')
       setLoading(false)
     }
   }
@@ -297,7 +204,7 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
         </div>
         <div className="flex justify-between">
           <span className="text-slate-400">Device Type</span>
-          <span className="text-slate-200 font-medium capitalize">{deviceType.replace('_', ' ')}</span>
+          <span className="text-slate-200 font-medium capitalize">{formatDeviceType(deviceType)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-400">Operating System</span>
@@ -319,10 +226,7 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
           className="flex-[2] py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
         >
           {loading ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Provisioning...
-            </>
+            <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Provisioning...</>
           ) : (
             'Complete Setup'
           )}
@@ -334,29 +238,9 @@ function Step3({ siteId, deviceName, deviceType, deviceOs, onBack, onComplete }:
 }
 
 export default function SetupWizard() {
-  const { setCurrentView, setIsProvisioned } = useApp()
-  const [showClaimOption, setShowClaimOption] = useState(false)
-  const [step, setStep] = useState(0)
-  const [siteId, setSiteId] = useState('')
-  const [deviceName, setDeviceName] = useState('')
-  const [deviceType, setDeviceType] = useState('pos_terminal')
-  
-  // Auto-detect Operating System for default selection
-  const detectOS = () => {
-    const ua = navigator.userAgent.toLowerCase()
-    if (ua.includes('android')) return 'android'
-    if (ua.includes('win')) return 'windows'
-    if (ua.includes('mac')) return 'mac'
-    if (ua.includes('linux')) return 'linux'
-    if (ua.includes('iphone') || ua.includes('ipad')) return 'ios'
-    return 'web'
-  }
-  const [deviceOs, setDeviceOs] = useState(detectOS())
-
-  function handleComplete() {
-    setIsProvisioned(true)
-    setCurrentView('home')
-  }
+  const navigate = useNavigate()
+  const location = useLocation()
+  const isReview = location.pathname === '/setup/review'
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
@@ -367,52 +251,31 @@ export default function SetupWizard() {
           <p className="text-slate-500 text-xs">Device Setup</p>
         </div>
 
-        <StepIndicator current={step} />
+        <StepIndicator current={isReview ? 2 : 0} />
 
         <div className="border-t border-slate-700 pt-4">
-          <div className="mb-4">
-            <button
-              onClick={() => setCurrentView('claim')}
-              className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
-            >
-              Have a claim token? Click here to claim
-            </button>
-            <p className="text-center text-slate-500 text-xs mt-2">or set up a new device below</p>
-            <div className="mt-3 mb-2 border-t border-slate-700" />
-          </div>
-          {step === 0 && (
-            <Step1
-              siteId={siteId}
-              setSiteId={setSiteId}
-              deviceName={deviceName}
-              setDeviceName={setDeviceName}
-              deviceType={deviceType}
-              setDeviceType={setDeviceType}
-              deviceOs={deviceOs}
-              setDeviceOs={setDeviceOs}
-              onNext={() => setStep(1)}
-            />
+          {!isReview && (
+            <div className="mb-4">
+              <button
+                onClick={() => navigate('/claim')}
+                className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                Have a claim token? Click here to claim
+              </button>
+              <p className="text-center text-slate-500 text-xs mt-2">or set up a new device below</p>
+              <div className="mt-3 mb-2 border-t border-slate-700" />
+            </div>
           )}
-          {step === 1 && (
-            <Step2
-              onNext={() => setStep(2)}
-              onBack={() => setStep(0)}
-            />
-          )}
-          {step === 2 && (
-            <Step3
-              siteId={siteId}
-              deviceName={deviceName}
-              deviceType={deviceType}
-              deviceOs={deviceOs}
-              onBack={() => setStep(0)}
-              onComplete={handleComplete}
-            />
+
+          {isReview ? (
+            <ReviewStep onBack={() => navigate('/setup')} />
+          ) : (
+            <Step1 />
           )}
         </div>
 
         <p className="text-center text-slate-600 text-xs">
-          Step {step + 1} of {STEPS.length}
+          Step {isReview ? 3 : 1} of 3
         </p>
       </div>
     </div>

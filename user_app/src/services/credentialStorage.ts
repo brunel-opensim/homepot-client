@@ -13,6 +13,31 @@
  */
 
 // ---------------------------------------------------------------------------
+// Electron API type declaration
+// ---------------------------------------------------------------------------
+
+declare global {
+  interface Window {
+    electronAPI?: {
+      credentials: {
+        save(data: Record<string, string>): Promise<boolean>
+        getAll(): Promise<Record<string, string>>
+        get(key: string): Promise<string | null>
+        clear(): Promise<boolean>
+        isProvisioned(): Promise<boolean>
+      }
+      device: {
+        identity(): Promise<{ deviceId: string; machineId: string }>
+        dna(): Promise<{ hostname: string; platform: string; release: string; mac: string; ip: string }>
+      }
+      app: {
+        getVersion(): Promise<string>
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -217,7 +242,7 @@ export class LinuxFileStorage implements CredentialStorage {
     if (this.filePath) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const fs = require('fs') as { unlinkSync(p: string): void }
+        const fs = require('fs') as { existsSync(p: string): boolean; unlinkSync(p: string): void }
         if (fs.existsSync(this.filePath)) {
           fs.unlinkSync(this.filePath)
         }
@@ -238,6 +263,51 @@ export class LinuxFileStorage implements CredentialStorage {
 }
 
 // ---------------------------------------------------------------------------
+// Electron IPC storage (native desktop)
+// ---------------------------------------------------------------------------
+
+export class ElectronStorage implements CredentialStorage {
+  private api: NonNullable<Window['electronAPI']>['credentials']
+
+  constructor() {
+    this.api = window.electronAPI!.credentials
+  }
+
+  async save(creds: DeviceCredentials): Promise<void> {
+    const data: Record<string, string> = {
+      device_id: creds.deviceId,
+      api_key: creds.apiKey,
+    }
+    if (creds.siteId) data.site_id = creds.siteId
+    if (creds.deviceName) data.device_name = creds.deviceName
+    if (creds.deviceType) data.device_type = creds.deviceType
+    if (creds.deviceOs) data.device_os = creds.deviceOs
+    if (creds.enrollmentMethod) data.enrollment_method = creds.enrollmentMethod
+    await this.api.save(data)
+  }
+
+  async getApiKey(): Promise<string | null> {
+    return this.api.get('api_key')
+  }
+
+  async getDeviceId(): Promise<string | null> {
+    return this.api.get('device_id')
+  }
+
+  async getMetadata(key: string): Promise<string | null> {
+    return this.api.get(key)
+  }
+
+  async clear(): Promise<void> {
+    await this.api.clear()
+  }
+
+  async isProvisioned(): Promise<boolean> {
+    return this.api.isProvisioned()
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Platform-aware factory
 // ---------------------------------------------------------------------------
 
@@ -251,11 +321,15 @@ export class LinuxFileStorage implements CredentialStorage {
  * - **Android** → ``AndroidKeystore`` *(placeholder, falls back to simulation)*
  */
 export function createCredentialStorage(): CredentialStorage {
-  // In a browser context (no `process` or `require`), use simulation
+  // Electron native desktop — use IPC bridge to main process
+  if (typeof window !== 'undefined' && window.electronAPI) {
+    return new ElectronStorage()
+  }
+
+  // In a browser context (no Node.js access), use simulation
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     // Check for Android bridge
     if (navigator.userAgent?.toLowerCase().includes('android')) {
-      // AndroidKeystore placeholder — uses simulation for now
       console.warn('[credentialStorage] Android Keystore not yet implemented; using SimulationStorage')
       return new SimulationStorage()
     }
