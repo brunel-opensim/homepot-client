@@ -100,7 +100,7 @@ Output goes to `release/`:
 | **U2** ✅ | Device-credential auth — bootstrap key replaces SSO cookie login |
 | **U3** ✅ | Device permissions DB model + API (capabilities, admin-override) |
 | **U4** ✅ | Wire Permissions UI to backend (fetch, debounced PATCH, loading/error states, capability-aware) |
-| U5 | Agent-side permission enforcement |
+| **U5** ✅ | Agent-side permission enforcement (fetch perms on poll, gate privileged commands, capability-aware DNA registration) |
 | U6 | Real device DNA reporting |
 | U7 | Error boundaries and tests |
 
