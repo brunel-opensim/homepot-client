@@ -42,20 +42,14 @@ def generate_bootstrap_key(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator"
-        )
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
-        site = cast(
-            Site, db.query(Site).filter(Site.site_id == site_id).first()
-        )
+        site = cast(Site, db.query(Site).filter(Site.site_id == site_id).first())
         if not site:
             raise HTTPException(status_code=404, detail="Site not found")
 
         bootstrap_key = secrets.token_urlsafe(32)
-        site.bootstrap_key_hash = cast(
-            str, pwd_context.hash(bootstrap_key)
-        )
+        site.bootstrap_key_hash = cast(str, pwd_context.hash(bootstrap_key))  # type: ignore[assignment]
         db.commit()
 
         logger.info(
@@ -75,12 +69,8 @@ def generate_bootstrap_key(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "Failed to generate bootstrap key: %s", e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=500, detail="Failed to generate bootstrap key"
-        )
+        logger.error("Failed to generate bootstrap key: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate bootstrap key")
 
 
 @router.delete(
@@ -101,17 +91,13 @@ def revoke_bootstrap_key(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator"
-        )
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
-        site = cast(
-            Site, db.query(Site).filter(Site.site_id == site_id).first()
-        )
+        site = cast(Site, db.query(Site).filter(Site.site_id == site_id).first())
         if not site:
             raise HTTPException(status_code=404, detail="Site not found")
 
-        site.bootstrap_key_hash = None
+        site.bootstrap_key_hash = None  # type: ignore[assignment]
         db.commit()
 
         logger.info(
@@ -127,9 +113,5 @@ def revoke_bootstrap_key(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "Failed to revoke bootstrap key: %s", e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=500, detail="Failed to revoke bootstrap key"
-        )
+        logger.error("Failed to revoke bootstrap key: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to revoke bootstrap key")

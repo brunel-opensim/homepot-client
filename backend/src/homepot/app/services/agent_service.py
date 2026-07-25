@@ -299,9 +299,7 @@ class AgentService:
         except Exception:
             raise Exception("Failed to provision device")
 
-    def bootstrap_provision_device(
-        self, payload: BootstrapProvisionRequest
-    ) -> dict:
+    def bootstrap_provision_device(self, payload: BootstrapProvisionRequest) -> dict:
         """Provision a new device authenticated by site bootstrap key.
 
         Similar to ``provision_device`` but uses a bootstrap key for

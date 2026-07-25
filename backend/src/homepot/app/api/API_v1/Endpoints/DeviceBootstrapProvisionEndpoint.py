@@ -5,7 +5,7 @@ devices to self-enrol without a user login session.
 """
 
 import logging
-from typing import Any, Dict, cast
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -51,9 +51,7 @@ def bootstrap_provision_device(
             )
 
         if not verify_bootstrap_key(payload.bootstrap_key, site):
-            raise HTTPException(
-                status_code=401, detail="Invalid bootstrap key"
-            )
+            raise HTTPException(status_code=401, detail="Invalid bootstrap key")
 
         service = AgentService(db)
         result = service.bootstrap_provision_device(payload)

@@ -24,8 +24,8 @@ from .Endpoints import (
     HealthEndpoint,
     JobsEndpoints,
     PushNotificationEndpoint,
-    SiteSchedulesEndpoint,
     SitesBootstrapKeyEndpoint,
+    SiteSchedulesEndpoint,
     SitesEndpoint,
     TenantsEndpoint,
     UIEndpoint,
@@ -121,9 +121,7 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     DeviceBootstrapProvisionEndpoint.router, prefix="/devices", tags=["Devices"]
 )
-api_v1_router.include_router(
-    SitesBootstrapKeyEndpoint.router, tags=["Sites"]
-)
+api_v1_router.include_router(SitesBootstrapKeyEndpoint.router, tags=["Sites"])
 api_v1_router.include_router(
     EnrolmentIntentsEndpoint.router, tags=["Enrolment Intents"]
 )

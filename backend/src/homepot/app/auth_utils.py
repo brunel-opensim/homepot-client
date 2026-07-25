@@ -300,11 +300,13 @@ async def get_current_device(
     return device
 
 
-def verify_bootstrap_key(bootstrap_key: str, site: "Site", pwd_context: CryptContext = pwd_context) -> bool:
+def verify_bootstrap_key(
+    bootstrap_key: str, site: "Site", pwd_context: CryptContext = pwd_context
+) -> bool:
     """Verify a plaintext bootstrap key against the site's stored hash."""
     if not site.bootstrap_key_hash:
         return False
-    return cast(bool, pwd_context.verify(bootstrap_key, site.bootstrap_key_hash))
+    return cast(bool, pwd_context.verify(bootstrap_key, site.bootstrap_key_hash))  # type: ignore[arg-type]
 
 
 def exchange_google_code(code: str) -> dict:
