@@ -81,6 +81,7 @@ Push notification integrations for different platforms:
 - **[Firebase Cloud Messaging (FCM)](fcm-linux-integration.md)** - Android/Linux device push notifications
 - **[Windows Notification Service (WNS)](wns-windows-integration.md)** - Windows device push notifications
 - **[Apple Push Notification service (APNs)](apns-apple-integration.md)** - iOS/macOS/watchOS/tvOS device push notifications
+- **[Agent Permissions & Trust Model](agent-permissions-trust-model.md)** - How User App governs what Push is allowed to do
 
 ## System Overview
 

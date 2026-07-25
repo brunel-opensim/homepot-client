@@ -441,6 +441,20 @@ async def get_device(
                     if any(c.is_active for c in (device.credentials or []))
                     else "inactive"
                 ),
+                "device_permissions": device.device_permissions
+                or {
+                    "root_access": False,
+                    "process_monitoring": False,
+                    "filesystem_access": False,
+                    "network_monitoring": False,
+                },
+                "capabilities": device.capabilities
+                or {
+                    "root_access": False,
+                    "process_monitoring": False,
+                    "filesystem_access": False,
+                    "network_monitoring": False,
+                },
                 "is_monitored": device.is_monitored,
                 "created_at": (
                     device.created_at.isoformat() if device.created_at else None

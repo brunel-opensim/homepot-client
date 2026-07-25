@@ -15,6 +15,7 @@ from homepot.app.schemas.agent import (
     AgentTelemetryRequest,
 )
 from homepot.app.schemas.bootstrap import BootstrapProvisionRequest
+from homepot.app.schemas.permissions import derive_capabilities
 from homepot.app.schemas.provision import DeviceProvisionRequest
 from homepot.app.services.lifecycle_service import LifecycleService
 from homepot.models import (
@@ -230,6 +231,7 @@ class AgentService:
 
             created_obj = cast(Any, created)
             created_obj.api_key_hash = hash_password(api_key)
+            created_obj.capabilities = derive_capabilities(payload.os_details)
 
             existing_config: Dict[str, Any] = dict(
                 cast(Dict[str, Any], created_obj.config or {})
@@ -329,6 +331,7 @@ class AgentService:
 
             created_obj = cast(Any, created)
             created_obj.api_key_hash = hash_password(api_key)
+            created_obj.capabilities = derive_capabilities(payload.os_details)
 
             existing_config: Dict[str, Any] = dict(
                 cast(Dict[str, Any], created_obj.config or {})
