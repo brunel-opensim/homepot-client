@@ -17,6 +17,7 @@ from .Endpoints import (
     DeviceBootstrapProvisionEndpoint,
     DeviceCommandsEndpoint,
     DeviceCredentialEndpoint,
+    DevicePermissionsEndpoint,
     DeviceProvisionEndpoint,
     DevicesEndpoints,
     DeviceSimulatorEndpoint,
@@ -24,8 +25,8 @@ from .Endpoints import (
     HealthEndpoint,
     JobsEndpoints,
     PushNotificationEndpoint,
-    SitesBootstrapKeyEndpoint,
     SiteSchedulesEndpoint,
+    SitesBootstrapKeyEndpoint,
     SitesEndpoint,
     TenantsEndpoint,
     UIEndpoint,
@@ -127,6 +128,9 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(
     DeviceCredentialEndpoint.router, prefix="/devices", tags=["Devices"]
+)
+api_v1_router.include_router(
+    DevicePermissionsEndpoint.router, prefix="/devices", tags=["Devices"]
 )
 
 # JobsEndpoints routes are already self-prefixed (e.g. "/sites/{site_id}/jobs").

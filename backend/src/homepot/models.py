@@ -370,6 +370,9 @@ class Device(Base):
     last_heartbeat_at = Column(DateTime(timezone=True), nullable=True)
     peripherals = Column(JSON, nullable=True)  # Attached device hardware
 
+    # Permissions
+    device_permissions = Column(JSON, nullable=True)  # Device permission grants
+
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration
 
