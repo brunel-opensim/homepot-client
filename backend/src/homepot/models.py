@@ -244,6 +244,7 @@ class Site(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     is_monitored = Column(Boolean, default=False)
+    bootstrap_key_hash = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 

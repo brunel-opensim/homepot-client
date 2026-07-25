@@ -14,6 +14,7 @@ from .Endpoints import (
     AnalyticsEndpoint,
     ClientEndpoint,
     DashboardEndpoint,
+    DeviceBootstrapProvisionEndpoint,
     DeviceCommandsEndpoint,
     DeviceCredentialEndpoint,
     DeviceProvisionEndpoint,
@@ -24,6 +25,7 @@ from .Endpoints import (
     JobsEndpoints,
     PushNotificationEndpoint,
     SiteSchedulesEndpoint,
+    SitesBootstrapKeyEndpoint,
     SitesEndpoint,
     TenantsEndpoint,
     UIEndpoint,
@@ -115,6 +117,12 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(
     DeviceProvisionEndpoint.router, prefix="/devices", tags=["Devices"]
+)
+api_v1_router.include_router(
+    DeviceBootstrapProvisionEndpoint.router, prefix="/devices", tags=["Devices"]
+)
+api_v1_router.include_router(
+    SitesBootstrapKeyEndpoint.router, tags=["Sites"]
 )
 api_v1_router.include_router(
     EnrolmentIntentsEndpoint.router, tags=["Enrolment Intents"]

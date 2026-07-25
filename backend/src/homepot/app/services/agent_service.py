@@ -14,6 +14,7 @@ from homepot.app.schemas.agent import (
     AgentRegisterRequest,
     AgentTelemetryRequest,
 )
+from homepot.app.schemas.bootstrap import BootstrapProvisionRequest
 from homepot.app.schemas.provision import DeviceProvisionRequest
 from homepot.app.services.lifecycle_service import LifecycleService
 from homepot.models import (
@@ -297,6 +298,98 @@ class AgentService:
             raise ValueError(f"Invalid provision request: {str(e)}")
         except Exception:
             raise Exception("Failed to provision device")
+
+    def bootstrap_provision_device(
+        self, payload: BootstrapProvisionRequest
+    ) -> dict:
+        """Provision a new device authenticated by site bootstrap key.
+
+        Similar to ``provision_device`` but uses a bootstrap key for
+        authentication instead of an SSO user identity.  The device
+        is created directly in ACTIVE state with credentials.
+        """
+        try:
+            site = self.repository.get_site_by_site_id(payload.site_id)
+            if not site or not site.id:
+                raise LookupError(f"Site '{payload.site_id}' not found")
+
+            device_id = f"{payload.device_type}-{secrets.token_hex(4)}"
+            api_key = secrets.token_urlsafe(32)
+
+            created = self.repository.create_device(
+                device_id=device_id,
+                name=payload.device_name or device_id,
+                device_type=payload.device_type,
+                site_pk=int(site.id),
+                mac_address=None,
+                os_details=payload.os_details,
+                local_ip=None,
+                wan_ip=None,
+                lifecycle_state=LifecycleState.PENDING.value,
+                enrollment_method=EnrollmentMethod.SELF_ENROLLED.value,
+            )
+
+            created_obj = cast(Any, created)
+            created_obj.api_key_hash = hash_password(api_key)
+
+            existing_config: Dict[str, Any] = dict(
+                cast(Dict[str, Any], created_obj.config or {})
+            )
+            existing_config.update(
+                {
+                    "provisioning_method": "bootstrap_key",
+                    "os": payload.os_details,
+                }
+            )
+            created_obj.config = existing_config
+            created_obj.last_heartbeat_at = None
+
+            self.repository.save_device(created)
+
+            epoch_id = str(uuid.uuid4())
+            epoch = LifecycleEpoch(
+                epoch_id=epoch_id,
+                device_id=created.id,
+                site_id=site.id,
+                tenant_id=site.tenant_id,
+                claimed_at=_utc_now(),
+                enrolment_method=EnrollmentMethod.SELF_ENROLLED.value,
+            )
+            self.db.add(epoch)
+            self.db.flush()
+
+            created.lifecycle_epoch_id = epoch.id
+
+            credential_id = str(uuid.uuid4())
+            credential = DeviceCredential(
+                credential_id=credential_id,
+                device_id=created.id,
+                key_hash=hash_password(api_key),
+                is_active=True,
+            )
+            self.db.add(credential)
+
+            self.lifecycle.transition(
+                created,
+                LifecycleState.ACTIVE,
+                changed_by="device:bootstrap",
+                reason="Self-enrolment via bootstrap key",
+            )
+
+            return {
+                "device_id": created.device_id,
+                "api_key": api_key,
+                "site_id": site.site_id,
+                "created_at": created.created_at,
+                "epoch_id": epoch_id,
+            }
+
+        except LookupError:
+            raise
+        except ValueError as e:
+            raise ValueError(f"Invalid bootstrap provision request: {str(e)}")
+        except Exception:
+            raise Exception("Failed to bootstrap provision device")
 
     def get_device_status(self, device_id: str) -> dict:
         """Return lifecycle, connectivity, and health state for a device."""

@@ -28,7 +28,7 @@ VITE_ELECTRON=true npm run dev   # launch Electron with HMR
 |---|---|---|
 | `/` | redirect | → `/home` if provisioned, → `/setup` if not |
 | `/setup` | Step 1 | Device details (Site ID, hostname, type, OS) |
-| `/signin` | Step 2 | SSO login — dev bypass available in dev mode |
+| `/signin` | Step 2 | Bootstrap key entry — site-level enrolment token |
 | `/setup/review` | Step 3 | Review details and complete setup |
 | `/home` | Dashboard | Status, gauges, heartbeat (post-provisioning) |
 | `/claim` | Claim device | Enter intent ID + claim token |
@@ -74,7 +74,7 @@ All Electron-specific code is hidden behind `window.electronAPI` detection,
 so the same codebase works in both modes.
 
 In dev mode, each flow provides a bypass:
-- **/signin**: "⚡ Dev: Skip Login" instantly provisions mock credentials
+- **/signin**: "⚡ Dev: Skip Bootstrap Key" fills in a key and advances
 - **/setup/review**: "⚡ Dev: Complete Setup" generates a fake API key and
   device ID without calling the backend
 
@@ -97,7 +97,7 @@ Output goes to `release/`:
 | PR | Focus |
 |---|---|
 | **U1** ✅ | Standalone Electron desktop shell with routing, sign-in, and native storage |
-| U2 | Device-credential auth for self-enrolment |
+| **U2** ✅ | Device-credential auth — bootstrap key replaces SSO cookie login |
 | U3 | Device permissions DB model + API |
 | U4 | Wire Permissions UI to backend |
 | U5 | Agent-side permission enforcement |
