@@ -1,48 +1,180 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import TabBar from '../components/TabBar'
+import { apiBaseUrl } from '../config/api'
+import { credentialStorage } from '../services/credentialStorage'
 
-interface Permission {
-  id: string
+interface PermissionEntry {
+  key: string
   label: string
   description: string
   enabled: boolean
+  supported: boolean
 }
 
-const INITIAL_PERMISSIONS: Permission[] = [
-  { id: 'root', label: 'Root / Full Access', description: 'Allows full system scan', enabled: true },
-  { id: 'process', label: 'Process Monitoring', description: 'View running processes', enabled: true },
-  { id: 'filesystem', label: 'File System Access', description: 'Scan files & folders', enabled: false },
-  { id: 'network', label: 'Network Monitoring', description: 'Track network connections', enabled: true },
+const PERMISSION_DEFS: { key: string; label: string; description: string }[] = [
+  { key: 'root_access', label: 'Root / Full Access', description: 'Allows full system scan' },
+  { key: 'process_monitoring', label: 'Process Monitoring', description: 'View running processes' },
+  { key: 'filesystem_access', label: 'File System Access', description: 'Scan files & folders' },
+  { key: 'network_monitoring', label: 'Network Monitoring', description: 'Track network connections' },
 ]
 
-function Toggle({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+function Toggle({ enabled, disabled, saving, onChange }: { enabled: boolean; disabled: boolean; saving: boolean; onChange: () => void }) {
   return (
     <button
       onClick={onChange}
+      disabled={disabled || saving}
       className={`relative w-12 h-6 rounded-full p-1 transition-colors duration-200 flex-shrink-0 focus:outline-none ${
-        enabled ? 'bg-emerald-500' : 'bg-slate-600'
-      }`}
+        saving ? 'bg-slate-600 cursor-wait' : enabled ? 'bg-emerald-500' : 'bg-slate-600'
+      } ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     >
-      <span className={`block w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${
-        enabled ? 'translate-x-6' : 'translate-x-0'
-      }`} />
+      {saving ? (
+        <span className="block w-4 h-4 mx-auto border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+      ) : (
+        <span className={`block w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${
+          enabled ? 'translate-x-6' : 'translate-x-0'
+        }`} />
+      )}
     </button>
   )
 }
 
 export default function Permissions() {
-  const [permissions, setPermissions] = useState<Permission[]>(INITIAL_PERMISSIONS)
-  const [showWarning, setShowWarning] = useState(false)
+  const [permissions, setPermissions] = useState<PermissionEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set())
 
-  function handleToggle(id: string) {
-    const updatedPermissions = permissions.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p)
-    setPermissions(updatedPermissions)
+  const deviceIdRef = useRef<string | null>(null)
+  const apiKeyRef = useRef<string | null>(null)
+  const debounceRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const latestPermissionsRef = useRef<PermissionEntry[]>([])
 
-    // TODO: Sync to backend immediately to notify Admin Dashboard
-    console.log(`Syncing permission ${id} to backend...`)
+  useEffect(() => {
+    Promise.all([
+      credentialStorage.getDeviceId(),
+      credentialStorage.getApiKey(),
+    ]).then(([did, key]) => {
+      if (did) deviceIdRef.current = did
+      if (key) apiKeyRef.current = key
+    })
+  }, [])
 
-    setShowWarning(true)
-    setTimeout(() => setShowWarning(false), 3000)
+  const fetchPermissions = useCallback(async () => {
+    const dId = deviceIdRef.current
+    const aKey = apiKeyRef.current
+    if (!dId || !aKey) return
+
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${apiBaseUrl}/devices/device/${dId}/permissions`, {
+        headers: { 'X-Device-ID': dId, 'X-API-Key': aKey },
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.detail || 'Failed to fetch permissions')
+      }
+      const body = await res.json()
+      const data = body.data
+      const perms: Record<string, boolean> = data.permissions || {}
+      const caps: Record<string, boolean> = data.capabilities || {}
+
+      const entries: PermissionEntry[] = PERMISSION_DEFS.map(def => ({
+        ...def,
+        enabled: perms[def.key] ?? false,
+        supported: caps[def.key] ?? false,
+      }))
+      setPermissions(entries)
+      latestPermissionsRef.current = entries
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load permissions')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (deviceIdRef.current && apiKeyRef.current) {
+      fetchPermissions()
+    } else {
+      const interval = setInterval(() => {
+        if (deviceIdRef.current && apiKeyRef.current) {
+          clearInterval(interval)
+          fetchPermissions()
+        }
+      }, 100)
+      return () => clearInterval(interval)
+    }
+  }, [fetchPermissions])
+
+  const syncPermission = useCallback(async (key: string, enabled: boolean) => {
+    const dId = deviceIdRef.current
+    const aKey = apiKeyRef.current
+    if (!dId || !aKey) return
+
+    setSavingKeys(prev => new Set(prev).add(key))
+    try {
+      const res = await fetch(`${apiBaseUrl}/devices/device/${dId}/permissions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-Device-ID': dId, 'X-API-Key': aKey },
+        body: JSON.stringify({ permissions: { [key]: enabled } }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.detail || 'Failed to sync permission')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Sync failed'
+      setError(msg)
+      const reverted = latestPermissionsRef.current.map(p =>
+        p.key === key ? { ...p, enabled: !enabled } : p,
+      )
+      setPermissions(reverted)
+      latestPermissionsRef.current = reverted
+    } finally {
+      setSavingKeys(prev => {
+        const next = new Set(prev)
+        next.delete(key)
+        return next
+      })
+    }
+  }, [])
+
+  function handleToggle(key: string) {
+    setPermissions(prev => {
+      const next = prev.map(p => (p.key === key ? { ...p, enabled: !p.enabled } : p))
+      latestPermissionsRef.current = next
+      return next
+    })
+
+    const existing = debounceRef.current.get(key)
+    if (existing) clearTimeout(existing)
+
+    const timeout = setTimeout(() => {
+      const entry = latestPermissionsRef.current.find(p => p.key === key)
+      if (entry) syncPermission(key, entry.enabled)
+      debounceRef.current.delete(key)
+    }, 300)
+
+    debounceRef.current.set(key, timeout)
+  }
+
+  useEffect(() => {
+    return () => {
+      debounceRef.current.forEach(t => clearTimeout(t))
+      debounceRef.current.clear()
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-8 flex flex-col items-center gap-4">
+          <span className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-400 text-sm">Loading permissions…</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -67,16 +199,35 @@ export default function Permissions() {
           </p>
         </div>
 
+        {/* Error banner */}
+        {error && (
+          <div className="px-5 pt-3">
+            <div className="bg-red-950 border border-red-800 rounded-lg px-4 py-2.5 flex items-center gap-2">
+              <span className="text-red-400 text-sm shrink-0">⚠</span>
+              <p className="text-xs text-red-300">{error}</p>
+            </div>
+          </div>
+        )}
+
         {/* Permission Toggles */}
         <div className="px-5 pt-4 flex flex-col gap-0">
           {permissions.map((perm, index) => (
-            <div key={perm.id}>
+            <div key={perm.key}>
               <div className="flex items-center justify-between py-3.5">
                 <div className="flex flex-col gap-0.5 flex-1 mr-4">
-                  <span className="text-slate-200 text-sm font-medium">{perm.label}</span>
-                  <span className="text-slate-500 text-xs">{perm.description}</span>
+                  <span className={`text-sm font-medium ${perm.supported ? 'text-slate-200' : 'text-slate-500'}`}>
+                    {perm.label}
+                  </span>
+                  <span className="text-slate-500 text-xs">
+                    {perm.supported ? perm.description : 'Not supported on this OS'}
+                  </span>
                 </div>
-                <Toggle enabled={perm.enabled} onChange={() => handleToggle(perm.id)} />
+                <Toggle
+                  enabled={perm.enabled}
+                  disabled={!perm.supported}
+                  saving={savingKeys.has(perm.key)}
+                  onChange={() => handleToggle(perm.key)}
+                />
               </div>
               {index < permissions.length - 1 && (
                 <div className="border-t border-slate-700" />
@@ -85,18 +236,20 @@ export default function Permissions() {
           ))}
         </div>
 
-        {/* Warning */}
+        {/* Sync status */}
         <div className="px-5 pt-3 pb-5">
           <div className={`w-full rounded-lg px-4 py-2.5 flex items-center gap-2 transition-all duration-300 ${
-            showWarning
-              ? 'bg-amber-950 border border-amber-800 opacity-100'
-              : 'bg-slate-700 border border-slate-600 opacity-60'
+            savingKeys.size > 0
+              ? 'bg-amber-950 border border-amber-800'
+              : 'bg-slate-700 border border-slate-600'
           }`}>
-            <span className="text-amber-400 text-sm">⚠</span>
+            <span className={`text-sm ${savingKeys.size > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
+              {savingKeys.size > 0 ? '⏳' : '✓'}
+            </span>
             <p className="text-xs text-slate-300">
-              {showWarning
-                ? 'Syncing changes to Admin Dashboard...'
-                : 'Changes apply immediately to the Admin Dashboard.'}
+              {savingKeys.size > 0
+                ? `Syncing ${savingKeys.size} change${savingKeys.size > 1 ? 's' : ''}…`
+                : 'All changes synced to the server.'}
             </p>
           </div>
         </div>
