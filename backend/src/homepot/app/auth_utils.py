@@ -55,6 +55,7 @@ COOKIE_NAME = "access_token"
 REFRESH_COOKIE_NAME = "refresh_token"
 API_KEY_HEADER_NAME = "X-API-Key"
 DEVICE_ID_HEADER_NAME = "X-Device-ID"
+BOOTSTRAP_KEY_HEADER_NAME = "X-Bootstrap-Key"
 
 # Google SSO Configuration
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -297,6 +298,15 @@ async def get_current_device(
         )
 
     return device
+
+
+def verify_bootstrap_key(
+    bootstrap_key: str, site: "Site", pwd_context: CryptContext = pwd_context
+) -> bool:
+    """Verify a plaintext bootstrap key against the site's stored hash."""
+    if not site.bootstrap_key_hash:
+        return False
+    return cast(bool, pwd_context.verify(bootstrap_key, site.bootstrap_key_hash))  # type: ignore[arg-type]
 
 
 def exchange_google_code(code: str) -> dict:

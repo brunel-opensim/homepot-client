@@ -13,6 +13,7 @@ interface SetupState {
   deviceName: string
   deviceType: string
   deviceOs: string
+  bootstrapKey: string
 }
 
 interface AppContextType {
@@ -35,6 +36,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deviceName: '',
     deviceType: 'pos_terminal',
     deviceOs: 'linux',
+    bootstrapKey: '',
   })
 
   return (

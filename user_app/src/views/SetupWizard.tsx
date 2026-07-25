@@ -9,7 +9,7 @@ function formatDeviceType(v: string) {
 }
 
 function StepIndicator({ current }: { current: number }) {
-  const STEPS = ['Device Setup', 'SSO Login', 'Complete']
+  const STEPS = ['Device Setup', 'Bootstrap Key', 'Complete']
   return (
     <div className="flex items-center justify-center gap-2 w-full">
       {STEPS.map((label, i) => (
@@ -46,7 +46,7 @@ function Step1() {
   const [deviceOs, setDeviceOs] = useState(setupState.deviceOs)
 
   const handleNext = () => {
-    setSetupState({ siteId, deviceName, deviceType, deviceOs })
+    setSetupState({ siteId, deviceName, deviceType, deviceOs, bootstrapKey: setupState.bootstrapKey })
     navigate('/signin')
   }
 
@@ -133,7 +133,7 @@ function Step1() {
 function ReviewStep({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate()
   const { setupState, setIsProvisioned } = useApp()
-  const { siteId, deviceName, deviceType, deviceOs } = setupState
+  const { siteId, deviceName, deviceType, deviceOs, bootstrapKey } = setupState
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const isDev = import.meta.env.DEV
@@ -158,15 +158,23 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
         return
       }
 
-      const reqBody = { site_id: siteId, device_name: deviceName || 'My Device', device_type: deviceType, os_details: deviceOs }
-      const response = await fetch(`${apiBaseUrl}/devices/provision`, {
+      const reqBody = {
+        site_id: siteId,
+        bootstrap_key: bootstrapKey,
+        device_name: deviceName || 'My Device',
+        device_type: deviceType,
+        os_details: deviceOs,
+      }
+      const response = await fetch(`${apiBaseUrl}/devices/bootstrap-provision`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(reqBody),
       })
 
-      if (!response.ok) throw new Error('Provisioning failed. Check the site ID and backend connection.')
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err.detail || 'Provisioning failed. Check the bootstrap key and backend connection.')
+      }
 
       const data = await response.json()
       const d = data.data
