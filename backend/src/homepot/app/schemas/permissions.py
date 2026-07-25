@@ -6,9 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class DevicePermissions(BaseModel):
     """Device permission grants schema."""
 
-    root_access: bool = Field(
-        default=False, description="Can execute commands as root"
-    )
+    root_access: bool = Field(default=False, description="Can execute commands as root")
     process_monitoring: bool = Field(
         default=False, description="Can monitor running processes"
     )

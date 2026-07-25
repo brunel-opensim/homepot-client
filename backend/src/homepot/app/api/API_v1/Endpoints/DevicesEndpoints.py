@@ -441,7 +441,8 @@ async def get_device(
                     if any(c.is_active for c in (device.credentials or []))
                     else "inactive"
                 ),
-                "device_permissions": device.device_permissions or {
+                "device_permissions": device.device_permissions
+                or {
                     "root_access": False,
                     "process_monitoring": False,
                     "filesystem_access": False,
