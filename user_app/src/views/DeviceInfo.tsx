@@ -77,13 +77,13 @@ export default function DeviceInfo() {
         hostname = dna.hostname
         mac = backend?.mac_address || dna.mac
         ip = backend?.local_ip || dna.ip
-        os = backend ? formatOs(backend.os_details) : formatOs(dna.platform)
+        os = backend?.os_details ? formatOs(backend.os_details) : formatOs(dna.platform)
         version = `v${await window.electronAPI.app.getVersion()}`
       } else {
         hostname = backend?.name || deviceName || 'My-Device'
         mac = backend?.mac_address || '—'
         ip = backend?.local_ip || '—'
-        os = backend ? formatOs(backend.os_details) : (deviceOs ? formatOs(deviceOs) : 'Web')
+        os = backend?.os_details ? formatOs(backend.os_details) : (deviceOs ? formatOs(deviceOs) : 'Web')
       }
 
       if (backend?.lifecycle_state) {
@@ -93,7 +93,7 @@ export default function DeviceInfo() {
       const rows: DnaRow[] = [
         { label: 'Hostname', value: hostname },
         { label: 'Site ID', value: backend?.site_id || siteId || '—' },
-        { label: 'Device Type', value: backend ? formatDeviceType(backend.device_type) : (deviceType ? formatDeviceType(deviceType) : 'POS Terminal') },
+        { label: 'Device Type', value: backend?.device_type ? formatDeviceType(backend.device_type) : (deviceType ? formatDeviceType(deviceType) : 'POS Terminal') },
         { label: 'MAC Addr', value: mac },
         { label: 'Local IP', value: ip },
         { label: 'OS', value: os },
