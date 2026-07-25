@@ -18,6 +18,19 @@ interface DnaRow {
   value: string
 }
 
+interface DeviceRecord {
+  name: string
+  site_id: string
+  device_type: string
+  mac_address: string
+  local_ip: string
+  wan_ip: string
+  os_details: string
+  firmware_version: string
+  lifecycle_state: string
+  connectivity_state: string
+}
+
 export default function DeviceInfo() {
   const navigate = useNavigate()
   const { setIsProvisioned } = useApp()
@@ -29,37 +42,68 @@ export default function DeviceInfo() {
 
   useEffect(() => {
     async function loadDna() {
-      const [deviceName, siteId, deviceType, deviceOs] = await Promise.all([
+      const [deviceId, apiKey, deviceName, siteId, deviceType, deviceOs] = await Promise.all([
+        credentialStorage.getDeviceId(),
+        credentialStorage.getApiKey(),
         credentialStorage.getMetadata('device_name'),
         credentialStorage.getMetadata('site_id'),
         credentialStorage.getMetadata('device_type'),
         credentialStorage.getMetadata('device_os'),
       ])
 
-      let hostname = deviceName || 'My-Device'
-      let mac = '—'
-      let ip = '—'
-      let os = deviceOs ? formatOs(deviceOs) : 'Web'
+      let backend: DeviceRecord | null = null
+      if (deviceId && apiKey) {
+        try {
+          const res = await fetch(`${apiBaseUrl}/devices/device/${deviceId}`, {
+            headers: { 'X-Device-ID': deviceId, 'X-API-Key': apiKey },
+          })
+          if (res.ok) {
+            backend = await res.json()
+          }
+        } catch {
+          // backend unreachable — fall through to local fallbacks
+        }
+      }
+
+      let hostname: string
+      let mac: string
+      let ip: string
+      let os: string
       let version = 'v0.1.0'
+      let lifecycle: string | null = null
 
       if (window.electronAPI) {
         const dna = await window.electronAPI.device.dna()
         hostname = dna.hostname
-        mac = dna.mac
-        ip = dna.ip
-        os = formatOs(dna.platform)
+        mac = backend?.mac_address || dna.mac
+        ip = backend?.local_ip || dna.ip
+        os = backend ? formatOs(backend.os_details) : formatOs(dna.platform)
         version = `v${await window.electronAPI.app.getVersion()}`
+      } else {
+        hostname = backend?.name || deviceName || 'My-Device'
+        mac = backend?.mac_address || '—'
+        ip = backend?.local_ip || '—'
+        os = backend ? formatOs(backend.os_details) : (deviceOs ? formatOs(deviceOs) : 'Web')
       }
 
-      setDnaRows([
+      if (backend?.lifecycle_state) {
+        lifecycle = backend.lifecycle_state.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      }
+
+      const rows: DnaRow[] = [
         { label: 'Hostname', value: hostname },
-        { label: 'Site ID', value: siteId || '—' },
-        { label: 'Device Type', value: deviceType ? formatDeviceType(deviceType) : 'POS Terminal' },
+        { label: 'Site ID', value: backend?.site_id || siteId || '—' },
+        { label: 'Device Type', value: backend ? formatDeviceType(backend.device_type) : (deviceType ? formatDeviceType(deviceType) : 'POS Terminal') },
         { label: 'MAC Addr', value: mac },
         { label: 'Local IP', value: ip },
         { label: 'OS', value: os },
-        { label: 'Agent Ver', value: version },
-      ])
+      ]
+      if (lifecycle) {
+        rows.push({ label: 'Lifecycle', value: lifecycle })
+      }
+      rows.push({ label: 'Agent Ver', value: version })
+
+      setDnaRows(rows)
     }
     loadDna()
   }, [])
