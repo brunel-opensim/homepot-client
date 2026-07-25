@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import TabBar from '../components/TabBar'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
@@ -18,7 +19,8 @@ interface DnaRow {
 }
 
 export default function DeviceInfo() {
-  const { setCurrentView, setIsProvisioned } = useApp()
+  const navigate = useNavigate()
+  const { setIsProvisioned } = useApp()
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'uptodate'>('idle')
   const [showConfirm, setShowConfirm] = useState(false)
   const [unpairStatus, setUnpairStatus] = useState<'idle' | 'unpairing' | 'confirmed' | 'pending-revocation' | 'error'>('idle')
@@ -26,22 +28,40 @@ export default function DeviceInfo() {
   const [dnaRows, setDnaRows] = useState<DnaRow[]>([])
 
   useEffect(() => {
-    Promise.all([
-      credentialStorage.getMetadata('device_name'),
-      credentialStorage.getMetadata('site_id'),
-      credentialStorage.getMetadata('device_type'),
-      credentialStorage.getMetadata('device_os'),
-    ]).then(([deviceName, siteId, deviceType, deviceOs]) => {
-      setDnaRows([
-        { label: 'Hostname', value: deviceName || 'My-Device' },
-        { label: 'Site ID', value: siteId || 'site-1234' },
-        { label: 'Device Type', value: deviceType ? formatDeviceType(deviceType) : 'POS Terminal' },
-        { label: 'MAC Addr', value: 'A1:B2:C3:D4:E5:F6' },
-        { label: 'Local IP', value: '192.168.1.101' },
-        { label: 'OS', value: deviceOs ? formatOs(deviceOs) : 'Web' },
-        { label: 'Agent Ver', value: 'v0.1.0' },
+    async function loadDna() {
+      const [deviceName, siteId, deviceType, deviceOs] = await Promise.all([
+        credentialStorage.getMetadata('device_name'),
+        credentialStorage.getMetadata('site_id'),
+        credentialStorage.getMetadata('device_type'),
+        credentialStorage.getMetadata('device_os'),
       ])
-    })
+
+      let hostname = deviceName || 'My-Device'
+      let mac = '—'
+      let ip = '—'
+      let os = deviceOs ? formatOs(deviceOs) : 'Web'
+      let version = 'v0.1.0'
+
+      if (window.electronAPI) {
+        const dna = await window.electronAPI.device.dna()
+        hostname = dna.hostname
+        mac = dna.mac
+        ip = dna.ip
+        os = formatOs(dna.platform)
+        version = `v${await window.electronAPI.app.getVersion()}`
+      }
+
+      setDnaRows([
+        { label: 'Hostname', value: hostname },
+        { label: 'Site ID', value: siteId || '—' },
+        { label: 'Device Type', value: deviceType ? formatDeviceType(deviceType) : 'POS Terminal' },
+        { label: 'MAC Addr', value: mac },
+        { label: 'Local IP', value: ip },
+        { label: 'OS', value: os },
+        { label: 'Agent Ver', value: version },
+      ])
+    }
+    loadDna()
   }, [])
 
   function handleCheckUpdate() {
@@ -60,7 +80,7 @@ export default function DeviceInfo() {
     if (!deviceId || deviceId.startsWith('mock-token-')) {
       await credentialStorage.clear()
       setIsProvisioned(false)
-      setCurrentView('setup')
+      navigate('/setup')
       return
     }
 
@@ -84,7 +104,7 @@ export default function DeviceInfo() {
         setUnpairStatus('confirmed')
         await credentialStorage.clear()
         setIsProvisioned(false)
-        setCurrentView('setup')
+        navigate('/setup')
       } else {
         const body = await res.json().catch(() => ({}))
         setUnpairError(body.detail || `Server rejected unpair (${res.status})`)
@@ -99,7 +119,7 @@ export default function DeviceInfo() {
   }
 
   function handleDismissPendingRevocation() {
-    setCurrentView('setup')
+    navigate('/setup')
   }
 
   return (

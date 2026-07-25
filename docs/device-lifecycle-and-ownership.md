@@ -571,3 +571,15 @@ The backend APIs and lifecycle rules should remain platform-neutral.
 | W6  | **Agent-side WNS push wake-up** | The backend WNS provider is done; add the agent-side push channel registration and wake-up handler so the agent does not have to poll constantly on Windows. |
 | W7  | **Windows service recovery & upgrades** | Log rotation (Windows EventLog or rolling file), graceful shutdown via `SERVICE_CONTROL_PRESHUTDOWN`, atomic in-place upgrade strategy for MSI. |
 | W8  | **Windows resilience tests** | CI tests on `windows-latest` covering: restricted users, reboot resilience, firewall blocks, proxy misconfiguration, sleep/resume, credential revocation, duplicate enrolment. |
+
+## User App PRs
+
+| PR  | Focus | Description |
+| --- | ----- | ----------- |
+| U1  | **User App standalone packaging (Electron/Tauri)** | Package the React app as a native desktop shell for filesystem and OS API access. Enable native `LinuxFileStorage` (currently falls back to browser `sessionStorage`). Add OS-level device identity, system tray, window management, and auto-update foundation. |
+| U2  | **Device-credential auth for self-enrolment** | Replace SSO cookie-based login (`POST /login`, `credentials: 'include'`) with device-credential auth. Generate a temporary device identity before enrolment. Use the claim-token or bootstrap token pattern instead of session cookies. |
+| U3  | **Device permissions backend (DB model + API)** | Add `device_permissions` JSON field to the device model (or a separate table). `PATCH /devices/{id}/permissions` endpoint — device writes its own permissions, operators can read. Include in `GET /devices/device/{id}` response. Schema: `{ root_access, process_monitoring, filesystem_access, network_monitoring }`. |
+| U4  | **Wire Permissions UI to backend** | Fetch current permissions on mount. `PATCH` on toggle change with debounce. Add loading and error states to the Permissions page toggles. |
+| U5  | **Agent-side permission enforcement** | Python agent reads `device_permissions` before executing privileged commands. Returns 403 if permission not granted. OS-level elevation mechanism (e.g., polkit rule or sudoers entry so the agent can escalate when permitted). |
+| U6  | **Real device DNA** | Replace hardcoded MAC, IP, hostname placeholders in `DeviceInfo` view. Fetch real MAC, local IP, hostname from the agent or backend API. Ensure `GET /devices/device/{id}` exposes these fields. |
+| U7  | **Error boundaries and tests** | React error boundary wrapping each view. Unit tests for `credentialStorage`, each view, and API service layer. Integration test for a full enrolment → claim → status → unpair cycle. |
