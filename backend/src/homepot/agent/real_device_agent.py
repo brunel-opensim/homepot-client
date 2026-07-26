@@ -87,6 +87,11 @@ def load_agent_config() -> Dict[str, Any]:
         if os_details:
             data["os_details"] = os_details
 
+    # CLI --backend-url or HOMEPOT_BACKEND_URL env var trump everything
+    env_backend_url = os.environ.get("HOMEPOT_BACKEND_URL")
+    if env_backend_url:
+        data["backend_url"] = idna_encode_url(env_backend_url)
+
     data.setdefault("heartbeat_interval_seconds", 30)
     data.setdefault("telemetry_interval_seconds", 30)
     data.setdefault("retry_flush_interval_seconds", 60)
