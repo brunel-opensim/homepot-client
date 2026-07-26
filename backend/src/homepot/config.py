@@ -138,23 +138,17 @@ class LoggingSettings(BaseSettings):
 
 
 class CorsSettings(BaseSettings):
-    """Existing fields."""
+    """CORS configuration — read from CORS_ORIGINS env var or use defaults."""
 
-    # CORS Configuration
     cors_origins: Union[List[str], str] = Field(
         default=[
-            "http://localhost:3000",
-            "http://localhost:8080",
-            "http://127.0.0.1:3001",
-            "http://127.0.0.1:3000",
-            "http://192.168.0.112:3000",
-            "http://192.168.0.112:3001",
-            "http://192.168.0.112:8080",
-            "http://localhost:5173/",
             "http://localhost:5173",
-            "http://192.168.0.253:5173",
+            "http://localhost:5174",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
         ],
-        description="Allowed CORS origins",
+        description="Allowed CORS origins (comma-separated string or JSON list)",
     )
 
     @field_validator("cors_origins", mode="before")

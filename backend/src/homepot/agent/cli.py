@@ -79,6 +79,11 @@ def run(
         dir_okay=False,
         readable=True,
     ),
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        help="Backend API URL override (e.g. https://api.homepot.example.com)",
+    ),
 ) -> None:
     """Run the agent runtime (registration, heartbeat, telemetry).
 
@@ -86,6 +91,8 @@ def run(
     """
     if config:
         os.environ["HOMEPOT_AGENT_CONFIG"] = str(config.resolve())
+    if backend_url:
+        os.environ["HOMEPOT_BACKEND_URL"] = backend_url
     ensure_identity()
     asyncio.run(run_agent())
 

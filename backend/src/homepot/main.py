@@ -29,6 +29,7 @@ from homepot.agents import get_agent_manager, stop_agent_manager
 from homepot.app.api.API_v1.Api import api_v1_router
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
+from homepot.config import get_settings
 from homepot.database import close_database_service, get_database_service
 from homepot.models import JobPriority
 from homepot.orchestrator import get_job_orchestrator, stop_job_orchestrator
@@ -313,16 +314,11 @@ async def count_requests(
     return response
 
 
-# Add CORS middleware
+# Add CORS middleware — origins from CORS_ORIGINS env var, fall back to localhost defaults
+_cors_origins = get_settings().cors.cors_origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
