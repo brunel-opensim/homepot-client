@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session as SASession
 
 from homepot.app.auth_utils import (
     UserDict,
+    get_accessible_site_ids,
     require_user,
     verify_site_access_for_user,
 )
@@ -159,15 +160,7 @@ async def list_sites(
 
             # Non-admin users only see sites they can access
             if not db_user.is_admin:
-                all_sites = (await session.execute(select(Site))).scalars().all()
-                accessible_site_ids = []
-                for s in all_sites:
-                    try:
-                        site_id = cast(str, s.site_id)
-                        verify_site_access_for_user(db_user, site_id, db)
-                        accessible_site_ids.append(s.id)
-                    except HTTPException:
-                        pass
+                accessible_site_ids = get_accessible_site_ids(db_user, db)
                 if accessible_site_ids:
                     query = query.where(Site.id.in_(accessible_site_ids))
                 else:
@@ -176,15 +169,21 @@ async def list_sites(
             result = await session.execute(query.order_by(Site.created_at.desc()))
             sites = result.scalars().all()
 
-            site_list = []
-            for site in sites:
-                # Fetch devices for this site to determine status and OS types
+            # Batch fetch all devices for the retrieved sites to eliminate N+1 queries
+            site_ids = [site.id for site in sites]
+            devices_by_site: Dict[Any, Any] = {}
+            if site_ids:
                 devices_result = await session.execute(
                     select(Device).where(
-                        Device.site_id == site.id, Device.is_active.is_(True)
+                        Device.site_id.in_(site_ids), Device.is_active.is_(True)
                     )
                 )
-                devices = devices_result.scalars().all()
+                for device in devices_result.scalars().all():
+                    devices_by_site.setdefault(device.site_id, []).append(device)
+
+            site_list = []
+            for site in sites:
+                devices = devices_by_site.get(site.id, [])
 
                 # Determine status
                 status = "Offline"

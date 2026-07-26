@@ -146,23 +146,70 @@ async def get_system_anomalies() -> Dict[str, Any]:
 
             # Filter for monitored devices to run active detection
             monitored_devices = [d for d in all_devices if d.is_monitored]
+            devices_to_check = [
+                d for d in monitored_devices if d.device_id not in alerted_devices
+            ]
+            device_ids_to_check = [d.id for d in devices_to_check]
 
-            for device in monitored_devices:
-                # If device already has an active alert, skip live detection
-                # to prefer the persistent one (with ID)
-                if device.device_id in alerted_devices:
-                    continue
+            # Batch query DeviceMetrics and HealthCheck to eliminate N+1 queries
+            latest_metrics_by_device: Dict[Any, Any] = {}
+            health_checks_by_device: Dict[Any, Any] = {}
 
+            if device_ids_to_check:
+                from sqlalchemy.orm import aliased
+
+                # 1. Batch fetch latest metrics
+                metrics_subq = (
+                    select(
+                        DeviceMetrics,
+                        func.row_number()
+                        .over(
+                            partition_by=DeviceMetrics.device_id,
+                            order_by=DeviceMetrics.timestamp.desc(),
+                        )
+                        .label("rn"),
+                    )
+                    .where(DeviceMetrics.device_id.in_(device_ids_to_check))
+                    .subquery()
+                )
+                metrics_alias = aliased(DeviceMetrics, metrics_subq)
+                metrics_result = await session.execute(
+                    select(metrics_alias).where(metrics_subq.c.rn == 1)
+                )
+                for metric in metrics_result.scalars().all():
+                    latest_metrics_by_device[metric.device_id] = metric
+
+                # 2. Batch fetch last 5 health checks
+                health_subq = (
+                    select(
+                        HealthCheck,
+                        func.row_number()
+                        .over(
+                            partition_by=HealthCheck.device_id,
+                            order_by=HealthCheck.timestamp.desc(),
+                        )
+                        .label("rn"),
+                    )
+                    .where(HealthCheck.device_id.in_(device_ids_to_check))
+                    .subquery()
+                )
+                health_alias = aliased(HealthCheck, health_subq)
+                health_result = await session.execute(
+                    select(health_alias).where(health_subq.c.rn <= 5)
+                )
+                for hc in health_result.scalars().all():
+                    health_checks_by_device.setdefault(hc.device_id, []).append(hc)
+
+                # Ensure order is sorted by timestamp descending
+                for dev_id, checks in health_checks_by_device.items():
+                    checks.sort(key=lambda x: x.timestamp, reverse=True)
+
+            devices_status_updated = False
+            for device in devices_to_check:
                 device_metrics: Dict[str, Any] = {}
 
-                # 3. Get latest metrics
-                metrics_result = await session.execute(
-                    select(DeviceMetrics)
-                    .where(DeviceMetrics.device_id == device.id)
-                    .order_by(DeviceMetrics.timestamp.desc())
-                    .limit(1)
-                )
-                latest_metric = metrics_result.scalars().first()
+                # 3. Get latest metrics from pre-fetched dict
+                latest_metric = latest_metrics_by_device.get(device.id)
                 if latest_metric:
                     device_metrics.update(
                         {
@@ -175,29 +222,10 @@ async def get_system_anomalies() -> Dict[str, Any]:
                     )
 
                 # 4. Get Flapping Count (last 1 hour)
-                # Temporarily disabled for DEMO to prevent noise alerts from simulation
                 device_metrics["flapping_count"] = 0.0
 
-                # one_hour_ago = datetime.utcnow() - timedelta(hours=1)
-                # flapping_result = await session.execute(
-                #     select(func.count(DeviceStateHistory.id)).where(
-                #         and_(
-                #             DeviceStateHistory.device_id == device.id,
-                #             DeviceStateHistory.timestamp >= one_hour_ago,
-                #         )
-                #     )
-                # )
-                # device_metrics["flapping_count"] = float(flapping_result.scalar() or 0)
-
-                # 5. Get Consecutive Failures
-                # Simplified: Check last 5 health checks
-                health_result = await session.execute(
-                    select(HealthCheck)
-                    .where(HealthCheck.device_id == device.id)
-                    .order_by(HealthCheck.timestamp.desc())
-                    .limit(5)
-                )
-                checks = health_result.scalars().all()
+                # 5. Get Consecutive Failures from pre-fetched dict
+                checks = health_checks_by_device.get(device.id, [])
                 consecutive_failures = 0
                 for check in checks:
                     if not check.is_healthy:
@@ -221,8 +249,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
 
                     if status_changed:
                         session.add(device)
-                        await session.commit()
-                        await session.refresh(device)
+                        devices_status_updated = True
                 except Exception as e:
                     logger.error(f"Failed to sync device status: {e}")
 
@@ -241,6 +268,12 @@ async def get_system_anomalies() -> Dict[str, Any]:
                             "timestamp": datetime.utcnow().isoformat(),
                         }
                     )
+
+            if devices_status_updated:
+                try:
+                    await session.commit()
+                except Exception as e:
+                    logger.error(f"Failed to commit device status changes: {e}")
 
         # Sort by score descending
         anomalies.sort(key=lambda x: float(str(x["score"])), reverse=True)
