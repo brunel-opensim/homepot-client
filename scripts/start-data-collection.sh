@@ -20,11 +20,10 @@ fi
 # Check if .env exists
 if [ ! -f "$BACKEND_DIR/.env" ]; then
     echo "  .env file not found!"
-    echo "   Copying from .env.example..."
-    cp "$BACKEND_DIR/.env.example" "$BACKEND_DIR/.env"
-    echo "   Created .env file"
-    echo "   Please configure database credentials in .env"
+    echo "  Run the database init script to create it:"
+    echo "    ./scripts/init-postgresql.sh"
     echo ""
+    exit 1
 fi
 
 # Activate virtual environment
@@ -56,14 +55,18 @@ if [ $? -ne 0 ]; then
     echo "✗ Cannot connect to database!"
     echo "   1. Ensure PostgreSQL is running"
     echo "   2. Check credentials in .env file"
-    echo "   3. Run: python scripts/setup_database.py"
+    echo "   3. Run: ./scripts/init-postgresql.sh"
     exit 1
 fi
 
 # Check if port 8000 is in use
-if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo "Port 8000 is in use. Stopping existing process..."
-    kill -9 $(lsof -t -i:8000) 2>/dev/null || true
+PORT_PID=$(fuser 8000/tcp 2>/dev/null || lsof -ti :8000 2>/dev/null || true)
+if [ -n "$PORT_PID" ]; then
+    echo "Port 8000 is in use (PID $PORT_PID). Stopping existing process..."
+    kill "$PORT_PID" 2>/dev/null || true
+    sleep 2
+    # Force if still alive
+    kill -9 "$PORT_PID" 2>/dev/null || true
     sleep 1
     echo "✓ Port 8000 is now available"
 fi
@@ -116,7 +119,7 @@ echo "Starting uvicorn in background (logging to backend/homepot.log)..."
 > homepot.log
 
 # Start uvicorn in background
-uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload > homepot.log 2>&1 &
+uvicorn homepot.main:app --host 0.0.0.0 --port 8000 > homepot.log 2>&1 &
 BACKEND_PID=$!
 
 echo "Backend started with PID $BACKEND_PID"

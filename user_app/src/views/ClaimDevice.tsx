@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { apiBaseUrl } from '../config/api';
 import { credentialStorage } from '../services/credentialStorage';
 
 export default function ClaimDevice() {
-  const { setCurrentView, setDeviceInfo, setIsProvisioned } = useApp();
-  const [step, setStep] = useState(1);
+  const navigate = useNavigate();
+  const { setDeviceInfo, setIsProvisioned } = useApp();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
@@ -36,11 +37,11 @@ export default function ClaimDevice() {
     'Other',
   ];
 
-  const handleChange = (field, value) => {
+  const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -87,16 +88,16 @@ export default function ClaimDevice() {
         token: result.api_key,
       });
       setIsProvisioned(true);
-      setCurrentView('home');
-    } catch (err) {
-      setError(err.message);
+      navigate('/home');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Claim failed');
     } finally {
       setLoading(false);
     }
   };
 
   const handleBackToSetup = () => {
-    setCurrentView('setup');
+    navigate('/setup');
   };
 
   return (

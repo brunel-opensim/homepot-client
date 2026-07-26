@@ -178,6 +178,14 @@ const api = {
     },
 
     /**
+     * Site-scoped dashboard aggregate
+     */
+    getDashboard: async (siteId) => {
+      const response = await apiClient.get(`/sites/${siteId}/dashboard`);
+      return response.data;
+    },
+
+    /**
      * Create new site
      */
     create: async (siteData) => {
@@ -312,6 +320,24 @@ const api = {
     },
 
     /**
+     * Get credential status for device
+     */
+    getCredentials: async (deviceId) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/credentials`);
+      return response.data;
+    },
+
+    /**
+     * Get command history for device
+     */
+    getCommands: async (deviceId, limit = 50, offset = 0) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/commands`, {
+        params: { limit, offset },
+      });
+      return response.data;
+    },
+
+    /**
      * Restart device
      */
     restart: async (deviceId) => {
@@ -372,14 +398,14 @@ const api = {
     },
 
     getListAgents: async () => {
-      const response = await apiClient.get(`/agents/agents`);
+      const response = await apiClient.get(`/agents`);
       return response.data;
     },
     /**
      * Send push notification to agent
      */
     sendPush: async (deviceId, notificationData) => {
-      const response = await apiClient.post(`/agents/agents/${deviceId}/push`, notificationData);
+      const response = await apiClient.post(`/agents/${deviceId}/push`, notificationData);
       return response.data;
     },
 
@@ -387,7 +413,7 @@ const api = {
      * Start simulation
      */
     startSimulation: async () => {
-      const response = await apiClient.post('/agents/agents/simulation/start');
+      const response = await apiClient.post('/agents/simulation/start');
       return response.data;
     },
 
@@ -395,7 +421,7 @@ const api = {
      * Stop simulation
      */
     stopSimulation: async () => {
-      const response = await apiClient.post('/agents/agents/simulation/stop');
+      const response = await apiClient.post('/agents/simulation/stop');
       return response.data;
     },
 
@@ -403,7 +429,7 @@ const api = {
      * Get simulation status
      */
     getSimulationStatus: async () => {
-      const response = await apiClient.get('/agents/agents/simulation/status');
+      const response = await apiClient.get('/agents/simulation/status');
       return response.data;
     },
   },
@@ -645,6 +671,19 @@ const api = {
       const response = await apiClient.post(
         `/sites/${siteId}/enrolment-intents/${intentId}/regenerate-token`
       );
+      return response.data;
+    },
+  },
+
+  // ==================== Dashboard ====================
+
+  dashboard: {
+    /**
+     * Global dashboard aggregate summary
+     * Returns counts by lifecycle, connectivity, and health state
+     */
+    summary: async () => {
+      const response = await apiClient.get('/dashboard/summary');
       return response.data;
     },
   },

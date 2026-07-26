@@ -244,6 +244,7 @@ class Site(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     is_monitored = Column(Boolean, default=False)
+    bootstrap_key_hash = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
@@ -368,6 +369,14 @@ class Device(Base):
     last_seen = Column(DateTime(timezone=True), nullable=True)
     last_heartbeat_at = Column(DateTime(timezone=True), nullable=True)
     peripherals = Column(JSON, nullable=True)  # Attached device hardware
+
+    # Permissions
+    device_permissions = Column(JSON, nullable=True)  # Device permission grants
+
+    # OS capabilities — which permissions this device's OS can support
+    capabilities = Column(
+        JSON, nullable=True
+    )  # Derived from os_details at provision time
 
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration

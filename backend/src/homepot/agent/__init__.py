@@ -6,6 +6,8 @@ from homepot.agent.credential_storage import (
     KeyringCredentialStorage,
     LinuxFileStorage,
     SimulationStorage,
+    WindowsCredManager,
+    WindowsFileStorage,
     create_credential_storage,
 )
 from homepot.agent.identity import (
@@ -22,6 +24,8 @@ __all__ = [
     "KeyringCredentialStorage",
     "LinuxFileStorage",
     "SimulationStorage",
+    "WindowsCredManager",
+    "WindowsFileStorage",
     "create_credential_storage",
     "get_device_id",
     "get_or_create_device_id",

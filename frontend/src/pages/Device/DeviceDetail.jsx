@@ -115,6 +115,7 @@ export default function Device() {
   const [errorLogs, setErrorLogs] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [jobHistory, setJobHistory] = useState([]);
+  const [commandHistory, setCommandHistory] = useState([]);
   // pushLogs: raw data not currently used for display
   const [stats, setStats] = useState({
     cpu: { label: 'CPU', value: '0%', subtitle: 'avg 0%', data: [] },
@@ -150,19 +151,23 @@ export default function Device() {
 
           // Fetch related data in parallel
           try {
-            const [metricsData, auditData, jobsData, , errorData] = await Promise.all([
-              api.devices.getMetrics(id, 20),
-              api.devices.getAuditLogs(id, 10),
-              api.devices.getJobs(id, 10),
-              api.devices.getPushLogs(id, 10),
-              api.devices.getErrorLogs(id, 10),
-            ]);
+            const [metricsData, auditData, jobsData, , errorData, commandsData] = await Promise.all(
+              [
+                api.devices.getMetrics(id, 20),
+                api.devices.getAuditLogs(id, 10),
+                api.devices.getJobs(id, 10),
+                api.devices.getPushLogs(id, 10),
+                api.devices.getErrorLogs(id, 10),
+                api.devices.getCommands(id, 10),
+              ]
+            );
 
             // setMetrics(metricsData); // unused
             setAuditLogs(auditData);
             setJobHistory(jobsData);
             // setPushLogs(pushData); // unused
             setErrorLogs(errorData);
+            setCommandHistory(commandsData?.commands || commandsData || []);
 
             // Process Stats
             if (metricsData && metricsData.length > 0) {
@@ -887,6 +892,16 @@ export default function Device() {
                     <History className="w-4 h-4" /> Job History
                   </button>
                   <button
+                    onClick={() => setActiveTab('commands')}
+                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'commands'
+                        ? 'border-teal-500 text-teal-400 bg-teal-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <TerminalSquare className="w-4 h-4" /> Commands
+                  </button>
+                  <button
                     onClick={() => setActiveTab('alerts')}
                     className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                       activeTab === 'alerts'
@@ -907,6 +922,7 @@ export default function Device() {
                   {activeTab === 'logs' && <LogsWidget logs={errorLogs} />}
                   {activeTab === 'audit' && <AuditWidget audit={auditLogs} />}
                   {activeTab === 'jobs' && <JobHistoryWidget jobs={jobHistory} />}
+                  {activeTab === 'commands' && <CommandHistoryWidget commands={commandHistory} />}
                   {activeTab === 'alerts' && <AlertsWidget alerts={alerts} />}
                 </div>
               </div>

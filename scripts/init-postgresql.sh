@@ -162,7 +162,8 @@ else
 fi
 
 # Run Python script to initialize database
-$PYTHON_CMD backend/utils/seed_data.py
+DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+    $PYTHON_CMD backend/utils/seed_data.py
 
 # Check if initialization succeeded
 if [ $? -eq 0 ]; then

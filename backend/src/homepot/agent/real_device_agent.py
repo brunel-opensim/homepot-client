@@ -5,8 +5,10 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
 import signal
 import ssl
+import sys
 import threading
 from typing import Any, Dict, Optional, cast
 
@@ -20,11 +22,13 @@ from homepot.agent.credential_storage import (
 )
 from homepot.agent.utils.command_poller import (
     build_status_update_payload,
+    fetch_device_permissions,
     parse_pending_commands,
     process_command,
 )
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
 from homepot.agent.utils.heartbeat import build_heartbeat_payload
+from homepot.agent.utils.hostname_encoding import idna_encode_url
 from homepot.agent.utils.local_ipc import (
     LocalAgentState,
     create_local_ipc_app,
@@ -35,6 +39,7 @@ from homepot.agent.utils.log_setup import (
     configure_agent_logging,
     logging_config_from_config,
 )
+from homepot.agent.utils.proxy_settings import build_httpx_proxy_kwargs
 from homepot.agent.utils.push_listener import create_push_listener
 from homepot.agent.utils.real_device_discovery import get_connected_peripherals
 from homepot.agent.utils.retry_queue import RetryQueue
@@ -62,8 +67,9 @@ def load_agent_config() -> Dict[str, Any]:
     # Overlay provisioned values from credential storage
     cred = create_credential_storage()
     if cred.is_provisioned():
-        if cred.get_backend_url():
-            data["backend_url"] = cred.get_backend_url()
+        backend_url = cred.get_backend_url()
+        if backend_url:
+            data["backend_url"] = idna_encode_url(backend_url)
         if cred.get_api_key():
             data["api_key"] = cred.get_api_key()
         if cred.get_device_id():
@@ -191,18 +197,64 @@ async def pending_commands_loop(
     Polls ``GET /api/v1/devices/pending`` at a fixed interval.  Each command
     is acknowledged first (``POST …/ack``), then either exposed via IPC for
     the real device to execute or processed locally by the agent.
+
+    Before processing privileged commands the agent fetches current
+    ``device_permissions`` from the backend and refuses commands that
+    the user has not granted.
     """
     url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/pending"
     interval = int(config["command_poll_interval_seconds"])
     device_id = str(config["device_id"])
     ipc_available = ipc_server is not None
+    cached_permissions: Optional[Dict[str, bool]] = None
     while True:
         try:
-            data = await get_json(client, url, get_auth_headers(config))
+            # Refresh permission cache on each poll cycle
+            headers = get_auth_headers(config)
+            fresh_perms = await fetch_device_permissions(client, config, headers)
+            if fresh_perms is not None:
+                cached_permissions = fresh_perms
+
+            data = await get_json(client, url, headers)
             commands = parse_pending_commands(data)
             for command in commands:
                 cid = command.get("command_id", "")
-                # 1. Ack to backend
+                # 1. Permission gate before ACK
+                from homepot.agent.utils.command_poller import _check_permission
+
+                denial = _check_permission(
+                    command.get("command_type", ""), cached_permissions
+                )
+                if denial is not None:
+                    logger.warning(
+                        "Command rejected before ACK id=%s type=%s reason=%s",
+                        cid,
+                        command.get("command_type"),
+                        denial,
+                    )
+                    result = {
+                        "command_id": cid,
+                        "status": "failed",
+                        "result": {"error": denial},
+                    }
+                    ok = await update_command_status(
+                        client, config, cid, result["status"], result.get("result")
+                    )
+                    if not ok:
+                        retry_queue.enqueue(
+                            {
+                                "url": (
+                                    f"{config['backend_url'].rstrip('/')}"
+                                    f"/api/v1/devices/{cid}/status"
+                                ),
+                                "payload": build_status_update_payload(
+                                    cid, result["status"], result.get("result")
+                                ),
+                            }
+                        )
+                    continue
+
+                # 2. Ack to backend
                 acked = await ack_command_backend(client, config, device_id, cid)
                 if not acked:
                     retry_queue.enqueue(
@@ -215,12 +267,12 @@ async def pending_commands_loop(
                         }
                     )
                     continue
-                # 2. Route to IPC or process locally
+                # 3. Route to IPC or process locally
                 if ipc_available:
                     app = cast("FastAPI", ipc_server.config.app)  # type: ignore[union-attr]
                     push_pending_command(app, command)
                 else:
-                    result = process_command(command)
+                    result = process_command(command, cached_permissions)
                     ok = await update_command_status(
                         client,
                         config,
@@ -345,8 +397,15 @@ async def send_registration(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
     retry_queue: RetryQueue,
+    push_channel_uri: Optional[str] = None,
 ) -> None:
-    """Send initial device registration payload with static device DNA."""
+    """Send initial device registration payload with static device DNA.
+
+    Parameters
+    ----------
+    push_channel_uri:
+        Optional WNS push channel URI to register with the backend.
+    """
     try:
         # Payload sent to POST /api/v1/agent/device-dna
         # {
@@ -359,7 +418,7 @@ async def send_registration(
         #   "local_ip": "192.168.1.20",
         #   "wan_ip": "203.0.113.10"
         # }
-        payload = {
+        payload: Dict[str, Any] = {
             "device_id": config["device_id"],
             "site_id": config["site_id"],
             "device_name": config.get("device_name"),
@@ -370,6 +429,8 @@ async def send_registration(
             "wan_ip": get_wan_ip(),
             "peripherals": get_connected_peripherals(),
         }
+        if push_channel_uri:
+            payload["device_token"] = push_channel_uri
         register_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
         if not await post_json(client, register_url, payload, get_auth_headers(config)):
             retry_queue.enqueue({"url": register_url, "payload": payload})
@@ -537,6 +598,17 @@ def _build_tls_config(cred: CredentialStorage) -> Dict[str, Any]:
     return tls_kw
 
 
+def _build_client_config(cred: CredentialStorage) -> Dict[str, Any]:
+    """Build an httpx-compatible client config combining TLS and proxy.
+
+    Returns a dict that can be unpacked into ``httpx.AsyncClient(...)``.
+    """
+    config: Dict[str, Any] = _build_tls_config(cred)
+    proxy_kw = build_httpx_proxy_kwargs()
+    config.update(proxy_kw)
+    return config
+
+
 async def bootstrap_agent(
     backend_url: str,
     intent_id: str,
@@ -578,6 +650,10 @@ async def bootstrap_agent(
     device_identity = get_or_create_device_id()
     logger.info("Bootstrapping with device identity: %s", device_identity)
 
+    if not os_details:
+        os_details = f"{platform.system()} {platform.release()}"
+        logger.info("Auto-detected OS details: %s", os_details)
+
     cred = create_credential_storage()
 
     claim_payload: Dict[str, Any] = {
@@ -591,7 +667,7 @@ async def bootstrap_agent(
 
     claim_url = f"{backend_url.rstrip('/')}/api/v1/enrolment-intents/{intent_id}/claim"
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(**build_httpx_proxy_kwargs()) as client:
         response = await client.post(claim_url, json=claim_payload, timeout=30.0)
         response.raise_for_status()
         result = await response.json()
@@ -615,10 +691,17 @@ async def bootstrap_agent(
     logger.info("Device provisioned: %s (site: %s)", device_id, site_id)
 
     config = load_agent_config()
-    tls_kw = _build_tls_config(cred)
+    client_kw = _build_client_config(cred)
 
     try:
-        async with httpx.AsyncClient(**tls_kw) as client:
+        async with httpx.AsyncClient(**client_kw) as client:
+            wns_channel: Optional[str] = None
+            if sys.platform == "win32":
+                from homepot.agent.utils.wns_push import WNSPushChannelManager
+
+                wns_mgr = WNSPushChannelManager(cred)
+                wns_channel = wns_mgr.get_or_create_channel()
+
             payload: Dict[str, Any] = {
                 "device_id": config["device_id"],
                 "site_id": config["site_id"],
@@ -630,6 +713,8 @@ async def bootstrap_agent(
                 "wan_ip": get_wan_ip(),
                 "peripherals": get_connected_peripherals(),
             }
+            if wns_channel:
+                payload["device_token"] = wns_channel
             dna_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
             dna_resp = await client.post(
                 dna_url, json=payload, headers=get_auth_headers(config), timeout=30.0
@@ -642,8 +727,19 @@ async def bootstrap_agent(
     return config
 
 
-async def run_agent() -> None:
-    """Run agent runtime tasks: registration, heartbeat, telemetry, command polling, and retry."""
+async def run_agent(
+    shutdown_event: Optional[asyncio.Event] = None,
+) -> None:
+    """Run agent runtime tasks: registration, heartbeat, telemetry, command polling, and retry.
+
+    Parameters
+    ----------
+    shutdown_event:
+        Optional external event that triggers graceful shutdown.  When not
+        provided, the agent creates its own and wires it to SIGTERM/SIGINT.
+        Used by the Windows service wrapper to translate SvcStop into
+        an asyncio shutdown.
+    """
     config = load_agent_config()
 
     # Configure logging with optional file rotation
@@ -654,39 +750,44 @@ async def run_agent() -> None:
     retry_queue = RetryQueue()
     ipc_server = start_local_ipc_server(config)
 
-    push_listener = create_push_listener(config)
+    push_listener = create_push_listener(config, cred=cred)
     await push_listener.start()
 
-    tls_kw = _build_tls_config(cred)
+    client_kw = _build_client_config(cred)
 
-    shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
+    push_channel_uri: Optional[str] = None
+    if push_listener.wns_channel_mgr is not None:
+        push_channel_uri = push_listener.wns_channel_mgr.get_stored_uri()
 
-    # Register signal handlers for graceful shutdown
-    shutdown_timeout = int(config.get("shutdown_timeout_seconds", 30))
+    if shutdown_event is None:
+        shutdown_event = asyncio.Event()
+        loop = asyncio.get_running_loop()
 
-    def _handle_signal() -> None:
-        """Set the shutdown event and log the signal."""
-        logger.info("Shutdown signal received, stopping agent…")
-        shutdown_event.set()
+        shutdown_timeout = int(config.get("shutdown_timeout_seconds", 30))
 
-    try:
-        loop.add_signal_handler(signal.SIGTERM, _handle_signal)
-        loop.add_signal_handler(signal.SIGINT, _handle_signal)
-    except NotImplementedError:
-        logger.warning("Signal handlers not supported on this platform")
-
-    async def _shutdown_after_timeout() -> None:
-        """Force shutdown if the agent does not stop gracefully within the timeout."""
-        await asyncio.sleep(shutdown_timeout)
-        if not shutdown_event.is_set():
-            logger.warning(
-                "Shutdown timeout (%ss) reached, forcing exit", shutdown_timeout
-            )
+        def _handle_signal() -> None:
+            """Set the shutdown event and log the signal."""
+            logger.info("Shutdown signal received, stopping agent…")
             shutdown_event.set()
 
-    # Start the forced-shutdown timer
-    asyncio.ensure_future(_shutdown_after_timeout())
+        try:
+            loop.add_signal_handler(signal.SIGTERM, _handle_signal)
+            loop.add_signal_handler(signal.SIGINT, _handle_signal)
+        except NotImplementedError:
+            logger.warning("Signal handlers not supported on this platform")
+
+        async def _shutdown_after_timeout() -> None:
+            """Force shutdown if the agent does not stop gracefully within the timeout."""
+            await asyncio.sleep(shutdown_timeout)
+            if not shutdown_event.is_set():
+                logger.warning(
+                    "Shutdown timeout (%ss) reached, forcing exit", shutdown_timeout
+                )
+                shutdown_event.set()
+
+        asyncio.ensure_future(_shutdown_after_timeout())
+    else:
+        loop = asyncio.get_running_loop()
 
     async def _cancel_on_shutdown(tasks: list) -> None:
         """Cancel all agent tasks when shutdown_event is set."""
@@ -694,8 +795,10 @@ async def run_agent() -> None:
         for t in tasks:
             t.cancel()
 
-    async with httpx.AsyncClient(**tls_kw) as client:
-        await send_registration(client, config, retry_queue)
+    async with httpx.AsyncClient(**client_kw) as client:
+        await send_registration(
+            client, config, retry_queue, push_channel_uri=push_channel_uri
+        )
 
         tasks = [
             asyncio.ensure_future(

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import TabBar from '../components/TabBar'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
@@ -17,8 +18,22 @@ interface DnaRow {
   value: string
 }
 
+interface DeviceRecord {
+  name: string
+  site_id: string
+  device_type: string
+  mac_address: string
+  local_ip: string
+  wan_ip: string
+  os_details: string
+  firmware_version: string
+  lifecycle_state: string
+  connectivity_state: string
+}
+
 export default function DeviceInfo() {
-  const { setCurrentView, setIsProvisioned } = useApp()
+  const navigate = useNavigate()
+  const { setIsProvisioned } = useApp()
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'uptodate'>('idle')
   const [showConfirm, setShowConfirm] = useState(false)
   const [unpairStatus, setUnpairStatus] = useState<'idle' | 'unpairing' | 'confirmed' | 'pending-revocation' | 'error'>('idle')
@@ -26,22 +41,71 @@ export default function DeviceInfo() {
   const [dnaRows, setDnaRows] = useState<DnaRow[]>([])
 
   useEffect(() => {
-    Promise.all([
-      credentialStorage.getMetadata('device_name'),
-      credentialStorage.getMetadata('site_id'),
-      credentialStorage.getMetadata('device_type'),
-      credentialStorage.getMetadata('device_os'),
-    ]).then(([deviceName, siteId, deviceType, deviceOs]) => {
-      setDnaRows([
-        { label: 'Hostname', value: deviceName || 'My-Device' },
-        { label: 'Site ID', value: siteId || 'site-1234' },
-        { label: 'Device Type', value: deviceType ? formatDeviceType(deviceType) : 'POS Terminal' },
-        { label: 'MAC Addr', value: 'A1:B2:C3:D4:E5:F6' },
-        { label: 'Local IP', value: '192.168.1.101' },
-        { label: 'OS', value: deviceOs ? formatOs(deviceOs) : 'Web' },
-        { label: 'Agent Ver', value: 'v0.1.0' },
+    async function loadDna() {
+      const [deviceId, apiKey, deviceName, siteId, deviceType, deviceOs] = await Promise.all([
+        credentialStorage.getDeviceId(),
+        credentialStorage.getApiKey(),
+        credentialStorage.getMetadata('device_name'),
+        credentialStorage.getMetadata('site_id'),
+        credentialStorage.getMetadata('device_type'),
+        credentialStorage.getMetadata('device_os'),
       ])
-    })
+
+      let backend: DeviceRecord | null = null
+      if (deviceId && apiKey) {
+        try {
+          const res = await fetch(`${apiBaseUrl}/devices/device/${deviceId}`, {
+            headers: { 'X-Device-ID': deviceId, 'X-API-Key': apiKey },
+          })
+          if (res.ok) {
+            backend = await res.json()
+          }
+        } catch {
+          // backend unreachable — fall through to local fallbacks
+        }
+      }
+
+      let hostname: string
+      let mac: string
+      let ip: string
+      let os: string
+      let version = 'v0.1.0'
+      let lifecycle: string | null = null
+
+      if (window.electronAPI) {
+        const dna = await window.electronAPI.device.dna()
+        hostname = dna.hostname
+        mac = backend?.mac_address || dna.mac
+        ip = backend?.local_ip || dna.ip
+        os = backend?.os_details ? formatOs(backend.os_details) : formatOs(dna.platform)
+        version = `v${await window.electronAPI.app.getVersion()}`
+      } else {
+        hostname = backend?.name || deviceName || 'My-Device'
+        mac = backend?.mac_address || '—'
+        ip = backend?.local_ip || '—'
+        os = backend?.os_details ? formatOs(backend.os_details) : (deviceOs ? formatOs(deviceOs) : 'Web')
+      }
+
+      if (backend?.lifecycle_state) {
+        lifecycle = backend.lifecycle_state.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      }
+
+      const rows: DnaRow[] = [
+        { label: 'Hostname', value: hostname },
+        { label: 'Site ID', value: backend?.site_id || siteId || '—' },
+        { label: 'Device Type', value: backend?.device_type ? formatDeviceType(backend.device_type) : (deviceType ? formatDeviceType(deviceType) : 'POS Terminal') },
+        { label: 'MAC Addr', value: mac },
+        { label: 'Local IP', value: ip },
+        { label: 'OS', value: os },
+      ]
+      if (lifecycle) {
+        rows.push({ label: 'Lifecycle', value: lifecycle })
+      }
+      rows.push({ label: 'Agent Ver', value: version })
+
+      setDnaRows(rows)
+    }
+    loadDna()
   }, [])
 
   function handleCheckUpdate() {
@@ -60,7 +124,7 @@ export default function DeviceInfo() {
     if (!deviceId || deviceId.startsWith('mock-token-')) {
       await credentialStorage.clear()
       setIsProvisioned(false)
-      setCurrentView('setup')
+      navigate('/setup')
       return
     }
 
@@ -84,7 +148,7 @@ export default function DeviceInfo() {
         setUnpairStatus('confirmed')
         await credentialStorage.clear()
         setIsProvisioned(false)
-        setCurrentView('setup')
+        navigate('/setup')
       } else {
         const body = await res.json().catch(() => ({}))
         setUnpairError(body.detail || `Server rejected unpair (${res.status})`)
@@ -99,7 +163,7 @@ export default function DeviceInfo() {
   }
 
   function handleDismissPendingRevocation() {
-    setCurrentView('setup')
+    navigate('/setup')
   }
 
   return (

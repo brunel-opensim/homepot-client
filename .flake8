@@ -3,6 +3,8 @@ max-line-length = 110
 ignore = 
     # S101: Use of assert detected (normal in tests)
     S101,
+    # S105: Possible hardcoded passwords (intentional example/test values)
+    S105,
     # S104: Binding to all interfaces (intentional in FastAPI)
     S104,
     # S110: Try/except/pass (acceptable for cleanup code)

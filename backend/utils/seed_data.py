@@ -52,17 +52,28 @@ from homepot.app.models.AnalyticsModel import (
     UserActivity,
 )
 from homepot.app.models.UserModel import Base as AppBase
-from homepot.app.models.UserModel import User
 from homepot.database import DatabaseService
 from homepot.models import (
-    AuditLog,
     Base,
     Device,
     DeviceType,
-    HealthCheck,
+    HealthState,
     Job,
-    JobPriority,
     JobStatus,
+    LifecycleState,
+)
+from homepot.seed_factories import (
+    create_audit_log,
+    create_device,
+    create_device_lifecycle_event,
+    create_health_check,
+    create_job,
+    create_lifecycle_epoch,
+    create_site,
+    create_site_membership,
+    create_tenant,
+    create_tenant_membership,
+    create_user,
 )
 
 if not hasattr(bcrypt, "__about__"):
@@ -74,8 +85,7 @@ if not hasattr(bcrypt, "__about__"):
 
     bcrypt.__about__ = About()
 
-from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 
 def generate_historical_metrics(device_id: int, hours: int = 24) -> list[DeviceMetrics]:
@@ -278,10 +288,41 @@ async def init_database():
     # Create database service (will use DATABASE__URL from .env)
     db_service = DatabaseService()
 
+    _DROP_TABLES = [
+        "device_lifecycle_events",
+        "lifecycle_epochs",
+        "device_credentials",
+        "device_assignments",
+        "health_checks",
+        "device_commands",
+        "audit_logs",
+        "jobs",
+        "enrolment_intents",
+        "site_memberships",
+        "tenant_memberships",
+        "devices",
+        "site_operating_schedules",
+        "sites",
+        "users",
+        "tenants",
+        "api_request_logs",
+        "device_metrics",
+        "device_state_history",
+        "job_outcomes",
+        "error_logs",
+        "user_activities",
+        "configuration_history",
+        "push_notification_logs",
+        "alerts",
+    ]
     print("Dropping existing tables...")
     async with db_service.engine.begin() as conn:
-        await conn.run_sync(AppBase.metadata.drop_all)
-        await conn.run_sync(Base.metadata.drop_all)
+        for table in _DROP_TABLES:
+            await conn.run_sync(
+                lambda sync_conn, t=table: sync_conn.execute(
+                    text(f"DROP TABLE IF EXISTS {t} CASCADE")
+                )
+            )
 
     print("Creating database schema...")
     await db_service.initialize()
@@ -293,107 +334,136 @@ async def init_database():
 
     print("Database schema created")
 
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    now = datetime.now(timezone.utc).replace(
-        tzinfo=None
-    )  # Database uses naive datetime
+    # --- TENANTS ---
+    print("\n=== Creating Tenants ===")
+    async with db_service.get_session() as session:
+        tenant_a = await create_tenant(
+            session,
+            name="Demo Organization A",
+            slug="demo-org-a",
+            settings={"region": "emea"},
+        )
+        print(f"Created tenant: {tenant_a.name} ({tenant_a.slug})")
+        tenant_b = await create_tenant(
+            session,
+            name="Demo Organization B",
+            slug="demo-org-b",
+            settings={"region": "apac"},
+        )
+        print(f"Created tenant: {tenant_b.name} ({tenant_b.slug})")
+        await session.commit()
 
     # --- USERS ---
     print("\n=== Creating Users ===")
     async with db_service.get_session() as session:
-        # 1. Admin User (matching DB credentials for simplicity)
-        result = await session.execute(
-            select(User).where(User.username == "homepot_admin")
+        admin_user = await create_user(
+            session,
+            username="homepot_admin",
+            email="admin@homepot.com",
+            full_name="System Administrator",
+            password="homepot_dev_password",
+            is_admin=True,
+            tenant_id=tenant_a.id,
         )
-        if not result.scalar_one_or_none():
-            admin_user = User(
-                email="admin@homepot.com",
-                username="homepot_admin",
-                full_name="System Administrator",
-                hashed_password=pwd_context.hash("homepot_dev_password"),
-                is_admin=True,
-                created_at=now,
-                updated_at=now,
-            )
-            session.add(admin_user)
-            print("Created user: homepot_admin")
-        else:
-            print("User homepot_admin already exists")
-            # Fetch for later use
-            admin_user = (
-                await session.execute(
-                    select(User).where(User.username == "homepot_admin")
-                )
-            ).scalar_one()
-
-        # 2. Standard Client User
-        result = await session.execute(
-            select(User).where(User.username == "homepot_client")
+        print(f"Created user: {admin_user.username}")
+        client_user = await create_user(
+            session,
+            username="homepot_client",
+            email="user@homepot.com",
+            full_name="Standard Client",
+            password="homepot_dev_password",
+            role="Client",
+            is_admin=False,
+            tenant_id=tenant_b.id,
         )
-        if not result.scalar_one_or_none():
-            client_user = User(
-                email="user@homepot.com",
-                username="homepot_client",
-                full_name="Standard Client",
-                hashed_password=pwd_context.hash("homepot_dev_password"),
-                role="Client",
-                is_admin=False,
-                created_at=now,
-                updated_at=now,
-            )
-            session.add(client_user)
-            print("Created user: homepot_client")
-        else:
-            print("User homepot_client already exists")
+        print(f"Created user: {client_user.username}")
+        await session.commit()
 
+    # --- TENANT MEMBERSHIPS ---
+    print("\n=== Creating Tenant Memberships ===")
+    async with db_service.get_session() as session:
+        await create_tenant_membership(
+            session, user_id=admin_user.id, tenant_id=tenant_a.id, role="admin"
+        )
+        print(f"Added admin_user to tenant {tenant_a.slug} as admin")
+        await create_tenant_membership(
+            session, user_id=client_user.id, tenant_id=tenant_b.id, role="member"
+        )
+        print(f"Added client_user to tenant {tenant_b.slug} as member")
         await session.commit()
 
     # --- SITES ---
     print("\n=== Creating Sites ===")
 
     async def get_or_create_site(
-        site_id, name, description, location, latitude=None, longitude=None
+        session,
+        site_id,
+        name,
+        description,
+        location,
+        latitude=None,
+        longitude=None,
+        tenant_id=None,
     ):
         existing = await db_service.get_site_by_site_id(site_id)
         if existing:
-            # print(f"Site {site_id} already exists")
             return existing
-
-        site = await db_service.create_site(
+        site = await create_site(
+            session,
             site_id=site_id,
             name=name,
             description=description,
             location=location,
             latitude=latitude,
             longitude=longitude,
+            tenant_id=tenant_id,
         )
         print(f"Created site: {site.name} ({site_id})")
         return site
 
-    # Create 2 Targeted Sites
-    site1 = await get_or_create_site(
-        "site-001",
-        "Site 1 - Mixed OS",
-        "Mixed environment site 1",
-        "London, UK",
-        40.7128,
-        -74.0060,
-    )
-    site2 = await get_or_create_site(
-        "site-002",
-        "Site 2 - Mixed OS",
-        "Mixed environment site 2",
-        "London, UK",
-        51.5074,
-        -0.1278,
-    )
+    async with db_service.get_session() as session:
+        site1 = await get_or_create_site(
+            session,
+            "site-001",
+            "Site 1 - Mixed OS",
+            "Mixed environment site 1",
+            "London, UK",
+            40.7128,
+            -74.0060,
+            tenant_id=tenant_a.id,
+        )
+        site2 = await get_or_create_site(
+            session,
+            "site-002",
+            "Site 2 - Mixed OS",
+            "Mixed environment site 2",
+            "London, UK",
+            51.5074,
+            -0.1278,
+            tenant_id=tenant_b.id,
+        )
+        await session.commit()
 
     sites = [site1, site2]
+
+    # --- SITE MEMBERSHIPS ---
+    print("\n=== Creating Site Memberships ===")
+    async with db_service.get_session() as session:
+        await create_site_membership(
+            session, user_id=admin_user.id, site_id=site1.id, role="admin"
+        )
+        print(f"Added admin_user to site {site1.site_id} as admin")
+        await create_site_membership(
+            session, user_id=client_user.id, site_id=site2.id, role="viewer"
+        )
+        print(f"Added client_user to site {site2.site_id} as viewer")
+        await session.commit()
 
     # --- DEVICES ---
     print("\n=== Creating Devices ===")
 
     async def get_or_create_device(
+        session,
         device_id,
         name,
         device_type,
@@ -407,15 +477,15 @@ async def init_database():
         existing = await db_service.get_device_by_device_id(device_id)
         if existing:
             return existing
-
-        device = await db_service.create_device(
+        device = await create_device(
+            session,
             device_id=device_id,
             name=name,
             device_type=device_type,
             site_id=site_id,
             ip_address=ip_address,
             config=config,
-            last_seen=datetime.now(timezone.utc),  # Set initial Last Seen
+            last_seen=datetime.now(timezone.utc),
             is_monitored=is_monitored,
             enrollment_method=enrollment_method,
             enrollment_token=enrollment_token,
@@ -425,163 +495,198 @@ async def init_database():
         )
         return device
 
-    # Site 1 Devices
-    print("--- Site 1 Devices ---")
-    await get_or_create_device(
-        "site1-linux-01",
-        "Linux POS 1-1",
-        DeviceType.POS_TERMINAL,
-        site1.id,
-        "10.1.1.10",
-        {
-            "os": "linux",
-            "push_platform": "fcm",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-        is_monitored=True,
-    )
-    await get_or_create_device(
-        "site1-windows-02",
-        "Windows POS 1-2",
-        DeviceType.POS_TERMINAL,
-        site1.id,
-        "10.1.2.10",
-        {
-            "os": "windows",
-            "push_platform": "wns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-        enrollment_method="self-enrolled",
-        enrollment_token="SIM-TOKEN-WIN-02",  # noqa: S106
-    )
-    await get_or_create_device(
-        "site1-macos-03",
-        "Apple POS 1-3",
-        DeviceType.POS_TERMINAL,
-        site1.id,
-        "10.1.3.10",
-        {
-            "os": "macos",
-            "push_platform": "apns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site1-web-04",
-        "Web Dashboard 1-4",
-        DeviceType.POS_TERMINAL,
-        site1.id,
-        "10.1.4.10",
-        {
-            "os": "web",
-            "push_platform": "web_push",
-            "agent_version": "1.0.0-web",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site1-iot-05",
-        "IoT Sensor 1-5",
-        DeviceType.IOT_SENSOR,
-        site1.id,
-        "10.1.5.10",
-        {
-            "os": "embedded",
-            "push_platform": "mqtt",
-            "agent_version": "1.0.0-iot",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site1-android-pos-06",
-        "Android POS 1-6",
-        DeviceType.POS_TERMINAL,
-        site1.id,
-        "10.1.6.10",
-        {
-            "os": "android",
-            "device_model": "Android POS Terminal",
-            "kiosk_mode": True,
-            "push_platform": "fcm_android",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-        is_monitored=True,
-        enrollment_method="self-enrolled",
-    )
+    async with db_service.get_session() as session:
+        await get_or_create_device(
+            session,
+            "site1-linux-01",
+            "Linux POS 1-1",
+            DeviceType.POS_TERMINAL,
+            site1.id,
+            "10.1.1.10",
+            {
+                "os": "linux",
+                "push_platform": "fcm",
+                "agent_version": "1.0.0-sim",
+                "version": "1.0.0",
+            },
+            is_monitored=True,
+        )
+        await get_or_create_device(
+            session,
+            "site1-windows-02",
+            "Windows POS 1-2",
+            DeviceType.POS_TERMINAL,
+            site1.id,
+            "10.1.2.10",
+            {
+                "os": "windows",
+                "push_platform": "wns",
+                "agent_version": "1.0.0-sim",
+                "version": "1.0.0",
+            },
+            enrollment_method="self-enrolled",
+            enrollment_token="SIM-TOKEN-WIN-02",  # noqa: S106
+        )
+        await get_or_create_device(
+            session,
+            "site1-macos-03",
+            "Apple POS 1-3",
+            DeviceType.POS_TERMINAL,
+            site1.id,
+            "10.1.3.10",
+            {
+                "os": "macos",
+                "push_platform": "apns",
+                "agent_version": "1.0.0-sim",
+                "version": "1.0.0",
+            },
+        )
+        await get_or_create_device(
+            session,
+            "site1-web-04",
+            "Web Dashboard 1-4",
+            DeviceType.POS_TERMINAL,
+            site1.id,
+            "10.1.4.10",
+            {
+                "os": "web",
+                "push_platform": "web_push",
+                "agent_version": "1.0.0-web",
+                "version": "1.0.0",
+            },
+        )
+        await get_or_create_device(
+            session,
+            "site1-iot-05",
+            "IoT Sensor 1-5",
+            DeviceType.IOT_SENSOR,
+            site1.id,
+            "10.1.5.10",
+            {
+                "os": "embedded",
+                "push_platform": "mqtt",
+                "agent_version": "1.0.0-iot",
+                "version": "1.0.0",
+            },
+        )
+        await get_or_create_device(
+            session,
+            "site1-android-pos-06",
+            "Android POS 1-6",
+            DeviceType.POS_TERMINAL,
+            site1.id,
+            "10.1.6.10",
+            {
+                "os": "android",
+                "device_model": "Android POS Terminal",
+                "kiosk_mode": True,
+                "push_platform": "fcm_android",
+                "agent_version": "1.0.0-sim",
+                "version": "1.0.0",
+            },
+            is_monitored=True,
+            enrollment_method="self-enrolled",
+        )
+        await get_or_create_device(
+            session,
+            "site2-linux-01",
+            "Linux POS 2-1",
+            DeviceType.POS_TERMINAL,
+            site2.id,
+            "10.2.1.10",
+            {
+                "os": "linux",
+                "push_platform": "fcm",
+                "agent_version": "1.0.0-sim",
+                "version": "1.0.0",
+            },
+            enrollment_method="self-enrolled",
+            enrollment_token="SIM-TOKEN-LINUX-01",  # noqa: S106
+        )
+        await get_or_create_device(
+            session,
+            "site2-windows-02",
+            "Windows POS 2-2",
+            DeviceType.POS_TERMINAL,
+            site2.id,
+            "10.2.2.10",
+            {
+                "os": "windows",
+                "push_platform": "wns",
+                "agent_version": "1.0.0-sim",
+                "version": "1.0.0",
+            },
+        )
+        await get_or_create_device(
+            session,
+            "site2-macos-03",
+            "Apple POS 2-3",
+            DeviceType.POS_TERMINAL,
+            site2.id,
+            "10.2.3.10",
+            {
+                "os": "macos",
+                "push_platform": "apns",
+                "agent_version": "1.0.0-sim",
+                "version": "1.0.0",
+            },
+        )
+        await get_or_create_device(
+            session,
+            "site2-web-04",
+            "Web Dashboard 2-4",
+            DeviceType.POS_TERMINAL,
+            site2.id,
+            "10.2.4.10",
+            {
+                "os": "web",
+                "push_platform": "web_push",
+                "agent_version": "1.0.0-web",
+                "version": "1.0.0",
+            },
+        )
+        await get_or_create_device(
+            session,
+            "site2-iot-05",
+            "IoT Sensor 2-5",
+            DeviceType.IOT_SENSOR,
+            site2.id,
+            "10.2.5.10",
+            {
+                "os": "embedded",
+                "push_platform": "mqtt",
+                "agent_version": "1.0.0-iot",
+                "version": "1.0.0",
+            },
+        )
+        await session.commit()
 
-    # Site 2 Devices
-    print("--- Site 2 Devices ---")
-    await get_or_create_device(
-        "site2-linux-01",
-        "Linux POS 2-1",
-        DeviceType.POS_TERMINAL,
-        site2.id,
-        "10.2.1.10",
-        {
-            "os": "linux",
-            "push_platform": "fcm",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-        enrollment_method="self-enrolled",
-        enrollment_token="SIM-TOKEN-LINUX-01",  # noqa: S106
-    )
-    await get_or_create_device(
-        "site2-windows-02",
-        "Windows POS 2-2",
-        DeviceType.POS_TERMINAL,
-        site2.id,
-        "10.2.2.10",
-        {
-            "os": "windows",
-            "push_platform": "wns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site2-macos-03",
-        "Apple POS 2-3",
-        DeviceType.POS_TERMINAL,
-        site2.id,
-        "10.2.3.10",
-        {
-            "os": "macos",
-            "push_platform": "apns",
-            "agent_version": "1.0.0-sim",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site2-web-04",
-        "Web Dashboard 2-4",
-        DeviceType.POS_TERMINAL,
-        site2.id,
-        "10.2.4.10",
-        {
-            "os": "web",
-            "push_platform": "web_push",
-            "agent_version": "1.0.0-web",
-            "version": "1.0.0",
-        },
-    )
-    await get_or_create_device(
-        "site2-iot-05",
-        "IoT Sensor 2-5",
-        DeviceType.IOT_SENSOR,
-        site2.id,
-        "10.2.5.10",
-        {
-            "os": "embedded",
-            "push_platform": "mqtt",
-            "agent_version": "1.0.0-iot",
-            "version": "1.0.0",
-        },
-    )
+    # --- DEVICE LIFECYCLE INITIALIZATION ---
+    print("\n=== Initializing Device Lifecycle ===")
+    async with db_service.get_session() as session:
+        result = await session.execute(select(Device))
+        all_devices = list(result.scalars().all())
+        for dev in all_devices:
+            epoch = await create_lifecycle_epoch(
+                session,
+                device_id=dev.id,
+                site_id=dev.site_id,
+                claimed_at=dev.created_at,
+                enrolment_method=dev.enrollment_method or "pre-provisioned",
+            )
+            await session.refresh(epoch)
+            dev.lifecycle_epoch_id = epoch.id
+            dev.health_state = HealthState.UNKNOWN.value
+            await create_device_lifecycle_event(
+                session,
+                device_id=dev.id,
+                epoch_id=epoch.id,
+                from_state=None,
+                to_state=LifecycleState.PENDING.value,
+                reason="Initial seed data creation",
+            )
+        await session.commit()
+        print(f"Initialized lifecycle for {len(all_devices)} devices")
 
     # --- SAMPLE DATA ---
     print("\n=== Creating Sample Data ===")
@@ -595,37 +700,36 @@ async def init_database():
             select(Job).where(Job.job_id == "job-sample-001")
         )
         if not result.scalar_one_or_none():
-            sample_job = Job(
+            sample_job = await create_job(
+                session,
                 job_id="job-sample-001",
                 action="Update POS payment config",
                 description="Sample job for schema validation",
-                priority=JobPriority.NORMAL,
-                status=JobStatus.COMPLETED,
                 site_id=sites[0].id,
                 device_id=first_device.id,
                 payload={"config_version": "1.0.0"},
                 created_by=admin_user.id,
+                status=JobStatus.COMPLETED,
                 completed_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
-            session.add(sample_job)
             await session.commit()
             await session.refresh(sample_job)
             print("Created sample job")
 
             # Sample Health Check
-            sample_health = HealthCheck(
-                id=1,
+            await create_health_check(
+                session,
                 device_id=first_device.id,
                 is_healthy=True,
                 response_time_ms=45,
                 status_code=200,
                 endpoint="/health",
-                timestamp=datetime.now(timezone.utc).replace(tzinfo=None),
+                id=1,
             )
-            session.add(sample_health)
 
             # Sample Audit Log
-            sample_audit = AuditLog(
+            await create_audit_log(
+                session,
                 event_type="job_created",
                 description=f"Job {sample_job.job_id} created for site {sites[0].site_id}",
                 user_id=admin_user.id,
@@ -634,7 +738,6 @@ async def init_database():
                 site_id=sites[0].id,
                 event_metadata={"action": "Update POS payment config"},
             )
-            session.add(sample_audit)
 
             # Sample Analytics
             session.add(

@@ -6,15 +6,23 @@ from typing import Any, Dict, List, Optional, cast
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
+import jwt
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session as SASession
 from sqlalchemy.orm import joinedload
 
 from homepot.app.auth_utils import (
+    ALGORITHM,
+    SECRET_KEY,
     UserDict,
+    api_key_header,
+    authenticate_device_credentials,
+    device_id_header,
     get_accessible_site_ids,
     require_user,
+    security,
     verify_device_belongs_to_user,
     verify_site_access_for_user,
 )
@@ -375,12 +383,34 @@ async def list_device(
 async def get_device(
     device_id: str,
     db: SASession = Depends(get_db),
-    current_user: UserDict = Depends(require_user()),
+    api_key: Optional[str] = Depends(api_key_header),
+    device_id_header_val: Optional[str] = Depends(device_id_header),
+    bearer_creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Dict[str, Any]:
-    """Get a specific Device by device_id."""
-    try:
-        db_service = await get_database_service()
+    """Get a specific Device by device_id.
 
+    Two authentication modes:
+    - **Device credentials**: pass ``X-Device-ID`` + ``X-API-Key`` headers.
+      The device can only read its own record.
+    - **Operator JWT**: pass ``Authorization: Bearer <token>``.
+      Requires viewer-level access on the device's site.
+
+    When both are present, device-credential auth takes precedence.
+    """
+    try:
+        # Device-credential auth (sync, quick check before async query)
+        device_cred_auth: Optional[Device] = None
+        if api_key and device_id_header_val:
+            device_cred_auth = authenticate_device_credentials(
+                db, device_id_header_val, api_key
+            )
+            if device_cred_auth.device_id != device_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Device can only read its own record",
+                )
+
+        db_service = await get_database_service()
         async with db_service.get_session() as session:
             result = await session.execute(
                 select(Device)
@@ -394,11 +424,41 @@ async def get_device(
                     status_code=404, detail=f"Device '{device_id}' not found"
                 )
 
-            # Verify user can access this device's site
-            db_user = cast(
-                User, db.query(User).filter(User.email == current_user["email"]).first()
-            )
-            verify_device_belongs_to_user(db_user, device, db)
+            # JWT auth (only when device credentials were not used)
+            if not device_cred_auth:
+                if bearer_creds:
+                    try:
+                        payload = jwt.decode(
+                            bearer_creds.credentials,
+                            SECRET_KEY,
+                            algorithms=[ALGORITHM],
+                        )
+                        email = payload.get("sub")
+                        if not email:
+                            raise HTTPException(
+                                status_code=401,
+                                detail="Invalid token: no email",
+                            )
+                    except jwt.PyJWTError:
+                        raise HTTPException(
+                            status_code=401,
+                            detail="Invalid or expired token",
+                        )
+                    db_user = cast(
+                        User,
+                        db.query(User).filter(User.email == email).first(),
+                    )
+                    if not db_user:
+                        raise HTTPException(status_code=403, detail="User not found")
+                    verify_device_belongs_to_user(db_user, device, db)
+                else:
+                    raise HTTPException(
+                        status_code=401,
+                        detail=(
+                            "Authentication required — "
+                            "provide device credentials or operator JWT"
+                        ),
+                    )
 
             return {
                 "site_id": device.site.site_id,
@@ -411,10 +471,14 @@ async def get_device(
                 "health_state": device.health_state or HealthState.UNKNOWN.value,
                 "status": device.status,
                 "ip_address": device.ip_address or "N/A",
-                "os_details": device.os_details
-                or (device.config.get("os_details") if device.config else "N/A"),
                 "mac_address": device.mac_address
                 or (device.config.get("mac_address") if device.config else "N/A"),
+                "local_ip": device.local_ip
+                or (device.config.get("local_ip") if device.config else "N/A"),
+                "wan_ip": device.wan_ip
+                or (device.config.get("wan_ip") if device.config else "N/A"),
+                "os_details": device.os_details
+                or (device.config.get("os_details") if device.config else "N/A"),
                 "firmware_version": device.firmware_version
                 or (device.config.get("firmware_version") if device.config else "N/A"),
                 "last_seen": device.last_seen.isoformat() if device.last_seen else None,
@@ -428,6 +492,20 @@ async def get_device(
                     if any(c.is_active for c in (device.credentials or []))
                     else "inactive"
                 ),
+                "device_permissions": device.device_permissions
+                or {
+                    "root_access": False,
+                    "process_monitoring": False,
+                    "filesystem_access": False,
+                    "network_monitoring": False,
+                },
+                "capabilities": device.capabilities
+                or {
+                    "root_access": False,
+                    "process_monitoring": False,
+                    "filesystem_access": False,
+                    "network_monitoring": False,
+                },
                 "is_monitored": device.is_monitored,
                 "created_at": (
                     device.created_at.isoformat() if device.created_at else None

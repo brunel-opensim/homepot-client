@@ -211,7 +211,7 @@ def _auto_register_providers() -> None:
 
     # Try to register FCM Android (when implemented)
     try:
-        from .fcm_android import FCMAndroidProvider
+        from .fcm_android import FCMAndroidProvider  # type: ignore[import-not-found]
 
         register_provider("fcm_android", FCMAndroidProvider)
     except ImportError:
@@ -219,7 +219,7 @@ def _auto_register_providers() -> None:
 
     # Try to register UnifiedPush (when implemented)
     try:
-        from .unified_push import UnifiedPushProvider
+        from .unified_push import UnifiedPushProvider  # type: ignore[import-not-found]
 
         register_provider("unified_push", UnifiedPushProvider)
     except ImportError:

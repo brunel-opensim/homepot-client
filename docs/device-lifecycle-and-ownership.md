@@ -313,6 +313,36 @@ Backend:
 - Issue the API key only once.
 - Reject duplicate and concurrent claims.
 
+### Enrolment Intent creation flow (UI walkthrough)
+
+When an administrator clicks **Create Intent** on the Site Detail page:
+
+1. **Form submission**: A `POST /sites/{site_id}/enrolment-intents` is sent with optional fields (`expected_device_identity`, `expires_in_hours`, `idempotency_key`). The backend requires `operator`-level access on the target site.
+
+2. **Backend processing** (`EnrolmentIntentsEndpoint.py`):
+   - Creates a DB record with `status = pending` and a random UUID `intent_id`.
+   - Generates a cryptographically random claim token, hashes it with bcrypt, and stores only the hash.
+   - Returns the **plaintext claim token exactly once** in the response.
+
+3. **UI response**:
+   - The create form collapses.
+   - The intents list refreshes automatically.
+   - A **yellow result card** appears at the top showing the claim token in a monospace block, with the warning: *"It will not be shown again."*
+   - The new row appears in the table with a yellow **Pending** badge.
+
+4. **Subsequent actions** (per-row action buttons):
+   | Button | Status required | Effect |
+   |--------|----------------|--------|
+   | **Approve** | `pending` → `approved` | Token becomes active and ready for the installer to claim |
+   | **Reject** | `pending` → `rejected` | The intent is discarded, no further action possible |
+   | **Regen Token** | `pending` or `approved` | Generates a new token (old one becomes invalid), shown via browser `alert()` |
+   | **Revoke** | `pending` or `approved` → `revoked` | The intent is cancelled, token invalidated |
+
+5. **Important notes**:
+   - The claim token is only ever visible **at creation time** and **at regeneration time**. The backend stores only the bcrypt hash.
+   - The `alert()` for regeneration is a deliberate UX choice: unlike creation (which shows the token inline), regeneration is less common and the alert reinforces that the token must be saved immediately.
+   - The table marks expired intents with red text and an "Expired" label. Expired intents cannot be claimed.
+
 PR 6: Secure self-enrolment
 Replace caller-provided user_identity as authority:
 - Require authenticated user identity.
@@ -461,3 +491,95 @@ PR 23: Modernise legacy agent endpoint + push-log stub fill
 |---|---|
 | Update `GET /agents` and `GET /agents/{device_id}` to use `lifecycle_state`, `connectivity_state`, `health_state` instead of the deprecated `status` field | Dashboard consumes this for the agent list view |
 | *(Optional)* Populate the stubbed `GET /device/{device_id}/push-logs` with real data from the push notifications table | Dashboard shows notification delivery status |
+
+## Frontend
+
+These five PRs deliver the backend API surface a dashboard UI would
+consume.  A separate frontend PR builds the React components that call
+these endpoints.
+
+PR 24: frontend/src/services/api.js — 3 new API methods:
+- dashboard.summary() → GET /dashboard/summary
+- sites.getDashboard(siteId) → GET /sites/{sid}/dashboard
+- devices.getCredentials(deviceId) → GET /device/{id}/credentials
+- devices.getCommands(deviceId) → GET /device/{did}/commands
+frontend/src/pages/Dashboard.jsx — Fetches dashboard.summary() and renders 4 aggregate stat cards (Total Devices, Online, Offline, Active) above the monitored resources.
+
+### Site Detail device table
+
+The Site Detail page (`frontend/src/pages/Sites/SiteDetail.jsx`) displays a table of devices associated with a site. Each row pulls from `GET /sites/{site_id}/devices`.
+
+| Column | Field | Display |
+|---|---|---|
+| **Name** | `device.name` | Clickable link to Device Detail page |
+| **Type** | `device.device_type` | Uppercase, underscores replaced with spaces |
+| **Status** | `lifecycle_state` + `connectivity_state` + `health_state` | Badge + connectivity dot + health pill (see colour reference below) |
+| **Enrollment** | `device.enrollment_method` | Pill: `self-enrolled` (purple) or `Pre-Provisioned` (blue) |
+| **Alerts** | `device.active_alerts` | Count with icon; green checkmark when zero |
+| **Last Seen** | `device.last_seen` + `device.last_heartbeat_at` | Timestamp plus heartbeat timestamp on a second line |
+| **Actions** | — | Edit and Delete icon buttons |
+
+#### Status column colour reference
+
+**Lifecycle badge (background + text):**
+
+| State | Colour |
+|---|---|
+| `active` | green-500 on green-500/10 |
+| `suspended` | orange-500 on orange-500/10 |
+| `unpaired` | gray-500 on gray-500/10 |
+| `pending`, `retired`, or unknown | yellow-500 on yellow-500/10 |
+
+**Connectivity dot (within the lifecycle badge):**
+
+| State | Colour |
+|---|---|
+| `online` | green-500 |
+| `offline` | gray-500 |
+| `unknown` | yellow-500 |
+
+**Health pill (separate pill next to the lifecycle badge):**
+
+| State | Colour |
+|---|---|
+| `healthy` | green-400 on green-500/10 |
+| `warning` | yellow-400 on yellow-500/10 |
+| `error` | red-400 on red-500/10 |
+| `maintenance` | blue-400 on blue-500/10 |
+| `unknown` or absent | gray-400 on gray-500/10 |
+
+## Windows adaptation
+Only after the Linux real-device contract works:
+- implement stable Windows device identity;
+- use Windows Credential Manager or DPAPI;
+- package as a signed Windows service/MSI;
+- implement HTTPS and proxy handling;
+- add WNS or the selected wake-up mechanism;
+- implement service recovery and upgrades;
+- test restricted users, reboot, firewall, proxy, sleep/resume, and credential revocation.
+The backend APIs and lifecycle rules should remain platform-neutral.
+
+## Windows adaptation PRs
+
+| PR  | Focus | Description |
+| --- | ----- | ----------- |
+| W1  | **Stable Windows device identity** | Generate/persist a stable identity (e.g. from `WMID`/`Get-CimInstance Win32_ComputerSystemProduct` + salt, or a generated UUID in `%PROGRAMDATA%\Homepot\identity`). Add `WindowsIdentityProvider` to the agent. |
+| W2  | **Windows credential storage** | Implement `WindowsCredManager` using `keyring` with Credential Manager backend, or direct DPAPI via `crypt32`. Replace the `SimulationStorage` fallback on Windows. |
+| W3  | **Windows agent bootstrap & enrolment** | Wire identity + credential storage into the agent's bootstrap flow on Windows. Test end-to-end enrolment from a Windows host. |
+| W4  | **Windows service packaging** | Package the agent as a Windows service (pywin32), create an MSI (WiX or similar), handle `SERVICE_AUTO_START`, service recovery policy (restart on failure). |
+| W5  | **Windows proxy & HTTPS** | Read system-proxy settings (IE/WinHTTP proxy), configure `httpx`/`requests` to respect them. Validate Windows certificate store for TLS. |
+| W6  | **Agent-side WNS push wake-up** | The backend WNS provider is done; add the agent-side push channel registration and wake-up handler so the agent does not have to poll constantly on Windows. |
+| W7  | **Windows service recovery & upgrades** | Log rotation (Windows EventLog or rolling file), graceful shutdown via `SERVICE_CONTROL_PRESHUTDOWN`, atomic in-place upgrade strategy for MSI. |
+| W8  | **Windows resilience tests** | CI tests on `windows-latest` covering: restricted users, reboot resilience, firewall blocks, proxy misconfiguration, sleep/resume, credential revocation, duplicate enrolment. |
+
+## User App PRs
+
+| PR  | Focus | Description |
+| --- | ----- | ----------- |
+| U1  | **User App standalone packaging (Electron/Tauri)** ✅ | Package the React app as a native desktop shell for filesystem and OS API access. Enable native `LinuxFileStorage` (currently falls back to browser `sessionStorage`). Add OS-level device identity, system tray, window management, and auto-update foundation. |
+| U2  | **Device-credential auth for self-enrolment** ✅ | Replace SSO cookie-based login (`POST /login`, `credentials: 'include'`) with device-credential auth. Add `bootstrap_key_hash` to the `Site` model; new `POST /devices/bootstrap-provision` endpoint validates the key via bcrypt and provisions directly; new `POST /sites/{site_id}/bootstrap-key` endpoint for operators to generate/regenerate keys; frontend SignIn.tsx now accepts a bootstrap key instead of email/password; ReviewStep calls `/devices/bootstrap-provision` without `credentials: 'include'`. |
+| U3  | **Device permissions backend (DB model + API)** ✅ | Add `device_permissions` JSON column to `Device` model. Add `capabilities` JSON column (derived from `os_details` at provision time — maps OS to supported permission flags). Create `PATCH /devices/device/{device_id}/permissions` (device auth via X-Device-ID + X-API-Key, validates against capabilities) and `GET /devices/device/{device_id}/permissions` (operator JWT, includes capabilities). Add `PATCH /devices/device/{device_id}/permissions/admin-override` (operator JWT, admin override with capability validation). Include `device_permissions` and `capabilities` in `GET /devices/device/{id}` response. Schema: `{ root_access, process_monitoring, filesystem_access, network_monitoring }`, all default `false`. |
+| U4  | **Wire Permissions UI to backend** ✅ | Fetch current permissions on mount (device-credential auth, now also accepted by `GET /device/{device_id}/permissions`). Debounced `PATCH` on toggle change (300 ms). Loading spinner on first fetch. Error banner on fetch/sync failure. Individual toggle saving state. Disabled toggles for capabilities the OS does not support (greyed out with "Not supported on this OS" hint). |
+| U5  | **Agent-side permission enforcement** ✅ | Python agent fetches `device_permissions` from backend on each poll cycle (`fetch_device_permissions`). Checks required permission before executing privileged commands (`restart`/`shutdown` → `root_access`, `update_config` → `filesystem_access`). Returns `failed` status with denial reason if permission not granted. Maps capabilities from `os_details` during device-DNA registration. |
+| U6  | **Real device DNA** ✅ | Replace hardcoded MAC, IP, hostname placeholders in `DeviceInfo` view. Fetch real MAC, local IP, hostname from the agent or backend API. Ensure `GET /devices/device/{id}` exposes these fields. |
+| U7  | **Error boundaries and tests** ✅ | React error boundary wrapping each view. Unit tests for `credentialStorage`, each view, and API service layer. Integration test for a full enrolment → claim → status → unpair cycle. |

@@ -24,7 +24,7 @@ export default function AgentList() {
   const fetchAgents = async () => {
     try {
       setRefreshing(true);
-      const res = await api.agents.getListAgents();
+      const res = await api.agents.list();
       setAgents(res.agents || []);
     } catch (err) {
       console.error('Failed to fetch agents:', err);
@@ -55,17 +55,21 @@ export default function AgentList() {
         switch (sortConfig.key) {
           case 'status':
             // 1 for Online, 0 for Offline
-            aValue = a.uptime === 'running' || a.uptime === 'online' ? 1 : 0;
-            bValue = b.uptime === 'running' || b.uptime === 'online' ? 1 : 0;
+            aValue = a.connectivity_state === 'online' ? 1 : 0;
+            bValue = b.connectivity_state === 'online' ? 1 : 0;
+            break;
+          case 'lifecycle':
+            aValue = a.lifecycle_state === 'active' ? 2 : a.lifecycle_state === 'suspended' ? 1 : 0;
+            bValue = b.lifecycle_state === 'active' ? 2 : b.lifecycle_state === 'suspended' ? 1 : 0;
             break;
           case 'health':
             // 1 for Healthy (has check), 0 for Unknown
-            aValue = a.last_health_check ? 1 : 0;
-            bValue = b.last_health_check ? 1 : 0;
+            aValue = a.health_state === 'healthy' ? 1 : 0;
+            bValue = b.health_state === 'healthy' ? 1 : 0;
             break;
           case 'last_seen':
-            aValue = a.last_health_check?.last_restart || '';
-            bValue = b.last_health_check?.last_restart || '';
+            aValue = a.last_health_check?.timestamp || '';
+            bValue = b.last_health_check?.timestamp || '';
             break;
           case 'device_id':
             aValue = a.device_id;
@@ -87,8 +91,26 @@ export default function AgentList() {
     return sortableItems;
   }, [agents, sortConfig]);
 
+  const getLifecycleBadge = (state) => {
+    const s = state || 'unknown';
+    const colors = {
+      active: 'bg-green-500/10 text-green-400 border-green-500/20',
+      suspended: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+      unpaired: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+      retired: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+      pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    };
+    return (
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[s] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}
+      >
+        {s}
+      </span>
+    );
+  };
+
   const getStatusBadge = (state) => {
-    const isOnline = state === 'running' || state === 'online';
+    const isOnline = state === 'online';
     return (
       <span
         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -105,8 +127,8 @@ export default function AgentList() {
     );
   };
 
-  const getHealthIcon = (lastCheck) => {
-    if (!lastCheck) {
+  const getHealthIcon = (healthState) => {
+    if (!healthState || healthState === 'unknown') {
       return (
         <span className="flex items-center gap-1.5 text-yellow-500 text-sm">
           <AlertTriangle className="w-4 h-4" />
@@ -115,10 +137,13 @@ export default function AgentList() {
       );
     }
 
+    const isHealthy = healthState === 'healthy';
     return (
-      <span className="flex items-center gap-1.5 text-emerald-400 text-sm">
-        <CheckCircle className="w-4 h-4" />
-        Healthy
+      <span
+        className={`flex items-center gap-1.5 ${isHealthy ? 'text-emerald-400' : 'text-red-400'} text-sm`}
+      >
+        {isHealthy ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+        {healthState.charAt(0).toUpperCase() + healthState.slice(1)}
       </span>
     );
   };
@@ -138,7 +163,7 @@ export default function AgentList() {
 
   // Calculate stats
   const totalAgents = agents.length;
-  const onlineAgents = agents.filter((a) => a.uptime === 'running' || a.uptime === 'online').length;
+  const onlineAgents = agents.filter((a) => a.connectivity_state === 'online').length;
   const offlineAgents = totalAgents - onlineAgents;
 
   if (loading) {
@@ -239,6 +264,17 @@ export default function AgentList() {
                   </th>
                   <th
                     className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    onClick={() => handleSort('lifecycle')}
+                  >
+                    <div className="flex items-center gap-2">
+                      Lifecycle
+                      <ArrowUpDown
+                        className={`h-3 w-3 ${sortConfig.key === 'lifecycle' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
+                      />
+                    </div>
+                  </th>
+                  <th
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
                     onClick={() => handleSort('health')}
                   >
                     <div className="flex items-center gap-2">
@@ -265,7 +301,7 @@ export default function AgentList() {
               <tbody className="divide-y divide-slate-800">
                 {sortedAgents.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                       No agents found. Register a device to get started.
                     </td>
                   </tr>
@@ -277,10 +313,11 @@ export default function AgentList() {
                       onClick={() => navigate(`/device/${agent.device_id}`)}
                     >
                       <td className="px-6 py-4 font-medium text-white">{agent.device_id}</td>
-                      <td className="px-6 py-4">{getStatusBadge(agent.uptime)}</td>
-                      <td className="px-6 py-4">{getHealthIcon(agent.last_health_check)}</td>
+                      <td className="px-6 py-4">{getStatusBadge(agent.connectivity_state)}</td>
+                      <td className="px-6 py-4">{getLifecycleBadge(agent.lifecycle_state)}</td>
+                      <td className="px-6 py-4">{getHealthIcon(agent.health_state)}</td>
                       <td className="px-6 py-4 text-slate-400 font-mono text-xs">
-                        {formatDate(agent.last_health_check?.last_restart)}
+                        {formatDate(agent.last_health_check?.timestamp)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button

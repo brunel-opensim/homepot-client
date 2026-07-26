@@ -14,8 +14,10 @@ from .Endpoints import (
     AnalyticsEndpoint,
     ClientEndpoint,
     DashboardEndpoint,
+    DeviceBootstrapProvisionEndpoint,
     DeviceCommandsEndpoint,
     DeviceCredentialEndpoint,
+    DevicePermissionsEndpoint,
     DeviceProvisionEndpoint,
     DevicesEndpoints,
     DeviceSimulatorEndpoint,
@@ -23,6 +25,7 @@ from .Endpoints import (
     HealthEndpoint,
     JobsEndpoints,
     PushNotificationEndpoint,
+    SitesBootstrapKeyEndpoint,
     SiteSchedulesEndpoint,
     SitesEndpoint,
     TenantsEndpoint,
@@ -117,10 +120,17 @@ api_v1_router.include_router(
     DeviceProvisionEndpoint.router, prefix="/devices", tags=["Devices"]
 )
 api_v1_router.include_router(
+    DeviceBootstrapProvisionEndpoint.router, prefix="/devices", tags=["Devices"]
+)
+api_v1_router.include_router(SitesBootstrapKeyEndpoint.router, tags=["Sites"])
+api_v1_router.include_router(
     EnrolmentIntentsEndpoint.router, tags=["Enrolment Intents"]
 )
 api_v1_router.include_router(
     DeviceCredentialEndpoint.router, prefix="/devices", tags=["Devices"]
+)
+api_v1_router.include_router(
+    DevicePermissionsEndpoint.router, prefix="/devices", tags=["Devices"]
 )
 
 # JobsEndpoints routes are already self-prefixed (e.g. "/sites/{site_id}/jobs").

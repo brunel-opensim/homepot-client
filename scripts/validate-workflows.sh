@@ -468,42 +468,42 @@ validate_code_quality() {
     
     local failed=false
     
-    # Black formatting
+    # Black formatting (matches CI/CD Pipeline scope)
     if command -v black >/dev/null 2>&1; then
         echo -n "    Black formatting: "
-        log_verbose "Running: black --check backend/ backend/tests/ ai/ uq/"
-        if black --check backend/ backend/tests/ ai/ uq/ 2>/dev/null; then
+        log_verbose "Running: black --check backend/src/homepot/ backend/tests/ ai/ uq/"
+        if black --check backend/src/homepot/ backend/tests/ ai/ uq/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: black backend/ backend/tests/ ai/ uq/${NC}"
+            echo -e "${RED}Failed - run: black backend/src/homepot/ backend/tests/ ai/ uq/${NC}"
             failed=true
         fi
     else
         log_warning "Black not available, skipping formatting check"
     fi
     
-    # isort import sorting (NEW - matches CI/CD)
+    # isort import sorting (matches CI/CD Pipeline scope)
     if command -v isort >/dev/null 2>&1; then
         echo -n "    Import sorting (isort): "
-        log_verbose "Running: isort --check-only backend/ backend/tests/ ai/ uq/"
-        if isort --check-only backend/ backend/tests/ ai/ uq/ 2>/dev/null; then
+        log_verbose "Running: isort --check-only backend/src/homepot/ backend/tests/ ai/ uq/"
+        if isort --check-only backend/src/homepot/ backend/tests/ ai/ uq/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: isort backend/ backend/tests/ ai/ uq/${NC}"
+            echo -e "${RED}Failed - run: isort backend/src/homepot/ backend/tests/ ai/ uq/${NC}"
             failed=true
         fi
     else
         log_warning "isort not available, skipping import sorting check"
     fi
     
-    # flake8 linting
+    # flake8 linting (matches CI/CD Pipeline scope)
     if command -v flake8 >/dev/null 2>&1; then
         echo -n "    Linting (flake8): "
-        log_verbose "Running: flake8 backend/ backend/tests/ ai/ uq/"
-        if flake8 backend/ backend/tests/ ai/ uq/ 2>/dev/null; then
+        log_verbose "Running: flake8 backend/src/homepot/ backend/tests/ ai/ uq/"
+        if flake8 backend/src/homepot/ backend/tests/ ai/ uq/ 2>/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
-            echo -e "${RED}Failed - run: flake8 backend/ backend/tests/ ai/ uq/${NC}"
+            echo -e "${RED}Failed - run: flake8 backend/src/homepot/ backend/tests/ ai/ uq/${NC}"
             failed=true
         fi
     else

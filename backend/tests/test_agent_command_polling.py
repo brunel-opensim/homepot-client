@@ -51,6 +51,21 @@ class TestParsePendingCommands:
         assert parse_pending_commands({}) == []
 
 
+ALLOW_ALL: dict[str, bool] = {
+    "root_access": True,
+    "process_monitoring": True,
+    "filesystem_access": True,
+    "network_monitoring": True,
+}
+
+DENY_ALL: dict[str, bool] = {
+    "root_access": False,
+    "process_monitoring": False,
+    "filesystem_access": False,
+    "network_monitoring": False,
+}
+
+
 class TestProcessCommand:
     """Tests for ``process_command``."""
 
@@ -66,31 +81,62 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert result["result"]["message"] == "pong"
 
-    def test_restart_returns_completed(self):
-        """Restart command returns status 'completed'."""
-        result = process_command({"command_id": "c1", "command_type": "restart"})
+    def test_restart_allowed_with_root_access(self):
+        """Restart succeeds when root_access is granted."""
+        result = process_command(
+            {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
+        )
         assert result["status"] == "completed"
 
-    def test_shutdown_returns_completed(self):
-        """Shutdown command returns status 'completed'."""
-        result = process_command({"command_id": "c1", "command_type": "shutdown"})
+    def test_restart_denied_without_root_access(self):
+        """Restart fails when root_access is denied."""
+        result = process_command(
+            {"command_id": "c1", "command_type": "restart"}, DENY_ALL
+        )
+        assert result["status"] == "failed"
+        assert "denied" in result["result"]["error"]
+
+    def test_shutdown_allowed_with_root_access(self):
+        """Shutdown succeeds when root_access is granted."""
+        result = process_command(
+            {"command_id": "c1", "command_type": "shutdown"}, ALLOW_ALL
+        )
         assert result["status"] == "completed"
 
-    def test_update_config_with_payload(self):
-        """Update_config command includes applied_keys in result."""
+    def test_shutdown_denied_without_root_access(self):
+        """Shutdown fails when root_access is denied."""
+        result = process_command(
+            {"command_id": "c1", "command_type": "shutdown"}, DENY_ALL
+        )
+        assert result["status"] == "failed"
+        assert "denied" in result["result"]["error"]
+
+    def test_update_config_allowed_with_filesystem_access(self):
+        """Update_config succeeds when filesystem_access is granted."""
         result = process_command(
             {
                 "command_id": "c1",
                 "command_type": "update_config",
                 "payload": {"theme": "dark", "polling_rate": 30},
-            }
+            },
+            ALLOW_ALL,
         )
         assert result["status"] == "completed"
         assert set(result["result"]["applied_keys"]) == {"theme", "polling_rate"}
 
+    def test_update_config_denied_without_filesystem_access(self):
+        """Update_config fails when filesystem_access is denied."""
+        result = process_command(
+            {"command_id": "c1", "command_type": "update_config"}, DENY_ALL
+        )
+        assert result["status"] == "failed"
+        assert "denied" in result["result"]["error"]
+
     def test_update_config_without_payload(self):
         """Update_config command with no payload returns empty applied_keys."""
-        result = process_command({"command_id": "c1", "command_type": "update_config"})
+        result = process_command(
+            {"command_id": "c1", "command_type": "update_config"}, ALLOW_ALL
+        )
         assert result["status"] == "completed"
         assert result["result"]["applied_keys"] == []
 
@@ -103,6 +149,12 @@ class TestProcessCommand:
         """Missing command_type is treated as empty string (unknown)."""
         result = process_command({"command_id": "c1"})
         assert result["status"] == "failed"
+
+    def test_denied_without_permissions(self):
+        """Privileged command fails when permissions dict is None."""
+        result = process_command({"command_id": "c1", "command_type": "restart"})
+        assert result["status"] == "failed"
+        assert "not available" in result["result"]["error"]
 
 
 class TestBuildStatusUpdatePayload:

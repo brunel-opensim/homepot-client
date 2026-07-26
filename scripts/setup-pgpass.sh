@@ -23,7 +23,7 @@ DB_USER="homepot_user"
 DB_PASSWORD="homepot_dev_password"
 
 PGPASS_FILE="$HOME/.pgpass"
-PGPASS_ENTRY="${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:${DB_PASSWORD}"
+PGPASS_ENTRY="${DB_HOST}:${DB_PORT}:*:${DB_USER}:${DB_PASSWORD}"
 
 # Check if .pgpass already exists
 if [ -f "$PGPASS_FILE" ]; then
