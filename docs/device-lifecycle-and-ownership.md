@@ -559,6 +559,92 @@ Only after the Linux real-device contract works:
 - test restricted users, reboot, firewall, proxy, sleep/resume, and credential revocation.
 The backend APIs and lifecycle rules should remain platform-neutral.
 
+## Dev server & real-device rollout
+
+These PRs close the gap between localhost simulation and real device testing on a dev server.
+They focus on configuration parameterisation, data-model fidelity, and deployment tooling.
+
+PR 25: **Environment-agnostic configuration**
+
+Replace hardcoded localhost values with environment-driven configuration so the same
+build targets localhost, a dev server, or production without code changes.
+
+| File | Current (hardcoded) | Target |
+|---|---|---|
+| `backend/src/homepot/main.py` lines 319-325 | `allow_origins = ["http://localhost:5173", …]` | Read from `CORS_ORIGINS` env var, fall back to localhost list |
+| `backend/src/homepot/app/main.py` lines 67-73 | Same duplication | Consolidate to one CORS config; read from env |
+| `frontend/.env.local` | `VITE_API_BASE_URL=http://localhost:8000` | Retain as default; document override for dev server |
+| `user_app/.env.example` | `VITE_API_BASE_URL=http://localhost:8000/api/v1` | Same |
+| `backend/src/homepot/agent/agent-config.json` | `backend_url: "http://localhost:8000"` | Retain as default; agent CLI accepts `--backend-url` override |
+| `backend/.env.example` `ENABLE_AGENT_SIMULATION=true` | Declared but **never read** | Wire to gate `AgentManager` start (see PR 27) |
+
+PR 26: **Add `is_simulated` flag to Device model**
+
+Allow the Dashboard to distinguish real devices from simulated seed data.
+
+**Backend:**
+- Add `is_simulated: bool` column to `Device` (default `false`), additive migration.
+- Seed scripts (`seed_factories.py`, `generate_traffic.py`) set `is_simulated=true`.
+- Real registration paths (`/devices/provision`, `/devices/bootstrap-provision`, enrolment-intent claim) set `is_simulated=false`.
+- Expose field in `GET /devices/device/{id}` and device-list responses.
+
+**Dashboard:**
+- Display a "Simulated" badge on simulated device rows.
+- Filter/toggle to hide simulated devices in fleet views.
+- Exclude simulated devices from "real" fleet counts.
+
+PR 27: **Wire `ENABLE_AGENT_SIMULATION` env var**
+
+The env var exists in `.env.example` but is never read. Gate the simulator so a dev
+server can run without simulated agents polluting real device data.
+
+**Backend:**
+- Read `ENABLE_AGENT_SIMULATION` (default `true` for local dev).
+- In `main.py` startup, only call `get_agent_manager()` when enabled.
+- `get_agent_manager()` returns a no-op placeholder when disabled (so endpoints that reference it don't crash).
+- Simulation endpoints (`/agents/simulation/start|stop|status`) return 404 when disabled.
+
+PR 28: **Wire command poll loop & secure command endpoint**
+
+Two concrete gaps that block real-device command execution.
+
+**Real device agent:**
+- Activate the existing `command_poll_loop` in `real_device_agent.py` (uses `GET /api/v1/devices/pending`).
+- Wire the execution dispatcher for `PING`, `RESTART_AGENT`, `APPLY_CONFIG`.
+- Report outcomes via `PUT /api/v1/commands/{command_id}/status`.
+- Reuse the existing `RetryQueue` for offline resilience.
+
+**Backend security:**
+- Add authorisation to `POST /devices/{device_id}/commands` — require admin/site-operator JWT.
+- Add audit logging for who queued which command.
+- Add rate limiting to prevent abuse.
+
+PR 29: **Traditional deployment scripts**
+
+Systemd units, CLI launchers, and env-file templates for a dev server without Docker.
+
+| Deliverable | Description |
+|---|---|
+| `deploy/homepot-api.service` | Systemd unit for the FastAPI backend (uvicorn, working directory, user, env file, log config) |
+| `deploy/homepot-agent.service` | Systemd unit for the real device agent |
+| `deploy/homepot-frontend.service` | Systemd unit for the Vite/React dashboard (built as static files served by a simple HTTP server, or reverse-proxied) |
+| `deploy/env-override.sh` | Script that sets `CORS_ORIGINS`, `DATABASE__URL`, `SECRET_KEY`, `ENABLE_AGENT_SIMULATION=false` for dev server |
+| `deploy/README.md` | Walkthrough: provision database, copy env file, enable services, verify health |
+| `scripts/setup-dev-server.sh` | Opinionated one-shot: installs deps, creates DB, runs migrations, starts services in correct order |
+
+PR 30: **Dev server smoke tests**
+
+A test suite that validates a fresh dev server deployment before real devices connect.
+
+**Tests:**
+- Health endpoint responds 200.
+- Unauthenticated device endpoints reject with 401.
+- Admin can create a site and enrolment intent.
+- Agent can bootstrap-provision and heartbeat.
+- Simulator is off (`/agents/simulation/status` returns 404).
+- CORS headers include the configured dev server origin.
+- `is_simulated=false` on provisioned devices.
+
 ## Windows adaptation PRs
 
 | PR  | Focus | Description |
