@@ -55,15 +55,11 @@ event_store: Any = None
 mode_manager: Any = None
 failure_predictor: Any = None
 context_builder: Any = None
-_services_initialised: bool = False
 
 
 def _ensure_services() -> None:
     global llm_service, memory_service, anomaly_detector, event_store  # noqa: PLW0603
     global mode_manager, failure_predictor, context_builder  # noqa: PLW0603
-    global _services_initialised
-    if _services_initialised:
-        return
     if llm_service is None:
         llm_service = LLMService()
     if memory_service is None:
@@ -78,7 +74,6 @@ def _ensure_services() -> None:
         failure_predictor = FailurePredictor(event_store)
     if context_builder is None:
         context_builder = ContextBuilder()
-    _services_initialised = True
 
 
 class ChatMessage(BaseModel):
