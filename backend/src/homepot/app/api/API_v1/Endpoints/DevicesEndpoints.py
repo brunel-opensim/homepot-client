@@ -364,6 +364,7 @@ async def list_device(
                             else "inactive"
                         ),
                         "is_monitored": device.is_monitored,
+                        "is_simulated": device.is_simulated,
                         "created_at": (
                             device.created_at.isoformat() if device.created_at else None
                         ),
@@ -507,6 +508,7 @@ async def get_device(
                     "network_monitoring": False,
                 },
                 "is_monitored": device.is_monitored,
+                "is_simulated": device.is_simulated,
                 "created_at": (
                     device.created_at.isoformat() if device.created_at else None
                 ),
@@ -1776,6 +1778,7 @@ async def get_devices_by_site(
                 "status": d.status,
                 "ip_address": d.ip_address,
                 "is_monitored": d.is_monitored,
+                "is_simulated": d.is_simulated,
                 "active_alerts": alert_map.get(d.device_id, 0),
                 "enrollment_method": getattr(d, "enrollment_method", "pre-provisioned"),
                 "last_seen": d.last_seen.isoformat() if d.last_seen else None,

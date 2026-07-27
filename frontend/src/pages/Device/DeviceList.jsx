@@ -151,6 +151,11 @@ export default function DeviceList() {
                   >
                     {device.lifecycle_state?.toUpperCase() || 'UNKNOWN'}
                   </div>
+                  {device.is_simulated && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                      SIM
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -315,6 +315,11 @@ export default function SiteDetail() {
                               />
                               {device.lifecycle_state || 'Unknown'}
                             </span>
+                            {device.is_simulated && (
+                              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                SIM
+                              </span>
+                            )}
                             <span
                               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                                 device.health_state === 'healthy'
