@@ -213,8 +213,8 @@ def authenticate_device_credentials(
 ) -> Device:
     """Authenticate a device using its device ID and plaintext API key.
 
-    Rejects credentials if the device is not in an active lifecycle state
-    (``PENDING``, ``SUSPENDED``, ``UNPAIRED``, ``RETIRED`` are rejected).
+    Accepts ``ACTIVE`` and ``PENDING`` lifecycle states.  Handler-level logic
+    decides whether PENDING operations are allowed on a per-endpoint basis.
     """
     if not device_id:
         raise HTTPException(
@@ -231,12 +231,13 @@ def authenticate_device_credentials(
             detail="Invalid Device ID",
         )
 
-    # Reject inactive lifecycle states
-    if device.lifecycle_state not in (LifecycleState.ACTIVE.value,):
+    # Reject inactive lifecycle states (allow ACTIVE + PENDING)
+    allowed_states = {LifecycleState.ACTIVE.value, LifecycleState.PENDING.value}
+    if device.lifecycle_state not in allowed_states:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Device lifecycle state is '{device.lifecycle_state}'; "
-            "only 'active' devices may authenticate",
+            "only 'active' or 'pending' devices may authenticate",
         )
 
     if not device.api_key_hash:
@@ -276,12 +277,13 @@ async def get_current_device(
             detail="Invalid Device ID",
         )
 
-    # Reject inactive lifecycle states
-    if device.lifecycle_state not in (LifecycleState.ACTIVE.value,):
+    # Reject inactive lifecycle states (allow ACTIVE + PENDING)
+    allowed_states = {LifecycleState.ACTIVE.value, LifecycleState.PENDING.value}
+    if device.lifecycle_state not in allowed_states:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Device lifecycle state is '{device.lifecycle_state}'; "
-            "only 'active' devices may authenticate",
+            "only 'active' or 'pending' devices may authenticate",
         )
 
     if not device.api_key_hash:
