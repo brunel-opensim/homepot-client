@@ -124,23 +124,20 @@ jobs:
     - name: Run unit tests
       shell: bash
       env:
-        # Ubuntu runs against real PostgreSQL + TimescaleDB (matching
-        # production). Windows/macOS use file-based SQLite since installing
-        # PostgreSQL without Docker isn't practical cross-platform there.
         DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
       run: |
         cd backend
-        # Run sequentially to avoid SQLite locking issues (no -n auto)
+        XDIST_ARGS="-n auto"
         
         if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.11" ]]; then
           # Generate coverage only on Ubuntu 3.11
-          pytest tests/ --cov=homepot --cov-report=xml --tb=short --durations=10 \
+          pytest ${XDIST_ARGS} tests/ --cov=homepot --cov-report=xml --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         else
           # Standard execution for other platforms
-          pytest tests/ --tb=short --durations=10 \
+          pytest ${XDIST_ARGS} tests/ --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
