@@ -390,6 +390,7 @@ class Device(Base):
     # DEPRECATED: use lifecycle_state — active/pending/suspended → True, unpaired/retired → False
     is_active = Column(Boolean, default=True)
     is_monitored = Column(Boolean, default=False)
+    is_simulated = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 

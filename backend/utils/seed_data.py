@@ -471,6 +471,7 @@ async def init_database():
         ip_address,
         config,
         is_monitored=False,
+        is_simulated=True,
         enrollment_method="pre-provisioned",
         enrollment_token=None,
     ):
@@ -487,11 +488,12 @@ async def init_database():
             config=config,
             last_seen=datetime.now(timezone.utc),
             is_monitored=is_monitored,
+            is_simulated=is_simulated,
             enrollment_method=enrollment_method,
             enrollment_token=enrollment_token,
         )
         print(
-            f"Created device: {device.name} ({device_id}) [Monitored: {is_monitored}] [Method: {enrollment_method}]"
+            f"Created device: {device.name} ({device_id}) [Monitored: {is_monitored}] [Simulated: {is_simulated}] [Method: {enrollment_method}]"
         )
         return device
 
