@@ -7,8 +7,6 @@ These tests verify that:
 4. Retention and compression policies are applied correctly
 """
 
-import os
-
 import pytest
 from sqlalchemy import text
 
