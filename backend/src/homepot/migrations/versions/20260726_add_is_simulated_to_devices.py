@@ -19,7 +19,12 @@ def upgrade() -> None:
     """Add is_simulated column to devices table."""
     op.add_column(
         "devices",
-        sa.Column("is_simulated", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "is_simulated",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
     )
 
 
