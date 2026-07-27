@@ -93,10 +93,11 @@ jobs:
       run: |
         set -e
         python -m pip install --upgrade pip
-        pip install -r backend/requirements.txt
+        PREFER_BINARY="${{ matrix.os == 'windows-latest' && '--prefer-binary' || '' }}"
+        pip install ${PREFER_BINARY} -r backend/requirements.txt
         EXTRAS=""
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then EXTRAS="[agent]"; fi
-        pip install -e "backend${EXTRAS}"
+        pip install ${PREFER_BINARY} -e "backend${EXTRAS}"
 
     - name: Install PostgreSQL 16 + TimescaleDB (Ubuntu only)
       if: matrix.os == 'ubuntu-latest'
