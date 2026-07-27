@@ -36,14 +36,44 @@ with open(config_path, "r") as f:
 
 app = FastAPI(title=config["app"]["name"], version=config["app"]["version"])
 
-# Initialize services
-llm_service = LLMService()
-memory_service = DeviceMemory()
-anomaly_detector = AnomalyDetector()
-event_store = EventStore()
-mode_manager = ModeManager()
-failure_predictor = FailurePredictor(event_store)
-context_builder = ContextBuilder()
+
+# ---------------------------------------------------------------------------
+# Lazily-initialised service singletons
+# ---------------------------------------------------------------------------
+# Each service is created only on first access, avoiding ChromaDB SQLite
+# initialisation at module-import time.  This lets pytest-xdist workers
+# collect and run in parallel without hitting locking errors.
+#
+# The names are declared at module level (initially ``None``) so that flake8
+# and mypy can resolve them statically.  ``_ensure_services()`` replaces the
+# ``None`` sentinel with the real singleton on the first call.
+
+llm_service: Any = None
+memory_service: Any = None
+anomaly_detector: Any = None
+event_store: Any = None
+mode_manager: Any = None
+failure_predictor: Any = None
+context_builder: Any = None
+
+
+def _ensure_services() -> None:
+    global llm_service, memory_service, anomaly_detector, event_store  # noqa: PLW0603
+    global mode_manager, failure_predictor, context_builder  # noqa: PLW0603
+    if llm_service is None:
+        llm_service = LLMService()
+    if memory_service is None:
+        memory_service = DeviceMemory()
+    if anomaly_detector is None:
+        anomaly_detector = AnomalyDetector()
+    if event_store is None:
+        event_store = EventStore()
+    if mode_manager is None:
+        mode_manager = ModeManager()
+    if failure_predictor is None:
+        failure_predictor = FailurePredictor(event_store)
+    if context_builder is None:
+        context_builder = ContextBuilder()
 
 
 class ChatMessage(BaseModel):
@@ -78,6 +108,7 @@ class ModeRequest(BaseModel):
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
     """Check service health."""
+    _ensure_services()
     llm_health = llm_service.check_health()
     return {
         "status": "healthy",
@@ -90,6 +121,7 @@ async def health_check() -> Dict[str, Any]:
 @app.post("/api/ai/mode")
 async def set_mode(request: ModeRequest) -> Dict[str, str]:
     """Set the AI analysis mode."""
+    _ensure_services()
     mode_manager.set_mode(request.mode)
     return {"status": "success", "mode": mode_manager.current_mode.value}
 
@@ -97,6 +129,7 @@ async def set_mode(request: ModeRequest) -> Dict[str, str]:
 @app.post("/api/ai/query")
 async def query_ai(request: QueryRequest) -> Dict[str, Any]:
     """Ask a natural language question about devices with context."""
+    _ensure_services()
     try:
         # 1. Retrieve Long-Term Context from Vector Memory
         context_memories = memory_service.query_similar(request.query)
@@ -267,6 +300,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
 @app.post("/api/ai/analyze")
 async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
     """Analyze device metrics for anomalies using Hybrid approach."""
+    _ensure_services()
     try:
         # 0. Store current metrics as an event
         event_store.add_event(
@@ -385,9 +419,10 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
 @app.get("/predict/{device_id}")
 async def predict_failure(device_id: str) -> Dict[str, Any]:
     """Predict failure risk for a specific device."""
+    _ensure_services()
     try:
         prediction = await failure_predictor.predict_device_failure(device_id)
-        return prediction
+        return prediction  # type: ignore[no-any-return]
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
