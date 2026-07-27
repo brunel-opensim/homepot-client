@@ -172,6 +172,10 @@ class Settings(BaseSettings):
         default="development",
         description="Environment (development, testing, production)",
     )
+    enable_agent_simulation: bool = Field(
+        default=True,
+        description="Enable simulated device agents on startup (set False for dev server with real devices)",
+    )
 
     # Server configuration
     host: str = Field(default="0.0.0.0", description="Server host")  # nosec B104
