@@ -1,0 +1,42 @@
+[Unit]
+Description=HOMEPOT Device Agent — real device runtime
+Documentation=https://github.com/brunel-opensim/homepot-client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=homepot
+Group=homepot
+WorkingDirectory=/opt/homepot/backend
+
+EnvironmentFile=/opt/homepot/deploy/env-override.sh
+ExecStart=/opt/homepot/.venv/bin/homepot-agent run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+WatchdogSec=30
+
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
