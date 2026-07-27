@@ -63,13 +63,20 @@ def _ensure_services() -> None:
     global _services_initialised
     if _services_initialised:
         return
-    llm_service = LLMService()
-    memory_service = DeviceMemory()
-    anomaly_detector = AnomalyDetector()
-    event_store = EventStore()
-    mode_manager = ModeManager()
-    failure_predictor = FailurePredictor(event_store)
-    context_builder = ContextBuilder()
+    if llm_service is None:
+        llm_service = LLMService()
+    if memory_service is None:
+        memory_service = DeviceMemory()
+    if anomaly_detector is None:
+        anomaly_detector = AnomalyDetector()
+    if event_store is None:
+        event_store = EventStore()
+    if mode_manager is None:
+        mode_manager = ModeManager()
+    if failure_predictor is None:
+        failure_predictor = FailurePredictor(event_store)
+    if context_builder is None:
+        context_builder = ContextBuilder()
     _services_initialised = True
 
 
@@ -105,6 +112,7 @@ class ModeRequest(BaseModel):
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
     """Check service health."""
+    _ensure_services()
     llm_health = llm_service.check_health()
     return {
         "status": "healthy",
@@ -117,6 +125,7 @@ async def health_check() -> Dict[str, Any]:
 @app.post("/api/ai/mode")
 async def set_mode(request: ModeRequest) -> Dict[str, str]:
     """Set the AI analysis mode."""
+    _ensure_services()
     mode_manager.set_mode(request.mode)
     return {"status": "success", "mode": mode_manager.current_mode.value}
 
@@ -124,6 +133,7 @@ async def set_mode(request: ModeRequest) -> Dict[str, str]:
 @app.post("/api/ai/query")
 async def query_ai(request: QueryRequest) -> Dict[str, Any]:
     """Ask a natural language question about devices with context."""
+    _ensure_services()
     try:
         # 1. Retrieve Long-Term Context from Vector Memory
         context_memories = memory_service.query_similar(request.query)
@@ -294,6 +304,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
 @app.post("/api/ai/analyze")
 async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
     """Analyze device metrics for anomalies using Hybrid approach."""
+    _ensure_services()
     try:
         # 0. Store current metrics as an event
         event_store.add_event(
@@ -412,6 +423,7 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
 @app.get("/predict/{device_id}")
 async def predict_failure(device_id: str) -> Dict[str, Any]:
     """Predict failure risk for a specific device."""
+    _ensure_services()
     try:
         prediction = await failure_predictor.predict_device_failure(device_id)
         return prediction
