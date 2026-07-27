@@ -36,14 +36,40 @@ with open(config_path, "r") as f:
 
 app = FastAPI(title=config["app"]["name"], version=config["app"]["version"])
 
-# Initialize services
-llm_service = LLMService()
-memory_service = DeviceMemory()
-anomaly_detector = AnomalyDetector()
-event_store = EventStore()
-mode_manager = ModeManager()
-failure_predictor = FailurePredictor(event_store)
-context_builder = ContextBuilder()
+
+# ---------------------------------------------------------------------------
+# Lazily-initialised service singletons
+# ---------------------------------------------------------------------------
+# Each service is created only on first attribute access via module-level
+# ``__getattr__`` (PEP 562).  This avoids initialising ChromaDB (and other
+# heavyweight backends) at module-import time, which in turn lets pytest-xdist
+# workers collect and run in parallel without hitting SQLite locking errors.
+
+_svc_registry: dict = {}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _svc_registry:
+        return _svc_registry[name]
+    if name == "llm_service":
+        svc = LLMService()
+    elif name == "memory_service":
+        svc = DeviceMemory()
+    elif name == "anomaly_detector":
+        svc = AnomalyDetector()
+    elif name == "event_store":
+        svc = EventStore()
+    elif name == "mode_manager":
+        svc = ModeManager()
+    elif name == "failure_predictor":
+        es = __getattr__("event_store")  # ensure event_store is initialised first
+        svc = FailurePredictor(es)
+    elif name == "context_builder":
+        svc = ContextBuilder()
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    _svc_registry[name] = svc
+    return svc
 
 
 class ChatMessage(BaseModel):
