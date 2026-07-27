@@ -1016,11 +1016,19 @@ _agent_manager: Optional[AgentManager] = None
 
 
 async def get_agent_manager() -> AgentManager:
-    """Get agent manager singleton."""
+    """Get agent manager singleton.
+
+    When ENABLE_AGENT_SIMULATION is False, the manager is created but not
+    started, so endpoints that reference it receive a valid no-op placeholder
+    instead of crashing.
+    """
     global _agent_manager
     if _agent_manager is None:
+        from homepot.config import get_settings
+
         _agent_manager = AgentManager()
-        await _agent_manager.start()
+        if get_settings().enable_agent_simulation:
+            await _agent_manager.start()
     return _agent_manager
 
 

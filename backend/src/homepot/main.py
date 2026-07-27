@@ -109,12 +109,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raise
 
     # Initialize agent manager (Phase 3)
-    try:
-        await get_agent_manager()
-        logger.info("Agent manager initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize agent manager: {e}")
-        raise
+    if get_settings().enable_agent_simulation:
+        try:
+            await get_agent_manager()
+            logger.info("Agent manager initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize agent manager: {e}")
+            raise
+    else:
+        logger.info("Agent simulation disabled — skipping agent manager")
 
     # Initialize audit logging (Phase 4)
     try:
@@ -171,7 +174,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Shutdown agent manager
     try:
         await stop_agent_manager()
-        logger.info("Agent manager stopped")
+        if get_settings().enable_agent_simulation:
+            logger.info("Agent manager stopped")
     except Exception as e:
         logger.error(f"Error stopping agent manager: {e}")
 

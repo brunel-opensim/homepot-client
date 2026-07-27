@@ -207,6 +207,7 @@ async def send_push_notification(
 @router.post("/agents/simulation/start", tags=["Agents"])
 async def start_simulation() -> Dict[str, str]:
     """Start the device agent simulation."""
+    _require_simulation_enabled()
     try:
         from homepot.agents import get_agent_manager
 
@@ -222,6 +223,7 @@ async def start_simulation() -> Dict[str, str]:
 @router.post("/agents/simulation/stop", tags=["Agents"])
 async def stop_simulation() -> Dict[str, str]:
     """Stop the device agent simulation."""
+    _require_simulation_enabled()
     try:
         from homepot.agents import get_agent_manager
 
@@ -237,6 +239,7 @@ async def stop_simulation() -> Dict[str, str]:
 @router.get("/agents/simulation/status", tags=["Agents"])
 async def get_simulation_status() -> Dict[str, bool]:
     """Get the status of the device agent simulation."""
+    _require_simulation_enabled()
     try:
         from homepot.agents import get_agent_manager
 
@@ -245,3 +248,14 @@ async def get_simulation_status() -> Dict[str, bool]:
     except Exception as e:
         logger.error(f"Failed to get simulation status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _require_simulation_enabled() -> None:
+    """Raise 404 if agent simulation is disabled via ENABLE_AGENT_SIMULATION."""
+    from homepot.config import get_settings
+
+    if not get_settings().enable_agent_simulation:
+        raise HTTPException(
+            status_code=404,
+            detail="Agent simulation is disabled (ENABLE_AGENT_SIMULATION=false)",
+        )
