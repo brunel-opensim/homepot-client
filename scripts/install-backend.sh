@@ -3,7 +3,7 @@
 # Sets up Python virtual environment and installs dependencies
 
 # Useful command
-# ./scripts/install.sh --help
+# ./scripts/install-backend.sh --help
 
 set -e
 

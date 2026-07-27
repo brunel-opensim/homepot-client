@@ -142,7 +142,7 @@ if [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
     print_success "Virtual environment activated"
 else
     print_error "Cannot find virtual environment at $REPO_ROOT/.venv"
-    print_info "Please run ./scripts/install.sh first"
+    print_info "Please run ./scripts/install-backend.sh first"
     exit 1
 fi
 

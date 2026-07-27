@@ -28,7 +28,7 @@ Make scripts executable and run the installer. This script sets up the Python vi
 
 ```bash
 chmod +x scripts/*.sh
-./scripts/install.sh
+./scripts/install-backend.sh
 ```
 
 > **Note**: If you haven't installed Ollama yet, run the AI setup script next. On macOS, this will use Homebrew to install Ollama and pull the required model.

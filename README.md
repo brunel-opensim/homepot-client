@@ -21,7 +21,7 @@ We recommend running the project locally without Docker for the best development
 1.  **Install & Setup**:
     ```bash
     chmod +x scripts/*.sh
-    ./scripts/install.sh
+    ./scripts/install-backend.sh
     ./scripts/setup-ollama.sh
     ```
 
@@ -89,13 +89,13 @@ git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
 
 # Install using the automated script help
-./scripts/install.sh --help
+./scripts/install-backend.sh --help
 ```
 
 Simple installation command:
 
 ```bash
-./scripts/install.sh
+./scripts/install-backend.sh
 ```
 
 *Please follow the installation prompts to complete setup.*
