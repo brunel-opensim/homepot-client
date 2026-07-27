@@ -8,29 +8,22 @@ import os
 import tempfile
 from typing import Any, Generator
 
-# Disable the agent simulator so the test suite verifies the production
-# deployment path (simulation endpoints return 404).  This must be set
-# before any local imports evaluate the settings singleton.
-os.environ.setdefault("ENABLE_AGENT_SIMULATION", "false")
-
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from homepot.app.auth_utils import create_access_token, hash_password
+from homepot.app.auth_utils import create_access_token
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, LifecycleState
+from homepot.models import Base
 from homepot.seed_factories import (
-    create_device_sync,
     create_site_membership_sync,
     create_site_sync,
     create_tenant_membership_sync,
     create_tenant_sync,
     create_user_sync,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -39,7 +32,12 @@ from homepot.seed_factories import (
 
 @pytest.fixture(autouse=True)
 def file_db(monkeypatch: Any) -> Generator[None, None, None]:
-    """Use a temporary file-based SQLite DB so sync+async engines share data."""
+    """Use a temporary file-based SQLite DB so sync+async engines share data.
+
+    Also disables the agent simulator so the test suite verifies the
+    production deployment path (simulation endpoints return 404).
+    """
+    monkeypatch.setenv("ENABLE_AGENT_SIMULATION", "false")
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
 
@@ -51,6 +49,7 @@ def file_db(monkeypatch: Any) -> Generator[None, None, None]:
     if homepot.database._db_service is not None:
         try:
             import asyncio
+
             asyncio.run(homepot.database._db_service.close())
         except Exception:
             pass
@@ -206,9 +205,7 @@ class TestDevServerSmoke:
         assert "intent_id" in intent
         assert "claim_token" in intent
 
-    def test_cors_headers_include_dev_server_origin(
-        self, client: TestClient
-    ) -> None:
+    def test_cors_headers_include_dev_server_origin(self, client: TestClient) -> None:
         """CORS response includes the configured dev server origin."""
         resp = client.options(
             "/api/v1/sites/",
@@ -223,13 +220,7 @@ class TestDevServerSmoke:
         assert "http://localhost:3000" in cors_origin
 
     def test_simulator_is_off(self, client: TestClient) -> None:
-        """Simulation endpoints return 404 when ENABLE_AGENT_SIMULATION is false.
-
-        This test relies on the ``client`` fixture already having patched
-        ``ENABLE_AGENT_SIMULATION=false`` before the lifespan ran (see the
-        module-level environment setup below).
-        """
-
+        """Simulation endpoints return 404 when ENABLE_AGENT_SIMULATION is false."""
         resp = client.get("/api/v1/agents/simulation/status")
         assert resp.status_code == 404, resp.text
 
@@ -257,9 +248,7 @@ class TestDevServerSmoke:
         )
         assert resp.status_code == 200, resp.text
 
-        resp = client.get(
-            "/api/v1/devices/device/real-pos-001", headers=headers
-        )
+        resp = client.get("/api/v1/devices/device/real-pos-001", headers=headers)
         assert resp.status_code == 200, resp.text
         device = resp.json()
         assert device.get("is_simulated") is not None
