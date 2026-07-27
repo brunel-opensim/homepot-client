@@ -3,17 +3,16 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict
 import uuid
+from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
 import yaml
-
+from fastapi import FastAPI, HTTPException
 from homepot.app.models.AnalyticsModel import Alert
 from homepot.database import get_database_service
 from homepot.models import Device
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
 
 from .analysis_modes import ModeManager
 from .anomaly_detection import AnomalyDetector
@@ -40,36 +39,38 @@ app = FastAPI(title=config["app"]["name"], version=config["app"]["version"])
 # ---------------------------------------------------------------------------
 # Lazily-initialised service singletons
 # ---------------------------------------------------------------------------
-# Each service is created only on first attribute access via module-level
-# ``__getattr__`` (PEP 562).  This avoids initialising ChromaDB (and other
-# heavyweight backends) at module-import time, which in turn lets pytest-xdist
-# workers collect and run in parallel without hitting SQLite locking errors.
+# Each service is created only on first access, avoiding ChromaDB SQLite
+# initialisation at module-import time.  This lets pytest-xdist workers
+# collect and run in parallel without hitting locking errors.
+#
+# The names are declared at module level (initially ``None``) so that flake8
+# and mypy can resolve them statically.  ``_ensure_services()`` replaces the
+# ``None`` sentinel with the real singleton on the first call.
 
-_svc_registry: dict = {}
+llm_service: Any = None
+memory_service: Any = None
+anomaly_detector: Any = None
+event_store: Any = None
+mode_manager: Any = None
+failure_predictor: Any = None
+context_builder: Any = None
+_services_initialised: bool = False
 
 
-def __getattr__(name: str) -> Any:
-    if name in _svc_registry:
-        return _svc_registry[name]
-    if name == "llm_service":
-        svc = LLMService()
-    elif name == "memory_service":
-        svc = DeviceMemory()
-    elif name == "anomaly_detector":
-        svc = AnomalyDetector()
-    elif name == "event_store":
-        svc = EventStore()
-    elif name == "mode_manager":
-        svc = ModeManager()
-    elif name == "failure_predictor":
-        es = __getattr__("event_store")  # ensure event_store is initialised first
-        svc = FailurePredictor(es)
-    elif name == "context_builder":
-        svc = ContextBuilder()
-    else:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    _svc_registry[name] = svc
-    return svc
+def _ensure_services() -> None:
+    global llm_service, memory_service, anomaly_detector, event_store  # noqa: PLW0603
+    global mode_manager, failure_predictor, context_builder  # noqa: PLW0603
+    global _services_initialised
+    if _services_initialised:
+        return
+    llm_service = LLMService()
+    memory_service = DeviceMemory()
+    anomaly_detector = AnomalyDetector()
+    event_store = EventStore()
+    mode_manager = ModeManager()
+    failure_predictor = FailurePredictor(event_store)
+    context_builder = ContextBuilder()
+    _services_initialised = True
 
 
 class ChatMessage(BaseModel):
