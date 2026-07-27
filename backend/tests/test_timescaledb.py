@@ -7,8 +7,6 @@ These tests verify that:
 4. Retention and compression policies are applied correctly
 """
 
-import os
-
 import pytest
 from sqlalchemy import text
 
@@ -18,12 +16,6 @@ from homepot.migrations.timescaledb_aggregates import (
     setup_timescaledb_aggregates,
 )
 from homepot.timescale import TimescaleDBManager
-
-# Skip all tests if PostgreSQL URL is not set (e.g., in CI without postgres service)
-pytestmark = pytest.mark.skipif(
-    not os.getenv("DATABASE__URL") or "sqlite" in os.getenv("DATABASE__URL", ""),
-    reason="PostgreSQL database not available (required for TimescaleDB tests)",
-)
 
 
 @pytest.mark.asyncio

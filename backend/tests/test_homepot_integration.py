@@ -99,14 +99,8 @@ def auth_headers() -> dict:
 TEST_BASE_URL = "http://localhost:8000"
 TEST_TIMEOUT = 30.0
 
-# Skip live tests in CI environments
-skip_live_tests = pytest.mark.skipif(
-    os.environ.get("CI") is not None,
-    reason="Integration tests skipped in CI environment - requires running server",
-)
 
-
-@skip_live_tests
+@pytest.mark.integration
 class TestHOMEPOTSystem:
     """Comprehensive system tests for all four phases of HOMEPOT implementation."""
 
@@ -303,7 +297,6 @@ class TestPhase2APIEndpoints:
 
 
 @pytest.mark.integration
-@skip_live_tests
 class TestPhase3AgentSimulation:
     """Test Phase 3: Realistic Agent Simulation & Health Checks."""
 
@@ -398,7 +391,6 @@ class TestPhase3AgentSimulation:
 
 
 @pytest.mark.integration
-@skip_live_tests
 class TestPhase4AuditLogging:
     """Test Phase 4: Comprehensive Audit Logging & System Metrics."""
 
@@ -835,7 +827,6 @@ class TestDashboardAggregates:
 
 
 @pytest.mark.performance
-@skip_live_tests
 class TestSystemPerformance:
     """Performance tests for the complete HOMEPOT system."""
 
@@ -883,7 +874,6 @@ class TestSystemPerformance:
 
 
 @pytest.mark.api
-@skip_live_tests
 class TestAPIDocumentation:
     """Test API documentation and schema validation."""
 
@@ -913,7 +903,6 @@ class TestAPIDocumentation:
         assert "swagger" in response.text.lower()
 
 
-@skip_live_tests
 def test_system_integration_health_check():
     """High-level integration test to verify system is operational."""
     import requests

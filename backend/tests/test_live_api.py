@@ -6,7 +6,6 @@ It's designed to test the running system at http://localhost:8000.
 Run with: pytest tests/test_live_api.py -v
 """
 
-import os
 import time
 
 import pytest
@@ -16,14 +15,7 @@ import requests
 BASE_URL = "http://localhost:8000"
 TIMEOUT = 10.0
 
-# Skip live tests in CI environments
-skip_live_tests = pytest.mark.skipif(
-    os.environ.get("CI") is not None,
-    reason="Live API tests skipped in CI environment - requires running server",
-)
 
-
-@skip_live_tests
 class TestLiveAPI:
     """Test the live HOMEPOT API endpoints."""
 
@@ -259,7 +251,7 @@ class TestLiveAPI:
             print(f"Push Notification: Sent to {device_id}")
 
 
-@skip_live_tests
+@pytest.mark.live
 class TestSystemValidation:
     """High-level system validation tests."""
 
