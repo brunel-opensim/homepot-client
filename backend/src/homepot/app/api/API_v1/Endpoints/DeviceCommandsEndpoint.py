@@ -69,10 +69,10 @@ class CommandResponse(BaseModel):
 @limiter.limit("30/minute")
 async def queue_command(
     device_id: str,
-    request: CreateCommandRequest,
+    command_request: CreateCommandRequest,
+    request: Request,
     sync_db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
-    http_request: Optional[Request] = None,
 ) -> CommandResponse:
     """Queue a command for a specific device (by device_id string).
 
@@ -90,22 +90,23 @@ async def queue_command(
 
     command = await db.create_device_command(
         device_id=device.id,  # type: ignore
-        command_type=request.command_type,
-        payload=request.payload,
+        command_type=command_request.command_type,
+        payload=command_request.payload,
     )
 
     # Audit log
     audit_logger = get_audit_logger()
     await audit_logger.log_event(
         AuditEventType.COMMAND_QUEUED,
-        f"User '{current_user['email']}' queued {request.command_type} command for device '{device_id}'",
+        f"User '{current_user['email']}' queued {command_request.command_type} "
+        f"command for device '{device_id}'",
         user_id=db_user.id,  # type: ignore
         device_id=device.id,  # type: ignore
         site_id=device.site_id,  # type: ignore
         new_values={
             "command_id": str(command.command_id),
-            "command_type": request.command_type,
-            "payload": request.payload,
+            "command_type": command_request.command_type,
+            "payload": command_request.payload,
         },
     )
 
