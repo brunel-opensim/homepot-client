@@ -427,7 +427,7 @@ async def predict_failure(device_id: str) -> Dict[str, Any]:
     _ensure_services()
     try:
         prediction = await failure_predictor.predict_device_failure(device_id)
-        return prediction
+        return prediction  # type: ignore[no-any-return]
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
