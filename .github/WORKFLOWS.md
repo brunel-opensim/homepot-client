@@ -290,7 +290,7 @@ git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
 
 # Set up development environment
-./scripts/install.sh --dev
+./scripts/install-backend.sh --dev
 source .venv/bin/activate
 ```
 

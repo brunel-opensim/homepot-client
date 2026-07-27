@@ -10,7 +10,7 @@ This guide covers testing, code quality, and contributing to the HOMEPOT project
 # Clone and set up development environment
 git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
-./scripts/install.sh
+./scripts/install-backend.sh
 
 # Activate development environment
 source .venv/bin/activate
@@ -205,7 +205,7 @@ pre-commit run --all-files
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `./scripts/install.sh` | Install dependencies | `./scripts/install.sh` |
+| `./scripts/install-backend.sh` | Install dependencies | `./scripts/install-backend.sh` |
 | `.venv/bin/activate` | Activate environment | `source .venv/bin/activate` |
 | `./scripts/validate-workflows.sh` | Run all quality checks (backend + frontend) | `./scripts/validate-workflows.sh` |
 | `./scripts/validate-workflows.sh --frontend-only` | Run frontend checks only | `./scripts/validate-workflows.sh --frontend-only` |
