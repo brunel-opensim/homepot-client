@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as SASession
 
@@ -12,6 +12,8 @@ from homepot.app.auth_utils import (
     require_user,
     verify_device_belongs_to_user,
 )
+from homepot.app.utils.limiter import limiter
+from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service, get_db
 from homepot.models import CommandStatus, Device, User
 
@@ -64,11 +66,13 @@ class CommandResponse(BaseModel):
     response_model=CommandResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("30/minute")
 async def queue_command(
     device_id: str,
     request: CreateCommandRequest,
     sync_db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
+    http_request: Optional[Request] = None,
 ) -> CommandResponse:
     """Queue a command for a specific device (by device_id string).
 
@@ -89,6 +93,22 @@ async def queue_command(
         command_type=request.command_type,
         payload=request.payload,
     )
+
+    # Audit log
+    audit_logger = get_audit_logger()
+    await audit_logger.log_event(
+        AuditEventType.COMMAND_QUEUED,
+        f"User '{current_user['email']}' queued {request.command_type} command for device '{device_id}'",
+        user_id=db_user.id,  # type: ignore
+        device_id=device.id,  # type: ignore
+        site_id=device.site_id,  # type: ignore
+        new_values={
+            "command_id": str(command.command_id),
+            "command_type": request.command_type,
+            "payload": request.payload,
+        },
+    )
+
     return CommandResponse(
         command_id=command.command_id,  # type: ignore
         command_type=command.command_type,  # type: ignore
