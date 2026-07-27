@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as SASession
 
@@ -12,6 +12,8 @@ from homepot.app.auth_utils import (
     require_user,
     verify_device_belongs_to_user,
 )
+from homepot.app.utils.limiter import limiter
+from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service, get_db
 from homepot.models import CommandStatus, Device, User
 
@@ -64,9 +66,11 @@ class CommandResponse(BaseModel):
     response_model=CommandResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("30/minute")
 async def queue_command(
     device_id: str,
-    request: CreateCommandRequest,
+    command_request: CreateCommandRequest,
+    request: Request,
     sync_db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> CommandResponse:
@@ -86,9 +90,26 @@ async def queue_command(
 
     command = await db.create_device_command(
         device_id=device.id,  # type: ignore
-        command_type=request.command_type,
-        payload=request.payload,
+        command_type=command_request.command_type,
+        payload=command_request.payload,
     )
+
+    # Audit log
+    audit_logger = get_audit_logger()
+    await audit_logger.log_event(
+        AuditEventType.COMMAND_QUEUED,
+        f"User '{current_user['email']}' queued {command_request.command_type} "
+        f"command for device '{device_id}'",
+        user_id=db_user.id,  # type: ignore
+        device_id=device.id,  # type: ignore
+        site_id=device.site_id,  # type: ignore
+        new_values={
+            "command_id": str(command.command_id),
+            "command_type": command_request.command_type,
+            "payload": command_request.payload,
+        },
+    )
+
     return CommandResponse(
         command_id=command.command_id,  # type: ignore
         command_type=command.command_type,  # type: ignore

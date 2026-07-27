@@ -46,6 +46,7 @@ class AuditEventType(str, Enum):
 
     # Job management
     JOB_CREATED = "job_created"
+    COMMAND_QUEUED = "command_queued"
     JOB_STARTED = "job_started"
     JOB_COMPLETED = "job_completed"
     JOB_FAILED = "job_failed"
