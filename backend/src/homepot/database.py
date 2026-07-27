@@ -1009,10 +1009,13 @@ class DatabaseService:
                 )
 
             # Validate expiry
-            if intent.expires_at and intent.expires_at < datetime.datetime.now(
-                datetime.timezone.utc
-            ):
-                raise ValueError("Enrolment intent has expired")
+            if intent.expires_at:
+                now = datetime.datetime.now(datetime.timezone.utc)
+                expires_at = intent.expires_at
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=datetime.timezone.utc)
+                if expires_at < now:
+                    raise ValueError("Enrolment intent has expired")
 
             # Validate token hash
             if not intent.claim_token_hash or not _pwd.verify(
