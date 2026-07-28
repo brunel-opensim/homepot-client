@@ -70,6 +70,22 @@ Only **Linux POS** is implemented. Each future emulator targets a specific OS an
 
 Credentials are persisted across restarts. If the emulator is stopped and re-run, it skips provisioning and resumes from its saved credentials. To force re-provisioning, delete the credentials file at `~/.homepot/emulators/<device_name>.json`.
 
+### Restarting
+
+**Standalone** — Press `Ctrl+C` in the terminal where it's running, then re-launch:
+
+```bash
+# Stop any running instance
+pkill -f linux_pos_emulator.py
+
+# Re-launch
+./scripts/start-emulator.sh
+```
+
+**User App (Electron)** — Quit and re-open the User App. The Electron main process kills the child emulator on quit; re-opening restarts it automatically when the setup-to-home flow completes.
+
+**Why restart?** The emulator re-registers device DNA on each startup. If backend logic was updated (e.g. new fields like `device_source`), restarting the emulator ensures the device record picks up those changes.
+
 ## Configuration reference
 
 ### Config file (`emulators/linux_pos_emulator.json`)

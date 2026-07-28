@@ -35,6 +35,10 @@ class AgentRegisterRequest(BaseModel):
     device_type: str = Field(
         default="pos_terminal", description="Device type for new records"
     )
+    device_source: Optional[str] = Field(
+        None,
+        description="Source identifier for the device — 'physical', 'emulator', or 'simulation'",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={

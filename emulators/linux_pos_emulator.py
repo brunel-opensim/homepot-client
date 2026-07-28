@@ -25,13 +25,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
+from pathlib import Path
 import random
 import signal
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import cast
 
 import httpx
@@ -212,6 +212,7 @@ class LinuxPOSEmulator:
             "device_name": self.config.device_name,
             "device_type": self.config.device_type,
             "os_details": self.config.os_details,
+            "provisioning_source": "emulator",
         }
         resp = await self._http.post(
             f"{self._backend}/devices/bootstrap-provision", json=payload
@@ -244,6 +245,7 @@ class LinuxPOSEmulator:
             "site_id": self.config.site_id,
             "device_name": self.config.device_name,
             "device_type": self.config.device_type,
+            "device_source": "emulator",
         }
         resp = await self._http.post(
             f"{self._backend}/agent/device-dna", json=payload, headers=self._headers()
@@ -376,25 +378,25 @@ class LinuxPOSEmulator:
     def _simulate_command_result(self, command_type: str) -> dict:
         outcomes = {
             "restart": {
-                "status": "COMPLETED",
+                "status": "completed",
                 "result": {
                     "message": "Device restart initiated",
                     "reboot_time_seconds": 45,
                 },
             },
             "shutdown": {
-                "status": "COMPLETED",
+                "status": "completed",
                 "result": {"message": "Device shutdown initiated"},
             },
             "update_config": {
-                "status": "COMPLETED",
+                "status": "completed",
                 "result": {
                     "message": "Configuration updated successfully",
                     "applied_settings": {"log_level": "INFO"},
                 },
             },
             "ping": {
-                "status": "COMPLETED",
+                "status": "completed",
                 "result": {
                     "message": "pong",
                     "latency_ms": round(random.uniform(5, 50), 1),
@@ -404,7 +406,7 @@ class LinuxPOSEmulator:
         return outcomes.get(
             command_type,
             {
-                "status": "COMPLETED",
+                "status": "completed",
                 "result": {
                     "message": f"Unknown command '{command_type}' executed as no-op"
                 },
@@ -436,6 +438,8 @@ class LinuxPOSEmulator:
         try:
             if not self._try_restore():
                 await self._provision()
+            else:
+                await self._register_dna()
 
             print(f"\n  Device ID: {self.device_id}")
             print(f"  API Key:   {self.api_key[:16]}...")

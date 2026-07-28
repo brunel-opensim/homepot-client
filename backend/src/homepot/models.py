@@ -117,6 +117,7 @@ class EnrollmentMethod(str, Enum):
 
     PRE_PROVISIONED = "pre-provisioned"
     SELF_ENROLLED = "self-enrolled"
+    EMULATED = "emulated"
 
 
 class EnrolmentIntentStatus(str, Enum):

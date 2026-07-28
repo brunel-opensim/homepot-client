@@ -41,6 +41,7 @@ class AgentRepository:
         wan_ip: Optional[str],
         lifecycle_state: str = LifecycleState.ACTIVE.value,
         enrollment_method: Optional[str] = None,
+        is_simulated: bool = False,
     ) -> Device:
         """Create and persist a new device record."""
         device = Device(
@@ -55,6 +56,7 @@ class AgentRepository:
             is_active=True,
             lifecycle_state=lifecycle_state,
             enrollment_method=enrollment_method,
+            is_simulated=is_simulated,
         )
         self.db.add(device)
         self.db.commit()

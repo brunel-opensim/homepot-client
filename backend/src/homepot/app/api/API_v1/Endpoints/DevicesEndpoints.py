@@ -513,6 +513,10 @@ async def get_device(
                 },
                 "is_monitored": device.is_monitored,
                 "is_simulated": device.is_simulated,
+                "enrollment_method": device.enrollment_method or "pre-provisioned",
+                "device_source": (
+                    device.config.get("device_source") if device.config else None
+                ),
                 "created_at": (
                     device.created_at.isoformat() if device.created_at else None
                 ),
@@ -1785,6 +1789,7 @@ async def get_devices_by_site(
                 "is_simulated": d.is_simulated,
                 "active_alerts": alert_map.get(d.device_id, 0),
                 "enrollment_method": getattr(d, "enrollment_method", "pre-provisioned"),
+                "device_source": d.config.get("device_source") if d.config else None,
                 "last_seen": d.last_seen.isoformat() if d.last_seen else None,
                 "last_heartbeat_at": (
                     d.last_heartbeat_at.isoformat() if d.last_heartbeat_at else None
