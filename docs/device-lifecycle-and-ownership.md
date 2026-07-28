@@ -669,3 +669,19 @@ A test suite that validates a fresh dev server deployment before real devices co
 | U5  | **Agent-side permission enforcement** ✅ | Python agent fetches `device_permissions` from backend on each poll cycle (`fetch_device_permissions`). Checks required permission before executing privileged commands (`restart`/`shutdown` → `root_access`, `update_config` → `filesystem_access`). Returns `failed` status with denial reason if permission not granted. Maps capabilities from `os_details` during device-DNA registration. |
 | U6  | **Real device DNA** ✅ | Replace hardcoded MAC, IP, hostname placeholders in `DeviceInfo` view. Fetch real MAC, local IP, hostname from the agent or backend API. Ensure `GET /devices/device/{id}` exposes these fields. |
 | U7  | **Error boundaries and tests** ✅ | React error boundary wrapping each view. Unit tests for `credentialStorage`, each view, and API service layer. Integration test for a full enrolment → claim → status → unpair cycle. |
+
+---
+
+## Remaining Work Before Production Deployment
+
+The following items are not yet started. They represent the work needed after the simulation-to-real-device transition and server launch next week.
+
+| ID  | Task | Notes |
+|-----|------|-------|
+| R1  | **Real device onboarding process** | Replace `is_simulated` flag workflow. Formalise real-device enrolment flow with production bootstrap keys, QR codes, and technician approval gating. Remove last simulation shims. |
+| R2  | **Production CI/CD pipeline** | Add real-device integration tests to CI pipeline. Define staging/production deployment stages (Docker Compose → k3s or Nomad). Automate DB migration, secret injection, and rollback. |
+| R3  | **Monitoring & alerting** | Agent heartbeat health check with alert threshold. Dashboard for device online/offline state. PagerDuty or Slack alerting for offline fleet. Prometheus + Grafana stack. |
+| R4  | **Observability** | Structured logging (JSON) across backend and agent. Metrics dashboard (request latency, error rate, DB pool usage, agent poll success). Distributed tracing for end-to-end enrolment/claim flows. |
+| R5  | **Scalability & performance** | Load test with 1 000+ simulated devices. DB connection pooling tuning. API pagination for device list. Backend horizontal-scaling readiness (session affinity or stateless auth). Agent poll-interval backoff and batching. |
+| R6  | **Security hardening** | Certificate rotation for TLS. Audit trail completeness (log every permission change, enrolment, unpair). RBAC refinement (operator vs. admin roles, permission-scoped API keys). Secrets rotation (API keys, bootstrap keys). Rate limiting on auth endpoints. |
+| R7  | **Production rollout plan** | Phased rollout: canary fleet → regional rollout → full fleet. Feature flags for new auth flows. Rollback procedure definition. Runbook for common incidents (device offline, DB congestion, auth failures). |
