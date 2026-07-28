@@ -19,11 +19,11 @@ import {
   AlertsWidget,
   AuditWidget,
   JobHistoryWidget,
+  CommandHistoryWidget,
   DeviceActionsWidget,
   DeviceInfoWidget,
   DirectConnectWidget,
   LogsWidget,
-  PermissionsWidget,
   StatBlock,
 } from './DeviceWidgets';
 
@@ -887,16 +887,6 @@ export default function Device() {
                     <History className="w-4 h-4" /> Job History
                   </button>
                   <button
-                    onClick={() => setActiveTab('commands')}
-                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                      activeTab === 'commands'
-                        ? 'border-teal-500 text-teal-400 bg-teal-500/5'
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <TerminalSquare className="w-4 h-4" /> Commands
-                  </button>
-                  <button
                     onClick={() => setActiveTab('alerts')}
                     className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                       activeTab === 'alerts'
@@ -911,16 +901,26 @@ export default function Device() {
                       </span>
                     )}
                   </button>
+                  <button
+                    onClick={() => setActiveTab('commands')}
+                    className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === 'commands'
+                        ? 'border-teal-500 text-teal-400 bg-teal-500/5'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <TerminalSquare className="w-4 h-4" /> Commands
+                  </button>
                 </div>
 
                 <div className="p-4 flex-1 overflow-auto">
                   {activeTab === 'logs' && <LogsWidget logs={errorLogs} />}
                   {activeTab === 'audit' && <AuditWidget audit={auditLogs} />}
                   {activeTab === 'jobs' && <JobHistoryWidget jobs={jobHistory} />}
+                  {activeTab === 'alerts' && <AlertsWidget alerts={alerts} />}
                   {activeTab === 'commands' && (
                     <CommandHistoryWidget device={device} history={pushHistory} />
                   )}
-                  {activeTab === 'alerts' && <AlertsWidget alerts={alerts} />}
                 </div>
               </div>
             </div>
@@ -936,8 +936,6 @@ export default function Device() {
                   loadingAction={actionLoading}
                 />
               )}
-
-              <PermissionsWidget device={device} />
 
               <DirectConnectWidget
                 isOpen={isTerminalOpen}

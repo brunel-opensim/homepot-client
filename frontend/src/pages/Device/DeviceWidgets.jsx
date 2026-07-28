@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import {
   Loader2,
   Terminal,
@@ -583,6 +584,9 @@ const CapabilitiesMatrix = ({ device }) => {
 };
 
 export const CommandHistoryWidget = ({ device, history = [] }) => {
+  const navigate = useNavigate();
+  const deviceId = device?.device_id;
+
   return (
     <div className="space-y-4">
       <Card>
@@ -619,7 +623,8 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
               return (
                 <div
                   key={item.id || i}
-                  className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50"
+                  onClick={() => navigate(`/device/${deviceId}/history`)}
+                  className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50 cursor-pointer hover:bg-[#0b2024]/80 hover:border-teal-500/30 transition-colors"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <StatusIcon className={`w-3.5 h-3.5 shrink-0 ${statusColor}`} />
@@ -628,7 +633,7 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
                     </span>
                   </div>
                   <span className="text-slate-500 shrink-0 ml-2">
-                    {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+                    {item.timestamp ? new Date(item.timestamp).toLocaleString() : ''}
                   </span>
                 </div>
               );
