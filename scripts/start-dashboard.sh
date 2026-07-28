@@ -197,23 +197,30 @@ nohup bash -c "source $REPO_ROOT/.venv/bin/activate && python -m uvicorn homepot
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"
 
-# Wait for backend to start
+# Wait for backend to start (poll with retries)
 print_step "Waiting for backend to initialize..."
-sleep 6
-
-# Check if backend started successfully
-if ps -p $BACKEND_PID > /dev/null; then
-    if curl -s http://localhost:8000/ > /dev/null 2>&1; then
-        print_success "Backend started successfully (PID: $BACKEND_PID)"
-    else
-        print_error "Backend process is running but not responding"
+BACKEND_READY=false
+for i in $(seq 1 30); do
+    sleep 2
+    if ! ps -p $BACKEND_PID > /dev/null; then
+        print_error "Backend process died during startup"
         print_info "Check startup logs: $REPO_ROOT/logs/backend.out"
-        print_info "Check app logs: $REPO_ROOT/logs/backend.log"
         exit 1
     fi
-else
-    print_error "Backend failed to start"
+    if curl -s http://localhost:8000/ > /dev/null 2>&1; then
+        BACKEND_READY=true
+        print_success "Backend started successfully (PID: $BACKEND_PID)"
+        break
+    fi
+    if [ $((i % 5)) -eq 0 ]; then
+        print_info "Still waiting for backend... ($((i * 2))s)"
+    fi
+done
+
+if [ "$BACKEND_READY" != "true" ]; then
+    print_error "Backend process is running but not responding"
     print_info "Check startup logs: $REPO_ROOT/logs/backend.out"
+    print_info "Check app logs: $REPO_ROOT/logs/backend.log"
     exit 1
 fi
 
