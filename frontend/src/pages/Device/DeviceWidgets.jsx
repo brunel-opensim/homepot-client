@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import {
   Loader2,
   Terminal,
@@ -5,6 +6,7 @@ import {
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
+  XCircle,
   Shield,
   FileText,
   Activity,
@@ -542,72 +544,104 @@ export const DeviceInfoWidget = ({ device }) => (
   </Card>
 );
 
-export const CommandHistoryWidget = ({ commands = [] }) => {
-  if (!commands || commands.length === 0) {
-    return (
-      <Card>
-        <h3 className="text-sm text-slate-300 font-medium mb-3">COMMAND HISTORY</h3>
-        <div className="border-t border-[#1f2735] mb-2"></div>
-        <div className="text-slate-500 text-xs italic text-center py-4">No commands sent yet</div>
-      </Card>
-    );
-  }
+const PERMISSION_LABELS = {
+  root_access: 'Root Access',
+  process_monitoring: 'Process Monitoring',
+  filesystem_access: 'Filesystem Access',
+  network_monitoring: 'Network Monitoring',
+};
+
+const CapabilitiesMatrix = ({ device }) => {
+  const permissions = device?.device_permissions || {};
+  const capabilities = device?.capabilities || {};
+  const keys = Object.keys(PERMISSION_LABELS);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm text-slate-300 font-medium">COMMAND HISTORY</h3>
-        <span className="text-[10px] text-slate-500 font-mono">
-          LATEST {commands.length} COMMANDS
-        </span>
-      </div>
-      <div className="border-t border-[#1f2735] mb-2"></div>
-      <div className="space-y-3 text-sm max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-        {commands.map((cmd, i) => {
-          let StatusIcon = Activity;
-          let statusColor = 'text-slate-400';
-          if (cmd.status === 'completed' || cmd.status === 'delivered') {
-            StatusIcon = CheckCircle2;
-            statusColor = 'text-emerald-400';
-          } else if (cmd.status === 'failed' || cmd.status === 'error') {
-            StatusIcon = AlertCircle;
-            statusColor = 'text-red-400';
-          } else if (cmd.status === 'pending' || cmd.status === 'sent') {
-            StatusIcon = Loader2;
-            statusColor = 'text-blue-400';
-          }
-
-          return (
-            <div
-              key={i}
-              className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50"
+    <div className="space-y-2 text-xs">
+      {keys.map((key) => (
+        <div key={key} className="flex items-center justify-between">
+          <span className="text-slate-400">{PERMISSION_LABELS[key]}</span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[10px] font-mono ${capabilities[key] ? 'text-emerald-500' : 'text-slate-600'}`}
             >
-              <div className="flex items-center gap-3">
-                <StatusIcon
-                  className={`w-4 h-4 ${statusColor} ${cmd.status === 'pending' ? 'animate-spin' : ''}`}
-                />
-                <div className="flex flex-col">
-                  <span className="text-slate-200 font-medium font-mono text-xs">
-                    {cmd.command_type || cmd.action || 'Unknown'}
-                  </span>
-                  {cmd.payload && Object.keys(cmd.payload).length > 0 && (
-                    <span className="text-xs text-slate-500">
-                      {JSON.stringify(cmd.payload).substring(0, 60)}
+              {capabilities[key] ? 'capable' : '—'}
+            </span>
+            {permissions[key] ? (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                granted
+              </span>
+            ) : (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                none
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export const CommandHistoryWidget = ({ device, history = [] }) => {
+  const navigate = useNavigate();
+  const deviceId = device?.device_id;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <h3 className="text-sm text-slate-300 font-medium mb-3">CAPABILITIES & PERMISSIONS</h3>
+        <div className="border-t border-[#1f2735] mb-2"></div>
+        <CapabilitiesMatrix device={device} />
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm text-slate-300 font-medium">PUSH HISTORY</h3>
+          {history.length > 0 && (
+            <span className="text-[10px] text-slate-500 font-mono">LATEST {history.length}</span>
+          )}
+        </div>
+        <div className="border-t border-[#1f2735] mb-2"></div>
+        {history.length === 0 ? (
+          <div className="text-slate-500 text-xs italic text-center py-4">
+            No push commands sent yet
+          </div>
+        ) : (
+          <div className="space-y-2 text-xs max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+            {history.map((item, i) => {
+              let StatusIcon = CheckCircle2;
+              let statusColor = 'text-emerald-400';
+              if (item.status === 'failed' || item.status === 'error') {
+                StatusIcon = XCircle;
+                statusColor = 'text-red-400';
+              } else if (item.status === 'pending' || item.status === 'sent') {
+                StatusIcon = Loader2;
+                statusColor = 'text-blue-400';
+              }
+
+              return (
+                <div
+                  key={item.id || i}
+                  onClick={() => navigate(`/device/${deviceId}/history`)}
+                  className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50 cursor-pointer hover:bg-[#0b2024]/80 hover:border-teal-500/30 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <StatusIcon className={`w-3.5 h-3.5 shrink-0 ${statusColor}`} />
+                    <span className="text-slate-200 font-medium truncate">
+                      {item.action_type || item.title || 'Push Command'}
                     </span>
-                  )}
+                  </div>
+                  <span className="text-slate-500 shrink-0 ml-2">
+                    {item.timestamp ? new Date(item.timestamp).toLocaleString() : ''}
+                  </span>
                 </div>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className={`text-xs uppercase font-bold ${statusColor}`}>{cmd.status}</span>
-                <span className="text-xs text-slate-500">
-                  {cmd.created_at ? new Date(cmd.created_at).toLocaleString() : ''}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
   );
 };
 
@@ -632,6 +666,40 @@ export const DeviceActionsWidget = ({ actions, onActionClick, loadingAction }) =
     </div>
   </Card>
 );
+
+export const PermissionsWidget = ({ device }) => {
+  const permissions = device?.device_permissions || {};
+  const capabilities = device?.capabilities || {};
+  const keys = Object.keys(PERMISSION_LABELS);
+
+  return (
+    <Card>
+      <h3 className="text-sm text-slate-300 font-medium mb-3">PERMISSIONS</h3>
+      <div className="border-t border-[#1f2735] mb-2"></div>
+      <div className="space-y-2">
+        {keys.map((key) => (
+          <div key={key} className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">{PERMISSION_LABELS[key]}</span>
+            <div className="flex items-center gap-2">
+              {capabilities[key] ? (
+                <span className="text-[10px] text-slate-500 font-mono">capable</span>
+              ) : null}
+              {permissions[key] ? (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  granted
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                  none
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+};
 
 export const DirectConnectWidget = ({
   isOpen,
