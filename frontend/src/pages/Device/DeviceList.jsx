@@ -151,7 +151,8 @@ export default function DeviceList() {
                   >
                     {device.lifecycle_state?.toUpperCase() || 'UNKNOWN'}
                   </div>
-                  {device.enrollment_method === 'emulated' || device.device_source === 'emulator' ? (
+                  {device.enrollment_method === 'emulated' ||
+                  device.device_source === 'emulator' ? (
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                       EMU
                     </span>

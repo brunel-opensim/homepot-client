@@ -315,7 +315,8 @@ export default function SiteDetail() {
                               />
                               {device.lifecycle_state || 'Unknown'}
                             </span>
-                            {device.enrollment_method === 'emulated' || device.device_source === 'emulator' ? (
+                            {device.enrollment_method === 'emulated' ||
+                            device.device_source === 'emulator' ? (
                               <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                                 EMU
                               </span>
