@@ -68,7 +68,7 @@ export default function SignIn() {
                 Dev: Skip Bootstrap Key
               </button>
             )}
-            <button onClick={() => navigate('/setup')} className="w-full py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm transition-colors">
+            <button onClick={() => navigate('/method')} className="w-full py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm transition-colors">
               Back
             </button>
           </div>

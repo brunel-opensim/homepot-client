@@ -52,7 +52,7 @@ function Step1() {
 
   const handleNext = () => {
     setSetupState({ siteId, deviceName, deviceType, deviceOs, bootstrapKey: setupState.bootstrapKey })
-    navigate('/setup/mode')
+    navigate('/method')
   }
 
   return (
@@ -319,7 +319,7 @@ function EmulatorConfigStep() {
 
       <div className="flex gap-3 mt-2">
         <button
-          onClick={() => navigate('/setup/mode')}
+          onClick={() => navigate('/method')}
           className="flex-1 py-3 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 font-semibold text-sm transition-colors"
         >
           Back
@@ -346,7 +346,7 @@ function ModeStep() {
       if (!EMULATOR_TYPES.find(t => t.value === useEmulator)) {
         setEmulatorType(EMULATOR_TYPES[0].value)
       }
-      navigate('/setup/emulator')
+      navigate('/emulator')
     } else {
       setUseEmulator(false)
       navigate('/signin')
@@ -410,8 +410,8 @@ export default function SetupWizard() {
   const navigate = useNavigate()
   const location = useLocation()
   const isReview = location.pathname === '/setup/review'
-  const isEmulatorConfig = location.pathname === '/setup/emulator'
-  const isMode = location.pathname === '/setup/mode'
+  const isEmulatorConfig = location.pathname === '/emulator'
+  const isMode = location.pathname === '/method'
 
   let stepIndex = 0
   if (isMode) stepIndex = 1
@@ -422,7 +422,7 @@ export default function SetupWizard() {
   const totalSteps = maxSteps
 
   function renderStep() {
-    if (isReview) return <ReviewStep onBack={() => navigate(isEmulatorConfig ? '/setup/emulator' : '/setup')} />
+    if (isReview) return <ReviewStep onBack={() => navigate(isEmulatorConfig ? '/emulator' : '/setup')} />
     if (isEmulatorConfig) return <EmulatorConfigStep />
     if (isMode) return <ModeStep />
     return <Step1 />
