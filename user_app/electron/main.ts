@@ -2,13 +2,17 @@ import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } from 'ele
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
+import { spawn, type ChildProcess } from 'node:child_process'
 
 const CREDENTIALS_DIR = path.join(os.homedir(), '.homepot')
 const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, 'credentials')
 const IDENTITY_FILE = path.join(CREDENTIALS_DIR, 'identity')
+const EMULATOR_DIR = path.join(CREDENTIALS_DIR, 'emulators')
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let emulatorProcess: ChildProcess | null = null
+let emulatorDeviceId: string | null = null
 
 function getAssetPath(...segments: string[]): string {
   const dir = __dirname
@@ -188,6 +192,166 @@ function registerIpcHandlers() {
   ipcMain.handle('app:getVersion', () => {
     return app.getVersion()
   })
+
+  ipcMain.handle('emulator:start', async (_event, config: {
+    emulatorType: string
+    backendUrl: string
+    siteId: string
+    bootstrapKey: string
+    deviceName: string
+    mockMac?: string
+    mockIp?: string
+    mockHostname?: string
+  }) => {
+    if (emulatorProcess) {
+      killEmulator()
+    }
+
+    const tempConfig = {
+      backend_url: config.backendUrl,
+      site_id: config.siteId,
+      bootstrap_key: config.bootstrapKey,
+      device_name: config.deviceName,
+      device_type: 'pos_terminal',
+      os_details: config.emulatorType === 'android_pos' ? 'Android 14' : 'Linux 6.8.0 (Debian 12)',
+      mock_mac: config.mockMac ?? (config.emulatorType === 'android_pos' ? '02:42:ac:11:00:03' : '02:42:ac:11:00:02'),
+      mock_ip: config.mockIp ?? '192.168.1.100',
+      mock_hostname: config.mockHostname ?? config.deviceName,
+      heartbeat_interval_seconds: 10,
+      telemetry_interval_seconds: 15,
+      command_poll_interval_seconds: 15,
+    }
+
+    ensureCredentialsDir()
+    if (!fs.existsSync(EMULATOR_DIR)) {
+      fs.mkdirSync(EMULATOR_DIR, { recursive: true, mode: 0o700 })
+    }
+
+    const configPath = path.join(EMULATOR_DIR, `${config.deviceName}-config.json`)
+    fs.writeFileSync(configPath, JSON.stringify(tempConfig, null, 2), { mode: 0o600 })
+
+    const credsPath = path.join(EMULATOR_DIR, `${config.deviceName}.json`)
+    if (fs.existsSync(credsPath)) {
+      fs.unlinkSync(credsPath)
+    }
+
+    const projectRoot = getProjectRoot()
+    const emulatorScript = path.join(projectRoot, 'emulators', `${config.emulatorType}_emulator.py`)
+    if (!fs.existsSync(emulatorScript)) {
+      throw new Error(`Emulator script not found: ${emulatorScript}`)
+    }
+
+    const pythonExe = findPython()
+    emulatorProcess = spawn(pythonExe, [emulatorScript, '--config', configPath], {
+      cwd: projectRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    emulatorProcess.stdout?.on('data', (data: Buffer) => {
+      const lines = data.toString().split('\n').filter(Boolean)
+      for (const line of lines) {
+        console.log(`[emulator] ${line}`)
+      }
+    })
+
+    emulatorProcess.stderr?.on('data', (data: Buffer) => {
+      console.error(`[emulator:err] ${data.toString().trim()}`)
+    })
+
+    emulatorProcess.on('exit', (code) => {
+      console.log(`[emulator] exited with code ${code}`)
+      emulatorProcess = null
+      emulatorDeviceId = null
+    })
+
+    const creds = await pollForCredentials(credsPath, 30_000)
+    if (!creds) {
+      killEmulator()
+      throw new Error('Emulator did not provision within 30 seconds')
+    }
+
+    emulatorDeviceId = creds.device_id
+    return { deviceId: creds.device_id, apiKey: creds.api_key }
+  })
+
+  ipcMain.handle('emulator:stop', async () => {
+    killEmulator()
+    return true
+  })
+
+  ipcMain.handle('emulator:status', async () => {
+    return {
+      running: emulatorProcess !== null,
+      pid: emulatorProcess?.pid ?? null,
+      deviceId: emulatorDeviceId,
+    }
+  })
+}
+
+function killEmulator(): void {
+  if (!emulatorProcess) return
+  try {
+    emulatorProcess.kill('SIGTERM')
+    const killed = emulatorProcess.killed
+    emulatorProcess = null
+    emulatorDeviceId = null
+    if (!killed) {
+      setTimeout(() => {
+        try { emulatorProcess?.kill('SIGKILL') } catch { /* ignore */ }
+      }, 3000)
+    }
+  } catch {
+    emulatorProcess = null
+    emulatorDeviceId = null
+  }
+}
+
+function findPython(): string {
+  const candidates = [
+    path.join(process.cwd(), '.venv', 'bin', 'python3'),
+    path.join(process.cwd(), '.venv', 'Scripts', 'python.exe'),
+    'python3',
+    'python',
+  ]
+  for (const candidate of candidates) {
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK)
+      return candidate
+    } catch {
+      // Try next candidate
+    }
+  }
+  return 'python3'
+}
+
+function getProjectRoot(): string {
+  if (process.env.VITE_DEV_SERVER_URL) {
+    return process.cwd()
+  }
+  return path.dirname(app.getAppPath())
+}
+
+function pollForCredentials(credsPath: string, timeoutMs: number): Promise<Record<string, string> | null> {
+  return new Promise((resolve) => {
+    const start = Date.now()
+    const poll = () => {
+      if (fs.existsSync(credsPath)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(credsPath, 'utf-8'))
+          if (data.device_id && data.api_key) {
+            resolve(data)
+            return
+          }
+        } catch { /* file may still be being written */ }
+      }
+      if (Date.now() - start >= timeoutMs) {
+        resolve(null)
+        return
+      }
+      setTimeout(poll, 500)
+    }
+    poll()
+  })
 }
 
 app.whenReady().then(() => {
@@ -200,6 +364,10 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+})
+
+app.on('before-quit', () => {
+  killEmulator()
 })
 
 app.on('window-all-closed', () => {

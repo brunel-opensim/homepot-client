@@ -19,7 +19,7 @@ function ok(body: unknown) {
 describe('App routing', () => {
   it('redirects unprovisioned user from / to setup wizard', async () => {
     render(<App />)
-    expect(await screen.findByText('Step 1 of 3')).toBeInTheDocument()
+    expect(await screen.findByText('Step 1 of 4')).toBeInTheDocument()
   })
 
   it('redirects provisioned user from / to dashboard', async () => {
@@ -73,6 +73,6 @@ describe('App routing', () => {
   it('unknown path redirects to /', async () => {
     window.history.pushState({}, '', '/nonexistent')
     render(<App />)
-    expect(await screen.findByText('Step 1 of 3')).toBeInTheDocument()
+    expect(await screen.findByText('Step 1 of 4')).toBeInTheDocument()
   })
 })

@@ -65,6 +65,15 @@ class AgentService:
                     peripherals=payload.peripherals,
                 )
 
+                if payload.device_source:
+                    updated_obj = cast(Any, updated)
+                    existing_config: Dict[str, Any] = dict(
+                        cast(Dict[str, Any], updated_obj.config or {})
+                    )
+                    existing_config["device_source"] = payload.device_source
+                    updated_obj.config = existing_config
+                    self.repository.save_device(updated)
+
                 return {
                     "device_id": updated.device_id,
                     "site_id": updated.site.site_id if updated.site else None,
@@ -86,6 +95,7 @@ class AgentService:
 
             from homepot.app.schemas.permissions import derive_capabilities
 
+            is_emulator_dna = payload.device_source == "emulator"
             created = self.repository.create_device(
                 device_id=payload.device_id,
                 name=payload.device_name or payload.device_id,
@@ -96,10 +106,20 @@ class AgentService:
                 local_ip=payload.local_ip,
                 wan_ip=payload.wan_ip,
                 lifecycle_state=LifecycleState.ACTIVE.value,
+                enrollment_method=(
+                    EnrollmentMethod.EMULATED.value if is_emulator_dna else None
+                ),
+                is_simulated=is_emulator_dna,
             )
 
             created_obj = cast(Any, created)
             created_obj.capabilities = derive_capabilities(payload.os_details)
+
+            if is_emulator_dna:
+                existing_config = dict(cast(Dict[str, Any], created_obj.config or {}))
+                existing_config["device_source"] = "emulator"
+                created_obj.config = existing_config
+
             self.repository.save_device(created)
 
             return {
@@ -322,6 +342,7 @@ class AgentService:
             device_id = f"{payload.device_type}-{secrets.token_hex(4)}"
             api_key = secrets.token_urlsafe(32)
 
+            is_emulator = payload.provisioning_source == "emulator"
             created = self.repository.create_device(
                 device_id=device_id,
                 name=payload.device_name or device_id,
@@ -332,7 +353,12 @@ class AgentService:
                 local_ip=None,
                 wan_ip=None,
                 lifecycle_state=LifecycleState.PENDING.value,
-                enrollment_method=EnrollmentMethod.SELF_ENROLLED.value,
+                enrollment_method=(
+                    EnrollmentMethod.EMULATED.value
+                    if is_emulator
+                    else EnrollmentMethod.SELF_ENROLLED.value
+                ),
+                is_simulated=is_emulator,
             )
 
             created_obj = cast(Any, created)
@@ -348,6 +374,8 @@ class AgentService:
                     "os": payload.os_details,
                 }
             )
+            if is_emulator:
+                existing_config["device_source"] = "emulator"
             created_obj.config = existing_config
             created_obj.last_heartbeat_at = None
 

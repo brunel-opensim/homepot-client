@@ -21,19 +21,19 @@ export default function SignIn() {
           <p className="text-slate-500 text-xs">Bootstrap Key</p>
         </div>
         <div className="flex items-center justify-center gap-2 w-full">
-          {['Device Setup', 'Bootstrap Key', 'Complete'].map((label, i) => (
+          {['Device Setup', 'Method', 'Bootstrap Key', 'Complete'].map((label, i) => (
             <div key={label} className="flex items-center gap-2">
               <div className="flex flex-col items-center gap-1">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
-                  i < 1 ? 'bg-emerald-500 border-emerald-500 text-white'
-                  : i === 1 ? 'border-emerald-500 text-emerald-400 bg-slate-900'
+                  i < 2 ? 'bg-emerald-500 border-emerald-500 text-white'
+                  : i === 2 ? 'border-emerald-500 text-emerald-400 bg-slate-900'
                   : 'border-slate-600 text-slate-500 bg-slate-900'
                 }`}>
-                  {i < 1 ? '✓' : i + 1}
+                  {i < 2 ? '✓' : i + 1}
                 </div>
-                <span className={`text-xs ${i === 1 ? 'text-emerald-400' : 'text-slate-500'}`}>{label}</span>
+                <span className={`text-xs ${i === 2 ? 'text-emerald-400' : 'text-slate-500'}`}>{label}</span>
               </div>
-              {i < 2 && <div className={`w-10 h-0.5 mb-4 ${i < 1 ? 'bg-emerald-500' : 'bg-slate-700'}`} />}
+              {i < 3 && <div className={`w-10 h-0.5 mb-4 ${i < 2 ? 'bg-emerald-500' : 'bg-slate-700'}`} />}
             </div>
           ))}
         </div>
@@ -68,12 +68,12 @@ export default function SignIn() {
                 Dev: Skip Bootstrap Key
               </button>
             )}
-            <button onClick={() => navigate('/setup')} className="w-full py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm transition-colors">
+            <button onClick={() => navigate('/method')} className="w-full py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm transition-colors">
               Back
             </button>
           </div>
         </div>
-        <p className="text-center text-slate-600 text-xs">Step 2 of 3</p>
+        <p className="text-center text-slate-600 text-xs">Step 3 of 4</p>
       </div>
     </div>
   )

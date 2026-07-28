@@ -20,6 +20,10 @@ class BootstrapProvisionRequest(BaseModel):
     os_details: Optional[str] = Field(
         None, description="Operating system name and version reported by the device"
     )
+    provisioning_source: Optional[str] = Field(
+        "physical",
+        description="Source of the device: 'physical' for real hardware, 'emulator' for emulated devices",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={

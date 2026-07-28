@@ -489,14 +489,21 @@ export const DeviceInfoWidget = ({ device }) => (
           {device?.credential_status || 'N/A'}
         </span>
       </div>
-      {device?.is_simulated && (
+      {device?.enrollment_method === 'emulated' || device?.device_source === 'emulator' ? (
+        <div className="flex justify-between">
+          <span className="text-slate-400">Source</span>
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            EMULATED
+          </span>
+        </div>
+      ) : device?.is_simulated ? (
         <div className="flex justify-between">
           <span className="text-slate-400">Source</span>
           <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
             SIMULATED
           </span>
         </div>
-      )}
+      ) : null}
       <div className="flex justify-between">
         <span className="text-slate-400">IP Address</span>
         <span className="text-slate-200 font-mono">{device?.ip_address || 'N/A'}</span>
