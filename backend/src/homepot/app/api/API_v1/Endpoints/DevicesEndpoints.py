@@ -15,6 +15,7 @@ from sqlalchemy.orm import joinedload
 
 from homepot.app.auth_utils import (
     ALGORITHM,
+    COOKIE_NAME,
     SECRET_KEY,
     UserDict,
     api_key_header,
@@ -383,6 +384,7 @@ async def list_device(
 @router.get("/device/{device_id}", tags=["Devices"])
 async def get_device(
     device_id: str,
+    request: Request,
     db: SASession = Depends(get_db),
     api_key: Optional[str] = Depends(api_key_header),
     device_id_header_val: Optional[str] = Depends(device_id_header),
@@ -390,13 +392,14 @@ async def get_device(
 ) -> Dict[str, Any]:
     """Get a specific Device by device_id.
 
-    Two authentication modes:
-    - **Device credentials**: pass ``X-Device-ID`` + ``X-API-Key`` headers.
-      The device can only read its own record.
-    - **Operator JWT**: pass ``Authorization: Bearer <token>``.
-      Requires viewer-level access on the device's site.
+    Authentication modes (checked in order):
+    1. **Device credentials**: ``X-Device-ID`` + ``X-API-Key`` headers.
+       The device can only read its own record.
+    2. **Operator JWT**: ``access_token`` httpOnly cookie (set at login).
+    3. **Operator JWT**: ``Authorization: Bearer <token>`` header.
+       Requires viewer-level access on the device's site.
 
-    When both are present, device-credential auth takes precedence.
+    When device credentials are present, they take precedence.
     """
     try:
         # Device-credential auth (sync, quick check before async query)
@@ -427,13 +430,14 @@ async def get_device(
 
             # JWT auth (only when device credentials were not used)
             if not device_cred_auth:
-                if bearer_creds:
+                # Try httpOnly cookie first, then Authorization header
+                token: Optional[str] = request.cookies.get(COOKIE_NAME)
+                if not token and bearer_creds:
+                    token = bearer_creds.credentials
+
+                if token:
                     try:
-                        payload = jwt.decode(
-                            bearer_creds.credentials,
-                            SECRET_KEY,
-                            algorithms=[ALGORITHM],
-                        )
+                        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
                         email = payload.get("sub")
                         if not email:
                             raise HTTPException(
