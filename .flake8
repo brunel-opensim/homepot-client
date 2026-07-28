@@ -30,6 +30,8 @@ per-file-ignores =
     backend/src/homepot/cli_timescaledb.py:F541,E501,F401,D403,
     # Utility scripts: allow relaxed style rules for developer tooling
     backend/utils/*:E501,E402,F841,F541,E226,E712,E741,D400,D401,S105,S106
+    # Device emulators: standalone scripts, docstring rules relaxed
+    emulators/*:D100,D101,D102,D103,D104,D105,D106,D107,S105,S106,E501
 exclude = 
     .git,
     __pycache__,

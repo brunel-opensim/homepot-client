@@ -26,15 +26,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import random
 import signal
 import sys
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 import httpx
 
@@ -126,7 +124,11 @@ class SimulatedMetrics:
         disk = self._disk_baseline + random.gauss(0, 1.5)
         disk = max(0, min(100, disk))
 
-        return {"cpu_usage": round(cpu, 1), "memory_usage": round(mem, 1), "disk_usage": round(disk, 1)}
+        return {
+            "cpu_usage": round(cpu, 1),
+            "memory_usage": round(mem, 1),
+            "disk_usage": round(disk, 1),
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +144,7 @@ def load_credentials(device_name: str) -> dict | None:
     path = _credentials_path(device_name)
     if path.exists():
         try:
-            return json.loads(path.read_text())
+            return cast(dict, json.loads(path.read_text()))
         except (json.JSONDecodeError, OSError):
             return None
     return None
@@ -169,8 +171,7 @@ class LinuxPOSEmulator:
         self._api_key: str | None = None
         self._shutdown_event = asyncio.Event()
         self._metrics = SimulatedMetrics()
-        self._client: httpx.AsyncClient | None = None
-        self._http: httpx.AsyncClient | None = None
+        self._http: httpx.AsyncClient
 
     @property
     def device_id(self) -> str:
@@ -212,7 +213,9 @@ class LinuxPOSEmulator:
             "device_type": self.config.device_type,
             "os_details": self.config.os_details,
         }
-        resp = await self._http.post(f"{self._backend}/devices/bootstrap-provision", json=payload)
+        resp = await self._http.post(
+            f"{self._backend}/devices/bootstrap-provision", json=payload
+        )
         if resp.status_code >= 400:
             body = resp.json()
             detail = body.get("detail", resp.text)
@@ -223,7 +226,10 @@ class LinuxPOSEmulator:
         self._api_key = data["api_key"]
         self.config.site_id = data["site_id"]
 
-        save_credentials(self.config.device_name, self.config.to_credentials(self._device_id, self._api_key))
+        save_credentials(
+            self.config.device_name,
+            self.config.to_credentials(self._device_id, self._api_key),
+        )
         print(f"  Provisioned device {self._device_id}")
 
         await self._register_dna()
@@ -239,11 +245,19 @@ class LinuxPOSEmulator:
             "device_name": self.config.device_name,
             "device_type": self.config.device_type,
         }
-        resp = await self._http.post(f"{self._backend}/agent/device-dna", json=payload, headers=self._headers())
+        resp = await self._http.post(
+            f"{self._backend}/agent/device-dna", json=payload, headers=self._headers()
+        )
         if resp.status_code >= 400:
-            print(f"  [dna] warning: registration returned {resp.status_code}: {resp.text[:120]}")
+            print(
+                f"  [dna] warning: registration returned {resp.status_code}: {resp.text[:120]}"
+            )
         else:
-            print(f"  Registered DNA: hostname={self.config.mock_hostname}, MAC={self.config.mock_mac}, IP={self.config.mock_ip}")
+            print(
+                "  Registered DNA:"
+                f" hostname={self.config.mock_hostname}"
+                f", MAC={self.config.mock_mac}, IP={self.config.mock_ip}"
+            )
 
     # --
     # Loops
@@ -252,12 +266,21 @@ class LinuxPOSEmulator:
     async def _heartbeat_loop(self) -> None:
         while not self._shutdown_event.is_set():
             try:
-                payload = {"device_id": self.device_id, "timestamp": datetime.now(timezone.utc).isoformat()}
-                resp = await self._http.post(f"{self._backend}/agent/heartbeat", json=payload, headers=self._headers())
+                payload = {
+                    "device_id": self.device_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                resp = await self._http.post(
+                    f"{self._backend}/agent/heartbeat",
+                    json=payload,
+                    headers=self._headers(),
+                )
                 if resp.status_code >= 400:
                     print(f"  [heartbeat] error: {resp.status_code} {resp.text[:120]}")
                 else:
-                    print(f"  [heartbeat] OK  ({datetime.now(timezone.utc).strftime('%H:%M:%S')})")
+                    print(
+                        f"  [heartbeat] OK  ({datetime.now(timezone.utc).strftime('%H:%M:%S')})"
+                    )
             except httpx.RequestError as exc:
                 print(f"  [heartbeat] connection error: {exc}")
 
@@ -267,12 +290,25 @@ class LinuxPOSEmulator:
         while not self._shutdown_event.is_set():
             try:
                 metrics = self._metrics.sample()
-                payload = {"device_id": self.device_id, **metrics, "timestamp": datetime.now(timezone.utc).isoformat()}
-                resp = await self._http.post(f"{self._backend}/agent/telemetry", json=payload, headers=self._headers())
+                payload = {
+                    "device_id": self.device_id,
+                    **metrics,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                resp = await self._http.post(
+                    f"{self._backend}/agent/telemetry",
+                    json=payload,
+                    headers=self._headers(),
+                )
                 if resp.status_code >= 400:
                     print(f"  [telemetry] error: {resp.status_code} {resp.text[:120]}")
                 else:
-                    print(f"  [telemetry] OK  cpu={metrics['cpu_usage']}% mem={metrics['memory_usage']}% disk={metrics['disk_usage']}%")
+                    print(
+                        "  [telemetry] OK"
+                        f" cpu={metrics['cpu_usage']}%"
+                        f" mem={metrics['memory_usage']}%"
+                        f" disk={metrics['disk_usage']}%"
+                    )
             except httpx.RequestError as exc:
                 print(f"  [telemetry] connection error: {exc}")
 
@@ -281,15 +317,21 @@ class LinuxPOSEmulator:
     async def _command_poll_loop(self) -> None:
         while not self._shutdown_event.is_set():
             try:
-                resp = await self._http.get(f"{self._backend}/devices/pending", headers=self._headers())
+                resp = await self._http.get(
+                    f"{self._backend}/devices/pending", headers=self._headers()
+                )
                 if resp.status_code >= 400:
-                    print(f"  [commands] poll error: {resp.status_code} {resp.text[:120]}")
+                    print(
+                        f"  [commands] poll error: {resp.status_code} {resp.text[:120]}"
+                    )
                     await self._wait_or_shutdown(self.config.command_poll_interval)
                     continue
 
                 commands = resp.json()
                 if not commands:
-                    print(f"  [commands] none pending ({datetime.now(timezone.utc).strftime('%H:%M:%S')})")
+                    print(
+                        f"  [commands] none pending ({datetime.now(timezone.utc).strftime('%H:%M:%S')})"
+                    )
                 else:
                     print(f"  [commands] {len(commands)} pending")
                     for cmd in commands:
@@ -322,7 +364,10 @@ class LinuxPOSEmulator:
                 headers=self._headers(),
             )
             if status_resp.status_code >= 400:
-                print(f"  [commands] status update failed for {cid}: {status_resp.status_code} {status_resp.text[:120]}")
+                print(
+                    "  [commands] status update failed"
+                    f" for {cid}: {status_resp.status_code} {status_resp.text[:120]}"
+                )
             else:
                 print(f"  [commands] {ctype} completed ({cid})")
         except httpx.RequestError as exc:
@@ -330,12 +375,41 @@ class LinuxPOSEmulator:
 
     def _simulate_command_result(self, command_type: str) -> dict:
         outcomes = {
-            "restart": {"status": "COMPLETED", "result": {"message": "Device restart initiated", "reboot_time_seconds": 45}},
-            "shutdown": {"status": "COMPLETED", "result": {"message": "Device shutdown initiated"}},
-            "update_config": {"status": "COMPLETED", "result": {"message": "Configuration updated successfully", "applied_settings": {"log_level": "INFO"}}},
-            "ping": {"status": "COMPLETED", "result": {"message": "pong", "latency_ms": round(random.uniform(5, 50), 1)}},
+            "restart": {
+                "status": "COMPLETED",
+                "result": {
+                    "message": "Device restart initiated",
+                    "reboot_time_seconds": 45,
+                },
+            },
+            "shutdown": {
+                "status": "COMPLETED",
+                "result": {"message": "Device shutdown initiated"},
+            },
+            "update_config": {
+                "status": "COMPLETED",
+                "result": {
+                    "message": "Configuration updated successfully",
+                    "applied_settings": {"log_level": "INFO"},
+                },
+            },
+            "ping": {
+                "status": "COMPLETED",
+                "result": {
+                    "message": "pong",
+                    "latency_ms": round(random.uniform(5, 50), 1),
+                },
+            },
         }
-        return outcomes.get(command_type, {"status": "COMPLETED", "result": {"message": f"Unknown command '{command_type}' executed as no-op"}})
+        return outcomes.get(
+            command_type,
+            {
+                "status": "COMPLETED",
+                "result": {
+                    "message": f"Unknown command '{command_type}' executed as no-op"
+                },
+            },
+        )
 
     async def _wait_or_shutdown(self, seconds: float) -> None:
         try:
@@ -348,28 +422,39 @@ class LinuxPOSEmulator:
     # --
 
     async def start(self) -> None:
-        print(f"\n{'='*60}")
-        print(f"  HOMEPOT Linux POS Emulator")
+        print(f"\n{'=' * 60}")
+        print("  HOMEPOT Linux POS Emulator")
         print(f"  Device:  {self.config.device_name}")
         print(f"  Backend: {self.config.backend_url}")
-        print(f"  Mock DNA: hostname={self.config.mock_hostname}, MAC={self.config.mock_mac}, IP={self.config.mock_ip}")
-        print(f"{'='*60}\n")
+        print(
+            f"  Mock DNA: hostname={self.config.mock_hostname}"
+            f", MAC={self.config.mock_mac}, IP={self.config.mock_ip}"
+        )
+        print(f"{'=' * 60}\n")
 
-        async with httpx.AsyncClient(timeout=30.0) as self._http:
+        self._http = httpx.AsyncClient(timeout=30.0)
+        try:
             if not self._try_restore():
                 await self._provision()
 
             print(f"\n  Device ID: {self.device_id}")
             print(f"  API Key:   {self.api_key[:16]}...")
             print(f"  Site ID:   {self.config.site_id}")
-            print(f"\n  Starting loops (heartbeat={self.config.heartbeat_interval}s, telemetry={self.config.telemetry_interval}s, commands={self.config.command_poll_interval}s)")
-            print(f"  Press Ctrl+C to stop.\n")
+            print(
+                "\n  Starting loops"
+                f" (heartbeat={self.config.heartbeat_interval}s"
+                f", telemetry={self.config.telemetry_interval}s"
+                f", commands={self.config.command_poll_interval}s)"
+            )
+            print("  Press Ctrl+C to stop.\n")
 
             await asyncio.gather(
                 self._heartbeat_loop(),
                 self._telemetry_loop(),
                 self._command_poll_loop(),
             )
+        finally:
+            await self._http.aclose()
 
     def stop(self) -> None:
         self._shutdown_event.set()
@@ -383,16 +468,45 @@ class LinuxPOSEmulator:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="HOMEPOT Linux POS Device Emulator")
     parser.add_argument("--config", "-c", type=str, help="Path to JSON config file")
-    parser.add_argument("--backend-url", type=str, default=DEFAULT_BACKEND_URL, help="Backend URL")
-    parser.add_argument("--site-id", type=str, default="", help="Site ID to provision under")
-    parser.add_argument("--bootstrap-key", type=str, default="", help="Bootstrap key for provisioning")
-    parser.add_argument("--device-name", type=str, default="linux-pos-emulator-1", help="Device name")
-    parser.add_argument("--mock-mac", type=str, default="02:42:ac:11:00:02", help="Mock MAC address")
-    parser.add_argument("--mock-ip", type=str, default="192.168.1.100", help="Mock local IP")
-    parser.add_argument("--mock-hostname", type=str, default="linux-pos-001", help="Mock hostname")
-    parser.add_argument("--heartbeat-interval", type=float, default=10.0, help="Heartbeat interval (seconds)")
-    parser.add_argument("--telemetry-interval", type=float, default=15.0, help="Telemetry interval (seconds)")
-    parser.add_argument("--command-poll-interval", type=float, default=15.0, help="Command poll interval (seconds)")
+    parser.add_argument(
+        "--backend-url", type=str, default=DEFAULT_BACKEND_URL, help="Backend URL"
+    )
+    parser.add_argument(
+        "--site-id", type=str, default="", help="Site ID to provision under"
+    )
+    parser.add_argument(
+        "--bootstrap-key", type=str, default="", help="Bootstrap key for provisioning"
+    )
+    parser.add_argument(
+        "--device-name", type=str, default="linux-pos-emulator-1", help="Device name"
+    )
+    parser.add_argument(
+        "--mock-mac", type=str, default="02:42:ac:11:00:02", help="Mock MAC address"
+    )
+    parser.add_argument(
+        "--mock-ip", type=str, default="192.168.1.100", help="Mock local IP"
+    )
+    parser.add_argument(
+        "--mock-hostname", type=str, default="linux-pos-001", help="Mock hostname"
+    )
+    parser.add_argument(
+        "--heartbeat-interval",
+        type=float,
+        default=10.0,
+        help="Heartbeat interval (seconds)",
+    )
+    parser.add_argument(
+        "--telemetry-interval",
+        type=float,
+        default=15.0,
+        help="Telemetry interval (seconds)",
+    )
+    parser.add_argument(
+        "--command-poll-interval",
+        type=float,
+        default=15.0,
+        help="Command poll interval (seconds)",
+    )
     return parser.parse_args(argv)
 
 
@@ -432,7 +546,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if not config.site_id or not config.bootstrap_key:
         print("Error: --site-id and --bootstrap-key are required", file=sys.stderr)
-        print("  Either pass them on the CLI or provide a --config file.", file=sys.stderr)
+        print(
+            "  Either pass them on the CLI or provide a --config file.", file=sys.stderr
+        )
         sys.exit(1)
 
     emulator = LinuxPOSEmulator(config)
