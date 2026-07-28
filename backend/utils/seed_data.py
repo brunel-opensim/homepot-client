@@ -21,6 +21,7 @@ from datetime import time as dt_time
 from datetime import timedelta, timezone
 from pathlib import Path
 import random
+import secrets
 import sys
 
 # Add backend to path
@@ -57,15 +58,19 @@ from homepot.models import (
     Base,
     Device,
     DeviceType,
+    EnrolmentIntentStatus,
     HealthState,
     Job,
     JobStatus,
     LifecycleState,
+    Site,
+    User,
 )
 from homepot.seed_factories import (
     create_audit_log,
     create_device,
     create_device_lifecycle_event,
+    create_enrolment_intent,
     create_health_check,
     create_job,
     create_lifecycle_epoch,
@@ -85,7 +90,10 @@ if not hasattr(bcrypt, "__about__"):
 
     bcrypt.__about__ = About()
 
+from passlib.context import CryptContext
 from sqlalchemy import select, text
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def generate_historical_metrics(device_id: int, hours: int = 24) -> list[DeviceMetrics]:
@@ -862,6 +870,93 @@ async def init_database():
 
             await session.commit()
             print("Created sample analytics data")
+
+    # --- ENROLMENT INTENTS ---
+    print("\n=== Creating Enrolment Intents ===")
+    async with db_service.get_session() as session:
+        site1 = await session.execute(select(Site).where(Site.site_id == "site-001"))
+        site1 = site1.scalar_one()
+
+        site2 = await session.execute(select(Site).where(Site.site_id == "site-002"))
+        site2 = site2.scalar_one()
+
+        admin_user = await session.execute(select(User).where(User.username == "analytics_admin"))
+        admin_user = admin_user.scalar_one()
+
+        now = datetime.now(timezone.utc)
+
+        intents_data = [
+            # site-001 intents
+            dict(
+                site_id=site1.id,
+                tenant_id=site1.tenant_id,
+                enrolment_method="pre-provisioned",
+                expires_at=now + timedelta(hours=48),
+                creator_id=admin_user.id,
+                status=EnrolmentIntentStatus.PENDING.value,
+                expected_device_identity="SN-LNX-001",
+            ),
+            dict(
+                site_id=site1.id,
+                tenant_id=site1.tenant_id,
+                enrolment_method="pre-provisioned",
+                expires_at=now + timedelta(hours=72),
+                creator_id=admin_user.id,
+                status=EnrolmentIntentStatus.APPROVED.value,
+                expected_device_identity="SN-LNX-002",
+            ),
+            dict(
+                site_id=site1.id,
+                tenant_id=site1.tenant_id,
+                enrolment_method="pre-provisioned",
+                expires_at=now + timedelta(hours=24),
+                creator_id=admin_user.id,
+                status=EnrolmentIntentStatus.CONSUMED.value,
+                consumed_at=now - timedelta(hours=2),
+                expected_device_identity="SN-LNX-003",
+            ),
+            dict(
+                site_id=site1.id,
+                tenant_id=site1.tenant_id,
+                enrolment_method="self-enrolled",
+                expires_at=now - timedelta(days=7),
+                creator_id=admin_user.id,
+                status=EnrolmentIntentStatus.EXPIRED.value,
+            ),
+            # site-002 intents
+            dict(
+                site_id=site2.id,
+                tenant_id=site2.tenant_id,
+                enrolment_method="pre-provisioned",
+                expires_at=now + timedelta(hours=48),
+                creator_id=admin_user.id,
+                status=EnrolmentIntentStatus.REJECTED.value,
+            ),
+            dict(
+                site_id=site2.id,
+                tenant_id=site2.tenant_id,
+                enrolment_method="pre-provisioned",
+                expires_at=now + timedelta(hours=12),
+                creator_id=admin_user.id,
+                status=EnrolmentIntentStatus.REVOKED.value,
+            ),
+        ]
+
+        for data in intents_data:
+            claim_token = secrets.token_urlsafe(32)
+            claim_token_hash = pwd_context.hash(claim_token)
+            intent = await create_enrolment_intent(
+                session,
+                claim_token_hash=claim_token_hash,
+                **data,
+            )
+            print(
+                f"  {intent.intent_id}: {data['status']:>8} | {data['enrolment_method']:>15} | "
+                f"site-{'001' if data['site_id'] == site1.id else '002'}"
+            )
+
+        await session.commit()
+        print(f"Created {len(intents_data)} enrolment intents")
 
     # --- SCHEDULES ---
     print("\n=== Creating Operating Schedules ===")
