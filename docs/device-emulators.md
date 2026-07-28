@@ -173,6 +173,141 @@ Credentials live at `~/.homepot/emulators/<device_name>.json` with `0600` permis
 
 Emulators can run multiple instances simultaneously by using different `device_name` values (each gets its own credentials file and provisions independently).
 
+## User App integration (design sketch)
+
+The emulator can be spawned and managed directly from the User App's Electron shell, giving developers the full "real device" experience — the setup wizard provisions a device, the emulator starts as a background process, and the User App shows/manages it just like a physical device.
+
+### Architecture
+
+```
+User App (Electron)
+  ┌──────────────────────────────┐
+  │ Renderer (React)            │
+  │  - SetupWizard adds emulator │
+  │    mode toggle + type picker │
+  │  - Existing views unchanged  │
+  └──────────┬───────────────────┘
+             │ IPC
+  ┌──────────▼───────────────────┐
+  │ Main Process (Node)         │
+  │  - emulator:start handler   │
+  │  - emulator:stop handler    │
+  │  - emulator:status handler  │
+  │  - spawns/kills child proc  │
+  │  - watches credential file  │
+  └──────────┬───────────────────┘
+             │ child_process.spawn
+  ┌──────────▼───────────────────┐
+  │ Emulator (Python)           │
+  │  - Provisions via backend   │
+  │  - Writes credentials to    │
+  │    ~/.homepot/emulators/    │
+  │  - Runs loops until killed  │
+  └──────────────────────────────┘
+```
+
+### New IPC handlers (Electron main)
+
+| Channel | Direction | Purpose |
+|---------|-----------|---------|
+| `emulator:start` | Renderer → Main | Spawn emulator with config, returns `{device_id, api_key}` when provisioned |
+| `emulator:stop` | Renderer → Main | Kill the emulator child process |
+| `emulator:status` | Renderer → Main | Return `{running: bool, pid, device_id}` |
+
+### SetupWizard flow change
+
+1. **Step 1** (existing): Site ID, hostname, device type, OS
+2. **Step 2** (new): Mode selection — "Real device" (current flow) or **"Launch emulator"**
+3. **Step 3** (new, emulator mode only): Emulator type picker — Linux POS, Android POS (future), etc.
+4. **Review** (modified): Shows config + "Start Emulator" button; on click, Electron writes a temp JSON config, spawns the Python emulator, waits for it to provision and write credentials, then navigates to `/home`
+
+### Lifecycle
+
+- **Startup**: Electron spawns `python3 emulators/linux_pos_emulator.py --config <temp-file>`. The temp config contains backend URL, site ID, bootstrap key, and mock DNA values for the selected emulator type.
+- **Provisioning wait**: Main process polls `~/.homepot/emulators/<device_name>.json` until it appears (emulator writes it after provisioning).
+- **Runtime**: Main process monitors the child process — if it dies unexpectedly, a warning banner appears in the UI.
+- **Shutdown**: On app quit or unpair, main process sends SIGTERM → waits 3 s → SIGKILL if needed.
+- **Restart**: If the User App reopens and credentials still exist, the device is shown as provisioned (no emulator restart needed if already running).
+
+### Design decisions
+
+| Decision | Chosen approach |
+|----------|-----------------|
+| **Dev-only vs toggleable** | Dev-only (`import.meta.env.DEV`). Hidden from production builds — it is a developer tool, not a user feature. |
+| **Python discovery** | Try `.venv/bin/python3` first, then fall back to `python3` on PATH, with a configurable override. |
+| **Single vs multiple** | Single emulator per User App instance. Matches the real-world model (one device per User App). |
+| **Emulator output** | Stdout/stderr piped to `~/.homepot/emulators/<name>.log`. A debug panel in Electron DevTools can tail it. |
+
+### Preload API shape
+
+```typescript
+interface Window {
+  electronAPI?: {
+    // Existing channels
+    credentials: { ... }
+    device: { ... }
+    app: { ... }
+
+    // New channels
+    emulator: {
+      start(config: EmulatorStartConfig): Promise<{ deviceId: string; apiKey: string }>
+      stop(): Promise<boolean>
+      status(): Promise<{ running: boolean; pid?: number; deviceId?: string }>
+    }
+  }
+}
+
+interface EmulatorStartConfig {
+  emulatorType: 'linux_pos' | 'android_pos'  // | ...future
+  backendUrl: string
+  siteId: string
+  bootstrapKey: string
+  deviceName: string
+  mockMac?: string
+  mockIp?: string
+  mockHostname?: string
+  heartbeatInterval?: number
+  telemetryInterval?: number
+}
+```
+
+### SetupWizard emulator step mock-up
+
+```
+┌─────────────────────────────────────────┐
+│  HOMEPOT Agent          Step 2 of 4     │
+│                                         │
+│  ● ● ○ ○                                │
+│                                         │
+│  How would you like to set up?          │
+│                                         │
+│  ┌─────────────────────────────────────┐│
+│  │  ◉  Launch emulated device          ││
+│  │     (for development / testing)     ││
+│  │                                     ││
+│  │  ○  Set up a real device            ││
+│  └─────────────────────────────────────┘│
+│                                         │
+│  ┌─────────────────────────────────────┐│
+│  │ Device type:  [Linux POS       ▼]  ││
+│  │ OS:           [Linux 6.8      ▼]  ││
+│  │ Mock MAC:     02:42:ac:11:00:02    ││
+│  │ Mock IP:      192.168.1.100        ││
+│  └─────────────────────────────────────┘│
+│                                         │
+│         [  Next → ]                     │
+└─────────────────────────────────────────┘
+```
+
+### Implementation order
+
+1. Add `emulator:start`, `emulator:stop`, `emulator:status` IPC handlers to `electron/main.ts`
+2. Expose emulator channels in `electron/preload.ts`
+3. Update `SetupWizard.tsx` — add mode selection step and emulator type picker
+4. Add `EmulatorStartConfig` type to `credentialStorage.ts` or a new types file
+5. Update `AppContext.tsx` — add emulator state (`isEmulatorRunning`, `emulatorType`)
+6. Wire ReviewStep to call `window.electronAPI.emulator.start()` instead of the dev-mode mock path
+
 ## Related documentation
 
 - [Device lifecycle and ownership](device-lifecycle-and-ownership.md) — Full device lifecycle, PR history, and remaining work
