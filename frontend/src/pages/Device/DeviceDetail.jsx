@@ -23,6 +23,7 @@ import {
   DeviceInfoWidget,
   DirectConnectWidget,
   LogsWidget,
+  PermissionsWidget,
   StatBlock,
 } from './DeviceWidgets';
 
@@ -115,8 +116,7 @@ export default function Device() {
   const [errorLogs, setErrorLogs] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [jobHistory, setJobHistory] = useState([]);
-  const [commandHistory, setCommandHistory] = useState([]);
-  // pushLogs: raw data not currently used for display
+  const [pushHistory, setPushHistory] = useState([]);
   const [stats, setStats] = useState({
     cpu: { label: 'CPU', value: '0%', subtitle: 'avg 0%', data: [] },
     memory: { label: 'Memory', value: '0GB', subtitle: 'used 0GB', data: [] },
@@ -151,23 +151,18 @@ export default function Device() {
 
           // Fetch related data in parallel
           try {
-            const [metricsData, auditData, jobsData, , errorData, commandsData] = await Promise.all(
-              [
-                api.devices.getMetrics(id, 20),
-                api.devices.getAuditLogs(id, 10),
-                api.devices.getJobs(id, 10),
-                api.devices.getPushLogs(id, 10),
-                api.devices.getErrorLogs(id, 10),
-                api.devices.getCommands(id, 10),
-              ]
-            );
+            const [metricsData, auditData, jobsData, errorData, historyData] = await Promise.all([
+              api.devices.getMetrics(id, 20),
+              api.devices.getAuditLogs(id, 10),
+              api.devices.getJobs(id, 10),
+              api.devices.getErrorLogs(id, 10),
+              api.devices.getHistory(id),
+            ]);
 
-            // setMetrics(metricsData); // unused
             setAuditLogs(auditData);
             setJobHistory(jobsData);
-            // setPushLogs(pushData); // unused
             setErrorLogs(errorData);
-            setCommandHistory(commandsData?.commands || commandsData || []);
+            setPushHistory(historyData || []);
 
             // Process Stats
             if (metricsData && metricsData.length > 0) {
@@ -922,7 +917,9 @@ export default function Device() {
                   {activeTab === 'logs' && <LogsWidget logs={errorLogs} />}
                   {activeTab === 'audit' && <AuditWidget audit={auditLogs} />}
                   {activeTab === 'jobs' && <JobHistoryWidget jobs={jobHistory} />}
-                  {activeTab === 'commands' && <CommandHistoryWidget commands={commandHistory} />}
+                  {activeTab === 'commands' && (
+                    <CommandHistoryWidget device={device} history={pushHistory} />
+                  )}
                   {activeTab === 'alerts' && <AlertsWidget alerts={alerts} />}
                 </div>
               </div>
@@ -939,6 +936,8 @@ export default function Device() {
                   loadingAction={actionLoading}
                 />
               )}
+
+              <PermissionsWidget device={device} />
 
               <DirectConnectWidget
                 isOpen={isTerminalOpen}
