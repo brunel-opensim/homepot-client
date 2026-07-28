@@ -48,8 +48,8 @@ if not _SECRET_KEY:
     raise RuntimeError("SECRET_KEY environment variable is not set!")
 SECRET_KEY: str = _SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 1
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_HOURS = 87600  # 10 years — session persists until explicit sign-out
+REFRESH_TOKEN_EXPIRE_DAYS = 3650  # 10 years
 
 COOKIE_NAME = "access_token"
 REFRESH_COOKIE_NAME = "refresh_token"
