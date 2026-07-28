@@ -15,4 +15,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
   },
+  emulator: {
+    start: (config: {
+      emulatorType: string
+      backendUrl: string
+      siteId: string
+      bootstrapKey: string
+      deviceName: string
+      mockMac?: string
+      mockIp?: string
+      mockHostname?: string
+    }) => ipcRenderer.invoke('emulator:start', config),
+    stop: () => ipcRenderer.invoke('emulator:stop'),
+    status: () => ipcRenderer.invoke('emulator:status'),
+  },
 })

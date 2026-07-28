@@ -4,12 +4,17 @@ import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
 
+const EMULATOR_TYPES: { value: string; label: string; os: string; description: string }[] = [
+  { value: 'linux_pos', label: 'Linux POS', os: 'Linux 6.8.0 (Debian 12)', description: 'Simulates a Linux-based POS terminal' },
+  { value: 'android_pos', label: 'Android POS', os: 'Android 14', description: 'Simulates an Android POS tablet' },
+]
+
 function formatDeviceType(v: string) {
   return v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function StepIndicator({ current }: { current: number }) {
-  const STEPS = ['Device Setup', 'Bootstrap Key', 'Complete']
+  const STEPS = ['Device Setup', 'Method', 'Emulator', 'Complete']
   return (
     <div className="flex items-center justify-center gap-2 w-full">
       {STEPS.map((label, i) => (
@@ -47,7 +52,7 @@ function Step1() {
 
   const handleNext = () => {
     setSetupState({ siteId, deviceName, deviceType, deviceOs, bootstrapKey: setupState.bootstrapKey })
-    navigate('/signin')
+    navigate('/setup/mode')
   }
 
   return (
@@ -132,7 +137,7 @@ function Step1() {
 
 function ReviewStep({ onBack }: { onBack: () => void }) {
   const navigate = useNavigate()
-  const { setupState, setIsProvisioned } = useApp()
+  const { setupState, useEmulator, emulatorType, setIsProvisioned, setIsEmulatorRunning } = useApp()
   const { siteId, deviceName, deviceType, deviceOs, bootstrapKey } = setupState
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -142,6 +147,32 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
     setLoading(true)
     setError('')
     try {
+      if (useEmulator && window.electronAPI?.emulator) {
+        const config = {
+          emulatorType,
+          backendUrl: apiBaseUrl.replace('/api/v1', ''),
+          siteId,
+          bootstrapKey,
+          deviceName: deviceName || 'Emulated Device',
+          deviceType,
+        }
+        const result = await window.electronAPI.emulator.start(config)
+        await credentialStorage.save({
+          deviceId: result.deviceId,
+          apiKey: result.apiKey,
+          siteId,
+          deviceName: deviceName || 'Emulated Device',
+          deviceType,
+          deviceOs,
+          enrollmentMethod: 'emulated',
+        })
+        setLoading(false)
+        setIsEmulatorRunning(true)
+        setIsProvisioned(true)
+        navigate('/home')
+        return
+      }
+
       if (isDev) {
         await credentialStorage.save({
           deviceId: `dev-device-${Date.now()}`,
@@ -245,10 +276,157 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
   )
 }
 
+function EmulatorConfigStep() {
+  const navigate = useNavigate()
+  const { emulatorType, setEmulatorType, setUseEmulator, setSetupState, setupState } = useApp()
+  const selected = EMULATOR_TYPES.find(t => t.value === emulatorType) ?? EMULATOR_TYPES[0]
+
+  const handleNext = () => {
+    setUseEmulator(true)
+    setSetupState({ ...setupState, deviceOs: selected.os })
+    navigate('/setup/review')
+  }
+
+  return (
+    <div className="flex flex-col gap-5 w-full">
+      <div className="text-center">
+        <h2 className="text-slate-200 font-semibold text-base">Configure Emulator</h2>
+        <p className="text-slate-400 text-xs mt-1">Choose the device type to simulate.</p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {EMULATOR_TYPES.map(t => (
+          <button
+            key={t.value}
+            onClick={() => setEmulatorType(t.value)}
+            className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+              emulatorType === t.value
+                ? 'border-emerald-500 bg-slate-700'
+                : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-slate-200 font-medium text-sm">{t.label}</span>
+              {emulatorType === t.value && (
+                <span className="text-emerald-400 text-sm">✓</span>
+              )}
+            </div>
+            <p className="text-slate-400 text-xs mt-1">{t.description}</p>
+            <p className="text-slate-500 text-xs">{t.os}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-3 mt-2">
+        <button
+          onClick={() => navigate('/setup/mode')}
+          className="flex-1 py-3 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 font-semibold text-sm transition-colors"
+        >
+          Back
+        </button>
+        <button
+          onClick={handleNext}
+          className="flex-[2] py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-colors"
+        >
+          Next →
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ModeStep() {
+  const navigate = useNavigate()
+  const { useEmulator, setUseEmulator, setEmulatorType } = useApp()
+  const [mode, setMode] = useState<'real' | 'emulator'>(useEmulator ? 'emulator' : 'real')
+
+  const handleNext = () => {
+    if (mode === 'emulator') {
+      setUseEmulator(true)
+      if (!EMULATOR_TYPES.find(t => t.value === useEmulator)) {
+        setEmulatorType(EMULATOR_TYPES[0].value)
+      }
+      navigate('/setup/emulator')
+    } else {
+      setUseEmulator(false)
+      navigate('/signin')
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5 w-full">
+      <div className="text-center">
+        <h2 className="text-slate-200 font-semibold text-base">Setup Method</h2>
+        <p className="text-slate-400 text-xs mt-1">Choose how to set up this device.</p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={() => setMode('real')}
+          className={`w-full text-left px-4 py-4 rounded-lg border-2 transition-colors ${
+            mode === 'real' ? 'border-emerald-500 bg-slate-700' : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-slate-200 font-medium text-sm">Set up a real device</span>
+            {mode === 'real' && <span className="text-emerald-400 text-sm">✓</span>}
+          </div>
+          <p className="text-slate-400 text-xs mt-1">Provision a physical device using a bootstrap key.</p>
+        </button>
+
+        <button
+          onClick={() => setMode('emulator')}
+          className={`w-full text-left px-4 py-4 rounded-lg border-2 transition-colors ${
+            mode === 'emulator' ? 'border-emerald-500 bg-slate-700' : 'border-slate-600 bg-slate-700/50 hover:border-slate-500'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-slate-200 font-medium text-sm">Launch emulated device</span>
+            {mode === 'emulator' && <span className="text-emerald-400 text-sm">✓</span>}
+          </div>
+          <p className="text-slate-400 text-xs mt-1">Start a simulated device for development and testing.</p>
+        </button>
+      </div>
+
+      <div className="flex gap-3 mt-2">
+        <button
+          onClick={() => navigate('/setup')}
+          className="flex-1 py-3 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-700 font-semibold text-sm transition-colors"
+        >
+          Back
+        </button>
+        <button
+          onClick={handleNext}
+          className="flex-[2] py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-colors"
+        >
+          Next →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function SetupWizard() {
   const navigate = useNavigate()
   const location = useLocation()
   const isReview = location.pathname === '/setup/review'
+  const isEmulatorConfig = location.pathname === '/setup/emulator'
+  const isMode = location.pathname === '/setup/mode'
+
+  let stepIndex = 0
+  if (isMode) stepIndex = 1
+  else if (isEmulatorConfig) stepIndex = 2
+  else if (isReview) stepIndex = 3
+
+  const maxSteps = 4
+  const totalSteps = maxSteps
+
+  function renderStep() {
+    if (isReview) return <ReviewStep onBack={() => navigate(isEmulatorConfig ? '/setup/emulator' : '/setup')} />
+    if (isEmulatorConfig) return <EmulatorConfigStep />
+    if (isMode) return <ModeStep />
+    return <Step1 />
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
@@ -259,10 +437,10 @@ export default function SetupWizard() {
           <p className="text-slate-500 text-xs">Device Setup</p>
         </div>
 
-        <StepIndicator current={isReview ? 2 : 0} />
+        <StepIndicator current={stepIndex} />
 
         <div className="border-t border-slate-700 pt-4">
-          {!isReview && (
+          {!isReview && !isMode && !isEmulatorConfig && (
             <div className="mb-4">
               <button
                 onClick={() => navigate('/claim')}
@@ -275,15 +453,11 @@ export default function SetupWizard() {
             </div>
           )}
 
-          {isReview ? (
-            <ReviewStep onBack={() => navigate('/setup')} />
-          ) : (
-            <Step1 />
-          )}
+          {renderStep()}
         </div>
 
         <p className="text-center text-slate-600 text-xs">
-          Step {isReview ? 3 : 1} of 3
+          Step {stepIndex + 1} of {totalSteps}
         </p>
       </div>
     </div>

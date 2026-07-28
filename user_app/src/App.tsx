@@ -25,6 +25,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Wrapped><RootRedirect /></Wrapped>} />
           <Route path="/setup" element={<Wrapped><SetupWizard /></Wrapped>} />
+          <Route path="/setup/mode" element={<Wrapped><SetupWizard /></Wrapped>} />
+          <Route path="/setup/emulator" element={<Wrapped><SetupWizard /></Wrapped>} />
           <Route path="/setup/review" element={<Wrapped><SetupWizard /></Wrapped>} />
           <Route path="/signin" element={<Wrapped><SignIn /></Wrapped>} />
           <Route path="/home" element={<Wrapped><HomeDashboard /></Wrapped>} />

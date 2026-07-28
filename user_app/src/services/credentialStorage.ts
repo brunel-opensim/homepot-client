@@ -33,6 +33,20 @@ declare global {
       app: {
         getVersion(): Promise<string>
       }
+      emulator: {
+        start(config: {
+          emulatorType: string
+          backendUrl: string
+          siteId: string
+          bootstrapKey: string
+          deviceName: string
+          mockMac?: string
+          mockIp?: string
+          mockHostname?: string
+        }): Promise<{ deviceId: string; apiKey: string }>
+        stop(): Promise<boolean>
+        status(): Promise<{ running: boolean; pid: number | null; deviceId: string | null }>
+      }
     }
   }
 }
