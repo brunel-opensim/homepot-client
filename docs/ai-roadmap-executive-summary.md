@@ -1,9 +1,9 @@
 # HOMEPOT AI Integration - Executive Summary
 
-> **Target Completion:** 2026 (3 months)  
+> **Target Completion:** 2026  
 > **Investment:** ~$5K-20K (significantly reduced)  
 > **Team Size:** 2-3 FTE (Backend + AI adaptation)  
-> **Status:** Planning Phase  
+> **Status:** Active — Phases 1-3 complete, Phase 4 (Data Integration) ongoing  
 > **Foundation:** Personal AI Companion Architecture (proven, 80% reusable)
 
 ## Vision
@@ -30,35 +30,54 @@ This reduces Phase 3-4 from **18 weeks to 5-8 weeks** and cuts costs by **75-90%
 
 ## Current State → Future State
 
-| Aspect | Today (Nov 2025) | Future (Q3 2026) |
+| Aspect | Today (Jul 2026) | Future (Q3 2026) |
 |--------|------------------|------------------|
 | **Monitoring** | Manual dashboard viewing | AI-powered automated alerts |
 | **Maintenance** | Reactive (fix when broken) | Predictive (prevent failures) |
-| **Analysis** | Manual data export | Real-time ML-driven insights |
+| **Analysis** | AI queries 14/25 DB tables | AI queries all 25 tables with gated trust |
 | **Reporting** | Manual report creation | Automated AI-generated reports |
-| **Queries** | SQL/API knowledge required | Natural language questions |
+| **Queries** | Natural language with context | Full evidence-based NL with provenance |
 
-## 5 Strategic Phases
+## 7 Strategic Phases
 
-### Phase 1: Foundation
+### Phase 1: Foundation ✅
 **What:** Complete website integration, establish data collection  
-**Key Outcome:** 10+ devices streaming metrics to time-series database
+**Key Outcome:** 10+ devices streaming metrics to time-series database  
+**Status:** Complete
 
-### Phase 2: Data Pipeline
+### Phase 2: Data Pipeline ✅
 **What:** Build ETL pipeline, analytics API, advanced dashboards  
-**Key Outcome:** Real-time analytics processing 10K+ metrics/hour
+**Key Outcome:** Real-time analytics processing 10K+ metrics/hour  
+**Status:** Complete
 
-### Phase 3: AI Infrastructure - ACCELERATED
+### Phase 3: AI Infrastructure ✅
 **What:** Adapt Personal AI Companion for device monitoring  
-**Key Outcome:** Working AI service with Ollama + ChromaDB + device context
+**Key Outcome:** AI service with Ollama + ChromaDB + 12 context sources + 3 validation gates  
+**Status:** Complete
 
-### Phase 4: ML Models
-**What:** Anomaly detection, predictive maintenance, pattern recognition  
-**Key Outcome:** 85%+ accuracy in anomaly detection, 75%+ in failure prediction
+### Phase 4: AI Data Integration 🟡 (Active)
+**What:** Feed ALL database fields into AI context, not just the original 14 tables  
+**Key Outcome:** AI accesses all 25 tables — device permissions, lifecycle, enrolment, jobs, org hierarchy  
+**Sub-layers:**
+- Layer 1: Core Device Intelligence (permissions, capabilities, lifecycle state, config)
+- Layer 2: Enrolment & Provenance (intents, epochs, lifecycle events)
+- Layer 3: Full Job & Configuration Intelligence (jobs table, rollback data)
+- Layer 4: Organization & Access Control (tenants, memberships, roles)
 
-### Phase 5: NLP & Production
+**See full roadmap:** [`docs/ai-roadmap.md`](ai-roadmap.md)
+
+### Phase 5: Gate Chain Expansion 🟡 (Active — runs alongside Phase 4)
+**What:** Complete the validation gate architecture  
+**Key Outcome:** Gates D (permissions), E (lifecycle), F (context coverage), G (rollback)  
+**Status:** Gates D+E in development
+
+### Phase 6: Predictor & Scheduler Completion 🟡 (Upcoming)
+**What:** Backfill stubs, production tuning, TimescaleDB aggregates  
+**Key Outcome:** Full failure prediction (4 factors), production-ready job scheduler
+
+### Phase 7: Calibration & Production 🔵 (Future)
 **What:** Natural language queries, automated reporting, full deployment  
-**Key Outcome:** Conversational AI interface, production deployment
+**Key Outcome:** Conversational AI interface with calibrated trust scores
 
 ## Key Features Delivered
 
@@ -179,11 +198,13 @@ This reduces Phase 3-4 from **18 weeks to 5-8 weeks** and cuts costs by **75-90%
 - User satisfaction: >4.0/5.0
 
 **Documentation:**
-- Full Roadmap: `/docs/ai-roadmap.md`
-- Engineering TODO: `/docs/engineering-todo.md`
-- Current Status: `/docs/website-testing-guide.md`
+- Full Roadmap: [`/docs/ai-roadmap.md`](ai-roadmap.md)
+- AI Infrastructure: [`/docs/ai-infrastructure.md`](ai-infrastructure.md)
+- Validation Gates: [`/docs/ai-validation-gates.md`](ai-validation-gates.md)
+- Context Builder: [`/docs/ai-context-builder.md`](ai-context-builder.md)
+- AI Implementation: [`/docs/ai-implementation.md`](ai-implementation.md)
 
 ---
 
-*Last Updated: November 18, 2025*  
-*Next Review: December 18, 2025*
+*Last Updated: July 29, 2026*  
+*Next Review: August 29, 2026*
