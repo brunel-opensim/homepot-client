@@ -20,9 +20,8 @@ import api from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
-// Falls back to the "mode_1" (status-only / least trusted) styling for any
-// mode id we don't explicitly recognize, so a future Gate D mode degrades
-// safely instead of rendering unstyled.
+// Covers all five canonical modes plus grounded. Falls back to mode_1
+// (status-only / least trusted) styling for any unknown mode id.
 const TRUST_MODE_STYLES = {
   grounded: {
     icon: ShieldCheck,
@@ -31,12 +30,26 @@ const TRUST_MODE_STYLES = {
     border: 'border-green-200 dark:border-green-900',
     chipPass: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
   },
+  mode_4: {
+    icon: ShieldAlert,
+    text: 'text-indigo-700 dark:text-indigo-400',
+    bg: 'bg-indigo-50 dark:bg-indigo-950/30',
+    border: 'border-indigo-200 dark:border-indigo-900',
+    chipPass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
+  },
   mode_3: {
     icon: ShieldAlert,
     text: 'text-amber-700 dark:text-amber-400',
     bg: 'bg-amber-50 dark:bg-amber-950/30',
     border: 'border-amber-200 dark:border-amber-900',
     chipPass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+  },
+  mode_5: {
+    icon: ShieldAlert,
+    text: 'text-rose-700 dark:text-rose-400',
+    bg: 'bg-rose-50 dark:bg-rose-950/30',
+    border: 'border-rose-200 dark:border-rose-900',
+    chipPass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400',
   },
   mode_2: {
     icon: ShieldAlert,
