@@ -99,27 +99,30 @@ jobs:
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then EXTRAS="[agent]"; fi
         pip install ${PREFER_BINARY} -e "backend${EXTRAS}"
 
-    - name: Install PostgreSQL 16 + TimescaleDB (Ubuntu only)
+    - name: Install PostgreSQL 16 (Ubuntu only)
       if: matrix.os == 'ubuntu-latest'
       run: |
         set -e
         sudo apt-get update
         sudo apt-get install -y postgresql-16 postgresql-client-16
+        sudo systemctl start postgresql
 
-        # Add the TimescaleDB apt repository and install the extension
-        # package matching PostgreSQL 16 (same major version used in prod).
+    - name: Create CI test role and database
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        set -e
+        sudo -u postgres psql -c "CREATE ROLE ${PG_TEST_USER} LOGIN PASSWORD '${PG_TEST_PASSWORD}';"
+        sudo -u postgres psql -c "CREATE DATABASE ${PG_TEST_DB} OWNER ${PG_TEST_USER};"
+
+    - name: Install TimescaleDB extension (Ubuntu only, best-effort)
+      if: matrix.os == 'ubuntu-latest'
+      continue-on-error: true
+      run: |
         curl -s https://packagecloud.io/install/repositories/timescale/timescaledb/script.deb.sh | sudo bash
         sudo apt-get install -y timescaledb-2-postgresql-16
-
-        # Wire up shared_preload_libraries and other recommended settings,
-        # then restart for the change to take effect.
         sudo timescaledb-tune --quiet --yes
         sudo systemctl restart postgresql
         pg_isready
-
-        # Create the throwaway CI test role/database and enable the extension.
-        sudo -u postgres psql -c "CREATE ROLE ${PG_TEST_USER} LOGIN PASSWORD '${PG_TEST_PASSWORD}';"
-        sudo -u postgres psql -c "CREATE DATABASE ${PG_TEST_DB} OWNER ${PG_TEST_USER};"
         sudo -u postgres psql -d "${PG_TEST_DB}" -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 
     - name: Run unit tests
