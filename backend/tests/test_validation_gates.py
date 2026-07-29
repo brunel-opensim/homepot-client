@@ -165,9 +165,9 @@ def test_envelope_result_trace_and_label():
 
 
 def test_build_default_envelope_order():
-    """Test that build_default_envelope wires Gate A, B, C in order."""
+    """Test that build_default_envelope wires Gate A, B, C, D, E in order."""
     envelope = build_default_envelope()
-    assert [g.gate_id for g in envelope.gates] == ["A", "B", "C"]
+    assert [g.gate_id for g in envelope.gates] == ["A", "B", "C", "D", "E"]
 
 
 # --------------------------------------------------------------------------

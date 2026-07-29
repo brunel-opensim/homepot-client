@@ -151,14 +151,15 @@ class ValidationEnvelope:
 
 
 def build_default_envelope(**overrides: Any) -> ValidationEnvelope:
-    """Build the paper's canonical Gate A -> B -> C envelope (Fig. 2).
+    """Build the paper's canonical Gate A -> B -> C -> D -> E envelope (Fig. 2).
 
-    Additional gates can be appended afterwards via ``envelope.add_gate(...)``,
-    e.g. a future cybersecurity/provenance Gate D (see paper Sec. 7).
+    Additional gates can be appended afterwards via ``envelope.add_gate(...)``.
     """
     from .gate_a import ContractInfrastructureGate
     from .gate_b import DataIntegrityGate
     from .gate_c import ContextReadinessGate
+    from .gate_d import PermissionCapabilityGate
+    from .gate_e import LifecycleIntegrityGate
 
     gate_b_kwargs = {
         k: v
@@ -181,5 +182,7 @@ def build_default_envelope(**overrides: Any) -> ValidationEnvelope:
             ContractInfrastructureGate(),
             DataIntegrityGate(**gate_b_kwargs),
             ContextReadinessGate(**gate_c_kwargs),
+            PermissionCapabilityGate(),
+            LifecycleIntegrityGate(),
         ]
     )

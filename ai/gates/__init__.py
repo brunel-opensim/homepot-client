@@ -45,6 +45,8 @@ from .envelope import EnvelopeResult, ValidationEnvelope, build_default_envelope
 from .gate_a import ContractInfrastructureGate
 from .gate_b import DataIntegrityGate
 from .gate_c import ContextReadinessGate
+from .gate_d import MODE_PERMISSION_GAP, PermissionCapabilityGate
+from .gate_e import MODE_LIFECYCLE_HALT, LifecycleIntegrityGate
 
 __all__ = [
     "CheckResult",
@@ -58,10 +60,14 @@ __all__ = [
     "MODE_CAUTIONARY",
     "MODE_GROUNDED",
     "MODE_STATUS_ONLY",
+    "MODE_PERMISSION_GAP",
+    "MODE_LIFECYCLE_HALT",
     "EnvelopeResult",
     "ValidationEnvelope",
     "build_default_envelope",
     "ContractInfrastructureGate",
     "DataIntegrityGate",
     "ContextReadinessGate",
+    "PermissionCapabilityGate",
+    "LifecycleIntegrityGate",
 ]
