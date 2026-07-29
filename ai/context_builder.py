@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import String, and_, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -230,10 +230,21 @@ class ContextBuilder:
 
         context_lines = ["[RECENT CONFIG CHANGES]"]
         for change in changes:
-            context_lines.append(
+            line = (
                 f"- {change.timestamp.isoformat()}: {change.parameter_name} "
                 f"changed by {change.changed_by} ({change.change_type})"
             )
+            if change.was_rolled_back:
+                line += " [ROLLED BACK]"
+            if change.was_successful is False:
+                line += " [FAILED]"
+            perf_before: Any = change.performance_before or {}
+            perf_after: Any = change.performance_after or {}
+            if perf_before:
+                line += f" | before: {perf_before}"
+            if perf_after:
+                line += f" | after: {perf_after}"
+            context_lines.append(line)
         return "\n".join(context_lines)
 
     @staticmethod
@@ -615,11 +626,28 @@ class ContextBuilder:
 
         context_lines = ["[RECENT PERFORMANCE METRICS]"]
         for m in metrics:
-            context_lines.append(
+            extra: Any = m.extra_metrics or {}
+            extra_str = (
+                ", ".join(f"{k}={v}" for k, v in sorted(extra.items())) if extra else ""
+            )
+            parts = [
                 f"- {m.timestamp.isoformat()}: CPU={m.cpu_percent}% "
                 f"MEM={m.memory_percent}% DISK={m.disk_percent}% "
                 f"LATENCY={m.network_latency_ms}ms"
-            )
+            ]
+            if m.transaction_count is not None:
+                parts.append(f"TX={m.transaction_count}")
+            if m.transaction_volume is not None:
+                parts.append(f"TX_VOL=${m.transaction_volume}")
+            if m.active_connections is not None:
+                parts.append(f"CONN={m.active_connections}")
+            if m.queue_depth is not None:
+                parts.append(f"QUEUE={m.queue_depth}")
+            if m.error_rate is not None:
+                parts.append(f"ERR={m.error_rate}%")
+            if extra_str:
+                parts.append(f"EXTRA=[{extra_str}]")
+            context_lines.append(" | ".join(parts))
         return "\n".join(context_lines)
 
     @staticmethod
@@ -810,13 +838,48 @@ class ContextBuilder:
             last_seen_str = (
                 device.last_seen.isoformat() if device.last_seen else "Unknown"
             )
+
+            perms: Any = device.device_permissions or {}
+            caps: Any = device.capabilities or {}
+            perm_lines = "\n".join(
+                f"  {k}: {'granted' if v else 'none'}" for k, v in sorted(perms.items())
+            )
+            cap_lines = "\n".join(
+                f"  {k}: {'yes' if v else 'no'}" for k, v in sorted(caps.items())
+            )
+
+            config: Any = device.config or {}
+            config_lines = (
+                "\n".join(f"  {k}: {v}" for k, v in sorted(config.items()))
+                if config
+                else "  (none)"
+            )
+
+            peripherals: Any = device.peripherals or {}
+            peripheral_lines = (
+                "\n".join(f"  {k}: {v}" for k, v in sorted(peripherals.items()))
+                if peripherals
+                else "  (none)"
+            )
+
             context_parts.append(
                 f"[DEVICE METADATA]\n"
                 f"Name: {device.name}\n"
                 f"Type: {device.device_type}\n"
+                f"Device ID: {device.device_id}\n"
+                f"Lifecycle State: {device.lifecycle_state}\n"
+                f"Health State: {device.health_state or 'Unknown'}\n"
+                f"Is Simulated: {device.is_simulated}\n"
+                f"Is Monitored: {device.is_monitored}\n"
+                f"Enrollment Method: {device.enrollment_method or 'Unknown'}\n"
                 f"Firmware: {device.firmware_version or 'Unknown'}\n"
+                f"OS: {device.os_details or 'Unknown'}\n"
                 f"IP: {device.ip_address or 'Unknown'}\n"
-                f"Last Seen: {last_seen_str}"
+                f"Last Seen: {last_seen_str}\n"
+                f"\n[DEVICE PERMISSIONS]\n{perm_lines}\n"
+                f"\n[DEVICE CAPABILITIES]\n{cap_lines}\n"
+                f"\n[DEVICE CONFIG]\n{config_lines}\n"
+                f"\n[DEVICE PERIPHERALS]\n{peripheral_lines}"
             )
         else:
             return f"Device {device_id or device_int_id} not found."

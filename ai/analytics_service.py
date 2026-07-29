@@ -45,7 +45,7 @@ class AIAnalyticsService:
                 cutoff_date = datetime.utcnow() - timedelta(days=days)
 
                 # Get recent metrics
-                result = await session.execute(
+                rows = await session.execute(
                     select(DeviceMetrics)
                     .where(
                         and_(
@@ -56,7 +56,7 @@ class AIAnalyticsService:
                     .order_by(DeviceMetrics.timestamp.desc())
                     .limit(1000)
                 )
-                metrics = result.scalars().all()
+                metrics = rows.scalars().all()
 
                 if not metrics:
                     return {
@@ -74,6 +74,35 @@ class AIAnalyticsService:
                     sum(m.disk_percent or 0 for m in metrics) / len(metrics)
                 )
 
+                tx_volumes = [
+                    m.transaction_volume
+                    for m in metrics
+                    if m.transaction_volume is not None
+                ]
+                avg_tx_volume = (
+                    float(sum(tx_volumes) / len(tx_volumes)) if tx_volumes else None
+                )
+
+                active_conns = [
+                    m.active_connections
+                    for m in metrics
+                    if m.active_connections is not None
+                ]
+                avg_active_conns = (
+                    float(sum(active_conns) / len(active_conns))
+                    if active_conns
+                    else None
+                )
+
+                queue_depths = [
+                    m.queue_depth for m in metrics if m.queue_depth is not None
+                ]
+                avg_queue_depth = (
+                    float(sum(queue_depths) / len(queue_depths))
+                    if queue_depths
+                    else None
+                )
+
                 # Detect trends (simple linear regression on recent data)
                 recent_cpu = [m.cpu_percent or 0 for m in metrics[:100]]
                 cpu_trend = "increasing" if recent_cpu[0] > recent_cpu[-1] else "stable"
@@ -84,7 +113,7 @@ class AIAnalyticsService:
                 health_score -= min(avg_memory, 30)  # Penalize high memory
                 health_score -= min(avg_disk / 2, 20)  # Penalize high disk
 
-                return {
+                result: Dict[str, Any] = {
                     "device_id": device_id,
                     "period_days": days,
                     "metrics": {
@@ -99,6 +128,19 @@ class AIAnalyticsService:
                     "health_score": round(max(0, health_score), 2),
                     "analysis_timestamp": datetime.utcnow().isoformat(),
                 }
+
+                if avg_tx_volume is not None:
+                    result["metrics"]["avg_transaction_volume"] = round(
+                        avg_tx_volume, 2
+                    )
+                if avg_active_conns is not None:
+                    result["metrics"]["avg_active_connections"] = round(
+                        avg_active_conns, 1
+                    )
+                if avg_queue_depth is not None:
+                    result["metrics"]["avg_queue_depth"] = round(avg_queue_depth, 1)
+
+                return result
 
         except Exception as e:
             logger.error(f"Failed to analyze device performance: {e}", exc_info=True)
