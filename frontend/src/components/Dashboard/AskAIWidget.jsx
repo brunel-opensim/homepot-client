@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +14,7 @@ import {
   ShieldX,
   ChevronDown,
   X,
+  ListChecks,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
@@ -148,6 +149,88 @@ function TrustBanner({ trust, expanded, onToggle }) {
   );
 }
 
+/**
+ * Animated replay of the validation gate chain shown after the response
+ * arrives. Each gate appears sequentially with a check/cross icon so the
+ * technician sees the same A → B → C → D → E order the backend evaluated.
+ */
+function GateReplay({ trust, onDone }) {
+  const [idx, setIdx] = useState(0);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  const gates = trust?.gates || [];
+  const total = gates.length;
+  const done = idx > total;
+
+  useEffect(() => {
+    if (total === 0) {
+      onDoneRef.current?.();
+      return;
+    }
+    const t = setTimeout(
+      () => {
+        if (idx <= total) setIdx((i) => i + 1);
+      },
+      idx === 0 ? 200 : 300
+    );
+    return () => clearTimeout(t);
+  }, [idx, total]);
+
+  useEffect(() => {
+    if (done && total > 0) {
+      const t = setTimeout(() => onDoneRef.current?.(), 700);
+      return () => clearTimeout(t);
+    }
+  }, [done, total]);
+
+  if (total === 0) return null;
+
+  const scorePct = Math.round((trust?.trust_score ?? 0) * 100);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-3">
+      <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+        <ListChecks className="w-3.5 h-3.5" />
+        <span>Validating data through gate chain...</span>
+      </div>
+      <div className="space-y-1.5 text-xs">
+        {gates.slice(0, Math.min(idx, total)).map((g, i) => (
+          <div
+            key={`${g.gate_id}-${i}`}
+            className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200"
+          >
+            {g.status === 'pass' ? (
+              <Check className="w-3.5 h-3.5 text-green-500 shrink-0" />
+            ) : (
+              <X className="w-3.5 h-3.5 text-red-500 shrink-0" />
+            )}
+            <span className="font-semibold text-gray-800 dark:text-gray-200">Gate {g.gate_id}</span>
+            <span className="text-gray-400">—</span>
+            <span className="text-gray-500 dark:text-gray-400">{g.name}</span>
+            {g.status === 'pass' ? (
+              <span className="text-green-600 font-semibold ml-auto">PASS</span>
+            ) : (
+              <span className="text-red-600 font-semibold ml-auto">FAIL</span>
+            )}
+          </div>
+        ))}
+        {idx > total && (
+          <div className="flex items-center gap-2 pt-2 text-gray-500 animate-in fade-in duration-300">
+            <span className="font-medium text-gray-700 dark:text-gray-300">
+              {trust?.trust_mode_label}
+            </span>
+            <span className="font-mono">Trust {scorePct}%</span>
+            {!trust?.actionable && (
+              <span className="text-amber-600 text-[10px] italic">(non-actionable)</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AskAIWidget() {
   const { user } = useAuth();
   // Load initial state from localStorage if available to persist context on refresh/navigation
@@ -165,9 +248,14 @@ export default function AskAIWidget() {
   });
   const [trustExpanded, setTrustExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
   const [copied, setCopied] = useState(false);
+
+  const handleGateReplayDone = useCallback(() => {
+    setReplaying(false);
+  }, []);
 
   // Persist query and response to localStorage whenever they change
   useEffect(() => {
@@ -195,6 +283,7 @@ export default function AskAIWidget() {
     setResponse(null);
     setTrust(null);
     setTrustExpanded(false);
+    setReplaying(false);
     setError(null);
     localStorage.removeItem('homepot_ai_query');
     localStorage.removeItem('homepot_ai_response');
@@ -213,10 +302,15 @@ export default function AskAIWidget() {
     if (loading) {
       const messages = [
         'Reviewing conversation history...',
+        'Running Gate A: Contract & Infrastructure...',
         'Accessing long-term memory & vector store...',
+        'Running Gate B: Data Integrity...',
         'Scanning active sites & devices...',
+        'Running Gate C: Context Readiness...',
         'Analyzing push notification metrics...',
+        'Running Gate D: Permission & Capability...',
         'Checking for system anomalies...',
+        'Running Gate E: Lifecycle Integrity...',
         'Synthesizing insights...',
       ];
       let i = 0;
@@ -248,6 +342,11 @@ export default function AskAIWidget() {
       // validation envelope's gate-by-gate outcome (see ai/gates/envelope.py).
       setResponse(result.response);
       setTrust(result.trust || null);
+      // Show an animated gate replay before revealing the response,
+      // so the technician sees the validation chain in action.
+      if (result.trust?.gates?.length) {
+        setReplaying(true);
+      }
     } catch (err) {
       console.error('AI Query failed:', err);
       setError('Failed to get a response. Please try again.');
@@ -290,6 +389,8 @@ export default function AskAIWidget() {
               <AlertCircle className="w-4 h-4" />
               {error}
             </div>
+          ) : replaying ? (
+            <GateReplay trust={trust} onDone={handleGateReplayDone} />
           ) : response ? (
             <div className="relative group min-h-full">
               <TrustBanner
