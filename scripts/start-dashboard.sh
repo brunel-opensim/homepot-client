@@ -25,7 +25,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║                                                                ║${NC}"
-echo -e "${CYAN}║                  HOMEPOT COMPLETE DASHBOARD SETUP                ║${NC}"
+echo -e "${CYAN}║                  HOMEPOT COMPLETE DASHBOARD SETUP              ║${NC}"
 echo -e "${CYAN}║                                                                ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
