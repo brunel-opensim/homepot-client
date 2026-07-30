@@ -3,10 +3,10 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
+from datetime import datetime, timedelta
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,15 +23,6 @@ project_root = os.path.abspath(
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from homepot.app.models.AnalyticsModel import (
-    Alert,  # noqa: E402
-    DeviceMetrics,
-    PushNotificationLog,
-)
-from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
-from homepot.database import get_database_service  # noqa: E402
-from homepot.models import Device, HealthCheck, Site  # noqa: E402
-
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
@@ -40,14 +31,23 @@ from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.gates import (
     MODE_CAUTIONARY,
-    EnvelopeResult,  # noqa: E402
     GateContext,
     GateStatus,
     build_default_envelope,
 )
+from ai.gates import EnvelopeResult  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
+
+from homepot.app.models.AnalyticsModel import (
+    DeviceMetrics,
+    PushNotificationLog,
+)
+from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
+from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
+from homepot.database import get_database_service  # noqa: E402
+from homepot.models import Device, HealthCheck, Site  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

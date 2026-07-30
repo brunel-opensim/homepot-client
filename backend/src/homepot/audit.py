@@ -5,9 +5,9 @@ all system events, user actions, and device interactions for compliance
 and monitoring purposes.
 """
 
-import logging
 from datetime import datetime
 from enum import Enum
+import logging
 from typing import Any, Dict, List, Optional
 
 from homepot.database import get_database_service
