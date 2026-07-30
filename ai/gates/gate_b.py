@@ -37,7 +37,7 @@ from .base import (
 )
 
 DEFAULT_FRESHNESS_MAX_AGE_SECONDS = 300  # 5-minute heartbeat baseline (paper Sec. 3.3)
-DEFAULT_CONTINUITY_GAP_SECONDS = 60  # paper Table 1
+DEFAULT_CONTINUITY_GAP_SECONDS = 300  # paper Table 1
 DEFAULT_SUSTAINED_GAP_SECONDS = 3600  # paper Sec. 6.3 ("gaps > 60 min")
 
 

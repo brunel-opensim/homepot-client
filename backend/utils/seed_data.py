@@ -482,6 +482,8 @@ async def init_database():
         is_simulated=True,
         enrollment_method="pre-provisioned",
         enrollment_token=None,
+        capabilities=None,
+        device_permissions=None,
     ):
         existing = await db_service.get_device_by_device_id(device_id)
         if existing:
@@ -499,11 +501,26 @@ async def init_database():
             is_simulated=is_simulated,
             enrollment_method=enrollment_method,
             enrollment_token=enrollment_token,
+            capabilities=capabilities,
+            device_permissions=device_permissions,
         )
         print(
             f"Created device: {device.name} ({device_id}) [Monitored: {is_monitored}] [Simulated: {is_simulated}] [Method: {enrollment_method}]"
         )
         return device
+
+    _linux_caps = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _linux_perms = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _windows_caps = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _windows_perms = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _macos_caps = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _macos_perms = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _web_caps = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": True}
+    _web_perms = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": True}
+    _iot_caps = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": False}
+    _iot_perms = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": False}
+    _android_caps = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _android_perms = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
 
     async with db_service.get_session() as session:
         await get_or_create_device(
@@ -520,6 +537,8 @@ async def init_database():
                 "version": "1.0.0",
             },
             is_monitored=True,
+            capabilities=_linux_caps,
+            device_permissions=_linux_perms,
         )
         await get_or_create_device(
             session,
@@ -536,6 +555,8 @@ async def init_database():
             },
             enrollment_method="self-enrolled",
             enrollment_token="SIM-TOKEN-WIN-02",  # noqa: S106
+            capabilities=_windows_caps,
+            device_permissions=_windows_perms,
         )
         await get_or_create_device(
             session,
@@ -550,6 +571,8 @@ async def init_database():
                 "agent_version": "1.0.0-sim",
                 "version": "1.0.0",
             },
+            capabilities=_macos_caps,
+            device_permissions=_macos_perms,
         )
         await get_or_create_device(
             session,
@@ -564,6 +587,8 @@ async def init_database():
                 "agent_version": "1.0.0-web",
                 "version": "1.0.0",
             },
+            capabilities=_web_caps,
+            device_permissions=_web_perms,
         )
         await get_or_create_device(
             session,
@@ -578,6 +603,8 @@ async def init_database():
                 "agent_version": "1.0.0-iot",
                 "version": "1.0.0",
             },
+            capabilities=_iot_caps,
+            device_permissions=_iot_perms,
         )
         await get_or_create_device(
             session,
@@ -596,6 +623,8 @@ async def init_database():
             },
             is_monitored=True,
             enrollment_method="self-enrolled",
+            capabilities=_android_caps,
+            device_permissions=_android_perms,
         )
         await get_or_create_device(
             session,
@@ -612,6 +641,8 @@ async def init_database():
             },
             enrollment_method="self-enrolled",
             enrollment_token="SIM-TOKEN-LINUX-01",  # noqa: S106
+            capabilities=_linux_caps,
+            device_permissions=_linux_perms,
         )
         await get_or_create_device(
             session,
@@ -626,6 +657,8 @@ async def init_database():
                 "agent_version": "1.0.0-sim",
                 "version": "1.0.0",
             },
+            capabilities=_windows_caps,
+            device_permissions=_windows_perms,
         )
         await get_or_create_device(
             session,
@@ -640,6 +673,8 @@ async def init_database():
                 "agent_version": "1.0.0-sim",
                 "version": "1.0.0",
             },
+            capabilities=_macos_caps,
+            device_permissions=_macos_perms,
         )
         await get_or_create_device(
             session,
@@ -654,6 +689,8 @@ async def init_database():
                 "agent_version": "1.0.0-web",
                 "version": "1.0.0",
             },
+            capabilities=_web_caps,
+            device_permissions=_web_perms,
         )
         await get_or_create_device(
             session,
@@ -668,6 +705,8 @@ async def init_database():
                 "agent_version": "1.0.0-iot",
                 "version": "1.0.0",
             },
+            capabilities=_iot_caps,
+            device_permissions=_iot_perms,
         )
         await session.commit()
 
