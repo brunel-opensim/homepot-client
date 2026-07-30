@@ -1,10 +1,11 @@
 """Event Store module for caching and retrieving device events."""
 
-from datetime import datetime
 import logging
 import os
+from datetime import datetime
 from typing import Any, Dict, List
 
+import yaml
 from sqlalchemy import (
     Column,
     DateTime,
@@ -17,7 +18,6 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.engine import Engine
-import yaml
 
 logger = logging.getLogger(__name__)
 

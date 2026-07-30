@@ -3,10 +3,10 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
-from datetime import datetime, timedelta
 import logging
 import os
 import sys
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,15 +23,24 @@ project_root = os.path.abspath(
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+from homepot.app.models.AnalyticsModel import (
+    Alert,  # noqa: E402
+    DeviceMetrics,
+    PushNotificationLog,
+)
+from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
+from homepot.database import get_database_service  # noqa: E402
+from homepot.models import Device, HealthCheck, Site  # noqa: E402
+
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_memory import DeviceMemory  # noqa: E402
 from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
-from ai.gates import (  # noqa: E402
+from ai.gates import (
     MODE_CAUTIONARY,
-    EnvelopeResult,
+    EnvelopeResult,  # noqa: E402
     GateContext,
     GateStatus,
     build_default_envelope,
@@ -39,14 +48,6 @@ from ai.gates import (  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
-
-from homepot.app.models.AnalyticsModel import (  # noqa: E402
-    Alert,
-    DeviceMetrics,
-    PushNotificationLog,
-)
-from homepot.database import get_database_service  # noqa: E402
-from homepot.models import Device, HealthCheck, Site  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +346,11 @@ def get_ai_services() -> Any:
 @router.post("/query", tags=["AI Chat"])
 async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
     """Query the AI assistant."""
+    logger.info(
+        "AI query | device_id=%s | query_len=%d",
+        request.device_id or "N/A",
+        len(request.query),
+    )
     try:
         # Use singletons for heavy services
         llm, knowledge, memory = get_ai_services()
@@ -681,6 +687,44 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
                 "- Be concise, professional, and technical where appropriate."
             ),
         )
+        logger.info(
+            "AI query done | device_id=%s | mode=%s | score=%.2f | actionable=%s",
+            request.device_id or "N/A",
+            trust.trust_mode.label,
+            trust.trust_score,
+            trust.is_actionable,
+        )
+
+        try:
+            audit = get_audit_logger()
+            await audit.log_event(
+                event_type=AuditEventType.AI_QUERY,
+                description=(
+                    f"AI query | device={request.device_id or 'N/A'} | "
+                    f"mode={trust.trust_mode.label} | score={trust.trust_score:.2f}"
+                ),
+                event_metadata={
+                    "query_length": len(request.query),
+                    "trust_mode": trust.trust_mode.label,
+                    "trust_score": trust.trust_score,
+                    "actionable": trust.is_actionable,
+                    "failed_gate": trust.failed_gate_id,
+                },
+            )
+            if not trust.is_actionable:
+                await audit.log_event(
+                    event_type=AuditEventType.AI_GATE_FAILURE,
+                    description=(
+                        f"Gate {trust.failed_gate_id} failed | device={request.device_id or 'N/A'}"
+                    ),
+                    event_metadata={
+                        "trust_score": trust.trust_score,
+                        "failed_gate": trust.failed_gate_id,
+                    },
+                )
+        except Exception:
+            logger.warning("Failed to persist AI audit event", exc_info=True)
+
         return {
             "response": response,
             "timestamp": datetime.utcnow().isoformat(),

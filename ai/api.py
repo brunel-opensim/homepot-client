@@ -3,17 +3,16 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict
 import uuid
+from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
 import yaml
-
+from fastapi import FastAPI, HTTPException
 from homepot.app.models.AnalyticsModel import Alert
 from homepot.database import get_database_service
 from homepot.models import Device
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
 
 from .analysis_modes import ModeManager
 from .anomaly_detection import AnomalyDetector
@@ -25,8 +24,6 @@ from .failure_predictor import FailurePredictor
 from .llm import LLMService
 from .prompts import PromptManager
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load config

@@ -5,9 +5,9 @@ all system events, user actions, and device interactions for compliance
 and monitoring purposes.
 """
 
+import logging
 from datetime import datetime
 from enum import Enum
-import logging
 from typing import Any, Dict, List, Optional
 
 from homepot.database import get_database_service
@@ -63,6 +63,10 @@ class AuditEventType(str, Enum):
     SYSTEM_STARTUP = "system_startup"
     SYSTEM_SHUTDOWN = "system_shutdown"
     ERROR_OCCURRED = "error_occurred"
+
+    # AI events
+    AI_QUERY = "ai_query"
+    AI_GATE_FAILURE = "ai_gate_failure"
 
     # Security events
     API_ACCESS = "api_access"

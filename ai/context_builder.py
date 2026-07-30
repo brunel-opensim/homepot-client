@@ -1,11 +1,8 @@
 """Module for building rich context for the AI from various data sources."""
 
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 from typing import Any, Optional
-
-from sqlalchemy import String, and_, cast, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from homepot.app.models.AnalyticsModel import (
     Alert,
@@ -37,6 +34,8 @@ from homepot.models import (
     TenantMembership,
     User,
 )
+from sqlalchemy import String, and_, cast, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -667,9 +666,7 @@ class ContextBuilder:
 
         context_lines = ["[SITE MEMBERSHIPS]"]
         for m in memberships:
-            context_lines.append(
-                f"- user={m.user_id} site={m.site_id} role={m.role}"
-            )
+            context_lines.append(f"- user={m.user_id} site={m.site_id} role={m.role}")
         return "\n".join(context_lines)
 
     @staticmethod
