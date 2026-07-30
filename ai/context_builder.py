@@ -20,7 +20,23 @@ from homepot.app.models.AnalyticsModel import (
     UserActivity,
 )
 from homepot.database import get_database_service
-from homepot.models import AuditLog, Device, HealthCheck, User
+from homepot.models import (
+    AuditLog,
+    Device,
+    DeviceAssignment,
+    DeviceCommand,
+    DeviceCredential,
+    DeviceLifecycleEvent,
+    EnrolmentIntent,
+    HealthCheck,
+    Job,
+    LifecycleEpoch,
+    Site,
+    SiteMembership,
+    Tenant,
+    TenantMembership,
+    User,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -556,6 +572,474 @@ class ContextBuilder:
             return "No recent user activity."
 
         return "\n\n".join(context_parts)
+
+    @staticmethod
+    async def get_tenant_context(
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve tenants."""
+        try:
+            if session:
+                return await ContextBuilder._get_tenant_context_impl(session)
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_tenant_context_impl(session)
+
+        except Exception as e:
+            logger.error(f"Failed to build tenant context: {e}")
+            return "Error retrieving tenant context."
+
+    @staticmethod
+    async def _get_tenant_context_impl(session: AsyncSession) -> str:
+        stmt = select(Tenant).order_by(Tenant.name)
+        result = await session.execute(stmt)
+        tenants = result.scalars().all()
+
+        if not tenants:
+            return "No tenants found."
+
+        context_lines = ["[TENANTS]"]
+        for t in tenants:
+            context_lines.append(
+                f"- {t.name} ({t.slug}) {'active' if t.is_active else 'inactive'}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_tenant_membership_context(
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve tenant memberships."""
+        try:
+            if session:
+                return await ContextBuilder._get_tenant_membership_context_impl(session)
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_tenant_membership_context_impl(session)
+
+        except Exception as e:
+            logger.error(f"Failed to build tenant membership context: {e}")
+            return "Error retrieving tenant membership context."
+
+    @staticmethod
+    async def _get_tenant_membership_context_impl(session: AsyncSession) -> str:
+        stmt = select(TenantMembership).order_by(TenantMembership.created_at.desc())
+        result = await session.execute(stmt)
+        memberships = result.scalars().all()
+
+        if not memberships:
+            return "No tenant memberships found."
+
+        context_lines = ["[TENANT MEMBERSHIPS]"]
+        for m in memberships:
+            context_lines.append(
+                f"- user={m.user_id} tenant={m.tenant_id} role={m.role}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_site_membership_context(
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve site memberships."""
+        try:
+            if session:
+                return await ContextBuilder._get_site_membership_context_impl(session)
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_site_membership_context_impl(session)
+
+        except Exception as e:
+            logger.error(f"Failed to build site membership context: {e}")
+            return "Error retrieving site membership context."
+
+    @staticmethod
+    async def _get_site_membership_context_impl(session: AsyncSession) -> str:
+        stmt = select(SiteMembership).order_by(SiteMembership.created_at.desc())
+        result = await session.execute(stmt)
+        memberships = result.scalars().all()
+
+        if not memberships:
+            return "No site memberships found."
+
+        context_lines = ["[SITE MEMBERSHIPS]"]
+        for m in memberships:
+            context_lines.append(
+                f"- user={m.user_id} site={m.site_id} role={m.role}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_enrolment_intent_context(
+        limit: int = 10,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve enrolment intents."""
+        try:
+            if session:
+                return await ContextBuilder._get_enrolment_intent_context_impl(
+                    session, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_enrolment_intent_context_impl(
+                    session, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build enrolment intent context: {e}")
+            return "Error retrieving enrolment intent context."
+
+    @staticmethod
+    async def _get_enrolment_intent_context_impl(
+        session: AsyncSession, limit: int
+    ) -> str:
+        stmt = (
+            select(EnrolmentIntent)
+            .order_by(EnrolmentIntent.created_at.desc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        intents = result.scalars().all()
+
+        if not intents:
+            return "No enrolment intents found."
+
+        context_lines = ["[ENROLMENT INTENTS]"]
+        for e in intents:
+            context_lines.append(
+                f"- {e.intent_id}: site={e.site_id} method={e.enrolment_method} status={e.status}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_lifecycle_epoch_context(
+        device_id: Optional[str] = None,
+        limit: int = 10,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve lifecycle epochs."""
+        try:
+            if session:
+                return await ContextBuilder._get_lifecycle_epoch_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_lifecycle_epoch_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build lifecycle epoch context: {e}")
+            return "Error retrieving lifecycle epoch context."
+
+    @staticmethod
+    async def _get_lifecycle_epoch_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(LifecycleEpoch).order_by(LifecycleEpoch.created_at.desc())
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(LifecycleEpoch.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        epochs = result.scalars().all()
+
+        if not epochs:
+            return "No lifecycle epochs found."
+
+        context_lines = ["[LIFECYCLE EPOCHS]"]
+        for e in epochs:
+            ended = e.ended_at.isoformat() if e.ended_at else "ongoing"
+            context_lines.append(
+                f"- epoch={e.epoch_id} device={e.device_id} claimed={e.claimed_at.isoformat()} ended={ended}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_device_credential_context(
+        device_id: Optional[str] = None,
+        limit: int = 10,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve device credentials."""
+        try:
+            if session:
+                return await ContextBuilder._get_device_credential_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_device_credential_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build device credential context: {e}")
+            return "Error retrieving device credential context."
+
+    @staticmethod
+    async def _get_device_credential_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(DeviceCredential).order_by(DeviceCredential.created_at.desc())
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(DeviceCredential.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        creds = result.scalars().all()
+
+        if not creds:
+            return "No device credentials found."
+
+        context_lines = ["[DEVICE CREDENTIALS]"]
+        for c in creds:
+            status = "active" if c.is_active else "revoked"
+            context_lines.append(
+                f"- {c.credential_id}: device={c.device_id} status={status} created={c.created_at.isoformat()}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_device_command_context(
+        device_id: Optional[str] = None,
+        limit: int = 10,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve recent device commands."""
+        try:
+            if session:
+                return await ContextBuilder._get_device_command_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_device_command_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build device command context: {e}")
+            return "Error retrieving device command context."
+
+    @staticmethod
+    async def _get_device_command_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(DeviceCommand).order_by(DeviceCommand.created_at.desc())
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(DeviceCommand.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        commands = result.scalars().all()
+
+        if not commands:
+            return "No device commands found."
+
+        context_lines = ["[DEVICE COMMANDS]"]
+        for cmd in commands:
+            context_lines.append(
+                f"- {cmd.command_id}: type={cmd.command_type} status={cmd.status} created={cmd.created_at.isoformat()}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_device_assignment_context(
+        device_id: Optional[str] = None,
+        limit: int = 10,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve device assignment history."""
+        try:
+            if session:
+                return await ContextBuilder._get_device_assignment_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_device_assignment_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build device assignment context: {e}")
+            return "Error retrieving device assignment context."
+
+    @staticmethod
+    async def _get_device_assignment_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(DeviceAssignment).order_by(DeviceAssignment.created_at.desc())
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(DeviceAssignment.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        assignments = result.scalars().all()
+
+        if not assignments:
+            return "No device assignments found."
+
+        context_lines = ["[DEVICE ASSIGNMENTS]"]
+        for a in assignments:
+            current = "current" if a.is_current else "historical"
+            context_lines.append(
+                f"- {a.assignment_id}: device={a.device_id} site={a.site_id} "
+                f"reason={a.assignment_reason or 'unknown'} ({current})"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_device_lifecycle_event_context(
+        device_id: Optional[str] = None,
+        limit: int = 10,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve device lifecycle events."""
+        try:
+            if session:
+                return await ContextBuilder._get_device_lifecycle_event_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_device_lifecycle_event_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build device lifecycle event context: {e}")
+            return "Error retrieving device lifecycle event context."
+
+    @staticmethod
+    async def _get_device_lifecycle_event_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(DeviceLifecycleEvent).order_by(
+            DeviceLifecycleEvent.created_at.desc()
+        )
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(DeviceLifecycleEvent.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        events = result.scalars().all()
+
+        if not events:
+            return "No device lifecycle events found."
+
+        context_lines = ["[DEVICE LIFECYCLE EVENTS]"]
+        for e in events:
+            context_lines.append(
+                f"- {e.event_id}: {e.from_state or '?'} -> {e.to_state or '?'} reason={e.reason or 'none'}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
+    async def get_jobs_context(
+        device_id: Optional[str] = None,
+        limit: int = 10,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve recent device management jobs."""
+        try:
+            if session:
+                return await ContextBuilder._get_jobs_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_jobs_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to build jobs context: {e}")
+            return "Error retrieving jobs context."
+
+    @staticmethod
+    async def _get_jobs_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(Job).order_by(Job.created_at.desc())
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(Job.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        jobs = result.scalars().all()
+
+        if not jobs:
+            return "No jobs found."
+
+        context_lines = ["[JOBS]"]
+        for j in jobs:
+            context_lines.append(
+                f"- {j.job_id}: action={j.action} status={j.status} "
+                f"priority={j.priority} site={j.site_id}"
+            )
+        return "\n".join(context_lines)
 
     @staticmethod
     async def get_metrics_context(

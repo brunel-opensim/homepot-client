@@ -188,6 +188,16 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                         metadata_context,
                         metrics_context,
                         user_context,
+                        tenant_context,
+                        tenant_membership_context,
+                        site_membership_context,
+                        enrolment_intent_context,
+                        lifecycle_epoch_context,
+                        device_credential_context,
+                        device_command_context,
+                        device_assignment_context,
+                        device_lifecycle_event_context,
+                        jobs_context,
                     ) = await asyncio.gather(
                         context_builder.get_job_context(session=session),
                         context_builder.get_error_context(
@@ -234,6 +244,28 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                             if request.user_id
                             else asyncio.sleep(0, result="")
                         ),
+                        context_builder.get_tenant_context(session=session),
+                        context_builder.get_tenant_membership_context(session=session),
+                        context_builder.get_site_membership_context(session=session),
+                        context_builder.get_enrolment_intent_context(session=session),
+                        context_builder.get_lifecycle_epoch_context(
+                            device_id=request.device_id, session=session
+                        ),
+                        context_builder.get_device_credential_context(
+                            device_id=request.device_id, session=session
+                        ),
+                        context_builder.get_device_command_context(
+                            device_id=request.device_id, session=session
+                        ),
+                        context_builder.get_device_assignment_context(
+                            device_id=request.device_id, session=session
+                        ),
+                        context_builder.get_device_lifecycle_event_context(
+                            device_id=request.device_id, session=session
+                        ),
+                        context_builder.get_jobs_context(
+                            device_id=request.device_id, session=session
+                        ),
                     )
 
                     context_data.update(
@@ -249,18 +281,52 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
                             "metadata": metadata_context,
                             "metrics": metrics_context,
                             "user": user_context,
+                            "tenant": tenant_context,
+                            "tenant_membership": tenant_membership_context,
+                            "site_membership": site_membership_context,
+                            "enrolment_intent": enrolment_intent_context,
+                            "lifecycle_epoch": lifecycle_epoch_context,
+                            "device_credential": device_credential_context,
+                            "device_command": device_command_context,
+                            "device_assignment": device_assignment_context,
+                            "device_lifecycle_event": device_lifecycle_event_context,
+                            "jobs": jobs_context,
                         }
                     )
 
                 else:
                     # Global/Dashboard View Context
-                    api_context = await context_builder.get_api_context(session=session)
-                    user_context = ""
-                    if request.user_id:
-                        user_context = await context_builder.get_user_context(
-                            user_id=request.user_id, session=session
-                        )
-                    context_data.update({"api": api_context, "user": user_context})
+                    (
+                        api_context,
+                        user_context,
+                        tenant_context,
+                        tenant_membership_context,
+                        site_membership_context,
+                        enrolment_intent_context,
+                    ) = await asyncio.gather(
+                        context_builder.get_api_context(session=session),
+                        (
+                            context_builder.get_user_context(
+                                user_id=request.user_id, session=session
+                            )
+                            if request.user_id
+                            else asyncio.sleep(0, result="")
+                        ),
+                        context_builder.get_tenant_context(session=session),
+                        context_builder.get_tenant_membership_context(session=session),
+                        context_builder.get_site_membership_context(session=session),
+                        context_builder.get_enrolment_intent_context(session=session),
+                    )
+                    context_data.update(
+                        {
+                            "api": api_context,
+                            "user": user_context,
+                            "tenant": tenant_context,
+                            "tenant_membership": tenant_membership_context,
+                            "site_membership": site_membership_context,
+                            "enrolment_intent": enrolment_intent_context,
+                        }
+                    )
 
                 live_context = PromptManager.build_live_context(
                     request.device_id,

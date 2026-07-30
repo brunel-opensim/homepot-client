@@ -8,18 +8,32 @@ This directory contains the AI and Machine Learning services for the HOMEPOT Cli
 
 ## Context Builder
 
-The **Context Builder** (`ai/context_builder.py`) aggregates data from multiple sources to provide "situational awareness" to the LLM. It currently integrates:
+The **Context Builder** (`ai/context_builder.py`) aggregates data from all **25 database tables** to provide "situational awareness" to the LLM:
 
-*   **Job Outcomes:** Recent failed jobs (e.g., firmware updates).
-*   **Error Logs:** System errors and stack traces.
-*   **Configuration History:** Recent changes to device settings.
+*   **Tenants:** Multi-tenancy organisations and their active status.
+*   **Tenant Memberships:** User-role assignments within tenants.
+*   **Sites:** Site metadata and operating schedules.
+*   **Site Memberships:** User-role assignments within sites.
+*   **Devices:** Full device metadata (firmware, IP, lifecycle state, permissions, capabilities, config, peripherals).
+*   **Device Metrics:** CPU, memory, disk, network latency, transaction counts, error rates.
+*   **Device State History:** Connectivity and state transitions (Online/Offline).
+*   **Device Assignments:** Historical and current site assignments per device.
+*   **Device Lifecycle Events:** Lifecycle state transitions (pending → active → retired).
+*   **Device Credentials:** Active/revoked API credential versions per device.
+*   **Device Commands:** Pending and executed commands (restart, update_config, ping).
+*   **Jobs:** Device management job queue (status, priority, targeting).
+*   **Job Outcomes:** Failed job execution results and error messages.
+*   **Health Checks:** Recent connectivity and response-time checks per device.
+*   **Error Logs:** System errors, stack traces, and severity classifications.
+*   **Configuration History:** Device and system parameter changes with rollback tracking.
 *   **Audit Logs:** User actions and system events.
-*   **API Request Logs:** Failed API calls (4xx/5xx errors).
-*   **Device State History:** Connectivity changes (Online/Offline).
-*   **Push Notification Logs:** Delivery status and failures (FCM/APNs).
-*   **User Context:** User profile and recent activity history.
-*   **Site Context:** Operating hours and open/closed status.
-*   **Metadata Context:** Device specifications (Firmware/IP) and Health Check logs.
+*   **API Request Logs:** API call history with status codes and response times.
+*   **User Activities:** Page views and interaction events per user.
+*   **Push Notification Logs:** Delivery status across FCM, APNs, WNS, Web Push providers.
+*   **Alerts:** Active system alerts with severity and device association.
+*   **Enrolment Intents:** Pending/completed/expired device enrolment requests.
+*   **Lifecycle Epochs:** Claim-to-retirement periods per device.
+*   **User Profiles:** User metadata including role and active status.
 
 For full details, see the [Context Builder Documentation](/docs/ai-context-builder.md).
 
