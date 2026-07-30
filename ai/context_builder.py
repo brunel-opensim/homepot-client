@@ -31,7 +31,6 @@ from homepot.models import (
     HealthCheck,
     Job,
     LifecycleEpoch,
-    Site,
     SiteMembership,
     Tenant,
     TenantMembership,
@@ -818,7 +817,8 @@ class ContextBuilder:
         for c in creds:
             status = "active" if c.is_active else "revoked"
             context_lines.append(
-                f"- {c.credential_id}: device={c.device_id} status={status} created={c.created_at.isoformat()}"
+                f"- {c.credential_id}: device={c.device_id}"
+                f" status={status} created={c.created_at.isoformat()}"
             )
         return "\n".join(context_lines)
 
@@ -871,7 +871,8 @@ class ContextBuilder:
         context_lines = ["[DEVICE COMMANDS]"]
         for cmd in commands:
             context_lines.append(
-                f"- {cmd.command_id}: type={cmd.command_type} status={cmd.status} created={cmd.created_at.isoformat()}"
+                f"- {cmd.command_id}: type={cmd.command_type}"
+                f" status={cmd.status} created={cmd.created_at.isoformat()}"
             )
         return "\n".join(context_lines)
 
