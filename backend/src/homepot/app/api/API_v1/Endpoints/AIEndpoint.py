@@ -29,7 +29,7 @@ from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_memory import DeviceMemory  # noqa: E402
 from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
-from ai.gates import (
+from ai.gates import (  # noqa: E402
     MODE_CAUTIONARY,
     GateContext,
     GateStatus,
@@ -40,7 +40,7 @@ from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
-from homepot.app.models.AnalyticsModel import (
+from homepot.app.models.AnalyticsModel import (  # noqa: E402
     DeviceMetrics,
     PushNotificationLog,
 )
