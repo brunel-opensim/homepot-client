@@ -1,8 +1,11 @@
 """Module for building rich context for the AI from various data sources."""
 
-import logging
 from datetime import datetime, timedelta
+import logging
 from typing import Any, Optional
+
+from sqlalchemy import String, and_, cast, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from homepot.app.models.AnalyticsModel import (
     Alert,
@@ -34,8 +37,6 @@ from homepot.models import (
     TenantMembership,
     User,
 )
-from sqlalchemy import String, and_, cast, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 

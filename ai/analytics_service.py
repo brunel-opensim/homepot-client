@@ -4,9 +4,11 @@ This service queries the analytics tables and provides aggregated insights
 for ML models and predictive features.
 """
 
-import logging
 from datetime import datetime, timedelta
+import logging
 from typing import Any, Dict, Optional
+
+from sqlalchemy import String, and_, case, cast, func, select
 
 from homepot.app.models.AnalyticsModel import (
     DeviceMetrics,
@@ -17,7 +19,6 @@ from homepot.app.models.AnalyticsModel import (
 )
 from homepot.database import get_database_service
 from homepot.models import Device
-from sqlalchemy import String, and_, case, cast, func, select
 
 logger = logging.getLogger(__name__)
 

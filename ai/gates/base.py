@@ -17,13 +17,13 @@ specific table/record/threshold that produced it.
 
 from __future__ import annotations
 
-import logging
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
 from enum import Enum
+import logging
+import time
 from typing import Any, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)

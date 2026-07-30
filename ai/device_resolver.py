@@ -2,9 +2,10 @@
 
 from typing import Dict, Optional
 
-from homepot.models import Device
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from homepot.models import Device
 
 
 class DeviceResolver:

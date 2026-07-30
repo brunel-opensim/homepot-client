@@ -4,8 +4,8 @@ This module analyzes patterns in metrics, errors, and state changes to
 identify devices at risk of failure and generate early warnings.
 """
 
-import logging
 from datetime import datetime, timedelta
+import logging
 from typing import Any, Dict, List, Optional
 
 from .analytics_service import AIAnalyticsService
