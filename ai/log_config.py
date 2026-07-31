@@ -11,6 +11,7 @@ Idempotent — only the first call applies config.
 import logging
 import logging.handlers
 import os
+import tempfile
 
 _LOG_CONFIGURED = False
 
@@ -26,6 +27,10 @@ def configure_ai_logging(
     Call once at import time from ``ai/__init__.py``. Subsequent calls are
     no-ops.  Console output is inherited through the root logger — we do not
     add a ``StreamHandler`` here to avoid double-printing.
+
+    If the configured ``log_dir`` is not writable (e.g. inside a Docker
+    container running as a non-root user), falls back to a temp directory
+    so the application can still start.
     """
     global _LOG_CONFIGURED
     if _LOG_CONFIGURED:
@@ -34,14 +39,26 @@ def configure_ai_logging(
 
     if log_dir is None:
         log_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
-    os.makedirs(log_dir, exist_ok=True)
+
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except PermissionError:
+        log_dir = os.path.join(tempfile.gettempdir(), "homepot-ai-logs")
+        os.makedirs(log_dir, exist_ok=True)
 
     log_file = os.path.join(log_dir, "ai.log")
     fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
-    )
+    try:
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
+        )
+    except PermissionError:
+        log_file = os.path.join(tempfile.gettempdir(), "homepot-ai-logs", "ai.log")
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8"
+        )
+
     file_handler.setFormatter(fmt)
     file_handler.setLevel(log_level)
 
