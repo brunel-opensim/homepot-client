@@ -39,9 +39,7 @@ def configure_ai_logging(
     _LOG_CONFIGURED = True
 
     if log_dir is None:
-        log_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "logs")
-        )
+        log_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
 
     try:
         os.makedirs(log_dir, exist_ok=True)
@@ -53,9 +51,7 @@ def configure_ai_logging(
             return  # cannot write anywhere — skip file logging
 
     log_file = os.path.join(log_dir, "ai.log")
-    fmt = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     try:
         file_handler = logging.handlers.RotatingFileHandler(
