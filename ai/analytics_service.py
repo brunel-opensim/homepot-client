@@ -18,6 +18,7 @@ from homepot.app.models.AnalyticsModel import (
     SiteOperatingSchedule,
 )
 from homepot.database import get_database_service
+from homepot.models import Device
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class AIAnalyticsService:
         """Analyze device performance trends over time.
 
         Args:
-            device_id: Device identifier
+            device_id: Public device identifier (string)
             days: Number of days to analyze (default: 30)
 
         Returns:
@@ -42,6 +43,20 @@ class AIAnalyticsService:
         try:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
+
+                # DeviceMetrics.device_id is Integer FK to devices.id;
+                # resolve the string device_id first.
+                int_id_result = await session.execute(
+                    select(Device.id).where(Device.device_id == device_id)
+                )
+                device_int_id = int_id_result.scalar_one_or_none()
+                if device_int_id is None:
+                    return {
+                        "device_id": device_id,
+                        "status": "no_data",
+                        "message": "Device not found",
+                    }
+
                 cutoff_date = datetime.utcnow() - timedelta(days=days)
 
                 # Get recent metrics
@@ -49,7 +64,7 @@ class AIAnalyticsService:
                     select(DeviceMetrics)
                     .where(
                         and_(
-                            DeviceMetrics.device_id == device_id,
+                            DeviceMetrics.device_id == device_int_id,
                             DeviceMetrics.timestamp >= cutoff_date,
                         )
                     )

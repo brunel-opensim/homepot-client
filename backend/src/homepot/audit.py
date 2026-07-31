@@ -64,6 +64,10 @@ class AuditEventType(str, Enum):
     SYSTEM_SHUTDOWN = "system_shutdown"
     ERROR_OCCURRED = "error_occurred"
 
+    # AI events
+    AI_QUERY = "ai_query"
+    AI_GATE_FAILURE = "ai_gate_failure"
+
     # Security events
     API_ACCESS = "api_access"
     UNAUTHORIZED_ACCESS = "unauthorized_access"

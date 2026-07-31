@@ -22,8 +22,11 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
 from enum import Enum
+import logging
 import time
 from typing import Any, Dict, List, Optional, Sequence
+
+logger = logging.getLogger(__name__)
 
 
 class GateStatus(str, Enum):
@@ -238,10 +241,18 @@ class Gate(ABC):
         If a gate implementation raises, the gate is treated as FAILED rather
         than silently allowing inference to proceed on an unverified state.
         """
+        device_suffix = f" device={context.device_id or context.device_int_id or 'N/A'}"
         start = time.monotonic()
+        logger.info("Gate %s evaluate |%s", self.gate_id, device_suffix)
         try:
             result = await self.evaluate(context)
         except Exception as exc:  # fail-closed: any evaluation error counts as FAIL
+            logger.error(
+                "Gate %s exception |%s | error=%s",
+                self.gate_id,
+                device_suffix,
+                exc,
+            )
             result = GateResult(
                 gate_id=self.gate_id,
                 name=self.name,
@@ -250,4 +261,37 @@ class Gate(ABC):
                 error=str(exc),
             )
         result.duration_ms = (time.monotonic() - start) * 1000
+
+        n_checks = len(result.checks)
+        n_passed = sum(1 for c in result.checks if c.passed)
+        log_fn = logger.info if result.status == GateStatus.PASS else logger.warning
+        log_fn(
+            "Gate %s %s | score=%.3f | %d/%d checks passed | %.1fms |%s",
+            self.gate_id,
+            result.status.value.upper(),
+            result.score,
+            n_passed,
+            n_checks or 1,
+            result.duration_ms,
+            device_suffix,
+        )
+        for c in result.checks:
+            if not c.passed:
+                logger.warning(
+                    "Gate %s check %s (%s) FAIL | %s |%s",
+                    self.gate_id,
+                    c.check_id,
+                    c.name,
+                    c.message,
+                    device_suffix,
+                )
+
+        if result.error:
+            logger.error(
+                "Gate %s error | %s |%s",
+                self.gate_id,
+                result.error,
+                device_suffix,
+            )
+
         return result

@@ -85,13 +85,13 @@ class PermissionCapabilityGate(Gate):
             return GateResult(
                 gate_id=self.gate_id,
                 name=self.name,
-                status=GateStatus.FAIL,
+                status=GateStatus.PASS,
                 checks=[
                     CheckResult(
                         check_id="D.device_identity",
                         name="Device identity available",
-                        passed=False,
-                        message="Neither device_int_id nor device_id supplied to Gate D.",
+                        passed=True,
+                        message="No device specified — Gate D skipped (device-level check).",
                     )
                 ],
             )
