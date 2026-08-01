@@ -836,6 +836,10 @@ async def unpair_device(
         device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
         device.is_active = False  # type: ignore[assignment]
         device.api_key_hash = None  # type: ignore[assignment]
+        # The device was loaded via get_device_by_device_id, whose session is
+        # already closed; merge the changes back into a fresh session so the
+        # state transition actually persists.
+        await db_service.persist_device(device)
 
         # ----- Audit event -----
         ip_address = request.client.host if request.client else None
@@ -1014,6 +1018,8 @@ async def suspend_device(
 
         device.lifecycle_state = LifecycleState.SUSPENDED.value  # type: ignore[assignment]
 
+        await db_service.persist_device(device)
+
         await _record_lifecycle_event(
             db_service,
             device,
@@ -1101,6 +1107,8 @@ async def resume_device(
             )
 
         device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
+
+        await db_service.persist_device(device)
 
         await _record_lifecycle_event(
             db_service,
@@ -1198,6 +1206,8 @@ async def retire_device(
         device.lifecycle_state = LifecycleState.RETIRED.value  # type: ignore[assignment]
         device.is_active = False  # type: ignore[assignment]
         device.api_key_hash = None  # type: ignore[assignment]
+
+        await db_service.persist_device(device)
 
         # Revoke active credentials
         async with db_service.get_session() as session:
@@ -1310,7 +1320,11 @@ async def reenrol_device(
             raise HTTPException(status_code=403, detail="User not found")
         db_service = await get_database_service()
 
-        device = await db_service.get_device_by_device_id(device_id)
+        # Re-enrolment targets unpaired devices, which have is_active=False,
+        # so bypass the default active-only filter.
+        device = await db_service.get_device_by_device_id(
+            device_id, include_unpaired=True
+        )
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
 
@@ -1398,6 +1412,8 @@ async def reenrol_device(
             )
             session.add(new_credential)
         device.api_key_hash = new_key_hash  # type: ignore[assignment]
+
+        await db_service.persist_device(device)
 
         await _record_lifecycle_event(
             db_service,
@@ -1559,6 +1575,7 @@ async def transfer_device(
                     current_epoch.ended_at = now  # type: ignore[assignment]
 
         # Update device
+        old_site_id = str(device.site_id)
         device.site_id = int(target_site.id)  # type: ignore[assignment]
         device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
         device.is_active = True  # type: ignore[assignment]
@@ -1606,6 +1623,8 @@ async def transfer_device(
             session.add(new_credential)
         device.api_key_hash = new_key_hash  # type: ignore[assignment]
 
+        await db_service.persist_device(device)
+
         await _record_lifecycle_event(
             db_service,
             device,
@@ -1622,8 +1641,8 @@ async def transfer_device(
         await audit_logger.log_event(
             AuditEventType.DEVICE_TRANSFERRED,
             f"Device '{device.name}' ({device.device_id}) transferred from site "
-            f"'{device.site_id if hasattr(device, 'site_id') else 'unknown'}' "
-            f"to '{payload.target_site_id}' by {current_user['email']}"
+            f"'{old_site_id}' to '{payload.target_site_id}' by "
+            f"{current_user['email']}"
             + (f" — {payload.reason}" if payload.reason else ""),
             device_id=int(device.id),
             site_id=int(target_site.id),
@@ -1632,7 +1651,7 @@ async def transfer_device(
             user_agent=user_agent,
             old_values={
                 "lifecycle_state": current_lifecycle,
-                "site_id": str(device.site_id),
+                "site_id": old_site_id,
             },
             new_values={
                 "lifecycle_state": LifecycleState.ACTIVE.value,

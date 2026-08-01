@@ -184,6 +184,43 @@ class TestGracefulShutdown:
         _handle_signal()
         assert shutdown_event.is_set()
 
+    @pytest.mark.asyncio
+    async def test_force_shutdown_backstop_does_not_fire_until_event(self):
+        """The shutdown backstop never force-exits during normal operation."""
+        from homepot.agent.real_device_agent import _force_shutdown_after_timeout
+
+        exit_calls: list = []
+        with patch(
+            "homepot.agent.real_device_agent.os._exit", side_effect=exit_calls.append
+        ):
+            shutdown_event = asyncio.Event()
+            task = asyncio.ensure_future(
+                _force_shutdown_after_timeout(shutdown_event, timeout=0.05)
+            )
+
+            # Run well past the timeout with no shutdown requested: the agent
+            # must NOT be force-killed (this is the boot self-termination bug).
+            await asyncio.sleep(0.15)
+            assert not task.done()
+            assert exit_calls == []
+
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    async def test_force_shutdown_backstop_fires_after_shutdown_requested(self):
+        """The backstop force-exits when shutdown exceeds the timeout."""
+        from homepot.agent.real_device_agent import _force_shutdown_after_timeout
+
+        exit_calls: list = []
+        with patch(
+            "homepot.agent.real_device_agent.os._exit", side_effect=exit_calls.append
+        ):
+            shutdown_event = asyncio.Event()
+            shutdown_event.set()  # simulate a SIGTERM
+            await _force_shutdown_after_timeout(shutdown_event, timeout=0.05)
+            assert exit_calls == [1]
+
 
 # ============================================================================
 # Failure scenarios
