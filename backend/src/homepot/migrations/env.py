@@ -6,9 +6,10 @@ from logging.config import fileConfig
 import os
 from pathlib import Path
 import sys
+from typing import Any
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, inspect, pool, text
 
 # Ensure "src" is importable when running Alembic from backend root.
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -50,6 +51,36 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _prepare_alembic_version_table(engine: Any) -> None:
+    """Ensure ``alembic_version.version_num`` can hold long revision ids.
+
+    Alembic creates the version table with a ``VARCHAR(32)`` column, but
+    several revision ids in this chain exceed 32 characters (e.g.
+    ``20260720_add_device_assignments_events``).  PostgreSQL enforces the
+    length limit, so widen (or pre-create) the column before migrations run.
+    SQLite ignores ``VARCHAR`` lengths and needs no adjustment.
+    """
+    if engine.dialect.name != "postgresql":
+        return
+
+    with engine.begin() as conn:
+        if inspect(engine).has_table("alembic_version"):
+            conn.execute(
+                text(
+                    "ALTER TABLE alembic_version "
+                    "ALTER COLUMN version_num TYPE VARCHAR(64)"
+                )
+            )
+            return
+
+        conn.execute(
+            text(
+                "CREATE TABLE alembic_version ("
+                "version_num VARCHAR(64) NOT NULL PRIMARY KEY)"
+            )
+        )
+
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
     cfg_section = config.get_section(config.config_ini_section, {})
@@ -60,6 +91,8 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+
+    _prepare_alembic_version_table(connectable)
 
     with connectable.connect() as connection:
         context.configure(
