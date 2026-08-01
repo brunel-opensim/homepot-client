@@ -18,6 +18,8 @@ env:
   PG_TEST_USER: homepot_user
   PG_TEST_PASSWORD: ci_test_password
   PG_TEST_DB: homepot_test
+  # Dedicated scratch database used only for the Alembic migration check.
+  PG_TEST_DB_MIG: homepot_mig
 
 jobs:
   code-quality:
@@ -124,6 +126,88 @@ jobs:
         sudo systemctl restart postgresql
         pg_isready
         sudo -u postgres psql -d "${PG_TEST_DB}" -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+
+    - name: Verify Alembic migrations apply on PostgreSQL
+      if: matrix.os == 'ubuntu-latest'
+      shell: bash
+      env:
+        DATABASE__URL: postgresql://${{ env.PG_TEST_USER }}:${{ env.PG_TEST_PASSWORD }}@localhost:5432/${{ env.PG_TEST_DB_MIG }}
+      run: |
+        set -e
+
+        # Dedicated scratch database so migration checks never touch the test DB.
+        sudo -u postgres psql -c "CREATE DATABASE ${PG_TEST_DB_MIG} OWNER ${PG_TEST_USER};"
+
+        cd backend
+
+        # The app bootstraps the base schema via Base.metadata.create_all at
+        # startup; the migration chain is additive on top of it (its root
+        # migration ALTERs existing tables rather than creating them).
+        # Reproduce that real-world state, roll back to the base revision, then
+        # re-apply every migration so the full upgrade path runs on PostgreSQL.
+        python - <<'PY'
+        import os
+
+        import homepot.database  # noqa: F401  (registers every model with Base.metadata)
+        from sqlalchemy import create_engine
+        from homepot.models import Base
+
+        engine = create_engine(os.environ["DATABASE__URL"])
+        Base.metadata.create_all(engine)
+        print("create_all OK")
+        PY
+
+        alembic -c alembic.ini stamp head
+        alembic -c alembic.ini downgrade base
+        alembic -c alembic.ini upgrade head
+        alembic -c alembic.ini current
+
+        # The migration-produced schema must match the ORM models for every
+        # migration-managed table. This catches migrations that are missing,
+        # incomplete, or unguarded against an already-created schema.
+        python - <<'PY'
+        import os
+
+        from sqlalchemy import create_engine, inspect
+        from homepot.models import (
+            Device,
+            DeviceAssignment,
+            DeviceCredential,
+            DeviceLifecycleEvent,
+            EnrolmentIntent,
+            LifecycleEpoch,
+            Site,
+            SiteMembership,
+            Tenant,
+            TenantMembership,
+            User,
+        )
+
+        engine = create_engine(os.environ["DATABASE__URL"])
+        inspector = inspect(engine)
+        for model in (
+            Device,
+            Site,
+            User,
+            Tenant,
+            TenantMembership,
+            SiteMembership,
+            EnrolmentIntent,
+            LifecycleEpoch,
+            DeviceCredential,
+            DeviceAssignment,
+            DeviceLifecycleEvent,
+        ):
+            db_columns = {c["name"] for c in inspector.get_columns(model.__tablename__)}
+            missing = set(model.__table__.columns.keys()) - db_columns
+            assert not missing, (
+                f"{model.__tablename__} is missing columns: {sorted(missing)}"
+            )
+        print("schema drift check OK")
+        PY
+
+        cd ..
+        sudo -u postgres psql -c "DROP DATABASE ${PG_TEST_DB_MIG};"
 
     - name: Run unit tests
       shell: bash
