@@ -387,6 +387,22 @@ async def _wait_with_shutdown(interval: int, shutdown_event: asyncio.Event) -> N
         shutdown_event.set()
 
 
+async def _force_shutdown_after_timeout(
+    shutdown_event: asyncio.Event, timeout: float
+) -> None:
+    """Force-exit if graceful shutdown does not complete within *timeout*.
+
+    The countdown only starts once ``shutdown_event`` is set (by a signal
+    handler or the service wrapper), so the agent runs indefinitely under
+    normal operation and this task is a pure backstop for tasks that hang
+    during shutdown.
+    """
+    await shutdown_event.wait()
+    await asyncio.sleep(timeout)
+    logger.warning("Shutdown timeout (%ss) reached, forcing exit", timeout)
+    os._exit(1)
+
+
 def _pop_next_result(app: Any) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
     """Pop the first available command result from IPC storage."""
     with app.state.state_lock:
@@ -764,11 +780,11 @@ async def run_agent(
     if push_listener.wns_channel_mgr is not None:
         push_channel_uri = push_listener.wns_channel_mgr.get_stored_uri()
 
+    shutdown_timeout = int(config.get("shutdown_timeout_seconds", 30))
+
     if shutdown_event is None:
         shutdown_event = asyncio.Event()
         loop = asyncio.get_running_loop()
-
-        shutdown_timeout = int(config.get("shutdown_timeout_seconds", 30))
 
         def _handle_signal() -> None:
             """Set the shutdown event and log the signal."""
@@ -780,19 +796,14 @@ async def run_agent(
             loop.add_signal_handler(signal.SIGINT, _handle_signal)
         except NotImplementedError:
             logger.warning("Signal handlers not supported on this platform")
-
-        async def _shutdown_after_timeout() -> None:
-            """Force shutdown if the agent does not stop gracefully within the timeout."""
-            await asyncio.sleep(shutdown_timeout)
-            if not shutdown_event.is_set():
-                logger.warning(
-                    "Shutdown timeout (%ss) reached, forcing exit", shutdown_timeout
-                )
-                shutdown_event.set()
-
-        asyncio.ensure_future(_shutdown_after_timeout())
     else:
         loop = asyncio.get_running_loop()
+
+    # Force-exit backstop: waits for the shutdown event before starting its
+    # countdown, so it never fires during normal operation.
+    force_exit_task = asyncio.ensure_future(
+        _force_shutdown_after_timeout(shutdown_event, shutdown_timeout)
+    )
 
     async def _cancel_on_shutdown(tasks: list) -> None:
         """Cancel all agent tasks when shutdown_event is set."""
@@ -842,6 +853,9 @@ async def run_agent(
             logger.error("Agent runtime error: %s", e, exc_info=True)
 
     logger.info("Agent stopped")
+
+    # Cancel the force-exit backstop now that shutdown has completed.
+    force_exit_task.cancel()
 
     # Cleanup
     await push_listener.stop()

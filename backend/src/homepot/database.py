@@ -341,18 +341,44 @@ class DatabaseService:
             )
             return result.scalar_one_or_none()
 
-    async def get_device_by_device_id(self, device_id: str) -> Optional[Device]:
-        """Get Device by device_id."""
+    async def get_device_by_device_id(
+        self, device_id: str, include_unpaired: bool = False
+    ) -> Optional[Device]:
+        """Get Device by device_id.
+
+        Args:
+            device_id: Business ID of the device (string).
+            include_unpaired: If True, also return soft-deleted/unpaired
+                devices (``is_active`` is False) so they can be re-enrolled.
+        """
         from sqlalchemy import select
         from sqlalchemy.orm import joinedload
 
         async with self.get_session() as session:
-            result = await session.execute(
+            query = (
                 select(Device)
                 .options(joinedload(Device.site), joinedload(Device.credentials))
-                .where(Device.device_id == device_id, Device.is_active.is_(True))
+                .where(Device.device_id == device_id)
             )
+            if not include_unpaired:
+                query = query.where(Device.is_active.is_(True))
+            result = await session.execute(query)
             return result.unique().scalar_one_or_none()
+
+    async def persist_device(self, device: Device) -> Device:
+        """Persist changes to a (possibly detached) ``Device`` instance.
+
+        :meth:`get_device_by_device_id` returns a ``Device`` whose session
+        is closed, so attribute changes made after that call are not
+        written to the database.  Lifecycle endpoints mutate the returned
+        object and call this method to merge those changes into a fresh
+        session.
+        """
+        async with self.get_session() as session:
+            merged = await session.merge(device)
+            await session.flush()
+            await session.refresh(merged)
+            return merged
 
     async def get_devices_by_site_id(
         self, site_id: str, include_unpaired: bool = False
