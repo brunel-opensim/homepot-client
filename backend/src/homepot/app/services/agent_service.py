@@ -178,6 +178,7 @@ class AgentService:
                     cpu_usage=payload.cpu_usage,
                     memory_usage=payload.memory_usage,
                     disk_usage=payload.disk_usage,
+                    uptime_seconds=payload.uptime_seconds,
                 )
 
                 return {
@@ -202,6 +203,7 @@ class AgentService:
                     "cpu_usage": item.cpu_usage,
                     "memory_usage": item.memory_usage,
                     "disk_usage": item.disk_usage,
+                    "uptime_seconds": item.uptime_seconds,
                     "timestamp": item.timestamp,
                 }
                 for item in entries

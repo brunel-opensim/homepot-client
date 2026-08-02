@@ -83,6 +83,9 @@ class AgentTelemetryRequest(BaseModel):
         ..., ge=0, le=100, description="Memory usage percentage"
     )
     disk_usage: float = Field(..., ge=0, le=100, description="Disk usage percentage")
+    uptime_seconds: Optional[int] = Field(
+        default=None, ge=0, description="System uptime in seconds"
+    )
     timestamp: datetime = Field(
         default_factory=utc_now, description="Telemetry timestamp in UTC"
     )
@@ -94,6 +97,7 @@ class AgentTelemetryRequest(BaseModel):
                 "cpu_usage": 23.5,
                 "memory_usage": 61.0,
                 "disk_usage": 48.3,
+                "uptime_seconds": 3600,
                 "timestamp": "2026-03-31T10:50:00Z",
             }
         }

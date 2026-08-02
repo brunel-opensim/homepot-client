@@ -14,7 +14,8 @@ The emulator provisions itself via ``POST /devices/bootstrap-provision``,
 then runs four concurrent loops:
 
 - **Heartbeat** — ``POST /agent/heartbeat`` at a configurable interval
-- **Telemetry** — ``POST /agent/telemetry`` with simulated CPU/memory/disk metrics
+- **Telemetry** — ``POST /agent/telemetry`` with simulated CPU/memory/disk
+  metrics plus runtime uptime (``uptime_seconds``)
 - **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results
 - **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
@@ -36,6 +37,7 @@ from pathlib import Path
 import random
 import signal
 import sys
+import time
 from typing import cast
 
 import httpx
@@ -181,6 +183,7 @@ class LinuxPOSEmulator:
         self._api_key: str | None = None
         self._shutdown_event = asyncio.Event()
         self._metrics = SimulatedMetrics()
+        self._started = time.monotonic()
         self._http: httpx.AsyncClient
 
     @property
@@ -302,9 +305,11 @@ class LinuxPOSEmulator:
         while not self._shutdown_event.is_set():
             try:
                 metrics = self._metrics.sample()
+                uptime_seconds = int(time.monotonic() - self._started)
                 payload = {
                     "device_id": self.device_id,
                     **metrics,
+                    "uptime_seconds": uptime_seconds,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 resp = await self._http.post(
@@ -320,6 +325,7 @@ class LinuxPOSEmulator:
                         f" cpu={metrics['cpu_usage']}%"
                         f" mem={metrics['memory_usage']}%"
                         f" disk={metrics['disk_usage']}%"
+                        f" uptime={uptime_seconds}s"
                     )
             except httpx.RequestError as exc:
                 print(f"  [telemetry] connection error: {exc}")

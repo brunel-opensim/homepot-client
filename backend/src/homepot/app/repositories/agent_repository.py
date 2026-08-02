@@ -119,6 +119,7 @@ class AgentRepository:
         memory_usage: float,
         disk_usage: float,
         timestamp: datetime,
+        uptime_seconds: int | None = None,
     ) -> DeviceMetrics:
         """Persist a single telemetry entry for a device."""
         metric = DeviceMetrics(
@@ -127,6 +128,9 @@ class AgentRepository:
             memory_percent=memory_usage,
             disk_percent=disk_usage,
             timestamp=timestamp,
+            extra_metrics={"uptime_seconds": uptime_seconds}
+            if uptime_seconds is not None
+            else None,
         )
         self.db.add(metric)
         self.db.commit()
@@ -145,6 +149,9 @@ class AgentRepository:
                 memory_percent=entry["memory_usage"],
                 disk_percent=entry["disk_usage"],
                 timestamp=entry["timestamp"],
+                extra_metrics={"uptime_seconds": entry["uptime_seconds"]}
+                if entry.get("uptime_seconds") is not None
+                else None,
             )
             metrics.append(metric)
 

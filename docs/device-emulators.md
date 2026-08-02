@@ -63,7 +63,7 @@ Only **Linux POS** is implemented. Each future emulator targets a specific OS an
 3. **DNA registration** — Calls `POST /agent/device-dna` with the mock MAC address, local IP, and OS details so the backend has realistic device identity data.
 4. **Loops** — Three concurrent async loops run until shutdown:
    - **Heartbeat** — `POST /agent/heartbeat` at a configurable interval
-   - **Telemetry** — `POST /agent/telemetry` with simulated CPU/memory/disk metrics that vary realistically over time
+   - **Telemetry** — `POST /agent/telemetry` with simulated CPU/memory/disk metrics that vary realistically over time, plus runtime uptime (`uptime_seconds`)
    - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`
 
 ### Persistence
