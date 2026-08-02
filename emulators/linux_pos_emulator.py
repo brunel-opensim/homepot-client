@@ -11,11 +11,15 @@ Usage
     python emulators/linux_pos_emulator.py --device-id my-device --bootstrap-key abc123
 
 The emulator provisions itself via ``POST /devices/bootstrap-provision``,
-then runs three concurrent loops:
+then runs four concurrent loops:
 
 - **Heartbeat** — ``POST /agent/heartbeat`` at a configurable interval
 - **Telemetry** — ``POST /agent/telemetry`` with simulated CPU/memory/disk metrics
 - **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results
+- **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
+- **Audit events** — ``POST /agent/audit`` with realistic device audit events
+- **Job history** — ``POST /agent/jobs`` + status updates, so the Dashboard's
+  Job History tab shows live queued → completed/failed transitions
 
 Credentials are persisted to ``~/.homepot/emulators/<device_name>.json``
 so the emulator survives restarts without re-provisioning.
@@ -64,6 +68,9 @@ class EmulatorConfig:
     heartbeat_interval: float = 10.0
     telemetry_interval: float = 15.0
     command_poll_interval: float = 15.0
+    logs_interval: float = 15.0
+    audit_interval: float = 60.0
+    jobs_interval: float = 30.0
 
     @classmethod
     def from_dict(cls, d: dict) -> EmulatorConfig:
@@ -80,6 +87,9 @@ class EmulatorConfig:
             heartbeat_interval=float(d.get("heartbeat_interval_seconds", 10)),
             telemetry_interval=float(d.get("telemetry_interval_seconds", 15)),
             command_poll_interval=float(d.get("command_poll_interval_seconds", 15)),
+            logs_interval=float(d.get("logs_interval_seconds", 15)),
+            audit_interval=float(d.get("audit_interval_seconds", 60)),
+            jobs_interval=float(d.get("jobs_interval_seconds", 30)),
         )
 
     def to_credentials(self, device_id: str, api_key: str) -> dict:
@@ -316,6 +326,205 @@ class LinuxPOSEmulator:
 
             await self._wait_or_shutdown(self.config.telemetry_interval)
 
+    def _next_log_entry(self, tick: int) -> tuple[str, str, str]:
+        m = self._metrics.sample()
+        info_entries = [
+            ("info", "device", "Heartbeat acknowledged by HOMEPOT backend"),
+            (
+                "info",
+                "telemetry",
+                "Telemetry report sent"
+                f" (cpu={m['cpu_usage']:.1f}%, mem={m['memory_usage']:.1f}%,"
+                f" disk={m['disk_usage']:.1f}%)",
+            ),
+            ("info", "payment", "Payment gateway connection healthy"),
+            ("info", "printer", "Receipt printer queue OK - 0 pending jobs"),
+            ("info", "network", f"Network link up (eth0, {self.config.mock_ip})"),
+            (
+                "info",
+                "device",
+                f"Device DNA verified: hostname={self.config.mock_hostname}",
+            ),
+        ]
+        warning_entries = [
+            ("warning", "payment", "Payment gateway latency elevated (1.2s)"),
+            ("warning", "printer", "Receipt printer paper low"),
+            ("warning", "network", "WAN link flapping detected"),
+            ("warning", "device", "Clock skew detected, resyncing NTP"),
+        ]
+        error_entries = [
+            ("error", "payment", "Payment gateway timeout while authorising card"),
+            ("error", "network", "Connection to backend lost, retrying"),
+            ("error", "device", "Unhandled exception in checkout service"),
+        ]
+
+        if tick > 0 and tick % random.randint(10, 20) == 0:
+            return random.choice(error_entries)
+        if tick % random.randint(4, 8) == 0:
+            return random.choice(warning_entries)
+        return random.choice(info_entries)
+
+    async def _logs_loop(self) -> None:
+        tick = 0
+        while not self._shutdown_event.is_set():
+            try:
+                level, category, message = self._next_log_entry(tick)
+                payload = {
+                    "device_id": self.device_id,
+                    "level": level,
+                    "category": category,
+                    "message": message,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                resp = await self._http.post(
+                    f"{self._backend}/agent/logs",
+                    json=payload,
+                    headers=self._headers(),
+                )
+                if resp.status_code >= 400:
+                    print(f"  [logs] error: {resp.status_code} {resp.text[:120]}")
+                else:
+                    print(f"  [logs] {level}: {message[:60]}")
+            except httpx.RequestError as exc:
+                print(f"  [logs] connection error: {exc}")
+
+            tick += 1
+            await self._wait_or_shutdown(self.config.logs_interval)
+
+    def _next_audit_entry(self, tick: int) -> tuple[str, str]:
+        if tick == 0:
+            return (
+                "agent_started",
+                f"HOMEPOT agent started on {self.config.mock_hostname}",
+            )
+        routine = [
+            (
+                "health_check_performed",
+                "Routine health check completed (cpu, memory, disk, network)",
+            ),
+            ("config_update_applied", "Config updated: heartbeat interval set to 10s"),
+            ("device_status_changed", "Device status changed from offline to online"),
+            ("push_notification_sent", "Push notification delivered to employee device"),
+            ("api_access", "Authenticated agent API request completed successfully"),
+        ]
+        anomalies = [
+            ("error_occurred", "Payment gateway timeout during card authorisation"),
+            ("error_occurred", "Connection to backend lost and recovered"),
+        ]
+        if tick % random.randint(8, 15) == 0:
+            return random.choice(anomalies)
+        return random.choice(routine)
+
+    async def _audit_loop(self) -> None:
+        tick = 0
+        while not self._shutdown_event.is_set():
+            try:
+                event_type, description = self._next_audit_entry(tick)
+                payload = {
+                    "device_id": self.device_id,
+                    "event_type": event_type,
+                    "description": description,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                resp = await self._http.post(
+                    f"{self._backend}/agent/audit",
+                    json=payload,
+                    headers=self._headers(),
+                )
+                if resp.status_code >= 400:
+                    print(f"  [audit] error: {resp.status_code} {resp.text[:120]}")
+                else:
+                    print(f"  [audit] {event_type}: {description[:60]}")
+            except httpx.RequestError as exc:
+                print(f"  [audit] connection error: {exc}")
+
+            tick += 1
+            await self._wait_or_shutdown(self.config.audit_interval)
+
+    def _next_job_action(self) -> str:
+        return random.choice(
+            [
+                "Update POS payment config",
+                "Rotate API credentials",
+                "Sync device time (NTP)",
+                "Run diagnostic suite",
+                "Update firmware",
+                "Clear application cache",
+                "Restart payment service",
+                "Backup transaction log",
+            ]
+        )
+
+    def _next_job_outcome(self) -> tuple[str, dict | None, str | None]:
+        if random.random() < 0.8:
+            return (
+                "completed",
+                {"message": "Job executed successfully", "exit_code": 0},
+                None,
+            )
+        return (
+            "failed",
+            None,
+            "Timeout waiting for payment gateway",
+        )
+
+    async def _create_job(self) -> str | None:
+        action = self._next_job_action()
+        payload = {
+            "device_id": self.device_id,
+            "action": action,
+            "description": f"Automated background task: {action}",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/jobs",
+            json=payload,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(f"  [jobs] create error: {resp.status_code} {resp.text[:120]}")
+            return None
+        data = resp.json().get("data", {})
+        job_id = data.get("job_id")
+        print(f"  [jobs] queued '{action}' ({str(job_id)[:8]}...)")
+        return job_id
+
+    async def _update_job(
+        self,
+        job_id: str,
+        status: str,
+        result: dict | None,
+        error_message: str | None,
+    ) -> None:
+        payload = {
+            "device_id": self.device_id,
+            "status": status,
+            "result": result,
+            "error_message": error_message,
+        }
+        resp = await self._http.put(
+            f"{self._backend}/agent/jobs/{job_id}",
+            json=payload,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(f"  [jobs] update error: {resp.status_code} {resp.text[:120]}")
+        else:
+            print(f"  [jobs] {str(job_id)[:8]} -> {status}")
+
+    async def _jobs_loop(self) -> None:
+        current_job: str | None = None
+        while not self._shutdown_event.is_set():
+            try:
+                if current_job:
+                    status, result, error = self._next_job_outcome()
+                    await self._update_job(current_job, status, result, error)
+                current_job = await self._create_job()
+            except httpx.RequestError as exc:
+                print(f"  [jobs] connection error: {exc}")
+
+            await self._wait_or_shutdown(self.config.jobs_interval)
+
     async def _command_poll_loop(self) -> None:
         while not self._shutdown_event.is_set():
             try:
@@ -448,7 +657,10 @@ class LinuxPOSEmulator:
                 "\n  Starting loops"
                 f" (heartbeat={self.config.heartbeat_interval}s"
                 f", telemetry={self.config.telemetry_interval}s"
-                f", commands={self.config.command_poll_interval}s)"
+                f", commands={self.config.command_poll_interval}s"
+                f", logs={self.config.logs_interval}s"
+                f", audits={self.config.audit_interval}s"
+                f", jobs={self.config.jobs_interval}s)"
             )
             print("  Press Ctrl+C to stop.\n")
 
@@ -456,6 +668,9 @@ class LinuxPOSEmulator:
                 self._heartbeat_loop(),
                 self._telemetry_loop(),
                 self._command_poll_loop(),
+                self._logs_loop(),
+                self._audit_loop(),
+                self._jobs_loop(),
             )
         finally:
             await self._http.aclose()
@@ -511,6 +726,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=15.0,
         help="Command poll interval (seconds)",
     )
+    parser.add_argument(
+        "--logs-interval",
+        type=float,
+        default=15.0,
+        help="Live-log report interval (seconds)",
+    )
+    parser.add_argument(
+        "--audit-interval",
+        type=float,
+        default=60.0,
+        help="Audit event report interval (seconds)",
+    )
+    parser.add_argument(
+        "--jobs-interval",
+        type=float,
+        default=30.0,
+        help="Job history report interval (seconds)",
+    )
     return parser.parse_args(argv)
 
 
@@ -541,6 +774,9 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
         heartbeat_interval=args.heartbeat_interval,
         telemetry_interval=args.telemetry_interval,
         command_poll_interval=args.command_poll_interval,
+        logs_interval=args.logs_interval,
+        audit_interval=args.audit_interval,
+        jobs_interval=args.jobs_interval,
     )
 
 

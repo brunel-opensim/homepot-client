@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from homepot.app.models.AnalyticsModel import DeviceMetrics
 from homepot.app.schemas.permissions import derive_capabilities
-from homepot.models import Device, LifecycleState, Site
+from homepot.models import (
+    ConnectivityState,
+    Device,
+    HealthState,
+    LifecycleState,
+    Site,
+)
 
 
 class AgentRepository:
@@ -88,8 +94,11 @@ class AgentRepository:
         return device
 
     def update_last_heartbeat(self, device: Device, heartbeat_at: datetime) -> Device:
-        """Update the latest heartbeat timestamp for a device."""
+        """Record a device heartbeat and mark the device as online and healthy."""
         cast(Any, device).last_heartbeat_at = heartbeat_at
+        cast(Any, device).last_seen = heartbeat_at
+        cast(Any, device).status = ConnectivityState.ONLINE.value
+        cast(Any, device).health_state = HealthState.HEALTHY.value
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)

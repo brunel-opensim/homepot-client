@@ -98,3 +98,124 @@ class AgentTelemetryRequest(BaseModel):
             }
         }
     )
+
+
+class AgentLogRequest(BaseModel):
+    """Request schema for device log reporting."""
+
+    device_id: str = Field(..., min_length=1, description="Unique device identifier")
+    level: str = Field(
+        default="info",
+        description="Log level: info, warning, error, critical",
+    )
+    message: str = Field(..., min_length=1, description="Human-readable log message")
+    category: str = Field(
+        default="device", description="Log category (e.g. device, payment, network)"
+    )
+    timestamp: datetime = Field(
+        default_factory=utc_now, description="Log timestamp in UTC"
+    )
+    context: Optional[dict] = Field(
+        default=None, description="Additional structured context data"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "device_id": "physical-pos-001",
+                "level": "info",
+                "message": "Heartbeat acknowledged by HOMEPOT backend",
+                "category": "device",
+                "timestamp": "2026-03-31T10:45:00Z",
+            }
+        }
+    )
+
+
+class AgentAuditRequest(BaseModel):
+    """Request schema for device audit event reporting."""
+
+    device_id: str = Field(..., min_length=1, description="Unique device identifier")
+    event_type: str = Field(
+        ..., min_length=1, description="Audit event type (e.g. agent_started)"
+    )
+    description: str = Field(
+        ..., min_length=1, description="Human-readable event description"
+    )
+    timestamp: datetime = Field(
+        default_factory=utc_now, description="Event timestamp in UTC"
+    )
+    metadata: Optional[dict] = Field(
+        default=None, description="Additional structured event context"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "device_id": "physical-pos-001",
+                "event_type": "health_check_performed",
+                "description": "Routine health check completed (cpu, memory, disk, network)",
+                "timestamp": "2026-03-31T10:50:00Z",
+            }
+        }
+    )
+
+
+class AgentJobRequest(BaseModel):
+    """Request schema for device job reporting."""
+
+    device_id: str = Field(..., min_length=1, description="Unique device identifier")
+    action: str = Field(
+        ..., min_length=1, description="Job action name (e.g. Update POS payment config)"
+    )
+    description: Optional[str] = Field(
+        default=None, description="Human-readable job description"
+    )
+    priority: str = Field(
+        default="normal", description="Job priority: low, normal, high, critical"
+    )
+    payload: Optional[dict] = Field(
+        default=None, description="Job-specific payload data"
+    )
+    timestamp: datetime = Field(
+        default_factory=utc_now, description="Event timestamp in UTC"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "device_id": "physical-pos-001",
+                "action": "Update POS payment config",
+                "description": "Automated background task: Update POS payment config",
+                "priority": "normal",
+                "timestamp": "2026-03-31T10:55:00Z",
+            }
+        }
+    )
+
+
+class AgentJobUpdateRequest(BaseModel):
+    """Request schema for updating a device job's status."""
+
+    device_id: str = Field(..., min_length=1, description="Unique device identifier")
+    status: str = Field(
+        ...,
+        min_length=1,
+        description="New job status: completed, failed, running",
+    )
+    result: Optional[dict] = Field(
+        default=None, description="Execution result for completed jobs"
+    )
+    error_message: Optional[str] = Field(
+        default=None, description="Error message for failed jobs"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "device_id": "physical-pos-001",
+                "status": "completed",
+                "result": {"message": "Job executed successfully", "exit_code": 0},
+            }
+        }
+    )
