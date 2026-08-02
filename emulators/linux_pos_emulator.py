@@ -833,7 +833,6 @@ class LinuxPOSEmulator:
                     "config_url": data.get("config_url", ""),
                     "config_version": self._config_version,
                     "applied_settings": self._applied_config,
-                    "received_payload": payload,
                 },
             }
 
@@ -844,7 +843,6 @@ class LinuxPOSEmulator:
                 "result": {
                     "message": f"POS application restarted (restart #{self._app_restarts})",
                     "delay_seconds": data.get("delay_seconds", 10),
-                    "received_payload": payload,
                 },
             }
 
@@ -865,7 +863,6 @@ class LinuxPOSEmulator:
                     "message": "Diagnostics completed",
                     "tests": test_results,
                     "healthy": all(v == "pass" for v in test_results.values()),
-                    "received_payload": payload,
                 },
             }
 
@@ -874,7 +871,6 @@ class LinuxPOSEmulator:
                 "status": "completed",
                 "result": {
                     "message": f"Command '{command_type}' received and acknowledged",
-                    "received_payload": payload,
                 },
             }
 
