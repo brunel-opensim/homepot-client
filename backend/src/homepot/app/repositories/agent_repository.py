@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from homepot.app.models.AnalyticsModel import DeviceMetrics
 from homepot.app.schemas.permissions import derive_capabilities
-from homepot.models import Device, LifecycleState, Site
+from homepot.models import (
+    ConnectivityState,
+    Device,
+    HealthState,
+    LifecycleState,
+    Site,
+)
 
 
 class AgentRepository:
@@ -39,6 +45,8 @@ class AgentRepository:
         os_details: Optional[str],
         local_ip: Optional[str],
         wan_ip: Optional[str],
+        ip_address: Optional[str] = None,
+        firmware_version: Optional[str] = None,
         lifecycle_state: str = LifecycleState.ACTIVE.value,
         enrollment_method: Optional[str] = None,
         is_simulated: bool = False,
@@ -53,6 +61,8 @@ class AgentRepository:
             os_details=os_details,
             local_ip=local_ip,
             wan_ip=wan_ip,
+            ip_address=ip_address,
+            firmware_version=firmware_version,
             is_active=True,
             lifecycle_state=lifecycle_state,
             enrollment_method=enrollment_method,
@@ -71,6 +81,8 @@ class AgentRepository:
         os_details: Optional[str],
         local_ip: Optional[str],
         wan_ip: Optional[str],
+        ip_address: Optional[str] = None,
+        firmware_version: Optional[str] = None,
         peripherals: Optional[dict] = None,
     ) -> Device:
         """Update device DNA fields during registration."""
@@ -80,6 +92,10 @@ class AgentRepository:
         device_obj.capabilities = derive_capabilities(os_details)
         device_obj.local_ip = local_ip
         device_obj.wan_ip = wan_ip
+        if ip_address is not None:
+            device_obj.ip_address = ip_address
+        if firmware_version is not None:
+            device_obj.firmware_version = firmware_version
         if peripherals is not None:
             device_obj.peripherals = peripherals
         self.db.add(device)
@@ -88,8 +104,11 @@ class AgentRepository:
         return device
 
     def update_last_heartbeat(self, device: Device, heartbeat_at: datetime) -> Device:
-        """Update the latest heartbeat timestamp for a device."""
+        """Record a device heartbeat and mark the device as online and healthy."""
         cast(Any, device).last_heartbeat_at = heartbeat_at
+        cast(Any, device).last_seen = heartbeat_at
+        cast(Any, device).status = ConnectivityState.ONLINE.value
+        cast(Any, device).health_state = HealthState.HEALTHY.value
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)
@@ -110,6 +129,8 @@ class AgentRepository:
         memory_usage: float,
         disk_usage: float,
         timestamp: datetime,
+        uptime_seconds: int | None = None,
+        network_latency_ms: float | None = None,
     ) -> DeviceMetrics:
         """Persist a single telemetry entry for a device."""
         metric = DeviceMetrics(
@@ -118,6 +139,12 @@ class AgentRepository:
             memory_percent=memory_usage,
             disk_percent=disk_usage,
             timestamp=timestamp,
+            network_latency_ms=network_latency_ms,
+            extra_metrics=(
+                {"uptime_seconds": uptime_seconds}
+                if uptime_seconds is not None
+                else None
+            ),
         )
         self.db.add(metric)
         self.db.commit()
@@ -136,6 +163,12 @@ class AgentRepository:
                 memory_percent=entry["memory_usage"],
                 disk_percent=entry["disk_usage"],
                 timestamp=entry["timestamp"],
+                network_latency_ms=entry.get("network_latency_ms"),
+                extra_metrics=(
+                    {"uptime_seconds": entry["uptime_seconds"]}
+                    if entry.get("uptime_seconds") is not None
+                    else None
+                ),
             )
             metrics.append(metric)
 

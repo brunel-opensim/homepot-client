@@ -508,7 +508,9 @@ export const DeviceInfoWidget = ({ device }) => (
       ) : null}
       <div className="flex justify-between">
         <span className="text-slate-400">IP Address</span>
-        <span className="text-slate-200 font-mono">{device?.ip_address || 'N/A'}</span>
+        <span className="text-slate-200 font-mono">
+          {device?.local_ip || device?.ip_address || 'N/A'}
+        </span>
       </div>
       <div className="flex justify-between">
         <span className="text-slate-400">MAC Address</span>

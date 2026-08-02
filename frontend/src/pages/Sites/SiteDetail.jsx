@@ -12,11 +12,13 @@ import {
   LayoutDashboard,
   AlertTriangle,
   CheckCircle,
+  KeyRound,
 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import DeviceDeleteDialog from '@/components/Devices/DeviceDeleteDialog';
+import BootstrapKeyDialog from '@/components/Sites/BootstrapKeyDialog';
 
 export default function SiteDetail() {
   const { id } = useParams();
@@ -30,6 +32,9 @@ export default function SiteDetail() {
   // Device deletion state
   const [deviceToDelete, setDeviceToDelete] = useState(null);
   const [isDeletingDevice, setIsDeletingDevice] = useState(false);
+
+  // Bootstrap key dialog state
+  const [isBootstrapKeyOpen, setIsBootstrapKeyOpen] = useState(false);
 
   useEffect(() => {
     const fetchSiteAndDevices = async () => {
@@ -182,6 +187,13 @@ export default function SiteDetail() {
                 className="bg-transparent border text-blue-400 border-blue-400 hover:bg-blue-400/10"
               >
                 Enrolment Intents
+              </Button>
+              <Button
+                onClick={() => setIsBootstrapKeyOpen(true)}
+                className="bg-transparent border text-teal-400 border-teal-400 hover:bg-teal-400/10"
+              >
+                <KeyRound className="h-4 w-4 mr-2" />
+                Bootstrap Key
               </Button>
               <Button
                 onClick={() => navigate('/dashboard')}
@@ -432,6 +444,13 @@ export default function SiteDetail() {
           onConfirm={handleConfirmDeleteDevice}
           deviceName={deviceToDelete?.name}
           isDeleting={isDeletingDevice}
+        />
+
+        <BootstrapKeyDialog
+          isOpen={isBootstrapKeyOpen}
+          onClose={() => setIsBootstrapKeyOpen(false)}
+          siteId={site.site_id || site.id}
+          siteName={site.name}
         />
       </div>
     </div>

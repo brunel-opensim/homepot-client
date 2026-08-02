@@ -62,6 +62,8 @@ class AgentService:
                     os_details=payload.os_details,
                     local_ip=payload.local_ip,
                     wan_ip=payload.wan_ip,
+                    ip_address=payload.local_ip,
+                    firmware_version=payload.firmware_version,
                     peripherals=payload.peripherals,
                 )
 
@@ -105,6 +107,8 @@ class AgentService:
                 os_details=payload.os_details,
                 local_ip=payload.local_ip,
                 wan_ip=payload.wan_ip,
+                ip_address=payload.local_ip,
+                firmware_version=payload.firmware_version,
                 lifecycle_state=LifecycleState.ACTIVE.value,
                 enrollment_method=(
                     EnrollmentMethod.EMULATED.value if is_emulator_dna else None
@@ -178,6 +182,8 @@ class AgentService:
                     cpu_usage=payload.cpu_usage,
                     memory_usage=payload.memory_usage,
                     disk_usage=payload.disk_usage,
+                    uptime_seconds=payload.uptime_seconds,
+                    network_latency_ms=payload.network_latency_ms,
                 )
 
                 return {
@@ -202,6 +208,8 @@ class AgentService:
                     "cpu_usage": item.cpu_usage,
                     "memory_usage": item.memory_usage,
                     "disk_usage": item.disk_usage,
+                    "uptime_seconds": item.uptime_seconds,
+                    "network_latency_ms": item.network_latency_ms,
                     "timestamp": item.timestamp,
                 }
                 for item in entries

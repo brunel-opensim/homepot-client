@@ -1,0 +1,285 @@
+# Verifying the User App ↔ Dashboard flow with the emulator
+
+A technician-style runbook for testing the HOMEPOT device setup flow locally,
+mimicking a **User App on a real system** using the Linux POS emulator.
+
+```mermaid
+flowchart TB
+    subgraph T1["Terminal 1 — TECHNICIAN"]
+        direction TB
+        Browser["Browser"]
+        Dashboard["HOMEPOT Dashboard<br/>http://localhost:5173"]
+        Login["Admin login<br/>or sign up"]
+        Site["Create a Site"]
+        Key["Generate a bootstrap key"]
+        Live["Device appears online<br/>Live CPU, memory and disk gauges"]
+
+        Browser --> Dashboard
+        Dashboard --> Login
+        Login --> Site
+        Site --> Key
+        Dashboard --> Live
+    end
+
+    subgraph T2["Terminal 2 — USER"]
+        direction TB
+        UserApp["User App<br/>http://localhost:5174<br/>setup wizard"]
+        Emulator["Emulator<br/>Mimics the User App agent"]
+        Provision["Bootstrap provisioning<br/>site_id + bootstrap_key"]
+        Credentials["~/.homepot/emulators/&lt;name&gt;.json<br/>device_id + api_key"]
+        Agent["Authenticated emulator activity<br/>Device DNA · heartbeat · telemetry"]
+
+        UserApp --> Emulator
+        Emulator --> Provision
+        Provision --> Credentials
+        Credentials --> Agent
+    end
+
+    Key -- "Handoff card" --> UserApp
+
+    Database[("PostgreSQL<br/>Device stored")]
+
+    Provision -- "Create device and issue credentials" --> Database
+    Database -- "device_id + api_key" --> Credentials
+    Agent -- "DNA, heartbeat and telemetry" --> Database
+    Database -- "Device state and live metrics" --> Live
+```
+
+## What this verifies
+
+1. An admin can create a **Site** and generate a **bootstrap key** for it.
+2. A device can be provisioned into that site using only the site info handed
+   to the "user" — no Dashboard login needed on the device side (this is the
+   **User App** `bootstrap-provision` flow).
+3. The provisioned device is stored correctly and appears on the **Dashboard**
+   with mock DNA, online status, and live telemetry.
+4. (Optional) Commands queued from the Dashboard are picked up and completed by
+   the device.
+
+## Prerequisites
+
+- Repository cloned, Python venv at `.venv/`, backend deps installed
+  (`pip install -r backend/requirements.txt`), frontend deps installed
+  (`cd frontend && npm install`).
+- PostgreSQL running with `homepot_db` initialized
+  (`./scripts/init-postgresql.sh`).
+- Node 20+ (22 recommended).
+- Two terminals (or one terminal + one browser window). Everything below runs
+  on a single machine; in a distributed test, "Terminal 1" and "Terminal 2"
+  would be different machines and the **handoff card** below is what the
+  technician sends to the user.
+
+## Step 0 — Start the stack (Technician)
+
+Start the backend and Dashboard with the agent simulation disabled. The legacy
+simulator auto-attaches to every active POS device and writes fake telemetry /
+random `health_state` — disabling it keeps the verification clean.
+
+```bash
+# in the repository root
+export ENABLE_AGENT_SIMULATION=false
+./scripts/start-dashboard.sh
+```
+
+> Alternatively edit `backend/.env` and set `ENABLE_AGENT_SIMULATION=false`,
+> then run `./scripts/start-dashboard.sh`.
+
+Confirm both are up:
+
+```bash
+curl http://localhost:8000/api/v1/health/health   # {"status":"healthy",...}
+# open http://localhost:5173 (Dashboard)
+```
+
+## Step 1 — Technician: create a Site
+
+Open http://localhost:5173 and log in. A seeded admin exists:
+
+- **Email:** `admin@homepot.com`
+- **Password:** `homepot_dev_password`
+
+(or use the sign-up form and log in with your own account).
+
+**Option A — via the Dashboard UI:** Sites → *Create Site*, then fill in:
+
+| Field | Value (example) |
+|-------|-----------------|
+| Site Name | `Demo Site 1` |
+| Site ID | `site-it-demo1` (must be unique) |
+| Location | `localhost` |
+| Description | *(optional)* |
+
+**Option B — via the API**:
+
+```bash
+# login, capture the bearer token
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@homepot.com","password":"homepot_dev_password"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["access_token"])')
+
+# create the site
+curl -X POST http://localhost:8000/api/v1/sites/ \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{
+    "site_id": "site-it-demo1",
+    "name": "Demo Site 1",
+    "description": "Created by technician",
+    "location": "localhost"
+  }'
+```
+
+Expected response: `200` with `{"message": "...", "site_id": "site-it-demo1", ...}`.
+
+## Step 2 — Technician: generate a bootstrap key
+
+**Option A — via the Dashboard UI (recommended):** open the Site detail page for
+the site just created and click **Bootstrap Key**. In the dialog, click
+**Generate Bootstrap Key** — the key is shown once, with a copy button.
+
+**Option B — via the API** (or the interactive Swagger UI at
+http://localhost:8000/docs → Authorize with the token →
+`POST /sites/{site_id}/bootstrap-key`):
+
+```bash
+curl -X POST http://localhost:8000/api/v1/sites/site-it-demo1/bootstrap-key \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Expected response: `200` with a `data.bootstrap_key` value (~43 characters). The
+plaintext key is returned only once — regenerate if it is lost.
+
+## Step 3 — Hand off the site info to the User
+
+Pass this card to the user (paste into the second terminal / another machine):
+
+```
+Backend URL:  http://localhost:8000
+Site ID:      site-it-demo1
+Bootstrap key: <the key from Step 2>
+```
+
+This is the only information the user's device needs — the bootstrap key is
+what authorises a device to enrol itself into the site.
+
+## Step 4 — User: start the User App, then run the emulator (device side)
+
+In **Terminal 2**, first start the HOMEPOT **User App** — the device-side UI (the
+"Digital Security Badge") the end user sees on their system:
+
+```bash
+# in the repository root (Terminal 2)
+./scripts/start-userapp.sh
+```
+
+Open http://localhost:5174 — the setup wizard opens. Walk through it with the
+handed-off site info: enter the **Site ID**, a hostname, and pick a device type.
+
+> **Note:** in dev mode the wizard simulates completion with local dev
+> credentials and does **not** call the backend. The actual backend-facing
+> provisioning is performed by the emulator below, which speaks the same
+> `POST /devices/bootstrap-provision` protocol as the User App's agent.
+
+Still in **Terminal 2**, run the Linux POS emulator. It performs the same
+`POST /devices/bootstrap-provision` call the User App's setup wizard makes, then
+runs heartbeat/telemetry as the device would:
+
+```bash
+# in the repository root
+./scripts/start-emulator.sh \
+  --site-id site-it-demo1 \
+  --bootstrap-key <key-from-step-2>
+```
+
+Use `--device-name` to avoid clashing with another run on the same machine:
+
+```bash
+./scripts/start-emulator.sh \
+  --site-id site-it-demo1 \
+  --bootstrap-key <key-from-step-2> \
+  --device-name "demo-pos-1"
+```
+
+You should see:
+
+```
+  Provisioning via bootstrap-provision ...
+  Provisioned device pos_terminal-xxxxxxxx
+  Registered DNA: hostname=linux-pos-001, MAC=02:42:ac:11:00:02, IP=192.168.1.100
+
+  Device ID: pos_terminal-xxxxxxxx
+  API Key:   yyyyyy...
+  Site ID:   site-it-demo1
+
+  Starting loops (heartbeat=10.0s, telemetry=15.0s, commands=15.0s)
+  [heartbeat] OK ...
+  [telemetry] OK cpu=32.5% mem=48.7% disk=32.9% net=7.2ms uptime=60s ...
+```
+
+Notes:
+
+- The device credentials are saved to
+  `~/.homepot/emulators/<device_name>.json`. Stopping and re-running the
+  emulator **resumes** from those credentials instead of re-provisioning. To
+  force a fresh provision, delete that file first.
+- The emulator registers the device as an **emulated** device
+  (`is_simulated=true`). A real User App would register it as a physical
+  device; everything else in the flow is identical.
+
+## Step 5 — Technician: verify on the Dashboard
+
+Back in **Terminal 1** / the Dashboard browser:
+
+1. **Devices** page — the new device appears with its mock hostname/MAC/IP and
+   an **online** status (driven by heartbeats).
+2. **Device detail** page — the CPU / memory / disk gauges update every ~15s as
+   telemetry arrives.
+3. **Device detail → Live Logs** tab — real-time POS log lines appear (info /
+   warning / error) as the emulator reports them via `POST /agent/logs`.
+4. **Device detail → Audit Trail** tab — real-time audit events appear (e.g.
+   `agent_started`, `health_check_performed`, `config_update_applied`) as the
+   emulator reports them via `POST /agent/audit`.
+5. **Device detail → Job History** tab — jobs appear as *pending* then flip to
+   *completed* / *failed* as the emulator reports them via `POST /agent/jobs`.
+6. **Device detail → Alerts** tab — within a few minutes a network-latency alert
+   (e.g. `High Latency: 474ms`) appears, injected by the emulator via
+   `POST /agent/alert` (configurable `alerts_interval_seconds`).
+7. *(Optional)* queue a command (e.g. `ping` or `restart`) from the device
+   detail page — within a few seconds Terminal 2 shows it being ACKed and
+   completed, and the Dashboard records the result.
+
+## Step 6 — Optional: run the automated checks
+
+The two local scripts this runbook is based on (both gitignored, run from the
+repo root):
+
+```bash
+# Full setup check: signup → login → site → bootstrap key → provision →
+# Postgres rows → Dashboard list → User App status read  (13 checks)
+.venv/bin/python scripts/verify_user_app_setup.py
+
+# Live telemetry check against the provisioned device (6 checks). Pass the
+# device_id / api_key / site_id printed by the previous script.
+.venv/bin/python scripts/verify_device_telemetry.py \
+  --device-id pos_terminal-xxxxxxxx \
+  --api-key <api-key> \
+  --site-id site-it-demo1
+```
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| Device never appears on the Dashboard | Bootstrap key typo, or wrong `--site-id`. The key is single-use-ish — generate a new one in Step 2. |
+| Emulator re-provisions but Dashboard shows the old device | Stale credentials file — delete `~/.homepot/emulators/<device_name>.json` and re-run. |
+| `health_state` shows `error` on a healthy device | The legacy simulator was enabled (`ENABLE_AGENT_SIMULATION=true`). Restart the backend with it disabled (Step 0). |
+| Two emulators clash on one machine | Use different `--device-name` values (each gets its own credentials file). |
+| Dashboard frontend can't reach the backend | Confirm the backend is up and CORS is configured; `curl http://localhost:8000/` should return `{"message":"I Am Alive"}`. |
+
+## Related documentation
+
+- [Device emulators](device-emulators.md) — emulator internals, config reference, credential storage
+- [Complete dashboard setup](complete-dashboard-setup.md) — Dashboard UI walk-through
+- [Running locally](running-locally.md) — backend/frontend setup and commands
+- [User App guide](user-app-frontend-guide.md) — the Electron device-management UI
+- [Real device agent](real-device-agent.md) — production agent for physical hardware

@@ -44,7 +44,11 @@ fi
 
 echo "Starting HOMEPOT device emulator ..."
 echo "  Python: $PYTHON"
-echo "  Config args: $CONFIG_ARGS $*"
+echo "  Config args: ${CONFIG_ARGS[*]:-} $*"
 echo ""
 
-$PYTHON emulators/linux_pos_emulator.py "${CONFIG_ARGS[@]}" "$@"
+if (( ${#CONFIG_ARGS[@]} )); then
+    $PYTHON emulators/linux_pos_emulator.py "${CONFIG_ARGS[@]}" "$@"
+else
+    $PYTHON emulators/linux_pos_emulator.py "$@"
+fi

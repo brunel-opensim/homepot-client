@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 # This is crucial for create_all to create tables for these models
 try:
     from homepot.app.models.AnalyticsModel import (  # noqa: F401
+        Alert,
         APIRequestLog,
         ConfigurationHistory,
         DeviceMetrics,
@@ -867,6 +868,40 @@ class DatabaseService:
             await session.commit()
             await session.refresh(audit_log)
             return audit_log
+
+    async def create_alert(
+        self,
+        device_id: str,
+        title: str,
+        severity: str,
+        category: str,
+        site_id: Optional[int] = None,
+        description: Optional[str] = None,
+        status: str = "active",
+        ai_recommendation: Optional[str] = None,
+        ai_confidence: Optional[float] = None,
+        timestamp: Optional[datetime.datetime] = None,
+    ) -> "Alert":
+        """Create a new device alert."""
+        if timestamp is not None and timestamp.tzinfo is not None:
+            timestamp = timestamp.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        async with self.get_session() as session:
+            alert = Alert(
+                device_id=device_id,
+                site_id=site_id,
+                title=title,
+                description=description,
+                severity=severity,
+                category=category,
+                status=status,
+                ai_recommendation=ai_recommendation,
+                ai_confidence=ai_confidence,
+                timestamp=timestamp or datetime.datetime.now(datetime.timezone.utc),
+            )
+            session.add(alert)
+            await session.commit()
+            await session.refresh(alert)
+            return alert
 
     async def create_enrolment_intent(
         self,

@@ -216,6 +216,23 @@ const api = {
       const response = await apiClient.put(`/sites/${siteId}/monitor?monitor=${monitor}`);
       return response.data;
     },
+
+    /**
+     * Generate (or regenerate) a bootstrap key for a site.
+     * The plaintext key is returned only once in the response.
+     */
+    generateBootstrapKey: async (siteId) => {
+      const response = await apiClient.post(`/sites/${siteId}/bootstrap-key`);
+      return response.data;
+    },
+
+    /**
+     * Revoke a site's bootstrap key, disabling bootstrap provisioning.
+     */
+    revokeBootstrapKey: async (siteId) => {
+      const response = await apiClient.delete(`/sites/${siteId}/bootstrap-key`);
+      return response.data;
+    },
   },
 
   // ==================== Devices ====================
