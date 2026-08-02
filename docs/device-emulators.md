@@ -64,7 +64,7 @@ Only **Linux POS** is implemented. Each future emulator targets a specific OS an
 4. **Loops** — Three concurrent async loops run until shutdown:
    - **Heartbeat** — `POST /agent/heartbeat` at a configurable interval
    - **Telemetry** — `POST /agent/telemetry` with simulated CPU/memory/disk metrics, network latency, and runtime uptime (`uptime_seconds`)
-   - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`
+   - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`; `status_request` returns a live status snapshot to Live Logs, and composed push commands (`update_pos_payment_config`, `restart_pos_app`, `health_check`, custom) are applied/acknowledged and summarised to Live Logs
    - **Alert injection** — `POST /agent/alert` with occasional network-latency spikes, so the Dashboard's Alerts tab is populated
 
 ### Persistence

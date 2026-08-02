@@ -18,7 +18,9 @@ then runs four concurrent loops:
   metrics, network latency, plus runtime uptime (``uptime_seconds``)
 - **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results;
   a ``status_request`` command returns a live device-status snapshot and posts it
-  to the Dashboard's Live Logs tab
+  to the Dashboard's Live Logs tab; composed push commands (``update_pos_payment_config``,
+  ``restart_pos_app``, ``health_check``, or custom actions) are applied/acknowledged and
+  summarised to Live Logs
 - **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
 - **Job history** — ``POST /agent/jobs`` + status updates, so the Dashboard's
@@ -200,6 +202,9 @@ class LinuxPOSEmulator:
         self._shutdown_event = asyncio.Event()
         self._metrics = SimulatedMetrics()
         self._started = time.monotonic()
+        self._config_version: str = "1.0.1"
+        self._applied_config: dict[str, object] = {}
+        self._app_restarts: int = 0
         self._http: httpx.AsyncClient
 
     @property
@@ -631,9 +636,17 @@ class LinuxPOSEmulator:
             status_report = None
             if ctype == "status_request":
                 status_report = self._status_report()
-                await self._report_status_log(status_report)
 
-            simulated_result = self._simulate_command_result(ctype, status_report)
+            payload = cmd.get("payload")
+            simulated_result = self._simulate_command_result(
+                ctype, status_report, payload
+            )
+            if ctype == "status_request":
+                await self._report_status_log(
+                    status_report if status_report is not None else {}
+                )
+            elif payload:
+                await self._report_command_log(ctype, payload, simulated_result)
             await asyncio.sleep(2)
 
             status_resp = await self._http.put(
@@ -709,8 +722,52 @@ class LinuxPOSEmulator:
         else:
             print("  [commands] status report sent to Live Logs")
 
+    async def _report_command_log(
+        self, command_type: str, payload: dict[str, object], result: dict
+    ) -> None:
+        data = payload.get("data")
+        data = data if isinstance(data, dict) else {}
+        label = data.get("command") or command_type
+        params = [
+            f"{k}={v}"
+            for k, v in data.items()
+            if k not in ("command", "timestamp", "config_url", "config_version")
+        ]
+        res = result.get("result")
+        outcome = (
+            res.get("message")
+            if isinstance(res, dict) and res.get("message")
+            else result.get("status", "completed")
+        )
+        message = f"Command received: {label} ({command_type})"
+        if params:
+            message += " | " + " ".join(params)
+        if outcome:
+            message += f" | {outcome}"
+        payload_log = {
+            "device_id": self.device_id,
+            "level": "info",
+            "category": "command",
+            "message": message,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/logs",
+            json=payload_log,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(
+                f"  [commands] command log failed: {resp.status_code} {resp.text[:120]}"
+            )
+        else:
+            print("  [commands] command log sent to Live Logs")
+
     def _simulate_command_result(
-        self, command_type: str, status_report: dict[str, object] | None = None
+        self,
+        command_type: str,
+        status_report: dict[str, object] | None = None,
+        payload: dict[str, object] | None = None,
     ) -> dict:
         if command_type == "status_request":
             return {
@@ -721,6 +778,72 @@ class LinuxPOSEmulator:
                     else self._status_report()
                 ),
             }
+
+        data = payload.get("data") if payload else None
+        data = data if isinstance(data, dict) else {}
+
+        if command_type == "update_pos_payment_config":
+            params = {
+                k: v
+                for k, v in data.items()
+                if k not in ("command", "timestamp", "config_url", "config_version")
+            }
+            self._config_version = str(
+                data.get("config_version") or self._config_version
+            )
+            self._applied_config = dict(params)
+            return {
+                "status": "completed",
+                "result": {
+                    "message": "Configuration applied successfully",
+                    "config_url": data.get("config_url", ""),
+                    "config_version": self._config_version,
+                    "applied_settings": self._applied_config,
+                    "received_payload": payload,
+                },
+            }
+
+        if command_type == "restart_pos_app":
+            self._app_restarts += 1
+            return {
+                "status": "completed",
+                "result": {
+                    "message": f"POS application restarted (restart #{self._app_restarts})",
+                    "delay_seconds": data.get("delay_seconds", 10),
+                    "received_payload": payload,
+                },
+            }
+
+        if command_type == "health_check":
+            tests = data.get("tests") or ["network", "storage", "memory"]
+            test_results: dict[str, object] = {}
+            for test in tests if isinstance(tests, list) else [tests]:
+                name = str(test)
+                passed = random.random() < 0.9
+                test_results[name] = (
+                    "pass"
+                    if passed
+                    else f"fail: {random.choice(['timeout', 'resource exhausted', 'io error'])}"
+                )
+            return {
+                "status": "completed",
+                "result": {
+                    "message": "Diagnostics completed",
+                    "tests": test_results,
+                    "healthy": all(v == "pass" for v in test_results.values()),
+                    "received_payload": payload,
+                },
+            }
+
+        if payload is not None:
+            return {
+                "status": "completed",
+                "result": {
+                    "message": f"Command '{command_type}' received and acknowledged",
+                    "received_payload": payload,
+                },
+            }
+
         outcomes = {
             "restart": {
                 "status": "completed",

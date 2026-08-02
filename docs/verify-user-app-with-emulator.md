@@ -247,6 +247,15 @@ Back in **Terminal 1** / the Dashboard browser:
 7. *(Optional)* queue a command (e.g. `ping` or `restart`) from the device
    detail page — within a few seconds Terminal 2 shows it being ACKed and
    completed, and the Dashboard records the result.
+8. *(Optional)* **Compose Command** — from the device detail page, open
+   **Compose Command**, pick a command (e.g. `RUN_DIAGNOSTICS` or
+   `APPLY_CONFIG`), edit the parameters/envelope, and click **Push Command**.
+   The backend relays the composed payload into the device command queue
+   (`POST /agents/{device_id}/push`), the emulator ACKs it, applies/executes
+   the action (config update, app restart, or health check) and completes it.
+   A `Command received: <name> (action) | ...` line appears in the **Live
+   Logs** tab, and the command result (applied settings / test outcomes /
+   received payload) is recorded in the device command history.
 
 ## Step 6 — Optional: run the automated checks
 
