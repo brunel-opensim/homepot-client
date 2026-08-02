@@ -58,7 +58,10 @@ export default function BootstrapKeyDialog({ isOpen, onClose, siteId, siteName }
             <KeyRound className="h-5 w-5 text-teal-400" />
             Bootstrap Key
           </h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-white transition-colors">
+          <button
+            onClick={handleClose}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -95,7 +98,11 @@ export default function BootstrapKeyDialog({ isOpen, onClose, siteId, siteName }
                 onClick={handleCopy}
                 className="border-[#1f2735] bg-transparent text-gray-300 hover:bg-[#1f2735] hover:text-white shrink-0"
               >
-                {copied ? <Check className="h-4 w-4 text-teal-400" /> : <Copy className="h-4 w-4" />}
+                {copied ? (
+                  <Check className="h-4 w-4 text-teal-400" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
               </Button>
             </div>
             <p className="mt-2 text-xs text-gray-400 flex items-center gap-1.5">

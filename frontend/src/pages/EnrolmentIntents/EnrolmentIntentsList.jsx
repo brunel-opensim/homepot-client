@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -45,7 +45,7 @@ export default function EnrolmentIntentsList() {
   const [createResult, setCreateResult] = useState(null);
   const [regenerating, setRegenerating] = useState(null);
 
-  const fetchIntents = async () => {
+  const fetchIntents = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.enrolmentIntents.list(siteId, statusFilter || null, 100, 0);
@@ -56,11 +56,11 @@ export default function EnrolmentIntentsList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [siteId, statusFilter]);
 
   useEffect(() => {
     fetchIntents();
-  }, [siteId, statusFilter]);
+  }, [fetchIntents]);
 
   const counts = {
     active: intents.filter((i) => i.status === 'pending' || i.status === 'approved').length,
