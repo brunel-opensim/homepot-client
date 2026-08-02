@@ -9,7 +9,7 @@ set -euo pipefail
 # Usage:
 #   ./scripts/start-emulator.sh                    # uses default config
 #   ./scripts/start-emulator.sh --config emulators/my-device.json
-#   ./scripts/start-emulator.sh --site-id site-1 --bootstrap-key <key>
+#   ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key>
 #
 # Prerequisites:
 #   - Python virtual environment at .venv/ with httpx installed
@@ -40,6 +40,22 @@ fi
 CONFIG_ARGS=()
 if [[ "$#" -eq 0 ]]; then
     CONFIG_ARGS=("--config" "emulators/linux_pos_emulator.json")
+
+    # Fail fast when the default config still has placeholder values. Launching
+    # with them makes provisioning fail on the backend (404 "Site not found")
+    # after the process has already been backgrounded.
+    if grep -q 'REPLACE_WITH_GENERATED_KEY' emulators/linux_pos_emulator.json \
+        || grep -q '"site_id": "site-1"' emulators/linux_pos_emulator.json; then
+        echo "Error: emulators/linux_pos_emulator.json still has placeholder values."
+        echo "  The default site_id/key do not exist on the backend, so provisioning would fail."
+        echo ""
+        echo "  Either edit that file with a real site and bootstrap key, or launch with a key"
+        echo "  generated for your site (POST /api/v1/sites/{site_id}/bootstrap-key):"
+        echo ""
+        echo "    ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key>"
+        echo ""
+        exit 1
+    fi
 fi
 
 # --- Logging ----------------------------------------------------------------
