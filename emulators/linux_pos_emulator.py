@@ -15,7 +15,7 @@ then runs four concurrent loops:
 
 - **Heartbeat** — ``POST /agent/heartbeat`` at a configurable interval
 - **Telemetry** — ``POST /agent/telemetry`` with simulated CPU/memory/disk
-  metrics plus runtime uptime (``uptime_seconds``)
+  metrics, network latency, plus runtime uptime (``uptime_seconds``)
 - **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results
 - **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
@@ -120,6 +120,7 @@ class SimulatedMetrics:
         self._cpu_baseline = random.uniform(15, 35)
         self._mem_baseline = random.uniform(40, 55)
         self._disk_baseline = random.uniform(30, 45)
+        self._latency_baseline = random.uniform(3, 12)
         self._tick = 0
 
     def sample(self) -> dict[str, float]:
@@ -136,10 +137,16 @@ class SimulatedMetrics:
         disk = self._disk_baseline + random.gauss(0, 1.5)
         disk = max(0, min(100, disk))
 
+        latency = self._latency_baseline + random.gauss(0, 2.5)
+        if self._tick % random.randint(30, 60) == 0:
+            latency += random.uniform(20, 80)
+        latency = max(1, latency)
+
         return {
             "cpu_usage": round(cpu, 1),
             "memory_usage": round(mem, 1),
             "disk_usage": round(disk, 1),
+            "network_latency_ms": round(latency, 1),
         }
 
 
@@ -325,6 +332,7 @@ class LinuxPOSEmulator:
                         f" cpu={metrics['cpu_usage']}%"
                         f" mem={metrics['memory_usage']}%"
                         f" disk={metrics['disk_usage']}%"
+                        f" net={metrics['network_latency_ms']}ms"
                         f" uptime={uptime_seconds}s"
                     )
             except httpx.RequestError as exc:

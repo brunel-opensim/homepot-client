@@ -83,6 +83,9 @@ class AgentTelemetryRequest(BaseModel):
         ..., ge=0, le=100, description="Memory usage percentage"
     )
     disk_usage: float = Field(..., ge=0, le=100, description="Disk usage percentage")
+    network_latency_ms: Optional[float] = Field(
+        default=None, ge=0, description="Network latency in milliseconds"
+    )
     uptime_seconds: Optional[int] = Field(
         default=None, ge=0, description="System uptime in seconds"
     )
@@ -97,6 +100,7 @@ class AgentTelemetryRequest(BaseModel):
                 "cpu_usage": 23.5,
                 "memory_usage": 61.0,
                 "disk_usage": 48.3,
+                "network_latency_ms": 8.4,
                 "uptime_seconds": 3600,
                 "timestamp": "2026-03-31T10:50:00Z",
             }

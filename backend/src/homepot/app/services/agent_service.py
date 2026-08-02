@@ -179,6 +179,7 @@ class AgentService:
                     memory_usage=payload.memory_usage,
                     disk_usage=payload.disk_usage,
                     uptime_seconds=payload.uptime_seconds,
+                    network_latency_ms=payload.network_latency_ms,
                 )
 
                 return {
@@ -204,6 +205,7 @@ class AgentService:
                     "memory_usage": item.memory_usage,
                     "disk_usage": item.disk_usage,
                     "uptime_seconds": item.uptime_seconds,
+                    "network_latency_ms": item.network_latency_ms,
                     "timestamp": item.timestamp,
                 }
                 for item in entries
