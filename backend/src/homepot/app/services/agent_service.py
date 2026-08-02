@@ -63,6 +63,7 @@ class AgentService:
                     local_ip=payload.local_ip,
                     wan_ip=payload.wan_ip,
                     ip_address=payload.local_ip,
+                    firmware_version=payload.firmware_version,
                     peripherals=payload.peripherals,
                 )
 
@@ -107,6 +108,7 @@ class AgentService:
                 local_ip=payload.local_ip,
                 wan_ip=payload.wan_ip,
                 ip_address=payload.local_ip,
+                firmware_version=payload.firmware_version,
                 lifecycle_state=LifecycleState.ACTIVE.value,
                 enrollment_method=(
                     EnrollmentMethod.EMULATED.value if is_emulator_dna else None

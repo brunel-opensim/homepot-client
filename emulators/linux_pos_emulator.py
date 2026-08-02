@@ -67,6 +67,7 @@ class EmulatorConfig:
     mock_mac: str = "02:42:ac:11:00:02"
     mock_ip: str = "192.168.1.100"
     mock_hostname: str = "linux-pos-001"
+    mock_firmware: str = "2.4.1"
     heartbeat_interval: float = 10.0
     telemetry_interval: float = 15.0
     command_poll_interval: float = 15.0
@@ -86,6 +87,7 @@ class EmulatorConfig:
             mock_mac=d.get("mock_mac", "02:42:ac:11:00:02"),
             mock_ip=d.get("mock_ip", "192.168.1.100"),
             mock_hostname=d.get("mock_hostname", "linux-pos-001"),
+            mock_firmware=d.get("mock_firmware", "2.4.1"),
             heartbeat_interval=float(d.get("heartbeat_interval_seconds", 10)),
             telemetry_interval=float(d.get("telemetry_interval_seconds", 15)),
             command_poll_interval=float(d.get("command_poll_interval_seconds", 15)),
@@ -105,6 +107,7 @@ class EmulatorConfig:
             "mock_mac": self.mock_mac,
             "mock_ip": self.mock_ip,
             "mock_hostname": self.mock_hostname,
+            "mock_firmware": self.mock_firmware,
         }
 
 
@@ -262,6 +265,7 @@ class LinuxPOSEmulator:
             "mac_address": self.config.mock_mac,
             "local_ip": self.config.mock_ip,
             "os_details": self.config.os_details,
+            "firmware_version": self.config.mock_firmware,
             "site_id": self.config.site_id,
             "device_name": self.config.device_name,
             "device_type": self.config.device_type,
@@ -723,6 +727,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--mock-hostname", type=str, default="linux-pos-001", help="Mock hostname"
     )
     parser.add_argument(
+        "--mock-firmware", type=str, default="2.4.1", help="Mock firmware version"
+    )
+    parser.add_argument(
         "--heartbeat-interval",
         type=float,
         default=10.0,
@@ -785,6 +792,7 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
         mock_mac=args.mock_mac,
         mock_ip=args.mock_ip,
         mock_hostname=args.mock_hostname,
+        mock_firmware=args.mock_firmware,
         heartbeat_interval=args.heartbeat_interval,
         telemetry_interval=args.telemetry_interval,
         command_poll_interval=args.command_poll_interval,

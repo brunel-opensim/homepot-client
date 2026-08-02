@@ -23,6 +23,9 @@ class AgentRegisterRequest(BaseModel):
     )
     local_ip: Optional[str] = Field(None, description="Local network IP address")
     wan_ip: Optional[str] = Field(None, description="Public/WAN IP address")
+    firmware_version: Optional[str] = Field(
+        None, description="Device firmware version string"
+    )
     peripherals: Optional[dict] = Field(
         None, description="Detailed dictionary of attached peripherals like printers"
     )
@@ -48,6 +51,7 @@ class AgentRegisterRequest(BaseModel):
                 "os_details": "Windows 11 Pro",
                 "local_ip": "192.168.1.20",
                 "wan_ip": "203.0.113.10",
+                "firmware_version": "2.4.1",
                 "site_id": "site-001",
                 "device_name": "Front Desk POS 1",
                 "device_type": "pos_terminal",
