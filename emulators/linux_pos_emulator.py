@@ -36,14 +36,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
+from pathlib import Path
 import random
 import signal
 import sys
 import time
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import cast
 
 import httpx

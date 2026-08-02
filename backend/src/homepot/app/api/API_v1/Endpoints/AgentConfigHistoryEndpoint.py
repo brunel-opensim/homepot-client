@@ -5,11 +5,12 @@ push command so the record appears on the Dashboard's "Push History" page,
 which reads from the device-level ConfigurationHistory entries.
 """
 
-import logging
 from datetime import timezone
+import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
+
 from homepot.app.auth_utils import get_current_device
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 from homepot.app.schemas.agent import AgentConfigHistoryRequest
