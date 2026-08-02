@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# start-emulator.sh — Launch a HOMEPOT device emulator
+# start-emulator.sh — Launch a HOMEPOT device emulator in the background,
+# logging to logs/emulator.log and recording its PID in logs/emulator.pid
+# (mirrors start-userapp.sh).
 #
 # Usage:
 #   ./scripts/start-emulator.sh                    # uses default config
@@ -40,15 +42,45 @@ if [[ "$#" -eq 0 ]]; then
     CONFIG_ARGS=("--config" "emulators/linux_pos_emulator.json")
 fi
 
+# --- Logging ----------------------------------------------------------------
+
+mkdir -p "$PROJECT_DIR/logs"
+LOG_FILE="$PROJECT_DIR/logs/emulator.log"
+PID_FILE="$PROJECT_DIR/logs/emulator.pid"
+
+# --- Guard against duplicate instances ---------------------------------------
+
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if ps -p "$OLD_PID" > /dev/null 2>&1; then
+        echo "Error: an emulator is already running (PID $OLD_PID)"
+        echo "  Stop it first: ./scripts/stop-emulator.sh"
+        exit 1
+    fi
+fi
+
 # --- Run --------------------------------------------------------------------
 
 echo "Starting HOMEPOT device emulator ..."
 echo "  Python: $PYTHON"
 echo "  Config args: ${CONFIG_ARGS[*]:-} $*"
+echo "  Log file: $LOG_FILE"
 echo ""
 
-if (( ${#CONFIG_ARGS[@]} )); then
-    $PYTHON emulators/linux_pos_emulator.py "${CONFIG_ARGS[@]}" "$@"
-else
-    $PYTHON emulators/linux_pos_emulator.py "$@"
+nohup "$PYTHON" -u emulators/linux_pos_emulator.py "${CONFIG_ARGS[@]}" "$@" \
+    > "$LOG_FILE" 2>&1 &
+EMULATOR_PID=$!
+echo "$EMULATOR_PID" > "$PID_FILE"
+
+# Wait for provisioning / DNA registration (takes a few seconds)
+sleep 4
+
+if ! ps -p "$EMULATOR_PID" > /dev/null 2>&1; then
+    echo "Error: emulator failed to start"
+    echo "  Check logs: $LOG_FILE"
+    exit 1
 fi
+
+echo "Emulator started (PID: $EMULATOR_PID)"
+echo "  View logs:  tail -f $LOG_FILE"
+echo "  Stop:       ./scripts/stop-emulator.sh"
