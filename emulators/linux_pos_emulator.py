@@ -512,7 +512,7 @@ class LinuxPOSEmulator:
         data = resp.json().get("data", {})
         job_id = data.get("job_id")
         print(f"  [jobs] queued '{action}' ({str(job_id)[:8]}...)")
-        return job_id
+        return str(job_id) if job_id is not None else None
 
     async def _update_job(
         self,
