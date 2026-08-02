@@ -256,7 +256,15 @@ Back in **Terminal 1** / the Dashboard browser:
    A `Command received: <name> (action) | ...` line appears in the **Live
    Logs** tab, and the command is recorded in **Push History** (`/device/{id}/history`,
    backed by device `ConfigurationHistory` entries) with the applied settings /
-   test outcomes / received payload shown in its details.
+   test outcomes shown in its details.
+
+   To see a **failed** push end-to-end, restart the emulator with
+   `--command-failure-rate 1.0` (so every pushed config/restart/custom command
+   fails) and push again: the command is reported as `failed` on the device, an
+   **error-level** line appears in **Live Logs**, and Push History shows a red-X
+   entry whose title/details carry the failure reason (e.g. *Configuration
+   download failed: Connection timeout*). Restart without the flag to return to
+   the default ~10% failure rate.
 
 ## Step 6 — Optional: run the automated checks
 

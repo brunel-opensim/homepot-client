@@ -81,6 +81,7 @@ class EmulatorConfig:
     audit_interval: float = 60.0
     jobs_interval: float = 30.0
     alerts_interval: float = 90.0
+    command_failure_rate: float = 0.1
 
     @classmethod
     def from_dict(cls, d: dict) -> EmulatorConfig:
@@ -102,6 +103,7 @@ class EmulatorConfig:
             audit_interval=float(d.get("audit_interval_seconds", 60)),
             jobs_interval=float(d.get("jobs_interval_seconds", 30)),
             alerts_interval=float(d.get("alerts_interval_seconds", 90)),
+            command_failure_rate=float(d.get("command_failure_rate", 0.1)),
         )
 
     def to_credentials(self, device_id: str, api_key: str) -> dict:
@@ -661,7 +663,8 @@ class LinuxPOSEmulator:
                     f" for {cid}: {status_resp.status_code} {status_resp.text[:120]}"
                 )
             else:
-                print(f"  [commands] {ctype} completed ({cid})")
+                status = simulated_result.get("status", "completed")
+                print(f"  [commands] {ctype} -> {status} ({cid})")
         except httpx.RequestError as exc:
             print(f"  [commands] error processing {cid}: {exc}")
 
@@ -740,6 +743,7 @@ class LinuxPOSEmulator:
             if isinstance(res, dict) and res.get("message")
             else result.get("status", "completed")
         )
+        failed = result.get("status") != "completed"
         message = f"Command received: {label} ({command_type})"
         if params:
             message += " | " + " ".join(params)
@@ -747,7 +751,7 @@ class LinuxPOSEmulator:
             message += f" | {outcome}"
         payload_log = {
             "device_id": self.device_id,
-            "level": "info",
+            "level": "error" if failed else "info",
             "category": "command",
             "message": message,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -770,6 +774,17 @@ class LinuxPOSEmulator:
         data = payload.get("data")
         data = data if isinstance(data, dict) else {}
         label = data.get("command") or command_type
+        failed = result.get("status") != "completed"
+        res = result.get("result")
+        reason = (
+            res.get("message") if isinstance(res, dict) and res.get("message") else None
+        )
+        if failed:
+            change_reason = f"Push command {label} ({command_type}) failed"
+            if reason:
+                change_reason += f": {reason}"
+        else:
+            change_reason = f"Push command {label} ({command_type}) executed"
         record = {
             "device_id": self.device_id,
             "action": command_type,
@@ -781,8 +796,8 @@ class LinuxPOSEmulator:
                 "version": data.get("config_version") or data.get("version") or "v1",
                 "result": result.get("result"),
             },
-            "success": result.get("status") == "completed",
-            "change_reason": f"Push command {label} ({command_type}) executed",
+            "success": not failed,
+            "change_reason": change_reason,
         }
         resp = await self._http.post(
             f"{self._backend}/agent/config-history",
@@ -817,6 +832,17 @@ class LinuxPOSEmulator:
         data = data if isinstance(data, dict) else {}
 
         if command_type == "update_pos_payment_config":
+            if self._command_should_fail():
+                return self._fail_result(
+                    "Configuration update failed",
+                    random.choice(
+                        [
+                            "Configuration download failed: Connection timeout",
+                            "Configuration validation failed: "
+                            "Invalid payment gateway settings",
+                        ]
+                    ),
+                )
             params = {
                 k: v
                 for k, v in data.items()
@@ -837,6 +863,11 @@ class LinuxPOSEmulator:
             }
 
         if command_type == "restart_pos_app":
+            if self._command_should_fail():
+                return self._fail_result(
+                    "POS application restart failed",
+                    "Service dependency error: pos-svc on localhost:9100 unreachable",
+                )
             self._app_restarts += 1
             return {
                 "status": "completed",
@@ -857,16 +888,30 @@ class LinuxPOSEmulator:
                     if passed
                     else f"fail: {random.choice(['timeout', 'resource exhausted', 'io error'])}"
                 )
+            healthy = all(v == "pass" for v in test_results.values())
+            if not healthy:
+                return self._fail_result(
+                    "Diagnostics failed",
+                    "; ".join(
+                        f"{k}={v}" for k, v in test_results.items() if v != "pass"
+                    ),
+                    details={"tests": test_results, "healthy": False},
+                )
             return {
                 "status": "completed",
                 "result": {
                     "message": "Diagnostics completed",
                     "tests": test_results,
-                    "healthy": all(v == "pass" for v in test_results.values()),
+                    "healthy": healthy,
                 },
             }
 
         if payload is not None:
+            if self._command_should_fail():
+                return self._fail_result(
+                    f"Command '{command_type}' execution failed",
+                    "Agent reported an internal error while processing the command",
+                )
             return {
                 "status": "completed",
                 "result": {
@@ -910,6 +955,17 @@ class LinuxPOSEmulator:
                 },
             },
         )
+
+    def _command_should_fail(self) -> bool:
+        return random.random() < self.config.command_failure_rate
+
+    def _fail_result(
+        self, summary: str, reason: str, details: dict[str, object] | None = None
+    ) -> dict:
+        result: dict[str, object] = {"message": reason}
+        if details:
+            result.update(details)
+        return {"status": "failed", "result": {"summary": summary, **result}}
 
     async def _wait_or_shutdown(self, seconds: float) -> None:
         try:
@@ -1044,6 +1100,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=90.0,
         help="Alert injection report interval (seconds)",
     )
+    parser.add_argument(
+        "--command-failure-rate",
+        type=float,
+        default=0.1,
+        help="Probability (0..1) a pushed command fails on the device",
+    )
     return parser.parse_args(argv)
 
 
@@ -1079,6 +1141,7 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
         audit_interval=args.audit_interval,
         jobs_interval=args.jobs_interval,
         alerts_interval=args.alerts_interval,
+        command_failure_rate=args.command_failure_rate,
     )
 
 
