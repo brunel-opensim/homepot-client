@@ -14,7 +14,8 @@ Each emulator runs as an independent process that provisions itself with the bac
 #    POST /api/v1/sites/{site_id}/bootstrap-key
 
 # 3. Run the Linux POS emulator
-./scripts/start-emulator.sh --site-id site-1 --bootstrap-key <key>
+./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
+#    Use a different --device-name per emulator to run several on one site
 
 # 4. (Optional) Start the User App to manage the emulated device
 ./scripts/start-userapp.sh
@@ -118,7 +119,7 @@ Every config field maps to a `--flag`. CLI values override config file values.
 
 ```bash
 python emulators/linux_pos_emulator.py \
-  --site-id site-1 \
+  --site-id site-it-demo1 \
   --bootstrap-key abc123... \
   --device-name "My Custom POS" \
   --mock-mac "aa:bb:cc:dd:ee:ff" \
@@ -132,8 +133,9 @@ python emulators/linux_pos_emulator.py \
 Terminal 1:  ./scripts/start-dashboard.sh
              # Backend on :8000, Dashboard on :5173
 
-Terminal 2:  ./scripts/start-emulator.sh --site-id site-1 --bootstrap-key <key>
+Terminal 2:  ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
              # Emulator provisions, heartbeats, sends telemetry
+             # Use a different --device-name per emulator to run several on one site
              # Live output: tail -f logs/emulator.log
 
 Terminal 3:  ./scripts/start-userapp.sh
@@ -199,7 +201,7 @@ Credentials live at `~/.homepot/emulators/<device_name>.json` with `0600` permis
 {
   "device_id": "a1b2c3d4-...",
   "api_key": "mM2...",
-  "site_id": "site-1",
+  "site_id": "site-it-demo1",
   "device_name": "linux-pos-emulator-1",
   ...
 }
