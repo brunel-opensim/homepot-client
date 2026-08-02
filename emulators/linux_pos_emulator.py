@@ -16,7 +16,9 @@ then runs four concurrent loops:
 - **Heartbeat** — ``POST /agent/heartbeat`` at a configurable interval
 - **Telemetry** — ``POST /agent/telemetry`` with simulated CPU/memory/disk
   metrics, network latency, plus runtime uptime (``uptime_seconds``)
-- **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results
+- **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results;
+  a ``status_request`` command returns a live device-status snapshot and posts it
+  to the Dashboard's Live Logs tab
 - **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
 - **Job history** — ``POST /agent/jobs`` + status updates, so the Dashboard's
@@ -626,7 +628,12 @@ class LinuxPOSEmulator:
                 print(f"  [commands] ack failed for {cid}: {ack_resp.status_code}")
                 return
 
-            simulated_result = self._simulate_command_result(ctype)
+            status_report = None
+            if ctype == "status_request":
+                status_report = self._status_report()
+                await self._report_status_log(status_report)
+
+            simulated_result = self._simulate_command_result(ctype, status_report)
             await asyncio.sleep(2)
 
             status_resp = await self._http.put(
@@ -644,7 +651,76 @@ class LinuxPOSEmulator:
         except httpx.RequestError as exc:
             print(f"  [commands] error processing {cid}: {exc}")
 
-    def _simulate_command_result(self, command_type: str) -> dict:
+    def _format_uptime(self, seconds: float) -> str:
+        total = int(seconds)
+        parts: list[str] = []
+        for label, divisor in (("d", 86400), ("h", 3600), ("m", 60), ("s", 1)):
+            value, total = divmod(total, divisor)
+            if parts or value or label == "s":
+                parts.append(f"{value}{label}")
+        return " ".join(parts)
+
+    def _status_report(self) -> dict[str, object]:
+        """Build a live status snapshot from the emulator's current state."""
+        metrics = self._metrics.sample()
+        return {
+            "device_id": self.device_id,
+            "device_name": self.config.device_name,
+            "device_type": self.config.device_type,
+            "status": "online",
+            "connectivity_state": "online",
+            "hostname": self.config.mock_hostname,
+            "os_details": self.config.os_details,
+            "local_ip": self.config.mock_ip,
+            "mac_address": self.config.mock_mac,
+            "firmware_version": self.config.mock_firmware,
+            "uptime_seconds": round(time.monotonic() - self._started, 1),
+            "cpu_usage": metrics["cpu_usage"],
+            "memory_usage": metrics["memory_usage"],
+            "disk_usage": metrics["disk_usage"],
+            "network_latency_ms": metrics["network_latency_ms"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    async def _report_status_log(self, report: dict[str, object]) -> None:
+        payload = {
+            "device_id": self.device_id,
+            "level": "info",
+            "category": "status",
+            "message": (
+                "Status report: ONLINE | uptime "
+                f"{self._format_uptime(cast(float, report['uptime_seconds']))} | "
+                f"cpu {report['cpu_usage']}% | mem {report['memory_usage']}% | "
+                f"disk {report['disk_usage']}% | "
+                f"net {report['network_latency_ms']}ms | "
+                f"fw {report['firmware_version']} | {report['local_ip']}"
+            ),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/logs",
+            json=payload,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(
+                f"  [commands] status log failed: {resp.status_code} {resp.text[:120]}"
+            )
+        else:
+            print("  [commands] status report sent to Live Logs")
+
+    def _simulate_command_result(
+        self, command_type: str, status_report: dict[str, object] | None = None
+    ) -> dict:
+        if command_type == "status_request":
+            return {
+                "status": "completed",
+                "result": (
+                    status_report
+                    if status_report is not None
+                    else self._status_report()
+                ),
+            }
         outcomes = {
             "restart": {
                 "status": "completed",
