@@ -73,14 +73,19 @@ Credentials are persisted across restarts. If the emulator is stopped and re-run
 
 ### Restarting
 
-**Standalone** — Press `Ctrl+C` in the terminal where it's running, then re-launch:
+`start-emulator.sh` runs the emulator in the background, writes its output to
+`logs/emulator.log`, and records its PID in `logs/emulator.pid` (same
+convention as `backend.log`, `frontend.log`, `ai.log`).
 
 ```bash
 # Stop any running instance
-pkill -f linux_pos_emulator.py
+./scripts/stop-emulator.sh
 
-# Re-launch
+# Re-launch (backgrounds the process)
 ./scripts/start-emulator.sh
+
+# Watch live output
+tail -f logs/emulator.log
 ```
 
 **User App (Electron)** — Quit and re-open the User App. The Electron main process kills the child emulator on quit; re-opening restarts it automatically when the setup-to-home flow completes.
@@ -129,6 +134,7 @@ Terminal 1:  ./scripts/start-dashboard.sh
 
 Terminal 2:  ./scripts/start-emulator.sh --site-id site-1 --bootstrap-key <key>
              # Emulator provisions, heartbeats, sends telemetry
+             # Live output: tail -f logs/emulator.log
 
 Terminal 3:  ./scripts/start-userapp.sh
              # User App on :5174 — login and manage the emulated device

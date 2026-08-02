@@ -182,7 +182,8 @@ handed-off site info: enter the **Site ID**, a hostname, and pick a device type.
 
 Still in **Terminal 2**, run the Linux POS emulator. It performs the same
 `POST /devices/bootstrap-provision` call the User App's setup wizard makes, then
-runs heartbeat/telemetry as the device would:
+runs heartbeat/telemetry as the device would. It runs in the **background**,
+logging to `logs/emulator.log` and recording its PID in `logs/emulator.pid`:
 
 ```bash
 # in the repository root
@@ -200,13 +201,16 @@ Use `--device-name` to avoid clashing with another run on the same machine:
   --device-name "demo-pos-1"
 ```
 
+The script echoes `Emulator started (PID: ...)` on success. Watch the emulator's
+own output as it registers DNA, then starts its loops:
+
+```
+tail -f logs/emulator.log
+```
+
 You should see:
 
 ```
-Starting HOMEPOT device emulator ...
-  Python: .venv/bin/python
-  Config args:  --site-id site-it-demo1 --bootstrap-key <bootstrap-key> --device-name demo-pos-1 --command-failure-rate 1.0
-
 ============================================================
   HOMEPOT Linux POS Emulator
   Device:  demo-pos-1
@@ -223,10 +227,11 @@ Starting HOMEPOT device emulator ...
   Site ID:   site-it-demo1
 
   Starting loops (heartbeat=10.0s, telemetry=15.0s, commands=15.0s, logs=15.0s, audits=60.0s, jobs=30.0s, alerts=90.0s)
-  Press Ctrl+C to stop.
 
   [heartbeat] OK  (13:23:25)...
 ```
+
+Stop it any time with `./scripts/stop-emulator.sh`.
 
 Notes:
 
@@ -257,8 +262,8 @@ Back in **Terminal 1** / the Dashboard browser:
    (e.g. `High Latency: 474ms`) appears, injected by the emulator via
    `POST /agent/alert` (configurable `alerts_interval_seconds`).
 7. *(Optional)* queue a command (e.g. `ping` or `restart`) from the device
-   detail page — within a few seconds Terminal 2 shows it being ACKed and
-   completed, and the Dashboard records the result.
+   detail page — within a few seconds `logs/emulator.log` shows it being ACKed
+   and completed, and the Dashboard records the result.
 8. *(Optional)* **Compose Command** — from the device detail page, open
    **Compose Command**, pick a command (e.g. `RUN_DIAGNOSTICS` or
    `APPLY_CONFIG`), edit the parameters/envelope, and click **Push Command**.
@@ -276,7 +281,8 @@ Back in **Terminal 1** / the Dashboard browser:
    **error-level** line appears in **Live Logs**, and Push History shows a red-X
    entry whose title/details carry the failure reason (e.g. *Configuration
    download failed: Connection timeout*). Restart without the flag to return to
-   the default ~10% failure rate.
+   the default ~10% failure rate. Restart via
+   `./scripts/stop-emulator.sh && ./scripts/start-emulator.sh --command-failure-rate 1.0`.
 
 ## Troubleshooting
 
