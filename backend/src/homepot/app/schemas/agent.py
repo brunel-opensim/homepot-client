@@ -173,6 +173,39 @@ class AgentAuditRequest(BaseModel):
     )
 
 
+class AgentAlertRequest(BaseModel):
+    """Request schema for device alert reporting."""
+
+    device_id: str = Field(..., min_length=1, description="Unique device identifier")
+    title: str = Field(..., min_length=1, description="Short alert title")
+    description: Optional[str] = Field(
+        default=None, description="Detailed alert description"
+    )
+    severity: str = Field(
+        default="warning",
+        description="Alert severity: critical, high, medium, low, info, warning, error",
+    )
+    category: str = Field(
+        default="network", description="Alert category: hardware, network, software, security"
+    )
+    timestamp: datetime = Field(
+        default_factory=utc_now, description="Alert timestamp in UTC"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "device_id": "physical-pos-001",
+                "title": "High Latency: 612ms",
+                "description": "Network latency exceeded 200ms threshold",
+                "severity": "critical",
+                "category": "network",
+                "timestamp": "2026-03-31T10:55:00Z",
+            }
+        }
+    )
+
+
 class AgentJobRequest(BaseModel):
     """Request schema for device job reporting."""
 

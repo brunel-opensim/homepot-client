@@ -21,6 +21,8 @@ then runs four concurrent loops:
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
 - **Job history** — ``POST /agent/jobs`` + status updates, so the Dashboard's
   Job History tab shows live queued → completed/failed transitions
+- **Alert injection** — ``POST /agent/alert`` with occasional network-latency
+  spikes, so the Dashboard's Alerts tab is populated
 
 Credentials are persisted to ``~/.homepot/emulators/<device_name>.json``
 so the emulator survives restarts without re-provisioning.
@@ -74,6 +76,7 @@ class EmulatorConfig:
     logs_interval: float = 15.0
     audit_interval: float = 60.0
     jobs_interval: float = 30.0
+    alerts_interval: float = 90.0
 
     @classmethod
     def from_dict(cls, d: dict) -> EmulatorConfig:
@@ -94,6 +97,7 @@ class EmulatorConfig:
             logs_interval=float(d.get("logs_interval_seconds", 15)),
             audit_interval=float(d.get("audit_interval_seconds", 60)),
             jobs_interval=float(d.get("jobs_interval_seconds", 30)),
+            alerts_interval=float(d.get("alerts_interval_seconds", 90)),
         )
 
     def to_credentials(self, device_id: str, api_key: str) -> dict:
@@ -543,6 +547,44 @@ class LinuxPOSEmulator:
 
             await self._wait_or_shutdown(self.config.jobs_interval)
 
+    async def _alerts_loop(self) -> None:
+        while not self._shutdown_event.is_set():
+            try:
+                if random.random() < 0.4:
+                    latency = round(random.uniform(250, 900), 1)
+                    severity = "critical" if latency > 500 else "warning"
+                    payload = {
+                        "device_id": self.device_id,
+                        "title": f"High Latency: {latency:.0f}ms",
+                        "description": (
+                            f"Network latency exceeded threshold: {latency:.0f}ms "
+                            "observed on primary interface"
+                        ),
+                        "severity": severity,
+                        "category": "network",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                    resp = await self._http.post(
+                        f"{self._backend}/agent/alert",
+                        json=payload,
+                        headers=self._headers(),
+                    )
+                    if resp.status_code >= 400:
+                        print(
+                            f"  [alerts] error: {resp.status_code} {resp.text[:120]}"
+                        )
+                    else:
+                        print(
+                            f"  [alerts] injected '{payload['title']}'"
+                            f" ({severity})"
+                        )
+                else:
+                    print("  [alerts] no anomaly this cycle")
+            except httpx.RequestError as exc:
+                print(f"  [alerts] connection error: {exc}")
+
+            await self._wait_or_shutdown(self.config.alerts_interval)
+
     async def _command_poll_loop(self) -> None:
         while not self._shutdown_event.is_set():
             try:
@@ -678,7 +720,8 @@ class LinuxPOSEmulator:
                 f", commands={self.config.command_poll_interval}s"
                 f", logs={self.config.logs_interval}s"
                 f", audits={self.config.audit_interval}s"
-                f", jobs={self.config.jobs_interval}s)"
+                f", jobs={self.config.jobs_interval}s"
+                f", alerts={self.config.alerts_interval}s)"
             )
             print("  Press Ctrl+C to stop.\n")
 
@@ -689,6 +732,7 @@ class LinuxPOSEmulator:
                 self._logs_loop(),
                 self._audit_loop(),
                 self._jobs_loop(),
+                self._alerts_loop(),
             )
         finally:
             await self._http.aclose()
@@ -765,6 +809,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=30.0,
         help="Job history report interval (seconds)",
     )
+    parser.add_argument(
+        "--alerts-interval",
+        type=float,
+        default=90.0,
+        help="Alert injection report interval (seconds)",
+    )
     return parser.parse_args(argv)
 
 
@@ -799,6 +849,7 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
         logs_interval=args.logs_interval,
         audit_interval=args.audit_interval,
         jobs_interval=args.jobs_interval,
+        alerts_interval=args.alerts_interval,
     )
 
 

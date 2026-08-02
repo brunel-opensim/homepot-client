@@ -241,7 +241,10 @@ Back in **Terminal 1** / the Dashboard browser:
    emulator reports them via `POST /agent/audit`.
 5. **Device detail → Job History** tab — jobs appear as *pending* then flip to
    *completed* / *failed* as the emulator reports them via `POST /agent/jobs`.
-6. *(Optional)* queue a command (e.g. `ping` or `restart`) from the device
+6. **Device detail → Alerts** tab — within a few minutes a network-latency alert
+   (e.g. `High Latency: 474ms`) appears, injected by the emulator via
+   `POST /agent/alert` (configurable `alerts_interval_seconds`).
+7. *(Optional)* queue a command (e.g. `ping` or `restart`) from the device
    detail page — within a few seconds Terminal 2 shows it being ACKed and
    completed, and the Dashboard records the result.
 

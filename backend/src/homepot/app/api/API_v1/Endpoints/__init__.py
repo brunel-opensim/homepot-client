@@ -1,6 +1,7 @@
 """Endpoints package for API v1."""
 
 from . import (
+    AgentAlertEndpoint,
     AgentAuditEndpoint,
     AgentHeartbeatEndpoint,
     AgentJobsEndpoint,
@@ -32,6 +33,7 @@ from . import (
 )
 
 __all__ = [
+    "AgentAlertEndpoint",
     "AgentAuditEndpoint",
     "AgentHeartbeatEndpoint",
     "AgentJobsEndpoint",

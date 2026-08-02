@@ -65,6 +65,7 @@ Only **Linux POS** is implemented. Each future emulator targets a specific OS an
    - **Heartbeat** — `POST /agent/heartbeat` at a configurable interval
    - **Telemetry** — `POST /agent/telemetry` with simulated CPU/memory/disk metrics, network latency, and runtime uptime (`uptime_seconds`)
    - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`
+   - **Alert injection** — `POST /agent/alert` with occasional network-latency spikes, so the Dashboard's Alerts tab is populated
 
 ### Persistence
 

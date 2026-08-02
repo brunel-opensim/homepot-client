@@ -14,5 +14,6 @@
   "command_poll_interval_seconds": 15,
   "logs_interval_seconds": 15,
   "audit_interval_seconds": 60,
-  "jobs_interval_seconds": 30
+  "jobs_interval_seconds": 30,
+  "alerts_interval_seconds": 90
 }
