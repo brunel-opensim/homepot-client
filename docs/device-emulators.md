@@ -64,7 +64,7 @@ Only **Linux POS** is implemented. Each future emulator targets a specific OS an
 4. **Loops** — Three concurrent async loops run until shutdown:
    - **Heartbeat** — `POST /agent/heartbeat` at a configurable interval
    - **Telemetry** — `POST /agent/telemetry` with simulated CPU/memory/disk metrics, network latency, and runtime uptime (`uptime_seconds`)
-   - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`
+   - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`; `status_request` returns a live status snapshot to Live Logs, and composed push commands (`update_pos_payment_config`, `restart_pos_app`, `health_check`, custom) are applied/acknowledged and summarised to Live Logs. Successful pushes are recorded in Push History (`POST /agent/config-history`); a push that fails on the device is recorded there too with `success=false` and the failure reason, and posts an error-level line to Live Logs.
    - **Alert injection** — `POST /agent/alert` with occasional network-latency spikes, so the Dashboard's Alerts tab is populated
 
 ### Persistence
@@ -105,6 +105,7 @@ pkill -f linux_pos_emulator.py
 | `heartbeat_interval_seconds` | `10` | Seconds between heartbeats |
 | `telemetry_interval_seconds` | `15` | Seconds between telemetry samples |
 | `command_poll_interval_seconds` | `15` | Seconds between pending-command polls |
+| `command_failure_rate` | `0.1` | Probability (0..1) a pushed command fails on the device (config update, app restart, custom). Set to `1.0` to force failures for testing. |
 
 ### CLI flags
 
@@ -150,6 +151,16 @@ Queuing a command via the Dashboard (e.g. `restart`, `ping`, `update_config`) se
 | `update_config` | `applied_settings: { log_level: "INFO" }` |
 | `ping` | Random latency 5–50 ms |
 | *(unknown)* | No-op with warning |
+
+### Push-command failure simulation
+
+Composed push commands (`update_pos_payment_config`, `restart_pos_app`, `health_check`, custom) have a configurable failure probability controlled by `--command-failure-rate` (default `0.1`). When a push fails the emulator:
+
+- reports `status: "failed"` to `PUT /devices/{command_id}/status`, so the device command is marked `failed` with the reason in its `result`;
+- posts an **error-level** line to Live Logs (e.g. `Command received: Apply Config (update_pos_payment_config) | Configuration download failed: Connection timeout`);
+- records a **failed** entry in Push History with the reason in the card title and `result` details (rendered with a red X on the Push History page).
+
+`health_check` fails when any of its tests fails (e.g. `network=fail: timeout`). Set `--command-failure-rate 1.0` to make every pushed config/restart/custom command fail, which makes the failure path easy to demo end-to-end.
 
 ## Creating a new emulator
 

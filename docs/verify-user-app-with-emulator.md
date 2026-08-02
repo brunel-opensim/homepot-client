@@ -203,17 +203,29 @@ Use `--device-name` to avoid clashing with another run on the same machine:
 You should see:
 
 ```
-  Provisioning via bootstrap-provision ...
-  Provisioned device pos_terminal-xxxxxxxx
+Starting HOMEPOT device emulator ...
+  Python: .venv/bin/python
+  Config args:  --site-id site-it-demo1 --bootstrap-key <bootstrap-key> --device-name demo-pos-1 --command-failure-rate 1.0
+
+============================================================
+  HOMEPOT Linux POS Emulator
+  Device:  demo-pos-1
+  Backend: http://localhost:8000
+  Mock DNA: hostname=linux-pos-001, MAC=02:42:ac:11:00:02, IP=192.168.1.100
+============================================================
+
+  Restored credentials for device pos_terminal-xxxxxxxx
+  Registering device DNA ...
   Registered DNA: hostname=linux-pos-001, MAC=02:42:ac:11:00:02, IP=192.168.1.100
 
   Device ID: pos_terminal-xxxxxxxx
   API Key:   yyyyyy...
   Site ID:   site-it-demo1
 
-  Starting loops (heartbeat=10.0s, telemetry=15.0s, commands=15.0s)
-  [heartbeat] OK ...
-  [telemetry] OK cpu=32.5% mem=48.7% disk=32.9% net=7.2ms uptime=60s ...
+  Starting loops (heartbeat=10.0s, telemetry=15.0s, commands=15.0s, logs=15.0s, audits=60.0s, jobs=30.0s, alerts=90.0s)
+  Press Ctrl+C to stop.
+
+  [heartbeat] OK  (13:23:25)...
 ```
 
 Notes:
@@ -247,24 +259,24 @@ Back in **Terminal 1** / the Dashboard browser:
 7. *(Optional)* queue a command (e.g. `ping` or `restart`) from the device
    detail page — within a few seconds Terminal 2 shows it being ACKed and
    completed, and the Dashboard records the result.
+8. *(Optional)* **Compose Command** — from the device detail page, open
+   **Compose Command**, pick a command (e.g. `RUN_DIAGNOSTICS` or
+   `APPLY_CONFIG`), edit the parameters/envelope, and click **Push Command**.
+   The backend relays the composed payload into the device command queue
+   (`POST /agents/{device_id}/push`), the emulator ACKs it, applies/executes
+   the action (config update, app restart, or health check) and completes it.
+   A `Command received: <name> (action) | ...` line appears in the **Live
+   Logs** tab, and the command is recorded in **Push History** (`/device/{id}/history`,
+   backed by device `ConfigurationHistory` entries) with the applied settings /
+   test outcomes shown in its details.
 
-## Step 6 — Optional: run the automated checks
-
-The two local scripts this runbook is based on (both gitignored, run from the
-repo root):
-
-```bash
-# Full setup check: signup → login → site → bootstrap key → provision →
-# Postgres rows → Dashboard list → User App status read  (13 checks)
-.venv/bin/python scripts/verify_user_app_setup.py
-
-# Live telemetry check against the provisioned device (6 checks). Pass the
-# device_id / api_key / site_id printed by the previous script.
-.venv/bin/python scripts/verify_device_telemetry.py \
-  --device-id pos_terminal-xxxxxxxx \
-  --api-key <api-key> \
-  --site-id site-it-demo1
-```
+   To see a **failed** push end-to-end, restart the emulator with
+   `--command-failure-rate 1.0` (so every pushed config/restart/custom command
+   fails) and push again: the command is reported as `failed` on the device, an
+   **error-level** line appears in **Live Logs**, and Push History shows a red-X
+   entry whose title/details carry the failure reason (e.g. *Configuration
+   download failed: Connection timeout*). Restart without the flag to return to
+   the default ~10% failure rate.
 
 ## Troubleshooting
 

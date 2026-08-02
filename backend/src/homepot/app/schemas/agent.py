@@ -267,3 +267,43 @@ class AgentJobUpdateRequest(BaseModel):
             }
         }
     )
+
+
+class AgentConfigHistoryRequest(BaseModel):
+    """Request schema for recording a completed push command in Push History."""
+
+    device_id: str = Field(..., min_length=1, description="Unique device identifier")
+    action: str = Field(
+        ..., min_length=1, description="Executed action (device command type)"
+    )
+    parameter_name: str = Field(
+        ..., min_length=1, description="Configuration parameter or command label"
+    )
+    old_value: Optional[dict] = Field(
+        default=None, description="Previous configuration value"
+    )
+    new_value: Optional[dict] = Field(
+        default=None, description="Applied configuration / execution result"
+    )
+    success: bool = Field(
+        default=True, description="Whether the push command completed successfully"
+    )
+    change_reason: Optional[str] = Field(
+        default=None, description="Human-readable reason for the change"
+    )
+    timestamp: datetime = Field(
+        default_factory=utc_now, description="Event timestamp in UTC"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "device_id": "physical-pos-001",
+                "action": "update_pos_payment_config",
+                "parameter_name": "push_command:APPLY_CONFIG",
+                "new_value": {"command": "APPLY_CONFIG", "version": "2.1.0"},
+                "success": True,
+                "change_reason": "Push command APPLY_CONFIG executed",
+            }
+        }
+    )

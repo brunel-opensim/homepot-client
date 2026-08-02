@@ -16,7 +16,11 @@ then runs four concurrent loops:
 - **Heartbeat** — ``POST /agent/heartbeat`` at a configurable interval
 - **Telemetry** — ``POST /agent/telemetry`` with simulated CPU/memory/disk
   metrics, network latency, plus runtime uptime (``uptime_seconds``)
-- **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results
+- **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results;
+  a ``status_request`` command returns a live device-status snapshot and posts it
+  to the Dashboard's Live Logs tab; composed push commands (``update_pos_payment_config``,
+  ``restart_pos_app``, ``health_check``, or custom actions) are applied/acknowledged,
+  summarised to Live Logs, and recorded in the Push History page
 - **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
 - **Job history** — ``POST /agent/jobs`` + status updates, so the Dashboard's
@@ -77,6 +81,7 @@ class EmulatorConfig:
     audit_interval: float = 60.0
     jobs_interval: float = 30.0
     alerts_interval: float = 90.0
+    command_failure_rate: float = 0.1
 
     @classmethod
     def from_dict(cls, d: dict) -> EmulatorConfig:
@@ -98,6 +103,7 @@ class EmulatorConfig:
             audit_interval=float(d.get("audit_interval_seconds", 60)),
             jobs_interval=float(d.get("jobs_interval_seconds", 30)),
             alerts_interval=float(d.get("alerts_interval_seconds", 90)),
+            command_failure_rate=float(d.get("command_failure_rate", 0.1)),
         )
 
     def to_credentials(self, device_id: str, api_key: str) -> dict:
@@ -198,6 +204,9 @@ class LinuxPOSEmulator:
         self._shutdown_event = asyncio.Event()
         self._metrics = SimulatedMetrics()
         self._started = time.monotonic()
+        self._config_version: str = "1.0.1"
+        self._applied_config: dict[str, object] = {}
+        self._app_restarts: int = 0
         self._http: httpx.AsyncClient
 
     @property
@@ -626,7 +635,21 @@ class LinuxPOSEmulator:
                 print(f"  [commands] ack failed for {cid}: {ack_resp.status_code}")
                 return
 
-            simulated_result = self._simulate_command_result(ctype)
+            status_report = None
+            if ctype == "status_request":
+                status_report = self._status_report()
+
+            payload = cmd.get("payload")
+            simulated_result = self._simulate_command_result(
+                ctype, status_report, payload
+            )
+            if ctype == "status_request":
+                await self._report_status_log(
+                    status_report if status_report is not None else {}
+                )
+            elif payload:
+                await self._report_command_log(ctype, payload, simulated_result)
+                await self._record_push_history(ctype, payload, simulated_result)
             await asyncio.sleep(2)
 
             status_resp = await self._http.put(
@@ -640,11 +663,256 @@ class LinuxPOSEmulator:
                     f" for {cid}: {status_resp.status_code} {status_resp.text[:120]}"
                 )
             else:
-                print(f"  [commands] {ctype} completed ({cid})")
+                status = simulated_result.get("status", "completed")
+                print(f"  [commands] {ctype} -> {status} ({cid})")
         except httpx.RequestError as exc:
             print(f"  [commands] error processing {cid}: {exc}")
 
-    def _simulate_command_result(self, command_type: str) -> dict:
+    def _format_uptime(self, seconds: float) -> str:
+        total = int(seconds)
+        parts: list[str] = []
+        for label, divisor in (("d", 86400), ("h", 3600), ("m", 60), ("s", 1)):
+            value, total = divmod(total, divisor)
+            if parts or value or label == "s":
+                parts.append(f"{value}{label}")
+        return " ".join(parts)
+
+    def _status_report(self) -> dict[str, object]:
+        """Build a live status snapshot from the emulator's current state."""
+        metrics = self._metrics.sample()
+        return {
+            "device_id": self.device_id,
+            "device_name": self.config.device_name,
+            "device_type": self.config.device_type,
+            "status": "online",
+            "connectivity_state": "online",
+            "hostname": self.config.mock_hostname,
+            "os_details": self.config.os_details,
+            "local_ip": self.config.mock_ip,
+            "mac_address": self.config.mock_mac,
+            "firmware_version": self.config.mock_firmware,
+            "uptime_seconds": round(time.monotonic() - self._started, 1),
+            "cpu_usage": metrics["cpu_usage"],
+            "memory_usage": metrics["memory_usage"],
+            "disk_usage": metrics["disk_usage"],
+            "network_latency_ms": metrics["network_latency_ms"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    async def _report_status_log(self, report: dict[str, object]) -> None:
+        payload = {
+            "device_id": self.device_id,
+            "level": "info",
+            "category": "status",
+            "message": (
+                "Status report: ONLINE | uptime "
+                f"{self._format_uptime(cast(float, report['uptime_seconds']))} | "
+                f"cpu {report['cpu_usage']}% | mem {report['memory_usage']}% | "
+                f"disk {report['disk_usage']}% | "
+                f"net {report['network_latency_ms']}ms | "
+                f"fw {report['firmware_version']} | {report['local_ip']}"
+            ),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/logs",
+            json=payload,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(
+                f"  [commands] status log failed: {resp.status_code} {resp.text[:120]}"
+            )
+        else:
+            print("  [commands] status report sent to Live Logs")
+
+    async def _report_command_log(
+        self, command_type: str, payload: dict[str, object], result: dict
+    ) -> None:
+        data = payload.get("data")
+        data = data if isinstance(data, dict) else {}
+        label = data.get("command") or command_type
+        params = [
+            f"{k}={v}"
+            for k, v in data.items()
+            if k not in ("command", "timestamp", "config_url", "config_version")
+        ]
+        res = result.get("result")
+        outcome = (
+            res.get("message")
+            if isinstance(res, dict) and res.get("message")
+            else result.get("status", "completed")
+        )
+        failed = result.get("status") != "completed"
+        message = f"Command received: {label} ({command_type})"
+        if params:
+            message += " | " + " ".join(params)
+        if outcome:
+            message += f" | {outcome}"
+        payload_log = {
+            "device_id": self.device_id,
+            "level": "error" if failed else "info",
+            "category": "command",
+            "message": message,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/logs",
+            json=payload_log,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(
+                f"  [commands] command log failed: {resp.status_code} {resp.text[:120]}"
+            )
+        else:
+            print("  [commands] command log sent to Live Logs")
+
+    async def _record_push_history(
+        self, command_type: str, payload: dict[str, object], result: dict
+    ) -> None:
+        data = payload.get("data")
+        data = data if isinstance(data, dict) else {}
+        label = data.get("command") or command_type
+        failed = result.get("status") != "completed"
+        if failed:
+            change_reason = f"Push command {label} ({command_type}) failed"
+        else:
+            change_reason = f"Push command {label} ({command_type}) executed"
+        record = {
+            "device_id": self.device_id,
+            "action": command_type,
+            "parameter_name": f"push_command:{label}",
+            "old_value": None,
+            "new_value": {
+                "command": label,
+                "action": command_type,
+                "version": data.get("config_version") or data.get("version") or "v1",
+                "result": result.get("result"),
+            },
+            "success": not failed,
+            "change_reason": change_reason,
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/config-history",
+            json=record,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(
+                "  [commands] push history record failed:"
+                f" {resp.status_code} {resp.text[:120]}"
+            )
+        else:
+            print("  [commands] push history recorded")
+
+    def _simulate_command_result(
+        self,
+        command_type: str,
+        status_report: dict[str, object] | None = None,
+        payload: dict[str, object] | None = None,
+    ) -> dict:
+        if command_type == "status_request":
+            return {
+                "status": "completed",
+                "result": (
+                    status_report
+                    if status_report is not None
+                    else self._status_report()
+                ),
+            }
+
+        data = payload.get("data") if payload else None
+        data = data if isinstance(data, dict) else {}
+
+        if command_type == "update_pos_payment_config":
+            if self._command_should_fail():
+                return self._fail_result(
+                    "Configuration update failed",
+                    random.choice(
+                        [
+                            "Configuration download failed: Connection timeout",
+                            "Configuration validation failed: "
+                            "Invalid payment gateway settings",
+                        ]
+                    ),
+                )
+            params = {
+                k: v
+                for k, v in data.items()
+                if k not in ("command", "timestamp", "config_url", "config_version")
+            }
+            self._config_version = str(
+                data.get("config_version") or self._config_version
+            )
+            self._applied_config = dict(params)
+            return {
+                "status": "completed",
+                "result": {
+                    "message": "Configuration applied successfully",
+                    "config_url": data.get("config_url", ""),
+                    "config_version": self._config_version,
+                    "applied_settings": self._applied_config,
+                },
+            }
+
+        if command_type == "restart_pos_app":
+            if self._command_should_fail():
+                return self._fail_result(
+                    "POS application restart failed",
+                    "Service dependency error: pos-svc on localhost:9100 unreachable",
+                )
+            self._app_restarts += 1
+            return {
+                "status": "completed",
+                "result": {
+                    "message": f"POS application restarted (restart #{self._app_restarts})",
+                    "delay_seconds": data.get("delay_seconds", 10),
+                },
+            }
+
+        if command_type == "health_check":
+            tests = data.get("tests") or ["network", "storage", "memory"]
+            test_results: dict[str, object] = {}
+            for test in tests if isinstance(tests, list) else [tests]:
+                name = str(test)
+                passed = random.random() < 0.9
+                test_results[name] = (
+                    "pass"
+                    if passed
+                    else f"fail: {random.choice(['timeout', 'resource exhausted', 'io error'])}"
+                )
+            healthy = all(v == "pass" for v in test_results.values())
+            if not healthy:
+                return self._fail_result(
+                    "Diagnostics failed",
+                    "; ".join(
+                        f"{k}={v}" for k, v in test_results.items() if v != "pass"
+                    ),
+                    details={"tests": test_results, "healthy": False},
+                )
+            return {
+                "status": "completed",
+                "result": {
+                    "message": "Diagnostics completed",
+                    "tests": test_results,
+                    "healthy": healthy,
+                },
+            }
+
+        if payload is not None:
+            if self._command_should_fail():
+                return self._fail_result(
+                    f"Command '{command_type}' execution failed",
+                    "Agent reported an internal error while processing the command",
+                )
+            return {
+                "status": "completed",
+                "result": {
+                    "message": f"Command '{command_type}' received and acknowledged",
+                },
+            }
+
         outcomes = {
             "restart": {
                 "status": "completed",
@@ -681,6 +949,17 @@ class LinuxPOSEmulator:
                 },
             },
         )
+
+    def _command_should_fail(self) -> bool:
+        return random.random() < self.config.command_failure_rate
+
+    def _fail_result(
+        self, summary: str, reason: str, details: dict[str, object] | None = None
+    ) -> dict:
+        result: dict[str, object] = {"message": reason}
+        if details:
+            result.update(details)
+        return {"status": "failed", "result": {"summary": summary, **result}}
 
     async def _wait_or_shutdown(self, seconds: float) -> None:
         try:
@@ -815,6 +1094,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=90.0,
         help="Alert injection report interval (seconds)",
     )
+    parser.add_argument(
+        "--command-failure-rate",
+        type=float,
+        default=0.1,
+        help="Probability (0..1) a pushed command fails on the device",
+    )
     return parser.parse_args(argv)
 
 
@@ -850,6 +1135,7 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
         audit_interval=args.audit_interval,
         jobs_interval=args.jobs_interval,
         alerts_interval=args.alerts_interval,
+        command_failure_rate=args.command_failure_rate,
     )
 
 

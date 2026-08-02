@@ -10,6 +10,7 @@ import {
   Trash2,
   Eye,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -180,7 +181,7 @@ export default function DeviceHistory() {
                 className="p-3 bg-[#06181c] border-[#0e2f37] hover:border-teal-500/50 transition-colors group"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1">
+                  <div className="flex items-start gap-3 flex-1 min-w-0 max-w-[60%] overflow-hidden">
                     <div className="mt-1">
                       {item.status === 'success' ? (
                         <CheckCircle className="h-4 w-4 text-green-500" />
@@ -191,8 +192,8 @@ export default function DeviceHistory() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-medium text-white truncate">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h3 className="text-sm font-medium text-white truncate min-w-0">
                           {item.title || item.action_type || 'Push Command'}
                         </h3>
                         {item.config_version && (
@@ -205,18 +206,36 @@ export default function DeviceHistory() {
                         {new Date(item.timestamp).toLocaleString()}
                       </p>
 
-                      {/* Preview of details (truncated) */}
-                      {item.details && (
+                      {/* Preview of details */}
+                      {item.status === 'failed' ? (
+                        <div className="mt-1.5 space-y-1 text-[10px]">
+                          <div className="flex items-start gap-1.5 text-red-400/90">
+                            <AlertCircle className="h-3.5 w-3.5 mt-px shrink-0" />
+                            <span className="font-mono break-words leading-snug">
+                              {item.details?.result?.message || 'Command failed on device'}
+                            </span>
+                          </div>
+                          <div className="pl-5 font-mono text-gray-500 space-y-0.5">
+                            {item.details?.result?.summary && (
+                              <div className="break-words">
+                                summary: {item.details.result.summary}
+                              </div>
+                            )}
+                            {item.details?.action && <div>action: {item.details.action}</div>}
+                            {item.details?.version && <div>version: {item.details.version}</div>}
+                          </div>
+                        </div>
+                      ) : item.details ? (
                         <div className="mt-1.5 text-[10px] text-gray-500 font-mono truncate max-w-md">
                           {typeof item.details === 'string'
                             ? item.details
                             : JSON.stringify(item.details)}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
                       variant="outline"
                       size="sm"

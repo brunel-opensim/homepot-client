@@ -7,6 +7,7 @@ from homepot.agent.agent_api import router
 from .Endpoints import (
     AgentAlertEndpoint,
     AgentAuditEndpoint,
+    AgentConfigHistoryEndpoint,
     AgentHeartbeatEndpoint,
     AgentJobsEndpoint,
     AgentLogsEndpoint,
@@ -116,6 +117,9 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(AgentLogsEndpoint.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(AgentAuditEndpoint.router, prefix="/agent", tags=["Agent"])
+api_v1_router.include_router(
+    AgentConfigHistoryEndpoint.router, prefix="/agent", tags=["Agent"]
+)
 api_v1_router.include_router(AgentAlertEndpoint.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(AgentJobsEndpoint.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(
