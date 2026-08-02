@@ -112,6 +112,8 @@ tail -f logs/emulator.log
 | `telemetry_interval_seconds` | `15` | Seconds between telemetry samples |
 | `command_poll_interval_seconds` | `15` | Seconds between pending-command polls |
 | `command_failure_rate` | `0.1` | Probability (0..1) a pushed command fails on the device (config update, app restart, custom). Set to `1.0` to force failures for testing. |
+| `permission_consent_mode` | `auto` | How the device owner consents to permissions. `auto` grants supported permissions at boot then toggles them over time (and mostly consents to operator requests); `fixed` grants all supported at boot and keeps them; `deny` refuses everything. |
+| `permission_sync_interval_seconds` | `20` | Seconds between device-initiated permission-consent syncs. |
 
 ### CLI flags
 
@@ -124,7 +126,8 @@ python emulators/linux_pos_emulator.py \
   --device-name "My Custom POS" \
   --mock-mac "aa:bb:cc:dd:ee:ff" \
   --mock-ip "10.0.0.50" \
-  --heartbeat-interval 5
+  --heartbeat-interval 5 \
+  --permission-consent-mode auto
 ```
 
 ## Running a full simulation session
@@ -169,6 +172,44 @@ Composed push commands (`update_pos_payment_config`, `restart_pos_app`, `health_
 - records a **failed** entry in Push History with the reason in the card title and `result` details (rendered with a red X on the Push History page).
 
 `health_check` fails when any of its tests fails (e.g. `network=fail: timeout`). Set `--command-failure-rate 1.0` to make every pushed config/restart/custom command fail, which makes the failure path easy to demo end-to-end.
+
+### Permission simulation
+
+The emulator models the **device-side consent** half of the platform permission
+model (see `backend/src/homepot/app/schemas/permissions.py`). The four
+permission keys are `root_access`, `process_monitoring`, `filesystem_access`,
+`network_monitoring`; which keys a device can support are derived from its
+`os_details` (mirrored from the backend's `derive_capabilities`), so changing
+the emulated OS changes the capabilities the Dashboard shows.
+
+On the emulator:
+
+- On boot it derives its capabilities from `os_details`, applies a default
+  consent based on `--permission-consent-mode`, and syncs it via
+  `PATCH /devices/device/{id}/permissions`.
+- **Device-initiated consent** (`auto`) — a loop periodically toggles the granted
+  set (grant/revoke) to mimic a device owner changing their mind, so the
+  Dashboard's capabilities/permissions matrix updates over time.
+- **Operator-initiated request** — an operator pushes the
+  `request_permission` command with a payload such as
+  `{"permission": "process_monitoring", "action": "grant", "requested_by": "Alice"}`.
+  The emulator simulates a consent prompt: in `auto` mode it mostly consents
+  (occasionally denies), and `deny` mode refuses. On a decision it PATCHes
+  the new permission, posts an `info`/`error` line to Live Logs, and emits a
+  `permission_change` Audit Trail event.
+
+`--permission-consent-mode` values:
+
+| Mode | Boot consent | Consent loop | Operator `request_permission` |
+|------|--------------|--------------|-------------------------------|
+| `auto` | grant all supported | toggles grants over time | mostly consents (~80%), occasionally denies |
+| `fixed` | grant all supported | none (static) | always consents |
+| `deny` | grant nothing | none | always denies |
+
+Example:
+```bash
+./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1 --permission-consent-mode deny
+```
 
 ## Creating a new emulator
 

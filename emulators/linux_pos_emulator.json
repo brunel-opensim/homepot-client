@@ -15,5 +15,7 @@
   "logs_interval_seconds": 15,
   "audit_interval_seconds": 60,
   "jobs_interval_seconds": 30,
-  "alerts_interval_seconds": 90
+  "alerts_interval_seconds": 90,
+  "permission_consent_mode": "auto",
+  "permission_sync_interval_seconds": 20
 }
