@@ -45,6 +45,7 @@ class AgentRepository:
         os_details: Optional[str],
         local_ip: Optional[str],
         wan_ip: Optional[str],
+        ip_address: Optional[str] = None,
         lifecycle_state: str = LifecycleState.ACTIVE.value,
         enrollment_method: Optional[str] = None,
         is_simulated: bool = False,
@@ -59,6 +60,7 @@ class AgentRepository:
             os_details=os_details,
             local_ip=local_ip,
             wan_ip=wan_ip,
+            ip_address=ip_address,
             is_active=True,
             lifecycle_state=lifecycle_state,
             enrollment_method=enrollment_method,
@@ -77,6 +79,7 @@ class AgentRepository:
         os_details: Optional[str],
         local_ip: Optional[str],
         wan_ip: Optional[str],
+        ip_address: Optional[str] = None,
         peripherals: Optional[dict] = None,
     ) -> Device:
         """Update device DNA fields during registration."""
@@ -86,6 +89,8 @@ class AgentRepository:
         device_obj.capabilities = derive_capabilities(os_details)
         device_obj.local_ip = local_ip
         device_obj.wan_ip = wan_ip
+        if ip_address is not None:
+            device_obj.ip_address = ip_address
         if peripherals is not None:
             device_obj.peripherals = peripherals
         self.db.add(device)
