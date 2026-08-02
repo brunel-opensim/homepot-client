@@ -9,7 +9,7 @@ set -euo pipefail
 # Usage:
 #   ./scripts/start-emulator.sh                    # uses default config
 #   ./scripts/start-emulator.sh --config emulators/my-device.json
-#   ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key>
+#   ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
 #
 # Prerequisites:
 #   - Python virtual environment at .venv/ with httpx installed
@@ -52,7 +52,9 @@ if [[ "$#" -eq 0 ]]; then
         echo "  Either edit that file with a real site and bootstrap key, or launch with a key"
         echo "  generated for your site (POST /api/v1/sites/{site_id}/bootstrap-key):"
         echo ""
-        echo "    ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key>"
+        echo "    ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1"
+        echo ""
+        echo "  Use a different --device-name per emulator to run several on one site."
         echo ""
         exit 1
     fi

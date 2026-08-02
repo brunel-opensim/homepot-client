@@ -14,7 +14,8 @@ Each emulator runs as an independent process that provisions itself with the bac
 #    POST /api/v1/sites/{site_id}/bootstrap-key
 
 # 3. Run the Linux POS emulator
-./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key>
+./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
+#    Use a different --device-name per emulator to run several on one site
 
 # 4. (Optional) Start the User App to manage the emulated device
 ./scripts/start-userapp.sh
@@ -132,8 +133,9 @@ python emulators/linux_pos_emulator.py \
 Terminal 1:  ./scripts/start-dashboard.sh
              # Backend on :8000, Dashboard on :5173
 
-Terminal 2:  ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key>
+Terminal 2:  ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
              # Emulator provisions, heartbeats, sends telemetry
+             # Use a different --device-name per emulator to run several on one site
              # Live output: tail -f logs/emulator.log
 
 Terminal 3:  ./scripts/start-userapp.sh
