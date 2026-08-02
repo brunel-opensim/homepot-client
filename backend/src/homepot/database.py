@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 # This is crucial for create_all to create tables for these models
 try:
     from homepot.app.models.AnalyticsModel import (  # noqa: F401
-        APIRequestLog,
         Alert,
+        APIRequestLog,
         ConfigurationHistory,
         DeviceMetrics,
         DeviceStateHistory,

@@ -426,7 +426,10 @@ class LinuxPOSEmulator:
             ),
             ("config_update_applied", "Config updated: heartbeat interval set to 10s"),
             ("device_status_changed", "Device status changed from offline to online"),
-            ("push_notification_sent", "Push notification delivered to employee device"),
+            (
+                "push_notification_sent",
+                "Push notification delivered to employee device",
+            ),
             ("api_access", "Authenticated agent API request completed successfully"),
         ]
         anomalies = [
@@ -570,13 +573,10 @@ class LinuxPOSEmulator:
                         headers=self._headers(),
                     )
                     if resp.status_code >= 400:
-                        print(
-                            f"  [alerts] error: {resp.status_code} {resp.text[:120]}"
-                        )
+                        print(f"  [alerts] error: {resp.status_code} {resp.text[:120]}")
                     else:
                         print(
-                            f"  [alerts] injected '{payload['title']}'"
-                            f" ({severity})"
+                            f"  [alerts] injected '{payload['title']}'" f" ({severity})"
                         )
                 else:
                     print("  [alerts] no anomaly this cycle")

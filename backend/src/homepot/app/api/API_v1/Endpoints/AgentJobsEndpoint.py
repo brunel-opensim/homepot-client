@@ -5,8 +5,8 @@ Dashboard's "Job History" tab can display real-time device activity.
 """
 
 import logging
-import uuid
 from typing import Any, Dict, Optional, cast
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 

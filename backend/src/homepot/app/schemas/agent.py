@@ -186,7 +186,8 @@ class AgentAlertRequest(BaseModel):
         description="Alert severity: critical, high, medium, low, info, warning, error",
     )
     category: str = Field(
-        default="network", description="Alert category: hardware, network, software, security"
+        default="network",
+        description="Alert category: hardware, network, software, security",
     )
     timestamp: datetime = Field(
         default_factory=utc_now, description="Alert timestamp in UTC"
@@ -211,7 +212,9 @@ class AgentJobRequest(BaseModel):
 
     device_id: str = Field(..., min_length=1, description="Unique device identifier")
     action: str = Field(
-        ..., min_length=1, description="Job action name (e.g. Update POS payment config)"
+        ...,
+        min_length=1,
+        description="Job action name (e.g. Update POS payment config)",
     )
     description: Optional[str] = Field(
         default=None, description="Human-readable job description"

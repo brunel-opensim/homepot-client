@@ -140,9 +140,11 @@ class AgentRepository:
             disk_percent=disk_usage,
             timestamp=timestamp,
             network_latency_ms=network_latency_ms,
-            extra_metrics={"uptime_seconds": uptime_seconds}
-            if uptime_seconds is not None
-            else None,
+            extra_metrics=(
+                {"uptime_seconds": uptime_seconds}
+                if uptime_seconds is not None
+                else None
+            ),
         )
         self.db.add(metric)
         self.db.commit()
@@ -162,9 +164,11 @@ class AgentRepository:
                 disk_percent=entry["disk_usage"],
                 timestamp=entry["timestamp"],
                 network_latency_ms=entry.get("network_latency_ms"),
-                extra_metrics={"uptime_seconds": entry["uptime_seconds"]}
-                if entry.get("uptime_seconds") is not None
-                else None,
+                extra_metrics=(
+                    {"uptime_seconds": entry["uptime_seconds"]}
+                    if entry.get("uptime_seconds") is not None
+                    else None
+                ),
             )
             metrics.append(metric)
 
