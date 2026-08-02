@@ -19,8 +19,8 @@ then runs four concurrent loops:
 - **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results;
   a ``status_request`` command returns a live device-status snapshot and posts it
   to the Dashboard's Live Logs tab; composed push commands (``update_pos_payment_config``,
-  ``restart_pos_app``, ``health_check``, or custom actions) are applied/acknowledged and
-  summarised to Live Logs
+  ``restart_pos_app``, ``health_check``, or custom actions) are applied/acknowledged,
+  summarised to Live Logs, and recorded in the Push History page
 - **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
 - **Job history** — ``POST /agent/jobs`` + status updates, so the Dashboard's
@@ -36,14 +36,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import random
 import signal
 import sys
 import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import cast
 
 import httpx
@@ -647,6 +647,7 @@ class LinuxPOSEmulator:
                 )
             elif payload:
                 await self._report_command_log(ctype, payload, simulated_result)
+                await self._record_push_history(ctype, payload, simulated_result)
             await asyncio.sleep(2)
 
             status_resp = await self._http.put(
@@ -762,6 +763,39 @@ class LinuxPOSEmulator:
             )
         else:
             print("  [commands] command log sent to Live Logs")
+
+    async def _record_push_history(
+        self, command_type: str, payload: dict[str, object], result: dict
+    ) -> None:
+        data = payload.get("data")
+        data = data if isinstance(data, dict) else {}
+        label = data.get("command") or command_type
+        record = {
+            "device_id": self.device_id,
+            "action": command_type,
+            "parameter_name": f"push_command:{label}",
+            "old_value": None,
+            "new_value": {
+                "command": label,
+                "action": command_type,
+                "version": data.get("config_version") or data.get("version") or "v1",
+                "result": result.get("result"),
+            },
+            "success": result.get("status") == "completed",
+            "change_reason": f"Push command {label} ({command_type}) executed",
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/config-history",
+            json=record,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(
+                "  [commands] push history record failed:"
+                f" {resp.status_code} {resp.text[:120]}"
+            )
+        else:
+            print("  [commands] push history recorded")
 
     def _simulate_command_result(
         self,

@@ -254,8 +254,9 @@ Back in **Terminal 1** / the Dashboard browser:
    (`POST /agents/{device_id}/push`), the emulator ACKs it, applies/executes
    the action (config update, app restart, or health check) and completes it.
    A `Command received: <name> (action) | ...` line appears in the **Live
-   Logs** tab, and the command result (applied settings / test outcomes /
-   received payload) is recorded in the device command history.
+   Logs** tab, and the command is recorded in **Push History** (`/device/{id}/history`,
+   backed by device `ConfigurationHistory` entries) with the applied settings /
+   test outcomes / received payload shown in its details.
 
 ## Step 6 — Optional: run the automated checks
 

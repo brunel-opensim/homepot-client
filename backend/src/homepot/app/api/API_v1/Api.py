@@ -1,46 +1,30 @@
 """API router managing for all Endpoints in the HomePot system."""
 
 from fastapi import APIRouter
-
 from homepot.agent.agent_api import router
 
-from .Endpoints import (
-    AgentAlertEndpoint,
-    AgentAuditEndpoint,
-    AgentHeartbeatEndpoint,
-    AgentJobsEndpoint,
-    AgentLogsEndpoint,
-    AgentRegisterEndpoint,
-    AgentsEndpoints,
-    AgentStatusEndpoint,
-    AgentTelemetryEndpoint,
-    AIEndpoint,
-    AnalyticsEndpoint,
-    ClientEndpoint,
-    DashboardEndpoint,
-    DeviceBootstrapProvisionEndpoint,
-    DeviceCommandsEndpoint,
-    DeviceCredentialEndpoint,
-    DevicePermissionsEndpoint,
-    DeviceProvisionEndpoint,
-    DevicesEndpoints,
-    DeviceSimulatorEndpoint,
-    EnrolmentIntentsEndpoint,
-    HealthEndpoint,
-    JobsEndpoints,
-    PushNotificationEndpoint,
-    SitesBootstrapKeyEndpoint,
-    SiteSchedulesEndpoint,
-    SitesEndpoint,
-    TenantsEndpoint,
-    UIEndpoint,
-    UserRegisterEndpoint,
-)
+from .Endpoints import (AgentAlertEndpoint, AgentAuditEndpoint,
+                        AgentConfigHistoryEndpoint, AgentHeartbeatEndpoint,
+                        AgentJobsEndpoint, AgentLogsEndpoint,
+                        AgentRegisterEndpoint, AgentsEndpoints,
+                        AgentStatusEndpoint, AgentTelemetryEndpoint,
+                        AIEndpoint, AnalyticsEndpoint, ClientEndpoint,
+                        DashboardEndpoint, DeviceBootstrapProvisionEndpoint,
+                        DeviceCommandsEndpoint, DeviceCredentialEndpoint,
+                        DevicePermissionsEndpoint, DeviceProvisionEndpoint,
+                        DevicesEndpoints, DeviceSimulatorEndpoint,
+                        EnrolmentIntentsEndpoint, HealthEndpoint,
+                        JobsEndpoints, PushNotificationEndpoint,
+                        SitesBootstrapKeyEndpoint, SiteSchedulesEndpoint,
+                        SitesEndpoint, TenantsEndpoint, UIEndpoint,
+                        UserRegisterEndpoint)
 from .Endpoints.Mobivisor import LogsEndpoint as MobivisorLogs
 from .Endpoints.Mobivisor import MobivisorDeviceEndpoints as MobivisorDevice
-from .Endpoints.Mobivisor import MobivisorGroupsEndpoints as MobivisorGroupsEndpoints
+from .Endpoints.Mobivisor import \
+    MobivisorGroupsEndpoints as MobivisorGroupsEndpoints
 from .Endpoints.Mobivisor import MobivisorMobileApps as MobivisorMobileApps
-from .Endpoints.Mobivisor import MobivisorUserEndpoints as MobivisorUserEndpoints
+from .Endpoints.Mobivisor import \
+    MobivisorUserEndpoints as MobivisorUserEndpoints
 
 api_v1_router = APIRouter()
 
@@ -116,6 +100,9 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(AgentLogsEndpoint.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(AgentAuditEndpoint.router, prefix="/agent", tags=["Agent"])
+api_v1_router.include_router(
+    AgentConfigHistoryEndpoint.router, prefix="/agent", tags=["Agent"]
+)
 api_v1_router.include_router(AgentAlertEndpoint.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(AgentJobsEndpoint.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(
