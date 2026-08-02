@@ -775,14 +775,8 @@ class LinuxPOSEmulator:
         data = data if isinstance(data, dict) else {}
         label = data.get("command") or command_type
         failed = result.get("status") != "completed"
-        res = result.get("result")
-        reason = (
-            res.get("message") if isinstance(res, dict) and res.get("message") else None
-        )
         if failed:
             change_reason = f"Push command {label} ({command_type}) failed"
-            if reason:
-                change_reason += f": {reason}"
         else:
             change_reason = f"Push command {label} ({command_type}) executed"
         record = {

@@ -181,7 +181,7 @@ export default function DeviceHistory() {
                 className="p-3 bg-[#06181c] border-[#0e2f37] hover:border-teal-500/50 transition-colors group"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1">
+                  <div className="flex items-start gap-3 flex-1 min-w-0 max-w-[60%] overflow-hidden">
                     <div className="mt-1">
                       {item.status === 'success' ? (
                         <CheckCircle className="h-4 w-4 text-green-500" />
@@ -235,7 +235,7 @@ export default function DeviceHistory() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
                       variant="outline"
                       size="sm"
