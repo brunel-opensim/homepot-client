@@ -25,28 +25,31 @@ describe('App routing', () => {
   it('redirects provisioned user from / to dashboard', async () => {
     localStorage.setItem('homepot_device_id', 'pos-001')
     sessionStorage.setItem('homepot_api_key', 'test-key')
-    mockFetch.mockResolvedValueOnce(
-      ok({
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/pending')) {
+        return ok([])
+      }
+      if (url.includes('/metrics')) {
+        return ok({
+          data: {
+            cpu_percent: 10,
+            memory_percent: 20,
+            disk_percent: 30,
+            network_latency_ms: 5,
+            uptime_seconds: 3600,
+            timestamp: new Date().toISOString(),
+          },
+        })
+      }
+      return ok({
         data: {
           lifecycle_state: 'active',
           connectivity_state: 'online',
           health_state: 'good',
           last_heartbeat_at: new Date().toISOString(),
         },
-      }),
-    )
-    mockFetch.mockResolvedValueOnce(
-      ok({
-        data: {
-          cpu_percent: 10,
-          memory_percent: 20,
-          disk_percent: 30,
-          network_latency_ms: 5,
-          uptime_seconds: 3600,
-          timestamp: new Date().toISOString(),
-        },
-      }),
-    )
+      })
+    })
     render(<App />)
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
   })
@@ -54,8 +57,11 @@ describe('App routing', () => {
   it('shows device info view at /settings', async () => {
     localStorage.setItem('homepot_device_id', 'pos-001')
     sessionStorage.setItem('homepot_api_key', 'test-key')
-    mockFetch.mockResolvedValueOnce(
-      ok({
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/pending')) {
+        return ok([])
+      }
+      return ok({
         device_id: 'pos-001',
         name: 'Test POS',
         site_id: 'site-alpha',
@@ -67,8 +73,8 @@ describe('App routing', () => {
         firmware_version: '2.0.0',
         lifecycle_state: 'active',
         connectivity_state: 'online',
-      }),
-    )
+      })
+    })
     window.history.pushState({}, '', '/settings')
     render(<App />)
     await waitFor(() => {

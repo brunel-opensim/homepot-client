@@ -42,6 +42,21 @@ export interface DeviceMetrics {
   timestamp: string | null
 }
 
+export interface PendingCommand {
+  command_id: string
+  command_type: string
+  payload: Record<string, unknown> | null
+  status: string
+  created_at: string
+}
+
+export interface PermissionRequestResult {
+  permission: string
+  action: string
+  granted: boolean
+  message: string
+}
+
 interface Headers {
   [key: string]: string
 }
@@ -195,5 +210,79 @@ export async function unpairDevice(
   if (!res.ok && res.status !== 404) {
     const body = await res.json().catch(() => ({}))
     throw asApiError(body.detail || `Unpair failed (${res.status})`, res.status)
+  }
+}
+
+export async function fetchPendingCommands(
+  deviceId: string,
+  apiKey: string,
+): Promise<PendingCommand[]> {
+  const res = await fetch(`${apiBaseUrl}/devices/pending`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch pending commands (${res.status})`, res.status)
+  }
+  return res.json()
+}
+
+export async function ackCommand(
+  deviceId: string,
+  apiKey: string,
+  commandId: string,
+): Promise<void> {
+  const res = await fetch(`${apiBaseUrl}/devices/${deviceId}/commands/${commandId}/ack`, {
+    method: 'POST',
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to acknowledge command (${res.status})`, res.status)
+  }
+}
+
+export async function updateCommandStatus(
+  deviceId: string,
+  apiKey: string,
+  commandId: string,
+  status: string,
+  result: PermissionRequestResult,
+): Promise<void> {
+  const res = await fetch(`${apiBaseUrl}/devices/${commandId}/status`, {
+    method: 'PUT',
+    headers: { ...deviceAuthHeaders(deviceId, apiKey), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, result }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to update command status (${res.status})`, res.status)
+  }
+}
+
+export async function reportPermissionAudit(
+  deviceId: string,
+  apiKey: string,
+  payload: {
+    permission: string
+    granted: boolean
+    requestedBy: string
+    action: string
+  },
+): Promise<void> {
+  const verb = payload.granted ? 'granted' : 'denied'
+  const res = await fetch(`${apiBaseUrl}/agent/audit`, {
+    method: 'POST',
+    headers: { ...deviceAuthHeaders(deviceId, apiKey), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      device_id: deviceId,
+      event_type: 'permission_change',
+      description: `Permission '${payload.permission}' ${verb} (${payload.action}) by ${payload.requestedBy}`,
+      timestamp: new Date().toISOString(),
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to report audit event (${res.status})`, res.status)
   }
 }
