@@ -27,6 +27,11 @@ then runs four concurrent loops:
   Job History tab shows live queued → completed/failed transitions
 - **Alert injection** — ``POST /agent/alert`` with occasional network-latency
   spikes, so the Dashboard's Alerts tab is populated
+- **Device permissions** — the emulator grants/revokes device permissions
+  (``PATCH`` to the permissions endpoint) to model a device owner's consent, and
+  it responds to operator-initiated ``request_permission`` push commands with a
+  simulated consent decision (grant or deny) recorded to Live Logs and the
+  Audit Trail. Behaviour is driven by ``--permission-consent-mode``.
 
 Credentials are persisted to ``~/.homepot/emulators/<device_name>.json``
 so the emulator survives restarts without re-provisioning.
@@ -58,6 +63,71 @@ CREDENTIALS_DIR = Path.home() / ".homepot" / "emulators"
 API_BASE_PATH = "/api/v1"
 
 # ---------------------------------------------------------------------------
+# Device permissions
+# ---------------------------------------------------------------------------
+
+ALL_PERMISSION_KEYS = [
+    "root_access",
+    "process_monitoring",
+    "filesystem_access",
+    "network_monitoring",
+]
+
+PERMISSION_CONSENT_MODES = ("auto", "fixed", "deny")
+
+
+def derive_os_capabilities(os_details: str) -> dict[str, bool]:
+    """Mirror the backend's OS→capability mapping (``schemas.permissions``).
+
+    Determines which permission keys the simulated OS can support, so the
+    emulator only grants permissions the backend would accept.
+    """
+    keys = ALL_PERMISSION_KEYS
+    if not os_details:
+        return {k: False for k in keys}
+
+    os_lower = os_details.lower()
+    if any(
+        kw in os_lower
+        for kw in (
+            "linux",
+            "ubuntu",
+            "debian",
+            "fedora",
+            "centos",
+            "raspberry pi",
+            "macos",
+            "mac os",
+            "darwin",
+            "os x",
+        )
+    ):
+        return {k: True for k in keys}
+    if "android" in os_lower:
+        return {
+            "root_access": False,
+            "process_monitoring": True,
+            "filesystem_access": True,
+            "network_monitoring": True,
+        }
+    if any(kw in os_lower for kw in ("windows", "win32", "win64")):
+        return {
+            "root_access": False,
+            "process_monitoring": True,
+            "filesystem_access": True,
+            "network_monitoring": True,
+        }
+    if any(kw in os_lower for kw in ("ios", "ipados", "iphone os", "ipad")):
+        return {
+            "root_access": False,
+            "process_monitoring": False,
+            "filesystem_access": False,
+            "network_monitoring": True,
+        }
+    return {k: False for k in keys}
+
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
@@ -82,6 +152,8 @@ class EmulatorConfig:
     jobs_interval: float = 30.0
     alerts_interval: float = 90.0
     command_failure_rate: float = 0.1
+    permission_consent_mode: str = "auto"
+    permission_sync_interval: float = 20.0
 
     @classmethod
     def from_dict(cls, d: dict) -> EmulatorConfig:
@@ -104,6 +176,10 @@ class EmulatorConfig:
             jobs_interval=float(d.get("jobs_interval_seconds", 30)),
             alerts_interval=float(d.get("alerts_interval_seconds", 90)),
             command_failure_rate=float(d.get("command_failure_rate", 0.1)),
+            permission_consent_mode=d.get("permission_consent_mode", "auto"),
+            permission_sync_interval=float(
+                d.get("permission_sync_interval_seconds", 20)
+            ),
         )
 
     def to_credentials(self, device_id: str, api_key: str) -> dict:
@@ -207,6 +283,8 @@ class LinuxPOSEmulator:
         self._config_version: str = "1.0.1"
         self._applied_config: dict[str, object] = {}
         self._app_restarts: int = 0
+        self._capabilities: dict[str, bool] = derive_os_capabilities(config.os_details)
+        self._granted: dict[str, bool] = {k: False for k in ALL_PERMISSION_KEYS}
         self._http: httpx.AsyncClient
 
     @property
@@ -225,6 +303,118 @@ class LinuxPOSEmulator:
 
     def _headers(self) -> dict[str, str]:
         return {"X-Device-ID": self.device_id, "X-API-Key": self.api_key}
+
+    # --
+    # Device permissions
+    # --
+
+    def _default_permission_grants(self) -> dict[str, bool]:
+        """Consent granted at boot for the current mode and OS."""
+        if self.config.permission_consent_mode == "deny":
+            return {k: False for k in ALL_PERMISSION_KEYS}
+        # ``auto`` and ``fixed`` start by granting every supported permission.
+        return {k: bool(self._capabilities.get(k, False)) for k in ALL_PERMISSION_KEYS}
+
+    def _consent_for_request(self) -> bool:
+        """Whether the simulated owner consents to an operator permission request."""
+        if self.config.permission_consent_mode == "deny":
+            return False
+        if self.config.permission_consent_mode == "fixed":
+            return True
+        # ``auto``: mostly consent, occasionally deny to exercise the prompt path.
+        return random.random() < 0.8
+
+    async def _update_device_permissions(self, changes: dict[str, bool]) -> None:
+        """PATCH the device's permission grants to the backend (device-cred auth)."""
+        try:
+            resp = await self._http.patch(
+                f"{self._backend}/devices/device/{self.device_id}/permissions",
+                json={"permissions": changes},
+                headers=self._headers(),
+            )
+            if resp.status_code >= 400:
+                print(
+                    f"  [permissions] update error: {resp.status_code} {resp.text[:120]}"
+                )
+            else:
+                print(f"  [permissions] synced: {changes}")
+        except httpx.RequestError as exc:
+            print(f"  [permissions] update connection error: {exc}")
+
+    async def _report_permission_audit(
+        self, permission: str, granted: bool, actor: str, action: str
+    ) -> None:
+        """Post a permission-related event to the Dashboard Audit Trail."""
+        verb = "granted" if granted else "denied"
+        description = f"Permission '{permission}' {verb} ({action}) by {actor}"
+        try:
+            resp = await self._http.post(
+                f"{self._backend}/agent/audit",
+                json={
+                    "device_id": self.device_id,
+                    "event_type": "permission_change",
+                    "description": description,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+                headers=self._headers(),
+            )
+            if resp.status_code >= 400:
+                print(
+                    f"  [permissions] audit error: {resp.status_code} {resp.text[:120]}"
+                )
+            else:
+                print(f"  [permissions] {description}")
+        except httpx.RequestError as exc:
+            print(f"  [permissions] audit connection error: {exc}")
+
+    async def _apply_permission_result(
+        self, result: dict, payload: dict | None
+    ) -> None:
+        """Persist an operator-initiated permission request outcome on the device."""
+        res = result.get("result")
+        if not isinstance(res, dict):
+            return
+        permission = res.get("permission")
+        if not permission or permission not in ALL_PERMISSION_KEYS:
+            return
+        action = res.get("action", "grant")
+        granted = bool(res.get("granted"))
+        data = payload.get("data") if payload else None
+        data = data if isinstance(data, dict) else {}
+        requested_by = data.get("requested_by") or "HOMEPOT operator"
+
+        self._granted[permission] = granted
+        await self._update_device_permissions({permission: granted})
+        await self._report_permission_audit(permission, granted, requested_by, action)
+
+    async def _apply_default_consent(self) -> None:
+        self._granted = self._default_permission_grants()
+        await self._update_device_permissions(dict(self._granted))
+        print(
+            "  [permissions] consent: "
+            + " ".join(f"{k}={v}" for k, v in self._granted.items())
+        )
+
+    async def _consent_loop(self) -> None:
+        """Device-initiated consent: the device owner toggles grants over time."""
+        while not self._shutdown_event.is_set():
+            try:
+                if self.config.permission_consent_mode == "auto":
+                    supported = [
+                        k for k in ALL_PERMISSION_KEYS if self._capabilities.get(k)
+                    ]
+                    if supported and random.random() < 0.6:
+                        key = random.choice(supported)
+                        grant = random.random() < 0.6
+                        if self._granted.get(key, False) != grant:
+                            self._granted[key] = grant
+                            await self._update_device_permissions({key: grant})
+                            verb = "granted" if grant else "revoked"
+                            print(f"  [permissions] device {verb} {key}")
+            except httpx.RequestError as exc:
+                print(f"  [permissions] connection error: {exc}")
+
+            await self._wait_or_shutdown(self.config.permission_sync_interval)
 
     # --
     # Provisioning
@@ -647,6 +837,10 @@ class LinuxPOSEmulator:
                 await self._report_status_log(
                     status_report if status_report is not None else {}
                 )
+            elif ctype == "request_permission":
+                payload_dict = payload if isinstance(payload, dict) else {}
+                await self._apply_permission_result(simulated_result, payload_dict)
+                await self._report_command_log(ctype, payload_dict, simulated_result)
             elif payload:
                 await self._report_command_log(ctype, payload, simulated_result)
                 await self._record_push_history(ctype, payload, simulated_result)
@@ -825,6 +1019,44 @@ class LinuxPOSEmulator:
         data = payload.get("data") if payload else None
         data = data if isinstance(data, dict) else {}
 
+        if command_type == "request_permission":
+            permission = data.get("permission")
+            if not permission or permission not in ALL_PERMISSION_KEYS:
+                return self._fail_result(
+                    "Permission request failed",
+                    f"Unknown permission: {permission!r}",
+                )
+            if not self._capabilities.get(permission, False):
+                return self._fail_result(
+                    "Permission request failed",
+                    f"Permission '{permission}' is not supported by this OS",
+                )
+
+            action = data.get("action", "grant")
+            if action == "revoke":
+                granted = False
+                message = f"Permission '{permission}' revoked by request"
+            elif action == "deny":
+                granted = False
+                self._granted[permission] = False
+                message = f"Consent refused for '{permission}'"
+            else:
+                granted = self._consent_for_request()
+                self._granted[permission] = granted
+                message = (
+                    f"Permission '{permission}' "
+                    f"{'granted' if granted else 'denied by user'}"
+                )
+            return {
+                "status": "completed",
+                "result": {
+                    "permission": permission,
+                    "action": action,
+                    "granted": granted,
+                    "message": message,
+                },
+            }
+
         if command_type == "update_pos_payment_config":
             if self._command_should_fail():
                 return self._fail_result(
@@ -989,6 +1221,8 @@ class LinuxPOSEmulator:
             else:
                 await self._register_dna()
 
+            await self._apply_default_consent()
+
             print(f"\n  Device ID: {self.device_id}")
             print(f"  API Key:   {self.api_key[:16]}...")
             print(f"  Site ID:   {self.config.site_id}")
@@ -1000,7 +1234,8 @@ class LinuxPOSEmulator:
                 f", logs={self.config.logs_interval}s"
                 f", audits={self.config.audit_interval}s"
                 f", jobs={self.config.jobs_interval}s"
-                f", alerts={self.config.alerts_interval}s)"
+                f", alerts={self.config.alerts_interval}s"
+                f", permissions={self.config.permission_sync_interval}s)"
             )
             print("  Press Ctrl+C to stop.\n")
 
@@ -1012,6 +1247,7 @@ class LinuxPOSEmulator:
                 self._audit_loop(),
                 self._jobs_loop(),
                 self._alerts_loop(),
+                self._consent_loop(),
             )
         finally:
             await self._http.aclose()
@@ -1100,6 +1336,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.1,
         help="Probability (0..1) a pushed command fails on the device",
     )
+    parser.add_argument(
+        "--permission-consent-mode",
+        type=str,
+        default=None,
+        choices=PERMISSION_CONSENT_MODES,
+        help=(
+            "How the device's owner consents to permissions: auto (mostly grant, "
+            "occasionally deny, and toggles over time), fixed (grant all supported "
+            "at boot and keep), or deny (refuse everything)"
+        ),
+    )
+    parser.add_argument(
+        "--permission-sync-interval",
+        type=float,
+        default=None,
+        help="Seconds between device-initiated consent syncs",
+    )
     return parser.parse_args(argv)
 
 
@@ -1117,6 +1370,10 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
             config.site_id = args.site_id
         if args.bootstrap_key:
             config.bootstrap_key = args.bootstrap_key
+        if args.permission_consent_mode:
+            config.permission_consent_mode = args.permission_consent_mode
+        if args.permission_sync_interval:
+            config.permission_sync_interval = args.permission_sync_interval
         return config
 
     return EmulatorConfig(
@@ -1136,6 +1393,8 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
         jobs_interval=args.jobs_interval,
         alerts_interval=args.alerts_interval,
         command_failure_rate=args.command_failure_rate,
+        permission_consent_mode=args.permission_consent_mode or "auto",
+        permission_sync_interval=args.permission_sync_interval or 20.0,
     )
 
 
