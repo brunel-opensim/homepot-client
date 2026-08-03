@@ -35,17 +35,34 @@ describe('HomeDashboard', () => {
     mockFetch.mockReset()
   })
 
+  function statusOk(overrides: Partial<{ lifecycle_state: string; connectivity_state: string; health_state: string; last_heartbeat_at: string | null }> = {}) {
+    return ok({
+      data: {
+        lifecycle_state: 'active',
+        connectivity_state: 'online',
+        health_state: 'good',
+        last_heartbeat_at: '2026-08-03T12:34:56.000Z',
+        ...overrides,
+      },
+    })
+  }
+
+  function metricsOk(overrides: Partial<{ cpu_percent: number | null; memory_percent: number | null; disk_percent: number | null; network_latency_ms: number | null; uptime_seconds: number | null; timestamp: string | null }> = {}) {
+    return ok({
+      data: {
+        cpu_percent: 42,
+        memory_percent: 61,
+        disk_percent: 28,
+        network_latency_ms: 12.5,
+        uptime_seconds: 3725,
+        timestamp: '2026-08-03T12:34:56.000Z',
+        ...overrides,
+      },
+    })
+  }
+
   it('renders header and gauges', async () => {
-    mockFetch.mockResolvedValueOnce(
-      ok({
-        data: {
-          lifecycle_state: 'active',
-          connectivity_state: 'online',
-          health_state: 'good',
-          last_heartbeat_at: new Date().toISOString(),
-        },
-      }),
-    )
+    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
@@ -54,47 +71,42 @@ describe('HomeDashboard', () => {
     expect(screen.getByText('Disk')).toBeInTheDocument()
   })
 
+  it('renders live metrics from backend', async () => {
+    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
+    renderWithProviders(<HomeDashboard />)
+    expect(await screen.findByText('42%')).toBeInTheDocument()
+    expect(await screen.findByText('61%')).toBeInTheDocument()
+    expect(await screen.findByText('28%')).toBeInTheDocument()
+    expect(screen.getByText('12.5ms')).toBeInTheDocument()
+    expect(screen.getByText('1h 2m')).toBeInTheDocument()
+  })
+
+  it('renders backend heartbeat timestamp', async () => {
+    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
+    renderWithProviders(<HomeDashboard />)
+    expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
+    const expected = new Date('2026-08-03T12:34:56.000Z').toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+    expect(screen.getByText(expected)).toBeInTheDocument()
+  })
+
   it('shows offline state when backend returns offline', async () => {
-    mockFetch.mockResolvedValueOnce(
-      ok({
-        data: {
-          lifecycle_state: 'active',
-          connectivity_state: 'offline',
-          health_state: 'unknown',
-          last_heartbeat_at: null,
-        },
-      }),
-    )
+    mockFetch.mockResolvedValueOnce(statusOk({ connectivity_state: 'offline', last_heartbeat_at: null })).mockResolvedValueOnce(metricsOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('OFFLINE')).toBeInTheDocument()
   })
 
   it('shows suspended banner when lifecycle is suspended', async () => {
-    mockFetch.mockResolvedValueOnce(
-      ok({
-        data: {
-          lifecycle_state: 'suspended',
-          connectivity_state: 'offline',
-          health_state: 'unknown',
-          last_heartbeat_at: null,
-        },
-      }),
-    )
+    mockFetch.mockResolvedValueOnce(statusOk({ lifecycle_state: 'suspended', connectivity_state: 'offline', last_heartbeat_at: null })).mockResolvedValueOnce(metricsOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('DEVICE SUSPENDED')).toBeInTheDocument()
   })
 
   it('renders TabBar with navigation links', async () => {
-    mockFetch.mockResolvedValueOnce(
-      ok({
-        data: {
-          lifecycle_state: 'active',
-          connectivity_state: 'online',
-          health_state: 'good',
-          last_heartbeat_at: new Date().toISOString(),
-        },
-      }),
-    )
+    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('Home')).toBeInTheDocument()
     expect(screen.getByText('Perms')).toBeInTheDocument()

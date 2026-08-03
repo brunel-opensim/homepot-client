@@ -472,3 +472,41 @@ class AgentService:
             raise ValueError(f"Invalid device status request: {str(e)}")
         except Exception:
             raise Exception("Failed to fetch device status")
+
+    def get_latest_metrics(self, device_id: str) -> dict:
+        """Return the most recent telemetry metrics for a device, or empty values."""
+        try:
+            device = self.repository.get_device_by_device_id(device_id)
+            if not device or not device.id:
+                raise LookupError(f"Device '{device_id}' not found")
+
+            metric = self.repository.get_latest_metrics(device_pk=int(device.id))
+            if metric is None:
+                return {
+                    "device_id": device.device_id,
+                    "cpu_percent": None,
+                    "memory_percent": None,
+                    "disk_percent": None,
+                    "network_latency_ms": None,
+                    "uptime_seconds": None,
+                    "timestamp": None,
+                }
+
+            extra_raw = metric.extra_metrics
+            extra: Dict[str, Any] = (
+                cast(Dict[str, Any], extra_raw) if isinstance(extra_raw, dict) else {}
+            )
+            return {
+                "device_id": device.device_id,
+                "cpu_percent": metric.cpu_percent,
+                "memory_percent": metric.memory_percent,
+                "disk_percent": metric.disk_percent,
+                "network_latency_ms": metric.network_latency_ms,
+                "uptime_seconds": extra.get("uptime_seconds"),
+                "timestamp": metric.timestamp.isoformat(),
+            }
+
+        except LookupError:
+            raise
+        except Exception:
+            raise Exception("Failed to fetch device metrics")

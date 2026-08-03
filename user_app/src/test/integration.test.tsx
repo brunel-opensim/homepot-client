@@ -35,6 +35,18 @@ describe('App routing', () => {
         },
       }),
     )
+    mockFetch.mockResolvedValueOnce(
+      ok({
+        data: {
+          cpu_percent: 10,
+          memory_percent: 20,
+          disk_percent: 30,
+          network_latency_ms: 5,
+          uptime_seconds: 3600,
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    )
     render(<App />)
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
   })
