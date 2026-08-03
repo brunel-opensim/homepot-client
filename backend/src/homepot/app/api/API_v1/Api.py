@@ -5,7 +5,6 @@ from fastapi import APIRouter
 from homepot.agent.agent_api import router
 
 from .Endpoints import (
-    AgentActivityEndpoint,
     AgentAlertEndpoint,
     AgentAuditEndpoint,
     AgentConfigHistoryEndpoint,
@@ -117,9 +116,6 @@ api_v1_router.include_router(
     AgentHeartbeatEndpoint.router, prefix="/agent", tags=["Agent"]
 )
 api_v1_router.include_router(AgentLogsEndpoint.router, prefix="/agent", tags=["Agent"])
-api_v1_router.include_router(
-    AgentActivityEndpoint.router, prefix="/agent", tags=["Agent"]
-)
 api_v1_router.include_router(AgentAuditEndpoint.router, prefix="/agent", tags=["Agent"])
 api_v1_router.include_router(
     AgentConfigHistoryEndpoint.router, prefix="/agent", tags=["Agent"]

@@ -111,7 +111,7 @@ describe('HomeDashboard', () => {
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('Home')).toBeInTheDocument()
     expect(screen.getByText('Perms')).toBeInTheDocument()
-    expect(screen.getByText('Activity')).toBeInTheDocument()
+    expect(screen.getByText('Logs')).toBeInTheDocument()
     expect(screen.getByText('Settings')).toBeInTheDocument()
   })
 

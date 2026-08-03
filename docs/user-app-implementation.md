@@ -62,7 +62,7 @@ Single source of truth for User App pull requests. Each row links the PR, its br
 | 1 | `feat/user-app-service-refactor` | Route views through `services/api.ts` (currently bypassed with raw `fetch`); fix `AppContext` `isProvisioned` bug (reads `homepot_token`, never written by `SimulationStorage`); fix `ClaimDevice` response-shape handling | planned |
 | 2 | `feat/user-app-live-dashboard` | Real telemetry on HomeDashboard via `GET /devices/device/{id}/metrics` (CPU/mem/disk/net/uptime); real heartbeat from `last_heartbeat_at`; replace hardcoded gauge values | planned |
 | 3 | `feat/user-app-permission-request` | `request_permission` consent prompt (accept/deny operator requests); admin-override flow | planned |
-| 4 | `feat/user-app-activity-screens` | Live Logs + Audit Trail + Jobs + Alerts + Push History screens (emulator emits all; UI absent) | planned |
+| 4 | `feat/user-app-activity-screens` | Error Logs screen via `GET /agent/{device_id}/logs` (device-auth, own-logs only). Audit/jobs/alerts/push stay on the operator Dashboard to keep the User App lightweight | planned |
 | 5 | `feat/user-app-live-updates` | *(optional)* WebSocket live updates (`/ws/status`) | optional |
 
 Update this table as PRs are opened/merged so the tracker stays current.

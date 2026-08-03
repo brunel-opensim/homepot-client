@@ -87,7 +87,7 @@ describe('App routing', () => {
     expect(screen.getByText('Active')).toBeInTheDocument()
   })
 
-  it('shows activity screens at /activity', async () => {
+  it('shows device logs at /logs', async () => {
     localStorage.setItem('homepot_device_id', 'pos-001')
     sessionStorage.setItem('homepot_api_key', 'test-key')
     mockFetch.mockImplementation((url: string) => {
@@ -99,9 +99,9 @@ describe('App routing', () => {
       }
       return ok({ data: [] })
     })
-    window.history.pushState({}, '', '/activity')
+    window.history.pushState({}, '', '/logs')
     render(<App />)
-    expect(await screen.findByText('Activity & History')).toBeInTheDocument()
+    expect(await screen.findByText('Device Logs')).toBeInTheDocument()
     expect(await screen.findByText('Network link up (eth0)')).toBeInTheDocument()
   })
 

@@ -13,10 +13,6 @@ import {
   updateCommandStatus,
   reportPermissionAudit,
   fetchDeviceLogs,
-  fetchAuditEvents,
-  fetchDeviceJobs,
-  fetchDeviceAlerts,
-  fetchPushHistory,
 } from '../services/api'
 
 const mockFetch = vi.fn()
@@ -211,78 +207,6 @@ describe('fetchDeviceLogs', () => {
   it('throws on error', async () => {
     mockFetch.mockResolvedValueOnce(serverError('Server error'))
     await expect(fetchDeviceLogs(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
-  })
-})
-
-describe('fetchAuditEvents', () => {
-  it('returns audit events from nested data field', async () => {
-    const events = [{ id: 1, event_type: 'permission_change', description: 'Perm granted', created_at: '2026-08-03T10:00:00.000Z', ip_address: null, metadata: null }]
-    mockFetch.mockResolvedValueOnce(ok({ data: events }))
-    const result = await fetchAuditEvents(DEVICE_ID, API_KEY)
-    expect(result[0].event_type).toBe('permission_change')
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining(`/agent/${DEVICE_ID}/audit`),
-      expect.anything(),
-    )
-  })
-
-  it('throws on error', async () => {
-    mockFetch.mockResolvedValueOnce(serverError('Server error'))
-    await expect(fetchAuditEvents(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
-  })
-})
-
-describe('fetchDeviceJobs', () => {
-  it('returns jobs from nested data field', async () => {
-    const jobs = [{ job_id: 'j1', action: 'Update POS payment config', description: 'desc', status: 'completed', priority: 'normal', created_at: '2026-08-03T10:00:00.000Z', completed_at: null, result: null, error_message: null }]
-    mockFetch.mockResolvedValueOnce(ok({ data: jobs }))
-    const result = await fetchDeviceJobs(DEVICE_ID, API_KEY)
-    expect(result[0].action).toBe('Update POS payment config')
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining(`/agent/${DEVICE_ID}/jobs`),
-      expect.anything(),
-    )
-  })
-
-  it('throws on error', async () => {
-    mockFetch.mockResolvedValueOnce(serverError('Server error'))
-    await expect(fetchDeviceJobs(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
-  })
-})
-
-describe('fetchDeviceAlerts', () => {
-  it('returns alerts from nested data field', async () => {
-    const alerts = [{ id: 1, title: 'High Latency: 612ms', description: 'Network latency exceeded threshold', severity: 'critical', category: 'network', status: 'active', timestamp: '2026-08-03T10:00:00.000Z', ai_recommendation: null, ai_confidence: null }]
-    mockFetch.mockResolvedValueOnce(ok({ data: alerts }))
-    const result = await fetchDeviceAlerts(DEVICE_ID, API_KEY)
-    expect(result[0].title).toBe('High Latency: 612ms')
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining(`/agent/${DEVICE_ID}/alerts`),
-      expect.anything(),
-    )
-  })
-
-  it('throws on error', async () => {
-    mockFetch.mockResolvedValueOnce(serverError('Server error'))
-    await expect(fetchDeviceAlerts(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
-  })
-})
-
-describe('fetchPushHistory', () => {
-  it('returns push history from nested data field', async () => {
-    const entries = [{ id: 1, timestamp: '2026-08-03T10:00:00.000Z', parameter_name: 'push_command:APPLY_CONFIG', old_value: null, new_value: { command: 'APPLY_CONFIG' }, change_reason: 'executed', changed_by: 'agent', was_successful: true }]
-    mockFetch.mockResolvedValueOnce(ok({ data: entries }))
-    const result = await fetchPushHistory(DEVICE_ID, API_KEY)
-    expect(result[0].parameter_name).toBe('push_command:APPLY_CONFIG')
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining(`/agent/${DEVICE_ID}/push-history`),
-      expect.anything(),
-    )
-  })
-
-  it('throws on error', async () => {
-    mockFetch.mockResolvedValueOnce(serverError('Server error'))
-    await expect(fetchPushHistory(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
   })
 })
 
