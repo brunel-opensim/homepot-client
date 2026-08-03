@@ -62,8 +62,23 @@ describe('HomeDashboard', () => {
     })
   }
 
+  function routeDeviceApi(status: Promise<Response>, metrics: Promise<Response> = metricsOk(), failStatus = false) {
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/permissions')) {
+        return ok({ data: { permissions: {}, capabilities: {} } })
+      }
+      if (String(url).includes('/metrics')) {
+        return metrics
+      }
+      if (String(url).includes('/status')) {
+        return failStatus ? Promise.reject(new Error('Network error')) : status
+      }
+      return ok({ data: [] })
+    })
+  }
+
   it('renders header and gauges', async () => {
-    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
+    routeDeviceApi(statusOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
@@ -73,7 +88,7 @@ describe('HomeDashboard', () => {
   })
 
   it('renders live metrics from backend', async () => {
-    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
+    routeDeviceApi(statusOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('42%')).toBeInTheDocument()
     expect(await screen.findByText('61%')).toBeInTheDocument()
@@ -83,7 +98,7 @@ describe('HomeDashboard', () => {
   })
 
   it('renders backend heartbeat timestamp', async () => {
-    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
+    routeDeviceApi(statusOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
     const expected = new Date('2026-08-03T12:34:56.000Z').toLocaleTimeString('en-GB', {
@@ -95,19 +110,19 @@ describe('HomeDashboard', () => {
   })
 
   it('shows offline state when backend returns offline', async () => {
-    mockFetch.mockResolvedValueOnce(statusOk({ connectivity_state: 'offline', last_heartbeat_at: null })).mockResolvedValueOnce(metricsOk())
+    routeDeviceApi(statusOk({ connectivity_state: 'offline', last_heartbeat_at: null }))
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('OFFLINE')).toBeInTheDocument()
   })
 
   it('shows suspended banner when lifecycle is suspended', async () => {
-    mockFetch.mockResolvedValueOnce(statusOk({ lifecycle_state: 'suspended', connectivity_state: 'offline', last_heartbeat_at: null })).mockResolvedValueOnce(metricsOk())
+    routeDeviceApi(statusOk({ lifecycle_state: 'suspended', connectivity_state: 'offline', last_heartbeat_at: null }))
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('DEVICE SUSPENDED')).toBeInTheDocument()
   })
 
   it('renders TabBar with navigation links', async () => {
-    mockFetch.mockResolvedValueOnce(statusOk()).mockResolvedValueOnce(metricsOk())
+    routeDeviceApi(statusOk())
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('Home')).toBeInTheDocument()
     expect(screen.getByText('Perms')).toBeInTheDocument()
@@ -115,7 +130,7 @@ describe('HomeDashboard', () => {
   })
 
   it('shows unknown state when fetch fails', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('Network error'))
+    routeDeviceApi(statusOk(), metricsOk(), true)
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText('OFFLINE')).toBeInTheDocument()
@@ -127,22 +142,30 @@ describe('DeviceInfo', () => {
     mockFetch.mockReset()
   })
 
+  function routeDeviceApi(device: unknown, deviceFails = false) {
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/permissions')) {
+        return ok({ data: { permissions: {}, capabilities: {} } })
+      }
+      if (deviceFails) return Promise.reject(new Error('Network error'))
+      return ok(device)
+    })
+  }
+
   it('renders DNA table with backend data', async () => {
-    mockFetch.mockResolvedValueOnce(
-      ok({
-        device_id: 'test-device',
-        name: 'Backend Device',
-        site_id: 'site-001',
-        device_type: 'pos_terminal',
-        mac_address: '00:11:22:33:44:55',
-        local_ip: '192.168.1.100',
-        wan_ip: '203.0.113.10',
-        os_details: 'linux',
-        firmware_version: '1.0.0',
-        lifecycle_state: 'active',
-        connectivity_state: 'online',
-      }),
-    )
+    routeDeviceApi({
+      device_id: 'test-device',
+      name: 'Backend Device',
+      site_id: 'site-001',
+      device_type: 'pos_terminal',
+      mac_address: '00:11:22:33:44:55',
+      local_ip: '192.168.1.100',
+      wan_ip: '203.0.113.10',
+      os_details: 'linux',
+      firmware_version: '1.0.0',
+      lifecycle_state: 'active',
+      connectivity_state: 'online',
+    })
     renderWithProviders(<DeviceInfo />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText('Backend Device')).toBeInTheDocument()
@@ -157,7 +180,7 @@ describe('DeviceInfo', () => {
   it('renders fallback values when backend fetch fails', async () => {
     const credStorageModule = await import('../services/credentialStorage')
     vi.mocked(credStorageModule.credentialStorage.getMetadata).mockResolvedValue(null)
-    mockFetch.mockRejectedValueOnce(new Error('Network error'))
+    routeDeviceApi(null, true)
     renderWithProviders(<DeviceInfo />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText('My-Device')).toBeInTheDocument()
@@ -166,15 +189,13 @@ describe('DeviceInfo', () => {
   })
 
   it('renders unpair button', async () => {
-    mockFetch.mockResolvedValueOnce(
-      ok({
-        device_id: 'test-device',
-        name: 'Test Device',
-        device_type: 'pos_terminal',
-        os_details: 'linux',
-        lifecycle_state: 'active',
-      }),
-    )
+    routeDeviceApi({
+      device_id: 'test-device',
+      name: 'Test Device',
+      device_type: 'pos_terminal',
+      os_details: 'linux',
+      lifecycle_state: 'active',
+    })
     renderWithProviders(<DeviceInfo />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText(/Disconnect.*Unpair/)).toBeInTheDocument()

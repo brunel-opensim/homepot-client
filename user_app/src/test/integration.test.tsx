@@ -54,6 +54,64 @@ describe('App routing', () => {
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
   })
 
+  it('clears invalid credentials and redirects to setup wizard', async () => {
+    localStorage.setItem('homepot_device_id', 'pos-001')
+    sessionStorage.setItem('homepot_api_key', 'stale-key')
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/permissions')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ detail: 'Invalid Device ID' }), { status: 401 }),
+        )
+      }
+      return ok([])
+    })
+    render(<App />)
+    expect(await screen.findByText('Step 1 of 4')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(localStorage.getItem('homepot_device_id')).toBeNull()
+    })
+    expect(sessionStorage.getItem('homepot_api_key')).toBeNull()
+  })
+
+  it('keeps credentials when backend is unreachable', async () => {
+    localStorage.setItem('homepot_device_id', 'pos-001')
+    sessionStorage.setItem('homepot_api_key', 'test-key')
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/permissions')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ detail: 'Server error' }), { status: 500 }),
+        )
+      }
+      if (url.includes('/pending')) {
+        return ok([])
+      }
+      if (url.includes('/metrics')) {
+        return ok({
+          data: {
+            cpu_percent: 10,
+            memory_percent: 20,
+            disk_percent: 30,
+            network_latency_ms: 5,
+            uptime_seconds: 3600,
+            timestamp: new Date().toISOString(),
+          },
+        })
+      }
+      return ok({
+        data: {
+          lifecycle_state: 'active',
+          connectivity_state: 'online',
+          health_state: 'good',
+          last_heartbeat_at: new Date().toISOString(),
+        },
+      })
+    })
+    render(<App />)
+    expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
+    expect(localStorage.getItem('homepot_device_id')).toBe('pos-001')
+    expect(sessionStorage.getItem('homepot_api_key')).toBe('test-key')
+  })
+
   it('shows device info view at /settings', async () => {
     localStorage.setItem('homepot_device_id', 'pos-001')
     sessionStorage.setItem('homepot_api_key', 'test-key')

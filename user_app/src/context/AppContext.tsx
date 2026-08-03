@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { credentialStorage } from '../services/credentialStorage'
+import { verifyDeviceCredentials } from '../services/api'
 
 interface DeviceInfo {
   deviceId: string
@@ -52,17 +53,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true
-    credentialStorage
-      .isProvisioned()
-      .then((provisioned) => {
-        if (mounted) {
-          setIsProvisioned(provisioned)
-          setProvisionedChecked(true)
+    async function checkProvisioned(): Promise<void> {
+      const provisioned = await credentialStorage.isProvisioned().catch(() => false)
+      let valid = provisioned
+      if (provisioned) {
+        const [deviceId, apiKey] = await Promise.all([
+          credentialStorage.getDeviceId(),
+          credentialStorage.getApiKey(),
+        ])
+        if (deviceId && apiKey) {
+          valid = await verifyDeviceCredentials(deviceId, apiKey)
+          if (!valid) {
+            await credentialStorage.clear().catch(() => {})
+          }
         }
-      })
-      .catch(() => {
-        if (mounted) setProvisionedChecked(true)
-      })
+      }
+      if (mounted) {
+        setIsProvisioned(valid)
+        setProvisionedChecked(true)
+      }
+    }
+    void checkProvisioned()
     return () => {
       mounted = false
     }

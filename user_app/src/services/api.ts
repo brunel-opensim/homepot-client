@@ -134,6 +134,16 @@ export async function fetchPermissions(deviceId: string, apiKey: string): Promis
   return json.data as PermissionsResponse
 }
 
+export async function verifyDeviceCredentials(deviceId: string, apiKey: string): Promise<boolean> {
+  try {
+    await fetchPermissions(deviceId, apiKey)
+    return true
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) return false
+    return true
+  }
+}
+
 export async function updatePermissions(
   deviceId: string,
   apiKey: string,
