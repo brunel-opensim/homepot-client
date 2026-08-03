@@ -8,6 +8,7 @@ import SignIn from './views/SignIn'
 import HomeDashboard from './views/HomeDashboard'
 import Permissions from './views/Permissions'
 import DeviceInfo from './views/DeviceInfo'
+import Activity from './views/Activity'
 import ClaimDevice from './views/ClaimDevice'
 
 function RootRedirect() {
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/home" element={<Wrapped><HomeDashboard /></Wrapped>} />
           <Route path="/claim" element={<Wrapped><ClaimDevice /></Wrapped>} />
           <Route path="/permissions" element={<Wrapped><Permissions /></Wrapped>} />
+          <Route path="/activity" element={<Wrapped><Activity /></Wrapped>} />
           <Route path="/settings" element={<Wrapped><DeviceInfo /></Wrapped>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

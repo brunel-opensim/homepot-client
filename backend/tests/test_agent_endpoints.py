@@ -358,3 +358,169 @@ def test_agent_telemetry_requires_matching_device_credentials(client: TestClient
         headers=_device_headers("other-device", api_key),
     )
     assert mismatched_device.status_code == 401
+
+
+def test_logs_returns_device_log_lines(client: TestClient):
+    """GET /api/v1/agent/{device_id}/logs should return the device's log lines."""
+    site = _create_site("site-activity-logs")
+    api_key = _create_device("activity-log-device", int(site.id))
+
+    posted = client.post(
+        "/api/v1/agent/logs",
+        json={
+            "device_id": "activity-log-device",
+            "level": "warning",
+            "category": "network",
+            "message": "WAN link flapping detected",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("activity-log-device", api_key),
+    )
+    assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/activity-log-device/logs",
+        headers=_device_headers("activity-log-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["error_message"] == "WAN link flapping detected"
+    assert data[0]["severity"] == "warning"
+    assert data[0]["category"] == "network"
+
+
+def test_audit_returns_device_audit_events(client: TestClient):
+    """GET /api/v1/agent/{device_id}/audit should return the device's audit events."""
+    site = _create_site("site-activity-audit")
+    api_key = _create_device("activity-audit-device", int(site.id))
+
+    posted = client.post(
+        "/api/v1/agent/audit",
+        json={
+            "device_id": "activity-audit-device",
+            "event_type": "permission_change",
+            "description": "Permission 'root_access' granted by admin@example.com",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("activity-audit-device", api_key),
+    )
+    assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/activity-audit-device/audit",
+        headers=_device_headers("activity-audit-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["event_type"] == "permission_change"
+    assert data[0]["description"].startswith("Permission 'root_access'")
+
+
+def test_jobs_returns_device_jobs(client: TestClient):
+    """GET /api/v1/agent/{device_id}/jobs should return the device's jobs."""
+    site = _create_site("site-activity-jobs")
+    api_key = _create_device("activity-job-device", int(site.id))
+
+    posted = client.post(
+        "/api/v1/agent/jobs",
+        json={
+            "device_id": "activity-job-device",
+            "action": "Update POS payment config",
+            "description": "Automated background task",
+            "priority": "normal",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("activity-job-device", api_key),
+    )
+    assert posted.status_code == 200
+    job_id = posted.json()["data"]["job_id"]
+
+    response = client.get(
+        "/api/v1/agent/activity-job-device/jobs",
+        headers=_device_headers("activity-job-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["job_id"] == job_id
+    assert data[0]["action"] == "Update POS payment config"
+    assert data[0]["status"] == "pending"
+
+
+def test_alerts_returns_device_alerts(client: TestClient):
+    """GET /api/v1/agent/{device_id}/alerts should return the device's alerts."""
+    site = _create_site("site-activity-alerts")
+    api_key = _create_device("activity-alert-device", int(site.id))
+
+    posted = client.post(
+        "/api/v1/agent/alert",
+        json={
+            "device_id": "activity-alert-device",
+            "title": "High Latency: 612ms",
+            "description": "Network latency exceeded threshold",
+            "severity": "critical",
+            "category": "network",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("activity-alert-device", api_key),
+    )
+    assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/activity-alert-device/alerts",
+        headers=_device_headers("activity-alert-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["title"] == "High Latency: 612ms"
+    assert data[0]["severity"] == "critical"
+
+
+def test_push_history_returns_device_entries(client: TestClient):
+    """GET /api/v1/agent/{device_id}/push-history should return push entries."""
+    site = _create_site("site-activity-push")
+    api_key = _create_device("activity-push-device", int(site.id))
+
+    posted = client.post(
+        "/api/v1/agent/config-history",
+        json={
+            "device_id": "activity-push-device",
+            "action": "update_pos_payment_config",
+            "parameter_name": "push_command:APPLY_CONFIG",
+            "new_value": {"command": "APPLY_CONFIG", "version": "2.1.0"},
+            "success": True,
+            "change_reason": "Push command APPLY_CONFIG executed",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("activity-push-device", api_key),
+    )
+    assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/activity-push-device/push-history",
+        headers=_device_headers("activity-push-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["parameter_name"] == "push_command:APPLY_CONFIG"
+    assert data[0]["was_successful"] is True
+
+
+def test_activity_rejects_other_devices_and_missing_credentials(client: TestClient):
+    """Activity reads should 403 for another device and 401 without credentials."""
+    site = _create_site("site-activity-auth")
+    api_key = _create_device("activity-auth-device-1", int(site.id))
+    _create_device("activity-auth-device-2", int(site.id), api_key="other-key")
+
+    other = client.get(
+        "/api/v1/agent/activity-auth-device-2/audit",
+        headers=_device_headers("activity-auth-device-1", api_key),
+    )
+    assert other.status_code == 403
+
+    missing = client.get("/api/v1/agent/activity-auth-device-1/audit")
+    assert missing.status_code == 401

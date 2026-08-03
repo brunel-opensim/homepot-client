@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 const TABS = [
   { id: 'home', label: 'Home', icon: '⊙', path: '/home' },
   { id: 'permissions', label: 'Perms', icon: '🔒', path: '/permissions' },
+  { id: 'activity', label: 'Activity', icon: '📊', path: '/activity' },
   { id: 'settings', label: 'Settings', icon: '⚙', path: '/settings' },
 ] as const
 

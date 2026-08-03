@@ -57,6 +57,60 @@ export interface PermissionRequestResult {
   message: string
 }
 
+export interface DeviceLog {
+  id: number
+  timestamp: string | null
+  category: string
+  severity: string
+  error_code: string | null
+  error_message: string
+  resolved: boolean
+}
+
+export interface AuditEvent {
+  id: number
+  event_type: string
+  description: string
+  created_at: string | null
+  ip_address: string | null
+  metadata: Record<string, unknown> | null
+}
+
+export interface DeviceJob {
+  job_id: string
+  action: string
+  description: string | null
+  status: string
+  priority: string
+  created_at: string | null
+  completed_at: string | null
+  result: Record<string, unknown> | null
+  error_message: string | null
+}
+
+export interface DeviceAlert {
+  id: number
+  title: string
+  description: string | null
+  severity: string
+  category: string
+  status: string
+  timestamp: string | null
+  ai_recommendation: string | null
+  ai_confidence: number | null
+}
+
+export interface PushHistoryEntry {
+  id: number
+  timestamp: string | null
+  parameter_name: string
+  old_value: Record<string, unknown> | null
+  new_value: Record<string, unknown> | null
+  change_reason: string | null
+  changed_by: string
+  was_successful: boolean | null
+}
+
 interface Headers {
   [key: string]: string
 }
@@ -285,4 +339,56 @@ export async function reportPermissionAudit(
     const body = await res.json().catch(() => ({}))
     throw asApiError(body.detail || `Failed to report audit event (${res.status})`, res.status)
   }
+}
+
+async function fetchDeviceActivity<T>(
+  deviceId: string,
+  apiKey: string,
+  resource: string,
+  label: string,
+): Promise<T[]> {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/${resource}`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch ${label} (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as T[]
+}
+
+export function fetchDeviceLogs(
+  deviceId: string,
+  apiKey: string,
+): Promise<DeviceLog[]> {
+  return fetchDeviceActivity<DeviceLog>(deviceId, apiKey, 'logs', 'logs')
+}
+
+export function fetchAuditEvents(
+  deviceId: string,
+  apiKey: string,
+): Promise<AuditEvent[]> {
+  return fetchDeviceActivity<AuditEvent>(deviceId, apiKey, 'audit', 'audit events')
+}
+
+export function fetchDeviceJobs(
+  deviceId: string,
+  apiKey: string,
+): Promise<DeviceJob[]> {
+  return fetchDeviceActivity<DeviceJob>(deviceId, apiKey, 'jobs', 'jobs')
+}
+
+export function fetchDeviceAlerts(
+  deviceId: string,
+  apiKey: string,
+): Promise<DeviceAlert[]> {
+  return fetchDeviceActivity<DeviceAlert>(deviceId, apiKey, 'alerts', 'alerts')
+}
+
+export function fetchPushHistory(
+  deviceId: string,
+  apiKey: string,
+): Promise<PushHistoryEntry[]> {
+  return fetchDeviceActivity<PushHistoryEntry>(deviceId, apiKey, 'push-history', 'push history')
 }

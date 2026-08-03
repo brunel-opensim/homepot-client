@@ -87,6 +87,24 @@ describe('App routing', () => {
     expect(screen.getByText('Active')).toBeInTheDocument()
   })
 
+  it('shows activity screens at /activity', async () => {
+    localStorage.setItem('homepot_device_id', 'pos-001')
+    sessionStorage.setItem('homepot_api_key', 'test-key')
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes('/pending')) {
+        return ok([])
+      }
+      if (url.includes('/logs')) {
+        return ok({ data: [{ id: 1, timestamp: null, category: 'network', severity: 'info', error_code: null, error_message: 'Network link up (eth0)', resolved: false }] })
+      }
+      return ok({ data: [] })
+    })
+    window.history.pushState({}, '', '/activity')
+    render(<App />)
+    expect(await screen.findByText('Activity & History')).toBeInTheDocument()
+    expect(await screen.findByText('Network link up (eth0)')).toBeInTheDocument()
+  })
+
   it('unknown path redirects to /', async () => {
     window.history.pushState({}, '', '/nonexistent')
     render(<App />)
