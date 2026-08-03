@@ -1,14 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
-import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
-
-interface DeviceStatus {
-  lifecycle_state: string
-  connectivity_state: string
-  health_state: string
-}
+import { fetchDeviceStatus } from '../services/api'
+import type { DeviceStatus } from '../services/api'
 
 export default function HomeDashboard() {
   const [deviceName, setDeviceName] = useState('My Device')
@@ -32,20 +27,15 @@ export default function HomeDashboard() {
   useEffect(() => {
     async function fetchStatus() {
       const dId = deviceIdRef.current
-      if (!dId) return
+      const aKey = apiKeyRef.current
+      if (!dId || !aKey) return
       try {
-        const res = await fetch(`${apiBaseUrl}/agent/${dId}/status`, {
-          headers: apiKeyRef.current ? { 'X-Device-ID': dId, 'X-API-Key': apiKeyRef.current } : {},
-        })
-        if (res.ok) {
-          const body = await res.json()
-          setStatus(body.data)
-        }
+        setStatus(await fetchDeviceStatus(dId, aKey))
       } catch {
         // silently degrade
       }
     }
-    if (!deviceIdRef.current) return
+    if (!deviceIdRef.current || !apiKeyRef.current) return
     fetchStatus()
     const interval = setInterval(fetchStatus, 30000)
     return () => clearInterval(interval)

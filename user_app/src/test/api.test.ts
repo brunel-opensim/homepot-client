@@ -76,8 +76,8 @@ describe('fetchDeviceStatus', () => {
 })
 
 describe('fetchPermissions', () => {
-  it('returns permissions and capabilities', async () => {
-    const resp = { permissions: { root_access: true }, capabilities: { root_access: true } }
+  it('returns permissions and capabilities from nested data field', async () => {
+    const resp = { status: 'success', data: { permissions: { root_access: true }, capabilities: { root_access: true } } }
     mockFetch.mockResolvedValueOnce(ok(resp))
     const result = await fetchPermissions(DEVICE_ID, API_KEY)
     expect(result.permissions.root_access).toBe(true)
@@ -86,7 +86,7 @@ describe('fetchPermissions', () => {
 })
 
 describe('updatePermissions', () => {
-  it('sends PATCH with correct body', async () => {
+  it('sends PATCH with permissions wrapped in body', async () => {
     mockFetch.mockResolvedValueOnce(ok({}))
     await updatePermissions(DEVICE_ID, API_KEY, { root_access: true })
     expect(mockFetch).toHaveBeenCalledWith(
@@ -94,7 +94,7 @@ describe('updatePermissions', () => {
       expect.objectContaining({
         method: 'PATCH',
         headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ root_access: true }),
+        body: JSON.stringify({ permissions: { root_access: true } }),
       }),
     )
   })
@@ -122,8 +122,8 @@ describe('bootstrapProvision', () => {
 })
 
 describe('claimDevice', () => {
-  it('POSTs claim request and returns data', async () => {
-    const resp = { data: { device_id: 'd2', api_key: 'k2', site_id: 's2' } }
+  it('POSTs claim request and returns flat result', async () => {
+    const resp = { status: 'success', device_id: 'd2', api_key: 'k2', site_id: 's2', epoch_id: 'e2' }
     mockFetch.mockResolvedValueOnce(ok(resp))
     const result = await claimDevice({
       intent_id: 'intent-1',
@@ -133,6 +133,8 @@ describe('claimDevice', () => {
       os_details: 'linux',
     })
     expect(result.device_id).toBe('d2')
+    expect(result.api_key).toBe('k2')
+    expect(result.site_id).toBe('s2')
   })
 })
 
@@ -140,6 +142,21 @@ describe('unpairDevice', () => {
   it('sends POST and succeeds on 200', async () => {
     mockFetch.mockResolvedValueOnce(ok({}))
     await expect(unpairDevice(DEVICE_ID, API_KEY)).resolves.toBeUndefined()
+  })
+
+  it('sends POST with reason and idempotency key', async () => {
+    mockFetch.mockResolvedValueOnce(ok({}))
+    await unpairDevice(DEVICE_ID, API_KEY, {
+      reason: 'Upgrade',
+      idempotencyKey: 'unpair-x',
+    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/devices/device/${DEVICE_ID}/unpair`),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Upgrade', idempotency_key: 'unpair-x' }),
+      }),
+    )
   })
 
   it('succeeds on 404 (device already unpaired)', async () => {

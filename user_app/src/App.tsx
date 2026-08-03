@@ -10,7 +10,8 @@ import DeviceInfo from './views/DeviceInfo'
 import ClaimDevice from './views/ClaimDevice'
 
 function RootRedirect() {
-  const { isProvisioned } = useApp()
+  const { isProvisioned, provisionedChecked } = useApp()
+  if (!provisionedChecked) return null
   return <Navigate to={isProvisioned ? '/home' : '/setup'} replace />
 }
 

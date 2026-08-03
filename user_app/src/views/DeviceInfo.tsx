@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TabBar from '../components/TabBar'
 import { useApp } from '../context/AppContext'
-import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
+import { fetchDevice, unpairDevice, ApiError } from '../services/api'
+import type { DeviceRecord } from '../services/api'
 
 function formatDeviceType(v: string) {
   return v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
@@ -16,19 +17,6 @@ function formatOs(v: string) {
 interface DnaRow {
   label: string
   value: string
-}
-
-interface DeviceRecord {
-  name: string
-  site_id: string
-  device_type: string
-  mac_address: string
-  local_ip: string
-  wan_ip: string
-  os_details: string
-  firmware_version: string
-  lifecycle_state: string
-  connectivity_state: string
 }
 
 export default function DeviceInfo() {
@@ -54,12 +42,7 @@ export default function DeviceInfo() {
       let backend: DeviceRecord | null = null
       if (deviceId && apiKey) {
         try {
-          const res = await fetch(`${apiBaseUrl}/devices/device/${deviceId}`, {
-            headers: { 'X-Device-ID': deviceId, 'X-API-Key': apiKey },
-          })
-          if (res.ok) {
-            backend = await res.json()
-          }
+          backend = await fetchDevice(deviceId, apiKey)
         } catch {
           // backend unreachable — fall through to local fallbacks
         }
@@ -129,36 +112,24 @@ export default function DeviceInfo() {
     }
 
     try {
-      const res = await fetch(
-        `${apiBaseUrl}/devices/device/${deviceId}/unpair`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(apiKey ? { 'X-Device-ID': deviceId, 'X-API-Key': apiKey } : {}),
-          },
-          body: JSON.stringify({
-            reason: 'User-initiated unpair from device settings',
-            idempotency_key: idempotencyKey,
-          }),
-        },
-      )
-
-      if (res.ok) {
-        setUnpairStatus('confirmed')
-        await credentialStorage.clear()
-        setIsProvisioned(false)
-        navigate('/setup')
-      } else {
-        const body = await res.json().catch(() => ({}))
-        setUnpairError(body.detail || `Server rejected unpair (${res.status})`)
-        setUnpairStatus('error')
-      }
-    } catch {
-      // Network failure — perform local-only reset
+      await unpairDevice(deviceId, apiKey ?? '', {
+        reason: 'User-initiated unpair from device settings',
+        idempotencyKey,
+      })
+      setUnpairStatus('confirmed')
       await credentialStorage.clear()
       setIsProvisioned(false)
-      setUnpairStatus('pending-revocation')
+      navigate('/setup')
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setUnpairError(err.message)
+        setUnpairStatus('error')
+      } else {
+        // Network failure — perform local-only reset
+        await credentialStorage.clear()
+        setIsProvisioned(false)
+        setUnpairStatus('pending-revocation')
+      }
     }
   }
 

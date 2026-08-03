@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import TabBar from '../components/TabBar'
-import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
+import { fetchPermissions as fetchPermissionsApi, updatePermissions } from '../services/api'
 
 interface PermissionEntry {
   key: string
@@ -67,15 +67,7 @@ export default function Permissions() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${apiBaseUrl}/devices/device/${dId}/permissions`, {
-        headers: { 'X-Device-ID': dId, 'X-API-Key': aKey },
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.detail || 'Failed to fetch permissions')
-      }
-      const body = await res.json()
-      const data = body.data
+      const data = await fetchPermissionsApi(dId, aKey)
       const perms: Record<string, boolean> = data.permissions || {}
       const caps: Record<string, boolean> = data.capabilities || {}
 
@@ -114,15 +106,7 @@ export default function Permissions() {
 
     setSavingKeys(prev => new Set(prev).add(key))
     try {
-      const res = await fetch(`${apiBaseUrl}/devices/device/${dId}/permissions`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-Device-ID': dId, 'X-API-Key': aKey },
-        body: JSON.stringify({ permissions: { [key]: enabled } }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.detail || 'Failed to sync permission')
-      }
+      await updatePermissions(dId, aKey, { [key]: enabled })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sync failed'
       setError(msg)

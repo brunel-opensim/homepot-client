@@ -37,6 +37,32 @@ npm run dev
 ```
 
 ## Implementation Phases
-1. **Phase 1 (Current):** Web-based UI layout and scaffolding using Tailwind CSS and raw React components.
-2. **Phase 2:** Wrapping the Vite build in **Electron** (for Desktop OS logic) and **Capacitor** (for Android logic).
-3. **Phase 3:** Connecting the React context state to the local IPC network layer broadcasted by the underlying Python device agent (developed by Dealdio).
+1. **Phase 1:** Web-based UI layout and scaffolding using Tailwind CSS and raw React components. *(merged)*
+2. **Phase 2:** Wrapping the Vite build in **Electron** (for Desktop OS logic) and **Capacitor** (for Android logic). *(Electron shell + emulator bridge merged)*
+3. **Phase 3:** Connecting the React context state to the local IPC network layer broadcasted by the underlying Python device agent. *(in progress — see PR tracker below)*
+
+## PR Tracker
+
+Single source of truth for User App pull requests. Each row links the PR, its branch, and what it delivers against the emulator/backend feature set. Emulator/backend work that the User App UI builds on is listed for reference.
+
+### Prerequisites (merged — emulator/backend)
+
+| PR | Branch | Scope | Status |
+|----|--------|-------|--------|
+| [#250](https://github.com/brunel-opensim/homepot-client/pull/250) | `feat/live-device-reporting` | Live device reporting via POS emulator (logs, audit, jobs, alerts, telemetry) | merged |
+| [#251](https://github.com/brunel-opensim/homepot-client/pull/251) | `feat/emulator-command-response` | Emulator handles status requests and composed push commands | merged |
+| [#252](https://github.com/brunel-opensim/homepot-client/pull/252) | `feat/emulator-logs` | Emulator runs in background with `logs/emulator.log` + stop script | merged |
+| [#253](https://github.com/brunel-opensim/homepot-client/pull/253) | `fix/emulator-start-default-config` | Fail fast when default config has placeholder site/key | merged |
+| [#254](https://github.com/brunel-opensim/homepot-client/pull/254) | `feat/emulator-permissions` | Emulator permission emulation (consent modes + `request_permission`) | merged |
+
+### Planned User App PRs
+
+| # | Branch (proposed) | Scope | Status |
+|---|-------------------|-------|--------|
+| 1 | `feat/user-app-service-refactor` | Route views through `services/api.ts` (currently bypassed with raw `fetch`); fix `AppContext` `isProvisioned` bug (reads `homepot_token`, never written by `SimulationStorage`); fix `ClaimDevice` response-shape handling | planned |
+| 2 | `feat/user-app-live-dashboard` | Real telemetry on HomeDashboard via `GET /devices/device/{id}/metrics` (CPU/mem/disk/net/uptime); real heartbeat from `last_heartbeat_at`; replace hardcoded gauge values | planned |
+| 3 | `feat/user-app-permission-request` | `request_permission` consent prompt (accept/deny operator requests); admin-override flow | planned |
+| 4 | `feat/user-app-activity-screens` | Live Logs + Audit Trail + Jobs + Alerts + Push History screens (emulator emits all; UI absent) | planned |
+| 5 | `feat/user-app-live-updates` | *(optional)* WebSocket live updates (`/ws/status`) | optional |
+
+Update this table as PRs are opened/merged so the tracker stays current.
