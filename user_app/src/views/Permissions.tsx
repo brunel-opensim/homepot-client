@@ -43,6 +43,7 @@ export default function Permissions() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set())
+  const [overrideNotice, setOverrideNotice] = useState(false)
 
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
@@ -59,13 +60,15 @@ export default function Permissions() {
     })
   }, [])
 
-  const fetchPermissions = useCallback(async () => {
+  const fetchPermissions = useCallback(async (silent = false) => {
     const dId = deviceIdRef.current
     const aKey = apiKeyRef.current
     if (!dId || !aKey) return
 
-    setLoading(true)
-    setError('')
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const data = await fetchPermissionsApi(dId, aKey)
       const perms: Record<string, boolean> = data.permissions || {}
@@ -76,26 +79,42 @@ export default function Permissions() {
         enabled: perms[def.key] ?? false,
         supported: caps[def.key] ?? false,
       }))
+
+      if (silent) {
+        const current = latestPermissionsRef.current
+        const changedExternally =
+          current.length > 0 &&
+          entries.some((entry, index) => {
+            const prev = current[index]
+            return prev && prev.enabled !== entry.enabled
+          })
+        if (changedExternally) setOverrideNotice(true)
+      }
+
       setPermissions(entries)
       latestPermissionsRef.current = entries
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load permissions')
+      if (!silent) {
+        setError(err instanceof Error ? err.message : 'Failed to load permissions')
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    if (deviceIdRef.current && apiKeyRef.current) {
-      fetchPermissions()
-    } else {
-      const interval = setInterval(() => {
-        if (deviceIdRef.current && apiKeyRef.current) {
-          clearInterval(interval)
-          fetchPermissions()
-        }
-      }, 100)
-      return () => clearInterval(interval)
+    const credsReady = setInterval(() => {
+      if (deviceIdRef.current && apiKeyRef.current) {
+        clearInterval(credsReady)
+        fetchPermissions()
+      }
+    }, 100)
+    const refresh = setInterval(() => {
+      fetchPermissions(true)
+    }, 15000)
+    return () => {
+      clearInterval(credsReady)
+      clearInterval(refresh)
     }
   }, [fetchPermissions])
 
@@ -125,6 +144,7 @@ export default function Permissions() {
   }, [])
 
   function handleToggle(key: string) {
+    setOverrideNotice(false)
     setPermissions(prev => {
       const next = prev.map(p => (p.key === key ? { ...p, enabled: !p.enabled } : p))
       latestPermissionsRef.current = next
@@ -182,6 +202,19 @@ export default function Permissions() {
             Control what the Admin Dashboard can access on this device.
           </p>
         </div>
+
+        {/* Operator/admin override notice */}
+        {overrideNotice && (
+          <div className="px-5 pt-3">
+            <div className="bg-amber-950 border border-amber-800 rounded-lg px-4 py-2.5 flex items-start gap-2">
+              <span className="text-amber-400 text-sm shrink-0">⚠</span>
+              <p className="text-xs text-amber-300">
+                An operator or administrator has updated this device's permissions. Review
+                and adjust if needed.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Error banner */}
         {error && (

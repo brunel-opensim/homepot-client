@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AppProvider } from '../context/AppContext'
 import HomeDashboard from '../views/HomeDashboard'
 import DeviceInfo from '../views/DeviceInfo'
+import Permissions from '../views/Permissions'
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
@@ -177,5 +178,57 @@ describe('DeviceInfo', () => {
     renderWithProviders(<DeviceInfo />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText(/Disconnect.*Unpair/)).toBeInTheDocument()
+  })
+})
+
+describe('Permissions', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('shows override notice when server permissions change externally', async () => {
+    mockFetch.mockImplementation(() =>
+      ok({
+        data: {
+          permissions: { root_access: true },
+          capabilities: { root_access: true },
+        },
+      }),
+    )
+    renderWithProviders(<Permissions />)
+    await vi.advanceTimersByTimeAsync(100) // creds-ready interval fires initial load
+    expect(await screen.findByText('Permissions & Access Control')).toBeInTheDocument()
+
+    mockFetch.mockImplementation(() =>
+      ok({
+        data: {
+          permissions: { root_access: false },
+          capabilities: { root_access: true },
+        },
+      }),
+    )
+    await vi.advanceTimersByTimeAsync(15000) // background refresh detects change
+    expect(await screen.findByText(/operator or administrator has updated/)).toBeInTheDocument()
+  })
+
+  it('does not show override notice when permissions are unchanged', async () => {
+    mockFetch.mockImplementation(() =>
+      ok({
+        data: {
+          permissions: { root_access: true },
+          capabilities: { root_access: true },
+        },
+      }),
+    )
+    renderWithProviders(<Permissions />)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(await screen.findByText('Permissions & Access Control')).toBeInTheDocument()
+    await vi.advanceTimersByTimeAsync(15000)
+    expect(screen.queryByText(/operator or administrator has updated/)).not.toBeInTheDocument()
   })
 })

@@ -8,6 +8,10 @@ import {
   bootstrapProvision,
   claimDevice,
   unpairDevice,
+  fetchPendingCommands,
+  ackCommand,
+  updateCommandStatus,
+  reportPermissionAudit,
 } from '../services/api'
 
 const mockFetch = vi.fn()
@@ -95,6 +99,92 @@ describe('fetchDeviceMetrics', () => {
   it('throws on error', async () => {
     mockFetch.mockResolvedValueOnce(serverError('Server error'))
     await expect(fetchDeviceMetrics(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
+  })
+})
+
+describe('fetchPendingCommands', () => {
+  it('returns pending commands array directly', async () => {
+    const commands = [{ command_id: 'c1', command_type: 'request_permission', payload: null, status: 'pending', created_at: '2026-08-03T10:00:00.000Z' }]
+    mockFetch.mockResolvedValueOnce(ok(commands))
+    const result = await fetchPendingCommands(DEVICE_ID, API_KEY)
+    expect(result).toHaveLength(1)
+    expect(result[0].command_type).toBe('request_permission')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/devices/pending'),
+      expect.objectContaining({
+        headers: { 'X-Device-ID': DEVICE_ID, 'X-API-Key': API_KEY },
+      }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(fetchPendingCommands(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
+  })
+})
+
+describe('ackCommand', () => {
+  it('POSTs to the ack endpoint', async () => {
+    mockFetch.mockResolvedValueOnce(ok({}))
+    await ackCommand(DEVICE_ID, API_KEY, 'c1')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/devices/${DEVICE_ID}/commands/c1/ack`),
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(ackCommand(DEVICE_ID, API_KEY, 'c1')).rejects.toThrow('Server error')
+  })
+})
+
+describe('updateCommandStatus', () => {
+  it('PUTs status and result', async () => {
+    mockFetch.mockResolvedValueOnce(ok({}))
+    const result = { permission: 'root_access', action: 'grant', granted: true, message: 'ok' }
+    await updateCommandStatus(DEVICE_ID, API_KEY, 'c1', 'completed', result)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/devices/c1/status'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ status: 'completed', result }),
+      }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(updateCommandStatus(DEVICE_ID, API_KEY, 'c1', 'completed', { permission: 'root_access', action: 'grant', granted: true, message: 'ok' })).rejects.toThrow('Server error')
+  })
+})
+
+describe('reportPermissionAudit', () => {
+  it('POSTs a permission_change audit event', async () => {
+    mockFetch.mockResolvedValueOnce(ok({}))
+    await reportPermissionAudit(DEVICE_ID, API_KEY, {
+      permission: 'root_access',
+      granted: true,
+      requestedBy: 'admin@example.com',
+      action: 'grant',
+    })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/agent/audit'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    )
+    const call = mockFetch.mock.calls.find(([, init]) => init?.method === 'POST')
+    const body = JSON.parse(String(call![1].body))
+    expect(body.event_type).toBe('permission_change')
+    expect(body.device_id).toBe(DEVICE_ID)
+    expect(body.description).toContain("Permission 'root_access' granted")
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(reportPermissionAudit(DEVICE_ID, API_KEY, { permission: 'root_access', granted: true, requestedBy: 'admin', action: 'grant' })).rejects.toThrow('Server error')
   })
 })
 
