@@ -33,6 +33,15 @@ export interface DeviceStatus {
   last_heartbeat_at: string | null
 }
 
+export interface DeviceMetrics {
+  cpu_percent: number | null
+  memory_percent: number | null
+  disk_percent: number | null
+  network_latency_ms: number | null
+  uptime_seconds: number | null
+  timestamp: string | null
+}
+
 interface Headers {
   [key: string]: string
 }
@@ -81,6 +90,21 @@ export async function fetchDeviceStatus(deviceId: string, apiKey: string): Promi
   }
   const json = await res.json()
   return json.data as DeviceStatus
+}
+
+export async function fetchDeviceMetrics(
+  deviceId: string,
+  apiKey: string,
+): Promise<DeviceMetrics> {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/metrics`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch metrics (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as DeviceMetrics
 }
 
 export async function fetchPermissions(deviceId: string, apiKey: string): Promise<PermissionsResponse> {

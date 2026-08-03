@@ -195,6 +195,74 @@ def test_telemetry_bulk_is_saved(client: TestClient):
     assert response.json()["data"]["saved_count"] == 2
 
 
+def test_metrics_returns_latest_telemetry(client: TestClient):
+    """GET /api/v1/agent/{device_id}/metrics should return the latest entry."""
+    site = _create_site("site-metrics-latest")
+    api_key = _create_device("metrics-device-1", int(site.id))
+
+    post = client.post(
+        "/api/v1/agent/telemetry",
+        json={
+            "device_id": "metrics-device-1",
+            "cpu_usage": 30.0,
+            "memory_usage": 61.0,
+            "disk_usage": 48.0,
+            "network_latency_ms": 12.5,
+            "uptime_seconds": 3600,
+        },
+        headers=_device_headers("metrics-device-1", api_key),
+    )
+    assert post.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/metrics-device-1/metrics",
+        headers=_device_headers("metrics-device-1", api_key),
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["device_id"] == "metrics-device-1"
+    assert data["cpu_percent"] == 30.0
+    assert data["memory_percent"] == 61.0
+    assert data["disk_percent"] == 48.0
+    assert data["network_latency_ms"] == 12.5
+    assert data["uptime_seconds"] == 3600
+    assert data["timestamp"] is not None
+
+
+def test_metrics_returns_empty_values_when_no_telemetry(client: TestClient):
+    """GET metrics should return null fields when no telemetry exists yet."""
+    site = _create_site("site-metrics-empty")
+    api_key = _create_device("metrics-device-2", int(site.id))
+
+    response = client.get(
+        "/api/v1/agent/metrics-device-2/metrics",
+        headers=_device_headers("metrics-device-2", api_key),
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["cpu_percent"] is None
+    assert data["memory_percent"] is None
+    assert data["uptime_seconds"] is None
+
+
+def test_metrics_rejects_other_devices_and_missing_credentials(client: TestClient):
+    """GET metrics should 403 for another device and 401 without credentials."""
+    site = _create_site("site-metrics-auth")
+    api_key = _create_device("metrics-device-3", int(site.id))
+    _create_device("metrics-device-4", int(site.id), api_key="other-key")
+
+    other = client.get(
+        "/api/v1/agent/metrics-device-4/metrics",
+        headers=_device_headers("metrics-device-3", api_key),
+    )
+    assert other.status_code == 403
+
+    missing = client.get("/api/v1/agent/metrics-device-3/metrics")
+    assert missing.status_code == 401
+
+
 def test_provision_returns_credentials_and_hashes_key(client: TestClient):
     """POST /api/v1/devices/provision should return credentials and persist hash."""
     _create_site("site-provision")

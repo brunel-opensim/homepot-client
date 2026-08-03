@@ -1,4 +1,4 @@
-"""API endpoint for storing agent telemetry metrics."""
+"""API endpoint for storing and retrieving agent telemetry metrics."""
 
 import logging
 from typing import Any, Dict, List, Union
@@ -61,4 +61,39 @@ def save_telemetry(
         raise
     except Exception as e:
         logger.error("Unexpected telemetry error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{device_id}/metrics", tags=["Agent"])
+def get_latest_metrics(
+    device_id: str,
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Return the latest telemetry metrics for the authenticated device.
+
+    The device authenticates via ``X-Device-ID`` and ``X-API-Key`` headers
+    and can only read its own metrics.
+    """
+    try:
+        if current_device.device_id != device_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Authenticated device can only read its own metrics",
+            )
+
+        service = AgentService(db)
+        result = service.get_latest_metrics(device_id)
+        return {
+            "status": "success",
+            "message": "Latest device metrics fetched successfully",
+            "data": result,
+        }
+    except LookupError as e:
+        logger.error("Metrics lookup failed: %s", e)
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Unexpected metrics error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

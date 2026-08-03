@@ -2,13 +2,35 @@ import { useState, useEffect, useRef } from 'react'
 import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
 import { credentialStorage } from '../services/credentialStorage'
-import { fetchDeviceStatus } from '../services/api'
-import type { DeviceStatus } from '../services/api'
+import { fetchDeviceStatus, fetchDeviceMetrics } from '../services/api'
+import type { DeviceStatus, DeviceMetrics } from '../services/api'
+
+function formatUptime(totalSeconds: number | null): string {
+  if (totalSeconds === null || totalSeconds === undefined) return '—'
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  if (hours === 0) return `${minutes}m`
+  return `${hours}h ${minutes}m`
+}
+
+function formatHeartbeat(iso: string | null): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  } catch {
+    return '—'
+  }
+}
 
 export default function HomeDashboard() {
   const [deviceName, setDeviceName] = useState('My Device')
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [status, setStatus] = useState<DeviceStatus | null>(null)
+  const [metrics, setMetrics] = useState<DeviceMetrics | null>(null)
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
 
@@ -35,15 +57,34 @@ export default function HomeDashboard() {
         // silently degrade
       }
     }
+    async function fetchMetrics() {
+      const dId = deviceIdRef.current
+      const aKey = apiKeyRef.current
+      if (!dId || !aKey) return
+      try {
+        setMetrics(await fetchDeviceMetrics(dId, aKey))
+      } catch {
+        // silently degrade
+      }
+    }
     if (!deviceIdRef.current || !apiKeyRef.current) return
     fetchStatus()
-    const interval = setInterval(fetchStatus, 30000)
-    return () => clearInterval(interval)
+    fetchMetrics()
+    const statusInterval = setInterval(fetchStatus, 30000)
+    const metricsInterval = setInterval(fetchMetrics, 15000)
+    return () => {
+      clearInterval(statusInterval)
+      clearInterval(metricsInterval)
+    }
   }, [deviceId])
 
   const connectivity = status?.connectivity_state || 'unknown'
   const lifecycle = status?.lifecycle_state || 'unknown'
   const isOnline = connectivity === 'online'
+
+  const cpu = metrics?.cpu_percent ?? 0
+  const mem = metrics?.memory_percent ?? 0
+  const disk = metrics?.disk_percent ?? 0
 
   if (lifecycle === 'unpaired' || lifecycle === 'retired') {
     return (
@@ -117,13 +158,22 @@ export default function HomeDashboard() {
         <div className="px-5 pt-5">
           <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-widest">Agent Resource Usage</p>
           <div className="flex justify-around">
-            <GaugeRing label="CPU" value={42} color="#10b981" />
-            <GaugeRing label="Memory" value={61} color="#f59e0b" />
-            <GaugeRing label="Disk" value={28} color="#3b82f6" />
+            <GaugeRing label="CPU" value={cpu} color="#10b981" />
+            <GaugeRing label="Memory" value={mem} color="#f59e0b" />
+            <GaugeRing label="Disk" value={disk} color="#3b82f6" />
           </div>
-          <p className="text-center text-slate-600 text-xs mt-2">
-            Live data available after IPC connection (Phase 3)
-          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="bg-slate-700 rounded-lg px-3 py-2 flex items-center justify-between">
+              <span className="text-slate-400 text-xs">Network</span>
+              <span className="text-slate-200 text-xs font-mono">
+                {metrics?.network_latency_ms != null ? `${metrics.network_latency_ms.toFixed(1)}ms` : '—'}
+              </span>
+            </div>
+            <div className="bg-slate-700 rounded-lg px-3 py-2 flex items-center justify-between">
+              <span className="text-slate-400 text-xs">Uptime</span>
+              <span className="text-slate-200 text-xs font-mono">{formatUptime(metrics?.uptime_seconds ?? null)}</span>
+            </div>
+          </div>
         </div>
 
         {/* Heartbeat */}
@@ -134,7 +184,7 @@ export default function HomeDashboard() {
               <span className="text-slate-400 text-xs font-medium">Heartbeat</span>
             </div>
             <span className="text-slate-200 text-xs font-mono">
-              {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {formatHeartbeat(status?.last_heartbeat_at ?? null)}
             </span>
           </div>
         </div>

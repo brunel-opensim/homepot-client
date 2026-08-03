@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Iterable, Optional, cast
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from homepot.app.models.AnalyticsModel import DeviceMetrics
@@ -32,6 +32,16 @@ class AgentRepository:
     def get_site_by_site_id(self, site_id: str) -> Optional[Site]:
         """Return a site by business site_id, or None if not found."""
         result = self.db.execute(select(Site).where(Site.site_id == site_id))
+        return result.scalars().first()
+
+    def get_latest_metrics(self, device_pk: int) -> Optional[DeviceMetrics]:
+        """Return the most recent telemetry entry for a device, or None."""
+        result = self.db.execute(
+            select(DeviceMetrics)
+            .where(DeviceMetrics.device_id == device_pk)
+            .order_by(desc(DeviceMetrics.timestamp))
+            .limit(1)
+        )
         return result.scalars().first()
 
     def create_device(

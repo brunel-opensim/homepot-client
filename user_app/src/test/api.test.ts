@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   fetchDevice,
   fetchDeviceStatus,
+  fetchDeviceMetrics,
   fetchPermissions,
   updatePermissions,
   bootstrapProvision,
@@ -72,6 +73,28 @@ describe('fetchDeviceStatus', () => {
   it('throws on error', async () => {
     mockFetch.mockResolvedValueOnce(notFound('Device not found'))
     await expect(fetchDeviceStatus(DEVICE_ID, API_KEY)).rejects.toThrow('Device not found')
+  })
+})
+
+describe('fetchDeviceMetrics', () => {
+  it('returns metrics from nested data field', async () => {
+    const metrics = { cpu_percent: 42, memory_percent: 61, disk_percent: 28, network_latency_ms: 12.5, uptime_seconds: 3725, timestamp: '2026-08-03T12:00:00.000Z' }
+    mockFetch.mockResolvedValueOnce(ok({ data: metrics }))
+    const result = await fetchDeviceMetrics(DEVICE_ID, API_KEY)
+    expect(result.cpu_percent).toBe(42)
+    expect(result.memory_percent).toBe(61)
+    expect(result.disk_percent).toBe(28)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/agent/${DEVICE_ID}/metrics`),
+      expect.objectContaining({
+        headers: { 'X-Device-ID': DEVICE_ID, 'X-API-Key': API_KEY },
+      }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(fetchDeviceMetrics(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
   })
 })
 
