@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
+import { bootstrapProvision } from '../services/api'
 
 const EMULATOR_TYPES: { value: string; label: string; os: string; description: string }[] = [
   { value: 'linux_pos', label: 'Linux POS', os: 'Linux 6.8.0 (Debian 12)', description: 'Simulates a Linux-based POS terminal' },
@@ -196,19 +197,7 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
         device_type: deviceType,
         os_details: deviceOs,
       }
-      const response = await fetch(`${apiBaseUrl}/devices/bootstrap-provision`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reqBody),
-      })
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err.detail || 'Provisioning failed. Check the bootstrap key and backend connection.')
-      }
-
-      const data = await response.json()
-      const d = data.data
+      const d = await bootstrapProvision(reqBody)
       if (!d?.device_id || !d?.api_key) throw new Error('Provisioning response did not include device credentials.')
 
       await credentialStorage.save({ deviceId: d.device_id, apiKey: d.api_key, siteId, deviceName: deviceName || 'My Device', deviceType, deviceOs, enrollmentMethod: 'self-enrolled' })
@@ -337,13 +326,13 @@ function EmulatorConfigStep() {
 
 function ModeStep() {
   const navigate = useNavigate()
-  const { useEmulator, setUseEmulator, setEmulatorType } = useApp()
+  const { useEmulator, setUseEmulator, emulatorType, setEmulatorType } = useApp()
   const [mode, setMode] = useState<'real' | 'emulator'>(useEmulator ? 'emulator' : 'real')
 
   const handleNext = () => {
     if (mode === 'emulator') {
       setUseEmulator(true)
-      if (!EMULATOR_TYPES.find(t => t.value === useEmulator)) {
+      if (!EMULATOR_TYPES.find(t => t.value === emulatorType)) {
         setEmulatorType(EMULATOR_TYPES[0].value)
       }
       navigate('/emulator')

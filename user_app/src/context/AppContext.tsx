@@ -1,5 +1,6 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
+import { credentialStorage } from '../services/credentialStorage'
 
 interface DeviceInfo {
   deviceId: string
@@ -21,6 +22,7 @@ interface AppContextType {
   setDeviceInfo: (info: DeviceInfo) => void
   isProvisioned: boolean
   setIsProvisioned: (val: boolean) => void
+  provisionedChecked: boolean
   setupState: SetupState
   setSetupState: (state: SetupState) => void
   useEmulator: boolean
@@ -34,9 +36,9 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const provisioned = !!localStorage.getItem('homepot_token')
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null)
-  const [isProvisioned, setIsProvisioned] = useState(provisioned)
+  const [isProvisioned, setIsProvisioned] = useState(false)
+  const [provisionedChecked, setProvisionedChecked] = useState(false)
   const [setupState, setSetupState] = useState<SetupState>({
     siteId: '',
     deviceName: '',
@@ -48,10 +50,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [emulatorType, setEmulatorType] = useState('linux_pos')
   const [isEmulatorRunning, setIsEmulatorRunning] = useState(false)
 
+  useEffect(() => {
+    let mounted = true
+    credentialStorage
+      .isProvisioned()
+      .then((provisioned) => {
+        if (mounted) {
+          setIsProvisioned(provisioned)
+          setProvisionedChecked(true)
+        }
+      })
+      .catch(() => {
+        if (mounted) setProvisionedChecked(true)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   return (
     <AppContext.Provider value={{
       deviceInfo, setDeviceInfo,
       isProvisioned, setIsProvisioned,
+      provisionedChecked,
       setupState, setSetupState,
       useEmulator, setUseEmulator,
       emulatorType, setEmulatorType,

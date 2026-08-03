@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { apiBaseUrl } from '../config/api';
 import { credentialStorage } from '../services/credentialStorage';
+import { claimDevice } from '../services/api';
 
 export default function ClaimDevice() {
   const navigate = useNavigate();
@@ -50,26 +50,13 @@ export default function ClaimDevice() {
       const deviceOs = form.deviceOs || navigator.platform || 'Unknown';
       const deviceName = form.deviceName || `Device-${Math.random().toString(36).slice(2, 8)}`;
 
-      const response = await fetch(
-        `${apiBaseUrl}/enrolment-intents/${form.intentId}/claim`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            claim_token: form.claimToken,
-            device_name: deviceName,
-            device_type: form.deviceType,
-            os_details: deviceOs,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || `Claim failed (${response.status})`);
-      }
-
-      const result = await response.json();
+      const result = await claimDevice({
+        intent_id: form.intentId,
+        claim_token: form.claimToken,
+        device_name: deviceName,
+        device_type: form.deviceType,
+        os_details: deviceOs,
+      });
 
       await credentialStorage.save({
         deviceId: result.device_id,

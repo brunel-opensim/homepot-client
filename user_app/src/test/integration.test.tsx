@@ -23,8 +23,8 @@ describe('App routing', () => {
   })
 
   it('redirects provisioned user from / to dashboard', async () => {
-    localStorage.setItem('homepot_token', 'mock-token')
     localStorage.setItem('homepot_device_id', 'pos-001')
+    sessionStorage.setItem('homepot_api_key', 'test-key')
     mockFetch.mockResolvedValueOnce(
       ok({
         data: {
@@ -40,7 +40,6 @@ describe('App routing', () => {
   })
 
   it('shows device info view at /settings', async () => {
-    localStorage.setItem('homepot_token', 'mock-token')
     localStorage.setItem('homepot_device_id', 'pos-001')
     sessionStorage.setItem('homepot_api_key', 'test-key')
     mockFetch.mockResolvedValueOnce(
