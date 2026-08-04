@@ -5,6 +5,7 @@ import {
   fetchDeviceMetrics,
   fetchPermissions,
   updatePermissions,
+  verifyDeviceCredentials,
   bootstrapProvision,
   claimDevice,
   unpairDevice,
@@ -302,5 +303,40 @@ describe('unpairDevice', () => {
   it('throws on 500', async () => {
     mockFetch.mockResolvedValueOnce(serverError('Server error'))
     await expect(unpairDevice(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
+  })
+})
+
+describe('verifyDeviceCredentials', () => {
+  it('returns true when credentials are accepted', async () => {
+    mockFetch.mockResolvedValueOnce(
+      ok({ data: { permissions: { root_access: true }, capabilities: { root_access: true } } }),
+    )
+    await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(true)
+  })
+
+  it('returns false on 401 (invalid device ID)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      Promise.resolve(new Response(JSON.stringify({ detail: 'Invalid Device ID' }), { status: 401 })),
+    )
+    await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(false)
+  })
+
+  it('returns false on 401 (invalid API key)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      Promise.resolve(new Response(JSON.stringify({ detail: 'Invalid API Key' }), { status: 401 })),
+    )
+    await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(false)
+  })
+
+  it('returns true on 403 (suspended device, creds still valid)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      Promise.resolve(new Response(JSON.stringify({ detail: "device is in lifecycle state 'suspended'" }), { status: 403 })),
+    )
+    await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(true)
+  })
+
+  it('returns true on network error (do not clear creds offline)', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('Network error'))
+    await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(true)
   })
 })
