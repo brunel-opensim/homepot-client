@@ -169,8 +169,8 @@ In **Terminal 2**, first start the HOMEPOT **User App** — the device-side UI (
 ./scripts/start-userapp.sh
 ```
 
-Open http://localhost:5174 — the setup wizard opens. Walk through it with the
-handed-off site info: enter the **Site ID**, the **Bootstrap Key**, a
+The **HOMEPOT Agent** Electron window opens with the setup wizard. Walk through
+it with the handed-off site info: enter the **Site ID**, the **Bootstrap Key**, a
 **Device Name**, and pick a device type. As you type the device name, the
 wizard checks live that the name isn't already in use in the site (using
 `POST /devices/check-name`) and blocks proceeding if it is.

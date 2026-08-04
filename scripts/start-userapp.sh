@@ -134,8 +134,8 @@ if command_exists nvm; then
     nvm use 22 2>/dev/null || true
 fi
 
-print_info "Starting User App server on http://localhost:5174..."
-nohup npm run dev > "$REPO_ROOT/logs/userapp.log" 2>&1 &
+print_info "Starting Electron User App on http://localhost:5174..."
+nohup npm run electron:dev > "$REPO_ROOT/logs/userapp.log" 2>&1 &
 USERAPP_PID=$!
 echo $USERAPP_PID > "$REPO_ROOT/logs/userapp.pid"
 
@@ -173,7 +173,7 @@ echo -e "  ${CYAN}View logs:${NC}  tail -f $REPO_ROOT/logs/userapp.log"
 echo -e "  ${CYAN}Stop app:${NC}   kill \$(cat $REPO_ROOT/logs/userapp.pid)"
 echo ""
 echo -e "${GREEN}Next Steps:${NC}"
-echo -e "  1. User App is ready."
-echo -e "  2. Please open ${BLUE}http://localhost:5174${NC} manually in your browser."
+echo -e "  1. The Electron User App is ready."
+echo -e "  2. Complete setup in the ${BLUE}HOMEPOT Agent${NC} desktop window."
 echo ""
 exit 0

@@ -1,8 +1,11 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const CREDENTIALS_DIR = path.join(os.homedir(), '.homepot')
 const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, 'credentials')
@@ -30,7 +33,7 @@ function createWindow() {
     fullscreenable: false,
     title: 'HOMEPOT Agent',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -103,6 +106,7 @@ function readCredentialsFile(): Record<string, string> {
       return JSON.parse(raw)
     }
   } catch {
+    // Invalid or unreadable credentials are treated as absent.
   }
   return {}
 }
@@ -121,6 +125,7 @@ function getOrCreateDeviceIdentity(): { deviceId: string; machineId: string } {
       return JSON.parse(raw)
     }
   } catch {
+    // Invalid or unreadable identity data is replaced below.
   }
 
   const machineId = os.hostname()
@@ -152,6 +157,7 @@ function registerIpcHandlers() {
         fs.unlinkSync(CREDENTIALS_FILE)
       }
     } catch {
+      // Clearing an already unavailable credentials file is idempotent.
     }
     return true
   })
@@ -241,7 +247,7 @@ function registerIpcHandlers() {
       throw new Error(`Emulator script not found: ${emulatorScript}`)
     }
 
-    const pythonExe = findPython()
+    const pythonExe = findPython(projectRoot)
     emulatorProcess = spawn(pythonExe, [emulatorScript, '--config', configPath], {
       cwd: projectRoot,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -306,10 +312,10 @@ function killEmulator(): void {
   }
 }
 
-function findPython(): string {
+function findPython(projectRoot: string): string {
   const candidates = [
-    path.join(process.cwd(), '.venv', 'bin', 'python3'),
-    path.join(process.cwd(), '.venv', 'Scripts', 'python.exe'),
+    path.join(projectRoot, '.venv', 'bin', 'python3'),
+    path.join(projectRoot, '.venv', 'Scripts', 'python.exe'),
     'python3',
     'python',
   ]
@@ -325,10 +331,20 @@ function findPython(): string {
 }
 
 function getProjectRoot(): string {
-  if (process.env.VITE_DEV_SERVER_URL) {
-    return process.cwd()
+  let candidate = process.env.VITE_DEV_SERVER_URL
+    ? process.cwd()
+    : path.dirname(app.getAppPath())
+
+  while (true) {
+    if (fs.existsSync(path.join(candidate, 'emulators'))) {
+      return candidate
+    }
+    const parent = path.dirname(candidate)
+    if (parent === candidate) {
+      return process.env.VITE_DEV_SERVER_URL ? process.cwd() : path.dirname(app.getAppPath())
+    }
+    candidate = parent
   }
-  return path.dirname(app.getAppPath())
 }
 
 function pollForCredentials(credsPath: string, timeoutMs: number): Promise<Record<string, string> | null> {
