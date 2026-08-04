@@ -133,6 +133,11 @@ Expected response: `200` with `{"message": "...", "site_id": "site-it-demo1", ..
 
 ## Step 2 — Technician: generate a bootstrap key
 
+> **Dev shortcut:** for emulator testing you can skip generating a key and use
+> the well-known dev key `homepot-dev-emulator-key`. It is accepted **only**
+> outside production and **only** for simulated/emulator devices
+> (`provisioning_source=emulator`), so real devices still need a real key.
+
 **Option A — via the Dashboard UI (recommended):** open the Site detail page for
 the site just created and click **Bootstrap Key**. In the dialog, click
 **Generate Bootstrap Key** — the key is shown once, with a copy button.
@@ -173,7 +178,10 @@ In **Terminal 2**, first start the HOMEPOT **User App** — the device-side UI (
 ```
 
 Open http://localhost:5174 — the setup wizard opens. Walk through it with the
-handed-off site info: enter the **Site ID**, a hostname, and pick a device type.
+handed-off site info: enter the **Site ID**, the **Bootstrap Key**, a
+**Device Name**, and pick a device type. As you type the device name, the
+wizard checks live that the name isn't already in use in the site (using
+`POST /devices/check-name`) and blocks proceeding if it is.
 
 > **Note:** in dev mode the wizard simulates completion with local dev
 > credentials and does **not** call the backend. The actual backend-facing
@@ -288,8 +296,9 @@ Back in **Terminal 1** / the Dashboard browser:
 
 | Symptom | Cause / fix |
 |---------|-------------|
+| "Device name ... already in use" (400) | A live device in the site already uses that name (case-insensitive). Pick a different name, or retire/unpair the old device first. |
 | Device never appears on the Dashboard | Bootstrap key typo, or wrong `--site-id`. The key is single-use-ish — generate a new one in Step 2. |
-| Emulator re-provisions but Dashboard shows the old device | Stale credentials file — delete `~/.homepot/emulators/<device_name>.json` and re-run. |
+| Emulator re-provisions but Dashboard shows the old device | Stale credentials file — delete `~/.homepot/emulators/<device_name>.json` and re-run **with a different `--device-name`** (the old name is still registered and the duplicate check will reject it). |
 | `health_state` shows `error` on a healthy device | The legacy simulator was enabled (`ENABLE_AGENT_SIMULATION=true`). Restart the backend with it disabled (Step 0). |
 | Two emulators clash on one machine | Use different `--device-name` values (each gets its own credentials file). |
 | Dashboard frontend can't reach the backend | Confirm the backend is up and CORS is configured; `curl http://localhost:8000/` should return `{"message":"I Am Alive"}`. |

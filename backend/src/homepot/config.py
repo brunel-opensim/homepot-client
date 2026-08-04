@@ -176,6 +176,10 @@ class Settings(BaseSettings):
         default=True,
         description="Enable simulated device agents on startup (set False for dev server with real devices)",
     )
+    dev_bootstrap_key: str = Field(
+        default="homepot-dev-emulator-key",
+        description="Well-known bootstrap key accepted for simulated/emulator devices (never in production)",
+    )
 
     # Server configuration
     host: str = Field(default="0.0.0.0", description="Server host")  # nosec B104

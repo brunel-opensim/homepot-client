@@ -64,3 +64,27 @@ class BootstrapKeyResponse(BaseModel):
 
     bootstrap_key: str
     message: str
+
+
+class DeviceNameCheckRequest(BaseModel):
+    """Request schema for checking device-name availability in a site."""
+
+    site_id: str = Field(..., min_length=1, description="Business site ID")
+    bootstrap_key: str = Field(..., min_length=1, description="Site bootstrap key")
+    device_name: str = Field(..., min_length=1, description="Candidate device name")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "site_id": "site-001",
+                "bootstrap_key": "abc123def456",
+                "device_name": "Kitchen POS A",
+            }
+        }
+    )
+
+
+class DeviceNameCheckResponse(BaseModel):
+    """Response schema for a device-name availability check."""
+
+    available: bool

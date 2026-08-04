@@ -350,10 +350,17 @@ class AgentService:
             device_id = f"{payload.device_type}-{secrets.token_hex(4)}"
             api_key = secrets.token_urlsafe(32)
 
+            requested_name = (payload.device_name or "").strip() or device_id
+            if self.repository.device_name_exists_in_site(int(site.id), requested_name):
+                raise ValueError(
+                    f"Device name '{requested_name}' is already in use in site "
+                    f"'{payload.site_id}'. Choose a different device name."
+                )
+
             is_emulator = payload.provisioning_source == "emulator"
             created = self.repository.create_device(
                 device_id=device_id,
-                name=payload.device_name or device_id,
+                name=requested_name,
                 device_type=payload.device_type,
                 site_pk=int(site.id),
                 mac_address=None,
@@ -433,6 +440,15 @@ class AgentService:
             raise ValueError(f"Invalid bootstrap provision request: {str(e)}")
         except Exception:
             raise Exception("Failed to bootstrap provision device")
+
+    def device_name_available(self, site_id: str, name: str) -> bool:
+        """Return True if the name is not used by a live device in the site."""
+        site = self.repository.get_site_by_site_id(site_id)
+        if not site or not site.id:
+            raise LookupError(f"Site '{site_id}' not found")
+        return not self.repository.device_name_exists_in_site(
+            int(site.id), name.strip()
+        )
 
     def get_device_status(self, device_id: str) -> dict:
         """Return lifecycle, connectivity, and health state for a device."""
