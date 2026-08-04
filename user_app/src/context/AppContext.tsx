@@ -43,8 +43,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [setupState, setSetupState] = useState<SetupState>({
     siteId: '',
     deviceName: '',
-    deviceType: 'pos_terminal',
-    deviceOs: 'linux',
+    deviceType: '',
+    deviceOs: 'auto',
     bootstrapKey: '',
   })
   const [useEmulator, setUseEmulator] = useState(false)

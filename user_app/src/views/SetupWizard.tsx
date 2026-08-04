@@ -14,6 +14,26 @@ function formatDeviceType(v: string) {
   return v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
+function detectOS(): string {
+  const uaData = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData
+  if (uaData?.platform) {
+    const p = uaData.platform.toLowerCase()
+    if (p.includes('android')) return 'android'
+    if (p.includes('iphone') || p.includes('ipad') || p.includes('ios')) return 'ios'
+    if (p.includes('mac')) return 'mac'
+    if (p.includes('win')) return 'windows'
+    if (p.includes('linux')) return 'linux'
+  }
+  const platform = navigator.platform.toLowerCase()
+  const ua = navigator.userAgent.toLowerCase()
+  if (ua.includes('android')) return 'android'
+  if (/iphone|ipad|ipod/.test(ua)) return 'ios'
+  if (platform.includes('mac')) return 'mac'
+  if (platform.includes('win')) return 'windows'
+  if (platform.includes('linux') || ua.includes('cros')) return 'linux'
+  return 'web'
+}
+
 function StepIndicator({ current }: { current: number }) {
   const STEPS = ['Device Setup', 'Method', 'Emulator', 'Complete']
   return (
@@ -50,9 +70,11 @@ function Step1() {
   const [deviceName, setDeviceName] = useState(setupState.deviceName)
   const [deviceType, setDeviceType] = useState(setupState.deviceType)
   const [deviceOs, setDeviceOs] = useState(setupState.deviceOs)
+  const [bootstrapKey, setBootstrapKey] = useState(setupState.bootstrapKey)
 
   const handleNext = () => {
-    setSetupState({ siteId, deviceName, deviceType, deviceOs, bootstrapKey: setupState.bootstrapKey })
+    const resolvedOs = deviceOs === 'auto' ? detectOS() : deviceOs
+    setSetupState({ siteId, deviceName, deviceType, deviceOs: resolvedOs, bootstrapKey })
     navigate('/method')
   }
 
@@ -79,13 +101,27 @@ function Step1() {
 
       <div className="flex flex-col gap-1">
         <label className="text-slate-300 text-sm font-medium">
-          Hostname <span className="text-emerald-500 font-normal">*</span>
+          Bootstrap Key <span className="text-red-400">*</span>
+        </label>
+        <input
+          type="text"
+          value={bootstrapKey}
+          onChange={e => setBootstrapKey(e.target.value)}
+          placeholder="Enter your Bootstrap Key"
+          className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+        />
+        <p className="text-slate-500 text-xs">Provided by your IT administrator.</p>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-slate-300 text-sm font-medium">
+          Device Name <span className="text-red-400">*</span>
         </label>
         <input
           type="text"
           value={deviceName}
           onChange={e => setDeviceName(e.target.value)}
-          placeholder="e.g. Kasi-Laptop"
+          placeholder="e.g. Device-001"
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         />
       </div>
@@ -99,6 +135,7 @@ function Step1() {
           onChange={e => setDeviceType(e.target.value)}
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         >
+          <option value="">-</option>
           <option value="pos_terminal">POS Terminal</option>
           <option value="virtual_terminal">Virtual Terminal</option>
           <option value="kiosk">Kiosk</option>
@@ -116,6 +153,7 @@ function Step1() {
           onChange={e => setDeviceOs(e.target.value)}
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         >
+          <option value="auto">Auto-detect</option>
           <option value="windows">Windows</option>
           <option value="linux">Linux</option>
           <option value="mac">macOS</option>
@@ -127,7 +165,7 @@ function Step1() {
 
       <button
         onClick={handleNext}
-        disabled={!siteId.trim() || !deviceName.trim()}
+        disabled={!siteId.trim() || !bootstrapKey.trim() || !deviceName.trim() || !deviceType}
         className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
         Next →
@@ -227,7 +265,7 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
           <span className="text-slate-200 font-medium">{siteId}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-400">Hostname</span>
+          <span className="text-slate-400">Device Name</span>
           <span className="text-slate-200 font-medium">{deviceName || '—'}</span>
         </div>
         <div className="flex justify-between">
