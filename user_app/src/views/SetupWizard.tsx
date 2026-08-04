@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
-import { bootstrapProvision } from '../services/api'
+import { bootstrapProvision, checkDeviceName } from '../services/api'
 
 const EMULATOR_TYPES: { value: string; label: string; os: string; description: string }[] = [
   { value: 'linux_pos', label: 'Linux POS', os: 'Linux 6.8.0 (Debian 12)', description: 'Simulates a Linux-based POS terminal' },
@@ -71,6 +71,31 @@ function Step1() {
   const [deviceType, setDeviceType] = useState(setupState.deviceType)
   const [deviceOs, setDeviceOs] = useState(setupState.deviceOs)
   const [bootstrapKey, setBootstrapKey] = useState(setupState.bootstrapKey)
+  const [nameStatus, setNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
+
+  useEffect(() => {
+    if (!siteId.trim() || !bootstrapKey.trim() || !deviceName.trim()) {
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setNameStatus('checking')
+      try {
+        const res = await checkDeviceName({
+          site_id: siteId.trim(),
+          bootstrap_key: bootstrapKey.trim(),
+          device_name: deviceName.trim(),
+        })
+        if (!cancelled) setNameStatus(res.available ? 'available' : 'taken')
+      } catch {
+        if (!cancelled) setNameStatus('idle')
+      }
+    }, 500)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [siteId, bootstrapKey, deviceName])
 
   const handleNext = () => {
     const resolvedOs = deviceOs === 'auto' ? detectOS() : deviceOs
@@ -92,7 +117,10 @@ function Step1() {
         <input
           type="text"
           value={siteId}
-          onChange={e => setSiteId(e.target.value)}
+          onChange={e => {
+            setSiteId(e.target.value)
+            if (!e.target.value.trim()) setNameStatus('idle')
+          }}
           placeholder="Enter your Site ID"
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         />
@@ -106,11 +134,16 @@ function Step1() {
         <input
           type="text"
           value={bootstrapKey}
-          onChange={e => setBootstrapKey(e.target.value)}
+          onChange={e => {
+            setBootstrapKey(e.target.value)
+            if (!e.target.value.trim()) setNameStatus('idle')
+          }}
           placeholder="Enter your Bootstrap Key"
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         />
-        <p className="text-slate-500 text-xs">Provided by your IT administrator.</p>
+        <p className="text-slate-500 text-xs">
+          Provided by your IT administrator. For emulator testing use the dev key: <span className="text-slate-400">homepot-dev-emulator-key</span>.
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -120,10 +153,22 @@ function Step1() {
         <input
           type="text"
           value={deviceName}
-          onChange={e => setDeviceName(e.target.value)}
+          onChange={e => {
+            setDeviceName(e.target.value)
+            if (!e.target.value.trim()) setNameStatus('idle')
+          }}
           placeholder="e.g. Device-001"
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         />
+        {nameStatus === 'checking' && (
+          <p className="text-slate-500 text-xs">Checking name availability…</p>
+        )}
+        {nameStatus === 'available' && (
+          <p className="text-emerald-500 text-xs">✓ Name available</p>
+        )}
+        {nameStatus === 'taken' && (
+          <p className="text-red-400 text-xs">✗ Name already in use in this site — pick a different name.</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -165,7 +210,7 @@ function Step1() {
 
       <button
         onClick={handleNext}
-        disabled={!siteId.trim() || !bootstrapKey.trim() || !deviceName.trim() || !deviceType}
+        disabled={!siteId.trim() || !bootstrapKey.trim() || !deviceName.trim() || !deviceType || nameStatus === 'taken'}
         className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
         Next →

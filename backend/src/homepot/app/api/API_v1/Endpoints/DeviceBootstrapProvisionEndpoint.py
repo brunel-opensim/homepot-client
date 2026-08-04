@@ -14,6 +14,8 @@ from homepot.app.auth_utils import verify_bootstrap_key
 from homepot.app.schemas.bootstrap import (
     BootstrapProvisionRequest,
     BootstrapProvisionResponse,
+    DeviceNameCheckRequest,
+    DeviceNameCheckResponse,
 )
 from homepot.app.services.agent_service import AgentService
 from homepot.database import get_db
@@ -44,13 +46,16 @@ def bootstrap_provision_device(
         if not site:
             raise HTTPException(status_code=404, detail="Site not found")
 
-        if not site.bootstrap_key_hash:
-            raise HTTPException(
-                status_code=401,
-                detail="Site does not have a bootstrap key configured",
-            )
-
-        if not verify_bootstrap_key(payload.bootstrap_key, site):
+        if not verify_bootstrap_key(
+            payload.bootstrap_key,
+            site,
+            allow_dev_key=payload.provisioning_source == "emulator",
+        ):
+            if not site.bootstrap_key_hash:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Site does not have a bootstrap key configured",
+                )
             raise HTTPException(status_code=401, detail="Invalid bootstrap key")
 
         service = AgentService(db)
@@ -69,3 +74,34 @@ def bootstrap_provision_device(
     except Exception as e:
         logger.error("Unexpected bootstrap provision error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/check-name",
+    tags=["Devices"],
+    response_model=Dict[str, Any],
+)
+def check_device_name(
+    payload: DeviceNameCheckRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Check whether a device name is available in a site.
+
+    Authenticated by the site bootstrap key, mirroring the provisioning
+    endpoint so the User App can surface inline feedback before a device is
+    actually enrolled.
+    """
+    site = db.query(Site).filter(Site.site_id == payload.site_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+
+    if not verify_bootstrap_key(payload.bootstrap_key, site, allow_dev_key=True):
+        raise HTTPException(status_code=401, detail="Invalid bootstrap key")
+
+    service = AgentService(db)
+    available = service.device_name_available(payload.site_id, payload.device_name)
+    response_data = DeviceNameCheckResponse(available=available)
+    return {
+        "status": "success",
+        "data": response_data.model_dump(),
+    }

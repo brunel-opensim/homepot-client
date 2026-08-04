@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Iterable, Optional, cast
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from homepot.app.models.AnalyticsModel import DeviceMetrics
@@ -33,6 +33,27 @@ class AgentRepository:
         """Return a site by business site_id, or None if not found."""
         result = self.db.execute(select(Site).where(Site.site_id == site_id))
         return result.scalars().first()
+
+    def device_name_exists_in_site(self, site_pk: int, name: str) -> bool:
+        """Return True if a live device in the site already uses this name.
+
+        Matching is case-insensitive and whitespace-trimmed. Retired and
+        unpaired devices are excluded so names can be reused after a device
+        is decommissioned.
+        """
+        active_states = [
+            LifecycleState.PENDING.value,
+            LifecycleState.ACTIVE.value,
+            LifecycleState.SUSPENDED.value,
+        ]
+        result = self.db.execute(
+            select(Device).where(
+                Device.site_id == site_pk,
+                func.lower(Device.name) == name.strip().lower(),
+                Device.lifecycle_state.in_(active_states),
+            )
+        )
+        return result.scalars().first() is not None
 
     def get_latest_metrics(self, device_pk: int) -> Optional[DeviceMetrics]:
         """Return the most recent telemetry entry for a device, or None."""

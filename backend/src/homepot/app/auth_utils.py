@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 from pathlib import Path
+import secrets
 from typing import Any, Dict, Optional, cast
 
 from dotenv import load_dotenv
@@ -302,13 +303,36 @@ async def get_current_device(
     return device
 
 
-def verify_bootstrap_key(
-    bootstrap_key: str, site: "Site", pwd_context: CryptContext = pwd_context
-) -> bool:
-    """Verify a plaintext bootstrap key against the site's stored hash."""
-    if not site.bootstrap_key_hash:
+def is_dev_bootstrap_key(bootstrap_key: str) -> bool:
+    """Return True if the key is the well-known dev key.
+
+    The dev key is only honoured outside the production environment, so it
+    can never be used to enrol a device against a real deployment.
+    """
+    from homepot.config import get_settings
+
+    settings = get_settings()
+    if settings.environment == "production" or not settings.dev_bootstrap_key:
         return False
-    return cast(bool, pwd_context.verify(bootstrap_key, site.bootstrap_key_hash))  # type: ignore[arg-type]
+    return secrets.compare_digest(bootstrap_key, settings.dev_bootstrap_key)
+
+
+def verify_bootstrap_key(
+    bootstrap_key: str,
+    site: "Site",
+    pwd_context: CryptContext = pwd_context,
+    allow_dev_key: bool = False,
+) -> bool:
+    """Verify a plaintext bootstrap key against the site's stored hash.
+
+    When ``allow_dev_key`` is set, the well-known dev key is also accepted
+    (outside production) for simulated/emulator enrolment.
+    """
+    if site.bootstrap_key_hash and pwd_context.verify(
+        bootstrap_key, site.bootstrap_key_hash  # type: ignore[arg-type]
+    ):
+        return True
+    return bool(allow_dev_key and is_dev_bootstrap_key(bootstrap_key))
 
 
 def exchange_google_code(code: str) -> dict:

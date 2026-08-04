@@ -345,3 +345,192 @@ class TestDevServerSmoke:
         assert resp.status_code == 200, resp.text
         device = resp.json()
         assert device["is_simulated"] is False
+
+
+# ===================================================================
+# Bootstrap provisioning — duplicate names + dev emulator key
+# ===================================================================
+
+
+def _generate_bootstrap_key(client: TestClient, site_id: str = "smoke-site-001") -> str:
+    headers = _auth_header("admin@smoke.test")
+    resp = client.post(f"/api/v1/sites/{site_id}/bootstrap-key", headers=headers)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["data"]["bootstrap_key"]
+
+
+class TestBootstrapProvisionDuplicateNames:
+    """Duplicate device names within a site must be detected."""
+
+    def test_check_name_rejects_invalid_key(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """check-name requires a valid bootstrap key."""
+        _generate_bootstrap_key(client)
+        resp = client.post(
+            "/api/v1/devices/check-name",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": "not-the-key",
+                "device_name": "Device-001",
+            },
+        )
+        assert resp.status_code == 401, resp.text
+
+    def test_check_name_and_duplicate_provision_rejection(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """A name used by a live device is reported and provisioning is blocked."""
+        key = _generate_bootstrap_key(client)
+
+        resp = client.post(
+            "/api/v1/devices/check-name",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": key,
+                "device_name": "Device-001",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["available"] is True
+
+        resp = client.post(
+            "/api/v1/devices/bootstrap-provision",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": key,
+                "device_name": "Device-001",
+                "device_type": "pos_terminal",
+                "os_details": "Linux",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+
+        # Case-insensitive match
+        resp = client.post(
+            "/api/v1/devices/check-name",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": key,
+                "device_name": "device-001",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["available"] is False
+
+        resp = client.post(
+            "/api/v1/devices/bootstrap-provision",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": key,
+                "device_name": "Device-001",
+                "device_type": "pos_terminal",
+                "os_details": "Linux",
+            },
+        )
+        assert resp.status_code == 400, resp.text
+        assert "already in use" in resp.json()["detail"]
+
+    def test_same_name_allowed_in_another_site(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """Duplicate names are only rejected within the same site."""
+        headers = _auth_header("admin@smoke.test")
+        resp = client.post(
+            "/api/v1/sites/",
+            json={"site_id": "smoke-site-002", "name": "Smoke Site 2"},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+
+        key1 = _generate_bootstrap_key(client, "smoke-site-001")
+        key2 = _generate_bootstrap_key(client, "smoke-site-002")
+
+        for site_id, key in (
+            ("smoke-site-001", key1),
+            ("smoke-site-002", key2),
+        ):
+            resp = client.post(
+                "/api/v1/devices/bootstrap-provision",
+                json={
+                    "site_id": site_id,
+                    "bootstrap_key": key,
+                    "device_name": "Device-001",
+                    "device_type": "pos_terminal",
+                    "os_details": "Linux",
+                },
+            )
+            assert resp.status_code == 200, resp.text
+
+
+class TestDevEmulatorBootstrapKey:
+    """The well-known dev key works for emulator provisioning outside production."""
+
+    def test_emulator_dev_key_provisions_in_development(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """Emulator provisioning accepts the dev key (even without a site hash)."""
+        resp = client.post(
+            "/api/v1/devices/bootstrap-provision",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": "homepot-dev-emulator-key",
+                "device_name": "Dev-Emu-1",
+                "device_type": "pos_terminal",
+                "os_details": "Android 14",
+                "provisioning_source": "emulator",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["device_id"]
+
+    def test_dev_key_rejected_for_physical_device(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """The dev key cannot enrol a real (non-emulator) device."""
+        resp = client.post(
+            "/api/v1/devices/bootstrap-provision",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": "homepot-dev-emulator-key",
+                "device_name": "Dev-Emu-2",
+                "device_type": "pos_terminal",
+                "os_details": "Linux",
+            },
+        )
+        assert resp.status_code == 401, resp.text
+
+    def test_dev_key_rejected_in_production(
+        self, client: TestClient, seeded_db: Any, monkeypatch: Any
+    ) -> None:
+        """The dev key is never honoured in the production environment."""
+        from homepot.config import get_settings
+
+        monkeypatch.setattr(get_settings(), "environment", "production")
+        resp = client.post(
+            "/api/v1/devices/bootstrap-provision",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": "homepot-dev-emulator-key",
+                "device_name": "Dev-Emu-3",
+                "device_type": "pos_terminal",
+                "os_details": "Android 14",
+                "provisioning_source": "emulator",
+            },
+        )
+        assert resp.status_code == 401, resp.text
+
+    def test_check_name_accepts_dev_key(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """The inline availability check accepts the dev key."""
+        resp = client.post(
+            "/api/v1/devices/check-name",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": "homepot-dev-emulator-key",
+                "device_name": "Dev-Emu-4",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["available"] is True

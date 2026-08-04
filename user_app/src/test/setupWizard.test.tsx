@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AppProvider } from '../context/AppContext'
@@ -6,6 +6,17 @@ import SetupWizard from '../views/SetupWizard'
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
+
+function setupFetchMock(available = true) {
+  mockFetch.mockImplementation((url: string) => {
+    if (String(url).includes('/check-name')) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ data: { available } }), { status: 200 }),
+      )
+    }
+    return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }))
+  })
+}
 
 function renderSetup() {
   return render(
@@ -26,6 +37,11 @@ function fillRequiredFields() {
 
 afterEach(() => {
   delete (navigator as { userAgentData?: unknown }).userAgentData
+})
+
+beforeEach(() => {
+  mockFetch.mockReset()
+  setupFetchMock(true)
 })
 
 describe('SetupWizard Step 1', () => {
@@ -61,6 +77,32 @@ describe('SetupWizard Step 1', () => {
     expect(next).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText('Enter your Bootstrap Key'), { target: { value: 'bk-abc123' } })
     expect(next).toBeEnabled()
+  })
+
+  it('shows the dev key hint for emulator testing', () => {
+    renderSetup()
+    expect(screen.getByText(/homepot-dev-emulator-key/)).toBeInTheDocument()
+  })
+
+  it('shows name availability feedback', async () => {
+    renderSetup()
+    fireEvent.change(screen.getByPlaceholderText('Enter your Site ID'), { target: { value: 'site-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter your Bootstrap Key'), { target: { value: 'bk-abc123' } })
+    fireEvent.change(screen.getByPlaceholderText('e.g. Device-001'), { target: { value: 'Device-001' } })
+    expect(await screen.findByText('✓ Name available')).toBeInTheDocument()
+  })
+
+  it('blocks Next when the device name is already in use', async () => {
+    setupFetchMock(false)
+    renderSetup()
+    const next = screen.getByRole('button', { name: /next/i })
+    fireEvent.change(screen.getByPlaceholderText('Enter your Site ID'), { target: { value: 'site-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Enter your Bootstrap Key'), { target: { value: 'bk-abc123' } })
+    fireEvent.change(screen.getByPlaceholderText('e.g. Device-001'), { target: { value: 'Device-001' } })
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'kiosk' } })
+    expect(next).toBeEnabled()
+    expect(await screen.findByText(/already in use/)).toBeInTheDocument()
+    expect(next).toBeDisabled()
   })
 
   it('resolves the auto-detected OS before proceeding', async () => {
