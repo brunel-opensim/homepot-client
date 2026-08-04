@@ -28,14 +28,14 @@ The Dashboard immediately shows the emulated device with its mock DNA, online st
 | Emulator | File | OS | Device type |
 |----------|------|----|-------------|
 | Linux POS | `emulators/linux_pos_emulator.py` | Linux | `pos_terminal` |
-| Android POS | — | Android | `pos_terminal` |
+| Android POS | `emulators/android_pos_emulator.py` | Android | `pos_terminal` |
 | Windows POS | — | Windows | `pos_terminal` |
 | macOS POS | — | macOS | `pos_terminal` |
 | iOS | — | iOS | `tablet` |
 | Web Browser | — | Web | `virtual_terminal` |
 | MQTT Sensor | — | Linux | `mobile_scanner` |
 
-Only **Linux POS** is implemented. Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
+**Linux POS** and **Android POS** are implemented. Android reuses the parameterized engine from `linux_pos_emulator.py` with Android identity defaults (`Android 14`, mock MAC `02:42:ac:11:00:03`, hostname `android-pos-001`); its OS capability map is derived from the OS string (no root access, but process/filesystem/network monitoring). Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
 
 ## How an emulator works
 
@@ -213,7 +213,23 @@ Example:
 
 ## Creating a new emulator
 
-Each emulator is a standalone runnable script. The simplest approach is to copy `linux_pos_emulator.py` and adjust:
+Each emulator is a standalone runnable script. The quickest way to add a new OS is to create a thin script that imports the parameterized engine from `linux_pos_emulator.py` and overrides the identity defaults, exactly like `android_pos_emulator.py`:
+
+```python
+from linux_pos_emulator import LinuxPOSEmulator, main
+
+WINDOWS_DEFAULTS = {
+    "device_name": "windows-pos-emulator-1",
+    "os_details": "Windows 11",
+    "mock_mac": "02:42:ac:11:00:04",
+    "mock_hostname": "windows-pos-001",
+}
+
+if __name__ == "__main__":
+    main(defaults=WINDOWS_DEFAULTS, banner="HOMEPOT Windows POS Emulator")
+```
+
+For OS-specific behaviour beyond identity, copy `linux_pos_emulator.py` and adjust:
 
 1. **Config defaults** — Change the OS details, device type, mock MAC/IP/hostname defaults.
 2. **Simulated metrics** — Override `SimulatedMetrics` for OS-specific metrics (e.g. Android battery level, iOS thermal state).
@@ -228,7 +244,7 @@ emulators/
 ├── __init__.py
 ├── linux_pos_emulator.py       # Linux POS (implemented)
 ├── linux_pos_emulator.json      # Linux POS config example
-├── android_pos_emulator.py      # Android POS (future)
+├── android_pos_emulator.py      # Android POS (implemented; reuses linux engine)
 ├── android_pos_emulator.json    # Android POS config example
 ├── windows_pos_emulator.py      # Windows POS (future)
 └── ...

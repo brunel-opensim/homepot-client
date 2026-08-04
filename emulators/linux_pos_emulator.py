@@ -273,8 +273,13 @@ def save_credentials(device_name: str, data: dict) -> None:
 class LinuxPOSEmulator:
     """Runs a simulated Linux POS device lifecycle against the backend."""
 
-    def __init__(self, config: EmulatorConfig) -> None:
+    def __init__(
+        self,
+        config: EmulatorConfig,
+        banner: str = "HOMEPOT Linux POS Emulator",
+    ) -> None:
         self.config = config
+        self._banner = banner
         self._device_id: str | None = None
         self._api_key: str | None = None
         self._shutdown_event = asyncio.Event()
@@ -1205,7 +1210,7 @@ class LinuxPOSEmulator:
 
     async def start(self) -> None:
         print(f"\n{'=' * 60}")
-        print("  HOMEPOT Linux POS Emulator")
+        print(f"  {self._banner}")
         print(f"  Device:  {self.config.device_name}")
         print(f"  Backend: {self.config.backend_url}")
         print(
@@ -1261,8 +1266,11 @@ class LinuxPOSEmulator:
 # ---------------------------------------------------------------------------
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(
+    argv: list[str] | None = None, defaults: dict | None = None
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="HOMEPOT Linux POS Device Emulator")
+    d = defaults or {}
     parser.add_argument("--config", "-c", type=str, help="Path to JSON config file")
     parser.add_argument(
         "--backend-url", type=str, default=DEFAULT_BACKEND_URL, help="Backend URL"
@@ -1274,19 +1282,34 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--bootstrap-key", type=str, default="", help="Bootstrap key for provisioning"
     )
     parser.add_argument(
-        "--device-name", type=str, default="linux-pos-emulator-1", help="Device name"
+        "--device-name",
+        type=str,
+        default=d.get("device_name", "linux-pos-emulator-1"),
+        help="Device name",
     )
     parser.add_argument(
-        "--mock-mac", type=str, default="02:42:ac:11:00:02", help="Mock MAC address"
+        "--mock-mac",
+        type=str,
+        default=d.get("mock_mac", "02:42:ac:11:00:02"),
+        help="Mock MAC address",
     )
     parser.add_argument(
-        "--mock-ip", type=str, default="192.168.1.100", help="Mock local IP"
+        "--mock-ip",
+        type=str,
+        default=d.get("mock_ip", "192.168.1.100"),
+        help="Mock local IP",
     )
     parser.add_argument(
-        "--mock-hostname", type=str, default="linux-pos-001", help="Mock hostname"
+        "--mock-hostname",
+        type=str,
+        default=d.get("mock_hostname", "linux-pos-001"),
+        help="Mock hostname",
     )
     parser.add_argument(
-        "--mock-firmware", type=str, default="2.4.1", help="Mock firmware version"
+        "--mock-firmware",
+        type=str,
+        default=d.get("mock_firmware", "2.4.1"),
+        help="Mock firmware version",
     )
     parser.add_argument(
         "--heartbeat-interval",
@@ -1356,7 +1379,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def build_config(args: argparse.Namespace) -> EmulatorConfig:
+def build_config(
+    args: argparse.Namespace, defaults: dict | None = None
+) -> EmulatorConfig:
+    d = defaults or {}
     if args.config:
         path = Path(args.config)
         if not path.exists():
@@ -1364,7 +1390,7 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
             sys.exit(1)
         with open(path) as f:
             cfg = json.load(f)
-        config = EmulatorConfig.from_dict(cfg)
+        config = EmulatorConfig.from_dict({**d, **cfg})
         config.backend_url = args.backend_url
         if args.site_id:
             config.site_id = args.site_id
@@ -1398,9 +1424,14 @@ def build_config(args: argparse.Namespace) -> EmulatorConfig:
     )
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = parse_args(argv)
-    config = build_config(args)
+def main(
+    argv: list[str] | None = None,
+    defaults: dict | None = None,
+    emulator_class: type[LinuxPOSEmulator] = LinuxPOSEmulator,
+    banner: str = "HOMEPOT Linux POS Emulator",
+) -> None:
+    args = parse_args(argv, defaults)
+    config = build_config(args, defaults)
 
     if not config.site_id or not config.bootstrap_key:
         print("Error: --site-id and --bootstrap-key are required", file=sys.stderr)
@@ -1409,7 +1440,7 @@ def main(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
-    emulator = LinuxPOSEmulator(config)
+    emulator = emulator_class(config, banner=banner)
 
     def _signal_handler() -> None:
         print("\n  Shutting down ...")
