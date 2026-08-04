@@ -24,8 +24,12 @@ function setupFetchMock(available = true) {
 }
 
 function renderSetup() {
+  return renderSetupAt('/setup')
+}
+
+function renderSetupAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={['/setup']}>
+    <MemoryRouter initialEntries={[path]}>
       <AppProvider>
         <SetupWizard />
       </AppProvider>
@@ -38,6 +42,24 @@ function fillRequiredFields() {
   fireEvent.change(screen.getByPlaceholderText('Enter your Bootstrap Key'), { target: { value: 'bk-abc123' } })
   fireEvent.change(screen.getByPlaceholderText('e.g. Device-001'), { target: { value: 'Device-001' } })
   fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'kiosk' } })
+}
+
+async function proceedToMethod() {
+  fillRequiredFields()
+  expect(await screen.findByText('✓ Site credentials verified')).toBeInTheDocument()
+  expect(await screen.findByText('✓ Name available')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /next/i }))
+  expect(await screen.findByText('Setup Method')).toBeInTheDocument()
+}
+
+async function proceedToEmulatorReview(profile?: RegExp) {
+  await proceedToMethod()
+  fireEvent.click(screen.getByRole('button', { name: /launch emulated device/i }))
+  fireEvent.click(screen.getByRole('button', { name: /next/i }))
+  expect(await screen.findByText('Configure Emulator')).toBeInTheDocument()
+  if (profile) fireEvent.click(screen.getByRole('button', { name: profile }))
+  fireEvent.click(screen.getByRole('button', { name: /next/i }))
+  expect(await screen.findByText('Review Settings')).toBeInTheDocument()
 }
 
 afterEach(() => {
@@ -189,5 +211,102 @@ describe('SetupWizard Step 1', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     const [, deviceOs] = screen.getAllByRole('combobox') as HTMLSelectElement[]
     expect(deviceOs.value).toBe('linux')
+  })
+})
+
+describe('SetupWizard Method', () => {
+  it('returns direct visits without completed setup data to Step 1', async () => {
+    renderSetupAt('/method')
+    expect(await screen.findByPlaceholderText('Enter your Site ID')).toBeInTheDocument()
+  })
+
+  it('uses verified setup details for a real device without asking for the key again', async () => {
+    renderSetup()
+    await proceedToMethod()
+    const realDevice = screen.getByRole('button', { name: /set up a real device/i })
+    expect(realDevice).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('Step 2 of 4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled()
+    fireEvent.click(realDevice)
+    expect(realDevice).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Step 2 of 3')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    expect(await screen.findByText('Review Settings')).toBeInTheDocument()
+    expect(screen.queryByText('Enter bootstrap key')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(await screen.findByText('Setup Method')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /set up a real device/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('routes emulator selection to emulator configuration', async () => {
+    renderSetup()
+    await proceedToMethod()
+    const emulator = screen.getByRole('button', { name: /launch emulated device/i })
+    fireEvent.click(emulator)
+    expect(emulator).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Step 2 of 4')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    expect(await screen.findByText('Configure Emulator')).toBeInTheDocument()
+  })
+})
+
+describe('SetupWizard Emulator Review', () => {
+  it('returns direct visits without completed setup data to Step 1', async () => {
+    renderSetupAt('/setup/review')
+    expect(await screen.findByPlaceholderText('Enter your Site ID')).toBeInTheDocument()
+  })
+
+  it('shows the selected emulator identity and blocks launch in browser mode', async () => {
+    renderSetup()
+    await proceedToEmulatorReview()
+    expect(screen.getByRole('link', { name: /Device Setup/ })).toHaveAttribute('href', '/setup')
+    expect(screen.getByRole('link', { name: /Method/ })).toHaveAttribute('href', '/method')
+    expect(screen.getByRole('link', { name: /Emulator/ })).toHaveAttribute('href', '/emulator')
+    expect(screen.getByRole('link', { name: /Complete/ })).toHaveAttribute('href', '/setup/review')
+    expect(screen.getByText('Emulator Profile')).toBeInTheDocument()
+    expect(screen.getByText('Linux POS')).toBeInTheDocument()
+    expect(screen.getByText(/Pos Terminal/i)).toBeInTheDocument()
+    expect(screen.getByText('Linux 6.8.0 (Debian 12)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Launch Emulator' })).toBeDisabled()
+    expect(screen.getByText(/requires the Electron desktop app/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(await screen.findByText('Configure Emulator')).toBeInTheDocument()
+  })
+
+  it('navigates to reached setup pages from the progress links', async () => {
+    renderSetup()
+    await proceedToEmulatorReview()
+    fireEvent.click(screen.getByRole('link', { name: /Method/ }))
+    expect(await screen.findByText('Setup Method')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /launch emulated device/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('launches the selected emulator through Electron with verified setup details', async () => {
+    const start = vi.fn().mockResolvedValue({ deviceId: 'pos-001', apiKey: 'api-key-001' })
+    window.electronAPI = {
+      emulator: { start },
+    } as unknown as NonNullable<Window['electronAPI']>
+    renderSetup()
+    await proceedToEmulatorReview()
+    const launch = screen.getByRole('button', { name: 'Launch Emulator' })
+    expect(launch).toBeEnabled()
+    fireEvent.click(launch)
+    await vi.waitFor(() => {
+      expect(start).toHaveBeenCalledWith(expect.objectContaining({
+        emulatorType: 'linux_pos',
+        siteId: 'site-001',
+        bootstrapKey: 'bk-abc123',
+        deviceName: 'Device-001',
+        deviceType: 'pos_terminal',
+      }))
+    })
+  })
+
+  it('shows Android identity when the Android POS profile is selected', async () => {
+    renderSetup()
+    await proceedToEmulatorReview(/Android POS/i)
+    expect(screen.getByText('Android POS')).toBeInTheDocument()
+    expect(screen.getByText(/Pos Terminal/i)).toBeInTheDocument()
+    expect(screen.getByText('Android 14')).toBeInTheDocument()
   })
 })

@@ -26,8 +26,8 @@ interface AppContextType {
   provisionedChecked: boolean
   setupState: SetupState
   setSetupState: (state: SetupState) => void
-  useEmulator: boolean
-  setUseEmulator: (val: boolean) => void
+  useEmulator: boolean | null
+  setUseEmulator: (val: boolean | null) => void
   emulatorType: string
   setEmulatorType: (val: string) => void
   isEmulatorRunning: boolean
@@ -47,7 +47,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deviceOs: 'auto',
     bootstrapKey: '',
   })
-  const [useEmulator, setUseEmulator] = useState(false)
+  const [useEmulator, setUseEmulator] = useState<boolean | null>(null)
   const [emulatorType, setEmulatorType] = useState('linux_pos')
   const [isEmulatorRunning, setIsEmulatorRunning] = useState(false)
 
