@@ -362,6 +362,33 @@ def _generate_bootstrap_key(client: TestClient, site_id: str = "smoke-site-001")
 class TestBootstrapProvisionDuplicateNames:
     """Duplicate device names within a site must be detected."""
 
+    def test_verify_bootstrap_credentials_returns_generic_result(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """The handshake verifies the pair without exposing which value failed."""
+        key = _generate_bootstrap_key(client)
+
+        valid = client.post(
+            "/api/v1/devices/verify-bootstrap",
+            json={"site_id": "smoke-site-001", "bootstrap_key": key},
+        )
+        assert valid.status_code == 200, valid.text
+        assert valid.json()["data"]["verified"] is True
+
+        invalid_key = client.post(
+            "/api/v1/devices/verify-bootstrap",
+            json={"site_id": "smoke-site-001", "bootstrap_key": "wrong-key"},
+        )
+        assert invalid_key.status_code == 200, invalid_key.text
+        assert invalid_key.json()["data"]["verified"] is False
+
+        invalid_site = client.post(
+            "/api/v1/devices/verify-bootstrap",
+            json={"site_id": "unknown-site", "bootstrap_key": key},
+        )
+        assert invalid_site.status_code == 200, invalid_site.text
+        assert invalid_site.json()["data"]["verified"] is False
+
     def test_check_name_rejects_invalid_key(
         self, client: TestClient, seeded_db: Any
     ) -> None:
@@ -465,6 +492,20 @@ class TestBootstrapProvisionDuplicateNames:
 
 class TestDevEmulatorBootstrapKey:
     """The well-known dev key works for emulator provisioning outside production."""
+
+    def test_verify_bootstrap_accepts_dev_key(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """The pre-enrolment handshake accepts the configured non-production key."""
+        resp = client.post(
+            "/api/v1/devices/verify-bootstrap",
+            json={
+                "site_id": "smoke-site-001",
+                "bootstrap_key": "homepot-dev-emulator-key",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["verified"] is True
 
     def test_emulator_dev_key_provisions_in_development(
         self, client: TestClient, seeded_db: Any

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
-import { bootstrapProvision, checkDeviceName } from '../services/api'
+import { bootstrapProvision, checkDeviceName, verifyBootstrapCredentials } from '../services/api'
 
 const EMULATOR_TYPES: { value: string; label: string; os: string; description: string }[] = [
   { value: 'linux_pos', label: 'Linux POS', os: 'Linux 6.8.0 (Debian 12)', description: 'Simulates a Linux-based POS terminal' },
@@ -14,24 +14,43 @@ function formatDeviceType(v: string) {
   return v.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-function detectOS(): string {
+function normalizeOS(platform: string): string | null {
+  const value = platform.toLowerCase()
+  if (value.includes('android')) return 'android'
+  if (value.includes('iphone') || value.includes('ipad') || value.includes('ios')) return 'ios'
+  if (value.includes('darwin') || value.includes('mac')) return 'mac'
+  if (value.includes('win')) return 'windows'
+  if (value.includes('linux')) return 'linux'
+  return null
+}
+
+function detectBrowserOS(): string {
   const uaData = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData
   if (uaData?.platform) {
-    const p = uaData.platform.toLowerCase()
-    if (p.includes('android')) return 'android'
-    if (p.includes('iphone') || p.includes('ipad') || p.includes('ios')) return 'ios'
-    if (p.includes('mac')) return 'mac'
-    if (p.includes('win')) return 'windows'
-    if (p.includes('linux')) return 'linux'
+    const detected = normalizeOS(uaData.platform)
+    if (detected) return detected
   }
   const platform = navigator.platform.toLowerCase()
   const ua = navigator.userAgent.toLowerCase()
   if (ua.includes('android')) return 'android'
   if (/iphone|ipad|ipod/.test(ua)) return 'ios'
-  if (platform.includes('mac')) return 'mac'
-  if (platform.includes('win')) return 'windows'
-  if (platform.includes('linux') || ua.includes('cros')) return 'linux'
+  const detected = normalizeOS(platform)
+  if (detected) return detected
+  if (ua.includes('cros')) return 'linux'
   return 'web'
+}
+
+async function detectOS(): Promise<string> {
+  try {
+    const nativePlatform = (await window.electronAPI?.device.dna())?.platform
+    if (nativePlatform) {
+      const detected = normalizeOS(nativePlatform)
+      if (detected) return detected
+    }
+  } catch {
+    // Fall back to browser detection if the native bridge is unavailable.
+  }
+  return detectBrowserOS()
 }
 
 function StepIndicator({ current }: { current: number }) {
@@ -71,12 +90,32 @@ function Step1() {
   const [deviceType, setDeviceType] = useState(setupState.deviceType)
   const [deviceOs, setDeviceOs] = useState(setupState.deviceOs)
   const [bootstrapKey, setBootstrapKey] = useState(setupState.bootstrapKey)
+  const [credentialStatus, setCredentialStatus] = useState<'idle' | 'checking' | 'verified' | 'invalid' | 'unavailable'>('idle')
   const [nameStatus, setNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
 
   useEffect(() => {
-    if (!siteId.trim() || !bootstrapKey.trim() || !deviceName.trim()) {
-      return
+    if (!siteId.trim() || !bootstrapKey.trim()) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setCredentialStatus('checking')
+      try {
+        const res = await verifyBootstrapCredentials({
+          site_id: siteId.trim(),
+          bootstrap_key: bootstrapKey.trim(),
+        })
+        if (!cancelled) setCredentialStatus(res.verified ? 'verified' : 'invalid')
+      } catch {
+        if (!cancelled) setCredentialStatus('unavailable')
+      }
+    }, 500)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
     }
+  }, [siteId, bootstrapKey])
+
+  useEffect(() => {
+    if (credentialStatus !== 'verified' || !deviceName.trim()) return
     let cancelled = false
     const timer = setTimeout(async () => {
       setNameStatus('checking')
@@ -95,10 +134,10 @@ function Step1() {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [siteId, bootstrapKey, deviceName])
+  }, [credentialStatus, siteId, bootstrapKey, deviceName])
 
-  const handleNext = () => {
-    const resolvedOs = deviceOs === 'auto' ? detectOS() : deviceOs
+  const handleNext = async () => {
+    const resolvedOs = deviceOs === 'auto' ? await detectOS() : deviceOs
     setSetupState({ siteId, deviceName, deviceType, deviceOs: resolvedOs, bootstrapKey })
     navigate('/method')
   }
@@ -119,12 +158,17 @@ function Step1() {
           value={siteId}
           onChange={e => {
             setSiteId(e.target.value)
-            if (!e.target.value.trim()) setNameStatus('idle')
+            setCredentialStatus('idle')
+            setNameStatus('idle')
           }}
           placeholder="Enter your Site ID"
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         />
-        <p className="text-slate-500 text-xs">Provided by your IT administrator.</p>
+        <p className="text-slate-500 text-xs">
+          {siteId.trim()
+            ? 'Enter the bootstrap key provided by your administrator to verify this site.'
+            : 'Provided by your IT administrator.'}
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -136,7 +180,8 @@ function Step1() {
           value={bootstrapKey}
           onChange={e => {
             setBootstrapKey(e.target.value)
-            if (!e.target.value.trim()) setNameStatus('idle')
+            setCredentialStatus('idle')
+            setNameStatus('idle')
           }}
           placeholder="Enter your Bootstrap Key"
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
@@ -144,6 +189,18 @@ function Step1() {
         <p className="text-slate-500 text-xs">
           Provided by your IT administrator. For emulator testing use the dev key: <span className="text-slate-400">homepot-dev-emulator-key</span>.
         </p>
+        {credentialStatus === 'checking' && (
+          <p className="text-slate-500 text-xs">Checking site credentials...</p>
+        )}
+        {credentialStatus === 'verified' && (
+          <p className="text-emerald-500 text-xs">✓ Site credentials verified</p>
+        )}
+        {credentialStatus === 'invalid' && (
+          <p className="text-red-400 text-xs">✗ Site ID or bootstrap key is incorrect.</p>
+        )}
+        {credentialStatus === 'unavailable' && (
+          <p className="text-amber-400 text-xs">Unable to verify site credentials. Please try again.</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -155,11 +212,15 @@ function Step1() {
           value={deviceName}
           onChange={e => {
             setDeviceName(e.target.value)
-            if (!e.target.value.trim()) setNameStatus('idle')
+            setNameStatus('idle')
           }}
           placeholder="e.g. Device-001"
+          disabled={credentialStatus !== 'verified'}
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         />
+        {credentialStatus !== 'verified' && (
+          <p className="text-slate-500 text-xs">Verify the Site ID and bootstrap key first.</p>
+        )}
         {nameStatus === 'checking' && (
           <p className="text-slate-500 text-xs">Checking name availability…</p>
         )}
@@ -210,7 +271,7 @@ function Step1() {
 
       <button
         onClick={handleNext}
-        disabled={!siteId.trim() || !bootstrapKey.trim() || !deviceName.trim() || !deviceType || nameStatus === 'taken'}
+        disabled={credentialStatus !== 'verified' || nameStatus !== 'available' || !deviceType}
         className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
         Next →

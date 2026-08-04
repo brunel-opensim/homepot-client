@@ -266,9 +266,24 @@ Credentials live at `~/.homepot/emulators/<device_name>.json` with `0600` permis
 
 Emulators can run multiple instances simultaneously by using different `device_name` values (each gets its own credentials file and provisions independently).
 
-## User App integration (design sketch)
+## User App integration
 
 The emulator can be spawned and managed directly from the User App's Electron shell, giving developers the full "real device" experience — the setup wizard provisions a device, the emulator starts as a background process, and the User App shows/manages it just like a physical device.
+
+This integration is implemented for the Linux POS and Android POS emulators.
+Run the Electron workflow with `cd user_app && npm run electron:dev`; the
+browser-only server at `http://localhost:5174` can perform the setup handshake
+but cannot spawn an emulator process.
+
+Before mode selection, Setup Step 1 performs the pre-enrolment handshake:
+
+1. Site ID entry prompts for the administrator-provided bootstrap key.
+2. The Site ID/key pair is verified together through
+  `POST /devices/verify-bootstrap`; invalid pairs receive one generic result.
+3. Device-name availability is checked within the verified site through
+  `POST /devices/check-name`.
+4. **Next** is enabled only after site credentials are verified, the device
+  name is available, and the local required fields are complete.
 
 ### Architecture
 
@@ -299,7 +314,7 @@ User App (Electron)
   └──────────────────────────────┘
 ```
 
-### New IPC handlers (Electron main)
+### IPC handlers (Electron main)
 
 | Channel | Direction | Purpose |
 |---------|-----------|---------|
@@ -307,7 +322,7 @@ User App (Electron)
 | `emulator:stop` | Renderer → Main | Kill the emulator child process |
 | `emulator:status` | Renderer → Main | Return `{running: bool, pid, device_id}` |
 
-### SetupWizard flow change
+### SetupWizard flow
 
 1. **Step 1** (existing): Site ID, hostname, device type, OS
 2. **Step 2** (new): Mode selection — "Real device" (current flow) or **"Launch emulator"**
@@ -392,14 +407,13 @@ interface EmulatorStartConfig {
 └─────────────────────────────────────────┘
 ```
 
-### Implementation order
+### Implementation status
 
-1. Add `emulator:start`, `emulator:stop`, `emulator:status` IPC handlers to `electron/main.ts`
-2. Expose emulator channels in `electron/preload.ts`
-3. Update `SetupWizard.tsx` — add mode selection step and emulator type picker
-4. Add `EmulatorStartConfig` type to `credentialStorage.ts` or a new types file
-5. Update `AppContext.tsx` — add emulator state (`isEmulatorRunning`, `emulatorType`)
-6. Wire ReviewStep to call `window.electronAPI.emulator.start()` instead of the dev-mode mock path
+1. `emulator:start`, `emulator:stop`, and `emulator:status` IPC handlers are implemented in `electron/main.ts`.
+2. Emulator channels are exposed through `electron/preload.ts`.
+3. `SetupWizard.tsx` includes mode selection and Linux/Android emulator type selection.
+4. `AppContext.tsx` tracks emulator mode, type, and runtime state.
+5. Review completion calls `window.electronAPI.emulator.start()` in Electron emulator mode.
 
 ## Related documentation
 

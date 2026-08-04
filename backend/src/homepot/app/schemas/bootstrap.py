@@ -66,6 +66,19 @@ class BootstrapKeyResponse(BaseModel):
     message: str
 
 
+class BootstrapVerificationRequest(BaseModel):
+    """Request schema for the non-mutating pre-enrolment handshake."""
+
+    site_id: str = Field(..., min_length=1, description="Business site ID")
+    bootstrap_key: str = Field(..., min_length=1, description="Site bootstrap key")
+
+
+class BootstrapVerificationResponse(BaseModel):
+    """Generic result that does not reveal which credential was invalid."""
+
+    verified: bool
+
+
 class DeviceNameCheckRequest(BaseModel):
     """Request schema for checking device-name availability in a site."""
 
