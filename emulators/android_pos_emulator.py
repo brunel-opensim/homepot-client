@@ -22,7 +22,8 @@ from __future__ import annotations
 from typing import Any
 
 try:
-    from linux_pos_emulator import LinuxPOSEmulator, main  # type: ignore[import-not-found]
+    from linux_pos_emulator import (  # type: ignore[import-not-found]
+        LinuxPOSEmulator, main)
 except ModuleNotFoundError:
     from .linux_pos_emulator import LinuxPOSEmulator, main
 
