@@ -358,3 +358,49 @@ def test_agent_telemetry_requires_matching_device_credentials(client: TestClient
         headers=_device_headers("other-device", api_key),
     )
     assert mismatched_device.status_code == 401
+
+
+def test_logs_returns_device_log_lines(client: TestClient):
+    """GET /api/v1/agent/{device_id}/logs should return the device's log lines."""
+    site = _create_site("site-activity-logs")
+    api_key = _create_device("activity-log-device", int(site.id))
+
+    posted = client.post(
+        "/api/v1/agent/logs",
+        json={
+            "device_id": "activity-log-device",
+            "level": "warning",
+            "category": "network",
+            "message": "WAN link flapping detected",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("activity-log-device", api_key),
+    )
+    assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/activity-log-device/logs",
+        headers=_device_headers("activity-log-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["error_message"] == "WAN link flapping detected"
+    assert data[0]["severity"] == "warning"
+    assert data[0]["category"] == "network"
+
+
+def test_logs_rejects_other_devices_and_missing_credentials(client: TestClient):
+    """Log reads should 403 for another device and 401 without credentials."""
+    site = _create_site("site-activity-auth")
+    api_key = _create_device("activity-auth-device-1", int(site.id))
+    _create_device("activity-auth-device-2", int(site.id), api_key="other-key")
+
+    other = client.get(
+        "/api/v1/agent/activity-auth-device-2/logs",
+        headers=_device_headers("activity-auth-device-1", api_key),
+    )
+    assert other.status_code == 403
+
+    missing = client.get("/api/v1/agent/activity-auth-device-1/logs")
+    assert missing.status_code == 401

@@ -57,6 +57,16 @@ export interface PermissionRequestResult {
   message: string
 }
 
+export interface DeviceLog {
+  id: number
+  timestamp: string | null
+  category: string
+  severity: string
+  error_code: string | null
+  error_message: string
+  resolved: boolean
+}
+
 interface Headers {
   [key: string]: string
 }
@@ -285,4 +295,19 @@ export async function reportPermissionAudit(
     const body = await res.json().catch(() => ({}))
     throw asApiError(body.detail || `Failed to report audit event (${res.status})`, res.status)
   }
+}
+
+export async function fetchDeviceLogs(
+  deviceId: string,
+  apiKey: string,
+): Promise<DeviceLog[]> {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/logs`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch logs (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as DeviceLog[]
 }

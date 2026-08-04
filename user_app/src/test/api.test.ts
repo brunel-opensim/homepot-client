@@ -12,6 +12,7 @@ import {
   ackCommand,
   updateCommandStatus,
   reportPermissionAudit,
+  fetchDeviceLogs,
 } from '../services/api'
 
 const mockFetch = vi.fn()
@@ -185,6 +186,27 @@ describe('reportPermissionAudit', () => {
   it('throws on error', async () => {
     mockFetch.mockResolvedValueOnce(serverError('Server error'))
     await expect(reportPermissionAudit(DEVICE_ID, API_KEY, { permission: 'root_access', granted: true, requestedBy: 'admin', action: 'grant' })).rejects.toThrow('Server error')
+  })
+})
+
+describe('fetchDeviceLogs', () => {
+  it('returns logs from nested data field', async () => {
+    const logs = [{ id: 1, timestamp: '2026-08-03T10:00:00.000Z', category: 'network', severity: 'warning', error_code: null, error_message: 'WAN link flapping detected', resolved: false }]
+    mockFetch.mockResolvedValueOnce(ok({ data: logs }))
+    const result = await fetchDeviceLogs(DEVICE_ID, API_KEY)
+    expect(result).toHaveLength(1)
+    expect(result[0].error_message).toBe('WAN link flapping detected')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/agent/${DEVICE_ID}/logs`),
+      expect.objectContaining({
+        headers: { 'X-Device-ID': DEVICE_ID, 'X-API-Key': API_KEY },
+      }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(fetchDeviceLogs(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
   })
 })
 
