@@ -7,6 +7,7 @@ import {
   updatePermissions,
   verifyDeviceCredentials,
   bootstrapProvision,
+  verifyBootstrapCredentials,
   claimDevice,
   unpairDevice,
   fetchPendingCommands,
@@ -254,6 +255,31 @@ describe('bootstrapProvision', () => {
     })
     expect(result.device_id).toBe('d1')
     expect(result.api_key).toBe('k1')
+  })
+})
+
+describe('verifyBootstrapCredentials', () => {
+  it('POSTs the Site ID/key pair and returns the generic result', async () => {
+    mockFetch.mockResolvedValueOnce(ok({ data: { verified: true } }))
+    await expect(verifyBootstrapCredentials({
+      site_id: 'site-001',
+      bootstrap_key: 'bk-123',
+    })).resolves.toEqual({ verified: true })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/devices/verify-bootstrap'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ site_id: 'site-001', bootstrap_key: 'bk-123' }),
+      }),
+    )
+  })
+
+  it('throws when verification is unavailable', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Unavailable'))
+    await expect(verifyBootstrapCredentials({
+      site_id: 'site-001',
+      bootstrap_key: 'bk-123',
+    })).rejects.toThrow('Unavailable')
   })
 })
 

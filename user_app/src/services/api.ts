@@ -190,6 +190,23 @@ export async function bootstrapProvision(body: {
   return json.data
 }
 
+export async function verifyBootstrapCredentials(body: {
+  site_id: string
+  bootstrap_key: string
+}): Promise<{ verified: boolean }> {
+  const res = await fetch(`${apiBaseUrl}/devices/verify-bootstrap`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw asApiError(err.detail || `Site verification failed (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data
+}
+
 export async function checkDeviceName(body: {
   site_id: string
   bootstrap_key: string

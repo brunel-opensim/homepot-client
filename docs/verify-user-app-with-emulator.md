@@ -109,25 +109,17 @@ Open http://localhost:5173 and log in. A seeded admin exists:
 | Location | `localhost` |
 | Description | *(optional)* |
 
-**Option B — via the API**:
+Record the following values for the User App Setup wizard used later in this
+runbook. The Site ID must match the site created above, and the bootstrap key
+must be the key generated for that site in Step 2.
 
-```bash
-# login, capture the bearer token
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@homepot.com","password":"homepot_dev_password"}' \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["access_token"])')
-
-# create the site
-curl -X POST http://localhost:8000/api/v1/sites/ \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{
-    "site_id": "site-it-demo1",
-    "name": "Demo Site 1",
-    "description": "Created by technician",
-    "location": "localhost"
-  }'
-```
+| Setup field | Value for this runbook |
+| ----------- | ---------------------- |
+| Site ID | `site-it-demo1` |
+| Bootstrap Key | The generated key from Step 2, or `homepot-dev-emulator-key` for development-only emulator testing |
+| Device Name | A unique name such as `demo-linux-pos-1` |
+| Device Type | `POS Terminal` |
+| Operating System | `Auto-detect` — this initially identifies the machine running the User App; selecting Linux POS later replaces it with the emulator OS |
 
 Expected response: `200` with `{"message": "...", "site_id": "site-it-demo1", ...}`.
 
@@ -182,6 +174,44 @@ handed-off site info: enter the **Site ID**, the **Bootstrap Key**, a
 **Device Name**, and pick a device type. As you type the device name, the
 wizard checks live that the name isn't already in use in the site (using
 `POST /devices/check-name`) and blocks proceeding if it is.
+
+Setup Step 1 uses a non-mutating pre-enrolment handshake:
+
+1. Entering a Site ID prompts the user to enter the administrator-provided
+  bootstrap key. The app does not reveal whether the Site ID exists by itself.
+2. Once both values are present, `POST /devices/verify-bootstrap` verifies the
+  pair and returns only a generic verified/not-verified result. The device-name
+  field remains locked until this succeeds.
+3. The unlocked device-name field calls `POST /devices/check-name`. **Next**
+  remains disabled until the name is confirmed available and the other
+  required fields are complete.
+
+Changing the Site ID or bootstrap key clears both verification results and
+locks the device-name field again. Changing the device name clears its previous
+availability result immediately. Final provisioning repeats all authoritative
+checks because the setup handshake does not reserve a name.
+
+### Known validation gap — real-device OS detection
+
+This runbook validates an emulated Linux device; it does not yet validate OS
+detection on physical devices. In the Electron User App, **Auto-detect** uses
+the native device-DNA bridge and falls back to browser platform information
+only when that bridge is unavailable. Therefore, seeing **Windows** while the
+User App runs on a Windows workstation is correct. After **Launch emulated
+device** and **Linux POS** are selected, the review screen and provisioning
+payload must instead show `Linux 6.8.0 (Debian 12)`. Android POS must similarly
+show `Android 14`.
+
+Track physical-device verification separately before calling real-device setup
+validated:
+
+- Run the packaged Electron User App on supported Windows and Linux devices.
+- Confirm **Auto-detect** resolves to the physical device's OS on the review
+  screen and in the backend `os_details` value.
+- Confirm explicitly selecting an OS still overrides auto-detection.
+- Add equivalent checks when native Android, iOS, or other OS clients are
+  implemented. The current emulator launcher supports only Linux POS and
+  Android POS identities.
 
 > **Note:** in dev mode the wizard simulates completion with local dev
 > credentials and does **not** call the backend. The actual backend-facing

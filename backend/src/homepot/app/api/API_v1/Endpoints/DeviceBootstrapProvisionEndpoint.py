@@ -7,22 +7,53 @@ devices to self-enrol without a user login session.
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import verify_bootstrap_key
 from homepot.app.schemas.bootstrap import (
     BootstrapProvisionRequest,
     BootstrapProvisionResponse,
+    BootstrapVerificationRequest,
+    BootstrapVerificationResponse,
     DeviceNameCheckRequest,
     DeviceNameCheckResponse,
 )
 from homepot.app.services.agent_service import AgentService
+from homepot.app.utils.limiter import limiter
 from homepot.database import get_db
 from homepot.models import Site
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@router.post(
+    "/verify-bootstrap",
+    tags=["Devices"],
+    response_model=Dict[str, Any],
+)
+@limiter.limit("10/minute")
+def verify_bootstrap_credentials(
+    payload: BootstrapVerificationRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Verify a site/bootstrap-key pair without revealing which value failed."""
+    site = db.query(Site).filter(Site.site_id == payload.site_id).first()
+    verified = bool(
+        site
+        and verify_bootstrap_key(
+            payload.bootstrap_key,
+            site,
+            allow_dev_key=True,
+        )
+    )
+    response_data = BootstrapVerificationResponse(verified=verified)
+    return {
+        "status": "success",
+        "data": response_data.model_dump(),
+    }
 
 
 @router.post(
