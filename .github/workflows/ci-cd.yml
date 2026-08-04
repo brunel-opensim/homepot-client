@@ -67,19 +67,33 @@ jobs:
 
   test:
     timeout-minutes: 30
-    name: Test Suite
+    name: Test Suite (${{ matrix.os }}, ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     if: github.repository == 'brunel-opensim/homepot-client'
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        python-version: ['3.11', '3.12']
         include:
-          # Only test Python 3.11 on Windows/macOS to reduce CI time
+          - os: ubuntu-latest
+            python-version: '3.11'
+            shard: 1
+            shard-count: 1
+          - os: ubuntu-latest
+            python-version: '3.12'
+            shard: 1
+            shard-count: 1
           - os: windows-latest
             python-version: '3.11'
+            shard: 1
+            shard-count: 2
+          - os: windows-latest
+            python-version: '3.11'
+            shard: 2
+            shard-count: 2
           - os: macos-latest
             python-version: '3.11'
+            shard: 1
+            shard-count: 1
 
     steps:
     - uses: actions/checkout@v4
@@ -216,22 +230,44 @@ jobs:
       run: |
         cd backend
         XDIST_ARGS="-n auto"
-        
+        TEST_TARGETS="tests/"
+
+        if [[ "${{ matrix.shard-count }}" -gt 1 ]]; then
+          TEST_TARGETS=$(python - "${{ matrix.shard }}" "${{ matrix.shard-count }}" <<'PY'
+        from pathlib import Path
+        import sys
+
+        shard = int(sys.argv[1]) - 1
+        shard_count = int(sys.argv[2])
+        test_files = sorted(
+            set(Path("tests").rglob("test_*.py"))
+            | set(Path("tests").rglob("*_test.py"))
+        )
+        selected = test_files[shard::shard_count]
+        if not selected:
+            raise SystemExit(f"No tests assigned to shard {shard + 1}/{shard_count}")
+        print(" ".join(str(path) for path in selected))
+        PY
+          )
+          echo "Running shard ${{ matrix.shard }}/${{ matrix.shard-count }}: ${TEST_TARGETS}"
+        fi
+
         if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.11" ]]; then
           # Generate coverage only on Ubuntu 3.11
-          pytest ${XDIST_ARGS} tests/ --cov=homepot --cov-report=xml --tb=short --durations=10 \
+          pytest ${XDIST_ARGS} ${TEST_TARGETS} --cov=homepot --cov-report=xml --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         else
-          # Standard execution for other platforms
-          pytest ${XDIST_ARGS} tests/ --tb=short --durations=10 \
+          # Coverage is produced only by Ubuntu 3.11; disable global pyproject coverage elsewhere.
+          pytest ${XDIST_ARGS} ${TEST_TARGETS} --no-cov --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         fi
 
     - name: Run UQ tests
+      if: matrix.shard == 1
       shell: bash
       env:
         DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
