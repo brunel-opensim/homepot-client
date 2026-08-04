@@ -23,7 +23,9 @@ from typing import Any
 
 try:
     from linux_pos_emulator import (  # type: ignore[import-not-found]
-        LinuxPOSEmulator, main)
+        LinuxPOSEmulator,
+        main,
+    )
 except ModuleNotFoundError:
     from .linux_pos_emulator import LinuxPOSEmulator, main
 
