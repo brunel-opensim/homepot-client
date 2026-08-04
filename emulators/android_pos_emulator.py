@@ -21,7 +21,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from linux_pos_emulator import LinuxPOSEmulator, main
+try:
+    from linux_pos_emulator import LinuxPOSEmulator, main  # type: ignore[import-not-found]
+except ModuleNotFoundError:
+    from .linux_pos_emulator import LinuxPOSEmulator, main
 
 ANDROID_DEFAULTS: dict[str, Any] = {
     "device_name": "android-pos-emulator-1",
