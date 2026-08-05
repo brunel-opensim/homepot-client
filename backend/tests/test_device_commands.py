@@ -144,7 +144,7 @@ def test_device_command_flow(client: TestClient):
 
     # 3. Queue Command (as authenticated admin)
     command_payload = {
-        "command_type": "REBOOT",
+        "command_type": "ping",
         "payload": {"reason": "integration_test"},
     }
     response = client.post(
@@ -168,7 +168,7 @@ def test_device_command_flow(client: TestClient):
     for cmd in pending_cmds:
         if cmd["command_id"] == command_id:
             found = True
-            assert cmd["command_type"] == "REBOOT"
+            assert cmd["command_type"] == "ping"
             break
     assert found, "Queued command not found in pending list"
 
@@ -255,7 +255,7 @@ def _queue_command(
     client: TestClient,
     device_id: str,
     headers: Dict[str, str],
-    command_type: str = "REBOOT",
+    command_type: str = "ping",
 ) -> str:
     """Queue a command and return its command_id."""
     resp = client.post(
@@ -267,14 +267,81 @@ def _queue_command(
     return resp.json()["command_id"]
 
 
+def _set_permissions(device_id: str, permissions: Dict[str, bool]) -> None:
+    db = homepot.database.SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        device.device_permissions = permissions
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_run_command_requires_owner_grant(client: TestClient) -> None:
+    """The API rejects commands before the owner grants execution."""
+    ctx = _setup_site_and_device(client)
+    _set_permissions(ctx["device_id"], {"command_execution": False})
+
+    resp = client.post(
+        f"/api/v1/devices/{ctx['device_id']}/commands",
+        json={
+            "command_type": "run_command",
+            "payload": {"data": {"command": "whoami"}},
+        },
+        headers=ctx["auth_headers"],
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["missing_permissions"] == ["command_execution"]
+
+
+def test_run_command_queues_after_owner_grant(client: TestClient) -> None:
+    """The API queues commands after owner approval."""
+    ctx = _setup_site_and_device(client)
+    _set_permissions(ctx["device_id"], {"command_execution": True})
+
+    resp = client.post(
+        f"/api/v1/devices/{ctx['device_id']}/commands",
+        json={
+            "command_type": "run_command",
+            "payload": {"data": {"command": "whoami"}},
+        },
+        headers=ctx["auth_headers"],
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["command_type"] == "run_command"
+
+
+def test_root_command_requires_separate_root_grant(client: TestClient) -> None:
+    """The API requires a separate root grant for sudo execution."""
+    ctx = _setup_site_and_device(client)
+    _set_permissions(
+        ctx["device_id"], {"command_execution": True, "root_access": False}
+    )
+
+    resp = client.post(
+        f"/api/v1/devices/{ctx['device_id']}/commands",
+        json={
+            "command_type": "run_command",
+            "payload": {"data": {"command": "id", "run_as_root": True}},
+        },
+        headers=ctx["auth_headers"],
+    )
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["missing_permissions"] == ["root_access"]
+
+
 def test_command_history_endpoint(client: TestClient) -> None:
     """GET /devices/device/{device_id}/commands returns command history."""
     ctx = _setup_site_and_device(client)
     h = ctx["auth_headers"]
     device_id = ctx["device_id"]
 
-    cmd1 = _queue_command(client, device_id, h, "REBOOT")
-    cmd2 = _queue_command(client, device_id, h, "UPDATE_CONFIG")
+    cmd1 = _queue_command(client, device_id, h, "ping")
+    cmd2 = _queue_command(client, device_id, h, "ping")
 
     resp = client.get(f"/api/v1/devices/device/{device_id}/commands", headers=h)
     assert resp.status_code == 200
@@ -283,8 +350,8 @@ def test_command_history_endpoint(client: TestClient) -> None:
     assert len(data) >= 2
 
     # Most recent command first (desc by created_at)
-    assert data[0]["command_type"] == "UPDATE_CONFIG"
-    assert data[1]["command_type"] == "REBOOT"
+    assert data[0]["command_type"] == "ping"
+    assert data[1]["command_type"] == "ping"
     assert data[0]["command_id"] == cmd2
     assert data[1]["command_id"] == cmd1
 
@@ -311,7 +378,7 @@ def test_expire_stale_commands(client: TestClient) -> None:
     h = ctx["auth_headers"]
     device_id = ctx["device_id"]
 
-    cmd_id = _queue_command(client, device_id, h, "PING")
+    cmd_id = _queue_command(client, device_id, h, "ping")
 
     # Directly manipulate the command's created_at to be in the past
     db = homepot.database.SessionLocal()

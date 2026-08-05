@@ -548,6 +548,7 @@ export const DeviceInfoWidget = ({ device }) => (
 
 const PERMISSION_LABELS = {
   root_access: 'Root Access',
+  command_execution: 'Command & Script Execution',
   process_monitoring: 'Process Monitoring',
   filesystem_access: 'Filesystem Access',
   network_monitoring: 'Network Monitoring',

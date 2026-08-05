@@ -373,6 +373,20 @@ const api = {
       const response = await apiClient.post(`/devices/${deviceId}/commands`, payload);
       return response.data;
     },
+
+    requestPermission: async (deviceId, permission, action = 'grant') => {
+      const response = await apiClient.post(`/devices/${deviceId}/commands`, {
+        command_type: 'request_permission',
+        payload: {
+          data: {
+            permission,
+            action,
+            requested_by: 'Dashboard technician',
+          },
+        },
+      });
+      return response.data;
+    },
   },
 
   // ==================== Jobs ====================

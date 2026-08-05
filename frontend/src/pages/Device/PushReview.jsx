@@ -2,14 +2,30 @@ import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/Toast';
 import api from '@/services/api';
 // Cleaned up unused imports that were causing blank page errors
-import { AlertTriangle, ArrowLeft, FileJson, MessageSquare, Rocket, Terminal } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, FileJson, MessageSquare, Rocket, ShieldAlert, Terminal } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
 // Predefined templates for common commands
 const COMMAND_TEMPLATES = {
+  RUN_COMMAND: {
+    label: 'Run Command',
+    action: 'run_command',
+    permission: 'command_execution',
+    defaultData: { command: 'uname -a', run_as_root: false, timeout_seconds: 30 },
+    description: 'Run one executable with arguments. Shell operators are not interpreted.',
+  },
+  RUN_SCRIPT: {
+    label: 'Run Script',
+    action: 'run_script',
+    permission: 'command_execution',
+    defaultData: { script: '#!/bin/sh\nid', run_as_root: false, timeout_seconds: 30 },
+    description: 'Run a POSIX shell script supplied through standard input.',
+  },
   APPLY_CONFIG: {
     label: 'Apply Configuration',
+    action: 'update_pos_payment_config',
+    permission: 'filesystem_access',
     defaultData: {
       volume: 50,
       brightness: 75,
@@ -20,6 +36,8 @@ const COMMAND_TEMPLATES = {
   },
   REBOOT_DEVICE: {
     label: 'Reboot Device',
+    action: 'restart_pos_app',
+    permission: 'command_execution',
     defaultData: {
       delay_seconds: 10,
       reason: 'Scheduled maintenance',
@@ -28,6 +46,8 @@ const COMMAND_TEMPLATES = {
   },
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
+    action: 'update_pos_payment_config',
+    permission: 'filesystem_access',
     defaultData: {
       version: '2.4.0',
       url: 'https://firmware.homepot.io/v2.4.0.bin',
@@ -37,18 +57,30 @@ const COMMAND_TEMPLATES = {
   },
   RUN_DIAGNOSTICS: {
     label: 'Run Diagnostics',
+    action: 'health_check',
+    permission: 'command_execution',
     defaultData: {
       tests: ['network', 'storage', 'memory'],
       upload_logs: true,
     },
     description: 'Execute self-tests and report status.',
   },
-  CUSTOM: {
-    label: 'Custom Command',
-    defaultData: {},
-    description: 'Send a raw command payload.',
-  },
 };
+
+const PERMISSION_LABELS = {
+  command_execution: 'Command & Script Execution',
+  filesystem_access: 'File System Access',
+  root_access: 'Root / Full Access',
+};
+
+const ACTION_TO_TEMPLATE = Object.fromEntries(
+  Object.entries(COMMAND_TEMPLATES).map(([key, template]) => [template.action, key])
+);
+
+function initialTemplate(action) {
+  if (COMMAND_TEMPLATES[action]) return action;
+  return ACTION_TO_TEMPLATE[action] || 'APPLY_CONFIG';
+}
 
 export default function PushReview() {
   const { id } = useParams();
@@ -62,7 +94,7 @@ export default function PushReview() {
   // State for the Command Builder
   // Initialize from location state if available
   const [selectedCommand, setSelectedCommand] = useState(
-    location.state?.initialCommand || 'APPLY_CONFIG'
+    initialTemplate(location.state?.initialCommand)
   );
   const [commandData, setCommandData] = useState(
     location.state?.initialData
@@ -87,17 +119,23 @@ export default function PushReview() {
   });
 
   useEffect(() => {
+    let active = true;
     const fetchDevice = async () => {
       try {
         const deviceData = await api.devices.getDeviceById(id);
-        setDevice(deviceData);
+        if (active) setDevice(deviceData);
       } catch (err) {
         console.error('Failed to load device:', err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     fetchDevice();
+    const interval = setInterval(fetchDevice, 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [id]);
 
   // Update body/title when command or device changes
@@ -150,6 +188,15 @@ export default function PushReview() {
     parsedData = { error: 'Invalid JSON' };
   }
 
+  const template = COMMAND_TEMPLATES[selectedCommand];
+  const requiredPermissions = [
+    template?.permission,
+    ...(parsedData.run_as_root ? ['root_access'] : []),
+  ].filter(Boolean);
+  const missingPermissions = requiredPermissions.filter(
+    (permission) => !device?.device_permissions?.[permission]
+  );
+
   const payloadPreview = {
     title: payloadConfig.title,
     body: payloadConfig.body,
@@ -168,28 +215,7 @@ export default function PushReview() {
     setSending(true);
 
     try {
-      // Send the push notification via API
-      // We map the selected command to the action expected by the agent
-      let action = 'unknown';
-
-      // Map UI constants to Backend Actions
-      if (selectedCommand === 'APPLY_CONFIG') action = 'update_pos_payment_config';
-      else if (selectedCommand === 'REBOOT_DEVICE') action = 'restart_pos_app';
-      else if (selectedCommand === 'RUN_DIAGNOSTICS') action = 'health_check';
-      else if (selectedCommand === 'UPDATE_FIRMWARE') action = 'update_pos_payment_config';
-      // Support Reuse: If selectedCommand IS the backend action (from history), use it directly
-      else if (
-        ['update_pos_payment_config', 'restart_pos_app', 'health_check'].includes(selectedCommand)
-      ) {
-        action = selectedCommand;
-      }
-      // Support Custom: functionality via JSON payload
-      else if (selectedCommand === 'CUSTOM' || action === 'unknown') {
-        // Try to find action in the user-provided JSON
-        if (parsedData.action) action = parsedData.action;
-        // If still unknown, but selectedCommand is not one of the template keys, maybe selectedCommand IS the action
-        else if (selectedCommand !== 'CUSTOM') action = selectedCommand;
-      }
+      const action = template.action;
 
       // Ensure data has required fields for the agent simulator
       const finalPayload = {
@@ -202,25 +228,8 @@ export default function PushReview() {
         },
       };
 
-      const response = await api.agents.sendPush(id, finalPayload);
-
-      // Check if the agent reported an error
-      if (response.response && response.response.status === 'error') {
-        throw new Error(response.response.message || 'Agent reported an internal error');
-      }
-
-      // Check for warnings (e.g. DB log failure)
-      if (response.response && response.response.warning) {
-        setToast({
-          message: `Success, but DB Log Failed: ${response.response.warning}`,
-          type: 'error',
-        });
-        return; // Stay on page to show error
-      }
-
-      const jobId = response.response?.device_id
-        ? `job-${response.response.device_id.substring(0, 8)}`
-        : `job-${Math.random().toString(36).substr(2, 8)}`;
+      const response = await api.devices.triggerAction(id, action, finalPayload);
+      const jobId = response.command_id?.substring(0, 8) || 'queued';
 
       setToast({
         message: `Command Sent Successfully! Job ID: ${jobId}`,
@@ -234,6 +243,23 @@ export default function PushReview() {
       console.error('Failed to send push:', err);
       setToast({
         message: `Failed to send command: ${err.message || 'Unknown error'}`,
+        type: 'error',
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRequestAccess = async () => {
+    setSending(true);
+    try {
+      for (const permission of missingPermissions) {
+        await api.devices.requestPermission(id, permission);
+      }
+      setToast({ message: 'Access request sent to the device owner.', type: 'success' });
+    } catch (err) {
+      setToast({
+        message: err.response?.data?.detail?.message || err.message || 'Access request failed',
         type: 'error',
       });
     } finally {
@@ -267,7 +293,7 @@ export default function PushReview() {
             </div>
           </div>
           <Button
-            onClick={handleSend}
+            onClick={missingPermissions.length ? handleRequestAccess : handleSend}
             disabled={sending || !!jsonError}
             className={`px-4 h-9 ${jsonError ? 'bg-slate-700 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-500 text-white'}`}
           >
@@ -275,8 +301,11 @@ export default function PushReview() {
               'Sending...'
             ) : (
               <>
-                <Rocket className="h-4 w-4 mr-2" />
-                Push Command
+                {missingPermissions.length ? (
+                  <><ShieldAlert className="h-4 w-4 mr-2" />Request Access</>
+                ) : (
+                  <><Rocket className="h-4 w-4 mr-2" />Queue Command</>
+                )}
               </>
             )}
           </Button>
@@ -313,6 +342,15 @@ export default function PushReview() {
                       {COMMAND_TEMPLATES[selectedCommand]?.description || 'Custom command'}
                     </p>
                   </div>
+                </div>
+
+                <div className={`border rounded-lg px-3 py-2 text-xs ${
+                  missingPermissions.length
+                    ? 'border-amber-700/60 bg-amber-950/30 text-amber-300'
+                    : 'border-emerald-700/50 bg-emerald-950/20 text-emerald-300'
+                }`}>
+                  Required: {requiredPermissions.map((key) => PERMISSION_LABELS[key]).join(' + ')}
+                  {missingPermissions.length > 0 && ' — awaiting device-owner approval'}
                 </div>
 
                 {/* JSON Data Editor */}

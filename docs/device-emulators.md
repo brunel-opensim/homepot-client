@@ -177,8 +177,8 @@ Composed push commands (`update_pos_payment_config`, `restart_pos_app`, `health_
 
 The emulator models the **device-side consent** half of the platform permission
 model (see `backend/src/homepot/app/schemas/permissions.py`). The four
-permission keys are `root_access`, `process_monitoring`, `filesystem_access`,
-`network_monitoring`; which keys a device can support are derived from its
+permission keys are `root_access`, `command_execution`, `process_monitoring`,
+`filesystem_access`, `network_monitoring`; which keys a device can support are derived from its
 `os_details` (mirrored from the backend's `derive_capabilities`), so changing
 the emulated OS changes the capabilities the Dashboard shows.
 

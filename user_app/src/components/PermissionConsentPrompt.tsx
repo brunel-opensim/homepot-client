@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { credentialStorage } from '../services/credentialStorage'
 import {
   fetchPendingCommands,
-  ackCommand,
   updatePermissions,
   updateCommandStatus,
   reportPermissionAudit,
@@ -11,6 +10,7 @@ import type { PendingCommand } from '../services/api'
 
 const PERMISSION_LABELS: Record<string, string> = {
   root_access: 'Root / Full Access',
+  command_execution: 'Command & Script Execution',
   process_monitoring: 'Process Monitoring',
   filesystem_access: 'File System Access',
   network_monitoring: 'Network Monitoring',
@@ -47,7 +47,6 @@ export default function PermissionConsentPrompt() {
         c => c.command_type === 'request_permission' && !handledRef.current.has(c.command_id),
       )
       if (!cmd) return
-      await ackCommand(dId, aKey, cmd.command_id)
       if (requestRef.current) return
       setRequest(cmd)
       requestRef.current = cmd

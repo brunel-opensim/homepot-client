@@ -3,11 +3,14 @@
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from homepot.app.api.API_v1.Endpoints.DevicesEndpoints import _compute_connectivity
+from homepot.app.auth_utils import UserDict, require_user, verify_device_belongs_to_user
 from homepot.client import HomepotClient
-from homepot.models import ConnectivityState, HealthState
+from homepot.database import get_db
+from homepot.models import ConnectivityState, HealthState, User
 
 client_instance: Optional[HomepotClient] = None
 
@@ -172,31 +175,29 @@ async def get_agent_status(device_id: str) -> Dict[str, Any]:
 
 @router.post("/agents/{device_id}/push", tags=["Agents"])
 async def send_push_notification(
-    device_id: str, notification_data: Dict[str, Any]
+    device_id: str,
+    notification_data: Dict[str, Any],
+    sync_db: Session = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Send a direct push notification to a POS agent for testing.
+    """Send a non-executable notification to a POS agent.
 
-    The composed payload is relayed to the device command queue so real or
-    emulated device agents can consume it via the pending-commands channel,
-    in addition to any in-process simulated agent.
+    Executable actions must use the authenticated, permission-gated device
+    command endpoint instead.
     """
     from datetime import datetime, timezone
 
-    action = str(notification_data.get("action") or "unknown")
+    from homepot.database import get_database_service
 
-    try:
-        from homepot.database import get_database_service
-
-        db_service = await get_database_service()
-        device = await db_service.get_device_by_device_id(device_id)
-        if device is not None:
-            await db_service.create_device_command(
-                device_id=cast(int, device.id),
-                command_type=action,
-                payload=notification_data,
-            )
-    except Exception as e:
-        logger.warning(f"Failed to queue push command for {device_id}: {e}")
+    db_service = await get_database_service()
+    device = await db_service.get_device_by_device_id(device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    db_user = cast(
+        User, sync_db.query(User).filter(User.email == current_user["email"]).first()
+    )
+    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
+    notification_data = {**notification_data, "action": "notification"}
 
     try:
         from homepot.agents import get_agent_manager
@@ -212,7 +213,7 @@ async def send_push_notification(
     if response is None:
         response = {
             "status": "success",
-            "message": f"Command '{action}' queued for device agent",
+            "message": "Notification accepted for device agent",
             "device_id": device_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

@@ -1,5 +1,7 @@
 """Tests for command polling and push wake-up utilities."""
 
+from unittest.mock import patch
+
 from homepot.agent.utils.command_poller import (
     build_status_update_payload,
     parse_pending_commands,
@@ -53,6 +55,7 @@ class TestParsePendingCommands:
 
 ALLOW_ALL: dict[str, bool] = {
     "root_access": True,
+    "command_execution": True,
     "process_monitoring": True,
     "filesystem_access": True,
     "network_monitoring": True,
@@ -60,6 +63,7 @@ ALLOW_ALL: dict[str, bool] = {
 
 DENY_ALL: dict[str, bool] = {
     "root_access": False,
+    "command_execution": False,
     "process_monitoring": False,
     "filesystem_access": False,
     "network_monitoring": False,
@@ -155,6 +159,70 @@ class TestProcessCommand:
         result = process_command({"command_id": "c1", "command_type": "restart"})
         assert result["status"] == "failed"
         assert "not available" in result["result"]["error"]
+
+    def test_run_command_requires_command_execution(self):
+        """Command execution is denied without the owner grant."""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command",
+                "payload": {"data": {"command": "whoami"}},
+            },
+            DENY_ALL,
+        )
+        assert result["status"] == "failed"
+        assert "command_execution" in result["result"]["error"]
+
+    def test_root_command_requires_both_grants(self):
+        """Root execution requires command and root grants."""
+        permissions = {**ALLOW_ALL, "root_access": False}
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command",
+                "payload": {"data": {"command": "id", "run_as_root": True}},
+            },
+            permissions,
+        )
+        assert result["status"] == "failed"
+        assert "root_access" in result["result"]["error"]
+
+    def test_script_cannot_embed_sudo_without_root_request(self):
+        """Scripts cannot bypass explicit root approval with embedded sudo."""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_script",
+                "payload": {"data": {"script": "echo ready\nsudo id"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        assert "run_as_root" in result["result"]["error"]
+
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_root_script_uses_non_interactive_sudo(self, run):
+        """Approved root scripts use non-interactive sudo."""
+        run.return_value.returncode = 0
+        run.return_value.stdout = "root\n"
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_script",
+                "payload": {
+                    "data": {
+                        "script": "id -u",
+                        "run_as_root": True,
+                        "timeout_seconds": 10,
+                    }
+                },
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0] == ["sudo", "-n", "--", "/bin/sh", "-s"]
+        assert run.call_args.kwargs["input"] == "id -u"
 
 
 class TestBuildStatusUpdatePayload:
