@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import TabBar from '../components/TabBar'
-import { credentialStorage } from '../services/credentialStorage'
-import { fetchDeviceLogs } from '../services/api'
-import type { DeviceLog } from '../services/api'
+
+type AppLogEntry = Awaited<ReturnType<NonNullable<Window['electronAPI']>['app']['getRecentLogs']>>[number]
 
 function formatTime(iso: string | null): string {
   if (!iso) return '—'
@@ -57,26 +56,17 @@ function Row({
 }
 
 export default function Logs() {
-  const [logs, setLogs] = useState<DeviceLog[]>([])
+  const [logs, setLogs] = useState<AppLogEntry[]>([])
   const [error, setError] = useState('')
-  const deviceIdRef = useRef<string | null>(null)
-  const apiKeyRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    Promise.all([credentialStorage.getDeviceId(), credentialStorage.getApiKey()]).then(
-      ([did, key]) => {
-        if (did) deviceIdRef.current = did
-        if (key) apiKeyRef.current = key
-      },
-    )
-  }, [])
 
   const refresh = useCallback(async () => {
-    const dId = deviceIdRef.current
-    const aKey = apiKeyRef.current
-    if (!dId || !aKey) return
+    const getRecentLogs = window.electronAPI?.app.getRecentLogs
+    if (!getRecentLogs) {
+      setError('Application logs are available in the desktop app.')
+      return
+    }
     try {
-      setLogs(await fetchDeviceLogs(dId, aKey))
+      setLogs(await getRecentLogs(15))
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load logs')
@@ -84,15 +74,10 @@ export default function Logs() {
   }, [])
 
   useEffect(() => {
-    const credsReady = setInterval(() => {
-      if (deviceIdRef.current && apiKeyRef.current) {
-        clearInterval(credsReady)
-        refresh()
-      }
-    }, 100)
+    const initialRefresh = setTimeout(refresh, 0)
     const poll = setInterval(refresh, 15000)
     return () => {
-      clearInterval(credsReady)
+      clearTimeout(initialRefresh)
       clearInterval(poll)
     }
   }, [refresh])
@@ -104,7 +89,7 @@ export default function Logs() {
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700">
           <div>
             <h1 className="text-slate-100 font-bold text-base tracking-wide">HOMEPOT Agent</h1>
-            <p className="text-slate-500 text-xs">Device Logs</p>
+            <p className="text-slate-500 text-xs">Application Logs</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center">
             <span className="text-base">📊</span>
@@ -123,15 +108,15 @@ export default function Logs() {
         {/* Content */}
         <div className="px-5 py-2 min-h-40">
           {logs.length === 0 ? (
-            <p className="text-center text-slate-600 text-sm py-8">No logs yet.</p>
+            <p className="text-center text-slate-600 text-sm py-8">No application events yet.</p>
           ) : (
             logs.map(log => (
               <Row
                 key={log.id}
-                title={log.error_message}
+                title={log.message}
                 subtitle={log.category}
                 meta={formatTime(log.timestamp)}
-                dot={severityDot(log.severity)}
+                dot={severityDot(log.level)}
               />
             ))
           )}

@@ -21,6 +21,9 @@ NC='\033[0m'
 # Get script directory and repository root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+PID_FILE="$REPO_ROOT/logs/userapp.pid"
+LOG_FILE="$REPO_ROOT/logs/userapp.log"
+ELECTRON_BIN="$REPO_ROOT/user_app/node_modules/electron/dist/electron"
 
 echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║                                                                ║${NC}"
@@ -61,6 +64,13 @@ port_in_use() {
     lsof -Pi :$1 -sTCP:LISTEN -t >/dev/null 2>&1
 }
 
+userapp_ready() {
+    local pid=$1
+    ps -p "$pid" >/dev/null 2>&1 \
+        && port_in_use 5174 \
+        && pgrep -g "$pid" -f "^$ELECTRON_BIN .* \\.$" >/dev/null 2>&1
+}
+
 ################################################################################
 # Prerequisites Check
 ################################################################################
@@ -81,18 +91,42 @@ if ! command_exists npm; then
 fi
 print_success "npm found: $(npm --version)"
 
+for command in lsof pgrep setsid; do
+    if ! command_exists "$command"; then
+        print_error "$command is required to manage the Electron User App lifecycle"
+        exit 1
+    fi
+done
+
 ################################################################################
 # Port Availability Check
 ################################################################################
 
 print_step "Checking port availability..."
 
+if [ -f "$PID_FILE" ]; then
+    EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+    if [[ "$EXISTING_PID" =~ ^[0-9]+$ ]] && userapp_ready "$EXISTING_PID"; then
+        print_success "Electron User App is already running (PID: $EXISTING_PID)"
+        exit 0
+    fi
+    print_warning "Cleaning an incomplete or stale User App process"
+    "$SCRIPT_DIR/stop-userapp.sh" >/dev/null 2>&1 || true
+fi
+
+# Clean Electron shells left by launchers from before process-group tracking.
+LEGACY_ELECTRON_PIDS="$(pgrep -f "^$ELECTRON_BIN --no-sandbox \\.$" || true)"
+if [ -n "$LEGACY_ELECTRON_PIDS" ]; then
+    print_warning "Cleaning stale Electron process(es): $LEGACY_ELECTRON_PIDS"
+    kill $LEGACY_ELECTRON_PIDS 2>/dev/null || true
+fi
+
 if port_in_use 5174; then
     print_warning "Port 5174 is already in use"
     read -p "Kill existing process and continue? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        lsof -ti:5174 | xargs kill -9 2>/dev/null || true
+        lsof -ti:5174 | xargs kill 2>/dev/null || true
         sleep 1
         print_success "Killed existing process on port 5174"
     else
@@ -135,19 +169,27 @@ if command_exists nvm; then
 fi
 
 print_info "Starting Electron User App on http://localhost:5174..."
-nohup npm run electron:dev > "$REPO_ROOT/logs/userapp.log" 2>&1 &
+nohup setsid npm run electron:dev > "$LOG_FILE" 2>&1 &
 USERAPP_PID=$!
-echo $USERAPP_PID > "$REPO_ROOT/logs/userapp.pid"
+echo "$USERAPP_PID" > "$PID_FILE"
 
-# Wait for server to start
-sleep 3
+# Wait for Vite and the Electron main process, not only the npm wrapper.
+for _ in {1..30}; do
+    if userapp_ready "$USERAPP_PID"; then
+        break
+    fi
+    if ! ps -p "$USERAPP_PID" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.5
+done
 
-# Check if server started successfully
-if ps -p $USERAPP_PID > /dev/null; then
+if userapp_ready "$USERAPP_PID"; then
     print_success "User App started successfully (PID: $USERAPP_PID)"
 else
     print_error "User App failed to start"
-    print_info "Check logs: $REPO_ROOT/logs/userapp.log"
+    print_info "Check logs: $LOG_FILE"
+    "$SCRIPT_DIR/stop-userapp.sh" >/dev/null 2>&1 || true
     exit 1
 fi
 
@@ -166,11 +208,11 @@ echo -e "${GREEN}Process ID:${NC}"
 echo -e "  User App: $USERAPP_PID"
 echo ""
 echo -e "${GREEN}Log File:${NC}"
-echo -e "  User App: $REPO_ROOT/logs/userapp.log"
+echo -e "  User App: $LOG_FILE"
 echo ""
 echo -e "${YELLOW}Quick Commands:${NC}"
-echo -e "  ${CYAN}View logs:${NC}  tail -f $REPO_ROOT/logs/userapp.log"
-echo -e "  ${CYAN}Stop app:${NC}   kill \$(cat $REPO_ROOT/logs/userapp.pid)"
+echo -e "  ${CYAN}View logs:${NC}  tail -f $LOG_FILE"
+echo -e "  ${CYAN}Stop app:${NC}   $SCRIPT_DIR/stop-userapp.sh"
 echo ""
 echo -e "${GREEN}Next Steps:${NC}"
 echo -e "  1. The Electron User App is ready."

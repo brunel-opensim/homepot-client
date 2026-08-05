@@ -9,6 +9,7 @@ beforeEach(() => {
   mockFetch.mockReset()
   localStorage.clear()
   sessionStorage.clear()
+  delete window.electronAPI
   window.history.pushState({}, '', '/')
 })
 
@@ -145,22 +146,24 @@ describe('App routing', () => {
     expect(screen.getByText('Active')).toBeInTheDocument()
   })
 
-  it('shows device logs at /logs', async () => {
+  it('shows local application logs at /logs', async () => {
     localStorage.setItem('homepot_device_id', 'pos-001')
     sessionStorage.setItem('homepot_api_key', 'test-key')
     mockFetch.mockImplementation((url: string) => {
       if (url.includes('/pending')) {
         return ok([])
       }
-      if (url.includes('/logs')) {
-        return ok({ data: [{ id: 1, timestamp: null, category: 'network', severity: 'info', error_code: null, error_message: 'Network link up (eth0)', resolved: false }] })
-      }
       return ok({ data: [] })
     })
+    window.electronAPI = {
+      app: {
+        getRecentLogs: vi.fn().mockResolvedValue([{ id: 'event-1', timestamp: new Date().toISOString(), category: 'application', level: 'info', message: 'User interface ready' }]),
+      },
+    } as unknown as NonNullable<Window['electronAPI']>
     window.history.pushState({}, '', '/logs')
     render(<App />)
-    expect(await screen.findByText('Device Logs')).toBeInTheDocument()
-    expect(await screen.findByText('Network link up (eth0)')).toBeInTheDocument()
+    expect(await screen.findByText('Application Logs')).toBeInTheDocument()
+    expect(await screen.findByText('User interface ready')).toBeInTheDocument()
   })
 
   it('unknown path redirects to /', async () => {

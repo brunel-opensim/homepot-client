@@ -32,6 +32,13 @@ declare global {
       }
       app: {
         getVersion(): Promise<string>
+        getRecentLogs(limit?: number): Promise<Array<{
+          id: string
+          timestamp: string
+          level: 'info' | 'warning' | 'error'
+          category: string
+          message: string
+        }>>
       }
       emulator: {
         start(config: {

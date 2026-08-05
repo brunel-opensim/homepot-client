@@ -246,7 +246,7 @@ export default function DeviceInfo() {
                   Unpairing...
                 </>
               ) : (
-                '🔌  Disconnect &amp; Unpair Device'
+                '🔌  Disconnect & Unpair Device'
               )}
             </button>
           ) : (

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
+    getRecentLogs: (limit = 15) => ipcRenderer.invoke('app:getRecentLogs', limit),
   },
   emulator: {
     start: (config: {

@@ -4,8 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { AppProvider } from '../context/AppContext'
 import Logs from '../views/Logs'
 
-const mockFetch = vi.fn()
-globalThis.fetch = mockFetch
+const getRecentLogs = vi.fn()
 
 vi.mock('../services/credentialStorage', () => ({
   credentialStorage: {
@@ -17,29 +16,16 @@ vi.mock('../services/credentialStorage', () => ({
   },
 }))
 
-function ok(body: unknown) {
-  return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
-}
-
 function mockLogsData() {
-  mockFetch.mockImplementation((url: string) => {
-    if (url.includes('/logs')) {
-      return ok({
-        data: [
-          {
-            id: 1,
-            timestamp: '2026-08-03T10:00:00.000Z',
-            category: 'network',
-            severity: 'warning',
-            error_code: null,
-            error_message: 'WAN link flapping detected',
-            resolved: false,
-          },
-        ],
-      })
-    }
-    return ok({ data: [] })
-  })
+  getRecentLogs.mockResolvedValue([
+    {
+      id: 'event-1',
+      timestamp: '2026-08-03T10:00:00.000Z',
+      category: 'application',
+      level: 'info',
+      message: 'HOMEPOT Agent started',
+    },
+  ])
 }
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -52,19 +38,23 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe('Logs', () => {
   beforeEach(() => {
-    mockFetch.mockReset()
+    getRecentLogs.mockReset()
+    window.electronAPI = {
+      app: { getRecentLogs },
+    } as unknown as NonNullable<Window['electronAPI']>
   })
 
-  it('renders device logs', async () => {
+  it('renders the latest local application logs', async () => {
     mockLogsData()
     renderWithProviders(<Logs />)
-    expect(await screen.findByText('Device Logs')).toBeInTheDocument()
-    expect(await screen.findByText('WAN link flapping detected')).toBeInTheDocument()
+    expect(await screen.findByText('Application Logs')).toBeInTheDocument()
+    expect(await screen.findByText('HOMEPOT Agent started')).toBeInTheDocument()
+    expect(getRecentLogs).toHaveBeenCalledWith(15)
   })
 
   it('shows empty state when there is no data', async () => {
-    mockFetch.mockImplementation(() => ok({ data: [] }))
+    getRecentLogs.mockResolvedValue([])
     renderWithProviders(<Logs />)
-    expect(await screen.findByText('No logs yet.')).toBeInTheDocument()
+    expect(await screen.findByText('No application events yet.')).toBeInTheDocument()
   })
 })
