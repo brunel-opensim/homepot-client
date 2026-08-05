@@ -11,6 +11,7 @@ const CREDENTIALS_DIR = path.join(os.homedir(), '.homepot')
 const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, 'credentials')
 const IDENTITY_FILE = path.join(CREDENTIALS_DIR, 'identity')
 const EMULATOR_DIR = path.join(CREDENTIALS_DIR, 'emulators')
+const MAX_APP_LOG_ENTRIES = 15
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 let mainWindow: BrowserWindow | null = null
@@ -24,11 +25,54 @@ interface EmulatorFileConfig {
   os_details?: string
 }
 
+interface AppLogEntry {
+  id: string
+  timestamp: string
+  level: 'info' | 'warning' | 'error'
+  category: string
+  message: string
+}
+
+function getAppLogFile(): string {
+  return path.join(app.getPath('userData'), 'app-events.json')
+}
+
+function readAppLog(): AppLogEntry[] {
+  try {
+    const data = JSON.parse(fs.readFileSync(getAppLogFile(), 'utf-8'))
+    return Array.isArray(data) ? data.slice(-MAX_APP_LOG_ENTRIES) : []
+  } catch {
+    return []
+  }
+}
+
+function recordAppEvent(level: AppLogEntry['level'], category: string, message: string): void {
+  try {
+    const logFile = getAppLogFile()
+    fs.mkdirSync(path.dirname(logFile), { recursive: true, mode: 0o700 })
+    const entries = [
+      ...readAppLog(),
+      {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        level,
+        category,
+        message,
+      },
+    ].slice(-MAX_APP_LOG_ENTRIES)
+    fs.writeFileSync(logFile, JSON.stringify(entries, null, 2), { mode: 0o600 })
+    fs.chmodSync(logFile, 0o600)
+  } catch (error) {
+    console.error('[app-log] Failed to write event:', error)
+  }
+}
+
 if (!hasSingleInstanceLock) {
   app.quit()
 }
 
 app.on('second-instance', () => {
+  recordAppEvent('warning', 'application', 'Another launch was redirected to the running application')
   mainWindow?.show()
   mainWindow?.focus()
 })
@@ -62,6 +106,13 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    recordAppEvent('info', 'application', 'User interface ready')
+  })
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    recordAppEvent('error', 'application', `User interface stopped unexpectedly (${details.reason})`)
+  })
 
   mainWindow.on('close', (event) => {
     if (tray) {
@@ -154,6 +205,7 @@ function getOrCreateDeviceIdentity(): { deviceId: string; machineId: string } {
 function registerIpcHandlers() {
   ipcMain.handle('credentials:save', (_event, data: Record<string, string>) => {
     writeCredentialsFile(data)
+    recordAppEvent('info', 'setup', 'Device setup completed successfully')
     return true
   })
 
@@ -215,6 +267,11 @@ function registerIpcHandlers() {
     return app.getVersion()
   })
 
+  ipcMain.handle('app:getRecentLogs', (_event, requestedLimit = MAX_APP_LOG_ENTRIES) => {
+    const limit = Math.max(1, Math.min(MAX_APP_LOG_ENTRIES, Number(requestedLimit) || MAX_APP_LOG_ENTRIES))
+    return readAppLog().slice(-limit).reverse()
+  })
+
   ipcMain.handle('emulator:start', async (_event, config: {
     emulatorType: string
     backendUrl: string
@@ -225,6 +282,7 @@ function registerIpcHandlers() {
     mockIp?: string
     mockHostname?: string
   }) => {
+    recordAppEvent('info', 'emulator', `Starting ${config.emulatorType} device emulator`)
     if (emulatorProcess) {
       killEmulator()
     }
@@ -258,15 +316,22 @@ function registerIpcHandlers() {
       fs.unlinkSync(credsPath)
     }
 
-    startEmulatorProcess(config.emulatorType, configPath)
+    try {
+      startEmulatorProcess(config.emulatorType, configPath)
+    } catch (error) {
+      recordAppEvent('error', 'emulator', `Device emulator failed to start: ${error instanceof Error ? error.message : 'unknown error'}`)
+      throw error
+    }
 
     const creds = await pollForCredentials(credsPath, 30_000)
     if (!creds) {
       killEmulator()
+      recordAppEvent('error', 'setup', 'Device emulator setup timed out')
       throw new Error('Emulator did not provision within 30 seconds')
     }
 
     emulatorDeviceId = creds.device_id
+    recordAppEvent('info', 'emulator', 'Device emulator started successfully')
     return { deviceId: creds.device_id, apiKey: creds.api_key }
   })
 
@@ -286,6 +351,7 @@ function registerIpcHandlers() {
 
 function killEmulator(): void {
   if (!emulatorProcess) return
+  recordAppEvent('info', 'emulator', 'Stopping device emulator')
   const processToKill = emulatorProcess
   try {
     processToKill.kill('SIGTERM')
@@ -328,8 +394,13 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
     console.error(`[emulator:err] ${data.toString().trim()}`)
   })
 
+  child.on('error', (error) => {
+    recordAppEvent('error', 'emulator', `Device emulator process error: ${error.message}`)
+  })
+
   child.on('exit', (code) => {
     console.log(`[emulator] exited with code ${code}`)
+    recordAppEvent(code === 0 ? 'info' : 'error', 'emulator', `Device emulator exited with code ${code ?? 'unknown'}`)
     if (emulatorProcess === child) {
       emulatorProcess = null
       emulatorDeviceId = null
@@ -348,6 +419,7 @@ function resumePersistedEmulator(): void {
   const emulatorCredentialsPath = path.join(EMULATOR_DIR, `${deviceName}.json`)
   if (!fs.existsSync(configPath) || !fs.existsSync(emulatorCredentialsPath)) {
     console.warn(`[emulator] Cannot resume ${deviceName}: saved config or credentials are missing`)
+    recordAppEvent('warning', 'emulator', 'Saved device emulator could not resume because local files are missing')
     return
   }
 
@@ -358,8 +430,10 @@ function resumePersistedEmulator(): void {
     startEmulatorProcess(emulatorType, configPath)
     emulatorDeviceId = credentials.device_id
     console.log(`[emulator] Resumed ${deviceName} (${emulatorDeviceId})`)
+    recordAppEvent('info', 'emulator', 'Saved device emulator resumed successfully')
   } catch (error) {
     console.error(`[emulator] Failed to resume ${deviceName}:`, error)
+    recordAppEvent('error', 'emulator', `Saved device emulator failed to resume: ${error instanceof Error ? error.message : 'unknown error'}`)
   }
 }
 
@@ -423,6 +497,11 @@ function pollForCredentials(credsPath: string, timeoutMs: number): Promise<Recor
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) return
+  const isFirstLaunch = !fs.existsSync(getAppLogFile())
+  if (isFirstLaunch) {
+    recordAppEvent('info', 'installation', 'Installation completed; HOMEPOT Agent launched for the first time')
+  }
+  recordAppEvent('info', 'application', `HOMEPOT Agent ${app.getVersion()} started`)
   registerIpcHandlers()
   resumePersistedEmulator()
   createWindow()
@@ -436,6 +515,7 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  recordAppEvent('info', 'application', 'HOMEPOT Agent is stopping')
   killEmulator()
 })
 

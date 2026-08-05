@@ -203,7 +203,7 @@ describe('DeviceInfo', () => {
     })
     renderWithProviders(<DeviceInfo />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
-    expect(await screen.findByText(/Disconnect.*Unpair/)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Disconnect & Unpair Device$/ })).toBeInTheDocument()
   })
 })
 
