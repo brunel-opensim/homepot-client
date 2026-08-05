@@ -84,6 +84,8 @@ describe('HomeDashboard', () => {
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
     expect(screen.queryByText(/Lifecycle:/)).not.toBeInTheDocument()
     expect(screen.queryByText('good')).not.toBeInTheDocument()
+    expect(screen.getByText('Device Resource Usage')).toBeInTheDocument()
+    expect(screen.queryByText('Agent Resource Usage')).not.toBeInTheDocument()
     expect(screen.getByText('CPU')).toBeInTheDocument()
     expect(screen.getByText('Memory')).toBeInTheDocument()
     expect(screen.getByText('Disk')).toBeInTheDocument()
