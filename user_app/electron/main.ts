@@ -11,11 +11,27 @@ const CREDENTIALS_DIR = path.join(os.homedir(), '.homepot')
 const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, 'credentials')
 const IDENTITY_FILE = path.join(CREDENTIALS_DIR, 'identity')
 const EMULATOR_DIR = path.join(CREDENTIALS_DIR, 'emulators')
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let emulatorProcess: ChildProcess | null = null
 let emulatorDeviceId: string | null = null
+
+interface EmulatorFileConfig {
+  emulator_type?: string
+  device_name?: string
+  os_details?: string
+}
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
+
+app.on('second-instance', () => {
+  mainWindow?.show()
+  mainWindow?.focus()
+})
 
 function getAssetPath(...segments: string[]): string {
   const dir = __dirname
@@ -214,6 +230,7 @@ function registerIpcHandlers() {
     }
 
     const tempConfig = {
+      emulator_type: config.emulatorType,
       backend_url: config.backendUrl,
       site_id: config.siteId,
       bootstrap_key: config.bootstrapKey,
@@ -241,34 +258,7 @@ function registerIpcHandlers() {
       fs.unlinkSync(credsPath)
     }
 
-    const projectRoot = getProjectRoot()
-    const emulatorScript = path.join(projectRoot, 'emulators', `${config.emulatorType}_emulator.py`)
-    if (!fs.existsSync(emulatorScript)) {
-      throw new Error(`Emulator script not found: ${emulatorScript}`)
-    }
-
-    const pythonExe = findPython(projectRoot)
-    emulatorProcess = spawn(pythonExe, [emulatorScript, '--config', configPath], {
-      cwd: projectRoot,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-
-    emulatorProcess.stdout?.on('data', (data: Buffer) => {
-      const lines = data.toString().split('\n').filter(Boolean)
-      for (const line of lines) {
-        console.log(`[emulator] ${line}`)
-      }
-    })
-
-    emulatorProcess.stderr?.on('data', (data: Buffer) => {
-      console.error(`[emulator:err] ${data.toString().trim()}`)
-    })
-
-    emulatorProcess.on('exit', (code) => {
-      console.log(`[emulator] exited with code ${code}`)
-      emulatorProcess = null
-      emulatorDeviceId = null
-    })
+    startEmulatorProcess(config.emulatorType, configPath)
 
     const creds = await pollForCredentials(credsPath, 30_000)
     if (!creds) {
@@ -296,19 +286,80 @@ function registerIpcHandlers() {
 
 function killEmulator(): void {
   if (!emulatorProcess) return
+  const processToKill = emulatorProcess
   try {
-    emulatorProcess.kill('SIGTERM')
-    const killed = emulatorProcess.killed
+    processToKill.kill('SIGTERM')
+    const killed = processToKill.killed
     emulatorProcess = null
     emulatorDeviceId = null
     if (!killed) {
       setTimeout(() => {
-        try { emulatorProcess?.kill('SIGKILL') } catch { /* ignore */ }
+        try { processToKill.kill('SIGKILL') } catch { /* ignore */ }
       }, 3000)
     }
   } catch {
     emulatorProcess = null
     emulatorDeviceId = null
+  }
+}
+
+function startEmulatorProcess(emulatorType: string, configPath: string): void {
+  const projectRoot = getProjectRoot()
+  const emulatorScript = path.join(projectRoot, 'emulators', `${emulatorType}_emulator.py`)
+  if (!fs.existsSync(emulatorScript)) {
+    throw new Error(`Emulator script not found: ${emulatorScript}`)
+  }
+
+  const pythonExe = findPython(projectRoot)
+  const child = spawn(pythonExe, [emulatorScript, '--config', configPath], {
+    cwd: projectRoot,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  emulatorProcess = child
+
+  child.stdout?.on('data', (data: Buffer) => {
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.log(`[emulator] ${line}`)
+    }
+  })
+
+  child.stderr?.on('data', (data: Buffer) => {
+    console.error(`[emulator:err] ${data.toString().trim()}`)
+  })
+
+  child.on('exit', (code) => {
+    console.log(`[emulator] exited with code ${code}`)
+    if (emulatorProcess === child) {
+      emulatorProcess = null
+      emulatorDeviceId = null
+    }
+  })
+}
+
+function resumePersistedEmulator(): void {
+  const credentials = readCredentialsFile()
+  const deviceName = credentials.device_name
+  if (credentials.enrollment_method !== 'emulated' || !credentials.device_id || !deviceName) {
+    return
+  }
+
+  const configPath = path.join(EMULATOR_DIR, `${deviceName}-config.json`)
+  const emulatorCredentialsPath = path.join(EMULATOR_DIR, `${deviceName}.json`)
+  if (!fs.existsSync(configPath) || !fs.existsSync(emulatorCredentialsPath)) {
+    console.warn(`[emulator] Cannot resume ${deviceName}: saved config or credentials are missing`)
+    return
+  }
+
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as EmulatorFileConfig
+    const emulatorType = config.emulator_type
+      ?? (config.os_details?.toLowerCase().includes('android') ? 'android_pos' : 'linux_pos')
+    startEmulatorProcess(emulatorType, configPath)
+    emulatorDeviceId = credentials.device_id
+    console.log(`[emulator] Resumed ${deviceName} (${emulatorDeviceId})`)
+  } catch (error) {
+    console.error(`[emulator] Failed to resume ${deviceName}:`, error)
   }
 }
 
@@ -371,7 +422,9 @@ function pollForCredentials(credsPath: string, timeoutMs: number): Promise<Recor
 }
 
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return
   registerIpcHandlers()
+  resumePersistedEmulator()
   createWindow()
   createTray()
 

@@ -82,6 +82,8 @@ describe('HomeDashboard', () => {
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByText('SECURE — ONLINE')).toBeInTheDocument()
+    expect(screen.queryByText(/Lifecycle:/)).not.toBeInTheDocument()
+    expect(screen.queryByText('good')).not.toBeInTheDocument()
     expect(screen.getByText('CPU')).toBeInTheDocument()
     expect(screen.getByText('Memory')).toBeInTheDocument()
     expect(screen.getByText('Disk')).toBeInTheDocument()

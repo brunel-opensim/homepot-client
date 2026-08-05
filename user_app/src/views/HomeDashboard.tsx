@@ -131,12 +131,6 @@ export default function HomeDashboard() {
               <p className={`font-bold text-sm ${isOnline ? 'text-emerald-400' : 'text-red-400'}`}>
                 {isOnline ? 'SECURE — ONLINE' : 'OFFLINE'}
               </p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-slate-400 text-xs">Lifecycle: {lifecycle}</span>
-                {status?.health_state && status.health_state !== 'unknown' && (
-                  <span className="text-slate-500 text-xs">· {status.health_state}</span>
-                )}
-              </div>
             </div>
             <div className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${
               isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'
