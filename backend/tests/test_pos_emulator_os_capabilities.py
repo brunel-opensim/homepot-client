@@ -1,7 +1,7 @@
 """Tests for POS emulator OS identity and derived permissions.
 
 The POS emulators are thin wrappers around the shared parameterized engine in
-``emulators/linux_pos_emulator.py``; each OS only overrides identity defaults
+``emulators/pos_engine.py``; each OS only overrides identity defaults
 (``os_details``, mock MAC/hostname). This test suite verifies that the engine
 carries the OS identity through **both** the CLI-only and ``--config`` paths so
 that OS-specific capability maps are honoured (e.g. Android must not report
@@ -24,7 +24,7 @@ EMULATORS_DIR = Path(__file__).resolve().parents[2] / "emulators"
 sys.path.insert(0, str(EMULATORS_DIR))
 
 import android_pos_emulator  # noqa: E402
-import linux_pos_emulator as emu  # noqa: E402
+import pos_engine as emu  # noqa: E402
 
 
 @pytest.mark.parametrize(

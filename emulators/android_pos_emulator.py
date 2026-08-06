@@ -4,8 +4,11 @@
 Simulates an Android POS terminal device for end-to-end testing of the
 Dashboard, User App, and device lifecycle flows without physical hardware.
 
-Reuses the parameterized emulator engine from ``linux_pos_emulator.py`` with
-Android-specific device identity defaults (OS details, mock MAC/hostname).
+Thin wrapper around the shared emulator engine (:mod:`pos_engine`) configured
+with Android identity defaults (OS details, mock MAC/hostname). The engine is
+OS-agnostic; Android only overrides the device identity and thereby inherits an
+Android-specific permission capability map (no root access, but process /
+filesystem / network monitoring).
 
 Usage
 -----
@@ -21,13 +24,16 @@ from __future__ import annotations
 
 from typing import Any
 
-try:
-    from linux_pos_emulator import (  # type: ignore[import-not-found]
-        LinuxPOSEmulator,
-        main,
-    )
-except ModuleNotFoundError:
-    from .linux_pos_emulator import LinuxPOSEmulator, main
+from pos_engine import (
+    POSEmulator,
+    main,
+    derive_os_capabilities,
+    parse_args,
+    build_config,
+    EmulatorConfig,
+)
+
+LinuxPOSEmulator = POSEmulator
 
 ANDROID_DEFAULTS: dict[str, Any] = {
     "device_name": "android-pos-emulator-1",
@@ -41,7 +47,7 @@ def android_main(argv: list[str] | None = None) -> None:
     main(
         argv,
         defaults=ANDROID_DEFAULTS,
-        emulator_class=LinuxPOSEmulator,
+        emulator_class=POSEmulator,
         banner="HOMEPOT Android POS Emulator",
     )
 

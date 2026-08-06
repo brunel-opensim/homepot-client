@@ -35,7 +35,7 @@ The Dashboard immediately shows the emulated device with its mock DNA, online st
 | Web Browser | — | Web | `virtual_terminal` |
 | MQTT Sensor | — | Linux | `mobile_scanner` |
 
-**Linux POS** and **Android POS** are implemented. Android reuses the parameterized engine from `linux_pos_emulator.py` with Android identity defaults (`Android 14`, mock MAC `02:42:ac:11:00:03`, hostname `android-pos-001`); its OS capability map is derived from the OS string (no root access, but process/filesystem/network monitoring). Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
+**Linux POS** and **Android POS** are implemented. Both are thin wrappers around the shared engine in `emulators/pos_engine.py`. Each OS only overrides identity defaults (e.g. Android: `Android 14`, mock MAC `02:42:ac:11:00:03`, hostname `android-pos-001`); its OS capability map is derived from the OS string (no root access, but process/filesystem/network monitoring). Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
 
 ## How an emulator works
 
@@ -220,10 +220,10 @@ Example:
 
 ## Creating a new emulator
 
-Each emulator is a standalone runnable script. The quickest way to add a new OS is to create a thin script that imports the parameterized engine from `linux_pos_emulator.py` and overrides the identity defaults, exactly like `android_pos_emulator.py`:
+Each emulator is a standalone runnable script. The quickest way to add a new OS is to create a thin wrapper that imports the shared engine from `pos_engine.py` and overrides the identity defaults, exactly like `android_pos_emulator.py`:
 
 ```python
-from linux_pos_emulator import LinuxPOSEmulator, main
+from pos_engine import POSEmulator, main
 
 WINDOWS_DEFAULTS = {
     "device_name": "windows-pos-emulator-1",
@@ -232,15 +232,15 @@ WINDOWS_DEFAULTS = {
     "mock_hostname": "windows-pos-001",
 }
 
-if __name__ == "__main__":
-    main(defaults=WINDOWS_DEFAULTS, banner="HOMEPOT Windows POS Emulator")
+def windows_main(argv=None):
+    main(argv, defaults=WINDOWS_DEFAULTS, emulator_class=POSEmulator, banner="HOMEPOT Windows POS Emulator")
 ```
 
-For OS-specific behaviour beyond identity, copy `linux_pos_emulator.py` and adjust:
+For OS-specific behaviour beyond identity, add it to the shared engine (`pos_engine.py`) in an OS-conditional way, or subclass `POSEmulator`:
 
 1. **Config defaults** — Change the OS details, device type, mock MAC/IP/hostname defaults.
 2. **Simulated metrics** — Override `SimulatedMetrics` for OS-specific metrics (e.g. Android battery level, iOS thermal state).
-3. **Command responses** — Add OS-specific command handlers in `_simulate_command_result`.
+3. **Command responses** — Add OS-specific command handlers in `_simulate_command_result`(keyed on `os_details`).
 4. **Platform-specific behaviours** — Override loops or add new ones (e.g. WNS channel registration for Windows, FCM token refresh for Android).
 5. **Config file** — Create a dedicated JSON config with appropriate defaults.
 
@@ -249,9 +249,10 @@ For OS-specific behaviour beyond identity, copy `linux_pos_emulator.py` and adju
 ```
 emulators/
 ├── __init__.py
-├── linux_pos_emulator.py       # Linux POS (implemented)
+├── pos_engine.py                # Shared emulator engine (all behaviour)
+├── linux_pos_emulator.py        # Linux POS (implemented; thin wrapper)
 ├── linux_pos_emulator.json      # Linux POS config example
-├── android_pos_emulator.py      # Android POS (implemented; reuses linux engine)
+├── android_pos_emulator.py      # Android POS (implemented; thin wrapper)
 ├── android_pos_emulator.json    # Android POS config example
 ├── windows_pos_emulator.py      # Windows POS (future)
 └── ...
@@ -338,7 +339,7 @@ User App (Electron)
 
 ### Lifecycle
 
-- **Startup**: Electron spawns `python3 emulators/linux_pos_emulator.py --config <temp-file>`. The temp config contains backend URL, site ID, bootstrap key, and mock DNA values for the selected emulator type.
+- **Startup**: Electron spawns `python3 emulators/<os>_pos_emulator.py --config <temp-file>` (e.g. `linux_pos_emulator.py` or `android_pos_emulator.py`). The temp config contains backend URL, site ID, bootstrap key, and mock DNA values for the selected emulator type.
 - **Provisioning wait**: Main process polls `~/.homepot/emulators/<device_name>.json` until it appears (emulator writes it after provisioning).
 - **Runtime**: Main process monitors the child process — if it dies unexpectedly, a warning banner appears in the UI.
 - **Shutdown**: On app quit or unpair, main process sends SIGTERM → waits 3 s → SIGKILL if needed.

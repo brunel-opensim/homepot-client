@@ -47,9 +47,11 @@ kill_by_pidfile() {
 # Stop emulator using PID file
 kill_by_pidfile "$REPO_ROOT/logs/emulator.pid" "emulator"
 
-# Fallback: kill any remaining emulator processes
-pkill -f "emulators/linux_pos_emulator.py" 2>/dev/null \
-    && echo -e "${GREEN}✓${NC} Killed remaining emulator processes"
+# Fallback: kill any remaining POS emulator processes (any OS wrapper or the engine)
+if pkill -f "emulators/(linux|android|windows)_pos_emulator.py" 2>/dev/null \
+    || pkill -f "emulators/pos_engine.py" 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Killed remaining emulator processes"
+fi
 
 echo ""
 echo -e "${GREEN}HOMEPOT device emulator stopped.${NC}"
