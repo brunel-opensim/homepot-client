@@ -5,7 +5,12 @@
 #
 # This script starts the HOMEPOT User App (Agent) locally.
 #
-# Usage: ./scripts/start-userapp.sh
+# Usage: ./scripts/start-userapp.sh [--reset]
+#
+# Options:
+#   -r, --reset   Clear stored device credentials and boot directly into the
+#                 Setup wizard so a new device can be provisioned.
+#   -h, --help    Show usage information.
 ################################################################################
 
 set -e
@@ -72,6 +77,46 @@ userapp_ready() {
 }
 
 ################################################################################
+# Command-line Arguments
+################################################################################
+
+RESET_MODE=false
+
+show_help() {
+    cat <<EOF
+Usage: ./scripts/start-userapp.sh [--reset]
+
+Starts the HOMEPOT User App (Agent) desktop application.
+
+Options:
+  -r, --reset   Clear stored device credentials and boot directly into the
+                Setup wizard so a new device can be provisioned.
+  -h, --help    Show this help message.
+EOF
+    exit 0
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        -r|--reset) RESET_MODE=true ;;
+        -h|--help) show_help ;;
+        *) print_error "Unknown argument: $arg"; show_help ;;
+    esac
+done
+
+if [ "$RESET_MODE" = true ]; then
+    print_step "Reset mode: clearing stored device credentials..."
+    CREDENTIALS_FILE="$HOME/.homepot/credentials"
+    if [ -f "$CREDENTIALS_FILE" ]; then
+        rm -f "$CREDENTIALS_FILE"
+        print_success "Removed $CREDENTIALS_FILE"
+    else
+        print_info "No stored credentials found at $CREDENTIALS_FILE"
+    fi
+    "$SCRIPT_DIR/stop-userapp.sh" >/dev/null 2>&1 || true
+fi
+
+################################################################################
 # Prerequisites Check
 ################################################################################
 
@@ -108,6 +153,14 @@ if [ -f "$PID_FILE" ]; then
     EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
     if [[ "$EXISTING_PID" =~ ^[0-9]+$ ]] && userapp_ready "$EXISTING_PID"; then
         print_success "Electron User App is already running (PID: $EXISTING_PID)"
+        # The app holds a single-instance lock. Relaunching Electron briefly
+        # triggers its 'second-instance' handler, which shows and focuses the
+        # existing (possibly hidden, in-tray) window. Then it exits on its own.
+        print_info "Reopening the User App window..."
+        (
+            cd "$REPO_ROOT/user_app"
+            nohup "$ELECTRON_BIN" . --no-sandbox >/dev/null 2>&1 &
+        )
         exit 0
     fi
     print_warning "Cleaning an incomplete or stale User App process"
@@ -217,5 +270,8 @@ echo ""
 echo -e "${GREEN}Next Steps:${NC}"
 echo -e "  1. The Electron User App is ready."
 echo -e "  2. Complete setup in the ${BLUE}HOMEPOT Agent${NC} desktop window."
+echo -e ""
+echo -e "  ${YELLOW}Tip:${NC} To provision a new device later, stop the app and run"
+echo -e "       ${CYAN}$SCRIPT_DIR/start-userapp.sh --reset${NC}"
 echo ""
 exit 0

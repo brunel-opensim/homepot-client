@@ -44,7 +44,8 @@ Avoids running `nvm use` every time you open a new terminal.
 
 | Command | What it does |
 |---|---|
-| `./scripts/start-userapp.sh` | Automatically check requirements and start the App via `nohup` |
+| `./scripts/start-userapp.sh` | Automatically check requirements and start the App via `nohup`; if the App is already running, reopens its window |
+| `./scripts/start-userapp.sh --reset` | Clear stored device credentials and start the App **directly into the Setup wizard** so a new device can be provisioned |
 | `./scripts/stop-userapp.sh` | Kill the `nohup` server processes running the user app |
 | `npm run dev` | Start local dev server at http://localhost:5174 |
 | `npm run build` | Production build → output to `dist/` |
@@ -64,6 +65,8 @@ This method automates Node version checking, port validation, and background log
 ```
 
 **Note:** Logs go to `logs/userapp.log`. To stop it, run `./scripts/stop-userapp.sh`.
+
+**Resuming / reopening:** Closing the App window does **not** quit the App — it hides it to the system tray so the running device (and any in-progress setup) is preserved. Re-running `./scripts/start-userapp.sh` detects the running App and reopens its window so you can pick up exactly where you left off. If the App is not running at all, it starts fresh and resumes your provisioned credentials and emulator automatically.
 
 ### Option 2: Manual Start
 
@@ -108,9 +111,21 @@ When you open the app for the first time you will see the **Setup Wizard (Page 1
 3. Click **Login with SSO** to authenticate
 4. Click **Complete Setup** — app moves to the Home Dashboard
 
-### Reset the wizard (for testing)
+### Reset the wizard (for testing / provisioning a new device)
 
-Open browser DevTools → **Application** → **Local Storage** → delete `homepot_token` → refresh.
+The app stores the provisioned device's credentials in `~/.homepot/credentials`.
+Once provisioned, the app opens on the **Home Dashboard**. To start a fresh
+setup and provision a new device, clear those credentials **before** launching:
+
+```bash
+# Stop the app if it is running, then relaunch in reset mode
+./scripts/stop-userapp.sh
+./scripts/start-userapp.sh --reset
+```
+
+`--reset` deletes the stored credentials and boots the app straight into the
+Setup wizard. You can also run `./scripts/start-userapp.sh --help` for a list
+of options.
 
 ---
 
