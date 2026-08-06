@@ -2,7 +2,15 @@ import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/Toast';
 import api from '@/services/api';
 // Cleaned up unused imports that were causing blank page errors
-import { AlertTriangle, ArrowLeft, FileJson, MessageSquare, Rocket, ShieldAlert, Terminal } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  FileJson,
+  MessageSquare,
+  Rocket,
+  ShieldAlert,
+  Terminal,
+} from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 
@@ -302,9 +310,15 @@ export default function PushReview() {
             ) : (
               <>
                 {missingPermissions.length ? (
-                  <><ShieldAlert className="h-4 w-4 mr-2" />Request Access</>
+                  <>
+                    <ShieldAlert className="h-4 w-4 mr-2" />
+                    Request Access
+                  </>
                 ) : (
-                  <><Rocket className="h-4 w-4 mr-2" />Queue Command</>
+                  <>
+                    <Rocket className="h-4 w-4 mr-2" />
+                    Queue Command
+                  </>
                 )}
               </>
             )}
@@ -344,11 +358,13 @@ export default function PushReview() {
                   </div>
                 </div>
 
-                <div className={`border rounded-lg px-3 py-2 text-xs ${
-                  missingPermissions.length
-                    ? 'border-amber-700/60 bg-amber-950/30 text-amber-300'
-                    : 'border-emerald-700/50 bg-emerald-950/20 text-emerald-300'
-                }`}>
+                <div
+                  className={`border rounded-lg px-3 py-2 text-xs ${
+                    missingPermissions.length
+                      ? 'border-amber-700/60 bg-amber-950/30 text-amber-300'
+                      : 'border-emerald-700/50 bg-emerald-950/20 text-emerald-300'
+                  }`}
+                >
                   Required: {requiredPermissions.map((key) => PERMISSION_LABELS[key]).join(' + ')}
                   {missingPermissions.length > 0 && ' — awaiting device-owner approval'}
                 </div>
