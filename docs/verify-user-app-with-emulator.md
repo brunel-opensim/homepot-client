@@ -169,6 +169,17 @@ In **Terminal 2**, first start the HOMEPOT **User App** — the device-side UI (
 ./scripts/start-userapp.sh
 ```
 
+If the User App was used before on this machine, it opens on the **Home
+Dashboard** instead of the wizard. To provision a **new** device, relaunch it in
+reset mode:
+
+```bash
+./scripts/start-userapp.sh --reset
+```
+
+`--reset` clears the stored credentials (`~/.homepot/credentials`) so the Setup
+wizard opens again.
+
 The **HOMEPOT Agent** Electron window opens with the setup wizard. Walk through
 it with the handed-off site info: enter the **Site ID**, the **Bootstrap Key**, a
 **Device Name**, and pick a device type. As you type the device name, the
@@ -327,6 +338,8 @@ Back in **Terminal 1** / the Dashboard browser:
 | Symptom | Cause / fix |
 |---------|-------------|
 | "Device name ... already in use" (400) | A live device in the site already uses that name (case-insensitive). Pick a different name, or retire/unpair the old device first. |
+| User App opens on Home instead of the Setup wizard | The device is already provisioned (`~/.homepot/credentials` exists). Relaunch with `./scripts/start-userapp.sh --reset` to clear it and start a fresh setup. |
+| User App window is gone but the app is still running | Closing the window hides it to the system tray (the process, running emulator, and setup state are preserved). Re-run `./scripts/start-userapp.sh` to reopen the window, or click the tray icon. |
 | Device never appears on the Dashboard | Bootstrap key typo, or wrong `--site-id`. The key is single-use-ish — generate a new one in Step 2. |
 | Emulator re-provisions but Dashboard shows the old device | Stale credentials file — delete `~/.homepot/emulators/<device_name>.json` and re-run **with a different `--device-name`** (the old name is still registered and the duplicate check will reject it). |
 | `health_state` shows `error` on a healthy device | The legacy simulator was enabled (`ENABLE_AGENT_SIMULATION=true`). Restart the backend with it disabled (Step 0). |
