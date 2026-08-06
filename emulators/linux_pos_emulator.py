@@ -1366,6 +1366,12 @@ def parse_args(
         help="Device name",
     )
     parser.add_argument(
+        "--os-details",
+        type=str,
+        default=None,
+        help="Operating system label (e.g. 'Linux 6.8.0 (Debian 12)', 'Android 14')",
+    )
+    parser.add_argument(
         "--mock-mac",
         type=str,
         default=d.get("mock_mac", "02:42:ac:11:00:02"),
@@ -1470,6 +1476,8 @@ def build_config(
             cfg = json.load(f)
         config = EmulatorConfig.from_dict({**d, **cfg})
         config.backend_url = args.backend_url
+        if args.os_details:
+            config.os_details = args.os_details
         if args.site_id:
             config.site_id = args.site_id
         if args.bootstrap_key:
@@ -1485,6 +1493,7 @@ def build_config(
         site_id=args.site_id,
         bootstrap_key=args.bootstrap_key,
         device_name=args.device_name.strip(),
+        os_details=args.os_details or d.get("os_details", "Linux 6.8.0 (Debian 12)"),
         mock_mac=args.mock_mac,
         mock_ip=args.mock_ip,
         mock_hostname=args.mock_hostname,
