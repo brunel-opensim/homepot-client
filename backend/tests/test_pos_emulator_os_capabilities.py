@@ -9,6 +9,8 @@ that OS-specific capability maps are honoured (e.g. Android must not report
 
 Covered:
 - derive_os_capabilities() for Linux, Android, Windows, iOS
+- derive_push_channel() for FCM/WNS/APNs and polling-only OSes
+- push registration hooks (channel + token) on the engine and status report
 - CLI-only launch defaulting from an emulator's identity defaults (Android)
 - CLI-only launch without defaults (plain Linux defaults)
 - --config path honouring the config's os_details
@@ -40,16 +42,82 @@ import windows_pos_emulator  # noqa: E402
         ("", False, False),
     ],
 )
-def test_derive_os_capabilities(os_details, expected_root_access, expected_network_monitoring):
+def test_derive_os_capabilities(
+    os_details, expected_root_access, expected_network_monitoring
+):
     """Every supported OS maps to the right root-access and monitoring flags."""
     caps = emu.derive_os_capabilities(os_details)
     assert caps["root_access"] is expected_root_access
     assert caps["network_monitoring"] is expected_network_monitoring
 
 
+@pytest.mark.parametrize(
+    ("os_details", "expected_push_channel"),
+    [
+        ("Android 14", "fcm"),
+        ("Windows 11", "wns"),
+        ("iOS 17", "apns"),
+        ("iPadOS 17", "apns"),
+        ("Linux 6.8.0 (Debian 12)", None),
+        ("macOS 14", None),
+        ("", None),
+    ],
+)
+def test_derive_push_channel(os_details, expected_push_channel):
+    """Push-capable OSes pick FCM/WNS/APNs; desktop runtimes stay polling-only."""
+    assert emu.derive_push_channel(os_details) is expected_push_channel
+
+
+@pytest.mark.parametrize(
+    ("os_details", "expected_channel"),
+    [
+        ("Android 14", "fcm"),
+        ("Windows 11", "wns"),
+        ("iOS 26", "apns"),
+        ("Linux 6.8.0 (Debian 12)", None),
+    ],
+)
+def test_push_hooks_derive_channel_and_token(os_details, expected_channel):
+    """The engine hooks expose a synthetic token only for push-capable OSes."""
+    if expected_channel is None:
+        cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
+        cfg.os_details = os_details
+        eng = emu.POSEmulator(cfg)
+        assert eng.push_channel is None
+        assert eng.push_token is None
+        assert eng._push_delivery_note("restart_pos_app") is None
+        return
+    cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
+    cfg.os_details = os_details
+    eng = emu.POSEmulator(cfg)
+    assert eng.push_channel is expected_channel
+    assert eng.push_token is not None
+    if expected_channel == "wns":
+        assert "wns.notify.windows.com" in eng.push_token
+    else:
+        assert eng.push_token.startswith(expected_channel)
+    note = eng._push_delivery_note("restart_pos_app")
+    assert note is not None
+    assert expected_channel in note.lower()
+
+
+def test_push_token_stability_within_engine():
+    """Re-instantiating for the same OS regenerates a fresh token."""
+    cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
+    cfg.os_details = "Android 14"
+    token_a = emu.POSEmulator(cfg).push_token
+    cfg2 = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
+    cfg2.os_details = "Android 14"
+    token_b = emu.POSEmulator(cfg2).push_token
+    assert token_a != token_b
+
+
 def test_android_cli_only_defaults_to_android_os():
     """The pure-CLI path must pick up an emulator's Android identity defaults."""
-    cfg = emu.build_config(emu.parse_args([], defaults=android_pos_emulator.ANDROID_DEFAULTS), defaults=android_pos_emulator.ANDROID_DEFAULTS)
+    cfg = emu.build_config(
+        emu.parse_args([], defaults=android_pos_emulator.ANDROID_DEFAULTS),
+        defaults=android_pos_emulator.ANDROID_DEFAULTS,
+    )
     assert cfg.os_details == "Android 14"
     caps = emu.derive_os_capabilities(cfg.os_details)
     assert caps["root_access"] is False
@@ -64,7 +132,7 @@ def test_cli_only_defaults_to_linux_when_no_defaults_provided():
 
 
 @pytest.mark.parametrize(
-("module", "defaults_name", "expected_os", "expected_type", "expected_root"),
+    ("module", "defaults_name", "expected_os", "expected_type", "expected_root"),
     [
         (android_pos_emulator, "ANDROID_DEFAULTS", "Android 14", "pos_terminal", False),
         (windows_pos_emulator, "WINDOWS_DEFAULTS", "Windows 11", "pos_terminal", False),
@@ -77,9 +145,7 @@ def test_os_wrapper_identity_defaults(
 ):
     """Each OS wrapper's CLI-only path carries its identity and capability map."""
     defaults = getattr(module, defaults_name)
-    cfg = emu.build_config(
-        emu.parse_args([], defaults=defaults), defaults=defaults
-    )
+    cfg = emu.build_config(emu.parse_args([], defaults=defaults), defaults=defaults)
     assert cfg.os_details == expected_os
     assert cfg.device_type == expected_type
     caps = emu.derive_os_capabilities(cfg.os_details)

@@ -218,6 +218,46 @@ Example:
 ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1 --permission-consent-mode deny
 ```
 
+## OS-specific behaviour: push channels
+
+The engine models how each OS receives commands. Desktop / POS runtimes
+(Linux, macOS) use plain HTTP polling (`/devices/pending`), while push-capable
+OSes also derive a **push channel** and a synthetic registration token, mirroring
+how the real agent registers a `device_token` with the backend:
+
+| OS | Push channel | Token shape |
+|----|--------------|-------------|
+| Android | `fcm` | `fcm:emulator:<hex>` |
+| Windows | `wns` | `https://wns.notify.windows.com/?token=emulator:<hex>` |
+| iOS / iPadOS | `apns` | `apns://emulator:<hex>` |
+| Linux, macOS | `None` | polling only (no token) |
+
+This is derived by `derive_push_channel(os_details)` in `pos_engine.py`; nothing
+extra is needed in a thin wrapper — setting `os_details` to a push-capable OS
+selects the channel automatically. Test it with:
+
+```python
+from pos_engine import derive_push_channel
+assert derive_push_channel("Android 14") == "fcm"
+assert derive_push_channel("Linux 6.8.0 (Debian 12)") is None
+```
+
+On boot, a push-capable emulator prints its channel + token and includes
+`device_token` in the `device-dna` registration payload. `push_channel` and
+`push_token` also appear in every status report. When a command is received the
+engine logs an OS-specific delivery note (e.g. `restart_pos_app pushed via WNS`).
+
+These are the engine's **OS behavior hooks**:
+
+- `POSEmulator.push_channel` — the push transport (`None` for polling-only).
+- `POSEmulator.push_token` — the synthetic registration token.
+- `POSEmulator._push_delivery_note(command_type)` — human-readable delivery note.
+- `derive_push_channel(os_details)` — free function mirroring the backend mapping.
+
+To add a new push transport (e.g. an alternative), extend `derive_push_channel`,
+the `prefix` map in `_new_push_token`, and the `channel` map in
+`_push_delivery_note`; no changes are needed in the OS wrappers.
+
 ## Creating a new emulator
 
 Each emulator is a standalone runnable script. The quickest way to add a new OS is to create a thin wrapper that imports the shared engine from `pos_engine.py` and overrides the identity defaults, exactly like `android_pos_emulator.py`:

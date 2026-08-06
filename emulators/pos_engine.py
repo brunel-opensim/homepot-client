@@ -144,6 +144,26 @@ def derive_os_capabilities(os_details: str) -> dict[str, bool]:
     return {k: False for k in keys}
 
 
+def derive_push_channel(os_details: str) -> str | None:
+    """Derive the push-notification channel the simulated OS would use.
+
+    Mobile and push-capable OSes receive commands over a push transport
+    (FCM on Android, WNS on Windows, APNs on iOS); desktop / POS runtimes
+    fall back to plain HTTP polling (``None``). Mirrors how the real agent
+    registers a ``device_token`` with the backend.
+    """
+    if not os_details:
+        return None
+    os_lower = os_details.lower()
+    if "android" in os_lower:
+        return "fcm"
+    if any(kw in os_lower for kw in ("windows", "win32", "win64")):
+        return "wns"
+    if any(kw in os_lower for kw in ("ios", "ipados", "iphone os", "ipad")):
+        return "apns"
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -306,6 +326,10 @@ class POSEmulator:
         self._applied_config: dict[str, object] = {}
         self._app_restarts: int = 0
         self._capabilities: dict[str, bool] = derive_os_capabilities(config.os_details)
+        self._push_channel: str | None = derive_push_channel(config.os_details)
+        self._push_token: str | None = (
+            self._new_push_token() if self._push_channel else None
+        )
         self._granted: dict[str, bool] = {k: False for k in ALL_PERMISSION_KEYS}
         self._http: httpx.AsyncClient
 
@@ -325,6 +349,46 @@ class POSEmulator:
 
     def _headers(self) -> dict[str, str]:
         return {"X-Device-ID": self.device_id, "X-API-Key": self.api_key}
+
+    # --
+    # OS-specific behavior hooks
+    # --
+
+    @property
+    def push_channel(self) -> str | None:
+        """Name of the push transport this OS uses (``fcm``/``wns``/``apns``)."""
+        return self._push_channel
+
+    @property
+    def push_token(self) -> str | None:
+        """Synthetic push registration token (only for push-capable OSes)."""
+        return self._push_token
+
+    def _new_push_token(self) -> str:
+        """Generate a fake push registration token for the used channel."""
+        channel = self._push_channel or "push"
+        prefix = {
+            "fcm": "fcm:emulator",
+            "wns": "https://wns.notify.windows.com/?token=emulator",
+            "apns": "apns://emulator",
+        }.get(channel, "push:emulator")
+        suffix = hex(random.getrandbits(64))[2:]
+        return f"{prefix}:{suffix}"
+
+    def _push_delivery_note(self, command_type: str) -> str | None:
+        """OS-specific push behavior: how a command was delivered.
+
+        Returns a short human-readable delivery note, or ``None`` when the
+        device has no push channel (plain HTTP polling).
+        """
+        if not self._push_channel:
+            return None
+        channel = {
+            "fcm": "pushed via FCM",
+            "wns": "pushed via WNS",
+            "apns": "pushed via APNs",
+        }.get(self._push_channel, "pushed")
+        return f"{command_type} {channel}"
 
     # --
     # Device permissions
@@ -537,6 +601,7 @@ class POSEmulator:
             "device_name": self.config.device_name,
             "device_type": self.config.device_type,
             "device_source": "emulator",
+            "device_token": self._push_token,
         }
         resp = await self._http.post(
             f"{self._backend}/agent/device-dna", json=payload, headers=self._headers()
@@ -878,7 +943,10 @@ class POSEmulator:
     async def _handle_command(self, cmd: dict) -> None:
         cid = cmd["command_id"]
         ctype = cmd["command_type"]
-        print(f"  [commands] processing {ctype} ({cid})")
+        note = self._push_delivery_note(ctype)
+        print(
+            f"  [commands] processing {ctype} ({cid})" + (f" [{note}]" if note else "")
+        )
 
         try:
             if (
@@ -970,6 +1038,8 @@ class POSEmulator:
             "connectivity_state": "online",
             "hostname": self.config.mock_hostname,
             "os_details": self.config.os_details,
+            "push_channel": self._push_channel,
+            "push_token": self._push_token,
             "local_ip": self.config.mock_ip,
             "mac_address": self.config.mock_mac,
             "firmware_version": self.config.mock_firmware,
@@ -1314,6 +1384,11 @@ class POSEmulator:
             print(f"\n  Device ID: {self.device_id}")
             print(f"  API Key:   {self.api_key[:16]}...")
             print(f"  Site ID:   {self.config.site_id}")
+            if self._push_channel:
+                print(
+                    f"  Push:      channel={self._push_channel}"
+                    f", token={self._push_token}"
+                )
             print(
                 "\n  Starting loops"
                 f" (heartbeat={self.config.heartbeat_interval}s"
