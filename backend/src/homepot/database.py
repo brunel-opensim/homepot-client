@@ -727,6 +727,7 @@ class DatabaseService:
         command_id: str,
         status: CommandStatus,
         result: Optional[Dict[str, Any]] = None,
+        device_id: Optional[int] = None,
     ) -> Optional[DeviceCommand]:
         """Update command status."""
         from datetime import datetime, timezone
@@ -736,6 +737,8 @@ class DatabaseService:
         async with self.get_session() as session:
             # Fetch first to ensure existence and get object
             stmt = select(DeviceCommand).where(DeviceCommand.command_id == command_id)
+            if device_id is not None:
+                stmt = stmt.where(DeviceCommand.device_id == device_id)
             exec_result = await session.execute(stmt)
             command = exec_result.scalar_one_or_none()
 

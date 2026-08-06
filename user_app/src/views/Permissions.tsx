@@ -12,7 +12,8 @@ interface PermissionEntry {
 }
 
 const PERMISSION_DEFS: { key: string; label: string; description: string }[] = [
-  { key: 'root_access', label: 'Root / Full Access', description: 'Allows full system scan' },
+  { key: 'root_access', label: 'Root / Full Access', description: 'Allow approved commands and scripts to use sudo' },
+  { key: 'command_execution', label: 'Command & Script Execution', description: 'Allow Dashboard technicians to run commands and scripts' },
   { key: 'process_monitoring', label: 'Process Monitoring', description: 'View running processes' },
   { key: 'filesystem_access', label: 'File System Access', description: 'Scan files & folders' },
   { key: 'network_monitoring', label: 'Network Monitoring', description: 'Track network connections' },
@@ -164,9 +165,10 @@ export default function Permissions() {
   }
 
   useEffect(() => {
+    const pendingDebounces = debounceRef.current
     return () => {
-      debounceRef.current.forEach(t => clearTimeout(t))
-      debounceRef.current.clear()
+      pendingDebounces.forEach(t => clearTimeout(t))
+      pendingDebounces.clear()
     }
   }, [])
 

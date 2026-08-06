@@ -47,17 +47,22 @@ device.
    reaches the device
 6. **Agent executes** only commands that pass the permission gate (U5)
 
+Technician commands and scripts require `command_execution`. When a command or
+script sets `run_as_root: true`, it additionally requires `root_access`. Root
+execution uses non-interactive `sudo`; an unavailable or disallowed sudo policy
+fails the command rather than prompting on the device.
+
 ## Heterogeneous device handling
 
 Each OS platform exposes different capabilities. The architecture handles
 this through device-reported OS DNA (set at provision/registration time):
 
-| OS | `root_access` | `process_monitoring` | `filesystem_access` | `network_monitoring` |
-|---|---|---|---|---|
-| Linux | ✓ | ✓ | ✓ | ✓ |
-| Windows | ✗ | ✓ | ✓ | ✓ |
-| iOS (non-jailbroken) | ✗ | ✗ | ✗ | ✓ |
-| Android | ✓ (rooted) / ✗ | ✓ | ✓ | ✓ |
+| OS | `root_access` | `command_execution` | `process_monitoring` | `filesystem_access` | `network_monitoring` |
+|---|---|---|---|---|---|
+| Linux | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Windows | ✗ | ✓ | ✓ | ✓ | ✓ |
+| iOS (non-jailbroken) | ✗ | ✗ | ✗ | ✗ | ✓ |
+| Android | ✗ | ✓ | ✓ | ✓ | ✓ |
 
 A future capability-to-permission mapping layer will reject PATCH requests
 for permissions the device's OS cannot support.
@@ -74,6 +79,10 @@ for permissions the device's OS cannot support.
 4. Device agent receives push payload, executes within granted scope
 5. Result flows back via heartbeat / telemetry
 ```
+
+The backend checks grants before queueing and the agent checks them again before
+acknowledging or executing. Operators may revoke permissions, but grants must
+come from the device owner through the User App.
 
 ## Benefits of the split-plane design
 

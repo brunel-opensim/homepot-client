@@ -224,11 +224,15 @@ async def pending_commands_loop(
             commands = parse_pending_commands(data)
             for command in commands:
                 cid = command.get("command_id", "")
+                if command.get("command_type") == "request_permission":
+                    continue
                 # 1. Permission gate before ACK
                 from homepot.agent.utils.command_poller import _check_permission
 
                 denial = _check_permission(
-                    command.get("command_type", ""), cached_permissions
+                    command.get("command_type", ""),
+                    cached_permissions,
+                    command.get("payload"),
                 )
                 if denial is not None:
                     logger.warning(
@@ -273,7 +277,10 @@ async def pending_commands_loop(
                     )
                     continue
                 # 3. Route to IPC or process locally
-                if ipc_available:
+                if ipc_available and command.get("command_type") not in {
+                    "run_command",
+                    "run_script",
+                }:
                     app = cast("FastAPI", ipc_server.config.app)  # type: ignore[union-attr]
                     push_pending_command(app, command)
                 else:

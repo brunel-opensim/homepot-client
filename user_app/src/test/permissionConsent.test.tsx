@@ -34,7 +34,6 @@ describe('PermissionConsentPrompt', () => {
   it('shows a prompt when a request_permission command is pending', async () => {
     mockFetch
       .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending
-      .mockResolvedValueOnce(ok({})) // ack
     render(<PermissionConsentPrompt />)
     expect(await screen.findByText('Permission request')).toBeInTheDocument()
     expect(screen.getByText(/admin@example\.com/)).toBeInTheDocument()
@@ -56,7 +55,6 @@ describe('PermissionConsentPrompt', () => {
   it('grants the permission on accept', async () => {
     mockFetch
       .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending
-      .mockResolvedValueOnce(ok({})) // ack
       .mockResolvedValueOnce(ok({})) // PATCH permissions
       .mockResolvedValueOnce(ok({})) // audit
       .mockResolvedValueOnce(ok({})) // PUT status
@@ -88,7 +86,6 @@ describe('PermissionConsentPrompt', () => {
   it('denies the permission on deny', async () => {
     mockFetch
       .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending
-      .mockResolvedValueOnce(ok({})) // ack
       .mockResolvedValueOnce(ok({})) // PATCH permissions
       .mockResolvedValueOnce(ok({})) // audit
       .mockResolvedValueOnce(ok({})) // PUT status
@@ -116,7 +113,6 @@ describe('PermissionConsentPrompt', () => {
     }
     mockFetch
       .mockResolvedValueOnce(ok([revokeCommand])) // GET /pending
-      .mockResolvedValueOnce(ok({})) // ack
     render(<PermissionConsentPrompt />)
     expect(await screen.findByText('Revoke access requested')).toBeInTheDocument()
     expect(screen.getByText('Approve revocation')).toBeInTheDocument()

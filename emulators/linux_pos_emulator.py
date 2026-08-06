@@ -68,12 +68,24 @@ API_BASE_PATH = "/api/v1"
 
 ALL_PERMISSION_KEYS = [
     "root_access",
+    "command_execution",
     "process_monitoring",
     "filesystem_access",
     "network_monitoring",
 ]
 
-PERMISSION_CONSENT_MODES = ("auto", "fixed", "deny")
+PERMISSION_CONSENT_MODES = ("auto", "fixed", "deny", "external")
+
+COMMAND_PERMISSIONS = {
+    "health_check": "command_execution",
+    "restart": "root_access",
+    "restart_pos_app": "command_execution",
+    "run_command": "command_execution",
+    "run_script": "command_execution",
+    "shutdown": "root_access",
+    "update_config": "filesystem_access",
+    "update_pos_payment_config": "filesystem_access",
+}
 
 
 def derive_os_capabilities(os_details: str) -> dict[str, bool]:
@@ -320,6 +332,44 @@ class LinuxPOSEmulator:
         # ``auto`` and ``fixed`` start by granting every supported permission.
         return {k: bool(self._capabilities.get(k, False)) for k in ALL_PERMISSION_KEYS}
 
+    async def _refresh_device_permissions(self) -> bool:
+        try:
+            resp = await self._http.get(
+                f"{self._backend}/devices/device/{self.device_id}/permissions",
+                headers=self._headers(),
+            )
+            if resp.status_code >= 400:
+                print(f"  [permissions] refresh error: {resp.status_code}")
+                return False
+            data = resp.json().get("data", {})
+            permissions = data.get("permissions", {})
+            if not isinstance(permissions, dict):
+                return False
+            self._granted = {
+                key: bool(permissions.get(key, False)) for key in ALL_PERMISSION_KEYS
+            }
+            return True
+        except httpx.RequestError as exc:
+            print(f"  [permissions] refresh connection error: {exc}")
+            return False
+
+    def _permission_denial(self, command_type: str, payload: object) -> str | None:
+        required: list[str] = []
+        base_permission = COMMAND_PERMISSIONS.get(command_type)
+        if base_permission:
+            required.append(base_permission)
+        payload_dict = payload if isinstance(payload, dict) else {}
+        data = payload_dict.get("data")
+        command_data = data if isinstance(data, dict) else payload_dict
+        if command_type in ("run_command", "run_script") and command_data.get(
+            "run_as_root", False
+        ):
+            required.append("root_access")
+        missing = [key for key in required if not self._granted.get(key, False)]
+        if missing:
+            return f"Permission denied: {', '.join(missing)} not granted"
+        return None
+
     def _consent_for_request(self) -> bool:
         """Whether the simulated owner consents to an operator permission request."""
         if self.config.permission_consent_mode == "deny":
@@ -393,6 +443,10 @@ class LinuxPOSEmulator:
         await self._report_permission_audit(permission, granted, requested_by, action)
 
     async def _apply_default_consent(self) -> None:
+        if self.config.permission_consent_mode == "external":
+            await self._refresh_device_permissions()
+            print("  [permissions] consent managed by User App")
+            return
         self._granted = self._default_permission_grants()
         await self._update_device_permissions(dict(self._granted))
         print(
@@ -822,6 +876,31 @@ class LinuxPOSEmulator:
         print(f"  [commands] processing {ctype} ({cid})")
 
         try:
+            if (
+                ctype == "request_permission"
+                and self.config.permission_consent_mode == "external"
+            ):
+                return
+
+            payload = cmd.get("payload")
+            denial: str | None
+            if not await self._refresh_device_permissions():
+                denial = "Permission state unavailable"
+            else:
+                denial = self._permission_denial(ctype, payload)
+            if denial:
+                status_resp = await self._http.put(
+                    f"{self._backend}/devices/{cid}/status",
+                    json={"status": "failed", "result": {"error": denial}},
+                    headers=self._headers(),
+                )
+                print(f"  [commands] rejected {ctype}: {denial}")
+                if status_resp.status_code >= 400:
+                    print(
+                        f"  [commands] rejection update failed: {status_resp.status_code}"
+                    )
+                return
+
             ack_resp = await self._http.post(
                 f"{self._backend}/devices/{self.device_id}/commands/{cid}/ack",
                 headers=self._headers(),
@@ -834,7 +913,6 @@ class LinuxPOSEmulator:
             if ctype == "status_request":
                 status_report = self._status_report()
 
-            payload = cmd.get("payload")
             simulated_result = self._simulate_command_result(
                 ctype, status_report, payload
             )

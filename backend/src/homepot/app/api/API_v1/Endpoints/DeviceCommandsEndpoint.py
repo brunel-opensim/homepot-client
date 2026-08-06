@@ -6,6 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as SASession
 
+from homepot.agent.utils.command_poller import (
+    COMMAND_TYPES,
+    required_permissions_for_command,
+)
 from homepot.app.auth_utils import (
     UserDict,
     get_current_device,
@@ -88,9 +92,35 @@ async def queue_command(
 
     verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
 
+    command_type = command_request.command_type.strip().lower()
+    if command_type not in COMMAND_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported command type: {command_request.command_type}",
+        )
+
+    permissions: Dict[str, bool] = (
+        device.device_permissions if isinstance(device.device_permissions, dict) else {}
+    )
+    required_permissions = required_permissions_for_command(
+        command_type, command_request.payload
+    )
+    missing_permissions = [
+        key for key in required_permissions if not permissions.get(key, False)
+    ]
+    if missing_permissions:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Device owner has not granted the required permissions",
+                "required_permissions": required_permissions,
+                "missing_permissions": missing_permissions,
+            },
+        )
+
     command = await db.create_device_command(
         device_id=device.id,  # type: ignore
-        command_type=command_request.command_type,
+        command_type=command_type,
         payload=command_request.payload,
     )
 
@@ -98,14 +128,14 @@ async def queue_command(
     audit_logger = get_audit_logger()
     await audit_logger.log_event(
         AuditEventType.COMMAND_QUEUED,
-        f"User '{current_user['email']}' queued {command_request.command_type} "
+        f"User '{current_user['email']}' queued {command_type} "
         f"command for device '{device_id}'",
         user_id=db_user.id,  # type: ignore
         device_id=device.id,  # type: ignore
         site_id=device.site_id,  # type: ignore
         new_values={
             "command_id": str(command.command_id),
-            "command_type": command_request.command_type,
+            "command_type": command_type,
             "payload": command_request.payload,
         },
     )
@@ -165,15 +195,10 @@ async def ack_command(
     updated = await db.update_command_status(
         command_id=command_id,
         status=CommandStatus.SENT,
+        device_id=cast(int, current_device.id),
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="Command not found")
-
-    if updated.device_id != current_device.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Command does not belong to this device",
-        )
 
     return CommandResponse(
         command_id=updated.command_id,  # type: ignore
@@ -194,33 +219,15 @@ async def update_command_status(
     """Update the status of a command (e.g., COMPLETED, FAILED)."""
     db = await get_database_service()
 
-    # First check if command exists and belongs to device
-    # We do this inside update_command_status implicitly by checking ownership after fetch
-    # But to be safe and give 403, we might want to fetch first.
-    # For efficiency, let's just update and check the returned object's device_id if we were strict.
-    # But update_command_status in DB service doesn't check ownership.
-
-    # Let's fetch it first to verify ownership
-    # We don't have a direct get_command_by_id exposed yet, but update handles it.
-    # Let's trust the DB service update method for now, but we should verify ownership.
-    # I'll rely on the fact that the agent only knows command IDs it fetched.
-
     updated_command = await db.update_command_status(
-        command_id=command_id, status=request.status, result=request.result
+        command_id=command_id,
+        status=request.status,
+        result=request.result,
+        device_id=cast(int, current_device.id),
     )
 
     if not updated_command:
         raise HTTPException(status_code=404, detail="Command not found")
-
-    if updated_command.device_id != current_device.id:  # type: ignore
-        # Rollback or just warn?
-        # Ideally we shouldn't have updated it if it wasn't ours.
-        # But since we already committed in the DB service...
-        # this is a slight flaw in my DB service design for this specific check.
-        # However, for this phase, it's acceptable.
-        raise HTTPException(
-            status_code=403, detail="Command does not belong to this device"
-        )
 
     return CommandResponse(
         command_id=updated_command.command_id,  # type: ignore

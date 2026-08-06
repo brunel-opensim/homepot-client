@@ -301,6 +301,7 @@ function registerIpcHandlers() {
       heartbeat_interval_seconds: 10,
       telemetry_interval_seconds: 15,
       command_poll_interval_seconds: 15,
+      permission_consent_mode: 'external',
     }
 
     ensureCredentialsDir()

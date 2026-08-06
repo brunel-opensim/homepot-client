@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 ALL_PERMISSION_KEYS = [
     "root_access",
+    "command_execution",
     "process_monitoring",
     "filesystem_access",
     "network_monitoring",
@@ -34,6 +35,7 @@ def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
     if "android" in os_lower:
         return {
             "root_access": False,
+            "command_execution": True,
             "process_monitoring": True,
             "filesystem_access": True,
             "network_monitoring": True,
@@ -42,6 +44,7 @@ def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
     if any(kw in os_lower for kw in ["windows", "win32", "win64"]):
         return {
             "root_access": False,
+            "command_execution": True,
             "process_monitoring": True,
             "filesystem_access": True,
             "network_monitoring": True,
@@ -53,6 +56,7 @@ def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
     if any(kw in os_lower for kw in ["ios", "ipados", "iphone os", "ipad"]):
         return {
             "root_access": False,
+            "command_execution": False,
             "process_monitoring": False,
             "filesystem_access": False,
             "network_monitoring": True,
@@ -65,6 +69,7 @@ class DeviceCapabilities(BaseModel):
     """Which permission flags a device's OS can support."""
 
     root_access: bool = Field(default=False)
+    command_execution: bool = Field(default=False)
     process_monitoring: bool = Field(default=False)
     filesystem_access: bool = Field(default=False)
     network_monitoring: bool = Field(default=False)
@@ -74,6 +79,9 @@ class DevicePermissions(BaseModel):
     """Device permission grants schema."""
 
     root_access: bool = Field(default=False, description="Can execute commands as root")
+    command_execution: bool = Field(
+        default=False, description="Can execute technician commands and scripts"
+    )
     process_monitoring: bool = Field(
         default=False, description="Can monitor running processes"
     )
@@ -88,6 +96,7 @@ class DevicePermissions(BaseModel):
         json_schema_extra={
             "example": {
                 "root_access": False,
+                "command_execution": False,
                 "process_monitoring": True,
                 "filesystem_access": False,
                 "network_monitoring": True,
@@ -106,6 +115,7 @@ class DevicePermissionsUpdate(BaseModel):
             "example": {
                 "permissions": {
                     "root_access": False,
+                    "command_execution": False,
                     "process_monitoring": True,
                     "filesystem_access": False,
                     "network_monitoring": True,

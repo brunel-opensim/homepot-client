@@ -32,9 +32,10 @@ from homepot.app.schemas.permissions import (
     DevicePermissions,
     DevicePermissionsResponse,
     DevicePermissionsUpdate,
+    derive_capabilities,
 )
 from homepot.database import get_db
-from homepot.models import Device, LifecycleState, User
+from homepot.models import AuditLog, Device, LifecycleState, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -55,9 +56,30 @@ def _normalise_permissions(raw: Any) -> Dict[str, bool]:
 def _get_capabilities_dict(device: Device) -> Dict[str, bool]:
     """Return device capabilities or all-``False`` when unset."""
     caps = device.capabilities
+    derived = derive_capabilities(cast(Optional[str], device.os_details))
     if not caps or not isinstance(caps, dict):
-        return {k: False for k in ALL_PERMISSION_KEYS}
-    return {k: bool(caps.get(k, False)) for k in ALL_PERMISSION_KEYS}
+        return derived
+    return {k: bool(caps.get(k, derived.get(k, False))) for k in ALL_PERMISSION_KEYS}
+
+
+def _audit_permission_change(
+    db: Session,
+    device: Device,
+    old_permissions: Dict[str, bool],
+    new_permissions: Dict[str, bool],
+    user_id: int | None = None,
+) -> None:
+    db.add(
+        AuditLog(
+            event_type="permission_change",
+            description=f"Permissions changed for device '{device.device_id}'",
+            user_id=user_id,
+            device_id=device.id,
+            site_id=device.site_id,
+            old_values=old_permissions,
+            new_values=new_permissions,
+        )
+    )
 
 
 def _validate_against_capabilities(
@@ -123,9 +145,11 @@ def update_device_permissions(
         _validate_against_capabilities(incoming, capabilities)
 
         current_perms = _normalise_permissions(current_device.device_permissions)
+        old_perms = dict(current_perms)
         current_perms.update(incoming)
 
         current_device.device_permissions = copy.deepcopy(current_perms)  # type: ignore[arg-type]
+        _audit_permission_change(db, current_device, old_perms, current_perms)
         db.commit()
 
         logger.info(
@@ -169,11 +193,11 @@ def admin_override_device_permissions(
     db: Session = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Override a device's permissions (operator JWT auth).
+    """Revoke a device's permissions (operator JWT auth).
 
     Requires operator-level access on the device's site.
-    The operator can set any permission the device's OS supports
-    (validated against ``capabilities``).
+    Operators may revoke access in an emergency, but only the device owner can
+    grant access through the User App consent flow.
     """
     try:
         device = db.query(Device).filter(Device.device_id == device_id).first()
@@ -189,12 +213,25 @@ def admin_override_device_permissions(
 
         capabilities = _get_capabilities_dict(device)
         incoming = payload.permissions.model_dump(exclude_unset=True)
+        attempted_grants = [key for key, value in incoming.items() if value]
+        if attempted_grants:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": "Only the device owner can grant permissions",
+                    "permissions": attempted_grants,
+                },
+            )
         _validate_against_capabilities(incoming, capabilities)
 
         current_perms = _normalise_permissions(device.device_permissions)
+        old_perms = dict(current_perms)
         current_perms.update(incoming)
 
         device.device_permissions = copy.deepcopy(current_perms)  # type: ignore[arg-type]
+        _audit_permission_change(
+            db, device, old_perms, current_perms, user_id=cast(int, db_user.id)
+        )
         db.commit()
 
         logger.info(
