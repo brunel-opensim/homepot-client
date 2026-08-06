@@ -30,12 +30,12 @@ The Dashboard immediately shows the emulated device with its mock DNA, online st
 | Linux POS | `emulators/linux_pos_emulator.py` | Linux | `pos_terminal` |
 | Android POS | `emulators/android_pos_emulator.py` | Android | `pos_terminal` |
 | Windows POS | `emulators/windows_pos_emulator.py` | Windows | `pos_terminal` |
-| macOS POS | — | macOS | `pos_terminal` |
-| iOS | — | iOS | `tablet` |
+| macOS POS | `emulators/macos_pos_emulator.py` | macOS | `pos_terminal` |
+| iOS | `emulators/ios_pos_emulator.py` | iOS | `tablet` |
 | Web Browser | — | Web | `virtual_terminal` |
 | MQTT Sensor | — | Linux | `mobile_scanner` |
 
-**Linux POS**, **Android POS** and **Windows POS** are implemented. They are thin wrappers around the shared engine in `emulators/pos_engine.py`. Each OS only overrides identity defaults (e.g. Android: `Android 14`, mock MAC `02:42:ac:11:00:03`, hostname `android-pos-001`; Windows: `Windows 11`, mock MAC `02:42:ac:11:00:04`, hostname `windows-pos-001`); each one's OS capability map is derived from the OS string (no root access, but process/filesystem/network monitoring). Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
+**Linux POS**, **Android POS**, **Windows POS**, **macOS POS** and **iOS** are implemented. They are thin wrappers around the shared engine in `emulators/pos_engine.py`. Each OS only overrides identity defaults (e.g. Android: `Android 16`, mock MAC `02:42:ac:11:00:03`; Windows: `Windows 11`; iOS uses device type `tablet`); each one's OS capability map is derived from the OS string (Linux/macOS keep root access; Android/Windows/iOS do not; iOS is further restricted to network monitoring only). Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
 
 ## How an emulator works
 
@@ -92,7 +92,7 @@ convention as `backend.log`, `frontend.log`, `ai.log`).
 tail -f logs/emulator.log
 ```
 
-`start-emulator.sh` accepts an `--emulator linux|android|windows` flag (default `linux`)
+`start-emulator.sh` accepts an `--emulator linux|android|windows|macos|ios` flag (default `linux`)
 that selects the emulator script and its default config. Any emulator launch
 arguments, including `--os-details`, are forwarded to the Python emulator.
 
@@ -256,7 +256,10 @@ emulators/
 ├── android_pos_emulator.json    # Android POS config example
 ├── windows_pos_emulator.py      # Windows POS (thin wrapper)
 ├── windows_pos_emulator.json    # Windows POS config example
-├── macos_pos_emulator.py        # macOS POS (future)
+├── macos_pos_emulator.py        # macOS POS (thin wrapper)
+├── macos_pos_emulator.json      # macOS POS config example
+├── ios_pos_emulator.py          # iOS (thin wrapper; device type "tablet")
+├── ios_pos_emulator.json        # iOS config example
 └── ...
 ```
 

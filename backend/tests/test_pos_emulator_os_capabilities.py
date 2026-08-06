@@ -24,7 +24,10 @@ EMULATORS_DIR = Path(__file__).resolve().parents[2] / "emulators"
 sys.path.insert(0, str(EMULATORS_DIR))
 
 import android_pos_emulator  # noqa: E402
+import ios_pos_emulator  # noqa: E402
+import macos_pos_emulator  # noqa: E402
 import pos_engine as emu  # noqa: E402
+import windows_pos_emulator  # noqa: E402
 
 
 @pytest.mark.parametrize(
@@ -58,6 +61,38 @@ def test_cli_only_defaults_to_linux_when_no_defaults_provided():
     cfg = emu.build_config(emu.parse_args([]), defaults=None)
     assert cfg.os_details == "Linux 6.8.0 (Debian 12)"
     assert emu.derive_os_capabilities(cfg.os_details)["root_access"] is True
+
+
+@pytest.mark.parametrize(
+("module", "defaults_name", "expected_os", "expected_type", "expected_root"),
+    [
+        (android_pos_emulator, "ANDROID_DEFAULTS", "Android 14", "pos_terminal", False),
+        (windows_pos_emulator, "WINDOWS_DEFAULTS", "Windows 11", "pos_terminal", False),
+        (macos_pos_emulator, "MACOS_DEFAULTS", "macOS 14", "pos_terminal", True),
+        (ios_pos_emulator, "IOS_DEFAULTS", "iOS 17", "tablet", False),
+    ],
+)
+def test_os_wrapper_identity_defaults(
+    module, defaults_name, expected_os, expected_type, expected_root
+):
+    """Each OS wrapper's CLI-only path carries its identity and capability map."""
+    defaults = getattr(module, defaults_name)
+    cfg = emu.build_config(
+        emu.parse_args([], defaults=defaults), defaults=defaults
+    )
+    assert cfg.os_details == expected_os
+    assert cfg.device_type == expected_type
+    caps = emu.derive_os_capabilities(cfg.os_details)
+    assert caps["root_access"] is expected_root
+
+    # iOS is the most restricted: network monitoring only.
+    if defaults_name == "IOS_DEFAULTS":
+        assert caps["process_monitoring"] is False
+        assert caps["filesystem_access"] is False
+        assert caps["network_monitoring"] is True
+    elif defaults_name in ("ANDROID_DEFAULTS", "WINDOWS_DEFAULTS", "MACOS_DEFAULTS"):
+        assert caps["process_monitoring"] is True
+        assert caps["filesystem_access"] is True
 
 
 def test_config_file_honours_android_os_details(tmp_path):

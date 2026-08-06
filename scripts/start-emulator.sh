@@ -13,7 +13,7 @@ set -euo pipefail
 #   ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
 #
 # Options:
-#   --emulator linux|android|windows   Select the emulator script + default config
+#   --emulator linux|android|windows|macos|ios   Select the emulator script + default config
 #                              (default: linux). Extend the map below for new OSes.
 #
 # Prerequisites:
@@ -49,6 +49,8 @@ declare -A EMULATORS=(
     [linux]="linux_pos:linux_pos_emulator.json"
     [android]="android_pos:android_pos_emulator.json"
     [windows]="windows_pos:windows_pos_emulator.json"
+    [macos]="macos_pos:macos_pos_emulator.json"
+    [ios]="ios_pos:ios_pos_emulator.json"
 )
 
 EMULATOR="linux"
