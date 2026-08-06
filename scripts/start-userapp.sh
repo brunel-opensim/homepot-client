@@ -8,8 +8,9 @@
 # Usage: ./scripts/start-userapp.sh [--reset]
 #
 # Options:
-#   -r, --reset   Clear stored device credentials and boot directly into the
-#                 Setup wizard so a new device can be provisioned.
+#   -r, --reset   Clear stored device credentials and the emulator credential
+#                 stash, then boot directly into the Setup wizard so a new
+#                 device can be provisioned.
 #   -h, --help    Show usage information.
 ################################################################################
 
@@ -89,8 +90,9 @@ Usage: ./scripts/start-userapp.sh [--reset]
 Starts the HOMEPOT User App (Agent) desktop application.
 
 Options:
-  -r, --reset   Clear stored device credentials and boot directly into the
-                Setup wizard so a new device can be provisioned.
+  -r, --reset   Clear stored device credentials and the emulator credential
+                stash, then boot directly into the Setup wizard so a new
+                device can be provisioned.
   -h, --help    Show this help message.
 EOF
     exit 0
@@ -112,6 +114,21 @@ if [ "$RESET_MODE" = true ]; then
         print_success "Removed $CREDENTIALS_FILE"
     else
         print_info "No stored credentials found at $CREDENTIALS_FILE"
+    fi
+    # The emulator engine persists its own credentials/config in
+    # ~/.homepot/emulators/ (keyed by device name) and restores from them on
+    # launch (_try_restore -> load_credentials). If a device was deleted on the
+    # backend, leaving these behind makes a same-named emulator reuse a deleted
+    # device_id and get 403s. Empty the stash so --reset yields a clean slate.
+    EMULATOR_STASH="$HOME/.homepot/emulators"
+    if [ -d "$EMULATOR_STASH" ]; then
+        if rm -rf "$EMULATOR_STASH" 2>/dev/null; then
+            print_success "Removed emulator credential stash $EMULATOR_STASH"
+        else
+            print_warning "Could not remove $EMULATOR_STASH"
+        fi
+    else
+        print_info "No emulator credential stash found at $EMULATOR_STASH"
     fi
     "$SCRIPT_DIR/stop-userapp.sh" >/dev/null 2>&1 || true
 fi
