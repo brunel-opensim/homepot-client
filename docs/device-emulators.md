@@ -85,9 +85,16 @@ convention as `backend.log`, `frontend.log`, `ai.log`).
 # Re-launch (backgrounds the process)
 ./scripts/start-emulator.sh
 
+# Launch a specific OS emulator (default is linux)
+./scripts/start-emulator.sh --emulator android
+
 # Watch live output
 tail -f logs/emulator.log
 ```
+
+`start-emulator.sh` accepts an `--emulator linux|android` flag (default `linux`)
+that selects the emulator script and its default config. Any emulator launch
+arguments, including `--os-details`, are forwarded to the Python emulator.
 
 **User App (Electron)** — Quit and re-open the User App. The Electron main process kills the child emulator on quit; re-opening restarts it automatically when the setup-to-home flow completes.
 

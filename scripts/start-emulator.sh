@@ -7,9 +7,14 @@ set -euo pipefail
 # (mirrors start-userapp.sh).
 #
 # Usage:
-#   ./scripts/start-emulator.sh                    # uses default config
+#   ./scripts/start-emulator.sh                    # uses default (Linux) config
+#   ./scripts/start-emulator.sh --emulator android # uses the Android emulator + config
 #   ./scripts/start-emulator.sh --config emulators/my-device.json
 #   ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
+#
+# Options:
+#   --emulator linux|android   Select the emulator script + default config
+#                              (default: linux). Extend the map below for new OSes.
 #
 # Prerequisites:
 #   - Python virtual environment at .venv/ with httpx installed
@@ -35,24 +40,55 @@ else
     exit 1
 fi
 
-# --- Config -----------------------------------------------------------------
+# --- Emulator & Config -------------------------------------------------------
+
+# Map each OS emulator to its script stem + default config file. Optionally
+# provide identity overrides that get passed to the emulator as flags, so a
+# wrapper (e.g. the User App) or a plain launch always uses real OS identity.
+declare -A EMULATORS=(
+    [linux]="linux_pos:linux_pos_emulator.json"
+    [android]="android_pos:android_pos_emulator.json"
+)
+
+EMULATOR="linux"
+FORWARD_ARGS=()
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --emulator)
+            if [[ -z "${2:-}" ]] || [[ ! "${EMULATORS[$2]:-}" ]]; then
+                echo "Error: unknown emulator '${2:-}'. Valid choices: ${!EMULATORS[*]}"
+                exit 1
+            fi
+            EMULATOR="$2"
+            shift 2
+            ;;
+        *)
+            FORWARD_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${FORWARD_ARGS[@]}"
+
+EMULATOR_SCRIPT="emulators/${EMULATORS[$EMULATOR]%%:*}_emulator.py"
+EMULATOR_CONFIG="emulators/${EMULATORS[$EMULATOR]#*:}"
 
 CONFIG_ARGS=()
 if [[ "$#" -eq 0 ]]; then
-    CONFIG_ARGS=("--config" "emulators/linux_pos_emulator.json")
+    CONFIG_ARGS=("--config" "$EMULATOR_CONFIG")
 
     # Fail fast when the default config still has placeholder values. Launching
     # with them makes provisioning fail on the backend (404 "Site not found")
     # after the process has already been backgrounded.
-    if grep -q 'REPLACE_WITH_GENERATED_KEY' emulators/linux_pos_emulator.json \
-        || grep -q '"site_id": "site-1"' emulators/linux_pos_emulator.json; then
-        echo "Error: emulators/linux_pos_emulator.json still has placeholder values."
+    if grep -q 'REPLACE_WITH_GENERATED_KEY' "$EMULATOR_CONFIG" \
+        || grep -q '"site_id": "site-1"' "$EMULATOR_CONFIG"; then
+        echo "Error: $EMULATOR_CONFIG still has placeholder values."
         echo "  The default site_id/key do not exist on the backend, so provisioning would fail."
         echo ""
         echo "  Either edit that file with a real site and bootstrap key, or launch with a key"
         echo "  generated for your site (POST /api/v1/sites/{site_id}/bootstrap-key):"
         echo ""
-        echo "    ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1"
+        echo "    ./scripts/start-emulator.sh --emulator $EMULATOR --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1"
         echo ""
         echo "  Use a different --device-name per emulator to run several on one site."
         echo ""
@@ -80,12 +116,13 @@ fi
 # --- Run --------------------------------------------------------------------
 
 echo "Starting HOMEPOT device emulator ..."
-echo "  Python: $PYTHON"
+echo "  Emulator: $EMULATOR_SCRIPT"
+echo "  Python:   $PYTHON"
 echo "  Config args: ${CONFIG_ARGS[*]:-} $*"
 echo "  Log file: $LOG_FILE"
 echo ""
 
-nohup "$PYTHON" -u emulators/linux_pos_emulator.py "${CONFIG_ARGS[@]}" "$@" \
+nohup "$PYTHON" -u "$EMULATOR_SCRIPT" "${CONFIG_ARGS[@]}" "$@" \
     > "$LOG_FILE" 2>&1 &
 EMULATOR_PID=$!
 echo "$EMULATOR_PID" > "$PID_FILE"
