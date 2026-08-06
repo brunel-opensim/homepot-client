@@ -323,7 +323,16 @@ Emulators can run multiple instances simultaneously by using different `device_n
 
 The emulator can be spawned and managed directly from the User App's Electron shell, giving developers the full "real device" experience — the setup wizard provisions a device, the emulator starts as a background process, and the User App shows/manages it just like a physical device.
 
-This integration is implemented for the Linux POS and Android POS emulators.
+This integration is implemented for all five emulators (Linux, Android,
+Windows, macOS, iOS). The OS type picker in the setup wizard lists every
+supported emulator with its identity (OS details, device type); to launch a
+different OS, just select it there. The Electron main process resolves the
+chosen ``emulator_type`` against a per-OS profile
+(``EMULATOR_PROFILES`` in ``user_app/electron/main.ts``) for ``os_details``,
+``device_type`` and ``mock_mac`` instead of branching on Android-vs-Linux, so
+every wrapper is selectable. On resume, the saved ``emulator_type`` is used, or
+inferred from ``os_details`` when absent.
+
 Run the Electron workflow with `cd user_app && npm run electron:dev`; the
 browser-only server at `http://localhost:5174` can perform the setup handshake
 but cannot spawn an emulator process.

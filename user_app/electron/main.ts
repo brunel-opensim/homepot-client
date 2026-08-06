@@ -25,6 +25,34 @@ interface EmulatorFileConfig {
   os_details?: string
 }
 
+interface EmulatorProfile {
+  emulator_type: string
+  os_details: string
+  device_type: string
+  mock_mac: string
+}
+
+const EMULATOR_PROFILES: Record<string, EmulatorProfile> = {
+  linux_pos: { emulator_type: 'linux_pos', os_details: 'Linux 6.8.0 (Debian 12)', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:02' },
+  android_pos: { emulator_type: 'android_pos', os_details: 'Android 14', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:03' },
+  windows_pos: { emulator_type: 'windows_pos', os_details: 'Windows 11', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:04' },
+  macos_pos: { emulator_type: 'macos_pos', os_details: 'macOS 14', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:05' },
+  ios_pos: { emulator_type: 'ios_pos', os_details: 'iOS 17', device_type: 'tablet', mock_mac: '02:42:ac:11:00:06' },
+}
+
+function emulatorProfile(emulatorType: string): EmulatorProfile {
+  return EMULATOR_PROFILES[emulatorType] ?? EMULATOR_PROFILES.linux_pos
+}
+
+function inferEmulatorType(osDetails?: string): string {
+  const value = (osDetails ?? '').toLowerCase()
+  if (value.includes('android')) return 'android_pos'
+  if (value.includes('windows')) return 'windows_pos'
+  if (value.includes('mac')) return 'macos_pos'
+  if (value.includes('ios')) return 'ios_pos'
+  return 'linux_pos'
+}
+
 interface AppLogEntry {
   id: string
   timestamp: string
@@ -287,15 +315,17 @@ function registerIpcHandlers() {
       killEmulator()
     }
 
+    const profile = emulatorProfile(config.emulatorType)
+
     const tempConfig = {
       emulator_type: config.emulatorType,
       backend_url: config.backendUrl,
       site_id: config.siteId,
       bootstrap_key: config.bootstrapKey,
       device_name: config.deviceName,
-      device_type: 'pos_terminal',
-      os_details: config.emulatorType === 'android_pos' ? 'Android 14' : 'Linux 6.8.0 (Debian 12)',
-      mock_mac: config.mockMac ?? (config.emulatorType === 'android_pos' ? '02:42:ac:11:00:03' : '02:42:ac:11:00:02'),
+      device_type: profile.device_type,
+      os_details: profile.os_details,
+      mock_mac: config.mockMac ?? profile.mock_mac,
       mock_ip: config.mockIp ?? '192.168.1.100',
       mock_hostname: config.mockHostname ?? config.deviceName,
       heartbeat_interval_seconds: 10,
@@ -426,8 +456,7 @@ function resumePersistedEmulator(): void {
 
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as EmulatorFileConfig
-    const emulatorType = config.emulator_type
-      ?? (config.os_details?.toLowerCase().includes('android') ? 'android_pos' : 'linux_pos')
+    const emulatorType = config.emulator_type ?? inferEmulatorType(config.os_details)
     startEmulatorProcess(emulatorType, configPath)
     emulatorDeviceId = credentials.device_id
     console.log(`[emulator] Resumed ${deviceName} (${emulatorDeviceId})`)
