@@ -220,6 +220,10 @@ Example:
 
 ## OS-specific behaviour: push channels
 
+> **See also:** the terminology for `bootstrap_key`, `api_key`, `device_token`
+> and `push_channel` is defined in
+> [`docs/device-credentials-and-tokens.md`](device-credentials-and-tokens.md).
+
 The engine models how each OS receives commands. Desktop / POS runtimes
 (Linux, macOS) use plain HTTP polling (`/devices/pending`), while push-capable
 OSes also derive a **push channel** and a synthetic registration token, mirroring

@@ -91,3 +91,7 @@ For developers integrating directly with the API:
   "enrollment_method": "pre-provisioned"
 }
 ```
+
+> **See also:** the distinct secrets involved (site `bootstrap_key`, device
+> `api_key`, and the two meanings of `device_token`) are defined in
+> [`docs/device-credentials-and-tokens.md`](device-credentials-and-tokens.md).
