@@ -272,7 +272,6 @@ You should see:
   Registered DNA: hostname=linux-pos-001, MAC=02:42:ac:11:00:02, IP=192.168.1.100
 
   Device ID: pos_terminal-xxxxxxxx
-  API Key:   yyyyyy...
   Site ID:   site-it-demo1
 
   Starting loops (heartbeat=10.0s, telemetry=15.0s, commands=15.0s, logs=15.0s, audits=60.0s, jobs=30.0s, alerts=90.0s)

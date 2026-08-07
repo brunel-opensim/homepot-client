@@ -191,7 +191,6 @@ class EmulatorConfig:
     command_failure_rate: float = 0.1
     permission_consent_mode: str = "auto"
     permission_sync_interval: float = 20.0
-    show_api_key: bool = False
 
     @classmethod
     def from_dict(cls, d: dict) -> EmulatorConfig:
@@ -218,7 +217,6 @@ class EmulatorConfig:
             permission_sync_interval=float(
                 d.get("permission_sync_interval_seconds", 20)
             ),
-            show_api_key=bool(d.get("show_api_key", False)),
         )
 
     def to_credentials(self, device_id: str, api_key: str) -> dict:
@@ -1384,8 +1382,6 @@ class POSEmulator:
             await self._apply_default_consent()
 
             print(f"\n  Device ID: {self.device_id}")
-            if self.config.show_api_key:
-                print(f"  API Key:   {self.api_key[:16]}...")
             print(f"  Site ID:   {self.config.site_id}")
             if self._push_channel:
                 print(
@@ -1549,12 +1545,6 @@ def parse_args(
         default=None,
         help="Seconds between device-initiated consent syncs",
     )
-    parser.add_argument(
-        "--show-api-key",
-        action="store_true",
-        default=False,
-        help="Print the device API key in the startup banner (default: off)",
-    )
     return parser.parse_args(argv)
 
 
@@ -1583,7 +1573,6 @@ def build_config(
             config.permission_consent_mode = args.permission_consent_mode
         if args.permission_sync_interval:
             config.permission_sync_interval = args.permission_sync_interval
-        config.show_api_key = args.show_api_key
         return config
 
     return EmulatorConfig(
@@ -1607,7 +1596,6 @@ def build_config(
         command_failure_rate=args.command_failure_rate,
         permission_consent_mode=args.permission_consent_mode or "auto",
         permission_sync_interval=args.permission_sync_interval or 20.0,
-        show_api_key=args.show_api_key,
     )
 
 
