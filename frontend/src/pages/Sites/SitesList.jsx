@@ -276,7 +276,10 @@ export default function SitesList() {
                 {/* Render icons based on OS types present in the site */}
                 {site.os_types && site.os_types.includes('windows') && <WindowsIcon />}
                 {site.os_types && site.os_types.includes('linux') && <LinuxIcon />}
-                {site.os_types && site.os_types.includes('macos') && <AppleIcon />}
+                {site.os_types &&
+                  (site.os_types.includes('macos') ||
+                    site.os_types.includes('ios') ||
+                    site.os_types.includes('apple')) && <AppleIcon />}
                 {site.os_types && site.os_types.includes('android') && <AndroidIcon />}
                 {site.os_types && site.os_types.includes('web') && <WebIcon />}
                 {site.os_types &&
