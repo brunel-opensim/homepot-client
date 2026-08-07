@@ -480,13 +480,9 @@ export const DeviceInfoWidget = ({ device }) => (
         <span className="text-slate-400">Credential</span>
         <span
           className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
-            device?.credential_status === 'valid'
-              ? 'bg-emerald-500/10 text-emerald-400'
-              : device?.credential_status === 'expiring'
-                ? 'bg-yellow-500/10 text-yellow-400'
-                : device?.credential_status === 'expired' || device?.credential_status === 'invalid'
-                  ? 'bg-red-500/10 text-red-400'
-                  : 'bg-slate-700 text-slate-300'
+            device?.credential_status === 'active'
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 border border-red-500/20'
           }`}
         >
           {device?.credential_status || 'N/A'}
