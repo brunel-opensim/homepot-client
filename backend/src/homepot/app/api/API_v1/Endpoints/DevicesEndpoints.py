@@ -485,6 +485,12 @@ async def get_device(
                 or (device.config.get("wan_ip") if device.config else "N/A"),
                 "os_details": device.os_details
                 or (device.config.get("os_details") if device.config else "N/A"),
+                "os_family": os_family(
+                    device.config.get("os")
+                    if device.config and isinstance(device.config, dict)
+                    else None
+                )
+                or os_family(cast(Optional[str], device.os_details)),
                 "firmware_version": device.firmware_version
                 or (device.config.get("firmware_version") if device.config else "N/A"),
                 "last_seen": device.last_seen.isoformat() if device.last_seen else None,

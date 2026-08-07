@@ -15,6 +15,7 @@ import {
   Settings,
 } from 'lucide-react';
 import React from 'react';
+import OsIcon from '@/components/common/OsIcon';
 
 /* === Reusable UI Components === */
 export function Card({ children, className = '' }) {
@@ -524,6 +525,13 @@ export const DeviceInfoWidget = ({ device }) => (
         <span className="text-slate-400">Type</span>
         <span className="text-slate-200 uppercase">
           {device?.device_type?.replace(/_/g, ' ') || 'N/A'}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Operating System</span>
+        <span className="flex items-center gap-1.5 text-slate-200">
+          {device?.os_family && <OsIcon type={device.os_family} size="w-3.5 h-3.5" />}
+          <span>{device?.os_details || device?.os_family || 'N/A'}</span>
         </span>
       </div>
       <div className="flex justify-between">
