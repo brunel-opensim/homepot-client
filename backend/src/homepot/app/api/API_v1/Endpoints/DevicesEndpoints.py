@@ -517,6 +517,8 @@ async def get_device(
                 "device_source": (
                     device.config.get("device_source") if device.config else None
                 ),
+                "push_channel": device.push_channel,
+                "push_token": device.push_token,
                 "created_at": (
                     device.created_at.isoformat() if device.created_at else None
                 ),
