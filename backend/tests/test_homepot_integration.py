@@ -603,6 +603,8 @@ class TestDeviceSiteFields:
             data = resp.json()
             assert "last_heartbeat_at" in data
             assert "credential_status" in data
+            assert "os_family" in data
+            assert "os_details" in data
 
     def test_device_list_includes_new_fields(self, client: TestClient) -> None:
         """GET /devices/device includes last_heartbeat_at and credential_status."""

@@ -302,3 +302,27 @@ def test_devices_by_site_includes_os_family(file_db: Any) -> None:
     assert by_id["android-dev-1"]["os_family"] == "android"
     # No OS info anywhere -> no canonical family
     assert by_id["no-info-dev-1"]["os_family"] is None
+
+
+def test_single_device_includes_os_family(file_db: Any) -> None:
+    """GET /devices/device/{device_id} exposes os_family for the info panel."""
+    _seed_site_with_devices(
+        "site-device-family",
+        [
+            {
+                "device_id": "linux-dev-1",
+                "name": "linux-pos-1",
+                "os_details": "Ubuntu 22.04",
+                "config": {"os": "Ubuntu 22.04", "device_source": "emulator"},
+            },
+        ],
+    )
+    token = _admin_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client = TestClient(app)
+    response = client.get("/api/v1/devices/device/linux-dev-1", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["os_family"] == "linux"
+    assert data["os_details"] == "Ubuntu 22.04"
