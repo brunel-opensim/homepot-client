@@ -919,7 +919,7 @@ async def init_database():
         site2 = await session.execute(select(Site).where(Site.site_id == "site-002"))
         site2 = site2.scalar_one()
 
-        admin_user = await session.execute(select(User).where(User.username == "analytics_admin"))
+        admin_user = await session.execute(select(User).where(User.username == "homepot_admin"))
         admin_user = admin_user.scalar_one()
 
         now = datetime.now(timezone.utc)
