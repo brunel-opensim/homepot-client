@@ -605,6 +605,7 @@ class TestDeviceSiteFields:
             assert "credential_status" in data
             assert "os_family" in data
             assert "os_details" in data
+            assert data.get("credential_status") in {"active", "inactive"}
 
     def test_device_list_includes_new_fields(self, client: TestClient) -> None:
         """GET /devices/device includes last_heartbeat_at and credential_status."""
@@ -616,6 +617,7 @@ class TestDeviceSiteFields:
             d = devices[0]
             assert "last_heartbeat_at" in d
             assert "credential_status" in d
+            assert d.get("credential_status") in {"active", "inactive"}
 
     def test_devices_by_site_includes_new_fields(self, client: TestClient) -> None:
         """GET /devices/sites/{site_id}/devices includes new fields."""
