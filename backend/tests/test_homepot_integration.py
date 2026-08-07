@@ -24,11 +24,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.app.api.API_v1.Endpoints.SitesEndpoint import (
-    generate_site_id,
     _SITE_ID_PATTERN,
+    generate_site_id,
 )
+from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import Base, User
