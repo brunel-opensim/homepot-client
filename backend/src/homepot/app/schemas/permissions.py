@@ -65,6 +65,26 @@ def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
     return {k: False for k in ALL_PERMISSION_KEYS}
 
 
+def derive_push_channel(os_details: Optional[str]) -> Optional[str]:
+    """Derive the push-notification channel from the OS details string.
+
+    Mirrors ``derive_push_channel`` in ``emulators/pos_engine.py``. Mobile and
+    push-capable OSes receive commands over a push transport (FCM on Android,
+    WNS on Windows, APNs on iOS); desktop / POS runtimes fall back to plain
+    HTTP polling (``None``).
+    """
+    if not os_details:
+        return None
+    os_lower = os_details.lower()
+    if "android" in os_lower:
+        return "fcm"
+    if any(kw in os_lower for kw in ("windows", "win32", "win64")):
+        return "wns"
+    if any(kw in os_lower for kw in ("ios", "ipados", "iphone os", "ipad")):
+        return "apns"
+    return None
+
+
 class DeviceCapabilities(BaseModel):
     """Which permission flags a device's OS can support."""
 

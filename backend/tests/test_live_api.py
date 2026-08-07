@@ -23,7 +23,7 @@ class TestLiveAPI:
     def setup(self):
         """Verify system is running before each test."""
         try:
-            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+            response = requests.get(f"{BASE_URL}/api/v1/health", timeout=5)
             if response.status_code != 200:
                 pytest.skip("HOMEPOT system is not running or not healthy")
         except requests.exceptions.RequestException:
@@ -31,7 +31,7 @@ class TestLiveAPI:
 
     def test_system_health(self):
         """Test system health endpoint."""
-        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/health", timeout=TIMEOUT)
 
         assert response.status_code == 200
         data = response.json()
@@ -185,7 +185,7 @@ class TestLiveAPI:
         if agents:
             device_id = agents[0]["device_id"]
             response = requests.get(
-                f"{BASE_URL}/api/v1/devices/{device_id}/api/v1/health/health",
+                f"{BASE_URL}/api/v1/devices/{device_id}/api/v1/health",
                 timeout=TIMEOUT,
             )
 
@@ -203,7 +203,7 @@ class TestLiveAPI:
         if sites:
             site_id = sites[0]["site_id"]
             response = requests.get(
-                f"{BASE_URL}/api/v1/sites/{site_id}/api/v1/health/health",
+                f"{BASE_URL}/api/v1/sites/{site_id}/api/v1/health",
                 timeout=TIMEOUT,
             )
 
@@ -259,7 +259,7 @@ class TestSystemValidation:
     def setup(self):
         """Verify system is running before each test."""
         try:
-            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+            response = requests.get(f"{BASE_URL}/api/v1/health", timeout=5)
             if response.status_code != 200:
                 pytest.skip("HOMEPOT system is not running or not healthy")
         except requests.exceptions.RequestException:
@@ -272,7 +272,7 @@ class TestSystemValidation:
 
         # Phase 1: Core Infrastructure
         print("\nPhase 1: Core Infrastructure")
-        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=TIMEOUT)
+        response = requests.get(f"{BASE_URL}/api/v1/health", timeout=TIMEOUT)
         assert response.status_code == 200
         health = response.json()
         print(f"   Database & API: {health['status']}")
@@ -303,7 +303,7 @@ class TestSystemValidation:
     def test_performance_benchmark(self):
         """Basic performance benchmark."""
         endpoints = [
-            "/api/v1/health/health",
+            "/api/v1/health",
             "/api/v1/sites",
             "/api/v1/agents",
             "/api/v1/audit/events",
@@ -329,7 +329,7 @@ class TestSystemValidation:
 def test_system_readiness():
     """Quick system readiness check."""
     try:
-        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/v1/health", timeout=5)
         data = response.json()
 
         if data.get("status") == "healthy":

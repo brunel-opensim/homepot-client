@@ -5,9 +5,12 @@ import { apiBaseUrl } from '../config/api'
 import { credentialStorage } from '../services/credentialStorage'
 import { bootstrapProvision, checkDeviceName, verifyBootstrapCredentials } from '../services/api'
 
-const EMULATOR_TYPES: { value: string; label: string; deviceType: string; os: string; description: string }[] = [
-  { value: 'linux_pos', label: 'Linux POS', deviceType: 'pos_terminal', os: 'Linux 6.8.0 (Debian 12)', description: 'Simulates a Linux-based POS terminal' },
-  { value: 'android_pos', label: 'Android POS', deviceType: 'pos_terminal', os: 'Android 14', description: 'Simulates an Android POS tablet' },
+const EMULATOR_TYPES: { value: string; label: string; deviceType: string; os: string; mockMac: string; description: string }[] = [
+  { value: 'linux_pos', label: 'Linux POS', deviceType: 'pos_terminal', os: 'Linux 6.8.0 (Debian 12)', mockMac: '02:42:ac:11:00:02', description: 'Simulates a Linux-based POS terminal' },
+  { value: 'android_pos', label: 'Android POS', deviceType: 'pos_terminal', os: 'Android 14', mockMac: '02:42:ac:11:00:03', description: 'Simulates an Android POS tablet' },
+  { value: 'windows_pos', label: 'Windows POS', deviceType: 'pos_terminal', os: 'Windows 11', mockMac: '02:42:ac:11:00:04', description: 'Simulates a Windows-based POS terminal' },
+  { value: 'macos_pos', label: 'macOS POS', deviceType: 'pos_terminal', os: 'macOS 14', mockMac: '02:42:ac:11:00:05', description: 'Simulates a macOS POS terminal' },
+  { value: 'ios_pos', label: 'iOS Tablet', deviceType: 'tablet', os: 'iOS 17', mockMac: '02:42:ac:11:00:06', description: 'Simulates an iOS POS tablet (network monitoring only)' },
 ]
 
 function formatDeviceType(v: string) {

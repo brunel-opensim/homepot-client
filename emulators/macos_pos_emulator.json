@@ -1,0 +1,21 @@
+{
+  "backend_url": "http://localhost:8000",
+  "site_id": "site-1",
+  "bootstrap_key": "REPLACE_WITH_GENERATED_KEY",
+  "device_name": "macos-pos-emulator-1",
+  "device_type": "pos_terminal",
+  "os_details": "macOS 14",
+  "mock_mac": "02:42:ac:11:00:05",
+  "mock_ip": "192.168.1.100",
+  "mock_hostname": "macos-pos-001",
+  "mock_firmware": "2.4.1",
+  "heartbeat_interval_seconds": 10,
+  "telemetry_interval_seconds": 15,
+  "command_poll_interval_seconds": 15,
+  "logs_interval_seconds": 15,
+  "audit_interval_seconds": 60,
+  "jobs_interval_seconds": 30,
+  "alerts_interval_seconds": 90,
+  "permission_consent_mode": "auto",
+  "permission_sync_interval_seconds": 20
+}

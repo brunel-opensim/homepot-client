@@ -29,13 +29,13 @@ The Dashboard immediately shows the emulated device with its mock DNA, online st
 |----------|------|----|-------------|
 | Linux POS | `emulators/linux_pos_emulator.py` | Linux | `pos_terminal` |
 | Android POS | `emulators/android_pos_emulator.py` | Android | `pos_terminal` |
-| Windows POS | — | Windows | `pos_terminal` |
-| macOS POS | — | macOS | `pos_terminal` |
-| iOS | — | iOS | `tablet` |
+| Windows POS | `emulators/windows_pos_emulator.py` | Windows | `pos_terminal` |
+| macOS POS | `emulators/macos_pos_emulator.py` | macOS | `pos_terminal` |
+| iOS | `emulators/ios_pos_emulator.py` | iOS | `tablet` |
 | Web Browser | — | Web | `virtual_terminal` |
 | MQTT Sensor | — | Linux | `mobile_scanner` |
 
-**Linux POS** and **Android POS** are implemented. Android reuses the parameterized engine from `linux_pos_emulator.py` with Android identity defaults (`Android 14`, mock MAC `02:42:ac:11:00:03`, hostname `android-pos-001`); its OS capability map is derived from the OS string (no root access, but process/filesystem/network monitoring). Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
+**Linux POS**, **Android POS**, **Windows POS**, **macOS POS** and **iOS** are implemented. They are thin wrappers around the shared engine in `emulators/pos_engine.py`. Each OS only overrides identity defaults (e.g. Android: `Android 16`, mock MAC `02:42:ac:11:00:03`; Windows: `Windows 11`; iOS uses device type `tablet`); each one's OS capability map is derived from the OS string (Linux/macOS keep root access; Android/Windows/iOS do not; iOS is further restricted to network monitoring only). Each future emulator targets a specific OS and may include OS-specific behaviours (e.g. WNS push on Windows, FCM on Android).
 
 ## How an emulator works
 
@@ -85,9 +85,16 @@ convention as `backend.log`, `frontend.log`, `ai.log`).
 # Re-launch (backgrounds the process)
 ./scripts/start-emulator.sh
 
+# Launch a specific OS emulator (default is linux)
+./scripts/start-emulator.sh --emulator android
+
 # Watch live output
 tail -f logs/emulator.log
 ```
+
+`start-emulator.sh` accepts an `--emulator linux|android|windows|macos|ios` flag (default `linux`)
+that selects the emulator script and its default config. Any emulator launch
+arguments, including `--os-details`, are forwarded to the Python emulator.
 
 **User App (Electron)** — Quit and re-open the User App. The Electron main process kills the child emulator on quit; re-opening restarts it automatically when the setup-to-home flow completes.
 
@@ -211,12 +218,56 @@ Example:
 ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1 --permission-consent-mode deny
 ```
 
-## Creating a new emulator
+## OS-specific behaviour: push channels
 
-Each emulator is a standalone runnable script. The quickest way to add a new OS is to create a thin script that imports the parameterized engine from `linux_pos_emulator.py` and overrides the identity defaults, exactly like `android_pos_emulator.py`:
+> **See also:** the terminology for `bootstrap_key`, `api_key`, `device_token`
+> and `push_channel` is defined in
+> [`docs/device-credentials-and-tokens.md`](device-credentials-and-tokens.md).
+
+The engine models how each OS receives commands. Desktop / POS runtimes
+(Linux, macOS) use plain HTTP polling (`/devices/pending`), while push-capable
+OSes also derive a **push channel** and a synthetic registration token, mirroring
+how the real agent registers a `device_token` with the backend:
+
+| OS | Push channel | Token shape |
+|----|--------------|-------------|
+| Android | `fcm` | `fcm:emulator:<hex>` |
+| Windows | `wns` | `https://wns.notify.windows.com/?token=emulator:<hex>` |
+| iOS / iPadOS | `apns` | `apns://emulator:<hex>` |
+| Linux, macOS | `None` | polling only (no token) |
+
+This is derived by `derive_push_channel(os_details)` in `pos_engine.py`; nothing
+extra is needed in a thin wrapper — setting `os_details` to a push-capable OS
+selects the channel automatically. Test it with:
 
 ```python
-from linux_pos_emulator import LinuxPOSEmulator, main
+from pos_engine import derive_push_channel
+assert derive_push_channel("Android 14") == "fcm"
+assert derive_push_channel("Linux 6.8.0 (Debian 12)") is None
+```
+
+On boot, a push-capable emulator prints its channel + token and includes
+`device_token` in the `device-dna` registration payload. `push_channel` and
+`push_token` also appear in every status report. When a command is received the
+engine logs an OS-specific delivery note (e.g. `restart_pos_app pushed via WNS`).
+
+These are the engine's **OS behavior hooks**:
+
+- `POSEmulator.push_channel` — the push transport (`None` for polling-only).
+- `POSEmulator.push_token` — the synthetic registration token.
+- `POSEmulator._push_delivery_note(command_type)` — human-readable delivery note.
+- `derive_push_channel(os_details)` — free function mirroring the backend mapping.
+
+To add a new push transport (e.g. an alternative), extend `derive_push_channel`,
+the `prefix` map in `_new_push_token`, and the `channel` map in
+`_push_delivery_note`; no changes are needed in the OS wrappers.
+
+## Creating a new emulator
+
+Each emulator is a standalone runnable script. The quickest way to add a new OS is to create a thin wrapper that imports the shared engine from `pos_engine.py` and overrides the identity defaults, exactly like `android_pos_emulator.py`:
+
+```python
+from pos_engine import POSEmulator, main
 
 WINDOWS_DEFAULTS = {
     "device_name": "windows-pos-emulator-1",
@@ -225,15 +276,15 @@ WINDOWS_DEFAULTS = {
     "mock_hostname": "windows-pos-001",
 }
 
-if __name__ == "__main__":
-    main(defaults=WINDOWS_DEFAULTS, banner="HOMEPOT Windows POS Emulator")
+def windows_main(argv=None):
+    main(argv, defaults=WINDOWS_DEFAULTS, emulator_class=POSEmulator, banner="HOMEPOT Windows POS Emulator")
 ```
 
-For OS-specific behaviour beyond identity, copy `linux_pos_emulator.py` and adjust:
+For OS-specific behaviour beyond identity, add it to the shared engine (`pos_engine.py`) in an OS-conditional way, or subclass `POSEmulator`:
 
 1. **Config defaults** — Change the OS details, device type, mock MAC/IP/hostname defaults.
 2. **Simulated metrics** — Override `SimulatedMetrics` for OS-specific metrics (e.g. Android battery level, iOS thermal state).
-3. **Command responses** — Add OS-specific command handlers in `_simulate_command_result`.
+3. **Command responses** — Add OS-specific command handlers in `_simulate_command_result`(keyed on `os_details`).
 4. **Platform-specific behaviours** — Override loops or add new ones (e.g. WNS channel registration for Windows, FCM token refresh for Android).
 5. **Config file** — Create a dedicated JSON config with appropriate defaults.
 
@@ -242,11 +293,17 @@ For OS-specific behaviour beyond identity, copy `linux_pos_emulator.py` and adju
 ```
 emulators/
 ├── __init__.py
-├── linux_pos_emulator.py       # Linux POS (implemented)
+├── pos_engine.py                # Shared emulator engine (all behaviour)
+├── linux_pos_emulator.py        # Linux POS (thin wrapper)
 ├── linux_pos_emulator.json      # Linux POS config example
-├── android_pos_emulator.py      # Android POS (implemented; reuses linux engine)
+├── android_pos_emulator.py      # Android POS (thin wrapper)
 ├── android_pos_emulator.json    # Android POS config example
-├── windows_pos_emulator.py      # Windows POS (future)
+├── windows_pos_emulator.py      # Windows POS (thin wrapper)
+├── windows_pos_emulator.json    # Windows POS config example
+├── macos_pos_emulator.py        # macOS POS (thin wrapper)
+├── macos_pos_emulator.json      # macOS POS config example
+├── ios_pos_emulator.py          # iOS (thin wrapper; device type "tablet")
+├── ios_pos_emulator.json        # iOS config example
 └── ...
 ```
 
@@ -270,7 +327,16 @@ Emulators can run multiple instances simultaneously by using different `device_n
 
 The emulator can be spawned and managed directly from the User App's Electron shell, giving developers the full "real device" experience — the setup wizard provisions a device, the emulator starts as a background process, and the User App shows/manages it just like a physical device.
 
-This integration is implemented for the Linux POS and Android POS emulators.
+This integration is implemented for all five emulators (Linux, Android,
+Windows, macOS, iOS). The OS type picker in the setup wizard lists every
+supported emulator with its identity (OS details, device type); to launch a
+different OS, just select it there. The Electron main process resolves the
+chosen ``emulator_type`` against a per-OS profile
+(``EMULATOR_PROFILES`` in ``user_app/electron/main.ts``) for ``os_details``,
+``device_type`` and ``mock_mac`` instead of branching on Android-vs-Linux, so
+every wrapper is selectable. On resume, the saved ``emulator_type`` is used, or
+inferred from ``os_details`` when absent.
+
 Run the Electron workflow with `cd user_app && npm run electron:dev`; the
 browser-only server at `http://localhost:5174` can perform the setup handshake
 but cannot spawn an emulator process.
@@ -331,7 +397,7 @@ User App (Electron)
 
 ### Lifecycle
 
-- **Startup**: Electron spawns `python3 emulators/linux_pos_emulator.py --config <temp-file>`. The temp config contains backend URL, site ID, bootstrap key, and mock DNA values for the selected emulator type.
+- **Startup**: Electron spawns `python3 emulators/<os>_pos_emulator.py --config <temp-file>` (e.g. `linux_pos_emulator.py` or `android_pos_emulator.py`). The temp config contains backend URL, site ID, bootstrap key, and mock DNA values for the selected emulator type.
 - **Provisioning wait**: Main process polls `~/.homepot/emulators/<device_name>.json` until it appears (emulator writes it after provisioning).
 - **Runtime**: Main process monitors the child process — if it dies unexpectedly, a warning banner appears in the UI.
 - **Shutdown**: On app quit or unpair, main process sends SIGTERM → waits 3 s → SIGKILL if needed.

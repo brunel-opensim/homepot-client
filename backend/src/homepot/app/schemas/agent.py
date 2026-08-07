@@ -43,6 +43,14 @@ class AgentRegisterRequest(BaseModel):
         description="Source identifier for the device — 'physical', 'emulator', or 'simulation'",
     )
 
+    device_token: Optional[str] = Field(
+        None,
+        description=(
+            "Push-registration token (FCM/APNs/WNS) reported during DNA "
+            "registration. Distinct from the legacy provisioning alias."
+        ),
+    )
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {

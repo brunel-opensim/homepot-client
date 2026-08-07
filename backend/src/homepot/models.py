@@ -379,6 +379,12 @@ class Device(Base):
         JSON, nullable=True
     )  # Derived from os_details at provision time
 
+    # Push transport registration (meaning 2 of "device_token" in the legacy
+    # alias sense) — the push-registration identifier reported during DNA
+    # registration (e.g. FCM/APNs/WNS token), plus the derived channel.
+    push_token = Column(String(512), nullable=True)  # Push-registration token
+    push_channel = Column(String(20), nullable=True)  # fcm | wns | apns | None
+
     # Configuration
     config = Column(JSON, nullable=True)  # Device-specific configuration
 

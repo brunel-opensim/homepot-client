@@ -25,6 +25,34 @@ interface EmulatorFileConfig {
   os_details?: string
 }
 
+interface EmulatorProfile {
+  emulator_type: string
+  os_details: string
+  device_type: string
+  mock_mac: string
+}
+
+const EMULATOR_PROFILES: Record<string, EmulatorProfile> = {
+  linux_pos: { emulator_type: 'linux_pos', os_details: 'Linux 6.8.0 (Debian 12)', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:02' },
+  android_pos: { emulator_type: 'android_pos', os_details: 'Android 14', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:03' },
+  windows_pos: { emulator_type: 'windows_pos', os_details: 'Windows 11', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:04' },
+  macos_pos: { emulator_type: 'macos_pos', os_details: 'macOS 14', device_type: 'pos_terminal', mock_mac: '02:42:ac:11:00:05' },
+  ios_pos: { emulator_type: 'ios_pos', os_details: 'iOS 17', device_type: 'tablet', mock_mac: '02:42:ac:11:00:06' },
+}
+
+function emulatorProfile(emulatorType: string): EmulatorProfile {
+  return EMULATOR_PROFILES[emulatorType] ?? EMULATOR_PROFILES.linux_pos
+}
+
+function inferEmulatorType(osDetails?: string): string {
+  const value = (osDetails ?? '').toLowerCase()
+  if (value.includes('android')) return 'android_pos'
+  if (value.includes('windows')) return 'windows_pos'
+  if (value.includes('mac')) return 'macos_pos'
+  if (value.includes('ios')) return 'ios_pos'
+  return 'linux_pos'
+}
+
 interface AppLogEntry {
   id: string
   timestamp: string
@@ -184,6 +212,59 @@ function writeCredentialsFile(data: Record<string, string>): void {
   fs.chmodSync(CREDENTIALS_FILE, 0o600)
 }
 
+/**
+ * Adopt an already-provisioned emulator device so a plain launch bypasses the
+ * Setup wizard and lands on Home.
+ *
+ * When a device is created outside this app (e.g. via scripts/start-emulator.sh),
+ * its credentials live only in the emulator stash (~/.homepot/emulators/<name>.json,
+ * written by pos_engine.py). With no ~/.homepot/credentials file the app would
+ * otherwise boot into Setup despite a device existing on the Dashboard. If a
+ * credentials file is absent and a valid emulator credential file is present,
+ * promote the most recently written one into the app credentials so routing
+ * treats the app as provisioned.
+ */
+function adoptExistingEmulatorDevice(): void {
+  if (Object.keys(readCredentialsFile()).length > 0) return
+
+  ensureCredentialsDir()
+  if (!fs.existsSync(EMULATOR_DIR)) return
+
+  let candidates: string | null = null
+  let bestMtime = -1
+  for (const entry of fs.readdirSync(EMULATOR_DIR)) {
+    // Emulator credential files are <device>.json (device_id + api_key);
+    // skip the <device>-config.json files written by emulator:start.
+    if (!entry.endsWith('.json') || entry.endsWith('-config.json')) continue
+    const filePath = path.join(EMULATOR_DIR, entry)
+    const stat = fs.statSync(filePath)
+    if (stat.isDirectory()) continue
+    if (stat.mtimeMs > bestMtime) {
+      bestMtime = stat.mtimeMs
+      candidates = filePath
+    }
+  }
+  if (!candidates) return
+
+  try {
+    const emulatorCreds = JSON.parse(fs.readFileSync(candidates, 'utf-8')) as Record<string, string>
+    if (!emulatorCreds.device_id || !emulatorCreds.api_key) return
+    writeCredentialsFile({
+      device_id: emulatorCreds.device_id,
+      api_key: emulatorCreds.api_key,
+      device_name: emulatorCreds.device_name ?? '',
+      device_type: emulatorCreds.device_type ?? 'pos_terminal',
+      device_os: emulatorCreds.os_details ?? '',
+      site_id: emulatorCreds.site_id ?? '',
+      enrollment_method: 'emulated',
+    })
+    console.log(`[emulator] Adopted persisted device ${emulatorCreds.device_name ?? emulatorCreds.device_id}`)
+    recordAppEvent('info', 'setup', `Adopted existing emulated device (${emulatorCreds.device_name ?? emulatorCreds.device_id})`)
+  } catch (error) {
+    console.error('[emulator] Failed to adopt persisted device:', error)
+  }
+}
+
 function getOrCreateDeviceIdentity(): { deviceId: string; machineId: string } {
   ensureCredentialsDir()
   try {
@@ -287,15 +368,17 @@ function registerIpcHandlers() {
       killEmulator()
     }
 
+    const profile = emulatorProfile(config.emulatorType)
+
     const tempConfig = {
       emulator_type: config.emulatorType,
       backend_url: config.backendUrl,
       site_id: config.siteId,
       bootstrap_key: config.bootstrapKey,
       device_name: config.deviceName,
-      device_type: 'pos_terminal',
-      os_details: config.emulatorType === 'android_pos' ? 'Android 14' : 'Linux 6.8.0 (Debian 12)',
-      mock_mac: config.mockMac ?? (config.emulatorType === 'android_pos' ? '02:42:ac:11:00:03' : '02:42:ac:11:00:02'),
+      device_type: profile.device_type,
+      os_details: profile.os_details,
+      mock_mac: config.mockMac ?? profile.mock_mac,
       mock_ip: config.mockIp ?? '192.168.1.100',
       mock_hostname: config.mockHostname ?? config.deviceName,
       heartbeat_interval_seconds: 10,
@@ -426,8 +509,7 @@ function resumePersistedEmulator(): void {
 
   try {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as EmulatorFileConfig
-    const emulatorType = config.emulator_type
-      ?? (config.os_details?.toLowerCase().includes('android') ? 'android_pos' : 'linux_pos')
+    const emulatorType = config.emulator_type ?? inferEmulatorType(config.os_details)
     startEmulatorProcess(emulatorType, configPath)
     emulatorDeviceId = credentials.device_id
     console.log(`[emulator] Resumed ${deviceName} (${emulatorDeviceId})`)
@@ -504,6 +586,7 @@ app.whenReady().then(() => {
   }
   recordAppEvent('info', 'application', `HOMEPOT Agent ${app.getVersion()} started`)
   registerIpcHandlers()
+  adoptExistingEmulatorDevice()
   resumePersistedEmulator()
   createWindow()
   createTray()

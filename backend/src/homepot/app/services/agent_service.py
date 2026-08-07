@@ -15,7 +15,7 @@ from homepot.app.schemas.agent import (
     AgentTelemetryRequest,
 )
 from homepot.app.schemas.bootstrap import BootstrapProvisionRequest
-from homepot.app.schemas.permissions import derive_capabilities
+from homepot.app.schemas.permissions import derive_capabilities, derive_push_channel
 from homepot.app.schemas.provision import DeviceProvisionRequest
 from homepot.app.services.lifecycle_service import LifecycleService
 from homepot.models import (
@@ -67,6 +67,12 @@ class AgentService:
                     peripherals=payload.peripherals,
                 )
 
+                if payload.device_token is not None:
+                    updated_obj = cast(Any, updated)
+                    updated_obj.push_token = payload.device_token
+                    updated_obj.push_channel = derive_push_channel(payload.os_details)
+                    self.repository.save_device(updated)
+
                 if payload.device_source:
                     updated_obj = cast(Any, updated)
                     existing_config: Dict[str, Any] = dict(
@@ -95,8 +101,6 @@ class AgentService:
             if not site or not site.id:
                 raise LookupError(f"Site '{payload.site_id}' not found")
 
-            from homepot.app.schemas.permissions import derive_capabilities
-
             is_emulator_dna = payload.device_source == "emulator"
             created = self.repository.create_device(
                 device_id=payload.device_id,
@@ -123,6 +127,10 @@ class AgentService:
                 existing_config = dict(cast(Dict[str, Any], created_obj.config or {}))
                 existing_config["device_source"] = "emulator"
                 created_obj.config = existing_config
+
+            if payload.device_token is not None:
+                created_obj.push_token = payload.device_token
+                created_obj.push_channel = derive_push_channel(payload.os_details)
 
             self.repository.save_device(created)
 

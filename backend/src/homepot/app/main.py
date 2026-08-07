@@ -95,7 +95,7 @@ async def initialize_database() -> None:
 async def initialize_client() -> None:
     """Connect the HOMEPOT client and wire it into the endpoints that need it.
 
-    Without this, ``/api/v1/health/health`` and the ``/api/v1/client/*``
+    Without this, ``/api/v1/health`` and the ``/api/v1/client/*``
     endpoints (``Depends(get_client)``) always return 503 "Client not
     available" because their module-level ``client_instance`` is never set.
     """
