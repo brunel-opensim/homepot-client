@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict
 
 from homepot.agents import get_agent_manager, stop_agent_manager
 from homepot.app.api.API_v1.Api import api_v1_router
+from homepot.app.api.API_v1.Endpoints.SitesEndpoint import generate_site_id
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.config import get_settings
@@ -273,9 +274,14 @@ class SiteHealthResponse(BaseModel):
 
 
 class CreateSiteRequest(BaseModel):
-    """Request model for creating a new site."""
+    """Request model for creating a new site.
 
-    site_id: str
+    ``site_id`` is auto-generated server-side (``SITE-XXXX-XXXX``), so a
+    caller-supplied ``site_id`` is not required. It is still accepted for
+    backwards compatibility but ignored in favour of the generated value.
+    """
+
+    site_id: Optional[str] = None
     name: str
     description: Optional[str] = None
     location: Optional[str] = None
@@ -285,7 +291,6 @@ class CreateSiteRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "site_id": "site-123",
                 "name": "Main Retail Store",
                 "description": "Primary retail location with 5 POS terminals",
                 "location": "London, UK",
@@ -543,16 +548,13 @@ async def create_site(site_request: CreateSiteRequest) -> Dict[str, str]:
     try:
         db_service = await get_database_service()
 
-        # Check if site already exists
-        existing_site = await db_service.get_site_by_site_id(site_request.site_id)
-        if existing_site:
-            raise HTTPException(
-                status_code=409, detail=f"Site {site_request.site_id} already exists"
-            )
+        site_id = generate_site_id()
+        while await db_service.get_site_by_site_id(site_id):
+            site_id = generate_site_id()
 
         # Create new site
         site = await db_service.create_site(
-            site_id=site_request.site_id,
+            site_id=site_id,
             name=site_request.name,
             description=site_request.description,
             location=site_request.location,

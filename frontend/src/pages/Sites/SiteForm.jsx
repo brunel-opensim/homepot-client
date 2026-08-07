@@ -130,22 +130,22 @@ export default function SiteForm() {
               />
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="site_id" className="text-sm font-medium leading-none text-gray-300">
-                Site ID <span className="text-red-400">*</span>
-              </label>
-              <input
-                id="site_id"
-                name="site_id"
-                type="text"
-                required
-                className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="e.g. site-123"
-                value={formData.site_id}
-                onChange={handleChange}
-                disabled={isEditMode} // Assuming ID shouldn't change after creation
-              />
-            </div>
+            {isEditMode && (
+              <div className="space-y-2">
+                <label htmlFor="site_id" className="text-sm font-medium leading-none text-gray-300">
+                  Site ID
+                </label>
+                <input
+                  id="site_id"
+                  name="site_id"
+                  type="text"
+                  disabled
+                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  value={formData.site_id}
+                  onChange={handleChange}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <label htmlFor="location" className="text-sm font-medium leading-none text-gray-300">

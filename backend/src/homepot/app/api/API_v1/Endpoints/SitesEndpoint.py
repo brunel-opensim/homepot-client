@@ -1,6 +1,8 @@
 """API endpoints for managing sites in the HomePot system."""
 
 import logging
+import re
+import secrets
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -31,6 +33,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# Unambiguous alphabet for site IDs: excludes easily-confused characters
+# (0/O, 1/I/L).
+_SITE_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+# Canonical format: SITE-XXXX-XXXX (three groups)
+_SITE_ID_PATTERN = re.compile(r"^SITE-[A-HJ-KM-NP-Z2-9]{4}-[A-HJ-KM-NP-Z2-9]{4}$")
+
+
+def generate_site_id() -> str:
+    """Generate a canonical site ID: ``SITE-XXXX-XXXX``.
+
+    Uses only unambiguous uppercase alphanumerics so the ID can be read aloud
+    and typed without confusion during device enrollment.
+    """
+    parts: List[str] = []
+    for _ in range(2):
+        parts.append("".join(secrets.choice(_SITE_ID_ALPHABET) for _ in range(4)))
+    return f"SITE-{parts[0]}-{parts[1]}"
+
+
 class SiteHealthResponse(BaseModel):
     """Response model for site health status."""
 
@@ -46,9 +67,14 @@ class SiteHealthResponse(BaseModel):
 
 
 class CreateSiteRequest(BaseModel):
-    """Request model for creating a new site."""
+    """Request model for creating a new site.
 
-    site_id: str
+    ``site_id`` is auto-generated server-side (``SITE-XXXX-XXXX``), so a
+    caller-name ``site_id`` is not required. It is still accepted for
+    backwards compatibility but ignored in favour of the generated value.
+    """
+
+    site_id: Optional[str] = None
     name: str
     description: Optional[str] = None
     location: Optional[str] = None
@@ -58,7 +84,6 @@ class CreateSiteRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "site_id": "site-123",
                 "name": "Main Retail Store",
                 "description": "Primary retail location with 5 POS terminals",
                 "location": "London, UK",
@@ -85,16 +110,15 @@ async def create_site(
     try:
         db_service = await get_database_service()
 
-        # Check if site already exists
-        existing_site = await db_service.get_site_by_site_id(site_request.site_id)
-        if existing_site:
-            raise HTTPException(
-                status_code=409, detail=f"Site {site_request.site_id} already exists"
-            )
+        site_id = generate_site_id()
+        # Keep trying until we land on an unused id (collision is astronomically
+        # unlikely with 4+4 unambiguous chars, but stay safe).
+        while await db_service.get_site_by_site_id(site_id):
+            site_id = generate_site_id()
 
         # Create new site
         site = await db_service.create_site(
-            site_id=site_request.site_id,
+            site_id=site_id,
             name=site_request.name,
             description=site_request.description,
             location=site_request.location,

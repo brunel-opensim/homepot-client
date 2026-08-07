@@ -188,13 +188,13 @@ class TestDevServerSmoke:
         )
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        assert data["site_id"] == "new-site-001"
+        new_site_id = data["site_id"]
 
         # Create enrolment intent on that site
         resp = client.post(
-            "/api/v1/sites/new-site-001/enrolment-intents",
+            f"/api/v1/sites/{new_site_id}/enrolment-intents",
             json={
-                "site_id": "new-site-001",
+                "site_id": new_site_id,
                 "device_type": "pos_terminal",
                 "expires_in_hours": 48,
             },
@@ -469,13 +469,14 @@ class TestBootstrapProvisionDuplicateNames:
             headers=headers,
         )
         assert resp.status_code == 200, resp.text
+        site2_id = resp.json()["site_id"]
 
         key1 = _generate_bootstrap_key(client, "smoke-site-001")
-        key2 = _generate_bootstrap_key(client, "smoke-site-002")
+        key2 = _generate_bootstrap_key(client, site2_id)
 
         for site_id, key in (
             ("smoke-site-001", key1),
-            ("smoke-site-002", key2),
+            (site2_id, key2),
         ):
             resp = client.post(
                 "/api/v1/devices/bootstrap-provision",

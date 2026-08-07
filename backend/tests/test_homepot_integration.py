@@ -12,6 +12,7 @@ The tests use httpx for async HTTP testing and cover the full API surface.
 import asyncio
 from datetime import datetime, timezone
 import os
+import re
 import tempfile
 import time
 from typing import Any, AsyncGenerator, Generator
@@ -23,12 +24,24 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from homepot.app.api.API_v1.Endpoints.SitesEndpoint import (
+    _SITE_ID_PATTERN,
+    generate_site_id,
+)
 from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import Base, User
 
 TEST_USER_EMAIL = "integration@test.local"
+
+
+def test_generate_site_id_is_canonical() -> None:
+    """generate_site_id produces the canonical SITE-XXXX-XXXX format."""
+    generated = {generate_site_id() for _ in range(200)}
+    assert len(generated) == 200  # effectively unique
+    for site_id in generated:
+        assert _SITE_ID_PATTERN.fullmatch(site_id) is not None
 
 
 def generate_random_id(prefix: str) -> str:
@@ -207,11 +220,10 @@ class TestPhase2APIEndpoints:
             assert "created_at" in site
 
     def test_create_site(self, client: TestClient) -> None:
-        """Test creating a new POS site."""
+        """Test creating a new POS site (server generates a canonical SITE ID)."""
         h = TestPhase2APIEndpoints._headers
-        site_id = generate_random_id("TEST_SITE")
         test_site = {
-            "site_id": site_id,
+            "site_id": "custom-id-ignored",
             "name": "Test Site",
             "location": "Test Location",
             "type": "test",
@@ -224,10 +236,12 @@ class TestPhase2APIEndpoints:
             data = response.json()
             assert "message" in data
             assert "site_id" in data
-            assert data["site_id"] == site_id
+            assert re.fullmatch(
+                r"SITE-[A-HJ-KM-NP-Z2-9]{4}-[A-HJ-KM-NP-Z2-9]{4}", data["site_id"]
+            )
         finally:
             if response.status_code == 200:
-                client.delete(f"/api/v1/sites/{site_id}", headers=h)
+                client.delete(f"/api/v1/sites/{data['site_id']}", headers=h)
 
     def test_site_health(self, client: TestClient) -> None:
         """Test site health monitoring."""
@@ -462,6 +476,7 @@ class TestEndToEndWorkflows:
 
         site_response = client.post("/api/v1/sites", json=test_site, headers=h)
         assert site_response.status_code == 200
+        site_id = site_response.json()["site_id"]
 
         test_device = {
             "site_id": site_id,
@@ -501,7 +516,7 @@ class TestEndToEndWorkflows:
         """Test agent management workflow: list, monitor, notify, restart."""
         h = TestEndToEndWorkflows._headers
         site_id = generate_random_id("AGENT_WF_SITE")
-        client.post(
+        site_resp = client.post(
             "/api/v1/sites",
             json={
                 "site_id": site_id,
@@ -511,6 +526,8 @@ class TestEndToEndWorkflows:
             },
             headers=h,
         )
+        assert site_resp.status_code == 200
+        site_id = site_resp.json()["site_id"]
         setup_device_id = generate_random_id("AGENT_WF_DEVICE")
         client.post(
             "/api/v1/devices/device",
@@ -695,11 +712,9 @@ class TestDashboardAggregates:
 
     @staticmethod
     def _create_site(client: TestClient, headers: dict) -> str:
-        site_id = generate_random_id("DASH_SITE")
         resp = client.post(
             "/api/v1/sites",
             json={
-                "site_id": site_id,
                 "name": "Dashboard Site",
                 "location": "Test",
                 "type": "test",
@@ -707,7 +722,7 @@ class TestDashboardAggregates:
             headers=headers,
         )
         assert resp.status_code == 200, f"Failed to create site: {resp.text}"
-        return site_id
+        return resp.json()["site_id"]
 
     @staticmethod
     def _create_device(client: TestClient, headers: dict, site_id: str) -> str:
