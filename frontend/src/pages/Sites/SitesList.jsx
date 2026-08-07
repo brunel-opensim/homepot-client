@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Search, Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Search, Edit, Trash2, ArrowLeft, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import OsIcon from '@/components/common/OsIcon';
 import api from '@/services/api';
@@ -16,6 +16,7 @@ export default function SitesList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [siteToDelete, setSiteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [copiedSiteId, setCopiedSiteId] = useState(null);
 
   useEffect(() => {
     fetchSites();
@@ -66,6 +67,19 @@ export default function SitesList() {
   const handleEditClick = (e, site) => {
     e.stopPropagation();
     navigate(`/sites/${site.id}/edit`);
+  };
+
+  const handleCopySiteId = async (e, site) => {
+    e.stopPropagation();
+    const siteId = site.site_id || site.id;
+    if (!siteId) return;
+    try {
+      await navigator.clipboard.writeText(siteId);
+      setCopiedSiteId(siteId);
+      setTimeout(() => setCopiedSiteId(null), 2000);
+    } catch {
+      console.error('Failed to copy site ID');
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -212,9 +226,22 @@ export default function SitesList() {
                   {site.name}
                 </h2>
                 <div className="flex flex-col gap-1 mt-1 mb-2">
-                  <p className="text-xs font-mono text-teal-400/70 text-start truncate">
-                    Site ID: {site.site_id || site.id}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-mono text-teal-400/70 text-start truncate">
+                      Site ID: {site.site_id || site.id}
+                    </p>
+                    <button
+                      onClick={(e) => handleCopySiteId(e, site)}
+                      className="p-0.5 rounded text-gray-400 hover:text-teal-400 transition-colors shrink-0"
+                      title="Copy Site ID"
+                    >
+                      {copiedSiteId === (site.site_id || site.id) ? (
+                        <Check size={12} className="text-teal-400" />
+                      ) : (
+                        <Copy size={12} />
+                      )}
+                    </button>
+                  </div>
                   <p className="text-sm text-gray-400 text-start truncate">
                     {site.location || 'No location'}
                   </p>
