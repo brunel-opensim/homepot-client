@@ -164,7 +164,7 @@ export default function SiteDetail() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight mb-1 text-white">{site.name}</h1>
               <div className="flex items-center text-teal-400/80 font-mono text-sm mb-2">
-                ID: {site.site_id || site.id}
+                Site ID: {site.site_id || site.id}
               </div>
               <div className="flex items-center text-gray-400">
                 <MapPin className="h-4 w-4 mr-1.5" />

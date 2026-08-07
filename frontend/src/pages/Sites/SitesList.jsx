@@ -213,7 +213,7 @@ export default function SitesList() {
                 </h2>
                 <div className="flex flex-col gap-1 mt-1 mb-2">
                   <p className="text-xs font-mono text-teal-400/70 text-start truncate">
-                    ID: {site.site_id || site.id}
+                    Site ID: {site.site_id || site.id}
                   </p>
                   <p className="text-sm text-gray-400 text-start truncate">
                     {site.location || 'No location'}
