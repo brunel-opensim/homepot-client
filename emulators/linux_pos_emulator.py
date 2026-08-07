@@ -3,8 +3,7 @@
 
 Thin wrapper around the shared emulator engine (:mod:`pos_engine`) configured
 with Linux identity defaults. All behaviour lives in ``pos_engine.py``; this
-module only supplies the OS-specific identity and re-exports the engine's
-public API so existing entrypoints keep working unchanged.
+module only supplies the OS-specific identity.
 
 Usage
 -----
@@ -16,14 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pos_engine import (
-    POSEmulator,
-    main,
-    derive_os_capabilities,
-    parse_args,
-    build_config,
-    EmulatorConfig,
-)
+from pos_engine import POSEmulator, main
 
 LinuxPOSEmulator = POSEmulator
 

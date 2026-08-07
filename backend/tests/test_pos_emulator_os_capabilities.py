@@ -17,8 +17,8 @@ Covered:
 - --os-details CLI override taking precedence over the config value
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import pytest
 
