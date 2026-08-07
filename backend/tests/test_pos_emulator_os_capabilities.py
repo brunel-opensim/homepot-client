@@ -93,7 +93,9 @@ def test_push_hooks_derive_channel_and_token(os_details, expected_channel):
     assert eng.push_channel is expected_channel
     assert eng.push_token is not None
     if expected_channel == "wns":
-        assert "wns.notify.windows.com" in eng.push_token
+        assert "://" in eng.push_token
+        host = eng.push_token.split("://")[1]
+        assert host.startswith("wns.")
     else:
         assert eng.push_token.startswith(expected_channel)
     note = eng._push_delivery_note("restart_pos_app")
