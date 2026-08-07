@@ -52,6 +52,7 @@ from homepot.app.models.AnalyticsModel import (
     SiteOperatingSchedule,
     UserActivity,
 )
+from homepot.app.api.API_v1.Endpoints.SitesEndpoint import generate_site_id
 from homepot.app.models.UserModel import Base as AppBase
 from homepot.database import DatabaseService
 from homepot.models import (
@@ -416,6 +417,10 @@ async def init_database():
         existing = await db_service.get_site_by_site_id(site_id)
         if existing:
             return existing
+        existing = await session.execute(select(Site).where(Site.name == name))
+        existing = existing.scalar_one_or_none()
+        if existing:
+            return existing
         site = await create_site(
             session,
             site_id=site_id,
@@ -430,9 +435,10 @@ async def init_database():
         return site
 
     async with db_service.get_session() as session:
+        site1_id = generate_site_id()
         site1 = await get_or_create_site(
             session,
-            "site-001",
+            site1_id,
             "Site 1 - Mixed OS",
             "Mixed environment site 1",
             "London, UK",
@@ -440,9 +446,10 @@ async def init_database():
             -74.0060,
             tenant_id=tenant_a.id,
         )
+        site2_id = generate_site_id()
         site2 = await get_or_create_site(
             session,
-            "site-002",
+            site2_id,
             "Site 2 - Mixed OS",
             "Mixed environment site 2",
             "London, UK",
@@ -791,7 +798,7 @@ async def init_database():
             # Sample Analytics
             session.add(
                 APIRequestLog(
-                    endpoint="/api/v1/sites/site-001/jobs",
+                    endpoint=f"/api/v1/sites/{sites[0].site_id}/jobs",
                     method="POST",
                     status_code=200,
                     response_time_ms=125.5,
@@ -805,7 +812,7 @@ async def init_database():
                 UserActivity(
                     user_id=str(admin_user.id),
                     activity_type="page_view",
-                    page_url="/dashboard/sites/site-001",
+                    page_url=f"/dashboard/sites/{sites[0].site_id}",
                     duration_ms=3500,
                     extra_data={"action": "viewed_job_list"},
                 )
@@ -913,10 +920,10 @@ async def init_database():
     # --- ENROLMENT INTENTS ---
     print("\n=== Creating Enrolment Intents ===")
     async with db_service.get_session() as session:
-        site1 = await session.execute(select(Site).where(Site.site_id == "site-001"))
+        site1 = await session.execute(select(Site).where(Site.site_id == site1_id))
         site1 = site1.scalar_one()
 
-        site2 = await session.execute(select(Site).where(Site.site_id == "site-002"))
+        site2 = await session.execute(select(Site).where(Site.site_id == site2_id))
         site2 = site2.scalar_one()
 
         admin_user = await session.execute(select(User).where(User.username == "homepot_admin"))
@@ -991,7 +998,7 @@ async def init_database():
             )
             print(
                 f"  {intent.intent_id}: {data['status']:>8} | {data['enrolment_method']:>15} | "
-                f"site-{'001' if data['site_id'] == site1.id else '002'}"
+                f"{site1.site_id if data['site_id'] == site1.id else site2.site_id}"
             )
 
         await session.commit()
