@@ -784,7 +784,7 @@ export default function Device() {
                   </h1>
 
                   <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
-                    {device?.device_id || 'NO ID'}
+                    Device ID: {device?.device_id || 'NO ID'}
                   </div>
                 </div>
               </div>
