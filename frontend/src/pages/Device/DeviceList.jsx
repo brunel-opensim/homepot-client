@@ -168,7 +168,7 @@ export default function DeviceList() {
                 <h2 className="text-lg font-semibold text-white truncate">
                   {device.name || device.device_id}
                 </h2>
-                <p className="text-sm text-gray-400 truncate">ID: {device.device_id}</p>
+                <p className="text-sm text-gray-400 truncate">Device ID: {device.device_id}</p>
               </div>
 
               <div className="mt-auto space-y-2">
