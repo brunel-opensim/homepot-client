@@ -793,24 +793,6 @@ export default function Device() {
                             : 'bg-yellow-500'
                       }`}
                     />
-                    <span
-                      className={`font-medium ${
-                        device.lifecycle_state === 'active'
-                          ? 'text-emerald-300'
-                          : device.lifecycle_state === 'suspended'
-                            ? 'text-orange-300'
-                            : device.lifecycle_state === 'unpaired'
-                              ? 'text-gray-400'
-                              : 'text-slate-400'
-                      }`}
-                    >
-                      {device.lifecycle_state ? device.lifecycle_state.toUpperCase() : 'UNKNOWN'}
-                    </span>
-                    {device.health_state && device.health_state !== 'unknown' && (
-                      <span className="text-xs text-slate-500 ml-1">
-                        · {device.health_state.toUpperCase()}
-                      </span>
-                    )}
                   </div>
                   <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
                     {device?.device_id || 'NO ID'}
