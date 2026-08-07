@@ -26,7 +26,7 @@ class TestPerformance:
     def setup(self):
         """Verify system is running before each test."""
         try:
-            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+            response = requests.get(f"{BASE_URL}/api/v1/health", timeout=5)
             if response.status_code != 200:
                 pytest.skip("HOMEPOT system is not running")
         except requests.exceptions.RequestException:
@@ -36,7 +36,7 @@ class TestPerformance:
     def test_api_response_times(self):
         """Test response times for all major endpoints."""
         endpoints = [
-            ("/api/v1/health/health", "Health Check"),
+            ("/api/v1/health", "Health Check"),
             ("/api/v1/sites", "Sites List"),
             ("/api/v1/agents", "Agents List"),
             ("/api/v1/audit/events", "Audit Events"),
@@ -96,7 +96,7 @@ class TestPerformance:
 
         # Test different concurrency levels
         concurrency_levels = [5, 10, 20]
-        endpoint = "/api/v1/health/health"  # Use lightweight endpoint
+        endpoint = "/api/v1/health"  # Use lightweight endpoint
 
         for concurrent_requests in concurrency_levels:
             print(f"\n   Testing {concurrent_requests} concurrent requests...")
@@ -141,9 +141,7 @@ class TestPerformance:
 
             # Make many requests
             for i in range(100):
-                response = requests.get(
-                    f"{BASE_URL}/api/v1/health/health", timeout=TIMEOUT
-                )
+                response = requests.get(f"{BASE_URL}/api/v1/health", timeout=TIMEOUT)
                 assert response.status_code == 200
 
                 if i % 20 == 0:
@@ -277,7 +275,7 @@ class TestPerformance:
 
         while time.time() - start_time < duration:
             try:
-                response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+                response = requests.get(f"{BASE_URL}/api/v1/health", timeout=5)
                 request_count += 1
 
                 if response.status_code != 200:
@@ -311,7 +309,7 @@ class TestScalability:
     def setup(self):
         """Verify system is running before each test."""
         try:
-            response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+            response = requests.get(f"{BASE_URL}/api/v1/health", timeout=5)
             if response.status_code != 200:
                 pytest.skip("HOMEPOT system is not running")
         except requests.exceptions.RequestException:
@@ -373,7 +371,7 @@ if __name__ == "__main__":
 
     # Quick system check
     try:
-        response = requests.get(f"{BASE_URL}/api/v1/health/health", timeout=5)
+        response = requests.get(f"{BASE_URL}/api/v1/health", timeout=5)
         if response.status_code == 200:
             print("System Ready for Performance Testing")
             print("Usage: pytest tests/test_performance.py -v -m performance")

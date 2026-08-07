@@ -323,7 +323,7 @@ async def trigger_stress_test(
     }
 
 
-@router.get("/health", tags=["Health"])
+@router.get("", tags=["Health"])
 async def health_check(client: HomepotClient = Depends(get_client)) -> Dict[str, Any]:
     """Health check endpoint for monitoring and load balancers."""
     try:

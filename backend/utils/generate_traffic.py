@@ -110,7 +110,7 @@ async def simulate_user_traffic(
                 site_id = device["site_id"] if device else "unknown-site"
 
                 # 1. Health Check (Frequent)
-                await api_client.get(f"{BASE_URL}/health/health")
+                await api_client.get(f"{BASE_URL}/health")
 
                 # 2. List Sites (Occasional)
                 if random.random() < 0.3:

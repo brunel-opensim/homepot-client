@@ -126,7 +126,7 @@ class TestPhase1CoreInfrastructure:
 
     def test_health_endpoint(self, client: TestClient) -> None:
         """Test system health check endpoint."""
-        response = client.get("/api/v1/health/health")
+        response = client.get("/api/v1/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -557,7 +557,7 @@ class TestEndToEndWorkflows:
         """Test audit trail workflow: perform actions, verify logging."""
         h = auth_headers()
         endpoints = [
-            "/api/v1/health/health",
+            "/api/v1/health",
             "/api/v1/sites",
             "/api/v1/agents",
             "/api/v1/audit/statistics",
@@ -565,7 +565,7 @@ class TestEndToEndWorkflows:
 
         for endpoint in endpoints:
             response = client.get(
-                endpoint, headers=h if endpoint != "/api/v1/health/health" else {}
+                endpoint, headers=h if endpoint != "/api/v1/health" else {}
             )
             assert response.status_code == 200
 
@@ -854,7 +854,7 @@ class TestSystemPerformance:
         import concurrent.futures
 
         def make_request():
-            response = client.get("/api/v1/health/health")
+            response = client.get("/api/v1/health")
             return response.status_code == 200
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -889,7 +889,7 @@ class TestAPIDocumentation:
 
         # Verify key endpoints are documented
         paths = schema["paths"]
-        assert "/api/v1/health/health" in paths
+        assert "/api/v1/health" in paths
         # Registered with a trailing slash (matches frontend's
         # `apiClient.get('/sites/')` in frontend/src/services/api.js).
         assert "/api/v1/sites/" in paths
@@ -909,7 +909,7 @@ def test_system_integration_health_check():
 
     try:
         # Test if system is running and responsive
-        response = requests.get(f"{TEST_BASE_URL}/api/v1/health/health", timeout=5)
+        response = requests.get(f"{TEST_BASE_URL}/api/v1/health", timeout=5)
         assert response.status_code == 200
 
         data = response.json()

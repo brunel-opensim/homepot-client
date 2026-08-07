@@ -87,7 +87,7 @@ export ENABLE_AGENT_SIMULATION=false
 Confirm both are up:
 
 ```bash
-curl http://localhost:8000/api/v1/health/health   # {"status":"healthy",...}
+curl http://localhost:8000/api/v1/health   # {"status":"healthy",...}
 # open http://localhost:5173 (Dashboard)
 ```
 
