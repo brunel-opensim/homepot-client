@@ -118,6 +118,7 @@ def test_device_command_flow(client: TestClient):
     response = client.post("/api/v1/sites/", json=site_data, headers=auth_headers)
     if response.status_code != 409:
         assert response.status_code == 200
+    site_id = response.json()["site_id"]
 
     # 2. Create Device directly in DB
     device_id = "test-device-cmd-flow"
@@ -218,6 +219,7 @@ def _setup_site_and_device(client: TestClient) -> Dict[str, Any]:
     )
     if resp.status_code not in (200, 409):
         assert False, f"Failed to create site: {resp.text}"
+    site_id = resp.json()["site_id"]
 
     device_id = "test-device-history"
     api_key = secrets.token_urlsafe(32)
