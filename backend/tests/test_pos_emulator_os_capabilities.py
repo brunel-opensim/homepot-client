@@ -77,7 +77,7 @@ def test_derive_push_channel(os_details, expected_push_channel):
         ("Linux 6.8.0 (Debian 12)", None),
     ],
 )
-def test_push_hooks_derive_channel_and_token(os_details, expected_channel):
+def test_derive_push_channel_and_token_for_os(os_details, expected_channel):
     """The engine hooks expose a synthetic token only for push-capable OSes."""
     if expected_channel is None:
         cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
