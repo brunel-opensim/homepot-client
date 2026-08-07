@@ -14,6 +14,7 @@ from homepot.app.auth_utils import (
     require_user,
     verify_site_access_for_user,
 )
+from homepot.app.schemas.permissions import os_family
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service, get_db
@@ -200,13 +201,17 @@ async def list_sites(
                     if device.device_type == "iot_sensor":
                         os_types.add("iot")
 
-                    # Priority 1: Check config['os']
-                    if (
-                        device.config
-                        and isinstance(device.config, dict)
-                        and "os" in device.config
-                    ):
-                        os_types.add(str(device.config["os"]))
+                    # Priority 1: Normalize OS info via os_family. This covers
+                    # config['os'] and os_details for both simulated devices
+                    # (short tokens like "linux") and emulators (versioned
+                    # strings like "Windows 11", "Android 14", "iOS 17").
+                    os_family_key = os_family(
+                        device.config.get("os")
+                        if device.config and isinstance(device.config, dict)
+                        else None
+                    ) or os_family(device.os_details)
+                    if os_family_key:
+                        os_types.add(os_family_key)
                     # Priority 2: Infer from device name/description
                     else:
                         normalized_name = (device.name or "").lower()
@@ -223,7 +228,7 @@ async def list_sites(
                             or "apple" in normalized_name
                             or "ios" in normalized_name
                         ):
-                            os_types.add("apple")
+                            os_types.add("macos")
                         elif "android" in normalized_name:
                             os_types.add("android")
                         elif "web" in normalized_name:

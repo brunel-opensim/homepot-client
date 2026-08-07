@@ -15,24 +15,49 @@ ALL_PERMISSION_KEYS = [
 DEFAULT_CAPABILITIES: Dict[str, bool] = {k: True for k in ALL_PERMISSION_KEYS}
 
 
-def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
-    """Derive device capabilities from the OS details string.
+def os_family(os_details: Optional[str]) -> Optional[str]:
+    """Map an OS details string to a canonical OS family key.
 
-    Maps known OS identifiers to the set of permissions the OS can support.
-    Returns all-``False`` for unrecognised or missing OS info.
+    Returns one of ``"windows"``, ``"android"``, ``"ios"``, ``"linux"`` or
+    ``"macos"``, or ``None`` for missing / unrecognised OS info. This is the
+    single source of truth for OS classification, shared by the capability,
+    push-channel and OS-icon derivation paths. Recognises both short tokens
+    (``"linux"``) and versioned strings (``"Android 14"``, ``"macOS 14"``,
+    ``"Windows 11"``) so emulators and simulated devices classify identically.
     """
     if not os_details:
-        return {k: False for k in ALL_PERMISSION_KEYS}
+        return None
 
     os_lower = os_details.lower()
 
+    if any(kw in os_lower for kw in ("windows", "win32", "win64")):
+        return "windows"
+    if "android" in os_lower:
+        return "android"
+    if any(kw in os_lower for kw in ("ios", "ipados", "iphone os", "ipad")):
+        return "ios"
     if any(
         kw in os_lower
-        for kw in ["linux", "ubuntu", "debian", "fedora", "centos", "raspberry pi"]
+        for kw in ("linux", "ubuntu", "debian", "fedora", "centos", "raspberry pi")
     ):
+        return "linux"
+    if any(kw in os_lower for kw in ("macos", "mac os", "darwin", "os x")):
+        return "macos"
+    return None
+
+
+def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
+    """Derive device capabilities from the OS details string.
+
+    Maps known OS identifiers to the capabilities the OS can support.
+    Returns all-``False`` for unrecognised or missing OS info.
+    """
+    family = os_family(os_details)
+
+    if family in ("linux", "macos"):
         return dict(DEFAULT_CAPABILITIES)
 
-    if "android" in os_lower:
+    if family in ("android", "windows"):
         return {
             "root_access": False,
             "command_execution": True,
@@ -41,19 +66,7 @@ def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
             "network_monitoring": True,
         }
 
-    if any(kw in os_lower for kw in ["windows", "win32", "win64"]):
-        return {
-            "root_access": False,
-            "command_execution": True,
-            "process_monitoring": True,
-            "filesystem_access": True,
-            "network_monitoring": True,
-        }
-
-    if any(kw in os_lower for kw in ["macos", "mac os", "darwin", "os x"]):
-        return dict(DEFAULT_CAPABILITIES)
-
-    if any(kw in os_lower for kw in ["ios", "ipados", "iphone os", "ipad"]):
+    if family == "ios":
         return {
             "root_access": False,
             "command_execution": False,
@@ -70,17 +83,16 @@ def derive_push_channel(os_details: Optional[str]) -> Optional[str]:
 
     Mirrors ``derive_push_channel`` in ``emulators/pos_engine.py``. Mobile and
     push-capable OSes receive commands over a push transport (FCM on Android,
-    WNS on Windows, APNs on iOS); desktop / POS runtimes fall back to plain
-    HTTP polling (``None``).
+    WNS on Windows, APNs on iOS); all non-push OSes fall back to plain HTTP
+    polling (``None``).
     """
-    if not os_details:
-        return None
-    os_lower = os_details.lower()
-    if "android" in os_lower:
+    family = os_family(os_details)
+
+    if family == "android":
         return "fcm"
-    if any(kw in os_lower for kw in ("windows", "win32", "win64")):
+    if family == "windows":
         return "wns"
-    if any(kw in os_lower for kw in ("ios", "ipados", "iphone os", "ipad")):
+    if family == "ios":
         return "apns"
     return None
 
