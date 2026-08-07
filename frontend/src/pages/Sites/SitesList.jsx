@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Search, Edit, Trash2, ArrowLeft, Globe, Cpu } from 'lucide-react';
+import { AlertTriangle, Search, Edit, Trash2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import OsIcon from '@/components/common/OsIcon';
 import api from '@/services/api';
 import SiteDeleteDialog from '@/components/Sites/SiteDeleteDialog';
 import { trackActivity, trackSearch } from '@/utils/analytics';
@@ -15,58 +16,6 @@ export default function SitesList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [siteToDelete, setSiteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Icons from Site.jsx
-  const WindowsIcon = () => (
-    <img
-      src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/windows.svg"
-      alt="Windows"
-      className="w-5 h-5"
-      style={{
-        filter:
-          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
-      }}
-    />
-  );
-
-  const AppleIcon = () => (
-    <img
-      src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/apple.svg"
-      alt="Apple"
-      className="w-5 h-5 text-gray-300"
-      style={{
-        filter:
-          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
-      }}
-    />
-  );
-
-  const LinuxIcon = () => (
-    <img
-      src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/linux.svg"
-      alt="Linux"
-      className="w-5 h-5"
-      style={{
-        filter:
-          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
-      }}
-    />
-  );
-
-  const AndroidIcon = () => (
-    <img
-      src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/android.svg"
-      alt="Android"
-      className="w-5 h-5 text-gray-300"
-      style={{
-        filter:
-          'invert(86%) sepia(36%) saturate(319%) hue-rotate(122deg) brightness(99%) contrast(98%)',
-      }}
-    />
-  );
-
-  const WebIcon = () => <Globe className="w-5 h-5 text-blue-400" />;
-  const IoTIcon = () => <Cpu className="w-5 h-5 text-blue-400" />;
 
   useEffect(() => {
     fetchSites();
@@ -274,20 +223,20 @@ export default function SitesList() {
 
               <div className="flex items-center space-x-3 mb-3">
                 {/* Render icons based on OS types present in the site */}
-                {site.os_types && site.os_types.includes('windows') && <WindowsIcon />}
-                {site.os_types && site.os_types.includes('linux') && <LinuxIcon />}
+                {site.os_types && site.os_types.includes('windows') && <OsIcon type="windows" />}
+                {site.os_types && site.os_types.includes('linux') && <OsIcon type="linux" />}
                 {site.os_types &&
                   (site.os_types.includes('macos') ||
                     site.os_types.includes('ios') ||
-                    site.os_types.includes('apple')) && <AppleIcon />}
-                {site.os_types && site.os_types.includes('android') && <AndroidIcon />}
-                {site.os_types && site.os_types.includes('web') && <WebIcon />}
+                    site.os_types.includes('apple')) && <OsIcon type="macos" />}
+                {site.os_types && site.os_types.includes('android') && <OsIcon type="android" />}
+                {site.os_types && site.os_types.includes('web') && <OsIcon type="web" />}
                 {site.os_types &&
                   (site.os_types.includes('iot') ||
                     site.os_types.includes('sensor') ||
                     site.os_types.includes('iot_sensor') ||
                     site.os_types.includes('embedded') ||
-                    site.os_types.some((t) => t.includes('iot'))) && <IoTIcon />}
+                    site.os_types.some((t) => t.includes('iot'))) && <OsIcon type="iot" />}
               </div>
 
               {site.alert && (

@@ -630,6 +630,7 @@ class TestDeviceSiteFields:
                 d = devices[0]
                 assert "last_heartbeat_at" in d
                 assert "credential_status" in d
+                assert "os_family" in d
 
     def test_site_list_includes_tenant_id(self, client: TestClient) -> None:
         """GET /sites includes tenant_id."""

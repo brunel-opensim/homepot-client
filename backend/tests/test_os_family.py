@@ -261,3 +261,44 @@ def test_site_os_types_fallback_to_name_inference(file_db: Any) -> None:
     site = next(s for s in sites if s["site_id"] == "site-names")
     assert "macos" in site["os_types"]
     assert "web" in site["os_types"]
+
+
+def test_devices_by_site_includes_os_family(file_db: Any) -> None:
+    """Devices in a site expose a canonical os_family key for icon rendering."""
+    _seed_site_with_devices(
+        "site-family-payload",
+        [
+            {
+                "device_id": "win-dev-1",
+                "name": "windows-pc-1",
+                "os_details": "Windows 11",
+                "config": {"os": "Windows 11", "device_source": "emulator"},
+            },
+            {
+                "device_id": "android-dev-1",
+                "name": "android-phone-1",
+                "os_details": "Android 14",
+                "config": {"os": "android", "device_source": "simulator"},
+            },
+            {
+                "device_id": "no-info-dev-1",
+                "name": "generic-device-1",
+                "os_details": None,
+                "config": None,
+            },
+        ],
+    )
+    token = _admin_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client = TestClient(app)
+    response = client.get(
+        "/api/v1/devices/sites/site-family-payload/devices", headers=headers
+    )
+    assert response.status_code == 200
+    by_id = {d["device_id"]: d for d in response.json()}
+    assert by_id["win-dev-1"]["os_family"] == "windows"
+    assert by_id["win-dev-1"]["os_details"] == "Windows 11"
+    assert by_id["android-dev-1"]["os_family"] == "android"
+    # No OS info anywhere -> no canonical family
+    assert by_id["no-info-dev-1"]["os_family"] is None

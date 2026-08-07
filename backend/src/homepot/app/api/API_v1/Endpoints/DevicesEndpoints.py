@@ -28,6 +28,7 @@ from homepot.app.auth_utils import (
     verify_site_access_for_user,
 )
 from homepot.app.models import AnalyticsModel as analytics_models
+from homepot.app.schemas.permissions import os_family
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.client import HomepotClient
 from homepot.database import get_database_service, get_db
@@ -1795,6 +1796,12 @@ async def get_devices_by_site(
                 "name": d.name,
                 "device_type": d.device_type,
                 "os_details": d.os_details,
+                "os_family": os_family(
+                    d.config.get("os")
+                    if d.config and isinstance(d.config, dict)
+                    else None
+                )
+                or os_family(cast(Optional[str], d.os_details)),
                 "lifecycle_state": d.lifecycle_state,
                 "connectivity_state": _compute_connectivity(d),
                 "health_state": d.health_state or HealthState.UNKNOWN.value,

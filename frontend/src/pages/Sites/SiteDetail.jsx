@@ -15,6 +15,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import api from '@/services/api';
+import OsIcon from '@/components/common/OsIcon';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import DeviceDeleteDialog from '@/components/Devices/DeviceDeleteDialog';
@@ -300,8 +301,16 @@ export default function SiteDetail() {
                         >
                           {device.name}
                         </td>
-                        <td className="p-4 align-middle text-gray-300 uppercase">
-                          {device.device_type?.replace(/_/g, ' ') || 'Unknown'}
+                        <td className="p-4 align-middle text-gray-300">
+                          <div className="uppercase">
+                            {device.device_type?.replace(/_/g, ' ') || 'Unknown'}
+                          </div>
+                          {device.os_details && device.os_family && (
+                            <div className="flex items-center gap-1.5 text-xs text-gray-400 normal-case mt-0.5">
+                              <OsIcon type={device.os_family} size="w-3.5 h-3.5" />
+                              <span>{device.os_details}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="p-4 align-middle">
                           <div className="flex items-center gap-2">
