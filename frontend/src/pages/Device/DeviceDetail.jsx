@@ -783,17 +783,6 @@ export default function Device() {
                     {device?.name || device?.device_id || 'Unknown Device'}
                   </h1>
 
-                  <div className="flex items-center gap-2 mt-1 text-sm">
-                    <span
-                      className={`w-2 h-2 rounded-full inline-block ${
-                        device.connectivity_state === 'online'
-                          ? 'bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.14)]'
-                          : device.connectivity_state === 'offline'
-                            ? 'bg-gray-500'
-                            : 'bg-yellow-500'
-                      }`}
-                    />
-                  </div>
                   <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
                     {device?.device_id || 'NO ID'}
                   </div>
