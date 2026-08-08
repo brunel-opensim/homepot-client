@@ -5,6 +5,11 @@ site_description: Homogenous Cyber Management of End-Points and OT - Gateway Man
 site_author: Brunel OpenSim
 site_url: https://homepot-client.readthedocs.io/en/latest/
 
+# Exclude files from the docs site (kept in repo as per-dir guides).
+# docs/index.md is the mkdocs homepage; README.md would otherwise conflict with it.
+exclude_docs: |
+  README.md
+
 # Repository
 repo_name: brunel-opensim/homepot-client
 repo_url: https://github.com/brunel-opensim/homepot-client

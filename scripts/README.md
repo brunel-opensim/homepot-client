@@ -2,13 +2,13 @@
 
 ## Website Management
 
-### `start-website.sh`
+### `start-dashboard.sh`
 
 Starts the complete HOMEPOT website with backend and frontend.
 
 **Usage:**
 ```bash
-./scripts/start-website.sh
+./scripts/start-dashboard.sh
 ```
 
 **What it does:**
@@ -27,13 +27,13 @@ Starts the complete HOMEPOT website with backend and frontend.
 - Backend: `logs/backend.pid`
 - Frontend: `logs/frontend.pid`
 
-### `stop-website.sh`
+### `stop-dashboard.sh`
 
 Stops both backend and frontend servers.
 
 **Usage:**
 ```bash
-./scripts/stop-website.sh
+./scripts/stop-dashboard.sh
 ```
 
 **What it does:**
@@ -148,7 +148,7 @@ pip install bcrypt==4.1.3  # If not
 ### Ports already in use
 **Solution:** Stop existing services:
 ```bash
-./scripts/stop-website.sh
+./scripts/stop-dashboard.sh
 # Or manually:
 lsof -ti:8000 | xargs kill -9
 lsof -ti:5173 | xargs kill -9

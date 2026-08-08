@@ -50,7 +50,7 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 
 ```bash
 # ONE COMMAND to run everything:
-./scripts/start-website.sh
+./scripts/start-dashboard.sh
 # Access:
 # Frontend: http://localhost:5173
 # Backend: http://localhost:8000

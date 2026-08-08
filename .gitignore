@@ -180,7 +180,8 @@ docker-compose.override.yml
 .local/
 temp/
 tmp/
-logs/
+logs/*
+!logs/README.md
 
 # PostgreSQL - Database managed by system service
 # Database location: /var/lib/postgresql/16/main/

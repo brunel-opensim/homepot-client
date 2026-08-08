@@ -74,8 +74,8 @@ All Electron-specific code is hidden behind `window.electronAPI` detection,
 so the same codebase works in both modes.
 
 In dev mode, each flow provides a bypass:
-- **/signin**: "⚡ Dev: Skip Bootstrap Key" fills in a key and advances
-- **/setup/review**: "⚡ Dev: Complete Setup" generates a fake API key and
+- **/signin**: "Dev: Skip Bootstrap Key" fills in a key and advances
+- **/setup/review**: "Dev: Complete Setup" generates a fake API key and
   device ID without calling the backend
 
 ## Building for distribution
@@ -95,14 +95,14 @@ Output goes to `release/`:
 ## Roadmap
 
 | PR | Focus |
-|---|---|---|
-| **U1** ✅ | Standalone Electron desktop shell with routing, sign-in, and native storage |
-| **U2** ✅ | Device-credential auth — bootstrap key replaces SSO cookie login |
-| **U3** ✅ | Device permissions DB model + API (capabilities, admin-override) |
-| **U4** ✅ | Wire Permissions UI to backend (fetch, debounced PATCH, loading/error states, capability-aware) |
-| **U5** ✅ | Agent-side permission enforcement (fetch perms on poll, gate privileged commands, capability-aware DNA registration) |
-| **U6** ✅ | Real device DNA — fetch MAC, local IP, OS via device-credential auth, fall back to Electron IPC or credential storage |
-| **U7** ✅ | Error boundaries, API service layer, unit tests (credentialStorage, API, views), integration tests |
+|---|---|
+| **U1** | Standalone Electron desktop shell with routing, sign-in, and native storage |
+| **U2** | Device-credential auth — bootstrap key replaces SSO cookie login |
+| **U3** | Device permissions DB model + API (capabilities, admin-override) |
+| **U4** | Wire Permissions UI to backend (fetch, debounced PATCH, loading/error states, capability-aware) |
+| **U5** | Agent-side permission enforcement (fetch perms on poll, gate privileged commands, capability-aware DNA registration) |
+| **U6** | Real device DNA — fetch MAC, local IP, OS via device-credential auth, fall back to Electron IPC or credential storage |
+| **U7** | Error boundaries, API service layer, unit tests (credentialStorage, API, views), integration tests |
 
 See [`docs/device-lifecycle-and-ownership.md`](../docs/device-lifecycle-and-ownership.md#user-app-prs) for details.
 
