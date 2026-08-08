@@ -52,7 +52,7 @@ Initialize the PostgreSQL database with the required schema and demo data. This 
 Use the following command to ensure any previous instances are stopped before starting the new session. This launches both the backend API and the frontend dashboard.
 
 ```bash
-./scripts/stop-website.sh && ./scripts/start-website.sh
+./scripts/stop-dashboard.sh && ./scripts/start-dashboard.sh
 ```
 
 ---
@@ -75,6 +75,79 @@ The system supports **three** device modes. **Test technicians should know which
 3. **Real Devices** — Physical devices running the HOMEPOT agent (or the Dealdio integration) talk to the backend over the network. See the [Agent API Contract](../backend/README.md#agent-api-contract-pilot) in the backend README.
 
 > **Tip for test technicians:** if Simulation is disabled (`ENABLE_AGENT_SIMULATION=false`), the **Data Collection** page cannot be started, devices stay `pending`, and telemetry appears empty. Keep `ENABLE_AGENT_SIMULATION=true` to collect data via simulation.
+
+## Starting & Stopping All Services
+
+The HOMEPOT platform runs **five** independent services. This section documents the
+clean start/stop cycle, which doubles as a smoke test to catch startup issues early.
+
+| Service | Log file (`logs/`) | PID file (`logs/`) | Start command | Stop command |
+|---------|--------------------|--------------------|---------------|--------------|
+| **Backend** (API :8000) | `backend.log`, `backend.out` | `backend.pid` | `./scripts/start-dashboard.sh` | `./scripts/stop-dashboard.sh` |
+| **Frontend** (Vite :5173) | `frontend.log` | `frontend.pid` | `./scripts/start-dashboard.sh` | `./scripts/stop-dashboard.sh` |
+| **AI / LLM** (Ollama :11434) | `ai.log` | `ai.pid` | `./scripts/setup-ollama.sh` | n/a (see note) |
+| **Emulator** (POS terminal) | `emulator.log` | `emulator.pid` | `./scripts/start-emulator.sh` | `./scripts/stop-emulator.sh` |
+| **User App** (Electron agent) | `userapp.log` | `userapp.pid` | `./scripts/start-userapp.sh` | `./scripts/stop-userapp.sh` |
+
+### Full Restart (verified smoke test)
+
+1.  **Stop all services** — terminate the dashboard pair, any emulator, and the
+    User App. (Ollama/AI is left running if it was already active on :11434.)
+
+    ```bash
+    ./scripts/stop-dashboard.sh          # backend + frontend
+    ./scripts/stop-emulator.sh           # any running emulator
+    ./scripts/stop-userapp.sh            # Electron User App
+    ```
+
+2.  **Verify nothing is left on the ports:**
+
+    ```bash
+    ss -tlnp | grep -E '8000|5173|11434'   # expect no listeners (or only 11434 = ollama)
+    ```
+
+3.  **Start the core platform** (backend + frontend):
+
+    ```bash
+    ./scripts/start-dashboard.sh
+    ```
+
+4.  **Start optional services** as needed:
+
+    ```bash
+    ./scripts/setup-ollama.sh             # AI / LLM service
+    ./scripts/start-emulator.sh --emulator linux \
+        --site-id SITE-P7K5-BPHZ \
+        --bootstrap-key <key> --device-name demo-pos-1
+    ./scripts/start-userapp.sh            # Electron User App
+    ```
+
+5.  **Verify every service**:
+
+    ```bash
+    curl -s -o /dev/null -w 'backend: %{http_code}\n' http://127.0.0.1:8000/api/v1/health
+    curl -s -o /dev/null -w 'frontend: %{http_code}\n' http://127.0.0.1:5173
+    curl -s -o /dev/null -w 'login: %{http_code}\n' \
+      -X POST http://127.0.0.1:8000/api/v1/auth/login \
+      -H 'Content-Type: application/json' \
+      -d '{"email":"admin@homepot.com","password":"homepot_dev_password"}'
+    ```
+
+    Every command should return `200`, and each service should have a matching
+    `.log` / `.pid` pair in `logs/`.
+
+> **Troubleshooting notes from a real smoke test:**
+>
+> - **Ollama running as a different OS user** (e.g. systemd `ollama` service): `lsof` on
+>   the port returns nothing under your user, so `setup-ollama.sh` probes the Ollama
+>   HTTP API (`/api/version`) and falls back to `pgrep` — it will reuse the existing
+>   instance and write its real PID to `ai.pid`. A stale/dead PID in `ai.pid` usually
+>   means the instance could not bind the port.
+> - **"Request failed with status code 500" at login** almost always means the
+>   **backend is not running** — Vite returns a proxy 500. Check
+>   `curl http://127.0.0.1:8000/api/v1/health` first.
+> - **Clean log reset:** delete everything in `logs/` (except `README.md`) before a
+>   fresh run to confirm each service recreates its files.
 
 ## Troubleshooting
 

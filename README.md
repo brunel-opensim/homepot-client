@@ -148,6 +148,10 @@ This will start:
 
 **See [Complete Dashboard Setup Guide](docs/complete-dashboard-setup.md) and [Dashboard Testing Guide](docs/dashboard-testing-guide.md)**
 
+> **Test technicians:** for the complete clean start/stop cycle across all five
+> services (backend, frontend, AI, emulator, User App), including a verified smoke
+> test, see **[Starting & Stopping All Services](docs/getting-started.md#starting--stopping-all-services)**.
+
 ### Analytics (Data Collection for AI)
 
 - Verify backend server is running
