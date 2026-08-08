@@ -72,7 +72,7 @@ The system supports **three** device modes. **Test technicians should know which
 
 1. **Simulation** — The backend's in-process agent simulator (`ENABLE_AGENT_SIMULATION=true`, the default in `backend/.env`) starts a simulated agent for every active POS/IoT device on startup. It writes heartbeats, health checks, and metrics directly to the database, and flips devices from `pending` to `active`. No external process is needed.
 2. **Emulation** — Standalone emulator processes (`./scripts/start-emulator.sh`) authenticate against the backend and behave like real hardware over the agent API (device DNA, heartbeat, telemetry, command polling). Use this for end-to-end testing of the device lifecycle and User App without physical hardware. See [Device Emulators](device-emulators.md).
-3. **Real Devices** — Physical devices running the HOMEPOT agent (or the Dealdio integration) talk to the backend over the network. See the [Agent API Contract](../backend/README.md#agent-api-contract-pilot) in the backend README.
+3. **Real Devices** — Physical devices running the HOMEPOT agent (or the Dealdio integration) talk to the backend over the network. See the [Agent API Contract](getfudo-preparatory-tasks.md#3-api-contract-summary) for the endpoint summary.
 
 > **Tip for test technicians:** if Simulation is disabled (`ENABLE_AGENT_SIMULATION=false`), the **Data Collection** page cannot be started, devices stay `pending`, and telemetry appears empty. Keep `ENABLE_AGENT_SIMULATION=true` to collect data via simulation.
 
