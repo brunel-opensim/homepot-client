@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 import uuid
 
+from fastapi import HTTPException
 from sqlalchemy import Result, create_engine, func, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -1393,6 +1394,11 @@ def get_db() -> Generator[Session, None, None]:
     try:
         db = SessionLocal()
         yield db
+    except HTTPException:
+        # Expected request-level failures (e.g. auth 401/403/404 raised in
+        # endpoint code) are not DB session errors; propagate unchanged without
+        # misleading "Database session error" log noise.
+        raise
     except Exception as e:
         logger.error("Database session error: %s", e)
         raise

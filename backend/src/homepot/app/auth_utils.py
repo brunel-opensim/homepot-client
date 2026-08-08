@@ -209,6 +209,21 @@ def require_role(required_role: str) -> Any:
     return role_checker
 
 
+def _reject_unknown_device(device_id: str, api_key: Optional[str]) -> None:
+    """Reject an unrecognised device ID, logging the context so auth failures are traceable."""
+    logger.error(
+        "Device auth rejected: device_id=%r not found in DB "
+        "(key_provided=%s, key_length=%s)",
+        device_id,
+        "yes" if api_key else "no",
+        len(api_key) if api_key else 0,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid Device ID",
+    )
+
+
 def authenticate_device_credentials(
     db: Session, device_id: str, api_key: str
 ) -> Device:
@@ -227,10 +242,7 @@ def authenticate_device_credentials(
     device = result.scalars().first()
 
     if not device:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Device ID",
-        )
+        _reject_unknown_device(device_id, api_key)
 
     # Reject inactive lifecycle states (allow ACTIVE + PENDING)
     allowed_states = {LifecycleState.ACTIVE.value, LifecycleState.PENDING.value}
@@ -273,10 +285,7 @@ async def get_current_device(
     device = result.scalars().first()
 
     if not device:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Device ID",
-        )
+        _reject_unknown_device(device_id, api_key)
 
     # Reject inactive lifecycle states (allow ACTIVE + PENDING)
     allowed_states = {LifecycleState.ACTIVE.value, LifecycleState.PENDING.value}
