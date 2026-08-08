@@ -114,12 +114,14 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM EXIT
 
-echo "Starting uvicorn in background (logging to backend/homepot.log)..."
-# Create/Clear log file
-> homepot.log
+echo "Starting uvicorn in background (logging to $PROJECT_ROOT/logs/backend.log)..."
+# Create log directory
+mkdir -p "$PROJECT_ROOT/logs"
 
-# Start uvicorn in background
-uvicorn homepot.main:app --host 0.0.0.0 --port 8000 > homepot.log 2>&1 &
+# Start uvicorn in background.
+# stdout/stderr go to the data-collection log; the app itself manages
+# the rotating root logs/backend.log via homepot.app.main.
+uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 > "$PROJECT_ROOT/logs/data-collection.out" 2>&1 &
 BACKEND_PID=$!
 
 echo "Backend started with PID $BACKEND_PID"

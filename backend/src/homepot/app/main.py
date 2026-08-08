@@ -18,9 +18,12 @@ from homepot.database import get_database_service
 
 # Configure Log Rotation
 # This ensures backend.log doesn't grow infinitely
-# Assumes the application is run from the 'backend' directory
+# The log dir is resolved relative to this package so it is independent of the
+# process CWD: <repo-root>/logs
 try:
-    log_dir = os.path.abspath(os.path.join(os.getcwd(), "../logs"))
+    log_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "logs")
+    )
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "backend.log")
 

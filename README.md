@@ -37,6 +37,16 @@ We recommend running the project locally without Docker for the best development
 
 See [docs/getting-started.md](docs/getting-started.md) for full details.
 
+## Three Test Integration Modes
+
+The system supports **three** device integration modes. **Test technicians must know which mode they are running**, because each one produces telemetry through a different path:
+
+1. **Simulation** — The backend's in-process agent simulator (`ENABLE_AGENT_SIMULATION=true`, the default in `backend/.env`) starts a simulated agent for every active POS/IoT device on startup. It writes heartbeats, health checks, and metrics directly to the database, and flips devices from `pending` to `active`. No external process is needed.
+2. **Emulation** — Standalone emulator processes (`./scripts/start-emulator.sh`) authenticate against the backend and behave like real hardware over the agent API (device DNA, heartbeat, telemetry, command polling). Use for end-to-end testing of the device lifecycle and User App without physical hardware. See [Device Emulators](docs/device-emulators.md).
+3. **Real Devices** — Physical devices running the HOMEPOT agent (or the Dealdio integration) talk to the backend over the network via the agent API. See the [Agent API Contract](backend/README.md#agent-api-contract-pilot).
+
+> **Tip for test technicians:** if Simulation is disabled (`ENABLE_AGENT_SIMULATION=false`), the **Data Collection** page cannot be started, devices stay `pending`, and telemetry appears empty. Keep `ENABLE_AGENT_SIMULATION=true` to collect data via simulation.
+
 ## Documentation
 
 **Complete documentation is available at: [https://homepot-client.readthedocs.io/en/latest/](https://homepot-client.readthedocs.io/en/latest/)**
@@ -56,25 +66,31 @@ See [docs/getting-started.md](docs/getting-started.md) for full details.
 
 ```text
 homepot-client/
-├── backend/                 # Python backend service
-│   ├── src/homepot/         # Main Python package
-│   ├── tests/               # Backend tests
-│   ├── pyproject.toml       # Python configuration
-│   └── requirements.txt     # Python dependencies
-├── frontend/                # React frontend application
-│   ├── src/                 # Frontend source code
-│   ├── public/              # Static assets
-│   └── package.json         # npm dependencies
-├── ai/                      # AI/LLM services (future)
-│   └── README.md            # AI service documentation
-├── docs/                    # Documentation
-├── scripts/                 # Development and automation scripts
-├── data/                    # Database storage
-├── .github/                 # GitHub workflows
-├── docker-compose.yml       # Multi-service orchestration
-├── CONTRIBUTING.md          # Contribution guidelines
-├── LICENSE                  # Apache 2.0 license
-└── README.md                # This file
+├── ai                      # AI/LLM services
+│   └── README.md
+├── backend                 # Backend service
+│   └── README.md
+├── deploy                  # Real-Device helpers and env overrides
+│   └── README.md
+├── docs                    # Documentation (Read the Docs)
+│   └── README.md
+├── emulators               # Realistic OS/IoT device emulators (Linux, Android, macOS, Windows, iOS)
+│   └── README.md
+├── frontend                # Frontend service
+│   └── README.md
+├── logs                    # Realtime logging
+│   └── README.md
+├── scripts                 # Development and automation scripts
+│   └── README.md
+├── uq                      # VVUQ - Validation, Verification, Uncertainty Quantification
+│   └── README.md
+└── user_app                # Device-side User App (independent Electron agent)
+│   └── README.md
+├── .github/                # GitHub workflows
+├── docker-compose.yml      # Multi-service orchestration
+├── CONTRIBUTING.md         # Contribution guidelines
+├── LICENSE                 # Apache 2.0 license
+└── README.md               # This file
 ```
 
 > See [Monorepo Migration Guide](docs/monorepo-migration.md) for details on the new structure
@@ -118,6 +134,17 @@ This will start:
 - **Backend API**: http://localhost:8000 (with API docs at `/docs`)
 - **Frontend**: http://localhost:5173
 - **Test Account**: `admin@homepot.com` / `homepot_dev_password`
+
+> **Login fails with "Request failed with status code 500" / "Unable to login"?**
+> The most common cause is the **backend not running** on port 8000. The frontend proxies `/api` to `127.0.0.1:8000`, so when the backend is down, Vite returns a generic `500 Proxy error` for the login request. Verify with:
+> ```bash
+> curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/api/v1/health   # expect 200
+> ```
+> If it is not `200`, restart the backend. If you launch it manually from a shell that later terminates, use `setsid` (not plain `nohup`) so the process detaches from the shell's process group and survives:
+> ```bash
+> cd backend && source ../.venv/bin/activate
+> setsid env ENABLE_AGENT_SIMULATION=true python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload < /dev/null > /tmp/opencode/backend.log 2>&1 &
+> ```
 
 **See [Complete Dashboard Setup Guide](docs/complete-dashboard-setup.md) and [Dashboard Testing Guide](docs/dashboard-testing-guide.md)**
 

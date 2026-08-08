@@ -57,22 +57,30 @@ fi
 OLLAMA_PORT=11434
 PID=$(lsof -ti :$OLLAMA_PORT || true)
 
+LOG_DIR="logs"
+AI_LOG_FILE="$LOG_DIR/ai.log"
+AI_PID_FILE="$LOG_DIR/ai.pid"
+mkdir -p "$LOG_DIR"
+
 if [ -n "$PID" ]; then
     echo -e "${YELLOW}Port $OLLAMA_PORT is already in use by PID $PID.${NC}"
     # Check if it's actually ollama
     PROCESS_NAME=$(ps -p $PID -o comm=)
     if [[ "$PROCESS_NAME" == "ollama" ]]; then
         echo -e "${GREEN}It is an existing Ollama instance. Reusing it.${NC}"
+        echo "$PID" > "$AI_PID_FILE"
     else
         echo -e "${RED}Warning: Port $OLLAMA_PORT is used by '$PROCESS_NAME', not Ollama.${NC}"
         echo -e "${YELLOW}Attempting to kill conflicting process...${NC}"
         kill -9 $PID
         echo -e "Starting Ollama..."
-        ollama serve &
+        nohup ollama serve >> "$AI_LOG_FILE" 2>&1 &
+        echo $! > "$AI_PID_FILE"
     fi
 else
     echo -e "Starting Ollama server..."
-    ollama serve > /dev/null 2>&1 &
+    nohup ollama serve >> "$AI_LOG_FILE" 2>&1 &
+    echo $! > "$AI_PID_FILE"
     echo -e "Waiting for Ollama to start..."
     sleep 5
 fi
