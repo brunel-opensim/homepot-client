@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 import secrets
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, NoReturn, Optional, cast
 
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, Request, status
@@ -209,7 +209,7 @@ def require_role(required_role: str) -> Any:
     return role_checker
 
 
-def _reject_unknown_device(device_id: str, api_key: Optional[str]) -> None:
+def _reject_unknown_device(device_id: str, api_key: Optional[str]) -> NoReturn:
     """Reject an unrecognised device ID, logging the context so auth failures are traceable."""
     logger.error(
         "Device auth rejected: device_id=%r not found in DB "
