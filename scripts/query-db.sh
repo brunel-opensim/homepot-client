@@ -38,7 +38,7 @@ if [ $# -eq 0 ]; then
     echo "  ./scripts/query-db.sh show enrolment_intents"
     echo "  ./scripts/query-db.sh show tenants"
     echo "  ./scripts/query-db.sh site_devices site-001"
-    echo "  ./scripts/query-db.sh device_details site1-linux-01"
+    echo "  ./scripts/query-db.sh device_details DEVICE-XXXX-XXXX-XXXX"
     echo "  ./scripts/query-db.sh jobs"
     exit 0
 fi
@@ -265,7 +265,7 @@ EOF
         ;;
     device_details)
         if [ -z "$2" ]; then
-            echo "Please provide a device_id: ./scripts/query-db.sh device_details site1-linux-01"
+            echo "Please provide a device_id: ./scripts/query-db.sh device_details DEVICE-XXXX-XXXX-XXXX"
             exit 1
         fi
         echo "=== Device Information: $2 ==="

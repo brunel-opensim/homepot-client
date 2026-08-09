@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.app.models.AnalyticsModel import DeviceMetrics
+from homepot.canonical_ids import _DEVICE_ID_PATTERN
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import Base, Device, LifecycleState, Site, User
@@ -302,6 +303,7 @@ def test_provision_returns_credentials_and_hashes_key(client: TestClient):
     payload = response.json()
     assert payload["status"] == "success"
     assert payload["data"]["device_id"]
+    assert _DEVICE_ID_PATTERN.fullmatch(payload["data"]["device_id"])
     assert payload["data"]["api_key"]
 
     created_device_id = payload["data"]["device_id"]

@@ -14,7 +14,7 @@ The **Fleet Simulation framework** allows developers to safely load-test the API
 The standalone runner script `backend/utils/run_fleet_simulation.py` acts as a driver to orchestrate multiple simulated edge devices using Python's `asyncio` and `httpx`.
 
 ### Key Characteristics
-1. **Accurate Seed Mapping:** The simulation maps exactly to the realistic subset of expected mock devices defined in `backend/utils/seed_data.py` (e.g., `site1-linux-01`, `site2-macos-03`).
+1. **Accurate Seed Mapping:** The simulation discovers the simulated devices directly from the local database (all devices created by `backend/utils/seed_data.py` with `is_simulated=True`), so it tracks the seeded fleet exactly regardless of the canonical `DEVICE-XXXX-XXXX-XXXX` IDs assigned at creation. If no simulated devices exist yet, the runner aborts with a hint to run `seed_data.py` first.
 2. **Concurrency Control:** Utilizes `asyncio.Semaphore` and `httpx.Limits` to strictly throttle the maximum active TCP connections. This simulates scale without causing native OS socket port exhaustion locally (ephemeral port exhaustion).
 3. **Scatter & Gather Timing:** Employs randomized `asyncio.sleep()` delays between requests to create realistic traffic distributions ("jitter"), perfectly mimicking thousands of endpoints syncing asynchronously over WAN.
 4. **Behavioral Variance:** Automatically rotates through varied telemetry scenarios (`healthy`, `low_memory`, `high_errors`) natively supported by the `/api/v1/testing/simulate/device` fast API endpoint.

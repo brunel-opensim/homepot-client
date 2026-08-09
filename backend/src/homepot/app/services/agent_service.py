@@ -18,6 +18,7 @@ from homepot.app.schemas.bootstrap import BootstrapProvisionRequest
 from homepot.app.schemas.permissions import derive_capabilities, derive_push_channel
 from homepot.app.schemas.provision import DeviceProvisionRequest
 from homepot.app.services.lifecycle_service import LifecycleService
+from homepot.canonical_ids import generate_device_id
 from homepot.models import (
     ConnectivityState,
     DeviceCredential,
@@ -31,6 +32,14 @@ from homepot.models import (
 def _utc_now() -> datetime:
     """Return current UTC timestamp."""
     return datetime.now(timezone.utc)
+
+
+def _generate_unique_device_id(repository: AgentRepository) -> str:
+    """Generate a canonical, collision-free device ID."""
+    device_id = generate_device_id()
+    while repository.get_device_by_device_id(device_id):
+        device_id = generate_device_id()
+    return device_id
 
 
 class AgentService:
@@ -254,7 +263,7 @@ class AgentService:
             if not site or not site.id:
                 raise LookupError(f"Site '{payload.site_id}' not found")
 
-            device_id = f"{payload.device_type}-{secrets.token_hex(4)}"
+            device_id = _generate_unique_device_id(self.repository)
             api_key = secrets.token_urlsafe(32)
             device_token = secrets.token_urlsafe(24)
 
@@ -355,7 +364,7 @@ class AgentService:
             if not site or not site.id:
                 raise LookupError(f"Site '{payload.site_id}' not found")
 
-            device_id = f"{payload.device_type}-{secrets.token_hex(4)}"
+            device_id = _generate_unique_device_id(self.repository)
             api_key = secrets.token_urlsafe(32)
 
             requested_name = (payload.device_name or "").strip() or device_id
