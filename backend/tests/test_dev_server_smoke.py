@@ -14,6 +14,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from homepot.app.auth_utils import create_access_token
+from homepot.canonical_ids import _DEVICE_ID_PATTERN
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import Base
@@ -303,6 +304,7 @@ class TestDevServerSmoke:
         claimed_device_id = claim["device_id"]
         assert "api_key" in claim
         assert "site_id" in claim
+        assert _DEVICE_ID_PATTERN.fullmatch(claimed_device_id)
 
         api_key = claim["api_key"]
 

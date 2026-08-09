@@ -9,9 +9,14 @@ import asyncio
 import logging
 import random
 import sys
+from pathlib import Path
 from typing import List
 
 import httpx
+
+# Add backend/src to path so homepot imports resolve (mirrors seed_data.py).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 # Configure logging
 logging.basicConfig(
@@ -58,6 +63,35 @@ SAMPLE_PRINTERS = [
         },
     ],
 ]
+
+
+async def discover_simulated_device_ids(limit: int = 1000) -> List[str]:
+    """Return device IDs of simulated devices from the local DB.
+
+    The seed script now assigns canonical ``DEVICE-XXXX-XXXX-XXXX`` IDs, so we
+    must discover the actual IDs rather than hardcoding names.  Returns an
+    empty list if the DB is unavailable (caller then falls back).
+    """
+    try:
+        from sqlalchemy import select
+
+        from homepot.database import DatabaseService
+        from homepot.models import Device
+
+        db_service = DatabaseService()
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(Device.device_id)
+                .where(Device.is_simulated.is_(True))
+                .limit(limit)
+            )
+            ids = [row[0] for row in result.all()]
+            await db_service.close()
+            logger.info(f"Discovered {len(ids)} simulated device IDs from DB")
+            return ids
+    except Exception as exc:
+        logger.warning(f"Could not discover simulated devices from DB: {exc}")
+        return []
 
 
 async def setup_test_devices(device_ids: List[str], client: httpx.AsyncClient) -> None:
@@ -126,23 +160,15 @@ async def simulate_device(
 
 async def main() -> None:
     """Run the fleet simulation."""
-    # Extract the exact device IDs defined in seed_data.py
-    seed_device_ids = [
-        "site1-linux-01",
-        "site1-windows-02",
-        "site1-macos-03",
-        "site1-web-04",
-        "site1-iot-05",
-        "site2-linux-01",
-        "site2-windows-02",
-        "site2-macos-03",
-        "site2-web-04",
-        "site2-iot-05",
-    ]
-
-    # We will simulate exactly the 10 seed devices
-    device_ids = seed_device_ids
+    # The seed script assigns canonical DEVICE-XXXX-XXXX-XXXX IDs, so discover
+    # the actual simulated devices from the DB instead of hardcoding names.
+    device_ids = await discover_simulated_device_ids()
     num_active_devices = len(device_ids)
+    if num_active_devices == 0:
+        logger.warning(
+            "No simulated devices found in DB; run backend/utils/seed_data.py first."
+        )
+        return
 
     logger.info(
         f"Starting simulation of {num_active_devices} devices for {SIMULATION_DURATION_SECONDS}s"

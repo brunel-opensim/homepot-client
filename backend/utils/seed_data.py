@@ -54,6 +54,7 @@ from homepot.app.models.AnalyticsModel import (
 )
 from homepot.app.api.API_v1.Endpoints.SitesEndpoint import generate_site_id
 from homepot.app.models.UserModel import Base as AppBase
+from homepot.canonical_ids import generate_device_id
 from homepot.database import DatabaseService
 from homepot.models import (
     Base,
@@ -479,7 +480,6 @@ async def init_database():
 
     async def get_or_create_device(
         session,
-        device_id,
         name,
         device_type,
         site_id,
@@ -492,9 +492,17 @@ async def init_database():
         capabilities=None,
         device_permissions=None,
     ):
-        existing = await db_service.get_device_by_device_id(device_id)
+        # Idempotency key is (site, name): on re-runs the existing device is
+        # reused while its device_id stays canonical.
+        existing = await session.execute(
+            select(Device).where(Device.site_id == site_id, Device.name == name)
+        )
+        existing = existing.scalar_one_or_none()
         if existing:
             return existing
+        device_id = generate_device_id()
+        while await db_service.get_device_by_device_id(device_id):
+            device_id = generate_device_id()
         device = await create_device(
             session,
             device_id=device_id,
@@ -512,7 +520,7 @@ async def init_database():
             device_permissions=device_permissions,
         )
         print(
-            f"Created device: {device.name} ({device_id}) [Monitored: {is_monitored}] [Simulated: {is_simulated}] [Method: {enrollment_method}]"
+            f"Created device: {device.name} ({device.device_id}) [Monitored: {is_monitored}] [Simulated: {is_simulated}] [Method: {enrollment_method}]"
         )
         return device
 
@@ -532,7 +540,6 @@ async def init_database():
     async with db_service.get_session() as session:
         await get_or_create_device(
             session,
-            "site1-linux-01",
             "Linux POS 1-1",
             DeviceType.POS_TERMINAL,
             site1.id,
@@ -549,7 +556,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site1-windows-02",
             "Windows POS 1-2",
             DeviceType.POS_TERMINAL,
             site1.id,
@@ -567,7 +573,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site1-macos-03",
             "Apple POS 1-3",
             DeviceType.POS_TERMINAL,
             site1.id,
@@ -583,7 +588,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site1-web-04",
             "Web Dashboard 1-4",
             DeviceType.POS_TERMINAL,
             site1.id,
@@ -599,7 +603,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site1-iot-05",
             "IoT Sensor 1-5",
             DeviceType.IOT_SENSOR,
             site1.id,
@@ -615,7 +618,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site1-android-pos-06",
             "Android POS 1-6",
             DeviceType.POS_TERMINAL,
             site1.id,
@@ -635,7 +637,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site2-linux-01",
             "Linux POS 2-1",
             DeviceType.POS_TERMINAL,
             site2.id,
@@ -653,7 +654,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site2-windows-02",
             "Windows POS 2-2",
             DeviceType.POS_TERMINAL,
             site2.id,
@@ -669,7 +669,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site2-macos-03",
             "Apple POS 2-3",
             DeviceType.POS_TERMINAL,
             site2.id,
@@ -685,7 +684,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site2-web-04",
             "Web Dashboard 2-4",
             DeviceType.POS_TERMINAL,
             site2.id,
@@ -701,7 +699,6 @@ async def init_database():
         )
         await get_or_create_device(
             session,
-            "site2-iot-05",
             "IoT Sensor 2-5",
             DeviceType.IOT_SENSOR,
             site2.id,
