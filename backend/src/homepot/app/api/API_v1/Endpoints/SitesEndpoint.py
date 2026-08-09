@@ -1,8 +1,6 @@
 """API endpoints for managing sites in the HomePot system."""
 
 import logging
-import re
-import secrets
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,6 +16,12 @@ from homepot.app.auth_utils import (
 )
 from homepot.app.schemas.permissions import os_family
 from homepot.audit import AuditEventType, get_audit_logger
+
+# Canonical site IDs live in the shared canonical_ids module (which also
+# hosts canonical device IDs); re-export the previous public names so
+# existing imports (e.g. seed_data, tests) keep working.
+from homepot.canonical_ids import _SITE_ID_PATTERN as _SITE_ID_PATTERN  # noqa: F401
+from homepot.canonical_ids import generate_site_id as generate_site_id
 from homepot.client import HomepotClient
 from homepot.database import get_database_service, get_db
 from homepot.error_logger import log_error
@@ -31,25 +35,6 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
-
-
-# Unambiguous alphabet for site IDs: excludes easily-confused characters
-# (0/O, 1/I/L).
-_SITE_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-# Canonical format: SITE-XXXX-XXXX (three groups)
-_SITE_ID_PATTERN = re.compile(r"^SITE-[A-HJ-KM-NP-Z2-9]{4}-[A-HJ-KM-NP-Z2-9]{4}$")
-
-
-def generate_site_id() -> str:
-    """Generate a canonical site ID: ``SITE-XXXX-XXXX``.
-
-    Uses only unambiguous uppercase alphanumerics so the ID can be read aloud
-    and typed without confusion during device enrollment.
-    """
-    parts: List[str] = []
-    for _ in range(2):
-        parts.append("".join(secrets.choice(_SITE_ID_ALPHABET) for _ in range(4)))
-    return f"SITE-{parts[0]}-{parts[1]}"
 
 
 class SiteHealthResponse(BaseModel):

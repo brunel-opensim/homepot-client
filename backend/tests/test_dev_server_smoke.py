@@ -247,8 +247,12 @@ class TestDevServerSmoke:
             headers=headers,
         )
         assert resp.status_code == 200, resp.text
+        # The server auto-generates a canonical device ID; fetch by that.
+        created_device_id = resp.json()["device_id"]
 
-        resp = client.get("/api/v1/devices/device/real-pos-001", headers=headers)
+        resp = client.get(
+            f"/api/v1/devices/device/{created_device_id}", headers=headers
+        )
         assert resp.status_code == 200, resp.text
         device = resp.json()
         assert device.get("is_simulated") is not None

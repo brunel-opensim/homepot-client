@@ -30,6 +30,7 @@ from homepot.app.auth_utils import (
 from homepot.app.models import AnalyticsModel as analytics_models
 from homepot.app.schemas.permissions import os_family
 from homepot.audit import AuditEventType, get_audit_logger
+from homepot.canonical_ids import generate_device_id
 from homepot.client import HomepotClient
 from homepot.database import get_database_service, get_db
 from homepot.models import (
@@ -149,15 +150,11 @@ async def create_device(
 
         db_service = await get_database_service()
 
-        # Check if device already exists
-        existing_device = await db_service.get_device_by_device_id(
-            device_request.device_id
-        )
-        if existing_device:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Device {device_request.device_id} already exists",
-            )
+        # Generate a canonical device ID server-side (client-supplied IDs are
+        # ignored, mirroring the canonical SITE-XXXX-XXXX site IDs).
+        device_id = generate_device_id()
+        while await db_service.get_device_by_device_id(device_id):
+            device_id = generate_device_id()
 
         # Verify site exists
         site = await db_service.get_site_by_site_id(device_request.site_id)
@@ -168,7 +165,7 @@ async def create_device(
 
         # Create device
         device = await db_service.create_device(
-            device_id=device_request.device_id,
+            device_id=device_id,
             name=device_request.name,
             device_type=device_request.device_type,
             site_id=int(site.id),

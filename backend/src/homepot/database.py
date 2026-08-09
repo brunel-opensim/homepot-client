@@ -17,6 +17,7 @@ from sqlalchemy import Result, create_engine, func, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from homepot.canonical_ids import generate_device_id
 from homepot.config import get_settings
 from homepot.models import (
     AuditLog,
@@ -1098,8 +1099,14 @@ class DatabaseService:
                     f"does not match provided '{expected_device_identity}'"
                 )
 
-            # Create the device
-            new_device_id = f"{device_type}-{_secrets.token_hex(4)}"
+            # Create the device with a canonical, server-generated device ID.
+            new_device_id = generate_device_id()
+            # Keep trying until we land on an unused id (collision is
+            # astronomically unlikely, but stay safe).
+            while await session.scalar(
+                select(Device.id).where(Device.device_id == new_device_id)
+            ):
+                new_device_id = generate_device_id()
             api_key = _secrets.token_urlsafe(32)
             api_key_hash = _pwd.hash(api_key)
 
