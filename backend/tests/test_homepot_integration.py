@@ -29,6 +29,10 @@ from homepot.app.api.API_v1.Endpoints.SitesEndpoint import (
     generate_site_id,
 )
 from homepot.app.auth_utils import create_access_token, hash_password
+from homepot.canonical_ids import (
+    _DEVICE_ID_PATTERN,
+    generate_device_id,
+)
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import Base, User
@@ -42,6 +46,14 @@ def test_generate_site_id_is_canonical() -> None:
     assert len(generated) == 200  # effectively unique
     for site_id in generated:
         assert _SITE_ID_PATTERN.fullmatch(site_id) is not None
+
+
+def test_generate_device_id_is_canonical() -> None:
+    """generate_device_id produces the canonical DEVICE-XXXX-XXXX-XXXX format."""
+    generated = {generate_device_id() for _ in range(200)}
+    assert len(generated) == 200  # effectively unique
+    for device_id in generated:
+        assert _DEVICE_ID_PATTERN.fullmatch(device_id) is not None
 
 
 def generate_random_id(prefix: str) -> str:
@@ -260,17 +272,16 @@ class TestPhase2APIEndpoints:
             assert health["site_id"] == site_id
 
     def test_device_registration(self, client: TestClient) -> None:
-        """Test device registration at a site."""
+        """Test device registration at a site (server generates a canonical DEVICE ID)."""
         h = TestPhase2APIEndpoints._headers
         sites_response = client.get("/api/v1/sites", headers=h)
         sites = sites_response.json().get("sites", [])
 
         if sites:
             site_id = sites[0]["site_id"]
-            device_id = generate_random_id("TEST_DEVICE")
             test_device = {
                 "site_id": site_id,
-                "device_id": device_id,
+                "device_id": "custom-id-ignored",
                 "name": "Test Device 001",
                 "device_type": "pos_terminal",
                 "location": "Test Counter",
@@ -284,7 +295,12 @@ class TestPhase2APIEndpoints:
             data = response.json()
             assert "message" in data
             assert "device_id" in data
-            assert data["device_id"] == device_id
+            # The server must auto-generate a canonical DEVICE ID, ignoring the
+            # caller-supplied value.
+            assert re.fullmatch(
+                r"DEVICE-[A-HJ-KM-NP-Z2-9]{4}-[A-HJ-KM-NP-Z2-9]{4}-[A-HJ-KM-NP-Z2-9]{4}",
+                data["device_id"],
+            )
 
     def test_job_creation(self, client: TestClient) -> None:
         """Test creating a job for a site."""
@@ -726,19 +742,19 @@ class TestDashboardAggregates:
 
     @staticmethod
     def _create_device(client: TestClient, headers: dict, site_id: str) -> str:
-        device_id = generate_random_id("DASH_DEV")
         resp = client.post(
             "/api/v1/devices/device",
             json={
                 "site_id": site_id,
-                "device_id": device_id,
-                "name": f"Device {device_id}",
+                "device_id": generate_random_id("DASH_DEV"),
+                "name": f"Device {generate_random_id('DASH_DEV')}",
                 "device_type": "pos_terminal",
             },
             headers=headers,
         )
         assert resp.status_code == 200, f"Failed to create device: {resp.text}"
-        return device_id
+        # The server auto-generates a canonical device ID, so return that.
+        return resp.json()["device_id"]
 
     @staticmethod
     def _set_device_state(

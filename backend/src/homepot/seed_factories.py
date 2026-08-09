@@ -21,6 +21,7 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from homepot.canonical_ids import generate_device_id
 from homepot.models import (
     AuditLog,
     Device,
@@ -219,7 +220,7 @@ def build_device(
 ) -> Device:
     """Build an unsaved Device instance."""
     if device_id is None:
-        device_id = f"dev-{uuid4().hex[:8]}"
+        device_id = generate_device_id()
     kwargs.setdefault("lifecycle_state", LifecycleState.PENDING.value)
     kwargs.setdefault("health_state", HealthState.UNKNOWN.value)
     return Device(
