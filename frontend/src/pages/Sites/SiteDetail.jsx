@@ -21,6 +21,21 @@ import { Card } from '@/components/ui/card';
 import DeviceDeleteDialog from '@/components/Devices/DeviceDeleteDialog';
 import BootstrapKeyDialog from '@/components/Sites/BootstrapKeyDialog';
 
+// Health buckets mirror the backend HealthState enum (healthy/warning/error/
+// maintenance/unknown). Clickable dots filter the Associated Devices table.
+const HEALTH_BUCKETS = [
+  { key: 'healthy', label: 'Healthy', dotClass: 'text-green-400', ringClass: 'ring-green-500/40' },
+  {
+    key: 'warning',
+    label: 'Warning',
+    dotClass: 'text-yellow-400',
+    ringClass: 'ring-yellow-500/40',
+  },
+  { key: 'error', label: 'Error', dotClass: 'text-red-400', ringClass: 'ring-red-500/40' },
+  { key: 'maintenance', label: 'Maint.', dotClass: 'text-blue-400', ringClass: 'ring-blue-500/40' },
+  { key: 'unknown', label: 'Unknown', dotClass: 'text-gray-400', ringClass: 'ring-gray-500/40' },
+];
+
 export default function SiteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -29,6 +44,7 @@ export default function SiteDetail() {
   const [error, setError] = useState(null);
   const [devices, setDevices] = useState([]);
   const [stats, setStats] = useState(null);
+  const [healthFilter, setHealthFilter] = useState('');
 
   // Device deletion state
   const [deviceToDelete, setDeviceToDelete] = useState(null);
@@ -126,6 +142,14 @@ export default function SiteDetail() {
     } finally {
       setIsDeletingDevice(false);
     }
+  };
+
+  const filteredDevices = healthFilter
+    ? devices.filter((d) => (d.health_state || 'unknown') === healthFilter)
+    : devices;
+
+  const toggleHealthFilter = (key) => {
+    setHealthFilter((prev) => (prev === key ? '' : key));
   };
 
   if (loading) {
@@ -242,10 +266,33 @@ export default function SiteDetail() {
                       : 0}
                   </h3>
                   {stats?.health_counts && (
-                    <div className="flex gap-2 text-xs text-slate-400 mt-1">
-                      <span className="text-green-400">● {stats.health_counts.healthy || 0}</span>
-                      <span className="text-yellow-400">● {stats.health_counts.warning || 0}</span>
-                      <span className="text-red-400">● {stats.health_counts.critical || 0}</span>
+                    <div className="flex flex-wrap gap-2 text-xs mt-1.5">
+                      {HEALTH_BUCKETS.map((bucket) => (
+                        <button
+                          key={bucket.key}
+                          type="button"
+                          title={`Filter to ${bucket.label} devices`}
+                          onClick={() => toggleHealthFilter(bucket.key)}
+                          className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-slate-300 transition-all ring-1 ring-transparent focus:outline-none ${
+                            healthFilter === bucket.key
+                              ? `${bucket.ringClass} bg-white/5`
+                              : 'hover:bg-white/5'
+                          }`}
+                        >
+                          <span className={`${bucket.dotClass} font-bold`}>●</span>
+                          <span>{stats.health_counts[bucket.key] || 0}</span>
+                        </button>
+                      ))}
+                      {healthFilter && (
+                        <button
+                          type="button"
+                          title="Clear health filter"
+                          onClick={() => setHealthFilter('')}
+                          className="text-gray-500 hover:text-white transition-colors"
+                        >
+                          ✕ Clear
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -263,7 +310,15 @@ export default function SiteDetail() {
 
         {/* Scrollable Devices Section */}
         <div className="flex-1 min-h-0 flex flex-col">
-          <h2 className="text-xl font-semibold mb-4 text-white shrink-0">Associated Devices</h2>
+          <div className="shrink-0 flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-white">Associated Devices</h2>
+            {healthFilter && (
+              <span className="text-sm text-gray-400">
+                Showing <span className="text-teal-400">{filteredDevices.length}</span>{' '}
+                {healthFilter} device{filteredDevices.length === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
           {devices.length > 0 ? (
             <div className="rounded-md border border-border bg-card flex-1 overflow-hidden relative">
               <div className="absolute inset-0 overflow-auto">
@@ -286,7 +341,7 @@ export default function SiteDetail() {
                     </tr>
                   </thead>
                   <tbody className="[&_tr:last-child]:border-0">
-                    {devices.map((device) => (
+                    {filteredDevices.map((device) => (
                       <tr
                         key={device.id}
                         className="border-b border-border transition-colors hover:bg-muted/50"
@@ -442,7 +497,11 @@ export default function SiteDetail() {
           ) : (
             <Card className="p-8 text-center text-gray-400 border-dashed border-border bg-card">
               <Server className="h-8 w-8 mx-auto mb-3 opacity-50" />
-              <p>No devices found for this site.</p>
+              <p>
+                {healthFilter
+                  ? `No ${healthFilter} devices found for this site.`
+                  : 'No devices found for this site.'}
+              </p>
             </Card>
           )}
         </div>
