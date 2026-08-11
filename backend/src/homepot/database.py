@@ -1230,17 +1230,19 @@ class DatabaseService:
 
             # -- Device counts by health_state --
             health_q = select(
-                func.coalesce(Device.health_state, HealthState.UNKNOWN.value),
+                Device.health_state,
                 func.count(Device.id),
             ).where(Device.is_active.is_(True))
             if site_id is not None:
                 health_q = health_q.where(Device.site_id == site_id)
-            health_q = health_q.group_by(
-                func.coalesce(Device.health_state, HealthState.UNKNOWN.value)
-            )
+            # Group by the raw column: COALESCE() with a bound parameter
+            # compiles to $1 vs $2 and PostgreSQL rejects it in GROUP BY.
+            # Fall back to UNKNOWN for NULL health_state in Python instead.
+            health_q = health_q.group_by(Device.health_state)
             health_result = await session.execute(health_q)
             health_counts: Dict[str, int] = {
-                row[0]: row[1] for row in health_result.all()
+                (row[0] or HealthState.UNKNOWN.value): row[1]
+                for row in health_result.all()
             }
 
             # -- Fetch heartbeats to compute connectivity --
