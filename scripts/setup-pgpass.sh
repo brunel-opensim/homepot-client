@@ -43,8 +43,12 @@ if [ -f "$PGPASS_FILE" ]; then
             exit 0
         fi
         
-        # Remove old entry
-        sed -i "/^${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:/d" "$PGPASS_FILE"
+        # Remove old entry (BSD sed on macOS requires an explicit, possibly empty, backup suffix after -i)
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sed -i '' "/^${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:/d" "$PGPASS_FILE"
+        else
+            sed -i "/^${DB_HOST}:${DB_PORT}:${DB_NAME}:${DB_USER}:/d" "$PGPASS_FILE"
+        fi
         echo -e "${GREEN}[OK]${NC} Removed old entry"
     fi
 else
