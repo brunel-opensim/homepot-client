@@ -102,6 +102,7 @@ class TestErrorLogContract:
         Base.metadata.create_all(bind=sync_engine)
 
     def test_error_message_and_context_persist(self, client) -> None:
+        """Error message and context survive the frontend payload round trip."""
         from homepot.app.models.AnalyticsModel import ErrorLog
         from homepot.database import SessionLocal
 
@@ -136,6 +137,7 @@ class TestErrorLogContract:
             db.close()
 
     def test_legacy_message_and_extra_data_are_not_persisted(self, client) -> None:
+        """Legacy message/extra_data payload is not treated as canonical fields."""
         from homepot.app.models.AnalyticsModel import ErrorLog
         from homepot.database import SessionLocal
 
