@@ -77,8 +77,8 @@ export const trackError = async (errorMessage, pageUrl, errorType = 'client_erro
       {
         category: errorType,
         severity: 'error',
-        message: errorMessage,
-        extra_data: { page_url: pageUrl }
+        error_message: errorMessage,
+        context: { page_url: pageUrl }
       },
       {
         withCredentials: true,
