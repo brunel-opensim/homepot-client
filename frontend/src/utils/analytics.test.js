@@ -82,4 +82,31 @@ describe('analytics.js', () => {
 
     await expect(trackError('Error', '/page')).resolves.not.toThrow();
   });
+
+  it('trackError sends the backend error contract (error_message + context)', async () => {
+    axios.post.mockResolvedValue({});
+
+    await trackError('Payment gateway timeout', '/checkout', 'external_service');
+
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/analytics/error'),
+      expect.objectContaining({
+        category: 'external_service',
+        severity: 'error',
+        error_message: 'Payment gateway timeout',
+        context: { page_url: '/checkout' },
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it('trackError does not send legacy message/extra_data fields', async () => {
+    axios.post.mockResolvedValue({});
+
+    await trackError('Some error', '/page');
+
+    const body = axios.post.mock.calls[0][1];
+    expect(body).not.toHaveProperty('message');
+    expect(body).not.toHaveProperty('extra_data');
+  });
 });
