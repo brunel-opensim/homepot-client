@@ -100,6 +100,114 @@ function formatUptime(seconds) {
   return `${hours}h ${minutes}m`;
 }
 
+function buildStatsFromMetrics(metricsData) {
+  if (!metricsData || metricsData.length === 0) return null;
+
+  const latest = metricsData[0];
+  const cpuTrend = metricsData.map((m) => m.cpu_percent).reverse();
+  const memTrend = metricsData.map((m) => m.memory_percent).reverse();
+  const diskTrend = metricsData.map((m) => m.disk_percent).reverse();
+  const netTrend = metricsData.map((m) => m.network_latency_ms).reverse();
+
+  // Extract uptime from extra_metrics if available
+  const currentUptime = latest.extra_metrics?.uptime_seconds || 0;
+  const uptimeTrend = metricsData.map((m) => m.extra_metrics?.uptime_seconds || 0).reverse();
+
+  return {
+    cpu: {
+      label: 'CPU',
+      value: `${latest.cpu_percent?.toFixed(1) || 0}%`,
+      subtitle: 'current load',
+      data: cpuTrend,
+    },
+    memory: {
+      label: 'Memory',
+      value: `${latest.memory_percent?.toFixed(1) || 0}%`,
+      subtitle: 'utilization',
+      data: memTrend,
+    },
+    disk: {
+      label: 'Disk',
+      value: `${latest.disk_percent?.toFixed(1) || 0}%`,
+      subtitle: 'usage',
+      data: diskTrend,
+    },
+    network: {
+      label: 'Network',
+      value: `${latest.network_latency_ms?.toFixed(0) || 0}ms`,
+      subtitle: 'latency',
+      data: netTrend,
+    },
+    uptime: {
+      label: 'Uptime',
+      value: formatUptime(currentUptime),
+      subtitle: 'system up',
+      data: uptimeTrend,
+    },
+  };
+}
+
+function mergeDeviceAlerts(alertsData, anomalyData, deviceId) {
+  let combinedAlerts = [];
+
+  // 1. Standard Monitor Alerts
+  if (alertsData && Array.isArray(alertsData)) {
+    combinedAlerts = combinedAlerts.concat(
+      alertsData.map((a) => ({
+        id: a.id,
+        message: `${a.title}: ${a.description}`,
+        severity: a.severity,
+        timestamp: a.timestamp,
+        source: 'Monitor',
+      }))
+    );
+  }
+
+  // 2. AI Anomalies
+  if (anomalyData && anomalyData.anomalies) {
+    const deviceAnomalies = anomalyData.anomalies.filter((a) => a.device_id === deviceId);
+
+    // Create a set of "signatures" from existing alerts to avoid duplicates
+    const existingSignatures = new Set(combinedAlerts.map((a) => a.message.toLowerCase()));
+
+    const newAnomalies = deviceAnomalies.filter((anom) => {
+      if (!anom.reasons || anom.reasons.length === 0) return true;
+
+      // Check if any reason is already covered by an existing alert
+      // Anomaly Reason: "High CPU: 92%"
+      // DB Alert Message: "[DEMO] High CPU: 92%..."
+      const isCovered = anom.reasons.some((r) => {
+        const reasonKey = r.split(':')[0].toLowerCase(); // "high cpu"
+        // Check if any existing alert contains this key phrase
+        for (let sig of existingSignatures) {
+          if (sig.includes(reasonKey)) return true;
+        }
+        return false;
+      });
+
+      return !isCovered;
+    });
+
+    combinedAlerts = combinedAlerts.concat(
+      newAnomalies.map((a) => ({
+        id: null, // AI Anomalies are transient, so no ID
+        message:
+          a.reasons && a.reasons.length > 0
+            ? `Anomaly: ${a.reasons[0]}`
+            : `Anomaly Detected (Score: ${a.score})`,
+        severity: a.severity === 'critical' ? 'critical' : 'warning',
+        timestamp: a.timestamp,
+        source: 'AI Analysis',
+      }))
+    );
+  }
+
+  // Sort by timestamp descending
+  combinedAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  return combinedAlerts;
+}
+
 export default function Device() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -165,52 +273,8 @@ export default function Device() {
             setPushHistory(historyData || []);
 
             // Process Stats
-            if (metricsData && metricsData.length > 0) {
-              const latest = metricsData[0];
-              const cpuTrend = metricsData.map((m) => m.cpu_percent).reverse();
-              const memTrend = metricsData.map((m) => m.memory_percent).reverse();
-              const diskTrend = metricsData.map((m) => m.disk_percent).reverse();
-              const netTrend = metricsData.map((m) => m.network_latency_ms).reverse();
-
-              // Extract uptime from extra_metrics if available
-              const currentUptime = latest.extra_metrics?.uptime_seconds || 0;
-              const uptimeTrend = metricsData
-                .map((m) => m.extra_metrics?.uptime_seconds || 0)
-                .reverse();
-
-              setStats({
-                cpu: {
-                  label: 'CPU',
-                  value: `${latest.cpu_percent?.toFixed(1) || 0}%`,
-                  subtitle: 'current load',
-                  data: cpuTrend,
-                },
-                memory: {
-                  label: 'Memory',
-                  value: `${latest.memory_percent?.toFixed(1) || 0}%`,
-                  subtitle: 'utilization',
-                  data: memTrend,
-                },
-                disk: {
-                  label: 'Disk',
-                  value: `${latest.disk_percent?.toFixed(1) || 0}%`,
-                  subtitle: 'usage',
-                  data: diskTrend,
-                },
-                network: {
-                  label: 'Network',
-                  value: `${latest.network_latency_ms?.toFixed(0) || 0}ms`,
-                  subtitle: 'latency',
-                  data: netTrend,
-                },
-                uptime: {
-                  label: 'Uptime',
-                  value: formatUptime(currentUptime),
-                  subtitle: 'system up',
-                  data: uptimeTrend,
-                },
-              });
-            }
+            const stats = buildStatsFromMetrics(metricsData);
+            if (stats) setStats(stats);
           } catch (relatedErr) {
             console.warn('Failed to fetch related device data', relatedErr);
             // Don't fail the whole page load
@@ -223,66 +287,7 @@ export default function Device() {
               api.ai.getAnomalies().catch(() => ({ anomalies: [] })), // Fail gracefully
             ]);
 
-            let combinedAlerts = [];
-
-            // 1. Standard Monitor Alerts
-            if (alertsData && Array.isArray(alertsData)) {
-              combinedAlerts = combinedAlerts.concat(
-                alertsData.map((a) => ({
-                  id: a.id,
-                  message: `${a.title}: ${a.description}`,
-                  severity: a.severity,
-                  timestamp: a.timestamp,
-                  source: 'Monitor',
-                }))
-              );
-            }
-
-            // 2. AI Anomalies
-            if (anomalyData && anomalyData.anomalies) {
-              const deviceAnomalies = anomalyData.anomalies.filter((a) => a.device_id === id);
-
-              // Create a set of "signatures" from existing alerts to avoid duplicates
-              const existingSignatures = new Set(
-                combinedAlerts.map((a) => a.message.toLowerCase())
-              );
-
-              const newAnomalies = deviceAnomalies.filter((anom) => {
-                if (!anom.reasons || anom.reasons.length === 0) return true;
-
-                // Check if any reason is already covered by an existing alert
-                // Anomaly Reason: "High CPU: 92%"
-                // DB Alert Message: "[DEMO] High CPU: 92%..."
-                const isCovered = anom.reasons.some((r) => {
-                  const reasonKey = r.split(':')[0].toLowerCase(); // "high cpu"
-                  // Check if any existing alert contains this key phrase
-                  for (let sig of existingSignatures) {
-                    if (sig.includes(reasonKey)) return true;
-                  }
-                  return false;
-                });
-
-                return !isCovered;
-              });
-
-              combinedAlerts = combinedAlerts.concat(
-                newAnomalies.map((a) => ({
-                  id: null, // AI Anomalies are transient, so no ID
-                  message:
-                    a.reasons && a.reasons.length > 0
-                      ? `Anomaly: ${a.reasons[0]}`
-                      : `Anomaly Detected (Score: ${a.score})`,
-                  severity: a.severity === 'critical' ? 'critical' : 'warning',
-                  timestamp: a.timestamp,
-                  source: 'AI Analysis',
-                }))
-              );
-            }
-
-            // Sort by timestamp descending
-            combinedAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            setAlerts(combinedAlerts);
+            setAlerts(mergeDeviceAlerts(alertsData, anomalyData, id));
           } catch (alertsErr) {
             console.warn('Failed to fetch device alerts:', alertsErr);
           }
@@ -303,52 +308,8 @@ export default function Device() {
       api.devices
         .getMetrics(id, 20)
         .then((metricsData) => {
-          if (metricsData && metricsData.length > 0) {
-            const latest = metricsData[0];
-            const cpuTrend = metricsData.map((m) => m.cpu_percent).reverse();
-            const memTrend = metricsData.map((m) => m.memory_percent).reverse();
-            const diskTrend = metricsData.map((m) => m.disk_percent).reverse();
-            const netTrend = metricsData.map((m) => m.network_latency_ms).reverse();
-
-            // Extract uptime from extra_metrics if available
-            const currentUptime = latest.extra_metrics?.uptime_seconds || 0;
-            const uptimeTrend = metricsData
-              .map((m) => m.extra_metrics?.uptime_seconds || 0)
-              .reverse();
-
-            setStats({
-              cpu: {
-                label: 'CPU',
-                value: `${latest.cpu_percent?.toFixed(1) || 0}%`,
-                subtitle: 'current load',
-                data: cpuTrend,
-              },
-              memory: {
-                label: 'Memory',
-                value: `${latest.memory_percent?.toFixed(1) || 0}%`,
-                subtitle: 'utilization',
-                data: memTrend,
-              },
-              disk: {
-                label: 'Disk',
-                value: `${latest.disk_percent?.toFixed(1) || 0}%`,
-                subtitle: 'usage',
-                data: diskTrend,
-              },
-              network: {
-                label: 'Network',
-                value: `${latest.network_latency_ms?.toFixed(0) || 0}ms`,
-                subtitle: 'latency',
-                data: netTrend,
-              },
-              uptime: {
-                label: 'Uptime',
-                value: formatUptime(currentUptime),
-                subtitle: 'system up',
-                data: uptimeTrend,
-              },
-            });
-          }
+          const stats = buildStatsFromMetrics(metricsData);
+          if (stats) setStats(stats);
         })
         .catch((err) => console.debug('Metric poll skipped', err));
 
@@ -390,54 +351,7 @@ export default function Device() {
         api.ai.getAnomalies().catch(() => ({ anomalies: [] })),
       ])
         .then(([alertsData, anomalyData]) => {
-          let combinedAlerts = [];
-
-          if (alertsData && Array.isArray(alertsData)) {
-            combinedAlerts = combinedAlerts.concat(
-              alertsData.map((a) => ({
-                id: a.id,
-                message: `${a.title}: ${a.description}`,
-                severity: a.severity,
-                timestamp: a.timestamp,
-                source: 'Monitor',
-              }))
-            );
-          }
-
-          if (anomalyData && anomalyData.anomalies) {
-            const deviceAnomalies = anomalyData.anomalies.filter((a) => a.device_id === id);
-
-            // Create duplicates check based on message signatures
-            const existingSignatures = new Set(combinedAlerts.map((a) => a.message.toLowerCase()));
-
-            const newAnomalies = deviceAnomalies.filter((anom) => {
-              if (!anom.reasons || anom.reasons.length === 0) return true;
-              const isCovered = anom.reasons.some((r) => {
-                const reasonKey = r.split(':')[0].toLowerCase();
-                for (let sig of existingSignatures) {
-                  if (sig.includes(reasonKey)) return true;
-                }
-                return false;
-              });
-              return !isCovered;
-            });
-
-            combinedAlerts = combinedAlerts.concat(
-              newAnomalies.map((a) => ({
-                id: null,
-                message:
-                  a.reasons && a.reasons.length > 0
-                    ? `Anomaly: ${a.reasons[0]}`
-                    : `Anomaly Detected (Score: ${a.score})`,
-                severity: a.severity === 'critical' ? 'critical' : 'warning',
-                timestamp: a.timestamp,
-                source: 'AI Analysis',
-              }))
-            );
-          }
-
-          combinedAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-          setAlerts(combinedAlerts);
+          setAlerts(mergeDeviceAlerts(alertsData, anomalyData, id));
         })
         .catch((err) => console.debug('Alerts poll skipped', err));
     }, 2000);

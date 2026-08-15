@@ -5,13 +5,15 @@ import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Toast } from '@/components/ui/Toast';
+import DeviceFormFields from '@/components/Devices/DeviceFormFields';
+import useFormData from '@/hooks/useFormData';
 
 export default function DeviceSettings() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData, handleChange] = useFormData({
     name: '',
     device_id: '',
     device_type: '',
@@ -56,12 +58,7 @@ export default function DeviceSettings() {
     };
 
     fetchData();
-  }, [id]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  }, [id, setFormData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -120,145 +117,12 @@ export default function DeviceSettings() {
 
         <Card className="p-6 bg-card border-border">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Site Selection - Read Only */}
-            <div className="space-y-2">
-              <label htmlFor="site_id" className="text-sm font-medium leading-none text-gray-300">
-                Assigned Site
-              </label>
-              <select
-                id="site_id"
-                name="site_id"
-                disabled
-                className="flex h-10 w-full rounded-md border border-border bg-background/50 px-3 py-2 text-sm text-gray-500 shadow-sm transition-colors focus-visible:outline-none disabled:cursor-not-allowed"
-                value={formData.site_id}
-                onChange={handleChange}
-              >
-                <option value="" disabled>
-                  Select a site
-                </option>
-                {sites.map((site) => (
-                  <option key={site.id} value={site.site_id}>
-                    {site.name} ({site.site_id})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Device Basic Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="name" className="text-sm font-medium leading-none text-gray-300">
-                  Device Name <span className="text-red-400">*</span>
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="e.g. Front Desk POS"
-                  value={formData.name}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="device_id"
-                  className="text-sm font-medium leading-none text-gray-300"
-                >
-                  Device ID
-                </label>
-                <input
-                  id="device_id"
-                  name="device_id"
-                  type="text"
-                  disabled
-                  className="flex h-10 w-full rounded-md border border-border bg-background/50 px-3 py-2 text-sm text-gray-500 shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed"
-                  value={formData.device_id}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label
-                htmlFor="device_type"
-                className="text-sm font-medium leading-none text-gray-300"
-              >
-                Device Type <span className="text-red-400">*</span>
-              </label>
-              <select
-                id="device_type"
-                name="device_type"
-                required
-                className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                value={formData.device_type}
-                onChange={handleChange}
-              >
-                <option value="pos_terminal">POS Terminal</option>
-                <option value="iot_sensor">IoT Sensor</option>
-                <option value="industrial_controller">Industrial Controller</option>
-                <option value="gateway">Gateway</option>
-                <option value="unknown">Other</option>
-              </select>
-            </div>
-
-            {/* Optional Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label
-                  htmlFor="ip_address"
-                  className="text-sm font-medium leading-none text-gray-300"
-                >
-                  IP Address
-                </label>
-                <input
-                  id="ip_address"
-                  name="ip_address"
-                  type="text"
-                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="e.g. 192.168.1.100"
-                  value={formData.ip_address}
-                  onChange={handleChange}
-                />
-              </div>
-              <div className="space-y-2">
-                <label
-                  htmlFor="mac_address"
-                  className="text-sm font-medium leading-none text-gray-300"
-                >
-                  MAC Address
-                </label>
-                <input
-                  id="mac_address"
-                  name="mac_address"
-                  type="text"
-                  className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="e.g. 00:1A:2B:3C:4D:5E"
-                  value={formData.mac_address}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label
-                htmlFor="firmware_version"
-                className="text-sm font-medium leading-none text-gray-300"
-              >
-                Firmware Version
-              </label>
-              <input
-                id="firmware_version"
-                name="firmware_version"
-                type="text"
-                className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="e.g. v1.2.3"
-                value={formData.firmware_version}
-                onChange={handleChange}
-              />
-            </div>
+            <DeviceFormFields
+              formData={formData}
+              handleChange={handleChange}
+              sites={sites}
+              readOnly
+            />
 
             <div className="flex justify-end gap-4 pt-4">
               <Button

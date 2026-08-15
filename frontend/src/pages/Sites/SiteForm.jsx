@@ -4,13 +4,14 @@ import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import useFormData from '@/hooks/useFormData';
 
 export default function SiteForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = !!id;
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData, handleChange] = useFormData({
     name: '',
     site_id: '',
     location: '',
@@ -48,12 +49,7 @@ export default function SiteForm() {
     };
 
     fetchSite();
-  }, [id]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  }, [id, setFormData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

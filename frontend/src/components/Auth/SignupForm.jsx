@@ -1,4 +1,6 @@
 import React from 'react';
+import RoleTabs from './RoleTabs';
+import AuthSubmitButton from './AuthSubmitButton';
 
 export default function SignupForm({
   activeTab,
@@ -22,59 +24,7 @@ export default function SignupForm({
   return (
     <>
       {/* Tab Selector */}
-      <div className="text-center mb-8">
-        <div className="flex rounded-xl bg-gray-800/50 p-1 border border-gray-700/50">
-          <button
-            type="button"
-            onClick={() => setActiveTab('ENGINEER')}
-            className={`flex-1 py-3 px-6 text-sm font-bold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${
-              activeTab === 'ENGINEER'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 ring-1 ring-white/10'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <svg
-              className={`w-4 h-4 ${activeTab === 'ENGINEER' ? 'text-indigo-200' : 'text-gray-500'}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-              />
-            </svg>
-            ENGINEER
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('CLIENT')}
-            className={`flex-1 py-3 px-6 text-sm font-bold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${
-              activeTab === 'CLIENT'
-                ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20 ring-1 ring-white/10'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <svg
-              className={`w-4 h-4 ${activeTab === 'CLIENT' ? 'text-teal-200' : 'text-gray-500'}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-              />
-            </svg>
-            CLIENT
-          </button>
-        </div>
-      </div>
+      <RoleTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Signup Form */}
       <form
@@ -196,43 +146,13 @@ export default function SignupForm({
             </button>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex justify-center items-center gap-2 ${
-              activeTab === 'ENGINEER'
-                ? 'bg-indigo-600 hover:bg-indigo-500 focus:ring-indigo-500 shadow-indigo-900/20'
-                : 'bg-teal-600 hover:bg-teal-500 focus:ring-teal-500 shadow-teal-900/20'
-            }`}
+          <AuthSubmitButton
+            activeTab={activeTab}
+            loading={loading}
+            loadingText="Creating Account..."
           >
-            {loading ? (
-              <>
-                <svg
-                  className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Creating Account...
-              </>
-            ) : (
-              'Sign Up'
-            )}
-          </button>
+            Sign Up
+          </AuthSubmitButton>
         </div>
       </form>
     </>
