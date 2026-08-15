@@ -120,6 +120,53 @@ class EnrollmentMethod(str, Enum):
     EMULATED = "emulated"
 
 
+class Provenance(str, Enum):
+    """Evidence provenance class for telemetry and events.
+
+    Per the KPI evaluation roadmap, every exported row must carry one of
+    these classes so that real, controlled, and simulated evidence cannot
+    be mixed silently:
+
+    REAL       — produced by a physical pilot device or an authoritative
+                 POS/application integration.
+    CONTROLLED — produced by a deterministic emulator or injected fault
+                 under a recorded test protocol.
+    SIMULATED  — random or seeded demonstration data.
+
+    The classification is derived from the device at write time and
+    snapshotted onto the row, so historical rows never inherit a device's
+    current classification.
+    """
+
+    REAL = "real"
+    CONTROLLED = "controlled"
+    SIMULATED = "simulated"
+
+
+def derive_provenance(device: "Device | None") -> Provenance | None:
+    """Derive the evidence provenance class for a device.
+
+    Returns ``None`` when the device is not available so callers do not
+    silently store a guessed classification.
+    """
+    if device is None:
+        return None
+
+    source = None
+    if isinstance(device.config, dict):
+        source = device.config.get("device_source")
+
+    if source == "emulator":
+        return Provenance.CONTROLLED
+    if source == "simulation":
+        return Provenance.SIMULATED
+    if source == "physical":
+        return Provenance.REAL
+    if device.is_simulated:
+        return Provenance.SIMULATED
+    return Provenance.REAL
+
+
 class EnrolmentIntentStatus(str, Enum):
     """Status of an enrolment intent."""
 

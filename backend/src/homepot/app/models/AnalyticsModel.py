@@ -68,6 +68,9 @@ class DeviceStateHistory(Base):
     reason = Column(String(500), nullable=True)
     extra_data = Column(JSON, nullable=True)
 
+    # Evidence provenance (snapshotted at write time)
+    provenance = Column(String(20), nullable=True, index=True)
+
     # Relationships
     device = relationship(
         "Device",
@@ -94,6 +97,9 @@ class JobOutcome(Base):
     retry_count = Column(Integer, default=0)
     initiated_by = Column(String(255), nullable=True)
     extra_data = Column(JSON, nullable=True)
+
+    # Evidence provenance (snapshotted at write time)
+    provenance = Column(String(20), nullable=True, index=True)
 
     __table_args__ = (
         Index("idx_job_status", "job_type", "status"),
@@ -124,6 +130,9 @@ class ErrorLog(Base):
     context = Column(JSON, nullable=True)  # Additional context data
     resolved = Column(Boolean, default=False, index=True)
     resolved_at = Column(DateTime, nullable=True)
+
+    # Evidence provenance (snapshotted at write time)
+    provenance = Column(String(20), nullable=True, index=True)
 
     __table_args__ = (
         Index("idx_category_severity", "category", "severity"),
@@ -181,6 +190,11 @@ class DeviceMetrics(Base):
     active_connections = Column(Integer, nullable=True)
     queue_depth = Column(Integer, nullable=True)
     extra_metrics = Column(JSON, nullable=True)
+
+    # Evidence provenance (snapshotted at write time so historical rows do
+    # not silently inherit a later change to the device's classification)
+    provenance = Column(String(20), nullable=True, index=True)
+    collection_interval_seconds = Column(Integer, nullable=True)
 
     # Relationships
     device = relationship(

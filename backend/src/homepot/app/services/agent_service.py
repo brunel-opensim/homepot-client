@@ -26,6 +26,7 @@ from homepot.models import (
     HealthState,
     LifecycleEpoch,
     LifecycleState,
+    derive_provenance,
 )
 
 
@@ -193,6 +194,7 @@ class AgentService:
                 if not device or not device.id:
                     raise LookupError(f"Device '{payload.device_id}' not found")
 
+                provenance = derive_provenance(device)
                 self.repository.save_telemetry_entry(
                     device_pk=int(device.id),
                     timestamp=payload.timestamp,
@@ -201,6 +203,8 @@ class AgentService:
                     disk_usage=payload.disk_usage,
                     uptime_seconds=payload.uptime_seconds,
                     network_latency_ms=payload.network_latency_ms,
+                    provenance=provenance.value if provenance else None,
+                    collection_interval_seconds=payload.collection_interval_seconds,
                 )
 
                 return {
@@ -232,9 +236,12 @@ class AgentService:
                 for item in entries
             ]
 
+            provenance = derive_provenance(device)
             self.repository.save_telemetry_bulk(
                 device_pk=int(device.id),
                 entries=serialized_entries,
+                provenance=provenance.value if provenance else None,
+                collection_interval_seconds=entries[0].collection_interval_seconds,
             )
 
             return {

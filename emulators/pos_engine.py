@@ -653,6 +653,7 @@ class POSEmulator:
                     "device_id": self.device_id,
                     **metrics,
                     "uptime_seconds": uptime_seconds,
+                    "collection_interval_seconds": int(self.config.telemetry_interval),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 resp = await self._http.post(

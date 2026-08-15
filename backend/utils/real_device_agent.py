@@ -27,6 +27,7 @@ DEVICE_TYPE = "linux_server"
 HOSTNAME = socket.gethostname()
 DEVICE_ID = f"wsl-device-{HOSTNAME.lower().replace(' ', '-')}"
 API_KEY_FILE = ".device_api_key"
+COLLECTION_INTERVAL_SECONDS = 5
 
 
 async def register_device(client: httpx.AsyncClient) -> Optional[str]:
@@ -83,6 +84,7 @@ async def collect_and_send_metrics(client: httpx.AsyncClient, api_key: str):
                 "transaction_volume": 0.0,
                 "error_rate": 0.0,
                 "active_connections": len(psutil.net_connections()),
+                "collection_interval_seconds": COLLECTION_INTERVAL_SECONDS,
                 "extra_metrics": {
                     "boot_time": psutil.boot_time(),
                     "bytes_sent": net_io.bytes_sent,
@@ -109,7 +111,7 @@ async def collect_and_send_metrics(client: httpx.AsyncClient, api_key: str):
             logger.error(f"Error collecting/sending metrics: {e}")
 
         # Wait before next collection
-        await asyncio.sleep(5)
+        await asyncio.sleep(COLLECTION_INTERVAL_SECONDS)
 
 
 async def poll_commands(client: httpx.AsyncClient, api_key: str):

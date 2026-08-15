@@ -162,6 +162,8 @@ class AgentRepository:
         timestamp: datetime,
         uptime_seconds: int | None = None,
         network_latency_ms: float | None = None,
+        provenance: str | None = None,
+        collection_interval_seconds: int | None = None,
     ) -> DeviceMetrics:
         """Persist a single telemetry entry for a device."""
         metric = DeviceMetrics(
@@ -171,6 +173,8 @@ class AgentRepository:
             disk_percent=disk_usage,
             timestamp=timestamp,
             network_latency_ms=network_latency_ms,
+            provenance=provenance,
+            collection_interval_seconds=collection_interval_seconds,
             extra_metrics=(
                 {"uptime_seconds": uptime_seconds}
                 if uptime_seconds is not None
@@ -183,7 +187,12 @@ class AgentRepository:
         return metric
 
     def save_telemetry_bulk(
-        self, *, device_pk: int, entries: Iterable[dict]
+        self,
+        *,
+        device_pk: int,
+        entries: Iterable[dict],
+        provenance: str | None = None,
+        collection_interval_seconds: int | None = None,
     ) -> list[DeviceMetrics]:
         """Persist multiple telemetry entries for a device."""
         metrics: list[DeviceMetrics] = []
@@ -195,6 +204,8 @@ class AgentRepository:
                 disk_percent=entry["disk_usage"],
                 timestamp=entry["timestamp"],
                 network_latency_ms=entry.get("network_latency_ms"),
+                provenance=provenance,
+                collection_interval_seconds=collection_interval_seconds,
                 extra_metrics=(
                     {"uptime_seconds": entry["uptime_seconds"]}
                     if entry.get("uptime_seconds") is not None

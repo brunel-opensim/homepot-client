@@ -12,7 +12,7 @@ from homepot.app.auth_utils import TokenData, get_current_device, get_current_us
 from homepot.app.models import AnalyticsModel as models
 from homepot.app.utils.smart_filter import SmartDataFilter
 from homepot.database import get_db
-from homepot.models import Device
+from homepot.models import Device, derive_provenance
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -111,6 +111,18 @@ async def log_error(
         if device_id:
             context_data["device_id"] = device_id
 
+        # Resolve provenance from the device when one is supplied so the
+        # error row carries an immutable provenance snapshot.
+        provenance = None
+        if device_id:
+            from sqlalchemy import select
+
+            result = db.execute(select(Device).where(Device.device_id == device_id))
+            device = result.scalar_one_or_none()
+            if device:
+                derived = derive_provenance(device)
+                provenance = derived.value if derived else None
+
         error_log = models.ErrorLog(
             category=error.get("category", "unknown"),
             severity=error.get("severity", "error"),
@@ -121,6 +133,7 @@ async def log_error(
             user_id=error.get("user_id"),
             # device_id removed from model
             context=context_data,
+            provenance=provenance,
             timestamp=datetime.now(timezone.utc),
         )
         db.add(error_log)
@@ -156,6 +169,7 @@ async def log_device_metrics(
         "error_rate": 0.5,
         "active_connections": 10,
         "queue_depth": 2,
+        "collection_interval_seconds": 5,
         "extra_metrics": {...}
     }
     """
@@ -163,6 +177,7 @@ async def log_device_metrics(
         # Resolve device_id if it's a string
         device_id_input = metrics.get("device_id")
         device_pk = device_id_input
+        provenance_device = device
 
         if isinstance(device_id_input, str):
             # Look up the device to get the Integer PK
@@ -174,6 +189,7 @@ async def log_device_metrics(
             found_device = result.scalar_one_or_none()
             if found_device:
                 device_pk = found_device.id
+                provenance_device = found_device
             else:
                 # If device not found, we can't log metrics linked to it
                 logger.warning(
@@ -191,6 +207,7 @@ async def log_device_metrics(
                 "message": "Metrics filtered (no significant change)",
             }
 
+        provenance = derive_provenance(provenance_device)
         device_metrics = models.DeviceMetrics(
             device_id=device_pk,
             cpu_percent=metrics.get("cpu_percent"),
@@ -203,6 +220,8 @@ async def log_device_metrics(
             active_connections=metrics.get("active_connections"),
             queue_depth=metrics.get("queue_depth"),
             extra_metrics=metrics.get("extra_metrics"),
+            provenance=provenance.value if provenance else None,
+            collection_interval_seconds=metrics.get("collection_interval_seconds"),
             timestamp=datetime.now(timezone.utc),
         )
         db.add(device_metrics)
@@ -237,6 +256,7 @@ async def log_device_state_change(
         # Resolve device_id if it's a string
         device_id_input = state_change.get("device_id")
         device_pk = device_id_input
+        provenance_device = None
 
         if isinstance(device_id_input, str):
             # Look up the device to get the Integer PK
@@ -248,6 +268,7 @@ async def log_device_state_change(
             device = result.scalar_one_or_none()
             if device:
                 device_pk = device.id
+                provenance_device = device
             else:
                 logger.warning(
                     f"Device not found for state change logging: {device_id_input}"
@@ -257,6 +278,7 @@ async def log_device_state_change(
                     "message": f"Device {device_id_input} not found",
                 }
 
+        provenance = derive_provenance(provenance_device)
         state_log = models.DeviceStateHistory(
             device_id=device_pk,
             previous_state=state_change.get("previous_state"),
@@ -264,6 +286,7 @@ async def log_device_state_change(
             changed_by=current_user.email if current_user else "system",
             reason=state_change.get("reason"),
             metadata=state_change.get("metadata"),
+            provenance=provenance.value if provenance else None,
             timestamp=datetime.now(timezone.utc),
         )
         db.add(state_log)
@@ -300,6 +323,21 @@ async def log_job_outcome(
     }
     """
     try:
+        # Resolve provenance from the device when a device_id is supplied so
+        # the job outcome row carries an immutable provenance snapshot.
+        provenance = None
+        device_id_input = outcome.get("device_id")
+        if device_id_input:
+            from sqlalchemy import select
+
+            result = db.execute(
+                select(Device).where(Device.device_id == device_id_input)
+            )
+            device = result.scalar_one_or_none()
+            if device:
+                derived = derive_provenance(device)
+                provenance = derived.value if derived else None
+
         outcome_log = models.JobOutcome(
             job_id=outcome.get("job_id"),
             job_type=outcome.get("job_type"),
@@ -311,6 +349,7 @@ async def log_job_outcome(
             retry_count=outcome.get("retry_count", 0),
             initiated_by=outcome.get("initiated_by"),
             metadata=outcome.get("metadata"),
+            provenance=provenance,
             timestamp=datetime.now(timezone.utc),
         )
         db.add(outcome_log)
