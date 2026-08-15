@@ -249,6 +249,7 @@ def _setup_site_and_device(client: TestClient) -> Dict[str, Any]:
     return {
         "site_id": site_id,
         "device_id": device_id,
+        "api_key": api_key,
         "auth_headers": auth_headers,
     }
 
@@ -543,3 +544,126 @@ def test_agent_detail_includes_modern_state_fields(client: TestClient) -> None:
     )
     assert data["connectivity_state"] in ("unknown", "online", "offline")
     assert data["device_id"] == device_id
+
+
+def _device_headers(ctx: Dict[str, Any]) -> Dict[str, str]:
+    """Build the device auth headers for a setup context."""
+    return {
+        "X-Device-ID": ctx["device_id"],
+        "X-API-Key": ctx["api_key"],
+    }
+
+
+def _history_for(client: TestClient, ctx: Dict[str, Any]) -> list:
+    """Return the command history list for the setup device."""
+    resp = client.get(
+        f"/api/v1/devices/device/{ctx['device_id']}/commands",
+        headers=ctx["auth_headers"],
+    )
+    assert resp.status_code == 200
+    return resp.json()
+
+
+def test_command_lifecycle_timestamps(client: TestClient) -> None:
+    """PENDING → SENT → COMPLETED records sent_at and executed_at."""
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+    dheaders = _device_headers(ctx)
+
+    cmd_id = _queue_command(client, device_id, ctx["auth_headers"], "ping")
+
+    history = _history_for(client, ctx)
+    row = next(c for c in history if c["command_id"] == cmd_id)
+    assert row["sent_at"] is None
+    assert row["executed_at"] is None
+
+    # Ack the command → SENT, sent_at stamped
+    resp = client.post(
+        f"/api/v1/devices/{device_id}/commands/{cmd_id}/ack", headers=dheaders
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "sent"
+
+    history = _history_for(client, ctx)
+    row = next(c for c in history if c["command_id"] == cmd_id)
+    assert row["sent_at"] is not None
+    assert row["executed_at"] is None
+
+    # Report COMPLETED with a device-reported executed_at
+    executed_at = datetime.now(timezone.utc).isoformat()
+    resp = client.put(
+        f"/api/v1/devices/{cmd_id}/status",
+        json={
+            "status": "completed",
+            "result": {"message": "pong"},
+            "executed_at": executed_at,
+        },
+        headers=dheaders,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "completed"
+
+    history = _history_for(client, ctx)
+    row = next(c for c in history if c["command_id"] == cmd_id)
+    assert row["sent_at"] is not None
+    stored = datetime.fromisoformat(row["executed_at"])
+    expected = (
+        datetime.fromisoformat(executed_at)
+        .astimezone(timezone.utc)
+        .replace(tzinfo=None)
+    )
+    assert abs((stored - expected).total_seconds()) < 5
+
+
+def test_command_status_defaults_executed_at_to_server_time(client: TestClient) -> None:
+    """PUT /status without executed_at records the server clock."""
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+    dheaders = _device_headers(ctx)
+
+    cmd_id = _queue_command(client, device_id, ctx["auth_headers"], "ping")
+
+    resp = client.put(
+        f"/api/v1/devices/{cmd_id}/status",
+        json={"status": "failed", "result": {"error": "boom"}},
+        headers=dheaders,
+    )
+    assert resp.status_code == 200
+
+    history = _history_for(client, ctx)
+    row = next(c for c in history if c["command_id"] == cmd_id)
+    assert row["status"] == "failed"
+    assert row["executed_at"] is not None
+
+
+def test_command_expiry_records_executed_at(client: TestClient) -> None:
+    """Expired commands are stamped with executed_at."""
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+
+    cmd_id = _queue_command(client, device_id, ctx["auth_headers"], "ping")
+
+    db = homepot.database.SessionLocal()
+    try:
+        cmd = db.query(DeviceCommand).filter(DeviceCommand.command_id == cmd_id).first()
+        assert cmd is not None
+        cmd.created_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        db.commit()
+    finally:
+        db.close()
+
+    async def _expire():
+        svc = await homepot.database.get_database_service()
+        return await svc.expire_stale_commands(ttl_seconds=60)
+
+    expired_count = asyncio.run(_expire())
+    assert expired_count >= 1
+
+    db = homepot.database.SessionLocal()
+    try:
+        cmd = db.query(DeviceCommand).filter(DeviceCommand.command_id == cmd_id).first()
+        assert cmd is not None
+        assert cmd.status == CommandStatus.EXPIRED
+        assert cmd.executed_at is not None
+    finally:
+        db.close()

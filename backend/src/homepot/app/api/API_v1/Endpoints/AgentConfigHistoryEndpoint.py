@@ -15,7 +15,7 @@ from homepot.app.auth_utils import get_current_device
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 from homepot.app.schemas.agent import AgentConfigHistoryRequest
 from homepot.database import get_database_service
-from homepot.models import Device
+from homepot.models import Device, derive_provenance
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -39,6 +39,7 @@ async def report_config_history(
         )
     try:
         db_service = await get_database_service()
+        provenance = derive_provenance(current_device)
         async with db_service.get_session() as session:
             entry = ConfigurationHistory(
                 timestamp=payload.timestamp.astimezone(timezone.utc).replace(
@@ -53,6 +54,18 @@ async def report_config_history(
                 change_reason=payload.change_reason,
                 change_type="automated",
                 was_successful=payload.success,
+                performance_before=payload.performance_before,
+                performance_after=payload.performance_after,
+                was_rolled_back=payload.was_rolled_back,
+                rollback_reason=payload.rollback_reason,
+                rollback_success=payload.rollback_success,
+                rollback_performance=payload.rollback_performance,
+                rolled_back_at=(
+                    payload.rolled_back_at.astimezone(timezone.utc).replace(tzinfo=None)
+                    if payload.rolled_back_at is not None
+                    else None
+                ),
+                provenance=provenance.value if provenance is not None else None,
             )
             session.add(entry)
         return {"status": "success", "message": "Push history record stored"}

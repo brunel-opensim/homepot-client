@@ -341,6 +341,11 @@ class DeviceAgentSimulator:
                     new_val = {"version": config_version, "url": config_url}
 
                 async with db_service.get_session() as session:
+                    device_row = await session.execute(
+                        select(Device).where(Device.device_id == self.device_id)
+                    )
+                    device_obj = device_row.scalar_one_or_none()
+                    provenance = derive_provenance(device_obj)
                     config_history = ConfigurationHistory(
                         timestamp=datetime.utcnow(),
                         entity_type="device",
@@ -351,6 +356,7 @@ class DeviceAgentSimulator:
                         changed_by="system",
                         change_reason="Push notification config update",
                         change_type="automated",
+                        provenance=provenance.value if provenance else None,
                         performance_before={
                             "status": health_result.get("status"),
                             "response_time_ms": health_result.get("response_time_ms"),
