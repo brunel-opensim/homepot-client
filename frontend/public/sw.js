@@ -7,8 +7,12 @@
  */
 
 // Service Worker version - increment to force update
-const SW_VERSION = 'v1.0.0';
+const SW_VERSION = 'v1.1.0';
 const CACHE_NAME = `homepot-cache-${SW_VERSION}`;
+
+// Shared device_id helper (single source of truth, also used by the main app)
+importScripts('/deviceId.js');
+const getDeviceId = self.__HOMEPOT_DEVICE_ID__;
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
@@ -21,6 +25,7 @@ self.addEventListener('install', (event) => {
         '/',
         '/index.html',
         '/manifest.json',
+        '/deviceId.js',
       ]).catch((err) => {
         console.error('[SW] Cache failed:', err);
       });
@@ -51,47 +56,6 @@ self.addEventListener('activate', (event) => {
   // Claim all clients immediately
   return self.clients.claim();
 });
-
-// IndexedDB helper to store device_id
-const DB_NAME = 'homepot-db';
-const STORE_NAME = 'settings';
-
-async function getDeviceId() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const getRequest = store.get('device_id');
-
-      getRequest.onsuccess = () => {
-        if (getRequest.result) {
-          resolve(getRequest.result);
-        } else {
-          // Generate new ID if not found
-          const newId = self.crypto.randomUUID();
-          const writeTransaction = db.transaction(STORE_NAME, 'readwrite');
-          const writeStore = writeTransaction.objectStore(STORE_NAME);
-          writeStore.put(newId, 'device_id');
-          resolve(newId);
-        }
-      };
-      
-      getRequest.onerror = () => reject(getRequest.error);
-    };
-
-    request.onerror = () => reject(request.error);
-  });
-}
 
 async function acknowledgePush(messageId) {
   if (!messageId) return;

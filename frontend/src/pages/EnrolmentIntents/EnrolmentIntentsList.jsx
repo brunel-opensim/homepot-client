@@ -16,6 +16,7 @@ import {
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import DataTable from '@/components/ui/DataTable';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -384,130 +385,111 @@ export default function EnrolmentIntentsList() {
               </Button>
             </Card>
           ) : (
-            <div className="rounded-md border border-border bg-card flex-1 overflow-hidden relative">
-              <div className="absolute inset-0 overflow-auto">
-                <table className="w-full caption-bottom text-sm text-left">
-                  <thead className="[&_tr]:border-b border-border sticky top-0 bg-card z-10">
-                    <tr className="border-b border-border transition-colors hover:bg-muted/50">
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">
-                        Intent ID
-                      </th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Status</th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Expires</th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">
-                        Device Identity
-                      </th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Created</th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400 text-right">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="[&_tr:last-child]:border-0">
-                    {intents.map((intent) => {
-                      const meta = STATUS_META[intent.status] || STATUS_META.pending;
-                      const expired = isExpired(intent.expires_at);
-                      return (
-                        <tr
-                          key={intent.id}
-                          className="border-b border-border transition-colors hover:bg-muted/50"
-                        >
-                          <td className="p-4 align-middle font-mono text-xs text-gray-300">
-                            {intent.intent_id}
-                          </td>
-                          <td className="p-4 align-middle">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${meta.color}`}
+            <DataTable
+              columns={[
+                { key: 'intent_id', label: 'Intent ID' },
+                { key: 'status', label: 'Status' },
+                { key: 'expires', label: 'Expires' },
+                { key: 'identity', label: 'Device Identity' },
+                { key: 'created', label: 'Created' },
+                { key: 'actions', label: 'Actions', align: 'right' },
+              ]}
+            >
+              {intents.map((intent) => {
+                const meta = STATUS_META[intent.status] || STATUS_META.pending;
+                const expired = isExpired(intent.expires_at);
+                return (
+                  <tr
+                    key={intent.id}
+                    className="border-b border-border transition-colors hover:bg-muted/50"
+                  >
+                    <td className="p-4 align-middle font-mono text-xs text-gray-300">
+                      {intent.intent_id}
+                    </td>
+                    <td className="p-4 align-middle">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${meta.color}`}
+                      >
+                        {meta.label}
+                      </span>
+                    </td>
+                    <td className="p-4 align-middle">
+                      <div className="flex flex-col">
+                        <span className={`text-sm ${expired ? 'text-red-400' : 'text-gray-300'}`}>
+                          {intent.expires_at ? new Date(intent.expires_at).toLocaleString() : '-'}
+                        </span>
+                        {expired && (
+                          <span className="text-[10px] text-red-500 font-medium">Expired</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-4 align-middle text-sm text-gray-300">
+                      {intent.expected_device_identity || (
+                        <span className="text-gray-500 italic">Not specified</span>
+                      )}
+                    </td>
+                    <td className="p-4 align-middle text-sm text-gray-300">
+                      {intent.created_at ? new Date(intent.created_at).toLocaleString() : '-'}
+                    </td>
+                    <td className="p-4 align-middle text-right">
+                      <div className="flex justify-end gap-1.5">
+                        {intent.status === 'pending' && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleApprove(intent.intent_id)}
+                              className="h-7 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10"
                             >
-                              {meta.label}
-                            </span>
-                          </td>
-                          <td className="p-4 align-middle">
-                            <div className="flex flex-col">
-                              <span
-                                className={`text-sm ${expired ? 'text-red-400' : 'text-gray-300'}`}
-                              >
-                                {intent.expires_at
-                                  ? new Date(intent.expires_at).toLocaleString()
-                                  : '-'}
-                              </span>
-                              {expired && (
-                                <span className="text-[10px] text-red-500 font-medium">
-                                  Expired
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-4 align-middle text-sm text-gray-300">
-                            {intent.expected_device_identity || (
-                              <span className="text-gray-500 italic">Not specified</span>
-                            )}
-                          </td>
-                          <td className="p-4 align-middle text-sm text-gray-300">
-                            {intent.created_at ? new Date(intent.created_at).toLocaleString() : '-'}
-                          </td>
-                          <td className="p-4 align-middle text-right">
-                            <div className="flex justify-end gap-1.5">
-                              {intent.status === 'pending' && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleApprove(intent.intent_id)}
-                                    className="h-7 px-2 text-green-400 hover:text-green-300 hover:bg-green-500/10"
-                                  >
-                                    <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleReject(intent.intent_id)}
-                                    className="h-7 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                                  >
-                                    <XCircle className="h-3.5 w-3.5 mr-1" />
-                                    Reject
-                                  </Button>
-                                </>
-                              )}
-                              {(intent.status === 'pending' || intent.status === 'approved') && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRegenerate(intent.intent_id)}
-                                    disabled={regenerating === intent.intent_id}
-                                    className="h-7 px-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-50"
-                                  >
-                                    <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                                    {regenerating === intent.intent_id ? '...' : 'Regen Token'}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRevoke(intent.intent_id)}
-                                    className="h-7 px-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-                                  >
-                                    <Ban className="h-3.5 w-3.5 mr-1" />
-                                    Revoke
-                                  </Button>
-                                </>
-                              )}
-                              {intent.status === 'consumed' && (
-                                <span className="text-xs text-gray-500 italic flex items-center gap-1 px-2">
-                                  <CheckCircle className="h-3 w-3 text-blue-400" />
-                                  Consumed
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                              <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReject(intent.intent_id)}
+                              className="h-7 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            >
+                              <XCircle className="h-3.5 w-3.5 mr-1" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {(intent.status === 'pending' || intent.status === 'approved') && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRegenerate(intent.intent_id)}
+                              disabled={regenerating === intent.intent_id}
+                              className="h-7 px-2 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 disabled:opacity-50"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                              {regenerating === intent.intent_id ? '...' : 'Regen Token'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRevoke(intent.intent_id)}
+                              className="h-7 px-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                            >
+                              <Ban className="h-3.5 w-3.5 mr-1" />
+                              Revoke
+                            </Button>
+                          </>
+                        )}
+                        {intent.status === 'consumed' && (
+                          <span className="text-xs text-gray-500 italic flex items-center gap-1 px-2">
+                            <CheckCircle className="h-3 w-3 text-blue-400" />
+                            Consumed
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </DataTable>
           )}
         </div>
       </div>

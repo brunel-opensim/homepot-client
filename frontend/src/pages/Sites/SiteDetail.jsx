@@ -18,6 +18,7 @@ import api from '@/services/api';
 import OsIcon from '@/components/common/OsIcon';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import DataTable from '@/components/ui/DataTable';
 import DeviceDeleteDialog from '@/components/Devices/DeviceDeleteDialog';
 import BootstrapKeyDialog from '@/components/Sites/BootstrapKeyDialog';
 
@@ -320,180 +321,165 @@ export default function SiteDetail() {
             )}
           </div>
           {devices.length > 0 ? (
-            <div className="rounded-md border border-border bg-card flex-1 overflow-hidden relative">
-              <div className="absolute inset-0 overflow-auto">
-                <table className="w-full caption-bottom text-sm text-left">
-                  <thead className="[&_tr]:border-b border-border sticky top-0 bg-card z-10">
-                    <tr className="border-b border-border transition-colors hover:bg-muted/50">
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Name</th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Type</th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Status</th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">
-                        Enrollment
-                      </th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">Alerts</th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400">
-                        Last Seen
-                      </th>
-                      <th className="h-12 px-4 align-middle font-medium text-gray-400 text-right">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="[&_tr:last-child]:border-0">
-                    {filteredDevices.map((device) => (
-                      <tr
-                        key={device.id}
-                        className="border-b border-border transition-colors hover:bg-muted/50"
+            <DataTable
+              columns={[
+                { key: 'name', label: 'Name' },
+                { key: 'type', label: 'Type' },
+                { key: 'status', label: 'Status' },
+                { key: 'enrollment', label: 'Enrollment' },
+                { key: 'alerts', label: 'Alerts' },
+                { key: 'last_seen', label: 'Last Seen' },
+                { key: 'actions', label: 'Actions', align: 'right' },
+              ]}
+            >
+              {filteredDevices.map((device) => (
+                <tr
+                  key={device.id}
+                  className="border-b border-border transition-colors hover:bg-muted/50"
+                >
+                  <td
+                    className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
+                    onClick={() =>
+                      navigate(`/device/${device.device_id || device.id}`, {
+                        state: { from: 'site', siteId: id },
+                      })
+                    }
+                  >
+                    {device.name}
+                  </td>
+                  <td className="p-4 align-middle text-gray-300">
+                    <div className="uppercase">
+                      {device.device_type?.replace(/_/g, ' ') || 'Unknown'}
+                    </div>
+                    {device.os_details && device.os_family && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-400 normal-case mt-0.5">
+                        <OsIcon type={device.os_family} size="w-3.5 h-3.5" />
+                        <span>{device.os_details}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-4 align-middle">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          device.lifecycle_state === 'active'
+                            ? 'bg-green-500/10 text-green-500'
+                            : device.lifecycle_state === 'suspended'
+                              ? 'bg-orange-500/10 text-orange-500'
+                              : device.lifecycle_state === 'unpaired'
+                                ? 'bg-gray-500/10 text-gray-500'
+                                : 'bg-yellow-500/10 text-yellow-500'
+                        }`}
                       >
-                        <td
-                          className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
-                          onClick={() =>
-                            navigate(`/device/${device.device_id || device.id}`, {
-                              state: { from: 'site', siteId: id },
-                            })
-                          }
-                        >
-                          {device.name}
-                        </td>
-                        <td className="p-4 align-middle text-gray-300">
-                          <div className="uppercase">
-                            {device.device_type?.replace(/_/g, ' ') || 'Unknown'}
-                          </div>
-                          {device.os_details && device.os_family && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-400 normal-case mt-0.5">
-                              <OsIcon type={device.os_family} size="w-3.5 h-3.5" />
-                              <span>{device.os_details}</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4 align-middle">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                device.lifecycle_state === 'active'
-                                  ? 'bg-green-500/10 text-green-500'
-                                  : device.lifecycle_state === 'suspended'
-                                    ? 'bg-orange-500/10 text-orange-500'
-                                    : device.lifecycle_state === 'unpaired'
-                                      ? 'bg-gray-500/10 text-gray-500'
-                                      : 'bg-yellow-500/10 text-yellow-500'
-                              }`}
-                            >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  device.connectivity_state === 'online'
-                                    ? 'bg-green-500'
-                                    : device.connectivity_state === 'offline'
-                                      ? 'bg-gray-500'
-                                      : 'bg-yellow-500'
-                                }`}
-                              />
-                              {device.lifecycle_state || 'Unknown'}
-                            </span>
-                            {device.enrollment_method === 'emulated' ||
-                            device.device_source === 'emulator' ? (
-                              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                                EMU
-                              </span>
-                            ) : device.is_simulated ? (
-                              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                                SIM
-                              </span>
-                            ) : null}
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                device.health_state === 'healthy'
-                                  ? 'bg-green-500/10 text-green-400'
-                                  : device.health_state === 'warning'
-                                    ? 'bg-yellow-500/10 text-yellow-400'
-                                    : device.health_state === 'error'
-                                      ? 'bg-red-500/10 text-red-400'
-                                      : device.health_state === 'maintenance'
-                                        ? 'bg-blue-500/10 text-blue-400'
-                                        : 'bg-gray-500/10 text-gray-400'
-                              }`}
-                            >
-                              {device.health_state || 'unknown'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              device.enrollment_method === 'self-enrolled'
-                                ? 'bg-purple-500/10 text-purple-400'
-                                : 'bg-blue-500/10 text-blue-400'
-                            }`}
-                          >
-                            {device.enrollment_method === 'self-enrolled'
-                              ? 'Self-Enrolled'
-                              : 'Pre-Provisioned'}
-                          </span>
-                        </td>
-                        <td className="p-4 align-middle">
-                          {device.active_alerts > 0 ? (
-                            <div className="flex items-center text-orange-400 font-medium bg-orange-500/10 px-2 py-1 rounded w-fit">
-                              <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
-                              {device.active_alerts}
-                            </div>
-                          ) : (
-                            <div className="flex items-center text-emerald-500 font-medium bg-emerald-500/10 px-2 py-1 rounded w-fit">
-                              <CheckCircle className="h-3.5 w-3.5 mr-1.5" />0
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-4 align-middle">
-                          <div className="flex flex-col">
-                            <span className="text-gray-300">
-                              {device.last_seen
-                                ? new Date(device.last_seen).toLocaleString()
-                                : 'Never'}
-                            </span>
-                            {device.last_heartbeat_at && (
-                              <span className="text-[10px] text-gray-500 font-mono">
-                                HB: {new Date(device.last_heartbeat_at).toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/device/${device.device_id || device.id}/settings`, {
-                                  state: {
-                                    mode: 'edit',
-                                    from: 'site',
-                                  },
-                                });
-                              }}
-                              className="h-8 w-8 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteDeviceClick(device);
-                              }}
-                              className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            device.connectivity_state === 'online'
+                              ? 'bg-green-500'
+                              : device.connectivity_state === 'offline'
+                                ? 'bg-gray-500'
+                                : 'bg-yellow-500'
+                          }`}
+                        />
+                        {device.lifecycle_state || 'Unknown'}
+                      </span>
+                      {device.enrollment_method === 'emulated' ||
+                      device.device_source === 'emulator' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                          EMU
+                        </span>
+                      ) : device.is_simulated ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          SIM
+                        </span>
+                      ) : null}
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          device.health_state === 'healthy'
+                            ? 'bg-green-500/10 text-green-400'
+                            : device.health_state === 'warning'
+                              ? 'bg-yellow-500/10 text-yellow-400'
+                              : device.health_state === 'error'
+                                ? 'bg-red-500/10 text-red-400'
+                                : device.health_state === 'maintenance'
+                                  ? 'bg-blue-500/10 text-blue-400'
+                                  : 'bg-gray-500/10 text-gray-400'
+                        }`}
+                      >
+                        {device.health_state || 'unknown'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="p-4 align-middle">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        device.enrollment_method === 'self-enrolled'
+                          ? 'bg-purple-500/10 text-purple-400'
+                          : 'bg-blue-500/10 text-blue-400'
+                      }`}
+                    >
+                      {device.enrollment_method === 'self-enrolled'
+                        ? 'Self-Enrolled'
+                        : 'Pre-Provisioned'}
+                    </span>
+                  </td>
+                  <td className="p-4 align-middle">
+                    {device.active_alerts > 0 ? (
+                      <div className="flex items-center text-orange-400 font-medium bg-orange-500/10 px-2 py-1 rounded w-fit">
+                        <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                        {device.active_alerts}
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-emerald-500 font-medium bg-emerald-500/10 px-2 py-1 rounded w-fit">
+                        <CheckCircle className="h-3.5 w-3.5 mr-1.5" />0
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-4 align-middle">
+                    <div className="flex flex-col">
+                      <span className="text-gray-300">
+                        {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
+                      </span>
+                      {device.last_heartbeat_at && (
+                        <span className="text-[10px] text-gray-500 font-mono">
+                          HB: {new Date(device.last_heartbeat_at).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="p-4 align-middle text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/device/${device.device_id || device.id}/settings`, {
+                            state: {
+                              mode: 'edit',
+                              from: 'site',
+                            },
+                          });
+                        }}
+                        className="h-8 w-8 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDeviceClick(device);
+                        }}
+                        className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </DataTable>
           ) : (
             <Card className="p-8 text-center text-gray-400 border-dashed border-border bg-card">
               <Server className="h-8 w-8 mx-auto mb-3 opacity-50" />

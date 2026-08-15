@@ -4,6 +4,29 @@ import { LayoutDashboard, Map, Monitor, PlusCircle, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth';
 import ProfileModal from '@/components/ui/ProfileModal';
 
+function NavList({ items }) {
+  return (
+    <div className="space-y-1">
+      {items.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+              isActive
+                ? 'bg-indigo-600 text-white'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`
+          }
+        >
+          {item.icon}
+          <span>{item.label}</span>
+        </NavLink>
+      ))}
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const { logout, user } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -32,22 +55,7 @@ export default function Sidebar() {
             Overview
           </h3>
           <div className="space-y-1">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
+            <NavList items={navItems} />
           </div>
         </div>
 
@@ -56,22 +64,7 @@ export default function Sidebar() {
             Actions
           </h3>
           <div className="space-y-1">
-            {actionItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </NavLink>
-            ))}
+            <NavList items={actionItems} />
           </div>
         </div>
       </nav>
