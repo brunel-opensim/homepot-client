@@ -37,6 +37,7 @@ from homepot.models import (
     Job,
     JobPriority,
     JobStatus,
+    derive_provenance,
 )
 
 logger = logging.getLogger(__name__)
@@ -684,6 +685,10 @@ class DeviceAgentSimulator:
 
                     if device:
                         previous_status = device.status
+                        derived_provenance = derive_provenance(device)
+                        provenance_value = (
+                            derived_provenance.value if derived_provenance else None
+                        )
 
                         # Update device status only if changed
                         if previous_status != new_status:
@@ -707,6 +712,7 @@ class DeviceAgentSimulator:
                                 new_state=new_status,
                                 changed_by="system",
                                 reason=reason,
+                                provenance=provenance_value,
                                 extra_data={
                                     "response_time_ms": self.response_time_ms,
                                     "health_status": (
@@ -756,6 +762,7 @@ class DeviceAgentSimulator:
                                 "active_connections"
                             ],
                             queue_depth=health_data["metrics"]["queue_depth"],
+                            provenance=provenance_value,
                             extra_metrics={
                                 "uptime_seconds": health_data["metrics"][
                                     "uptime_seconds"

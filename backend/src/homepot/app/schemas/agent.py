@@ -101,6 +101,11 @@ class AgentTelemetryRequest(BaseModel):
     uptime_seconds: Optional[int] = Field(
         default=None, ge=0, description="System uptime in seconds"
     )
+    collection_interval_seconds: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Configured collection interval between telemetry samples",
+    )
     timestamp: datetime = Field(
         default_factory=utc_now, description="Telemetry timestamp in UTC"
     )
@@ -114,6 +119,7 @@ class AgentTelemetryRequest(BaseModel):
                 "disk_usage": 48.3,
                 "network_latency_ms": 8.4,
                 "uptime_seconds": 3600,
+                "collection_interval_seconds": 5,
                 "timestamp": "2026-03-31T10:50:00Z",
             }
         }
