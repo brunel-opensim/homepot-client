@@ -5,11 +5,11 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent } from './ui/card';
-import { Button } from './ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Button } from '../ui/button';
 import { Bell, BellOff, CheckCircle2, XCircle, AlertCircle, Send } from 'lucide-react';
-import pushManager from '../services/pushNotifications';
-import api from '../services/api';
+import pushManager from '../../services/pushNotifications';
+import api from '../../services/api';
 
 export default function NotificationSettings() {
   const [isSupported, setIsSupported] = useState(false);
