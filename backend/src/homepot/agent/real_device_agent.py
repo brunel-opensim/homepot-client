@@ -43,7 +43,12 @@ from homepot.agent.utils.proxy_settings import build_httpx_proxy_kwargs
 from homepot.agent.utils.push_listener import create_push_listener
 from homepot.agent.utils.real_device_discovery import get_connected_peripherals
 from homepot.agent.utils.retry_queue import RetryQueue
-from homepot.agent.utils.telemetry import build_telemetry_payload
+from homepot.agent.utils.submission_log import SubmissionLog
+from homepot.agent.utils.telemetry import (
+    build_telemetry_payload,
+    collect_pos_signals,
+    measure_network_latency_ms,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +110,11 @@ def load_agent_config() -> Dict[str, Any]:
     data.setdefault("watchdog_enabled", True)
     data.setdefault("watchdog_interval_seconds", 10)
     data.setdefault("shutdown_timeout_seconds", 30)
+    data.setdefault(
+        "pos_signals_source",
+        None,  # Inert until a data-source agreement and source validation exist
+    )
+    data.setdefault("submission_log_path", None)
     return data
 
 
@@ -121,15 +131,41 @@ async def post_json(
     url: str,
     payload: Dict[str, Any],
     headers: Dict[str, str],
+    *,
+    submission_log: Optional[SubmissionLog] = None,
+    timeout: float = 10.0,
 ) -> bool:
-    """Send JSON payload to backend and return True on HTTP success."""
+    """Send JSON payload to backend and return True on HTTP success.
+
+    When ``submission_log`` is provided, the attempt (endpoint, payload
+    sample timestamp, HTTP status, and acceptance) is appended to the
+    agent submission log so PF-01 ingestion success can be computed.
+    """
+    accepted = False
+    status_code: Optional[int] = None
     try:
-        response = await client.post(url, json=payload, headers=headers, timeout=10.0)
+        response = await client.post(
+            url, json=payload, headers=headers, timeout=timeout
+        )
         response.raise_for_status()
-        return True
+        accepted = True
+        status_code = response.status_code
     except Exception as e:
         logger.warning("POST failed url=%s error=%s", url, e)
-        return False
+
+    if submission_log is not None:
+        sample_timestamp = None
+        if isinstance(payload, dict):
+            sample_timestamp = payload.get("timestamp")
+        submission_log.append(
+            endpoint=url,
+            status_code=status_code,
+            payload_timestamp=(
+                str(sample_timestamp) if sample_timestamp is not None else None
+            ),
+            accepted=accepted,
+        )
+    return accepted
 
 
 async def get_json(
@@ -471,6 +507,7 @@ async def heartbeat_loop(
     config: Dict[str, Any],
     retry_queue: RetryQueue,
     ipc_server: Server | None,
+    submission_log: Optional[SubmissionLog] = None,
 ) -> None:
     """Continuously send heartbeats and update local IPC state."""
     url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/heartbeat"
@@ -489,7 +526,13 @@ async def heartbeat_loop(
                 site_id=config["site_id"],
                 status="ONLINE",
             )
-            ok = await post_json(client, url, payload, get_auth_headers(config))
+            ok = await post_json(
+                client,
+                url,
+                payload,
+                get_auth_headers(config),
+                submission_log=submission_log,
+            )
             if ok:
                 if ipc_server is not None:
                     update_local_agent_state(
@@ -514,10 +557,12 @@ async def telemetry_loop(
     config: Dict[str, Any],
     retry_queue: RetryQueue,
     ipc_server: Server | None,
+    submission_log: Optional[SubmissionLog] = None,
 ) -> None:
     """Continuously send telemetry metrics and update local IPC state."""
     url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/telemetry"
     interval = int(config["telemetry_interval_seconds"])
+    backend_url = str(config["backend_url"])
     while True:
         try:
             # Payload sent to POST /api/v1/agent/telemetry
@@ -527,11 +572,28 @@ async def telemetry_loop(
             #   "cpu_usage": 20.1,
             #   "memory_usage": 55.4,
             #   "disk_usage": 44.8,
+            #   "uptime_seconds": 86400,
+            #   "network_latency_ms": 8.4,
+            #   "collection_interval_seconds": 30,
             #   "timestamp": "2026-04-13T12:00:30Z"
             # }
-            payload = build_telemetry_payload(config["device_id"])
+            network_latency_ms = await measure_network_latency_ms(client, backend_url)
+            payload = build_telemetry_payload(
+                config["device_id"],
+                network_latency_ms=network_latency_ms,
+                collection_interval_seconds=interval,
+            )
             payload["site_id"] = config["site_id"]
-            ok = await post_json(client, url, payload, get_auth_headers(config))
+            pos = collect_pos_signals(config.get("pos_signals_source"))
+            if pos is not None:
+                payload["pos"] = pos
+            ok = await post_json(
+                client,
+                url,
+                payload,
+                get_auth_headers(config),
+                submission_log=submission_log,
+            )
             if ok and ipc_server is not None:
                 update_local_agent_state(
                     ipc_server.config.app,  # type: ignore[arg-type]
@@ -548,6 +610,7 @@ async def retry_flush_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
     retry_queue: RetryQueue,
+    submission_log: Optional[SubmissionLog] = None,
 ) -> None:
     """Flush queued failed payloads to backend at a fixed interval.
 
@@ -565,6 +628,7 @@ async def retry_flush_loop(
                     item["url"],
                     item["payload"],
                     get_auth_headers(config),
+                    submission_log=submission_log,
                 )
                 if not ok:
                     retry_queue.requeue(item)
@@ -776,6 +840,11 @@ async def run_agent(
 
     cred = create_credential_storage()
     retry_queue = RetryQueue()
+    submission_log = SubmissionLog(
+        Path(config["submission_log_path"])
+        if config.get("submission_log_path")
+        else None
+    )
     ipc_server = start_local_ipc_server(config)
 
     push_listener = create_push_listener(config, cred=cred)
@@ -825,12 +894,14 @@ async def run_agent(
 
         tasks = [
             asyncio.ensure_future(
-                heartbeat_loop(client, config, retry_queue, ipc_server)
+                heartbeat_loop(client, config, retry_queue, ipc_server, submission_log)
             ),
             asyncio.ensure_future(
-                telemetry_loop(client, config, retry_queue, ipc_server)
+                telemetry_loop(client, config, retry_queue, ipc_server, submission_log)
             ),
-            asyncio.ensure_future(retry_flush_loop(client, config, retry_queue)),
+            asyncio.ensure_future(
+                retry_flush_loop(client, config, retry_queue, submission_log)
+            ),
             asyncio.ensure_future(
                 pending_commands_loop(
                     client,

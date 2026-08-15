@@ -1,11 +1,18 @@
 """Tests for heartbeat and telemetry payload utilities."""
 
+import asyncio
 from datetime import datetime, timezone
+import json
+
+import httpx
 
 from homepot.agent.utils.heartbeat import build_heartbeat_payload, utc_now_iso
 from homepot.agent.utils.telemetry import (
     build_telemetry_payload,
+    collect_pos_signals,
     collect_system_telemetry,
+    collect_uptime_seconds,
+    measure_network_latency_ms,
 )
 from homepot.agent.utils.telemetry import utc_now_iso as te_utc_now
 
@@ -125,6 +132,88 @@ class TestCollectSystemTelemetry:
         metrics = collect_system_telemetry()
         assert 0 <= metrics["disk_usage"] <= 100
 
+    def test_includes_uptime_seconds(self):
+        """System telemetry includes a host uptime value."""
+        metrics = collect_system_telemetry()
+        assert "uptime_seconds" in metrics
+        assert isinstance(metrics["uptime_seconds"], float)
+        assert metrics["uptime_seconds"] >= 0
+
+
+class TestCollectUptimeSeconds:
+    """Tests for ``collect_uptime_seconds``."""
+
+    def test_returns_non_negative_float(self):
+        """Uptime is a non-negative float."""
+        uptime = collect_uptime_seconds()
+        assert isinstance(uptime, float)
+        assert uptime >= 0
+
+
+class TestMeasureNetworkLatencyMs:
+    """Tests for ``measure_network_latency_ms``."""
+
+    def test_returns_elapsed_ms_on_http_response(self):
+        """A responding backend yields a non-negative latency in milliseconds."""
+
+        async def _handler(request):
+            return httpx.Response(404, json={})
+
+        async def _run():
+            transport = httpx.MockTransport(_handler)
+            async with httpx.AsyncClient(transport=transport) as client:
+                return await measure_network_latency_ms(
+                    client, "https://backend.example.com"
+                )
+
+        result = asyncio.run(_run())
+        assert isinstance(result, float)
+        assert result >= 0
+
+    def test_returns_none_on_transport_error(self):
+        """An unreachable backend yields no latency measurement."""
+
+        async def _handler(request):
+            raise httpx.ConnectError("connection refused")
+
+        async def _run():
+            transport = httpx.MockTransport(_handler)
+            async with httpx.AsyncClient(transport=transport) as client:
+                return await measure_network_latency_ms(
+                    client, "https://backend.example.com"
+                )
+
+        result = asyncio.run(_run())
+        assert result is None
+
+
+class TestCollectPosSignals:
+    """Tests for ``collect_pos_signals``."""
+
+    def test_returns_none_when_unconfigured(self):
+        """No source configured means no POS signals (never fabricated)."""
+        assert collect_pos_signals(None) is None
+
+    def test_reads_json_source(self, tmp_path):
+        """A configured JSON source yields its POS metrics object."""
+        source = tmp_path / "pos_signals.json"
+        source.write_text(
+            json.dumps({"transaction_count": 42, "transaction_volume": 120.5}),
+            encoding="utf-8",
+        )
+        result = collect_pos_signals(str(source))
+        assert result == {
+            "transaction_count": 42,
+            "transaction_volume": 120.5,
+        }
+
+    def test_returns_none_for_invalid_source(self, tmp_path):
+        """A missing or malformed source yields no POS signals."""
+        assert collect_pos_signals(str(tmp_path / "missing.json")) is None
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json", encoding="utf-8")
+        assert collect_pos_signals(str(bad)) is None
+
 
 class TestBuildTelemetryPayload:
     """Tests for ``build_telemetry_payload``."""
@@ -142,11 +231,38 @@ class TestBuildTelemetryPayload:
         assert parsed.tzinfo is not None
 
     def test_includes_system_metrics(self):
-        """Payload includes cpu, memory, and disk metrics."""
+        """Payload includes cpu, memory, disk, and uptime metrics."""
         payload = build_telemetry_payload("dev-1")
         assert "cpu_usage" in payload
         assert "memory_usage" in payload
         assert "disk_usage" in payload
+        assert "uptime_seconds" in payload
+
+    def test_includes_network_latency_when_provided(self):
+        """Payload includes measured network latency when available."""
+        payload = build_telemetry_payload("dev-1", network_latency_ms=8.4)
+        assert payload["network_latency_ms"] == 8.4
+
+    def test_omits_network_latency_when_not_measured(self):
+        """Payload omits network latency when unavailable."""
+        payload = build_telemetry_payload("dev-1")
+        assert "network_latency_ms" not in payload
+
+    def test_includes_collection_interval_when_provided(self):
+        """Payload includes the configured collection interval."""
+        payload = build_telemetry_payload("dev-1", collection_interval_seconds=30)
+        assert payload["collection_interval_seconds"] == 30
+
+    def test_omits_collection_interval_when_not_provided(self):
+        """Payload omits the collection interval when unavailable."""
+        payload = build_telemetry_payload("dev-1")
+        assert "collection_interval_seconds" not in payload
+
+    def test_timestamp_is_sample_time(self):
+        """Payload timestamp is the device sample time (UTC ISO-8601)."""
+        payload = build_telemetry_payload("dev-1")
+        parsed = datetime.fromisoformat(payload["timestamp"])
+        assert parsed.tzinfo is not None
 
     def test_cpu_is_float(self):
         """CPU usage is a float."""

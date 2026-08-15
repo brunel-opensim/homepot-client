@@ -61,6 +61,8 @@ async def register_device(client: httpx.AsyncClient) -> Optional[str]:
 async def collect_and_send_metrics(client: httpx.AsyncClient, api_key: str):
     """Collect system metrics and send to backend."""
     headers = {"X-Device-ID": DEVICE_ID, "X-API-Key": api_key}
+    # Reported on the next sample; the first sample reports None.
+    latency_ms = None
 
     while True:
         try:
@@ -69,35 +71,36 @@ async def collect_and_send_metrics(client: httpx.AsyncClient, api_key: str):
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage("/")
             net_io = psutil.net_io_counters()
-
-            # Calculate network latency (simple ping to localhost or gateway)
-            # For simplicity, we'll simulate latency or use a placeholder
-            latency = 0.5  # Placeholder
+            uptime_seconds = max(0.0, time.time() - psutil.boot_time())
 
             metrics_payload = {
                 "device_id": DEVICE_ID,
                 "cpu_percent": cpu_percent,
                 "memory_percent": memory.percent,
                 "disk_percent": disk.percent,
-                "network_latency_ms": latency,
+                "network_latency_ms": latency_ms,
                 "transaction_count": 0,  # Not applicable for a generic server
                 "transaction_volume": 0.0,
                 "error_rate": 0.0,
                 "active_connections": len(psutil.net_connections()),
                 "collection_interval_seconds": COLLECTION_INTERVAL_SECONDS,
                 "extra_metrics": {
+                    "uptime_seconds": uptime_seconds,
                     "boot_time": psutil.boot_time(),
                     "bytes_sent": net_io.bytes_sent,
                     "bytes_recv": net_io.bytes_recv,
                 },
             }
 
-            # Send to Backend
+            # Send to Backend; the POST round-trip is the measured network
+            # latency reported on the following sample.
+            start = time.monotonic()
             response = await client.post(
                 f"{BASE_URL}/analytics/device-metrics",
                 json=metrics_payload,
                 headers=headers,
             )
+            latency_ms = (time.monotonic() - start) * 1000.0
 
             if response.status_code == 201:
                 logger.info(f"Sent metrics: CPU={cpu_percent}%, RAM={memory.percent}%")
@@ -166,7 +169,7 @@ async def poll_commands(client: httpx.AsyncClient, api_key: str):
 
 
 async def main():
-    """Main agent loop."""
+    """Run the real device agent loop."""
     print("\n" + "=" * 60)
     print(f"Real Device Agent for {DEVICE_ID}")
     print("To stop the agent, press Ctrl+C in this terminal.")
