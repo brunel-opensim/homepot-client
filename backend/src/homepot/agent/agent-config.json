@@ -23,5 +23,7 @@
   "log_backup_count": 5,
   "watchdog_enabled": true,
   "watchdog_interval_seconds": 10,
-  "shutdown_timeout_seconds": 30
+  "shutdown_timeout_seconds": 30,
+  "pos_signals_source": null,
+  "submission_log_path": null
 }
