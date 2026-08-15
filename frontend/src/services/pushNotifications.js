@@ -186,46 +186,16 @@ class PushNotificationManager {
   }
 
   /**
-   * Get or create device ID from IndexedDB
+   * Get or create device ID from IndexedDB.
+   *
+   * Delegates to the shared helper loaded from /deviceId.js (see index.html),
+   * which is also used by the service worker so both contexts agree.
    */
   async getDeviceId() {
-    const DB_NAME = 'homepot-db';
-    const STORE_NAME = 'settings';
-
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 1);
-
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
-        }
-      };
-
-      request.onsuccess = (event) => {
-        const db = event.target.result;
-        const transaction = db.transaction(STORE_NAME, 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
-        const getRequest = store.get('device_id');
-
-        getRequest.onsuccess = () => {
-          if (getRequest.result) {
-            resolve(getRequest.result);
-          } else {
-            // Generate new ID if not found
-            const newId = crypto.randomUUID();
-            const writeTransaction = db.transaction(STORE_NAME, 'readwrite');
-            const writeStore = writeTransaction.objectStore(STORE_NAME);
-            writeStore.put(newId, 'device_id');
-            resolve(newId);
-          }
-        };
-
-        getRequest.onerror = () => reject(getRequest.error);
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    if (!self.__HOMEPOT_DEVICE_ID__) {
+      throw new Error('Shared device_id helper (/deviceId.js) not loaded');
+    }
+    return self.__HOMEPOT_DEVICE_ID__();
   }
 
   /**
