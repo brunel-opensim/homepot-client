@@ -1,5 +1,6 @@
 """API endpoints for managing device commands."""
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -40,6 +41,7 @@ class CommandHistoryResponse(BaseModel):
     status: CommandStatus
     result: Optional[Dict[str, Any]] = None
     created_at: str
+    sent_at: Optional[str] = None
     executed_at: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -50,6 +52,7 @@ class UpdateCommandStatusRequest(BaseModel):
 
     status: CommandStatus
     result: Optional[Dict[str, Any]] = None
+    executed_at: Optional[datetime] = None
 
 
 class CommandResponse(BaseModel):
@@ -200,6 +203,17 @@ async def ack_command(
     if updated is None:
         raise HTTPException(status_code=404, detail="Command not found")
 
+    audit_logger = get_audit_logger()
+    await audit_logger.log_event(
+        AuditEventType.COMMAND_SENT,
+        f"Device '{device_id}' acknowledged command '{command_id}'",
+        device_id=current_device.id,  # type: ignore
+        new_values={
+            "command_id": command_id,
+            "sent_at": updated.sent_at.isoformat() if updated.sent_at else None,  # type: ignore
+        },
+    )
+
     return CommandResponse(
         command_id=updated.command_id,  # type: ignore
         command_type=updated.command_type,  # type: ignore
@@ -219,15 +233,44 @@ async def update_command_status(
     """Update the status of a command (e.g., COMPLETED, FAILED)."""
     db = await get_database_service()
 
+    executed_at = None
+    if request.executed_at is not None:
+        executed_at = request.executed_at.astimezone(timezone.utc).replace(tzinfo=None)
+
     updated_command = await db.update_command_status(
         command_id=command_id,
         status=request.status,
         result=request.result,
         device_id=cast(int, current_device.id),
+        executed_at=executed_at,
     )
 
     if not updated_command:
         raise HTTPException(status_code=404, detail="Command not found")
+
+    audit_logger = get_audit_logger()
+    if request.status == CommandStatus.COMPLETED:
+        event_type = AuditEventType.COMMAND_COMPLETED
+    elif request.status == CommandStatus.FAILED:
+        event_type = AuditEventType.COMMAND_FAILED
+    else:
+        event_type = None
+    if event_type is not None:
+        await audit_logger.log_event(
+            event_type,
+            f"Device '{current_device.device_id}' reported command '{command_id}' "
+            f"as {request.status.value}",
+            device_id=current_device.id,  # type: ignore
+            new_values={
+                "command_id": command_id,
+                "status": request.status.value,
+                "executed_at": (
+                    updated_command.executed_at.isoformat()
+                    if updated_command.executed_at  # type: ignore
+                    else None
+                ),
+            },
+        )
 
     return CommandResponse(
         command_id=updated_command.command_id,  # type: ignore
@@ -271,6 +314,7 @@ async def get_device_command_history(
             status=cmd.status,  # type: ignore
             result=cmd.result,  # type: ignore
             created_at=cmd.created_at.isoformat(),  # type: ignore
+            sent_at=cmd.sent_at.isoformat() if cmd.sent_at else None,  # type: ignore
             executed_at=cmd.executed_at.isoformat() if cmd.executed_at else None,  # type: ignore
         )
         for cmd in commands

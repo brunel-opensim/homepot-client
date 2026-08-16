@@ -730,8 +730,15 @@ class DatabaseService:
         status: CommandStatus,
         result: Optional[Dict[str, Any]] = None,
         device_id: Optional[int] = None,
+        executed_at: Optional[datetime.datetime] = None,
     ) -> Optional[DeviceCommand]:
-        """Update command status."""
+        """Update command status, stamping lifecycle timestamps.
+
+        Moving a command to ``SENT`` records the agent acknowledgement time in
+        ``sent_at`` (once). Terminal statuses (COMPLETED/FAILED/EXPIRED) record
+        ``executed_at`` using the device-reported value when provided, otherwise
+        the server clock.
+        """
         from datetime import datetime, timezone
 
         from sqlalchemy import select
@@ -745,11 +752,16 @@ class DatabaseService:
             command = exec_result.scalar_one_or_none()
 
             if command:
+                now = datetime.now(timezone.utc)
+                if status == CommandStatus.SENT and command.sent_at is None:
+                    command.sent_at = now  # type: ignore
+                if status in (CommandStatus.COMPLETED, CommandStatus.FAILED):
+                    command.executed_at = executed_at or now  # type: ignore
+                if status == CommandStatus.EXPIRED and command.executed_at is None:
+                    command.executed_at = now  # type: ignore
                 command.status = status  # type: ignore
                 if result:
                     command.result = result  # type: ignore
-                if status in (CommandStatus.COMPLETED, CommandStatus.FAILED):
-                    command.executed_at = datetime.now(timezone.utc)  # type: ignore
 
                 await session.commit()
                 await session.refresh(command)
@@ -790,6 +802,10 @@ class DatabaseService:
             commands = list(result.scalars().all())
             for cmd in commands:
                 cmd.status = CommandStatus.EXPIRED  # type: ignore[assignment]
+                if cmd.executed_at is None:
+                    cmd.executed_at = datetime.datetime.now(  # type: ignore
+                        datetime.timezone.utc
+                    )
             await session.commit()
             return len(commands)
 

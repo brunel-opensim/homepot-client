@@ -52,6 +52,12 @@ class AuditEventType(str, Enum):
     JOB_FAILED = "job_failed"
     JOB_CANCELLED = "job_cancelled"
 
+    # Command lifecycle transitions
+    COMMAND_SENT = "command_sent"
+    COMMAND_COMPLETED = "command_completed"
+    COMMAND_FAILED = "command_failed"
+    COMMAND_EXPIRED = "command_expired"
+
     # Agent interactions
     AGENT_STARTED = "agent_started"
     AGENT_STOPPED = "agent_stopped"

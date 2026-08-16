@@ -308,6 +308,30 @@ class AgentConfigHistoryRequest(BaseModel):
     timestamp: datetime = Field(
         default_factory=utc_now, description="Event timestamp in UTC"
     )
+    performance_before: Optional[dict] = Field(
+        default=None,
+        description="Device health/performance metrics captured before the change",
+    )
+    performance_after: Optional[dict] = Field(
+        default=None,
+        description="Device health/performance metrics captured after the change",
+    )
+    was_rolled_back: bool = Field(
+        default=False, description="Whether the change was subsequently rolled back"
+    )
+    rollback_reason: Optional[str] = Field(
+        default=None, description="Reason the change had to be rolled back"
+    )
+    rollback_success: Optional[bool] = Field(
+        default=None, description="Whether the rollback completed successfully"
+    )
+    rollback_performance: Optional[dict] = Field(
+        default=None,
+        description="Device health/performance metrics captured after rollback",
+    )
+    rolled_back_at: Optional[datetime] = Field(
+        default=None, description="When the rollback was applied (UTC)"
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -317,6 +341,8 @@ class AgentConfigHistoryRequest(BaseModel):
                 "parameter_name": "push_command:APPLY_CONFIG",
                 "new_value": {"command": "APPLY_CONFIG", "version": "2.1.0"},
                 "success": True,
+                "performance_before": {"response_time_ms": 45},
+                "performance_after": {"response_time_ms": 40},
                 "change_reason": "Push command APPLY_CONFIG executed",
             }
         }

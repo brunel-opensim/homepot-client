@@ -584,6 +584,7 @@ class DeviceCommand(Base):
     result = Column(JSON, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=utc_now)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships

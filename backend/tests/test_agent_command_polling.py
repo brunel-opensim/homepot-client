@@ -1,5 +1,6 @@
 """Tests for command polling and push wake-up utilities."""
 
+from datetime import datetime
 from unittest.mock import patch
 
 from homepot.agent.utils.command_poller import (
@@ -232,6 +233,8 @@ class TestBuildStatusUpdatePayload:
         """Payload with just command_id and status."""
         payload = build_status_update_payload("c1", "completed")
         assert payload["status"] == "completed"
+        assert "executed_at" in payload
+        datetime.fromisoformat(payload["executed_at"])  # must be parseable
 
     def test_payload_with_result(self):
         """Payload includes result dict when provided."""

@@ -238,6 +238,13 @@ class ConfigurationHistory(Base):
     was_successful = Column(Boolean, nullable=True)
     was_rolled_back = Column(Boolean, default=False)
     rollback_reason = Column(Text, nullable=True)
+    rollback_performance = Column(JSON, nullable=True)  # Metrics after rollback
+    rollback_success = Column(Boolean, nullable=True)
+    rolled_back_at = Column(DateTime, nullable=True)
+
+    # Evidence provenance (snapshotted at write time so historical rows do
+    # not silently inherit a later change to the device's classification)
+    provenance = Column(String(20), nullable=True, index=True)
 
     __table_args__ = (
         Index("idx_entity_timestamp", "entity_type", "entity_id", "timestamp"),

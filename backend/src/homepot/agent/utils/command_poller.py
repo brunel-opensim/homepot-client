@@ -1,5 +1,6 @@
 """Command polling and processing for the real device agent."""
 
+from datetime import datetime, timezone
 import logging
 import re
 import shlex
@@ -293,7 +294,10 @@ def build_status_update_payload(
     command_id: str, status: str, result: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Build the JSON body for ``PUT /api/v1/devices/{command_id}/status``."""
-    payload: Dict[str, Any] = {"status": status}
+    payload: Dict[str, Any] = {
+        "status": status,
+        "executed_at": datetime.now(timezone.utc).isoformat(),
+    }
     if result is not None:
         payload["result"] = result
     return payload
