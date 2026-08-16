@@ -29,6 +29,7 @@ from .Endpoints import (
     EnrolmentIntentsEndpoint,
     HealthEndpoint,
     JobsEndpoints,
+    KPIExportEndpoint,
     PushNotificationEndpoint,
     SitesBootstrapKeyEndpoint,
     SiteSchedulesEndpoint,
@@ -104,6 +105,7 @@ api_v1_router.include_router(DashboardEndpoint.router, tags=["Dashboard"])
 api_v1_router.include_router(
     AIEndpoint.router, prefix="/ai", tags=["AI & Machine Learning"]
 )
+api_v1_router.include_router(KPIExportEndpoint.router, prefix="/kpi", tags=["KPI"])
 
 # Agent APIs (legacy compatibility)
 api_v1_router.include_router(router, prefix="/agent", tags=["Agent"])
