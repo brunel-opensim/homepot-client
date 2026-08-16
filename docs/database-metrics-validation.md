@@ -98,12 +98,14 @@ To retrieve actual records for verification:
 | `memory_percent` | double | Memory Usage % |
 | `disk_percent` | double | Disk Usage % |
 | `network_latency_ms` | double | Network Latency |
+| `collection_interval_seconds` | integer | Agent-reported interval between samples (snapshotted) |
 | `transaction_count` | integer | Daily transaction count |
 | `transaction_volume` | double | Value of transactions |
 | `error_rate` | double | Error frequency |
 | `active_connections` | integer | Connection count |
 | `queue_depth` | integer | Processing queue size |
 | `extra_metrics` | json | Additional flexible metrics |
+| `provenance` | varchar(20) | Evidence class snapshotted at write time (real/controlled/simulated) |
 
 ### Sample Data
 **Record ID:** 886  
@@ -210,6 +212,7 @@ To retrieve actual records for verification:
 | `changed_by` | varchar(255) | Actor (User/System) |
 | `reason` | varchar(500) | Explanation for change |
 | `extra_data` | json | Contextual data |
+| `provenance` | varchar(20) | Evidence class snapshotted at write time (real/controlled/simulated) |
 
 ### Sample Data
 **Record ID:** 209  
@@ -262,6 +265,11 @@ To retrieve actual records for verification:
 | `performance_after` | json | Metrics post-change |
 | `was_successful` | boolean | Outcome |
 | `was_rolled_back` | boolean | Rollback status |
+| `rollback_reason` | text | Why it was rolled back |
+| `rollback_success` | boolean | Whether the rollback restored the baseline |
+| `rollback_performance` | json | Metrics post-rollback |
+| `rolled_back_at` | timestamp | Rollback time |
+| `provenance` | varchar(20) | Evidence class snapshotted at write time (real/controlled/simulated) |
 
 ### Sample Data
 **Record ID:** 4  

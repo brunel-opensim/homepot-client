@@ -18,17 +18,29 @@ This analytics infrastructure provides comprehensive data collection and queryin
 - Device ID, previous/new state
 - Changed by (user or system)
 - Reason and metadata
+- Provenance class snapshotted at write time
 
 **JobOutcome**: Tracks job execution results
 - Job type, device, status
 - Duration, error codes
 - Retry count, metadata
+- Provenance class snapshotted at write time
 
 **ErrorLog**: Categorized error tracking
 - Category (api, database, external_service, validation)
 - Severity (critical, error, warning, info)
 - Stack trace, context
 - Resolution status
+- Provenance class snapshotted at write time
+
+**DeviceMetrics**: Time-series device performance
+- CPU, memory, disk, network latency, transaction counters
+- `collection_interval_seconds` (agent-reported interval)
+- Provenance class snapshotted at write time
+
+**ConfigurationHistory**: Configuration changes and their outcome
+- Before/after performance, success, and rollback fields
+- Provenance class snapshotted at write time
 
 **UserActivity**: Tracks user behavior (frontend integration)
 - Activity type (page_view, click, search, interaction)
@@ -53,7 +65,7 @@ This analytics infrastructure provides comprehensive data collection and queryin
 To prevent database overload from high-frequency device metrics, the system implements a **Smart Data Filtering** mechanism (`SmartDataFilter`).
 
 **Logic:**
-1.  **Snapshot Interval**: A full snapshot of device metrics is stored every 5 minutes (configurable) regardless of changes, ensuring a heartbeat.
+1.  **Snapshot Interval**: A full snapshot of device metrics is stored every 5 minutes (configurable) regardless of changes, ensuring a heartbeat. The real agent instead reports at its configured `telemetry_interval_seconds` (default 30 s), recorded in `collection_interval_seconds`.
 2.  **Significant Change**: Metrics are stored immediately if they deviate by more than 5% (configurable) from the last stored value.
 3.  **First Contact**: The first data point received from a device (after system restart) is always stored.
 
@@ -296,7 +308,7 @@ db.commit()
 
 1. **Real-time Dashboard**: Connect to analytics endpoints for live monitoring
 2. **Alerting**: Set up alerts based on error rates, response times
-3. **Data Export**: Export analytics data for external analysis
+3. **Data Export**: Delivered — see [KPI Export](kpi-export.md) for the versioned, provenance-scoped, filterable export (API and CLI)
 4. **AI Integration**: Use collected data to train recommendation models
 5. **Aggregation Tables**: Create pre-computed hourly/daily aggregates for faster queries
 
