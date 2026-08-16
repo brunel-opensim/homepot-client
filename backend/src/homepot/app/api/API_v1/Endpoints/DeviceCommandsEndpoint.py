@@ -235,7 +235,10 @@ async def update_command_status(
 
     executed_at = None
     if request.executed_at is not None:
-        executed_at = request.executed_at.astimezone(timezone.utc).replace(tzinfo=None)
+        # device_commands.executed_at is a TIMESTAMP WITH TIME ZONE column;
+        # store the aware UTC value so it does not get shifted by the server
+        # session timezone (which previously produced negative round-trip times).
+        executed_at = request.executed_at.astimezone(timezone.utc)
 
     updated_command = await db.update_command_status(
         command_id=command_id,
