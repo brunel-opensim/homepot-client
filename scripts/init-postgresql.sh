@@ -165,12 +165,10 @@ fi
 DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
     $PYTHON_CMD backend/utils/seed_data.py
 
-# Check if initialization succeeded
-
-
-
 # Upgrade alembic migration state so that schema PRs cannot silently break
 # existing installs.  This runs after the app's create_all bootstraps the
 # base schema, applying any additive migrations from the base to head.
-export DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
-    $PYTHON_CMD scripts/upgrade-db.sh
+export DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+bash scripts/upgrade-db.sh
+
+# Check if initialization succeeded

@@ -31,48 +31,47 @@ else
   export DATABASE__URL="postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
 fi
 
-# The alembic CLI and psql need CWD = backend (script_location is relative
-# to CWD, and .venv/bin/alembic is on PATH when running from the repo root).
-cd backend
+# Resolve the repo root and the venv's alembic CLI explicitly.  alembic is
+# installed in the repo venv (.venv/bin/alembic), which is NOT guaranteed to
+# be on PATH in a fresh shell, so reference it by absolute path.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ -x "$REPO_ROOT/.venv/bin/alembic" ]; then
+  ALEMBIC="$REPO_ROOT/.venv/bin/alembic"
+elif command -v alembic >/dev/null 2>&1; then
+  ALEMBIC="alembic"
+else
+  echo "Error: alembic not found. Install it in the repo venv first:" >&2
+  echo "  python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt" >&2
+  exit 1
+fi
+
+# alembic.ini's script_location is relative to CWD, so run from backend/.
+cd "$REPO_ROOT/backend"
 
 # ----- Detect alembic state -------------------------------------------------
-HAS_ALembIC_VERSION=0
-HAS_TABLES=0
-PROVENANCE_COL=0
+# Each psql probe defaults to 0 on empty/failed output so the numeric
+# comparisons below never see an empty string ("integer expression expected").
+HAS_ALembIC_VERSION=$(psql "$DATABASE__URL" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='alembic_version'" 2>/dev/null | tr -d '[:space:]')
+HAS_ALembIC_VERSION=${HAS_ALembIC_VERSION:-0}
 
-# Check alembic_version table existence via psql using the env URL
-HAS_ALembIC_VERSION=$(psql "$DATABASE__URL" -tAc "SELECT to_regclass('alembic_version')" 2>/dev/null | tr -d '[:space:]')
-if [ "$HAS_ALembIC_VERSION" = "alembic_version" ]; then
-  HAS_ALembIC_VERSION=1
-fi
-
-# Check if any base tables exist (not temporary/special)
 HAS_TABLES=$(psql "$DATABASE__URL" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'" 2>/dev/null | tr -d '[:space:]')
-if [ "$HAS_TABLES" -ge 1 ] 2>/dev/null; then
-  HAS_TABLES=1
-fi
+HAS_TABLES=${HAS_TABLES:-0}
 
 # Check if the head-migration sentinel column exists:
 # device_metrics.provenance is added by 20260815 and is present on any
 # DB whose schema was bootstrapped by the current create_all models.
-if [ "$HAS_TABLES" -ge 1 ] 2>/dev/null; then
-  PROVENANCE_COL=$(psql "$DATABASE__URL" -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name='device_metrics' AND column_name='provenance'" 2>/dev/null | tr -d '[:space:]')
-  if [ "$PROVENANCE_COL" -ge 1 ] 2>/dev/null; then
-    PROVENANCE_COL=1
-  else
-    PROVENANCE_COL=0
-  fi
-else
-  PROVENANCE_COL=0
-fi
+PROVENANCE_COL=$(psql "$DATABASE__URL" -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name='device_metrics' AND column_name='provenance'" 2>/dev/null | tr -d '[:space:]')
+PROVENANCE_COL=${PROVENANCE_COL:-0}
 
 # ----- Apply the appropriate upgrade path ------------------------------------
-if [ "$HAS_ALembIC_VERSION" -eq 1 ]; then
+if [ "$HAS_ALembIC_VERSION" -ge 1 ]; then
   # alembic_version exists → apply any pending additive migrations.
   # This covers the now-fixed live DB and any future DB that has had
   # alembic migrations applied.
   echo "=== upgrade-db: alembic_version present → running 'alembic upgrade head' ==="
-  alembic -c alembic.ini upgrade head
+  "$ALEMBIC" -c alembic.ini upgrade head
 
 elif [ "$HAS_TABLES" -eq 0 ]; then
   # No tables at all — a freshly-initialized DB (e.g. after
@@ -80,7 +79,7 @@ elif [ "$HAS_TABLES" -eq 0 ]; then
   # DatabaseService.initialize() will run create_all at startup,
   # so just stamp alembic head so the migration state is consistent.
   echo "=== upgrade-db: no tables → running 'alembic stamp head' ==="
-  alembic -c alembic.ini stamp head
+  "$ALEMBIC" -c alembic.ini stamp head
   echo "=== upgrade-db: fresh DB stamped; app create_all will bootstrap schema ==="
 
 else
@@ -89,7 +88,7 @@ else
     # Head-migration columns are already present → the create_all bootstrapped
     # from current models.  Just stamp head so alembic knows the state.
     echo "=== upgrade-db: head columns present → running 'alembic stamp head' ==="
-    alembic -c alembic.ini stamp head
+    "$ALEMBIC" -c alembic.ini stamp head
     echo "=== upgrade-db: schema state recorded; future migrations will be detected ==="
   else
     # Sentinels missing → DB was created with older models.  Stamp the base
@@ -98,8 +97,8 @@ else
     # for stale DBs; after this run, alembic_version will be at head and
     # future schema PRs will only apply pending migrations.
     echo "=== upgrade-db: head columns missing → running 'alembic stamp 20260331_add_dna_heartbeat' then 'alembic upgrade head' ==="
-    alembic -c alembic.ini stamp 20260331_add_dna_heartbeat
-    alembic -c alembic.ini upgrade head
+    "$ALEMBIC" -c alembic.ini stamp 20260331_add_dna_heartbeat
+    "$ALEMBIC" -c alembic.ini upgrade head
     echo "=== upgrade-db: baseline stamped and full upgrade complete ==="
   fi
 fi
@@ -107,4 +106,4 @@ fi
 echo ""
 echo "=== upgrade-db complete ==="
 echo "DB URL: $DATABASE__URL"
-echo "alembic_version: $(psql "$DATABASE__URL" -tAc 'SELECT version FROM alembic_version' 2>/dev/null || echo 'N/A')"
+echo "alembic_version: $(psql "$DATABASE__URL" -tAc 'SELECT version_num FROM alembic_version' 2>/dev/null | tr -d '[:space:]' || echo 'N/A')"
