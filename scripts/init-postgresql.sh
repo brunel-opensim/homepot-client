@@ -166,23 +166,11 @@ DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB
     $PYTHON_CMD backend/utils/seed_data.py
 
 # Check if initialization succeeded
-if [ $? -eq 0 ]; then
-    echo ""
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}PostgreSQL Database initialization complete!${NC}"
-    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo "Connection details:"
-    echo "  Host: $DB_HOST"
-    echo "  Port: $DB_PORT"
-    echo "  Database: $DB_NAME"
-    echo "  User: $DB_USER"
-    echo ""
-    echo "Connection string (add to backend/.env):"
-    echo "  DATABASE__URL=postgresql://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME"
-    echo ""
-else
-    echo ""
-    echo -e "${RED}Error: Database initialization failed${NC}"
-    exit 1
-fi
+
+
+
+# Upgrade alembic migration state so that schema PRs cannot silently break
+# existing installs.  This runs after the app's create_all bootstraps the
+# base schema, applying any additive migrations from the base to head.
+export DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+    $PYTHON_CMD scripts/upgrade-db.sh
