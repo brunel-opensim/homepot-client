@@ -106,7 +106,7 @@ nav:
   - Project Info:
       - Product Vision: product-vision.md
       - Compliance Matrix: architecture-compliance-matrix.md
-      - UK KPI Evaluation Roadmap: KPI-evaluation-roadmap.md
+      - UK KPI Evaluation Roadmap: kpi-evaluation-roadmap.md
       - KPI Export & Calculations: kpi-export.md
       - Pilot Operator Protocol: operator-protocol.md
       - Evidence Recording: provenance-and-outcomes.md

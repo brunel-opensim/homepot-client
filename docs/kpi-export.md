@@ -3,7 +3,7 @@
 ## 1. Purpose
 
 This document is the stable reference for the implemented UK demonstrator KPI
-calculation and export ([roadmap §5 and Phase 2](KPI-evaluation-roadmap.md)). It
+calculation and export ([roadmap §5 and Phase 2](kpi-evaluation-roadmap.md)). It
 defines each exported KPI, its formula, its unit, its population, and the exact
 behaviour of the export API and command-line tool. It is the source of truth for
 "definitions, units, and limitations" of the machine-readable evidence output.

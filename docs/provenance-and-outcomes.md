@@ -6,7 +6,7 @@ This document defines how evidence provenance and command/configuration
 outcomes are recorded, so that exported KPI values (see
 [KPI export](kpi-export.md)) are traceable to the telemetry and events that
 produced them. It aligns the analytics telemetry documentation with the
-implemented schema and the [evaluation roadmap](KPI-evaluation-roadmap.md) §3.1
+implemented schema and the [evaluation roadmap](kpi-evaluation-roadmap.md) §3.1
 provenance principles.
 
 ## 2. Provenance classes

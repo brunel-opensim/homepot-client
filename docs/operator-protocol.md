@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document turns the [evaluation roadmap](KPI-evaluation-roadmap.md) Phase 0
+This document turns the [evaluation roadmap](kpi-evaluation-roadmap.md) Phase 0
 outputs into a concrete, operator-facing protocol. It fixes the definitions,
 units, owners, evidence bundle, reviewer rubric, and limitations that the
 demonstrator operator and the evidence reviewer must follow during a formal UK
