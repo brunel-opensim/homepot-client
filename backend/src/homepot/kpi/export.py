@@ -48,6 +48,20 @@ def _to_utc(dt: Any) -> Optional[datetime]:
     return cast(datetime, dt.astimezone(timezone.utc))
 
 
+def _to_naive_utc(dt: Any) -> Optional[datetime]:
+    """Normalize a timestamp to a NAIVE UTC datetime for analytics tables.
+
+    See ``homepot.kpi.calculator._to_naive_utc``: the analytics tables store
+    naive ``TIMESTAMP WITHOUT TIME ZONE`` values, so asyncpg requires naive
+    comparison parameters.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return cast(datetime, dt)
+    return cast(datetime, dt.astimezone(timezone.utc).replace(tzinfo=None))
+
+
 async def _extract_raw(
     session: AsyncSession,
     filters: ExportFilters,
@@ -56,8 +70,10 @@ async def _extract_raw(
     provenance_pks: Dict[str, set],
 ) -> List[RawTable]:
     """Extract in-window raw evidence rows for the export bundle."""
-    start = _to_utc(filters.start)
-    end = _to_utc(filters.end)
+    start = _to_naive_utc(filters.start)
+    end = _to_naive_utc(filters.end)
+    command_start = _to_utc(filters.start)
+    command_end = _to_utc(filters.end)
     raw: List[RawTable] = []
 
     metrics_stmt = select(DeviceMetrics).where(
@@ -177,7 +193,8 @@ async def _extract_raw(
         for device_id in pks
     }
     command_stmt = select(DeviceCommand).where(
-        DeviceCommand.created_at >= start, DeviceCommand.created_at <= end
+        DeviceCommand.created_at >= command_start,
+        DeviceCommand.created_at <= command_end,
     )
     if filters.provenance is not None:
         scope_pks = provenance_pks.get(filters.provenance, set())

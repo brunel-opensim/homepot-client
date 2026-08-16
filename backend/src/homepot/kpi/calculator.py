@@ -38,15 +38,32 @@ _NAIVE = ""
 def _to_utc(dt: Any) -> Optional[datetime]:
     """Normalize a timestamp to an aware UTC datetime.
 
-    The analytics tables store naive UTC timestamps; existing endpoints compare
-    them against aware UTC values on SQLite, so this helper keeps window
-    comparisons consistent with that convention.
+    Used for ``device_commands`` timestamps, which are stored as
+    ``TIMESTAMP WITH TIME ZONE`` and therefore require aware comparison values.
     """
     if dt is None:
         return None
     if dt.tzinfo is None:
         return cast(datetime, dt.replace(tzinfo=timezone.utc))
     return cast(datetime, dt.astimezone(timezone.utc))
+
+
+def _to_naive_utc(dt: Any) -> Optional[datetime]:
+    """Normalize a timestamp to a NAIVE UTC datetime.
+
+    The analytics tables (``device_metrics``, ``device_state_history``,
+    ``configuration_history``) store naive UTC timestamps
+    (``TIMESTAMP WITHOUT TIME ZONE``). asyncpg rejects aware datetime
+    parameters against such columns ("can't subtract offset-naive and
+    offset-aware datetimes"), so window comparisons against those tables must
+    use naive UTC values. SQLite tolerates either, which is why the tests did
+    not catch this on the PostgreSQL path.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return cast(datetime, dt)
+    return cast(datetime, dt.astimezone(timezone.utc).replace(tzinfo=None))
 
 
 def percentile(values: List[float], q: float) -> Optional[float]:
@@ -155,8 +172,8 @@ def _config_scope(
     device_id_strings: List[str],
 ) -> Select[tuple[ConfigurationHistory]]:
     """Apply window/device/provenance filters to a ConfigurationHistory query."""
-    start = _to_utc(filters.start)
-    end = _to_utc(filters.end)
+    start = _to_naive_utc(filters.start)
+    end = _to_naive_utc(filters.end)
     stmt = stmt.where(
         ConfigurationHistory.timestamp >= start,
         ConfigurationHistory.timestamp <= end,
@@ -355,8 +372,8 @@ async def compute_provenance_coverage(
     device_id_strings: List[str],
 ) -> List[KPIResult]:
     """EQ-01 provenance coverage = rows with valid provenance / eligible rows × 100."""
-    start = _to_utc(filters.start)
-    end = _to_utc(filters.end)
+    start = _to_naive_utc(filters.start)
+    end = _to_naive_utc(filters.end)
     results: List[KPIResult] = []
 
     definitions = [
@@ -446,8 +463,8 @@ async def compute_metric_network_latency(
     session: AsyncSession, filters: ExportFilters, pk_ids: List[int]
 ) -> List[KPIResult]:
     """PF-LAT device-reported network latency p50/p95/max from device_metrics."""
-    start = _to_utc(filters.start)
-    end = _to_utc(filters.end)
+    start = _to_naive_utc(filters.start)
+    end = _to_naive_utc(filters.end)
     stmt = select(DeviceMetrics).where(
         DeviceMetrics.timestamp >= start,
         DeviceMetrics.timestamp <= end,
