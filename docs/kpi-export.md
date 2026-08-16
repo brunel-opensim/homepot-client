@@ -302,3 +302,68 @@ until frozen in Phase 0.
   numerator/denominator counts distinguish "0%" from "no data".
 - **Percentiles on tiny samples:** with one value the p50/p95/max all equal
   that value; report sample counts alongside percentiles.
+
+## 11. Interpreting the results
+
+The KPIs form a layered assessment — read them in order, because a failing
+lower layer disqualifies the ones above it:
+
+| Layer | Question | KPIs |
+| --- | --- | --- |
+| Trust | Can I trust the data? | EQ-01 |
+| Health | Is the fleet healthy? | PF-LAT |
+| Control | Can I control devices? | MW-01, MW-02 |
+| Change | Can I change them safely? | MW-03, MW-04, MW-05 |
+
+### 11.1 Reading each KPI
+
+- **EQ-01 (provenance coverage)** — the trust gate. Confirm 100% before relying
+  on any other value; below 100% means some rows are untagged, so real,
+  controlled, and simulated evidence cannot be separated.
+- **PF-LAT (network latency)** — read the p50/p95/max *spread*, not a single
+  value. p50 is the typical experience, p95 the tail, max the worst case; a
+  wide p50→p95 gap indicates intermittent degradation rather than a steadily
+  slow link.
+- **MW-01 (command completion)** — below 100% means commands are failing or
+  expiring (devices offline, agents unresponsive, or required permissions not
+  granted — see §10). Use `exclusions` to separate still-in-flight commands
+  from genuine failures.
+- **MW-02 (command round-trip time)** — watch the p95 more than the mean: it
+  surfaces slow commands even while completion is still 100%. A rising trend
+  means the queue→agent→execution pipeline is degrading.
+- **MW-03/04/05 (change management)** — read as a closed loop: MW-03 (did it
+  apply) → MW-04 (did it actually improve health) → MW-05 (did rollback
+  recover). A change can apply (MW-03 = 100%) yet not improve (MW-04 low);
+  MW-05 is the safety-net metric that gives change control its confidence.
+
+### 11.2 The provenance lens
+
+Read and report each scope separately — the same number means different things:
+
+- `real` — production performance (the only scope to report as a result).
+- `controlled` — rehearsal and fault-injection runs, validating detection and
+  recovery before the real thing.
+- `simulated` — demonstration data only; never present as a result.
+
+See §3 for how each class is derived.
+
+### 11.3 Caveats when reading values
+
+- `value: null` is an empty denominator (no data), not a failure — check
+  `numerator`/`denominator` to distinguish "0%" from "no data" (§10).
+- With tiny samples a single event swings a rate to 0% or 100%; always read
+  `sample_count` beside the value, and treat percentiles on one or two points
+  with caution (§5).
+- Thresholds are TBD, so judge by **trend across runs** (compare `run_id`s)
+  rather than a single absolute value; the manifest's `git_commit` +
+  `calculation_version` make runs comparable (§6).
+- Cross-check the AI assistant's trust envelope: a low Gate B score (stale or
+  incomplete telemetry) should be reflected in the same run's KPIs.
+
+### 11.4 Suggested workflow
+
+1. Run the export over the operational window of interest, scoped by
+   site/device/type/provenance (§7).
+2. Read the manifest to pin the window and population (§6).
+3. Check EQ-01 = 100%, then PF-LAT, then MW-01/02, then MW-03/04/05.
+4. Report each scope separately, with `sample_count` beside every percentage.
