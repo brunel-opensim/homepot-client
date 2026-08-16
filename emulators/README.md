@@ -15,8 +15,13 @@ polling) against the HOMEPOT backend without physical hardware.
 | `*.json`                 | Default per-OS emulator configuration |
 
 Emulation is one of the **three test integration modes** (Simulation, Emulation,
-Real Devices); when running an emulator, keep `ENABLE_AGENT_SIMULATION=false` in
-the environment so simulated agents do not compete with the emulated device.
+Real Devices).
+
+> ⚠️ **Disable the in-process agent simulator first.** Keep
+> `ENABLE_AGENT_SIMULATION=false` in the environment (or `backend/.env`) when
+> running an emulator, otherwise the backend's built-in simulator writes fake
+> telemetry into the emulated device — and into any `real` device — corrupting
+> the `real`/`controlled`/`simulated` provenance used by the KPI export.
 
 ## Quick start
 

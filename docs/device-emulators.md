@@ -4,6 +4,19 @@ Standalone Python scripts that simulate real hardware devices for end-to-end tes
 
 Each emulator runs as an independent process that provisions itself with the backend, then sends heartbeats, telemetry, and responds to commands — just like a real device would.
 
+!!! warning "Disable the in-process agent simulator before emulating"
+    The backend's in-process agent simulator (`ENABLE_AGENT_SIMULATION=true`, the
+    default in `backend/.env`) starts a simulated agent for **every** active
+    POS/IoT device on startup. If it is left on while an emulator runs, it writes
+    additional fake telemetry into the emulated device — and into any `real`
+    device — which corrupts the `real`/`controlled`/`simulated` provenance that
+    the KPI export relies on.
+
+    Before starting an emulator, set `ENABLE_AGENT_SIMULATION=false` in
+    `backend/.env` (or the environment) and restart the backend. See
+    [Getting started — Simulation](getting-started.md) for what the simulator
+    does when enabled.
+
 ## Quick start
 
 ```bash
