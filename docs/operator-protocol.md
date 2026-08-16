@@ -64,7 +64,7 @@ provenance, or acceptance rule (roadmap §7 Phase 0).
 ### 4.3 After each run
 
 1. Generate exports with the [KPI export](kpi-export.md) (API or
-   `homepot-client kpi-export`); do not transform results in spreadsheets.
+   `./scripts/kpi-export.sh`); do not transform results in spreadsheets.
 2. Record exclusions and their reasons; never delete raw evidence.
 3. Assemble the evidence bundle (§5) with the generated manifest.
 4. Request the independent evidence review (§7) before reporting.
@@ -74,13 +74,13 @@ provenance, or acceptance rule (roadmap §7 Phase 0).
 One immutable bundle is stored per formal run (roadmap §8):
 
 ```text
-evidence/uk-homepot/<run-id>/
+kpi-evidence/<run-id>/
+├── kpi-export.json
 ├── manifest.json
 ├── protocol.md
 ├── environment.json
 ├── scenario-log.csv
 ├── raw/
-├── exports/
 ├── calculations/
 ├── screenshots/
 ├── reviewer-signoff.md
@@ -94,7 +94,7 @@ evidence/uk-homepot/<run-id>/
 | `environment.json` | Deployment versions, database snapshot identifier, device types/OS, network conditions |
 | `scenario-log.csv` | Scenario ID, preconditions, operator, start/end, expected events, result, interventions |
 | `raw/` | Raw evidence rows (metrics, state history, config history, commands) — read-only |
-| `exports/` | `kpi-export.json` or `kpi-summary.csv` from the KPI export |
+| `kpi-export.json` | Versioned KPI export bundle (or `kpi-summary.csv` with `--format csv`) from the KPI export |
 | `calculations/` | Calculation code revision (Git commit) and generated manifests |
 | `screenshots/` | Illustrative dashboard captures (do not replace machine-readable evidence) |
 | `reviewer-signoff.md` | Second-person review outcome (§7) and audit log of discrepancies |

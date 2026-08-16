@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 import logging
 import subprocess  # noqa: S404 - fixed argv; reads a local Git revision only
+from typing import Optional
 
 from homepot.kpi.models import ExportFilters
 
@@ -43,13 +44,28 @@ def get_git_commit() -> str:
     return "unknown"
 
 
-def build_manifest(filters: ExportFilters, provenance_scopes: list[str]) -> dict:
+def generate_run_id(dt: Optional[datetime] = None) -> str:
+    """Generate a UTC timestamp run ID (e.g. ``20260816T220500Z``).
+
+    Used to name the evidence directory and pin every export to a unique,
+    sortable run identifier. Callers may pass an explicit ``dt`` for
+    deterministic tests.
+    """
+    moment = dt if dt is not None else datetime.now(timezone.utc)
+    return moment.strftime("%Y%m%dT%H%M%SZ")
+
+
+def build_manifest(
+    filters: ExportFilters, provenance_scopes: list[str], run_id: str
+) -> dict:
     """Build the export manifest dict.
 
-    Includes the window, filters, timezone, calculation version, Git commit,
-    and generation timestamp so every value resolves to a reproducible run.
+    Includes the run ID, window, filters, timezone, calculation version, Git
+    commit, and generation timestamp so every value resolves to a reproducible
+    run.
     """
     return {
+        "run_id": run_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "timezone": REPORT_TIMEZONE,
         "calculation_version": KPI_CALCULATION_VERSION,

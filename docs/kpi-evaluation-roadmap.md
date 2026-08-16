@@ -194,7 +194,7 @@ UK-E08 is blocked until the UK partner confirms the external system, event contr
 
 ### Phase 2 — Build Reproducible KPI Calculations
 
-Delivered as `GET /api/v1/kpi/export` and `homepot-client kpi-export`. The
+Delivered as `GET /api/v1/kpi/export` and `./scripts/kpi-export.sh`. The
 versioned export supports:
 
 - `start`, `end`, `site_id`, `device_id`, `device_type`, and provenance filters;
@@ -251,13 +251,13 @@ During the frozen pilot window:
 Store one immutable bundle per formal run:
 
 ```text
-evidence/uk-homepot/<run-id>/
+kpi-evidence/<run-id>/
+├── kpi-export.json
 ├── manifest.json
 ├── protocol.md
 ├── environment.json
 ├── scenario-log.csv
 ├── raw/
-├── exports/
 ├── calculations/
 ├── screenshots/
 ├── reviewer-signoff.md

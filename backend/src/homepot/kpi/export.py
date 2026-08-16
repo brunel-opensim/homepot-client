@@ -25,7 +25,7 @@ from homepot.kpi.calculator import (
     compute_rollback_effectiveness,
     compute_verified_improvement_rate,
 )
-from homepot.kpi.manifest import build_manifest
+from homepot.kpi.manifest import build_manifest, generate_run_id
 from homepot.kpi.models import ExportFilters, KPIExportBundle, KPIResult, RawTable
 from homepot.models import CommandStatus, DeviceCommand
 
@@ -48,6 +48,20 @@ def _to_utc(dt: Any) -> Optional[datetime]:
     return cast(datetime, dt.astimezone(timezone.utc))
 
 
+def _to_naive_utc(dt: Any) -> Optional[datetime]:
+    """Normalize a timestamp to a NAIVE UTC datetime for analytics tables.
+
+    See ``homepot.kpi.calculator._to_naive_utc``: the analytics tables store
+    naive ``TIMESTAMP WITHOUT TIME ZONE`` values, so asyncpg requires naive
+    comparison parameters.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return cast(datetime, dt)
+    return cast(datetime, dt.astimezone(timezone.utc).replace(tzinfo=None))
+
+
 async def _extract_raw(
     session: AsyncSession,
     filters: ExportFilters,
@@ -56,8 +70,10 @@ async def _extract_raw(
     provenance_pks: Dict[str, set],
 ) -> List[RawTable]:
     """Extract in-window raw evidence rows for the export bundle."""
-    start = _to_utc(filters.start)
-    end = _to_utc(filters.end)
+    start = _to_naive_utc(filters.start)
+    end = _to_naive_utc(filters.end)
+    command_start = _to_utc(filters.start)
+    command_end = _to_utc(filters.end)
     raw: List[RawTable] = []
 
     metrics_stmt = select(DeviceMetrics).where(
@@ -177,7 +193,8 @@ async def _extract_raw(
         for device_id in pks
     }
     command_stmt = select(DeviceCommand).where(
-        DeviceCommand.created_at >= start, DeviceCommand.created_at <= end
+        DeviceCommand.created_at >= command_start,
+        DeviceCommand.created_at <= command_end,
     )
     if filters.provenance is not None:
         scope_pks = provenance_pks.get(filters.provenance, set())
@@ -219,9 +236,11 @@ async def _extract_raw(
 
 
 async def compute_kpi_bundle(
-    session: AsyncSession, filters: ExportFilters
+    session: AsyncSession, filters: ExportFilters, run_id: Optional[str] = None
 ) -> KPIExportBundle:
     """Compute every in-scope KPI and assemble a versioned export bundle."""
+    if run_id is None:
+        run_id = generate_run_id()
     pk_ids, device_id_strings = await _resolve_devices(session, filters)
     provenance_pks = await _provenance_device_pks(session)
 
@@ -268,7 +287,7 @@ async def compute_kpi_bundle(
     raw = await _extract_raw(
         session, filters, pk_ids, device_id_strings, provenance_pks
     )
-    manifest = build_manifest(filters, scopes)
+    manifest = build_manifest(filters, scopes, run_id)
     return KPIExportBundle(manifest=manifest, kpis=kpis, raw=raw)
 
 

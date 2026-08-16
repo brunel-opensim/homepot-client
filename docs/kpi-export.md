@@ -191,6 +191,7 @@ Every export includes the following metadata:
 
 | Field | Meaning |
 | --- | --- |
+| `run_id` | Unique run identifier (UTC timestamp, e.g. `20260816T220500Z`; overridable via `--run-id`) |
 | `generated_at` | Generation timestamp, UTC ISO-8601 |
 | `timezone` | Reporting timezone (`UTC`) |
 | `calculation_version` | Calculation code version (`1.0.0`) |
@@ -228,18 +229,27 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ### 7.2 Command-line tool
 
+Run from the repository root:
+
 ```bash
-homepot-client kpi-export \
+./scripts/kpi-export.sh \
   --start 2026-08-01T00:00:00Z \
   --end 2026-08-14T23:59:59Z \
-  --provenance real \
-  --out-dir evidence/uk-homepot/demo-run/exports
+  --provenance real
 ```
 
-Options mirror the API (`--site-id`, `--device-id`, `--device-type`,
-`--provenance`, `--format json|csv`, `--out-dir`). It writes
-`kpi-export.json` (bundle) or `kpi-summary.csv` (summary) into `--out-dir`
-and prints the calculation version and Git commit on completion.
+`scripts/kpi-export.sh` resolves the venv and database URL so the command works
+from the repo root; when the venv is active, `homepot-client kpi-export ...` is
+equivalent. Options mirror the API (`--site-id`, `--device-id`, `--device-type`,
+`--provenance`, `--run-id`, `--format json|csv`, `--out-dir`). It writes
+`kpi-export.json` (bundle) or `kpi-summary.csv` (summary) and prints the run ID,
+calculation version, and Git commit on completion.
+
+The default `--out-dir` is `kpi-evidence/<run-id>`, where `<run-id>` is a UTC
+timestamp generated per run (override with `--run-id`, e.g.
+`UK-E01-rehearsal-1`). `kpi-evidence/` is a repository-root directory that is
+gitignored except for its `README.md`, mirroring `logs/`. Pass an explicit
+`--out-dir` to write elsewhere. See `kpi-evidence/README.md`.
 
 ## 8. Reproducibility requirements
 
