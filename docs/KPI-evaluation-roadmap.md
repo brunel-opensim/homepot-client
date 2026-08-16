@@ -128,8 +128,8 @@ No operational KPI can receive a **Validated** label when its underlying evidenc
 
 | ID | KPI and calculation | Population/window | Threshold | Required evidence |
 | --- | --- | --- | --- | --- |
-| MW-01 | **Command completion rate** = completed commands / terminal commands × 100 | Commands sent to real pilot devices | TBD | Queue, agent execution, and status history |
-| MW-02 | **Command round-trip time** = terminal status time − queue time | By command type; p50/p95/max | TBD | Command audit timestamps |
+| MW-01 | **Command completion rate** = completed commands / terminal commands × 100 | Commands sent to real pilot devices (only command types the owner granted) | TBD | Queue, agent execution, and status history |
+| MW-02 | **Command round-trip time** = terminal status time − queue time | By command type; p50/p95/max (only granted command types) | TBD | Command audit timestamps |
 | MW-03 | **Configuration-change success** = successful changes / attempted changes × 100 | Real devices and approved config scenarios | TBD | Configuration history with `was_successful` |
 | MW-04 | **Verified improvement rate** = successful changes meeting the defined post-change health target / successful changes × 100 | Changes with valid before/after windows | TBD | `performance_before`, `performance_after`, health checks |
 | MW-05 | **Rollback effectiveness** = rollbacks restoring the baseline health target / attempted rollbacks × 100 | Injected failed-change scenarios | TBD | Config history, rollback result, post-rollback health |

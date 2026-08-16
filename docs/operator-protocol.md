@@ -149,6 +149,11 @@ Every report must state, at minimum:
 - excluded rows, their reasons, and any scenarios that could not be executed;
 - provenance caveats (for example command KPIs whose provenance is derived at
   export time rather than snapshotted);
+- command-permission coverage (command KPIs describe only the command types
+  each device owner has granted — devices granting no permissions contribute no
+  command evidence, and un-granted types such as `restart`/`shutdown`
+  (`root_access`) or `update_config` (`filesystem_access`) are absent from
+  MW-01/MW-02);
 - whether any **REAL** and **CONTROLLED**/**SIMULATED** values were combined in
   a headline number (which is prohibited by roadmap §3.3).
 
