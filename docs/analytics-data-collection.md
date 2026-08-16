@@ -9,9 +9,6 @@ HOMEPOT Client automatically collects operational data to enable AI-powered insi
 - **5 operational analytics tables**: API requests, device states, job outcomes, errors, user activities
 - **3 AI-focused tables**: Device metrics, configuration history, site schedules
 
-- **5 Core Analytics Tables:** API requests, device states, job outcomes, errors, user activities
-- **3 AI-Focused Tables:** Device performance metrics, configuration history, site schedules
-
 **Current Status:** (Verified Dec 18, 2025)
 - Database tables created (all 8 tables, verified in PostgreSQL)
 - API request logging (automatic via middleware, **123 rows actively collecting**)
@@ -273,8 +270,7 @@ except Exception as e:
         user_id=current_user.id if current_user else None,
         device_id=device_id if device_id else None,
         context={"additional": "context", "data": "here"}
-````
-    ))
+    )
     db.commit()
     raise
 ```
@@ -327,7 +323,7 @@ Frontend developers need to add tracking calls. See [Frontend Analytics Integrat
 ## 6. Device Performance Metrics
 
 **Table:** `device_metrics`  
-**Collection Status:** Needs periodic collection (recommended: every 5 minutes)
+**Collection Status:** Agent telemetry (real agent default: every 30 seconds)
 
 ### What It Stores
 
@@ -339,12 +335,14 @@ Tracks device performance metrics over time for predictive maintenance and optim
 - `memory_percent`: Memory usage percentage
 - `disk_percent`: Disk usage percentage
 - `network_latency_ms`: Network latency in milliseconds
+- `collection_interval_seconds`: Agent-reported interval between samples (snapshotted)
 - `transaction_count`: Number of transactions processed
 - `transaction_volume`: Dollar amount of transactions
 - `error_rate`: Error rate percentage
 - `active_connections`: Number of active connections
 - `queue_depth`: Number of queued items
 - `extra_metrics`: Additional JSON metrics
+- `provenance`: Evidence class snapshotted at write time (`real`, `controlled`, or `simulated`)
 
 ### Example Data
 
@@ -371,7 +369,7 @@ Add periodic metrics collection (e.g., in a background task):
 ```python
 from homepot.app.models.AnalyticsModel import DeviceMetrics
 
-# Every 5 minutes
+# Real agent default: every 30 seconds
 async def collect_device_metrics(device_id: str):
     metrics = await get_device_performance(device_id)
     
@@ -413,6 +411,10 @@ Tracks configuration changes and their impact for AI learning:
 - `was_successful`: Whether change achieved desired result
 - `was_rolled_back`: Whether change was reverted
 - `rollback_reason`: Why it was rolled back
+- `rollback_success`: Whether the rollback restored the baseline
+- `rollback_performance`: Performance metrics after rollback (JSON)
+- `rolled_back_at`: Timestamp of the rollback
+- `provenance`: Evidence class snapshotted at write time (`real`, `controlled`, or `simulated`)
 
 ### Implementation Details
 
@@ -506,39 +508,6 @@ config_history = ConfigurationHistory(
     change_type="manual",
 )
 session.add(config_history)
-```
-
----
-
-## 5. User Activities
-
-**Table:** `user_activities`  
-**Collection Status:** Needs frontend implementation
-
-### What It Stores
-
-# Apply change
-await update_device_config(device_id, "max_connections", 15)
-
-# After change (wait a bit for metrics)
-await asyncio.sleep(60)
-after_metrics = await measure_performance(device_id)
-
-# Log the change
-db.add(ConfigurationHistory(
-    entity_type="device",
-    entity_id=device_id,
-    parameter_name="max_connections",
-    old_value={"value": 10},
-    new_value={"value": 15},
-    changed_by=current_user.id,
-    change_reason="Increased load during peak hours",
-    change_type="manual",
-    performance_before={"avg_response_time": 145, "error_rate": 1.2},
-    performance_after={"avg_response_time": 98, "error_rate": 0.3},
-    was_successful=True
-))
-await db.commit()
 ```
 
 ---

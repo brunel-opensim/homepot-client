@@ -107,6 +107,9 @@ nav:
       - Product Vision: product-vision.md
       - Compliance Matrix: architecture-compliance-matrix.md
       - UK KPI Evaluation Roadmap: KPI-evaluation-roadmap.md
+      - KPI Export & Calculations: kpi-export.md
+      - Pilot Operator Protocol: operator-protocol.md
+      - Evidence Recording: provenance-and-outcomes.md
       - Getting Started:
           - Quick Start: getting-started.md
           - Running Locally: running-locally.md
@@ -171,6 +174,7 @@ nav:
           - Device Emulators: device-emulators.md
           - Agent Packaging & Identity: agent-packaging-and-identity.md
           - Fleet Load Testing: fleet-simulation.md
+          - Real Device Agent: real-device-agent.md
           - Real Device Transition: real-device-transition.md
           - Team Tasks (Readiness): real-device-readiness-tasks.md
 

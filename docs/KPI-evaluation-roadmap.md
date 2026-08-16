@@ -49,7 +49,7 @@ Every device, metric row, result, chart, and export must carry or inherit one of
 | `CONTROLLED` | Produced by a deterministic emulator or injected fault under a recorded test protocol | May support functional and resilience claims, with the test conditions stated |
 | `SIMULATED` | Random or seeded demonstration data | Pipeline rehearsal only; must not support a real-world performance claim |
 
-The `Device.is_simulated` field is a starting point, but the evaluation export must preserve provenance after data are aggregated. Historical rows must not silently inherit a device’s current classification.
+`Device.is_simulated` and the configured `device_source` are combined by `derive_provenance()`, and the class is snapshotted onto each telemetry and event row at write time, so historical rows do not silently inherit a device’s later classification. See [Evidence Recording](provenance-and-outcomes.md).
 
 ### 3.2 Claim maturity
 
@@ -82,13 +82,13 @@ The repository has useful evaluation infrastructure, but most KPI claims are not
 | API request timing and status logging | Implemented | Can support API latency and failure calculations after aggregation and test-traffic filtering are added |
 | Basic dashboard counts | Implemented | Supports live status display, not a time-bounded KPI result |
 | Device metrics schema | Implemented | CPU, memory, and disk are available; several operational fields remain unpopulated by the real agent |
-| Real device telemetry | Partial | Real agent does not currently collect network latency, uptime, or genuine POS/application signals |
-| Error analytics | Partial | Frontend uses `message`/`extra_data`; backend contract expects `error_message`/`context` |
-| Device state history | Partial | `metadata`/`extra_data` naming is inconsistent and needs an end-to-end contract test |
-| Configuration history | Partial | Schema supports before/after performance, success, and rollback; closed-loop post-change evidence is incomplete |
-| Real/simulated distinction | Partial | Device-level `is_simulated` exists, but provenance is not preserved consistently in metric aggregates or exports |
-| KPI aggregation | Partial | Average/minimum/maximum API timing and job status counts exist; percentiles, rates, freshness, connectivity, and health compliance are missing |
-| KPI dashboard/export | Missing | No time-bounded, site/device-filtered evidence export with provenance and calculation metadata |
+| Real device telemetry | Implemented | Real agent collects network latency, uptime, and collection metadata; POS signals remain config-gated |
+| Error analytics | Implemented | Frontend and backend aligned on `error_message`/`context` with a contract test |
+| Device state history | Implemented | Standardised on `extra_data` with an end-to-end contract test |
+| Configuration history | Implemented | Before/after performance, success, and rollback outcome fields captured; closed-loop evidence for MW-03 to MW-05 |
+| Real/simulated distinction | Implemented | Provenance snapshotted on telemetry and event rows via `derive_provenance()` |
+| KPI aggregation | Implemented | EQ-01, MW-01 to MW-05, and PF-LAT computed by the export; freshness, connectivity, and health KPIs remain future work |
+| KPI dashboard/export | Implemented | Versioned, filtered export with manifest, provenance scopes, raw evidence, REST API, and CLI |
 | Validation gates for AI context | Implemented | Gates A-C can report contract, data-integrity, and context-readiness status for AI queries |
 | Real pilot evidence | Not established | A controlled pilot run and signed run log are still required |
 
@@ -97,6 +97,8 @@ Relevant baselines are documented in [Architecture Compliance Matrix](architectu
 ## 5. KPI Register
 
 Thresholds must be agreed with the UK use-case owner before the formal run. Values marked **TBD** are deliberately not invented after observing results. Baseline values may be collected during the rehearsal, but acceptance targets must then be frozen before the pilot evaluation.
+
+**Implemented calculations:** EQ-01, MW-01 to MW-05, and PF-LAT are computed by the versioned export. See [KPI Export](kpi-export.md) for their stable definitions, formulas, units, manifest contract, and limitations. The remaining register items below are defined but not yet computed.
 
 ### 5.1 Evidence-quality KPIs
 
@@ -178,21 +180,22 @@ UK-E08 is blocked until the UK partner confirms the external system, event contr
 
 ### Phase 1 — Make Instrumentation Trustworthy
 
-| Priority | Work package | Acceptance evidence |
-| --- | --- | --- |
-| P0 | Align frontend error payload with backend `error_message` and `context` fields | Frontend/backend contract test proves message and context persistence |
-| P0 | Standardise device-state history on `extra_data` | Endpoint test proves request-to-database-to-response round trip |
-| P0 | Preserve real/controlled/simulated provenance on telemetry and events | Exported rows retain source classification independently of later device changes |
-| P1 | Add real-agent network latency, uptime, sample timestamp, and submission-attempt telemetry | Known-value tests plus observations from each pilot OS/device type |
-| P1 | Integrate permitted real POS/application signals | Data-source agreement and side-by-side source validation; otherwise exclude operational POS KPIs |
-| P1 | Complete post-change and rollback outcome capture | Integration test populates before/after health, success, and rollback fields |
-| P1 | Record command attempt and terminal outcome timestamps | Full queue-to-agent-to-dashboard integration test |
+| Priority | Work package | Status | Acceptance evidence |
+| --- | --- | --- | --- |
+| P0 | Align frontend error payload with backend `error_message` and `context` fields | Done | Frontend/backend contract test proves message and context persistence |
+| P0 | Standardise device-state history on `extra_data` | Done | Endpoint test proves request-to-database-to-response round trip |
+| P0 | Preserve real/controlled/simulated provenance on telemetry and events | Done | Exported rows retain source classification independently of later device changes |
+| P1 | Add real-agent network latency, uptime, sample timestamp, and submission-attempt telemetry | Done | Known-value tests plus observations from each pilot OS/device type |
+| P1 | Integrate permitted real POS/application signals | Config-gated | Data-source agreement and side-by-side source validation; otherwise exclude operational POS KPIs |
+| P1 | Complete post-change and rollback outcome capture | Done | Integration test populates before/after health, success, and rollback fields |
+| P1 | Record command attempt and terminal outcome timestamps | Done | Full queue-to-agent-to-dashboard integration test |
 
 **Exit gate:** A 24-hour rehearsal produces traceable, non-null inputs for all in-scope KPI calculations.
 
 ### Phase 2 — Build Reproducible KPI Calculations
 
-Add a versioned API or command-line export that supports:
+Delivered as `GET /api/v1/kpi/export` and `homepot-client kpi-export`. The
+versioned export supports:
 
 - `start`, `end`, `site_id`, `device_id`, `device_type`, and provenance filters;
 - numerator, denominator, exclusions, and sample count;
@@ -201,7 +204,9 @@ Add a versioned API or command-line export that supports:
 - calculation version, Git commit, units, timezone, and generation timestamp;
 - separate results for `REAL`, `CONTROLLED`, and `SIMULATED` evidence.
 
-Add automated tests for empty windows, boundary timestamps, mixed provenance, missing samples, percentile calculations, failed requests, and site/device isolation.
+Automated tests cover empty windows, boundary timestamps, mixed provenance,
+missing samples, percentile calculations, failed requests, and site/device
+isolation. See [KPI Export](kpi-export.md) for the full contract.
 
 **Exit gate:** A reviewer can regenerate every KPI value from a clean database snapshot and the evidence manifest.
 
@@ -259,17 +264,17 @@ evidence/uk-homepot/<run-id>/
 └── limitations.md
 ```
 
-The manifest should include the run ID, protocol version, Git commit, deployment versions, window, timezone, sites, devices, provenance, scenario IDs, file hashes, exclusions, and operator/reviewer identities. Screenshots illustrate a result but do not replace machine-readable evidence.
+The manifest should include the run ID, protocol version, Git commit, deployment versions, window, timezone, sites, devices, provenance, scenario IDs, file hashes, exclusions, and operator/reviewer identities. Screenshots illustrate a result but do not replace machine-readable evidence. See [Pilot Operator Protocol](operator-protocol.md) for the contents of each item and the operator procedure.
 
 ## 9. Completion Checklist
 
 - [ ] UK requirement scope and exclusions approved.
 - [ ] KPI formulas, thresholds, sample, duration, and owners frozen.
 - [ ] Privacy and operational-safety review completed.
-- [ ] Frontend/backend analytics contracts fixed and tested.
-- [ ] Real-agent telemetry and immutable provenance complete.
-- [ ] Command and configuration outcomes close the loop.
-- [ ] KPI export and reproducible calculations implemented and tested.
+- [x] Frontend/backend analytics contracts fixed and tested.
+- [x] Real-agent telemetry and immutable provenance complete.
+- [x] Command and configuration outcomes close the loop.
+- [x] KPI export and reproducible calculations implemented and tested.
 - [ ] Controlled rehearsal passes evidence-quality gates.
 - [ ] Real pilot meets the agreed sample and duration.
 - [ ] UK-E01 to UK-E07 completed; UK-E08 completed or explicitly excluded.
@@ -278,14 +283,14 @@ The manifest should include the run ID, protocol version, Git commit, deployment
 
 ## 10. Immediate PR Sequence
 
-| Order | Proposed PR | Outcome |
-| --- | --- | --- |
-| 1 | `fix: align analytics event contracts end to end` | Reliable error and state-history records with contract tests |
-| 2 | `feat: preserve telemetry provenance and collection metadata` | Real, controlled, and simulated evidence cannot be mixed silently |
-| 3 | `feat: capture real-agent latency uptime and operational signals` | Real inputs for PF-02, PF-04, and agreed POS KPIs |
-| 4 | `feat: close configuration and command outcome tracking` | Reproducible MW-01 to MW-05 evidence |
-| 5 | `feat: add UK demonstrator KPI calculations and export` | Time-bounded, filtered, versioned evidence output |
-| 6 | `test: add KPI data-quality and scenario integration coverage` | Automated protection for formulas and end-to-end evidence flow |
-| 7 | `docs: align analytics telemetry and pilot documentation` | Stable definitions, units, limitations, and operator protocol |
+| Order | Proposed PR | Status | Outcome |
+| --- | --- | --- | --- |
+| 1 | `fix: align analytics event contracts end to end` | Merged | Reliable error and state-history records with contract tests |
+| 2 | `feat: preserve telemetry provenance and collection metadata` | Merged | Real, controlled, and simulated evidence cannot be mixed silently |
+| 3 | `feat: capture real-agent latency uptime and operational signals` | Merged | Real inputs for PF-02, PF-04, and agreed POS KPIs |
+| 4 | `feat: close configuration and command outcome tracking` | Merged | Reproducible MW-01 to MW-05 evidence |
+| 5 | `feat: add UK demonstrator KPI calculations and export` | Merged | Time-bounded, filtered, versioned evidence output |
+| 6 | `test: add KPI data-quality and scenario integration coverage` | Merged | Automated protection for formulas and end-to-end evidence flow |
+| 7 | `docs: align analytics telemetry and pilot documentation` | This PR | Stable definitions, units, limitations, and operator protocol |
 
 Phase 0 protocol decisions can proceed in parallel with PRs 1–2. The formal pilot must wait for PRs 1–6 and a successful controlled rehearsal.
