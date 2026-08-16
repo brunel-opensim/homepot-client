@@ -142,7 +142,7 @@ def kpi_export(
     else:
         path = target / "kpi-export.json"
         path.write_text(
-            json.dumps(bundle.model_dump(mode="json"), indent=2),
+            json.dumps(bundle.model_dump(mode="json"), indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
 
