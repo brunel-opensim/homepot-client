@@ -26,7 +26,7 @@ timestamp, e.g. `20260816T220500Z`, or an explicit `--run-id`):
 kpi-evidence/
 └── <run-id>/
     ├── kpi-export.json   # manifest + kpis + raw evidence
-    └── kpi-summary.csv   # machine-readable KPI summary (--format csv)
+    └── kpi-summary.csv   # machine-readable KPI summary
 ```
 
 Pass `--out-dir` to write elsewhere.
