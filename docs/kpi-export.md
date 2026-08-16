@@ -3,7 +3,7 @@
 ## 1. Purpose
 
 This document is the stable reference for the implemented UK demonstrator KPI
-calculation and export ([roadmap §5 and Phase 2](KPI-evaluation-roadmap.md)). It
+calculation and export ([roadmap §5 and Phase 2](kpi-evaluation-roadmap.md)). It
 defines each exported KPI, its formula, its unit, its population, and the exact
 behaviour of the export API and command-line tool. It is the source of truth for
 "definitions, units, and limitations" of the machine-readable evidence output.
@@ -63,13 +63,17 @@ The unit map is recorded verbatim in every export manifest:
 - **Population:** `device_commands` created within the window. Terminal statuses
   are `COMPLETED`, `FAILED`, and `EXPIRED`. Non-terminal commands (for example
   `PENDING`/`SENT`) are counted in `exclusions` and never form the denominator.
+  Commands can only be queued for a device once its owner has granted the
+  command's required permissions (see §10), so this population is limited to
+  granted command types.
 - **Unit:** `%`. Null when there are no terminal commands.
 
 ### 2.3 MW-02 Command round-trip time
 
 - **Formula:** `executed_at − created_at` in seconds, grouped by command type.
 - **Population:** terminal commands with both `created_at` and `executed_at`.
-  Commands without an `executed_at` are skipped.
+  Commands without an `executed_at` are skipped. As with MW-01, only commands
+  the device owner has granted the required permissions for are eligible.
 - **Statistics:** p50, p95, and maximum, using the linear-interpolation
   percentile definition in §5.
 - **Unit:** `seconds`, rounded to 3 decimal places. Null for an empty group.
@@ -276,6 +280,12 @@ until frozen in Phase 0.
 - **`device_commands` provenance is derived at export time**, not snapshotted,
   so command KPI scopes reflect the device's classification *today* rather than
   at command time.
+- **MW-01/MW-02 are permission-gated:** a command can only be queued once the
+  device owner has granted its required permissions (e.g. `restart`/`shutdown`
+  need `root_access`, `update_config` needs `filesystem_access`; `ping` and
+  `request_permission` need none). Command KPIs therefore describe only the
+  granted command types, not every possible management action, and a device
+  that grants no permissions contributes no command evidence.
 - **MW-02 requires `executed_at`:** commands still in flight are excluded by the
   terminal-status rule.
 - **A null `value` means an empty denominator**, not a failure — the

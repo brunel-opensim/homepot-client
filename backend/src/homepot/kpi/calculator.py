@@ -1,6 +1,6 @@
 """UK demonstrator KPI calculations.
 
-Each function computes one KPI register item (docs/KPI-evaluation-roadmap.md §5)
+Each function computes one KPI register item (docs/kpi-evaluation-roadmap.md §5)
 over a time-bounded, device-filtered population. Functions are async and take
 a database session from ``homepot.database.get_database_service`` so results
 are reproducible from a clean database snapshot.
