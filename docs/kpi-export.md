@@ -149,7 +149,7 @@ bundle with three sections:
 - **`kpis`** — the machine-readable KPI summary (one object per KPI and group);
 - **`raw`** — the in-window raw evidence rows that back the calculations
   (`device_metrics`, `device_state_history`, `configuration_history`, and
-  `device_commands`).
+  `device_commands`); see §4.3 for the structure and columns.
 
 Each KPI object carries:
 
@@ -177,6 +177,38 @@ self-describing for a reviewer. Columns: `kpi_id`, `name`, `formula`, `unit`,
 
 The CSV is a summary only — the raw evidence rows are available in the JSON
 bundle or directly from the database.
+
+### 4.3 Raw evidence tables
+
+The `raw` section of the JSON bundle holds the in-window evidence rows that
+back every KPI value. It is a list of four tables; each entry carries:
+
+| Field | Meaning |
+| --- | --- |
+| `table` | Source table name |
+| `columns` | Ordered list of column names; each `rows` entry maps positionally to this list |
+| `rows` | List of row values — one list per record, in `columns` order |
+
+The four tables and their columns:
+
+| Table | Columns |
+| --- | --- |
+| `device_metrics` | `timestamp`, `device_id`, `cpu_percent`, `memory_percent`, `network_latency_ms`, `provenance` |
+| `device_state_history` | `timestamp`, `device_id`, `previous_state`, `new_state`, `provenance` |
+| `configuration_history` | `timestamp`, `entity_id`, `parameter_name`, `new_value`, `was_successful`, `was_rolled_back`, `rollback_success`, `provenance` |
+| `device_commands` | `command_id`, `device_id`, `command_type`, `status`, `created_at`, `sent_at`, `executed_at`, `provenance` |
+
+Notes for reviewers:
+
+- **`device_id` is the internal integer primary key**, not the public string ID
+  (a raw `device_metrics` row shows `device_id: 1`, not `DEVICE-XXXX`).
+  `configuration_history` uses `entity_id`, which *is* the public string ID.
+- The raw `device_metrics` columns are a **subset** of the model's columns —
+  `disk_percent`, `transaction_count`, `error_rate`, `active_connections`,
+  `queue_depth`, `extra_metrics`, and `collection_interval_seconds` are not
+  exported.
+- `device_commands` has no snapshotted `provenance` column; its `provenance`
+  value is derived from the device's classification at export time (see §3).
 
 ## 5. Percentile definition
 
