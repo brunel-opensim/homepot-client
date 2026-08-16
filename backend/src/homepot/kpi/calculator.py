@@ -11,9 +11,10 @@ command KPIs scope by the device's classification derived at export time.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from homepot.app.models.AnalyticsModel import (
     ConfigurationHistory,
@@ -34,7 +35,7 @@ COVERAGE_TABLES = ("device_metrics", "device_state_history", "configuration_hist
 _NAIVE = ""
 
 
-def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
+def _to_utc(dt: Any) -> Optional[datetime]:
     """Normalize a timestamp to an aware UTC datetime.
 
     The analytics tables store naive UTC timestamps; existing endpoints compare
@@ -44,8 +45,8 @@ def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return cast(datetime, dt.replace(tzinfo=timezone.utc))
+    return cast(datetime, dt.astimezone(timezone.utc))
 
 
 def percentile(values: List[float], q: float) -> Optional[float]:
@@ -69,7 +70,7 @@ def percentile(values: List[float], q: float) -> Optional[float]:
 def _health_status(perf: Optional[Dict[str, Any]]) -> Optional[str]:
     """Extract a normalized health status from a performance dict."""
     if isinstance(perf, dict) and isinstance(perf.get("status"), str):
-        return perf["status"].lower()
+        return cast(str, perf["status"]).lower()
     return None
 
 
@@ -94,7 +95,7 @@ def _is_improved(
 
 
 async def _resolve_devices(
-    session, filters: ExportFilters
+    session: AsyncSession, filters: ExportFilters
 ) -> tuple[List[int], List[str]]:
     """Resolve site/device/type filters into device PKs and device_id strings."""
     stmt = select(Device)
@@ -107,10 +108,12 @@ async def _resolve_devices(
     if filters.device_type is not None:
         stmt = stmt.where(Device.device_type == filters.device_type)
     devices = (await session.execute(stmt)).scalars().all()
-    return [d.id for d in devices], [d.device_id for d in devices]
+    device_pks = [cast(int, d.id) for d in devices]
+    device_id_strings = [cast(str, d.device_id) for d in devices]
+    return device_pks, device_id_strings
 
 
-async def _provenance_device_pks(session) -> Dict[str, set]:
+async def _provenance_device_pks(session: AsyncSession) -> Dict[str, set]:
     """Map each provenance class to the device PKs carrying it today.
 
     Used to scope command KPIs, which lack a snapshotted provenance column.
@@ -125,8 +128,11 @@ async def _provenance_device_pks(session) -> Dict[str, set]:
 
 
 def _command_scope(
-    stmt, filters: ExportFilters, pk_ids: List[int], provenance_pks: Dict[str, set]
-):
+    stmt: Select[tuple[DeviceCommand]],
+    filters: ExportFilters,
+    pk_ids: List[int],
+    provenance_pks: Dict[str, set],
+) -> Select[tuple[DeviceCommand]]:
     """Apply window/device/provenance filters to a DeviceCommand query."""
     start = _to_utc(filters.start)
     end = _to_utc(filters.end)
@@ -144,10 +150,10 @@ def _command_scope(
 
 
 def _config_scope(
-    stmt,
+    stmt: Select[tuple[ConfigurationHistory]],
     filters: ExportFilters,
     device_id_strings: List[str],
-):
+) -> Select[tuple[ConfigurationHistory]]:
     """Apply window/device/provenance filters to a ConfigurationHistory query."""
     start = _to_utc(filters.start)
     end = _to_utc(filters.end)
@@ -164,7 +170,10 @@ def _config_scope(
 
 
 async def compute_command_completion_rate(
-    session, filters: ExportFilters, pk_ids: List[int], provenance_pks: Dict[str, set]
+    session: AsyncSession,
+    filters: ExportFilters,
+    pk_ids: List[int],
+    provenance_pks: Dict[str, set],
 ) -> KPIResult:
     """MW-01 command completion rate = completed / terminal × 100."""
     stmt = select(DeviceCommand)
@@ -191,7 +200,10 @@ async def compute_command_completion_rate(
 
 
 async def compute_command_roundtrip(
-    session, filters: ExportFilters, pk_ids: List[int], provenance_pks: Dict[str, set]
+    session: AsyncSession,
+    filters: ExportFilters,
+    pk_ids: List[int],
+    provenance_pks: Dict[str, set],
 ) -> List[KPIResult]:
     """MW-02 command round-trip time = executed_at − created_at, by command type."""
     stmt = select(DeviceCommand)
@@ -206,7 +218,7 @@ async def compute_command_roundtrip(
         executed = _to_utc(cmd.executed_at)
         if created is None or executed is None:
             continue
-        latencies.setdefault(cmd.command_type or "unknown", []).append(
+        latencies.setdefault(cast(str, cmd.command_type) or "unknown", []).append(
             (executed - created).total_seconds()
         )
 
@@ -233,7 +245,7 @@ async def compute_command_roundtrip(
 
 
 async def compute_config_success_rate(
-    session, filters: ExportFilters, device_id_strings: List[str]
+    session: AsyncSession, filters: ExportFilters, device_id_strings: List[str]
 ) -> KPIResult:
     """MW-03 configuration-change success = successful / attempted × 100."""
     stmt = select(ConfigurationHistory)
@@ -259,7 +271,7 @@ async def compute_config_success_rate(
 
 
 async def compute_verified_improvement_rate(
-    session, filters: ExportFilters, device_id_strings: List[str]
+    session: AsyncSession, filters: ExportFilters, device_id_strings: List[str]
 ) -> KPIResult:
     """MW-04 verified improvement rate = improved / verified successful × 100."""
     stmt = select(ConfigurationHistory)
@@ -273,7 +285,12 @@ async def compute_verified_improvement_rate(
         if r.performance_before is not None and r.performance_after is not None
     ]
     improved = [
-        r for r in verified if _is_improved(r.performance_before, r.performance_after)
+        r
+        for r in verified
+        if _is_improved(
+            cast(Optional[Dict[str, Any]], r.performance_before),
+            cast(Optional[Dict[str, Any]], r.performance_after),
+        )
     ]
 
     value = (len(improved) / len(verified) * 100) if verified else None
@@ -295,7 +312,7 @@ async def compute_verified_improvement_rate(
 
 
 async def compute_rollback_effectiveness(
-    session, filters: ExportFilters, device_id_strings: List[str]
+    session: AsyncSession, filters: ExportFilters, device_id_strings: List[str]
 ) -> KPIResult:
     """MW-05 rollback effectiveness = restoring rollbacks / attempted rollbacks × 100."""
     stmt = select(ConfigurationHistory)
@@ -303,12 +320,13 @@ async def compute_rollback_effectiveness(
     rows = (await session.execute(stmt)).scalars().all()
 
     attempted = [r for r in rows if r.was_rolled_back is True]
-    restored = []
+    restored: List[ConfigurationHistory] = []
     for r in attempted:
         if r.rollback_success is True:
             restored.append(r)
         elif r.rollback_success is None and _is_improved(
-            r.performance_before, r.rollback_performance
+            cast(Optional[Dict[str, Any]], r.performance_before),
+            cast(Optional[Dict[str, Any]], r.rollback_performance),
         ):
             restored.append(r)
 
@@ -331,7 +349,10 @@ async def compute_rollback_effectiveness(
 
 
 async def compute_provenance_coverage(
-    session, filters: ExportFilters, pk_ids: List[int], device_id_strings: List[str]
+    session: AsyncSession,
+    filters: ExportFilters,
+    pk_ids: List[int],
+    device_id_strings: List[str],
 ) -> List[KPIResult]:
     """EQ-01 provenance coverage = rows with valid provenance / eligible rows × 100."""
     start = _to_utc(filters.start)
@@ -422,7 +443,7 @@ async def compute_provenance_coverage(
 
 
 async def compute_metric_network_latency(
-    session, filters: ExportFilters, pk_ids: List[int]
+    session: AsyncSession, filters: ExportFilters, pk_ids: List[int]
 ) -> List[KPIResult]:
     """PF-LAT device-reported network latency p50/p95/max from device_metrics."""
     start = _to_utc(filters.start)
@@ -437,7 +458,7 @@ async def compute_metric_network_latency(
     elif pk_ids:
         stmt = stmt.where(DeviceMetrics.device_id.in_(pk_ids))
     rows = (await session.execute(stmt)).scalars().all()
-    values = [r.network_latency_ms for r in rows]
+    values = [cast(float, r.network_latency_ms) for r in rows]
 
     results: List[KPIResult] = []
     for stat, q in (("p50", 0.5), ("p95", 0.95), ("max", 1.0)):

@@ -16,7 +16,7 @@ import typer
 from homepot import __version__
 from homepot.database import get_database_service
 from homepot.kpi.export import compute_kpi_bundle, render_csv_summary
-from homepot.kpi.models import PROVENANCE_CLASSES, ExportFilters
+from homepot.kpi.models import PROVENANCE_CLASSES, ExportFilters, KPIExportBundle
 
 app = typer.Typer(
     name="homepot-client",
@@ -114,7 +114,7 @@ def kpi_export(
         provenance=provenance,
     )
 
-    async def _run() -> object:
+    async def _run() -> KPIExportBundle:
         db_service = await get_database_service()
         try:
             async with db_service.get_session() as session:

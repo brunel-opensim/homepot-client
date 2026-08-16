@@ -4,9 +4,10 @@ import csv
 from datetime import datetime, timezone
 import io
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from homepot.app.models.AnalyticsModel import (
     ConfigurationHistory,
@@ -35,20 +36,20 @@ TERMINAL_STATUSES = {
 }
 
 
-def _iso(dt: Optional[datetime]) -> Optional[str]:
-    return dt.isoformat() if dt is not None else None
+def _iso(dt: Any) -> Optional[str]:
+    return cast(str, dt.isoformat()) if dt is not None else None
 
 
-def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
+def _to_utc(dt: Any) -> Optional[datetime]:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return cast(datetime, dt.replace(tzinfo=timezone.utc))
+    return cast(datetime, dt.astimezone(timezone.utc))
 
 
 async def _extract_raw(
-    session,
+    session: AsyncSession,
     filters: ExportFilters,
     pk_ids: List[int],
     device_id_strings: List[str],
@@ -208,7 +209,7 @@ async def _extract_raw(
                     _iso(r.created_at),
                     _iso(r.sent_at),
                     _iso(r.executed_at),
-                    pk_to_provenance.get(r.device_id),
+                    pk_to_provenance.get(cast(int, r.device_id)),
                 ]
                 for r in command_rows
             ],
@@ -217,7 +218,9 @@ async def _extract_raw(
     return raw
 
 
-async def compute_kpi_bundle(session, filters: ExportFilters) -> KPIExportBundle:
+async def compute_kpi_bundle(
+    session: AsyncSession, filters: ExportFilters
+) -> KPIExportBundle:
     """Compute every in-scope KPI and assemble a versioned export bundle."""
     pk_ids, device_id_strings = await _resolve_devices(session, filters)
     provenance_pks = await _provenance_device_pks(session)
