@@ -67,6 +67,7 @@ from homepot.models import (
     LifecycleState,
     Site,
     User,
+    derive_provenance,
 )
 from homepot.seed_factories import (
     create_audit_log,
@@ -98,7 +99,9 @@ from sqlalchemy import select, text
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def generate_historical_metrics(device_id: int, hours: int = 24) -> list[DeviceMetrics]:
+def generate_historical_metrics(
+    device_id: int, hours: int = 24, provenance: str | None = None
+) -> list[DeviceMetrics]:
     """Generate historical metrics for a device."""
     metrics = []
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -133,6 +136,7 @@ def generate_historical_metrics(device_id: int, hours: int = 24) -> list[DeviceM
                 queue_depth=int(trans_count / 50),
                 timestamp=timestamp,
                 extra_metrics={"temperature_celsius": round(random.uniform(35, 55), 1)},
+                provenance=provenance,
             )
         )
     return metrics
@@ -200,7 +204,9 @@ def generate_historical_user_activity(
     return activities
 
 
-def generate_problematic_metrics(device_id: int) -> list[DeviceMetrics]:
+def generate_problematic_metrics(
+    device_id: int, provenance: str | None = None
+) -> list[DeviceMetrics]:
     """Generate recent metrics that justify the active alerts (High CPU)."""
     metrics = []
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -217,6 +223,7 @@ def generate_problematic_metrics(device_id: int) -> list[DeviceMetrics]:
                 network_latency_ms=round(random.uniform(20.0, 50.0), 2),
                 transaction_count=random.randint(0, 5),
                 timestamp=timestamp,
+                provenance=provenance,
             )
         )
     return metrics
@@ -748,6 +755,11 @@ async def init_database():
         result = await session.execute(select(Device).limit(1))
         first_device = result.scalar_one()
 
+        # Derive the provenance class once so every seeded analytics row
+        # carries a valid provenance snapshot (EQ-01 coverage).
+        first_device_prov = derive_provenance(first_device)
+        prov = first_device_prov.value if first_device_prov else None
+
         # Sample Job
         result = await session.execute(
             select(Job).where(Job.job_id == "job-sample-001")
@@ -822,6 +834,7 @@ async def init_database():
                     new_state="online",
                     changed_by="system",
                     reason="Device came online after reboot",
+                    provenance=prov,
                 )
             )
 
@@ -851,7 +864,9 @@ async def init_database():
             )
 
             # Generate historical metrics
-            historical_metrics = generate_historical_metrics(first_device.id)
+            historical_metrics = generate_historical_metrics(
+                first_device.id, provenance=prov
+            )
             session.add_all(historical_metrics)
 
             # Generate historical errors
@@ -869,7 +884,7 @@ async def init_database():
             session.add_all(active_alerts)
 
             # 2. Add the supporting data (High CPU metrics)
-            problem_metrics = generate_problematic_metrics(first_device.id)
+            problem_metrics = generate_problematic_metrics(first_device.id, provenance=prov)
             session.add_all(problem_metrics)
 
             # Generate historical user activity
@@ -886,10 +901,11 @@ async def init_database():
                     changed_by=str(admin_user.id),
                     change_reason="Increased load during peak hours",
                     change_type="manual",
-                    performance_before={"avg_response_time": 145, "error_rate": 1.2},
-                    performance_after={"avg_response_time": 98, "error_rate": 0.3},
+                    performance_before={"status": "degraded", "response_time_ms": 145},
+                    performance_after={"status": "healthy", "response_time_ms": 98},
                     was_successful=True,
                     was_rolled_back=False,
+                    provenance=prov,
                     timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
                     - timedelta(hours=2),
                 )
