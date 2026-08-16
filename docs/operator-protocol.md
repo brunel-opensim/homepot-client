@@ -94,7 +94,7 @@ kpi-evidence/<run-id>/
 | `environment.json` | Deployment versions, database snapshot identifier, device types/OS, network conditions |
 | `scenario-log.csv` | Scenario ID, preconditions, operator, start/end, expected events, result, interventions |
 | `raw/` | Raw evidence rows (metrics, state history, config history, commands) — read-only |
-| `kpi-export.json` | Versioned KPI export bundle (or `kpi-summary.csv` with `--format csv`) from the KPI export |
+| `kpi-export.json` | Versioned KPI export bundle and its `kpi-summary.csv` companion from the KPI export |
 | `calculations/` | Calculation code revision (Git commit) and generated manifests |
 | `screenshots/` | Illustrative dashboard captures (do not replace machine-readable evidence) |
 | `reviewer-signoff.md` | Second-person review outcome (§7) and audit log of discrepancies |

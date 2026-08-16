@@ -241,8 +241,8 @@ Run from the repository root:
 `scripts/kpi-export.sh` resolves the venv and database URL so the command works
 from the repo root; when the venv is active, `homepot-client kpi-export ...` is
 equivalent. Options mirror the API (`--site-id`, `--device-id`, `--device-type`,
-`--provenance`, `--run-id`, `--format json|csv`, `--out-dir`). It writes
-`kpi-export.json` (bundle) or `kpi-summary.csv` (summary) and prints the run ID,
+`--provenance`, `--run-id`, `--out-dir`). It writes both
+`kpi-export.json` (bundle) and `kpi-summary.csv` (summary) and prints the run ID,
 calculation version, and Git commit on completion.
 
 The default `--out-dir` is `kpi-evidence/<run-id>`, where `<run-id>` is a UTC

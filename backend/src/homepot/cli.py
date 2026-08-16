@@ -89,21 +89,17 @@ def kpi_export(
         None,
         help="Directory to write the export into (default: kpi-evidence/<run-id>)",
     ),
-    format: str = typer.Option(
-        "json", "--format", help="json (bundle) or csv (KPI summary)"
-    ),
 ) -> None:
     """Export a versioned, filtered UK demonstrator KPI calculation.
 
-    Writes ``kpi-export.json`` (manifest + KPI summary + raw evidence) or
-    ``kpi-summary.csv`` into ``--out-dir`` (default ``kpi-evidence/<run-id>``).
+    Writes both ``kpi-export.json`` (manifest + KPI summary + raw evidence)
+    and ``kpi-summary.csv`` (machine-readable KPI summary) into ``--out-dir``
+    (default ``kpi-evidence/<run-id>``).
     """
     if provenance is not None and provenance not in PROVENANCE_CLASSES:
         raise typer.BadParameter(
             f"provenance must be one of: {', '.join(PROVENANCE_CLASSES)}"
         )
-    if format not in ("json", "csv"):
-        raise typer.BadParameter("format must be json or csv")
 
     try:
         start_dt = datetime.fromisoformat(start)
@@ -136,19 +132,20 @@ def kpi_export(
 
     target = Path(out_dir)
     target.mkdir(parents=True, exist_ok=True)
-    if format == "csv":
-        path = target / "kpi-summary.csv"
-        path.write_text(render_csv_summary(bundle), encoding="utf-8")
-    else:
-        path = target / "kpi-export.json"
-        path.write_text(
-            json.dumps(bundle.model_dump(mode="json"), indent=2),
-            encoding="utf-8",
-        )
+
+    json_path = target / "kpi-export.json"
+    json_path.write_text(
+        json.dumps(bundle.model_dump(mode="json"), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    csv_path = target / "kpi-summary.csv"
+    csv_path.write_text(render_csv_summary(bundle), encoding="utf-8")
 
     console.print(
         Panel(
-            f"Exported {len(bundle.kpis)} KPI results to [green]{path}[/green]\n"
+            f"Exported {len(bundle.kpis)} KPI results to:\n"
+            f"  [green]{json_path}[/green]\n"
+            f"  [green]{csv_path}[/green]\n"
             f"run_id: {bundle.manifest.get('run_id')}\n"
             f"calculation_version: {bundle.manifest.get('calculation_version')}\n"
             f"git_commit: {bundle.manifest.get('git_commit')}",
