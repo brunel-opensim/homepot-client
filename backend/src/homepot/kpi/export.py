@@ -25,7 +25,7 @@ from homepot.kpi.calculator import (
     compute_rollback_effectiveness,
     compute_verified_improvement_rate,
 )
-from homepot.kpi.manifest import build_manifest
+from homepot.kpi.manifest import build_manifest, generate_run_id
 from homepot.kpi.models import ExportFilters, KPIExportBundle, KPIResult, RawTable
 from homepot.models import CommandStatus, DeviceCommand
 
@@ -236,9 +236,11 @@ async def _extract_raw(
 
 
 async def compute_kpi_bundle(
-    session: AsyncSession, filters: ExportFilters
+    session: AsyncSession, filters: ExportFilters, run_id: Optional[str] = None
 ) -> KPIExportBundle:
     """Compute every in-scope KPI and assemble a versioned export bundle."""
+    if run_id is None:
+        run_id = generate_run_id()
     pk_ids, device_id_strings = await _resolve_devices(session, filters)
     provenance_pks = await _provenance_device_pks(session)
 
@@ -285,7 +287,7 @@ async def compute_kpi_bundle(
     raw = await _extract_raw(
         session, filters, pk_ids, device_id_strings, provenance_pks
     )
-    manifest = build_manifest(filters, scopes)
+    manifest = build_manifest(filters, scopes, run_id)
     return KPIExportBundle(manifest=manifest, kpis=kpis, raw=raw)
 
 

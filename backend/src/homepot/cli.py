@@ -82,7 +82,13 @@ def kpi_export(
     provenance: Optional[str] = typer.Option(
         None, help="Restrict to a provenance class (real/controlled/simulated)"
     ),
-    out_dir: str = typer.Option(".", help="Directory to write the export into"),
+    run_id: Optional[str] = typer.Option(
+        None, help="Run ID (default: UTC timestamp, e.g. 20260816T220500Z)"
+    ),
+    out_dir: Optional[str] = typer.Option(
+        None,
+        help="Directory to write the export into (default: kpi-evidence/<run-id>)",
+    ),
     format: str = typer.Option(
         "json", "--format", help="json (bundle) or csv (KPI summary)"
     ),
@@ -90,7 +96,7 @@ def kpi_export(
     """Export a versioned, filtered UK demonstrator KPI calculation.
 
     Writes ``kpi-export.json`` (manifest + KPI summary + raw evidence) or
-    ``kpi-summary.csv`` into ``--out-dir``.
+    ``kpi-summary.csv`` into ``--out-dir`` (default ``kpi-evidence/<run-id>``).
     """
     if provenance is not None and provenance not in PROVENANCE_CLASSES:
         raise typer.BadParameter(
@@ -118,11 +124,15 @@ def kpi_export(
         db_service = await get_database_service()
         try:
             async with db_service.get_session() as session:
-                return await compute_kpi_bundle(session, filters)
+                return await compute_kpi_bundle(session, filters, run_id=run_id)
         finally:
             await db_service.close()
 
     bundle = asyncio.run(_run())
+
+    run_id_used = bundle.manifest["run_id"]
+    if out_dir is None:
+        out_dir = f"kpi-evidence/{run_id_used}"
 
     target = Path(out_dir)
     target.mkdir(parents=True, exist_ok=True)
@@ -139,6 +149,7 @@ def kpi_export(
     console.print(
         Panel(
             f"Exported {len(bundle.kpis)} KPI results to [green]{path}[/green]\n"
+            f"run_id: {bundle.manifest.get('run_id')}\n"
             f"calculation_version: {bundle.manifest.get('calculation_version')}\n"
             f"git_commit: {bundle.manifest.get('git_commit')}",
             title="KPI Export",

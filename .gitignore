@@ -182,6 +182,8 @@ temp/
 tmp/
 logs/*
 !logs/README.md
+kpi-evidence/*
+!kpi-evidence/README.md
 
 # PostgreSQL - Database managed by system service
 # Database location: /var/lib/postgresql/16/main/

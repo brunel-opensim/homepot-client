@@ -312,10 +312,11 @@ def test_export_empty_window(client: TestClient) -> None:
 
 
 def test_manifest_metadata(client: TestClient) -> None:
-    """The manifest carries version, commit, timezone, and window metadata."""
+    """The manifest carries run ID, version, commit, timezone, and window metadata."""
     bundle = _export(client)
 
     manifest = bundle["manifest"]
+    assert manifest["run_id"]
     assert manifest["timezone"] == "UTC"
     assert manifest["calculation_version"]
     assert manifest["generated_at"]
