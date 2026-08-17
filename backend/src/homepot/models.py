@@ -94,6 +94,13 @@ class LifecycleState(str, Enum):
     RETIRED = "retired"
 
 
+class SiteLifecycleState(str, Enum):
+    """Site lifecycle state — the administrative management phase."""
+
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+
+
 class ConnectivityState(str, Enum):
     """Device connectivity — computed from authenticated heartbeat recency."""
 
@@ -292,6 +299,9 @@ class Site(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     is_monitored = Column(Boolean, default=False)
+    lifecycle_state = Column(
+        String(20), default=SiteLifecycleState.ACTIVE, nullable=False
+    )
     bootstrap_key_hash = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

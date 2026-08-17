@@ -804,6 +804,19 @@ async def get_device_insights(
     try:
         analytics = AIAnalyticsService()
 
+        # Archived/unpaired/retired devices must not be visible to the AI.
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            device_result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = device_result.scalar_one_or_none()
+        if not device or not device.is_active:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Device '{device_id}' not found or not active",
+            )
+
         # Get performance trends
         performance = await analytics.get_device_performance_trends(device_id, days)
 
@@ -825,6 +838,8 @@ async def get_device_insights(
             "generated_at": datetime.utcnow().isoformat(),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get device insights: {e}", exc_info=True)
         raise HTTPException(
@@ -844,6 +859,19 @@ async def get_site_insights(
     """
     try:
         analytics = AIAnalyticsService()
+
+        # Archived sites must not be visible to the AI.
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            site_result = await session.execute(
+                select(Site).where(Site.site_id == site_id)
+            )
+            site = site_result.scalar_one_or_none()
+        if not site or not site.is_active:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Site '{site_id}' not found or not active",
+            )
 
         # Get job outcome patterns
         job_patterns = await analytics.get_job_outcome_patterns(site_id, days)
@@ -865,6 +893,8 @@ async def get_site_insights(
             "generated_at": datetime.utcnow().isoformat(),
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get site insights: {e}", exc_info=True)
         raise HTTPException(
@@ -888,11 +918,26 @@ async def predict_device_failure(
     Returns probability, risk level, contributing factors, and recommendations.
     """
     try:
+        # Archived/unpaired/retired devices must not be visible to the AI.
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            device_result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = device_result.scalar_one_or_none()
+        if not device or not device.is_active:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Device '{device_id}' not found or not active",
+            )
+
         predictor = FailurePredictor()
         prediction = await predictor.predict_device_failure(device_id, window_hours)
 
         return prediction
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to predict device failure: {e}", exc_info=True)
         raise HTTPException(
