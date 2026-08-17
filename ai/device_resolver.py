@@ -35,7 +35,9 @@ class DeviceResolver:
         if device_id_str in self._cache:
             return self._cache[device_id_str]
 
-        stmt = select(Device.id).where(Device.device_id == device_id_str)
+        stmt = select(Device.id).where(
+            Device.device_id == device_id_str, Device.is_active.is_(True)
+        )
         result = await self.session.execute(stmt)
         device_int_id = result.scalar_one_or_none()
 

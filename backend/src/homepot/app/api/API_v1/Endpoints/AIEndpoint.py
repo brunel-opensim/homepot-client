@@ -12,7 +12,6 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
-from sqlalchemy.orm import selectinload
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -106,8 +105,10 @@ async def get_system_anomalies() -> Dict[str, Any]:
 
         db_service = await get_database_service()
         async with db_service.get_session() as session:
-            # 1. Get all devices for mapping (to ensure we can name any device with an alert)
-            all_devices_result = await session.execute(select(Device))
+            # 1. Get active devices for mapping (only live, non-archived devices)
+            all_devices_result = await session.execute(
+                select(Device).where(Device.is_active.is_(True))
+            )
             all_devices = all_devices_result.scalars().all()
             device_map = {d.device_id: d.name for d in all_devices}
 
@@ -388,21 +389,30 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
         # 3. Build Real-Time System Context
         db_service = await get_database_service()
         async with db_service.get_session() as session:
-            # Get Sites with Devices
-            result = await session.execute(
-                select(Site)
-                .options(selectinload(Site.devices))
-                .where(Site.is_active.is_(True))
-            )
+            # Get Sites with active Devices only (archived/unpaired/retired
+            # devices must not be visible to the AI).
+            result = await session.execute(select(Site).where(Site.is_active.is_(True)))
             sites = result.scalars().all()
+            site_ids = [s.id for s in sites]
+            devices_by_site: dict = {}
+            if site_ids:
+                dev_result = await session.execute(
+                    select(Device).where(
+                        Device.site_id.in_(site_ids),
+                        Device.is_active.is_(True),
+                    )
+                )
+                for dev in dev_result.scalars().all():
+                    devices_by_site.setdefault(dev.site_id, []).append(dev)
 
             site_context = "[CURRENT SYSTEM STATUS]\n"
             site_context += f"Total Sites: {len(sites)}\n"
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
-                if site.devices:
+                site_devices = devices_by_site.get(site.id, [])
+                if site_devices:
                     site_context += "  Devices:\n"
-                    for d in site.devices:
+                    for d in site_devices:
                         site_context += (
                             f"    * Name: {d.name}\n"
                             f"      ID: {d.device_id}\n"
@@ -430,9 +440,17 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             if avg_latency:
                 site_context += f"- Avg Latency: {round(avg_latency, 2)}ms\n"
 
-            # Get Active Alerts for AI Context
+            # Get Active Alerts for AI Context (only for active devices)
+            active_device_ids = select(Device.device_id).where(
+                Device.is_active.is_(True)
+            )
             alerts_result = await session.execute(
-                select(Alert).where(Alert.status == "active").limit(20)
+                select(Alert)
+                .where(
+                    Alert.status == "active",
+                    Alert.device_id.in_(active_device_ids),
+                )
+                .limit(20)
             )
             active_alerts = alerts_result.scalars().all()
 

@@ -89,25 +89,35 @@ class DataIntegrityGate(Gate):
             )
 
         from homepot.app.models.AnalyticsModel import DeviceMetrics
-        from homepot.models import HealthCheck
+        from homepot.models import Device, HealthCheck
 
         window_start = datetime.utcnow() - timedelta(seconds=context.window_seconds)
         device_int_id = context.device_int_id
 
+        # Scope every check to live (non-archived, non-retired) devices only, so
+        # telemetry from unpaired/archived devices never influences trust.
+        active_pks = (
+            (await session.execute(select(Device.id).where(Device.is_active.is_(True))))
+            .scalars()
+            .all()
+        )
+
         checks: List[CheckResult] = [
             await self._check_completeness(
-                session, DeviceMetrics, window_start, device_int_id
+                session, DeviceMetrics, window_start, device_int_id, active_pks
             ),
-            await self._check_freshness(session, DeviceMetrics, device_int_id),
+            await self._check_freshness(
+                session, DeviceMetrics, device_int_id, active_pks
+            ),
         ]
         checks.extend(
             await self._check_continuity_and_gaps(
-                session, HealthCheck, window_start, device_int_id
+                session, HealthCheck, window_start, device_int_id, active_pks
             )
         )
         checks.append(
             await self._check_validity(
-                session, DeviceMetrics, window_start, device_int_id
+                session, DeviceMetrics, window_start, device_int_id, active_pks
             )
         )
 
@@ -122,6 +132,7 @@ class DataIntegrityGate(Gate):
         DeviceMetrics: Any,
         window_start: datetime,
         device_int_id: Optional[int],
+        active_pks: list,
     ) -> CheckResult:
         stmt = select(
             func.count(),
@@ -129,7 +140,10 @@ class DataIntegrityGate(Gate):
             func.count(DeviceMetrics.memory_percent),
             func.count(DeviceMetrics.disk_percent),
             func.count(DeviceMetrics.network_latency_ms),
-        ).where(DeviceMetrics.timestamp >= window_start)
+        ).where(
+            DeviceMetrics.timestamp >= window_start,
+            DeviceMetrics.device_id.in_(active_pks),
+        )
         if device_int_id:
             stmt = stmt.where(DeviceMetrics.device_id == device_int_id)
 
@@ -189,9 +203,15 @@ class DataIntegrityGate(Gate):
         )
 
     async def _check_freshness(
-        self, session: Any, DeviceMetrics: Any, device_int_id: Optional[int]
+        self,
+        session: Any,
+        DeviceMetrics: Any,
+        device_int_id: Optional[int],
+        active_pks: list,
     ) -> CheckResult:
-        stmt = select(func.max(DeviceMetrics.timestamp))
+        stmt = select(func.max(DeviceMetrics.timestamp)).where(
+            DeviceMetrics.device_id.in_(active_pks)
+        )
         if device_int_id:
             stmt = stmt.where(DeviceMetrics.device_id == device_int_id)
         last_ts = (await session.execute(stmt)).scalar()
@@ -231,10 +251,14 @@ class DataIntegrityGate(Gate):
         HealthCheck: Any,
         window_start: datetime,
         device_int_id: Optional[int],
+        active_pks: list,
     ) -> List[CheckResult]:
         stmt = (
             select(HealthCheck.timestamp)
-            .where(HealthCheck.timestamp >= window_start)
+            .where(
+                HealthCheck.timestamp >= window_start,
+                HealthCheck.device_id.in_(active_pks),
+            )
             .order_by(HealthCheck.timestamp.asc())
         )
         if device_int_id:
@@ -313,11 +337,15 @@ class DataIntegrityGate(Gate):
         DeviceMetrics: Any,
         window_start: datetime,
         device_int_id: Optional[int],
+        active_pks: list,
     ) -> CheckResult:
         stmt = (
             select(func.count())
             .select_from(DeviceMetrics)
-            .where(DeviceMetrics.timestamp >= window_start)
+            .where(
+                DeviceMetrics.timestamp >= window_start,
+                DeviceMetrics.device_id.in_(active_pks),
+            )
             .where(
                 or_(
                     DeviceMetrics.cpu_percent > 100,
