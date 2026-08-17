@@ -650,7 +650,7 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             context=full_context,
             system_prompt=(
                 "IDENTITY:\n"
-                "You are the HOMEPOT System Diagnostic AI, an advanced operational "
+                "You are the HOMEPOT System Diagnostics AI, an advanced operational "
                 "assistant for the HOMEPOT Client ecosystem.\n"
                 "Your goal is to monitor, diagnose, and explain the behavior of "
                 "IoT devices, sites, and the platform itself.\n\n"
