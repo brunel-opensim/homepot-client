@@ -150,9 +150,7 @@ class DataIntegrityGate(Gate):
         if passed:
             message = f"Non-null completeness 100.0% over {total} rows."
         else:
-            missing = ", ".join(
-                f"{col}={n}" for col, n in null_counts.items() if n
-            )
+            missing = ", ".join(f"{col}={n}" for col, n in null_counts.items() if n)
             message = (
                 f"{total_nulls} null value(s) detected ({missing}) over {total} rows."
             )
