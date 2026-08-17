@@ -92,14 +92,16 @@ class ContextBuilder:
                 )
             return f"Job {job_id} not found."
 
-        # Fetch recent failed jobs
+        # Fetch recent failed jobs (only for active, non-archived devices)
         cutoff = datetime.utcnow() - timedelta(hours=24)
+        active_device_ids = select(Device.device_id).where(Device.is_active.is_(True))
         stmt = (
             select(JobOutcome)
             .where(
                 and_(
                     JobOutcome.status == "failed",
                     JobOutcome.timestamp >= cutoff,
+                    JobOutcome.device_id.in_(active_device_ids),
                 )
             )
             .order_by(JobOutcome.timestamp.desc())
