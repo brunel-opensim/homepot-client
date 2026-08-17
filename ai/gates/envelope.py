@@ -169,6 +169,7 @@ def build_default_envelope(**overrides: Any) -> ValidationEnvelope:
             "freshness_max_age_seconds",
             "continuity_gap_seconds",
             "sustained_gap_seconds",
+            "completeness_max_null_ratio",
         )
     }
     gate_c_kwargs = {
