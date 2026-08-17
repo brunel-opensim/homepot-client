@@ -12,20 +12,28 @@ logger = logging.getLogger(__name__)
 class AnomalyDetector:
     """Detects anomalies in device metrics using rule-based thresholds."""
 
-    def __init__(self, config_path: str | None = None) -> None:
+    def __init__(
+        self, config_path: str | None = None, sensitivity: float | None = None
+    ) -> None:
         """Initialize the AnomalyDetector with configuration."""
         if config_path is None:
             config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
         try:
             with open(config_path, "r") as f:
                 self.config = yaml.safe_load(f)
-            self.sensitivity = self.config.get("anomaly_detection", {}).get(
+            configured_sensitivity = self.config.get("anomaly_detection", {}).get(
                 "sensitivity", 0.8
             )
         except Exception as e:
             logger.warning(f"Failed to load config: {e}. Using defaults.")
             self.config = {}
-            self.sensitivity = 0.8
+            configured_sensitivity = 0.8
+
+        # An explicit `sensitivity` argument overrides the configured value so
+        # callers/tests can isolate the raw per-signal scoring.
+        self.sensitivity = (
+            sensitivity if sensitivity is not None else configured_sensitivity
+        )
 
         # Load thresholds from config or use defaults
         config_thresholds = self.config.get("anomaly_detection", {}).get(
@@ -107,8 +115,11 @@ class AnomalyDetector:
                 score += 0.2
                 anomalies.append(f"High Disk Usage: {disk}%")
 
-            # Cap score at 1.0
-            final_score = min(score, 1.0)
+            # Cap score at 1.0 and scale by sensitivity. A lower sensitivity
+            # reports a smaller anomaly score (more conservative), so a
+            # technician can tune how strongly the detector signals anomalies.
+            raw_score = min(score, 1.0)
+            final_score = min(raw_score * self.sensitivity, 1.0)
 
             if final_score > 0:
                 logger.info(

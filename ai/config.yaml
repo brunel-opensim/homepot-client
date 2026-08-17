@@ -27,9 +27,10 @@ database:
 # (flapping, consecutive failures) carry more weight than resource usage.
 # Thresholds below are the values at which a metric is flagged as anomalous.
 #
-# NOTE: `sensitivity` and `window_size` are reserved configuration keys but are
-# not currently applied by the detector -- the score uses fixed per-signal
-# weights. Tune the thresholds below, not these two.
+# `sensitivity` scales the final anomaly score (score * sensitivity, capped at
+# 1.0) -- lower values report a smaller score for the same raw signal. It does
+# not change which thresholds fire, only the reported score.
+# `window_size` is a reserved key and is not currently applied by the detector.
 anomaly_detection:
   sensitivity: 0.8
   window_size: 50

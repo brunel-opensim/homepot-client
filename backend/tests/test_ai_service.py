@@ -49,7 +49,9 @@ def test_anomaly_detector_normal_metrics():
 
 def test_anomaly_detector_high_cpu():
     """Test that high CPU triggers an anomaly score."""
-    detector = AnomalyDetector()
+    # sensitivity=1.0 isolates the raw per-signal weights from the sensitivity
+    # scaling applied on top.
+    detector = AnomalyDetector(sensitivity=1.0)
     metrics = {"cpu_percent": 95.0, "memory_percent": 50.0}  # Above 90.0 threshold
     score, reasons = detector.check_anomaly(metrics)
     assert score > 0.0
@@ -57,9 +59,17 @@ def test_anomaly_detector_high_cpu():
     assert len(reasons) > 0
 
 
+def test_anomaly_detector_sensitivity_scales_score():
+    """Test that sensitivity scales the final anomaly score."""
+    metrics = {"cpu_percent": 95.0, "memory_percent": 50.0}  # raw CPU score 0.2
+    assert AnomalyDetector(sensitivity=1.0).check_anomaly(metrics)[0] == 0.2
+    assert AnomalyDetector(sensitivity=0.5).check_anomaly(metrics)[0] == 0.1
+    assert AnomalyDetector(sensitivity=0.0).check_anomaly(metrics)[0] == 0.0
+
+
 def test_anomaly_detector_capped_score():
     """Test that anomaly score is capped at 1.0."""
-    detector = AnomalyDetector()
+    detector = AnomalyDetector(sensitivity=1.0)
     metrics = {
         "cpu_percent": 99.0,  # +0.2
         "error_rate": 0.5,  # +0.5
