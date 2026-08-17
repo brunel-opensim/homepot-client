@@ -1,45 +1,70 @@
 """Module for detecting anomalies in device metrics."""
 
 import logging
-import os
 from typing import Any, Dict
 
-import yaml
+from .config import load_ai_config
 
 logger = logging.getLogger(__name__)
+
+# Fallback defaults used when ai/config.yaml does not supply a value (see
+# ai/config.py). Runtime thresholds come from the anomaly_detection section.
+DEFAULT_SENSITIVITY = 0.8
+DEFAULT_CPU_PERCENT = 90.0
+DEFAULT_MEMORY_PERCENT = 90.0
+DEFAULT_DISK_PERCENT = 90.0
+DEFAULT_ERROR_RATE = 0.05
+DEFAULT_NETWORK_LATENCY_MS = 200.0
+DEFAULT_MAX_FLAPPING_COUNT = 5
+DEFAULT_CONSECUTIVE_FAILURES = 3
 
 
 class AnomalyDetector:
     """Detects anomalies in device metrics using rule-based thresholds."""
 
-    def __init__(self, config_path: str | None = None) -> None:
+    def __init__(
+        self, config_path: str | None = None, sensitivity: float | None = None
+    ) -> None:
         """Initialize the AnomalyDetector with configuration."""
-        if config_path is None:
-            config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
-        try:
-            with open(config_path, "r") as f:
-                self.config = yaml.safe_load(f)
-            self.sensitivity = self.config.get("anomaly_detection", {}).get(
-                "sensitivity", 0.8
-            )
-        except Exception as e:
-            logger.warning(f"Failed to load config: {e}. Using defaults.")
-            self.config = {}
-            self.sensitivity = 0.8
-
-        # Load thresholds from config or use defaults
-        config_thresholds = self.config.get("anomaly_detection", {}).get(
-            "thresholds", {}
+        self.config = (
+            load_ai_config() if config_path is None else self._load_config(config_path)
         )
+        section = self.config.get("anomaly_detection", {}) or {}
+
+        configured_sensitivity = section.get("sensitivity", DEFAULT_SENSITIVITY)
+        # An explicit `sensitivity` argument overrides the configured value so
+        # callers/tests can isolate the raw per-signal scoring.
+        self.sensitivity = (
+            sensitivity if sensitivity is not None else configured_sensitivity
+        )
+
+        thresholds = section.get("thresholds", {}) or {}
         self.thresholds = {
-            "cpu_percent": config_thresholds.get("cpu_percent", 90.0),
-            "memory_percent": config_thresholds.get("memory_percent", 90.0),
-            "disk_percent": config_thresholds.get("disk_percent", 95.0),
-            "error_rate": config_thresholds.get("error_rate", 0.05),
-            "network_latency_ms": config_thresholds.get("network_latency_ms", 200.0),
-            "flapping_count": config_thresholds.get("max_flapping_count", 5),
-            "consecutive_failures": config_thresholds.get("consecutive_failures", 3),
+            "cpu_percent": thresholds.get("cpu_percent", DEFAULT_CPU_PERCENT),
+            "memory_percent": thresholds.get("memory_percent", DEFAULT_MEMORY_PERCENT),
+            "disk_percent": thresholds.get("disk_percent", DEFAULT_DISK_PERCENT),
+            "error_rate": thresholds.get("error_rate", DEFAULT_ERROR_RATE),
+            "network_latency_ms": thresholds.get(
+                "network_latency_ms", DEFAULT_NETWORK_LATENCY_MS
+            ),
+            "flapping_count": thresholds.get(
+                "max_flapping_count", DEFAULT_MAX_FLAPPING_COUNT
+            ),
+            "consecutive_failures": thresholds.get(
+                "consecutive_failures", DEFAULT_CONSECUTIVE_FAILURES
+            ),
         }
+
+    @staticmethod
+    def _load_config(config_path: str) -> Dict[str, Any]:
+        """Load an explicit config file, degrading to ``{}`` on error."""
+        try:
+            import yaml
+
+            with open(config_path, "r") as f:
+                return yaml.safe_load(f) or {}
+        except (OSError, yaml.YAMLError):
+            return {}
 
     def check_anomaly(self, metrics: Dict[str, Any]) -> tuple[float, list[str]]:
         """Calculate anomaly score (0.0 to 1.0) based on metrics.
@@ -107,8 +132,11 @@ class AnomalyDetector:
                 score += 0.2
                 anomalies.append(f"High Disk Usage: {disk}%")
 
-            # Cap score at 1.0
-            final_score = min(score, 1.0)
+            # Cap score at 1.0 and scale by sensitivity. A lower sensitivity
+            # reports a smaller anomaly score (more conservative), so a
+            # technician can tune how strongly the detector signals anomalies.
+            raw_score = min(score, 1.0)
+            final_score = min(raw_score * self.sensitivity, 1.0)
 
             if final_score > 0:
                 logger.info(
