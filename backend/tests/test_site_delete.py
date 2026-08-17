@@ -20,7 +20,15 @@ from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.app.main import app
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import AuditLog, Base, Device, DeviceStatus, Site, User
+from homepot.models import (
+    AuditLog,
+    Base,
+    Device,
+    DeviceStatus,
+    LifecycleEpoch,
+    Site,
+    User,
+)
 
 
 @pytest.fixture
@@ -43,11 +51,40 @@ def file_db(monkeypatch: Any) -> Generator[None, None, None]:
     new_engine = create_engine(
         db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
     )
+
+    from sqlalchemy import event
+
+    @event.listens_for(new_engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[no-untyped-def]
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     Base.metadata.create_all(bind=new_engine)
     new_session_local = sessionmaker(bind=new_engine, autocommit=False, autoflush=False)
 
     monkeypatch.setattr(homepot.database, "sync_engine", new_engine)
     monkeypatch.setattr(homepot.database, "SessionLocal", new_session_local)
+
+    # The async engine used by the API is created lazily; construct it now,
+    # attach FK enforcement before any connection is opened, then initialize so
+    # the tests exercise the same FK constraints as PostgreSQL.
+    import homepot.database as db_mod
+
+    async def _init_async() -> None:
+        service = db_mod.DatabaseService()
+        from sqlalchemy import event as sa_event
+
+        @sa_event.listens_for(service.engine.sync_engine, "connect")
+        def _async_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[no-untyped-def]
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+        await service.initialize()
+        db_mod._db_service = service
+
+    asyncio.run(_init_async())
 
     yield
 
@@ -78,6 +115,7 @@ def _seed_site_device_admin() -> tuple[str, str, int]:
         )
         sync_db.add(device)
         sync_db.commit()
+        sync_db.refresh(device)
 
         admin = User(
             email="admin@arch-purge.test",
@@ -90,6 +128,57 @@ def _seed_site_device_admin() -> tuple[str, str, int]:
         sync_db.add(admin)
         sync_db.commit()
         return site.site_id, device.device_id, site.id
+    finally:
+        sync_db.close()
+
+
+def _seed_device_with_epoch(device_id: str = "dev-epoch-001") -> None:
+    """Create a site, device, and a linked lifecycle epoch (as after claiming)."""
+    import uuid
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        site = Site(site_id="site-epoch", name="Epoch Co", is_active=True)
+        sync_db.add(site)
+        sync_db.commit()
+        sync_db.refresh(site)
+
+        device = Device(
+            device_id=device_id,
+            name="Epoch POS",
+            device_type="pos_terminal",
+            site_id=site.id,
+            is_active=True,
+            status=DeviceStatus.ONLINE,
+        )
+        sync_db.add(device)
+        sync_db.commit()
+        sync_db.refresh(device)
+
+        epoch = LifecycleEpoch(
+            epoch_id=str(uuid.uuid4()),
+            device_id=device.id,
+            site_id=site.id,
+            claimed_at=datetime.now(timezone.utc),
+            enrolment_method="pre-provisioned",
+        )
+        sync_db.add(epoch)
+        sync_db.commit()
+        sync_db.refresh(epoch)
+
+        admin = User(
+            email="admin@arch-purge.test",
+            username="admin_ap",
+            hashed_password=hash_password("pass"),
+            is_admin=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        if not sync_db.query(User).filter(User.email == admin.email).first():
+            sync_db.add(admin)
+
+        device.lifecycle_epoch_id = epoch.id  # type: ignore[assignment]
+        sync_db.commit()
     finally:
         sync_db.close()
 
@@ -342,10 +431,33 @@ def test_emulated_device_archive_and_purge(file_db: Any) -> None:
     assert response.status_code == 200
     assert "purged" in response.json()["message"].lower()
 
+
+def test_device_purge_with_lifecycle_epoch_deletes(file_db: Any) -> None:
+    """Purging a device whose current epoch is linked via lifecycle_epoch_id works.
+
+    Regression: deleting the lifecycle epochs before the device row used to
+    violate devices_lifecycle_epoch_id_fkey on PostgreSQL (device still
+    referenced the epoch), returning an Internal Server Error.
+    """
+    device_id = "dev-epoch-001"
+    _seed_device_with_epoch(device_id)
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "purge", "confirm": "true"},
+        headers=_headers(),
+    )
+    assert response.status_code == 200
+    assert "purged" in response.json()["message"].lower()
+
     sync_db = homepot.database.SessionLocal()
     try:
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
         assert device is None
+        epoch = sync_db.query(LifecycleEpoch).filter(
+            LifecycleEpoch.device_id.isnot(None)
+        )
+        assert epoch.count() == 0
     finally:
         sync_db.close()
 

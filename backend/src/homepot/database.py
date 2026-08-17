@@ -539,7 +539,7 @@ class DatabaseService:
         configuration history, audit logs, and the device row itself.
         Irreversible -- only call after an explicit ``confirm``.
         """
-        from sqlalchemy import delete
+        from sqlalchemy import delete, update
 
         from homepot.models import DeviceAssignment, DeviceLifecycleEvent
 
@@ -577,6 +577,14 @@ class DatabaseService:
                     delete(AuditLog).where(AuditLog.job_id.in_(job_ids))
                 )
             await session.execute(delete(Job).where(Job.device_id == pk))
+
+            # The device row itself carries a nullable FK to its current
+            # lifecycle epoch (Device.lifecycle_epoch_id); null it before
+            # deleting the epochs or the delete violates
+            # devices_lifecycle_epoch_id_fkey.
+            await session.execute(
+                update(Device).where(Device.id == pk).values(lifecycle_epoch_id=None)
+            )
 
             # Lifecycle epochs for this device (after lifecycle events above)
             await session.execute(
