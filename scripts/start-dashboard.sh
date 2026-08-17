@@ -192,7 +192,9 @@ cd "$REPO_ROOT/backend"
 # Use bash -c to activate venv in the subshell
 # Redirect stdout/stderr to backend.out (overwritten on start)
 # The application handles backend.log with rotation
-nohup bash -c "source $REPO_ROOT/.venv/bin/activate && python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload" \
+# --reload-dir watches the ai/ package (outside backend/) too, so edits to the
+# AI gates/context code trigger an auto-restart alongside backend changes.
+nohup bash -c "source $REPO_ROOT/.venv/bin/activate && python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai" \
     > "$REPO_ROOT/logs/backend.out" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"

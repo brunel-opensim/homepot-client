@@ -62,7 +62,7 @@ cd backend
 source ../.venv/bin/activate
 
 # Start the backend server
-python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai
 ```
 
 **Expected Output:**

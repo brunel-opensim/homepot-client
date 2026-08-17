@@ -58,13 +58,17 @@ This creates the PostgreSQL database `homepot_db` with demo data (3 sites, 12 de
 
 ```bash
 # Option 1: Using Python module
-python -m uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn homepot.main:app --reload --reload-dir src --reload-dir ../ai --host 0.0.0.0 --port 8000
 
 # Option 2: Using uvicorn command directly (if in PATH)
-uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn homepot.main:app --reload --reload-dir src --reload-dir ../ai --host 0.0.0.0 --port 8000
 ```
 
 The `--reload` flag enables auto-restart on code changes (development mode).
+The `--reload-dir` flags additionally watch the `ai/` package (which lives
+outside `backend/`), so edits to the AI gates/context code also trigger a
+restart. Run the command from the `backend/` directory so the relative paths
+(`src`, `../ai`) resolve correctly.
 
 ### 6. Verify Backend is Running
 
