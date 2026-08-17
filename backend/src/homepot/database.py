@@ -594,6 +594,27 @@ class DatabaseService:
                 )
             )
 
+            # Record a tombstone audit event BEFORE deleting the device row so
+            # we can still capture its identity. device_id is left None because
+            # the row is deleted immediately after (an FK would otherwise break);
+            # the purged identity is preserved in old_values. This is the only
+            # retained trace of a purge -- the data itself is gone.
+            device_name = device.name
+            device_site_id = device.site_id
+            session.add(
+                AuditLog(
+                    event_type="device_deleted",
+                    description=f"Device '{device_name}' ({device_id}) purged with all associated data",
+                    site_id=device_site_id,
+                    old_values={
+                        "device_id": device_id,
+                        "name": device_name,
+                        "site_id": device_site_id,
+                        "cleanup_policy": "purge",
+                    },
+                )
+            )
+
             # Finally the device row itself
             await session.delete(device)
             await session.commit()
