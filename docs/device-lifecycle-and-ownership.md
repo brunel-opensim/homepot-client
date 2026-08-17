@@ -180,6 +180,15 @@ The request must include authentication, authorisation, an optional reason, and 
 
 Hard deletion is a separate data-governance operation and is outside ordinary device unpairing.
 
+### Delete modes map to lifecycle concepts
+
+The device `DELETE` endpoints (`DELETE /api/v1/devices/device/{id}`) use **archive / purge** modes that map to the lifecycle model above:
+
+- **`archive`** (default) — performs the **unpair** lifecycle transition: revokes credentials, expires outstanding commands, sets `lifecycle_state = 'unpaired'` and `is_active = false`, while **retaining all data**. Restorable by re-activating the device.
+- **`purge`** — the separate hard-deletion data-governance operation (requires `confirm=true`): permanently deletes the device row and all associated data.
+
+So "archive" is the `DELETE`-method alias for the `unpaired` lifecycle state; "purge" is the hard-deletion path that sits outside the lifecycle model (line above). Sites follow the same pattern (`DELETE /api/v1/sites/{id}?mode=archive|purge`), where archiving a site also archives its devices. These apply uniformly regardless of whether a device is simulated, emulated, or real.
+
 ## API representation
 
 Device responses should expose the independent state dimensions:

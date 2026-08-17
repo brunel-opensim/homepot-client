@@ -1,4 +1,9 @@
-"""Tests for site delete."""
+"""Tests for site/device archive and purge.
+
+Archive (default) hides the entity and retains data; purge (with confirm=true)
+permanently deletes the entity and all associated data. Applies regardless of
+whether devices are simulated, emulated, or real.
+"""
 
 import asyncio
 from datetime import datetime, timezone
@@ -54,31 +59,29 @@ def file_db(monkeypatch: Any) -> Generator[None, None, None]:
             pass
 
 
-def test_api_site_delete(file_db: Any) -> None:
-    """Test backend site cascade deletion logic via the API."""
+def _seed_site_device_admin() -> tuple[str, str, int]:
+    """Create a site + device + admin; return (site_id, device_id, site_pk)."""
     sync_db = homepot.database.SessionLocal()
     try:
-        site = Site(
-            site_id="test-site-delete", name="Test Company Delete", is_active=True
-        )
+        site = Site(site_id="test-arch-purge", name="Test Co", is_active=True)
         sync_db.add(site)
         sync_db.commit()
         sync_db.refresh(site)
 
         device = Device(
-            device_id="dev-delete-001",
+            device_id="dev-ap-001",
             name="Test POS",
             device_type="pos_terminal",
             site_id=site.id,
-            is_active=False,
-            status=DeviceStatus.UNPAIRED,
+            is_active=True,
+            status=DeviceStatus.ONLINE,
         )
         sync_db.add(device)
         sync_db.commit()
 
         admin = User(
-            email="admin@delete.test",
-            username="admin_delete",
+            email="admin@arch-purge.test",
+            username="admin_ap",
             hashed_password=hash_password("pass"),
             is_admin=True,
             created_at=datetime.now(timezone.utc),
@@ -86,13 +89,121 @@ def test_api_site_delete(file_db: Any) -> None:
         )
         sync_db.add(admin)
         sync_db.commit()
+        return site.site_id, device.device_id, site.id
     finally:
         sync_db.close()
 
-    token = create_access_token({"sub": "admin@delete.test"})
-    headers = {"Authorization": f"Bearer {token}"}
 
+def _headers() -> dict:
+    token = create_access_token({"sub": "admin@arch-purge.test"})
+    return {"Authorization": f"Bearer {token}"}
+
+
+# --------------------------------------------------------------------------
+# Site
+# --------------------------------------------------------------------------
+
+
+def test_site_archive_default_retains_data(file_db: Any) -> None:
+    """Default delete archives the site + devices (data retained, hidden)."""
+    site_id, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
-    response = client.delete("/api/v1/sites/test-site-delete", headers=headers)
+    response = client.delete(f"/api/v1/sites/{site_id}", headers=_headers())
     assert response.status_code == 200
-    assert "deleted" in response.json()["message"].lower()
+    assert "archived" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        site = sync_db.query(Site).filter(Site.site_id == site_id).first()
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert site is not None and site.is_active is False
+        assert device is not None and device.is_active is False
+    finally:
+        sync_db.close()
+
+
+def test_site_purge_requires_confirm(file_db: Any) -> None:
+    """Purge without confirm=true is rejected."""
+    site_id, _, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/v1/sites/{site_id}", params={"mode": "purge"}, headers=_headers()
+    )
+    assert response.status_code == 400
+    assert "confirm" in response.json()["detail"].lower()
+
+
+def test_site_purge_with_confirm_deletes_everything(file_db: Any) -> None:
+    """Purge with confirm=true deletes the site and its devices."""
+    site_id, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/v1/sites/{site_id}",
+        params={"mode": "purge", "confirm": "true"},
+        headers=_headers(),
+    )
+    assert response.status_code == 200
+    assert "purged" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        site = sync_db.query(Site).filter(Site.site_id == site_id).first()
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert site is None
+        assert device is None
+    finally:
+        sync_db.close()
+
+
+# --------------------------------------------------------------------------
+# Device
+# --------------------------------------------------------------------------
+
+
+def test_device_archive_default_retains_data(file_db: Any) -> None:
+    """Default delete archives the device (unpaired, data retained)."""
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.delete(f"/api/v1/devices/device/{device_id}", headers=_headers())
+    assert response.status_code == 200
+    assert "archived" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None and device.is_active is False
+    finally:
+        sync_db.close()
+
+
+def test_device_purge_requires_confirm(file_db: Any) -> None:
+    """Device purge without confirm=true is rejected."""
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "purge"},
+        headers=_headers(),
+    )
+    assert response.status_code == 400
+    assert "confirm" in response.json()["detail"].lower()
+
+
+def test_device_purge_with_confirm_deletes(file_db: Any) -> None:
+    """Device purge with confirm=true deletes the device row."""
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "purge", "confirm": "true"},
+        headers=_headers(),
+    )
+    assert response.status_code == 200
+    assert "purged" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is None
+    finally:
+        sync_db.close()
