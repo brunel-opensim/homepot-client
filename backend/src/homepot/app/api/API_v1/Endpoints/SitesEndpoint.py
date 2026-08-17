@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session as SASession
@@ -336,13 +336,29 @@ async def get_site(
 @router.delete("/{site_id}", tags=["Sites"])
 async def delete_site(
     site_id: str,
+    mode: str = Query("archive", pattern="^(archive|purge)$"),
+    confirm: bool = Query(False, description="Required for purge"),
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, str]:
-    """Delete a site and ALL associated resources (metrics, logs, history).
+    """Archive or purge a site.
+
+    - ``archive`` (default): hide the site and its devices from the Dashboard,
+      retaining all historical data. Safe and reversible (set ``is_active``
+      back to true to restore).
+    - ``purge``: delete the site and ALL associated data (metrics, logs,
+      history, devices). Destructive and irreversible; requires
+      ``confirm=true``. Applies regardless of whether devices are simulated,
+      emulated, or real.
 
     Requires operator-level access on the site.
     """
+    if mode == "purge" and not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Purge requires confirm=true (it permanently deletes the site and all associated data).",
+        )
+
     try:
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
@@ -350,15 +366,16 @@ async def delete_site(
         verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
         db_service = await get_database_service()
-        from sqlalchemy import delete, select
+        from sqlalchemy import delete, select, update
 
         # Import analytics models for comprehensive cleanup
-        from homepot.app.models.AnalyticsModel import (  # ErrorLog,  # Unused; PushNotificationLog,  # Unused
+        from homepot.app.models.AnalyticsModel import (
             APIRequestLog,
             ConfigurationHistory,
             DeviceMetrics,
             DeviceStateHistory,
             JobOutcome,
+            PushNotificationLog,
             SiteOperatingSchedule,
         )
         from homepot.models import (
@@ -385,6 +402,36 @@ async def delete_site(
             site_name = site.name
             site_str_id = site.site_id
 
+            if mode == "archive":
+                # --- ARCHIVE: hide the site and its devices, keep all data ---
+                site.is_active = False  # type: ignore[assignment]
+                # Mark the site's devices as inactive so they disappear from the
+                # Dashboard too, while preserving their data.
+                await session.execute(
+                    update(Device)
+                    .where(Device.site_id == site.id)
+                    .values(is_active=False)
+                )
+                await session.commit()
+
+                audit_logger = get_audit_logger()
+                await audit_logger.log_event(
+                    AuditEventType.SITE_DELETED,
+                    f"Site '{site_name}' archived (hidden from Dashboard, data retained)",
+                    site_id=None,
+                    old_values={
+                        "site_id": site_str_id,
+                        "name": site_name,
+                        "db_id": site_pk,
+                        "cleanup_policy": "archive",
+                    },
+                )
+                return {
+                    "message": f"Site {site_id} archived (data retained; set is_active=true to restore)"
+                }
+
+            # --- PURGE: delete the site and ALL associated data ---
+
             # Get all devices for this site to clean up their related data
             # We need both Integer IDs (for FKs) and String IDs (for Analytics)
             devices_result = await session.execute(
@@ -410,16 +457,6 @@ async def delete_site(
                 )
 
             if device_str_ids:
-                # Push Notification Logs - Disabled due to missing device_id column
-                # await session.execute(
-                #     delete(PushNotificationLog).where(
-                #         PushNotificationLog.device_id.in_(device_str_ids)
-                #     )
-                # )
-                # Error Logs (linked to devices) - Disabled due to missing device_id column
-                # await session.execute(
-                #     delete(ErrorLog).where(ErrorLog.device_id.in_(device_str_ids))
-                # )
                 # Job Outcomes (linked to devices)
                 await session.execute(
                     delete(JobOutcome).where(JobOutcome.device_id.in_(device_str_ids))
@@ -431,6 +468,11 @@ async def delete_site(
                         ConfigurationHistory.entity_id.in_(device_str_ids),
                     )
                 )
+                # Error Logs: no device/site FK exists on error_logs, and the
+                # device id only lives inside the context JSON (unreliable to
+                # query across backends), so error_logs are intentionally
+                # retained -- they are operational error records, not
+                # site-scoped data.
 
             # --- PHASE 2: Clean up Site-Specific Analytics & History ---
             # Site Operating Schedules
@@ -474,16 +516,25 @@ async def delete_site(
             # Delete AuditLogs for the site
             await session.execute(delete(AuditLog).where(AuditLog.site_id == site.id))
 
-            # Get associated Jobs to delete their AuditLogs
+            # Get associated Jobs to delete their AuditLogs and Push logs
             jobs_result = await session.execute(
-                select(Job.id).where(Job.site_id == site.id)
+                select(Job.id, Job.job_id).where(Job.site_id == site.id)
             )
-            job_ids = jobs_result.scalars().all()
+            job_rows = jobs_result.all()
+            job_pk_ids = [r[0] for r in job_rows]
+            job_str_ids = [r[1] for r in job_rows]
 
-            if job_ids:
+            if job_pk_ids:
                 # Delete AuditLogs for jobs
                 await session.execute(
-                    delete(AuditLog).where(AuditLog.job_id.in_(job_ids))
+                    delete(AuditLog).where(AuditLog.job_id.in_(job_pk_ids))
+                )
+            if job_str_ids:
+                # Delete Push Notification Logs linked to this site's jobs
+                await session.execute(
+                    delete(PushNotificationLog).where(
+                        PushNotificationLog.job_id.in_(job_str_ids)
+                    )
                 )
 
             # Delete associated Jobs
@@ -507,12 +558,12 @@ async def delete_site(
                     "site_id": site_str_id,
                     "name": site_name,
                     "db_id": site_pk,
-                    "cleanup_policy": "hard_delete_all_associated_data",
+                    "cleanup_policy": "purge",
                 },
             )
 
             return {
-                "message": f"Site {site_id} and all associated data deleted successfully"
+                "message": f"Site {site_id} and all associated data purged successfully"
             }
 
     except HTTPException:

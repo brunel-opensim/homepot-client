@@ -530,6 +530,75 @@ class DatabaseService:
             await session.commit()
             return True
 
+    async def purge_device(self, device_id: str) -> bool:
+        """Permanently delete a device and all its associated data (hard purge).
+
+        Removes telemetry, state history, health checks, commands, credentials,
+        assignments, lifecycle events/epochs, alerts, job outcomes,
+        configuration history, audit logs, and the device row itself.
+        Irreversible -- only call after an explicit ``confirm``.
+        """
+        from sqlalchemy import delete
+
+        from homepot.models import DeviceAssignment, DeviceLifecycleEvent
+
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
+            )
+            device = result.scalars().first()
+            if not device:
+                return False
+            pk = device.id
+
+            # Children that reference the device by integer PK (delete before
+            # the device row to satisfy foreign keys).
+            for model in (
+                DeviceLifecycleEvent,
+                DeviceAssignment,
+                DeviceCredential,
+                DeviceMetrics,
+                DeviceStateHistory,
+                HealthCheck,
+                DeviceCommand,
+                AuditLog,
+            ):
+                await session.execute(delete(model).where(model.device_id == pk))
+
+            # Jobs for this device (and their audit logs)
+            job_ids = (
+                (await session.execute(select(Job.id).where(Job.device_id == pk)))
+                .scalars()
+                .all()
+            )
+            if job_ids:
+                await session.execute(
+                    delete(AuditLog).where(AuditLog.job_id.in_(job_ids))
+                )
+            await session.execute(delete(Job).where(Job.device_id == pk))
+
+            # Lifecycle epochs for this device (after lifecycle events above)
+            await session.execute(
+                delete(LifecycleEpoch).where(LifecycleEpoch.device_id == pk)
+            )
+
+            # Rows that reference the device by its public string id
+            await session.execute(delete(Alert).where(Alert.device_id == device_id))
+            await session.execute(
+                delete(JobOutcome).where(JobOutcome.device_id == device_id)
+            )
+            await session.execute(
+                delete(ConfigurationHistory).where(
+                    ConfigurationHistory.entity_type == "device",
+                    ConfigurationHistory.entity_id == device_id,
+                )
+            )
+
+            # Finally the device row itself
+            await session.delete(device)
+            await session.commit()
+            return True
+
     async def get_devices_by_site_and_segment(
         self, site_id: str, segment: Optional[str] = None
     ) -> List[Device]:

@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional, cast
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials
 import jwt
 from pydantic import BaseModel, ConfigDict
@@ -662,20 +662,34 @@ async def update_device(
 @router.delete("/device/{device_id}", tags=["Devices"])
 async def delete_device(
     device_id: str,
+    mode: str = Query("archive", pattern="^(archive|purge)$"),
+    confirm: bool = Query(False, description="Required for purge"),
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Unpair a device and archive its associated data.
+    """Archive or purge a device.
+
+    - ``archive`` (default): unpair the device and retain its historical data.
+    - ``purge``: permanently delete the device and ALL its associated data
+      (telemetry, commands, history). Destructive and irreversible; requires
+      ``confirm=true``. Applies regardless of whether the device is simulated,
+      emulated, or real.
 
     Requires operator-level access on the device's site.
     """
+    if mode == "purge" and not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Purge requires confirm=true (it permanently deletes the device and all associated data).",
+        )
+
     try:
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
         db_service = await get_database_service()
 
-        # Verify access before unpairing — operator role required
+        # Verify access before deletion — operator role required
         device = await db_service.get_device_by_device_id(device_id)
         if not device:
             raise HTTPException(
@@ -683,14 +697,18 @@ async def delete_device(
             )
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
-        success = await db_service.delete_device(device_id)
+        if mode == "purge":
+            success = await db_service.purge_device(device_id)
+        else:
+            success = await db_service.delete_device(device_id)
 
         if not success:
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
 
-        return {"message": f"Device '{device_id}' unpaired and archived successfully"}
+        action = "purged" if mode == "purge" else "archived"
+        return {"message": f"Device '{device_id}' {action} successfully"}
 
     except HTTPException:
         raise
