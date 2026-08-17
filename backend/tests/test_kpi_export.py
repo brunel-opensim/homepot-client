@@ -460,6 +460,60 @@ def test_site_device_isolation(client: TestClient) -> None:
     assert _result(device_b, "MW-01", "real")["numerator"] == 0
 
 
+def test_archived_devices_excluded_from_kpis(client: TestClient) -> None:
+    """Archived (unpaired/inactive) devices and their data are not in KPIs."""
+    _seed_device("kpi-active-dev", "site-a", config={"device_source": "physical"})
+    _seed_device("kpi-archived-dev", "site-a", config={"device_source": "physical"})
+    _seed_command("kpi-active-dev", "ping", CommandStatus.COMPLETED)
+    _seed_command("kpi-archived-dev", "ping", CommandStatus.FAILED)
+    _seed_metric("kpi-archived-dev", 50.0, "real")
+
+    # Archive the second device (unpair)
+    db = homepot.database.SessionLocal()
+    try:
+        dev = db.query(Device).filter(Device.device_id == "kpi-archived-dev").first()
+        dev.is_active = False
+        dev.lifecycle_state = LifecycleState.UNPAIRED.value
+        db.commit()
+    finally:
+        db.close()
+
+    whole = _export(client)
+    # Only the active device's command counts toward the whole population
+    assert _result(whole, "MW-01", "real")["denominator"] == 1
+    assert _result(whole, "MW-01", "real")["numerator"] == 1
+
+    # Raw evidence excludes the archived device's metrics
+    metrics = next(t for t in whole["raw"] if t["table"] == "device_metrics")
+    assert len(metrics["rows"]) == 0
+
+
+def test_archived_site_devices_excluded_from_kpis(client: TestClient) -> None:
+    """Devices belonging to an archived site are not in KPIs."""
+    _seed_device("kpi-live-dev", "site-a", config={"device_source": "physical"})
+    _seed_device(
+        "kpi-arch-site-dev", "site-archived", config={"device_source": "physical"}
+    )
+    _seed_command("kpi-live-dev", "ping", CommandStatus.COMPLETED)
+    _seed_command("kpi-arch-site-dev", "ping", CommandStatus.FAILED)
+
+    db = homepot.database.SessionLocal()
+    try:
+        site = db.query(Site).filter(Site.site_id == "site-archived").first()
+        site.is_active = False
+        site.lifecycle_state = "archived"
+        db.commit()
+        # Archive deactivation also marks its devices inactive
+        db.query(Device).filter(Device.site_id == site.id).update({"is_active": False})
+        db.commit()
+    finally:
+        db.close()
+
+    bundle = _export(client)
+    assert _result(bundle, "MW-01", "real")["denominator"] == 1
+    assert _result(bundle, "MW-01", "real")["numerator"] == 1
+
+
 def test_boundary_timestamps(client: TestClient) -> None:
     """Rows exactly at start/end are included; outside the window are not."""
     _seed_device("kpi-boundary", "site-a", config={"device_source": "physical"})

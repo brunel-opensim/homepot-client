@@ -83,7 +83,8 @@ async def _extract_raw(
         metrics_stmt = metrics_stmt.where(
             DeviceMetrics.provenance == filters.provenance
         )
-    elif pk_ids:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows.
         metrics_stmt = metrics_stmt.where(DeviceMetrics.device_id.in_(pk_ids))
     metric_rows = (await session.execute(metrics_stmt)).scalars().all()
     raw.append(
@@ -118,7 +119,8 @@ async def _extract_raw(
         state_stmt = state_stmt.where(
             DeviceStateHistory.provenance == filters.provenance
         )
-    elif pk_ids:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows.
         state_stmt = state_stmt.where(DeviceStateHistory.device_id.in_(pk_ids))
     state_rows = (await session.execute(state_stmt)).scalars().all()
     raw.append(
@@ -153,7 +155,8 @@ async def _extract_raw(
         config_stmt = config_stmt.where(
             ConfigurationHistory.provenance == filters.provenance
         )
-    elif device_id_strings:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows.
         config_stmt = config_stmt.where(
             ConfigurationHistory.entity_id.in_(device_id_strings)
         )
@@ -198,10 +201,10 @@ async def _extract_raw(
     )
     if filters.provenance is not None:
         scope_pks = provenance_pks.get(filters.provenance, set())
-        if pk_ids:
-            scope_pks = scope_pks & set(pk_ids)
+        scope_pks = scope_pks & set(pk_ids)
         command_stmt = command_stmt.where(DeviceCommand.device_id.in_(scope_pks))
-    elif pk_ids:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows.
         command_stmt = command_stmt.where(DeviceCommand.device_id.in_(pk_ids))
     command_rows = (await session.execute(command_stmt)).scalars().all()
     raw.append(

@@ -114,8 +114,8 @@ def _is_improved(
 async def _resolve_devices(
     session: AsyncSession, filters: ExportFilters
 ) -> tuple[List[int], List[str]]:
-    """Resolve site/device/type filters into device PKs and device_id strings."""
-    stmt = select(Device)
+    """Resolve site/device/type filters into active device PKs and strings."""
+    stmt = select(Device).where(Device.is_active.is_(True))
     if filters.site_id is not None:
         stmt = stmt.join(Site, Device.site_id == Site.id).where(
             Site.site_id == filters.site_id
@@ -131,11 +131,15 @@ async def _resolve_devices(
 
 
 async def _provenance_device_pks(session: AsyncSession) -> Dict[str, set]:
-    """Map each provenance class to the device PKs carrying it today.
+    """Map each provenance class to the ACTIVE device PKs carrying it today.
 
     Used to scope command KPIs, which lack a snapshotted provenance column.
     """
-    devices = (await session.execute(select(Device))).scalars().all()
+    devices = (
+        (await session.execute(select(Device).where(Device.is_active.is_(True))))
+        .scalars()
+        .all()
+    )
     grouped: Dict[str, set] = {"real": set(), "controlled": set(), "simulated": set()}
     for device in devices:
         provenance = derive_provenance(device)
@@ -158,10 +162,11 @@ def _command_scope(
     )
     if filters.provenance is not None:
         scope_pks = provenance_pks.get(filters.provenance, set())
-        if pk_ids:
-            scope_pks = scope_pks & set(pk_ids)
+        scope_pks = scope_pks & set(pk_ids)
         stmt = stmt.where(DeviceCommand.device_id.in_(scope_pks))
-    elif pk_ids:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows,
+        # not fall back to all devices.
         stmt = stmt.where(DeviceCommand.device_id.in_(pk_ids))
     return stmt
 
@@ -181,7 +186,8 @@ def _config_scope(
     )
     if filters.provenance is not None:
         stmt = stmt.where(ConfigurationHistory.provenance == filters.provenance)
-    elif device_id_strings:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows.
         stmt = stmt.where(ConfigurationHistory.entity_id.in_(device_id_strings))
     return stmt
 
@@ -397,8 +403,8 @@ async def compute_provenance_coverage(
     for name, model, window_col, provenance_col, device_col, ids in definitions:
         base = select(func.count()).select_from(model)
         base = base.where(window_col >= start, window_col <= end)
-        if ids:
-            base = base.where(device_col.in_(ids))
+        # Always apply the device scope; an empty scope must yield no rows.
+        base = base.where(device_col.in_(ids))
         eligible = (await session.execute(base)).scalar_one()
         valid = (
             await session.execute(base.where(provenance_col.isnot(None)))
@@ -430,7 +436,8 @@ async def compute_provenance_coverage(
         config_base = config_base.where(
             ConfigurationHistory.provenance == filters.provenance
         )
-    elif device_id_strings:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows.
         config_base = config_base.where(
             ConfigurationHistory.entity_id.in_(device_id_strings)
         )
@@ -472,7 +479,8 @@ async def compute_metric_network_latency(
     )
     if filters.provenance is not None:
         stmt = stmt.where(DeviceMetrics.provenance == filters.provenance)
-    elif pk_ids:
+    else:
+        # Always apply the device scope; an empty scope must yield no rows.
         stmt = stmt.where(DeviceMetrics.device_id.in_(pk_ids))
     rows = (await session.execute(stmt)).scalars().all()
     values = [cast(float, r.network_latency_ms) for r in rows]
