@@ -20,17 +20,27 @@ database:
   url: "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
   # url: "sqlite:///homepot.db"
 
+# Anomaly detection for device telemetry (ai/anomaly_detection.py).
+#
+# The detector is rule-based: each metric that crosses its threshold adds a
+# weighted contribution to an anomaly score (0.0-1.0). Higher-impact signals
+# (flapping, consecutive failures) carry more weight than resource usage.
+# Thresholds below are the values at which a metric is flagged as anomalous.
+#
+# NOTE: `sensitivity` and `window_size` are reserved configuration keys but are
+# not currently applied by the detector -- the score uses fixed per-signal
+# weights. Tune the thresholds below, not these two.
 anomaly_detection:
   sensitivity: 0.8
   window_size: 50
   thresholds:
-    network_latency_ms: 200
-    cpu_percent: 90.0
-    memory_percent: 90.0
-    disk_percent: 90.0
-    error_rate: 0.05
-    max_flapping_count: 5  # State changes per hour
-    consecutive_failures: 3
+    network_latency_ms: 200          # ms; above this flags "High Latency"
+    cpu_percent: 90.0                # %; above this flags "High CPU"
+    memory_percent: 90.0             # %; above this flags "High Memory"
+    disk_percent: 90.0               # %; above this flags "High Disk Usage"
+    error_rate: 0.05                 # ratio (5%); above this flags "High Error Rate"
+    max_flapping_count: 5            # state changes per hour; above this flags "High Instability"
+    consecutive_failures: 3          # health-check failures in a row; at/above this flags "System Failure"
 
 # Validation-gate thresholds for the AI trust envelope (ai/gates/*).
 #
