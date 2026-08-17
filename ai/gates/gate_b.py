@@ -43,12 +43,12 @@ from .base import (
     GateStatus,
 )
 
+# Fallback defaults used when ai/config.yaml does not supply a value (see
+# ai/gates/config.py). Runtime thresholds come from config.yaml.
 DEFAULT_FRESHNESS_MAX_AGE_SECONDS = 300  # 5-minute heartbeat baseline (paper Sec. 3.3)
-DEFAULT_CONTINUITY_GAP_SECONDS = (
-    1800  # TESTING: relaxed 30 min (paper Table 1 says 60s)
-)
+DEFAULT_CONTINUITY_GAP_SECONDS = 1800  # relaxed for testing; paper Table 1 says 60s
 DEFAULT_SUSTAINED_GAP_SECONDS = 3600  # paper Sec. 6.3 ("gaps > 60 min")
-DEFAULT_COMPLETENESS_MAX_NULL_RATIO = 0.01  # TESTING: allow up to 1% nulls (real: 0)
+DEFAULT_COMPLETENESS_MAX_NULL_RATIO = 0.01  # relaxed for testing; real: 0
 
 
 class DataIntegrityGate(Gate):

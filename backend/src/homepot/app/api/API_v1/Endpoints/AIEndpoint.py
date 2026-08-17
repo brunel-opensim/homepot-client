@@ -33,7 +33,7 @@ from ai.gates import (  # noqa: E402
     MODE_CAUTIONARY,
     GateContext,
     GateStatus,
-    build_default_envelope,
+    build_envelope_from_config,
 )
 from ai.gates import EnvelopeResult  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
@@ -501,7 +501,7 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
                 assembled_context=full_context,
                 known_alert_ids=known_alert_ids,
             )
-            envelope = build_default_envelope()
+            envelope = build_envelope_from_config()
             trust = await envelope.run(gate_context)
 
             # 6. AI Insights: surface the SAME anomaly/failure signals a

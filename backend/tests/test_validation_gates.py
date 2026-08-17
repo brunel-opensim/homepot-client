@@ -369,7 +369,7 @@ async def test_query_ai_always_calls_llm_even_when_not_actionable():
             return_value=(mock_llm, mock_knowledge, mock_memory),
         ),
         patch.object(
-            AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
+            AIEndpoint, "build_envelope_from_config", return_value=_StubEnvelope()
         ),
     ):
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
@@ -443,7 +443,7 @@ async def test_query_ai_includes_insights_when_gate_b_passes():
             return_value=(mock_llm, mock_knowledge, mock_memory),
         ),
         patch.object(
-            AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
+            AIEndpoint, "build_envelope_from_config", return_value=_StubEnvelope()
         ),
         patch.object(
             AIEndpoint,
@@ -521,7 +521,7 @@ async def test_query_ai_downgrades_trust_when_post_insight_gate_c_fails():
             return_value=(mock_llm, mock_knowledge, mock_memory),
         ),
         patch.object(
-            AIEndpoint, "build_default_envelope", return_value=_StubEnvelope()
+            AIEndpoint, "build_envelope_from_config", return_value=_StubEnvelope()
         ),
         patch.object(
             AIEndpoint,
