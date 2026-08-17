@@ -31,6 +31,7 @@ if [ $# -eq 0 ]; then
     echo "  where                      - Show where PostgreSQL stores data"
     echo "  site_devices [site_id]     - Show all devices for a specific site"
     echo "  device_details [device_id] - Show full details and recent metrics for a device"
+    echo "  archived_purged            - Show archived (data retained) and purged (tombstone) devices"
     echo "  sql 'query'                - Run custom SQL query"
     echo ""
     echo "Examples:"
@@ -71,10 +72,33 @@ EOF
         ;;
     devices)
         psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
-SELECT d.id, d.device_id, d.name, d.device_type, s.site_id, d.status 
+SELECT d.id, d.device_id, d.name, d.device_type, s.site_id, d.lifecycle_state, d.is_active, d.status
 FROM devices d
 JOIN sites s ON d.site_id = s.id
+ORDER BY d.id
 LIMIT 10;
+EOF
+        ;;
+    archived_purged)
+        echo "=== Archived / Purged Devices ==="
+        echo ""
+        echo "--- Archived devices (unpaired/retired, data retained) ---"
+        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+SELECT d.device_id, d.name, d.lifecycle_state, s.site_id
+FROM devices d
+JOIN sites s ON d.site_id = s.id
+WHERE d.is_active = false OR d.lifecycle_state IN ('unpaired','retired')
+ORDER BY d.id;
+EOF
+        echo ""
+        echo "--- Purged devices (data deleted; tombstone from audit_logs) ---"
+        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+SELECT al.created_at AS purged_at,
+       (al.old_values->>'device_id') AS device_id,
+       (al.old_values->>'name') AS name
+FROM audit_logs al
+WHERE al.event_type = 'device_deleted'
+ORDER BY al.created_at DESC;
 EOF
         ;;
     jobs)

@@ -20,7 +20,7 @@ from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.app.main import app
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, Device, DeviceStatus, Site, User
+from homepot.models import AuditLog, Base, Device, DeviceStatus, Site, User
 
 
 @pytest.fixture
@@ -172,6 +172,9 @@ def test_device_archive_default_retains_data(file_db: Any) -> None:
     try:
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
         assert device is not None and device.is_active is False
+        # archived device is no longer reachable, so connectivity status is offline
+        assert device.status == "offline"
+        assert device.lifecycle_state == "unpaired"
     finally:
         sync_db.close()
 
@@ -205,5 +208,36 @@ def test_device_purge_with_confirm_deletes(file_db: Any) -> None:
     try:
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
         assert device is None
+    finally:
+        sync_db.close()
+
+
+def test_device_purge_creates_audit_tombstone(file_db: Any) -> None:
+    """Purging a device leaves a 'device_deleted' audit tombstone."""
+    _, device_id, site_pk = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "purge", "confirm": "true"},
+        headers=_headers(),
+    )
+    assert response.status_code == 200
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        tombstone = (
+            sync_db.query(AuditLog)
+            .filter(
+                AuditLog.event_type == "device_deleted",
+                AuditLog.description.like(f"%{device_id}%"),
+            )
+            .order_by(AuditLog.id.desc())
+            .first()
+        )
+        assert tombstone is not None
+        # device_id FK is null (device row is gone); identity preserved in data
+        assert tombstone.device_id is None
+        assert tombstone.old_values.get("device_id") == device_id
+        assert tombstone.old_values.get("cleanup_policy") == "purge"
     finally:
         sync_db.close()
