@@ -115,7 +115,7 @@ export default function SiteDetail() {
     setDeviceToDelete(device);
   };
 
-  const handleConfirmDeleteDevice = async () => {
+  const handleConfirmDeleteDevice = async (mode) => {
     if (!deviceToDelete) return;
 
     try {
@@ -123,7 +123,7 @@ export default function SiteDetail() {
       // Use device_id (string) if available, otherwise fallback to id (int) but convert to string if needed
       // The backend expects the string ID (e.g. "device-123")
       const idToDelete = deviceToDelete.device_id || deviceToDelete.id;
-      await api.devices.delete(idToDelete);
+      await api.devices.delete(idToDelete, mode);
 
       // Remove from list
       setDevices((prev) => prev.filter((d) => (d.device_id || d.id) !== idToDelete));
