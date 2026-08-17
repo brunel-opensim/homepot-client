@@ -208,6 +208,8 @@ def test_site_archive_default_retains_data(file_db: Any) -> None:
         assert site is not None and site.is_active is False
         assert site.lifecycle_state == "archived"
         assert device is not None and device.is_active is False
+        assert device.lifecycle_state == "suspended"
+        assert device.status == "offline"
     finally:
         sync_db.close()
 

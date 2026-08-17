@@ -27,6 +27,7 @@ from homepot.database import get_database_service, get_db
 from homepot.error_logger import log_error
 from homepot.models import (
     Device,
+    DeviceStatus,
     LifecycleState,
     Site,
     SiteLifecycleState,
@@ -412,8 +413,31 @@ async def delete_site(
                 # --- ARCHIVE: hide the site and its devices, keep all data ---
                 site.is_active = False  # type: ignore[assignment]
                 site.lifecycle_state = SiteLifecycleState.ARCHIVED.value  # type: ignore[assignment]
-                # Mark the site's devices as inactive so they disappear from the
-                # Dashboard too, while preserving their data.
+                # Suspend the site's devices so they read as clearly inactive
+                # (offline) on the Dashboard, while preserving their data.
+                # They remain recoverable: restore re-activates devices whose
+                # lifecycle_state is active/pending/suspended, so suspended
+                # devices are revived when the site is restored.
+                await session.execute(
+                    update(Device)
+                    .where(
+                        Device.site_id == site.id,
+                        Device.lifecycle_state.in_(
+                            [
+                                LifecycleState.ACTIVE.value,
+                                LifecycleState.PENDING.value,
+                                LifecycleState.SUSPENDED.value,
+                            ]
+                        ),
+                    )
+                    .values(
+                        is_active=False,
+                        lifecycle_state=LifecycleState.SUSPENDED.value,
+                        status=DeviceStatus.OFFLINE.value,
+                    )
+                )
+                # Also hide any independently unpaired/retired devices under the
+                # site so nothing under an archived site remains visible.
                 await session.execute(
                     update(Device)
                     .where(Device.site_id == site.id)
@@ -432,6 +456,7 @@ async def delete_site(
                         "db_id": site_pk,
                         "cleanup_policy": "archive",
                         "lifecycle_state": "archived",
+                        "devices": "suspended",
                     },
                 )
                 return {
