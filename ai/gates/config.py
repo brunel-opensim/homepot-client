@@ -3,16 +3,13 @@
 This module is the bridge between the runtime envelope and the single
 configuration file ``ai/config.yaml`` (section ``validation_gates``). The
 in-code ``DEFAULT_*`` constants in ``gate_b.py`` / ``gate_c.py`` remain as
-fallbacks when a key is missing from the file, mirroring how
-``anomaly_detection.py`` reads its thresholds. Values in ``config.yaml`` are
+fallbacks when a key is missing from the file. Values in ``config.yaml`` are
 authoritative -- change thresholds there, not in code.
 """
 
-from pathlib import Path
 from typing import Any, Dict
 
-import yaml
-
+from ..config import load_ai_config
 from .gate_b import (
     DEFAULT_COMPLETENESS_MAX_NULL_RATIO,
     DEFAULT_CONTINUITY_GAP_SECONDS,
@@ -21,17 +18,10 @@ from .gate_b import (
 )
 from .gate_c import DEFAULT_MAX_CONTEXT_CHARS, DEFAULT_REQUIRED_BLOCKS
 
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
-
 
 def _load_gates_section() -> Dict[str, Any]:
     """Return the ``validation_gates`` dict from config.yaml (empty on error)."""
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            data = yaml.safe_load(f) or {}
-        return data.get("validation_gates", {}) or {}
-    except (OSError, yaml.YAMLError):
-        return {}
+    return load_ai_config().get("validation_gates", {}) or {}
 
 
 def gate_b_kwargs() -> Dict[str, Any]:
