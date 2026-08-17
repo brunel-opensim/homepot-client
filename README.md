@@ -143,8 +143,9 @@ This will start:
 > If it is not `200`, restart the backend. If you launch it manually from a shell that later terminates, use `setsid` (not plain `nohup`) so the process detaches from the shell's process group and survives:
 > ```bash
 > cd backend && source ../.venv/bin/activate
-> setsid env ENABLE_AGENT_SIMULATION=true python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload < /dev/null > /tmp/opencode/backend.log 2>&1 &
+> setsid env ENABLE_AGENT_SIMULATION=true python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai < /dev/null > ../logs/backend.log 2>&1 &
 > ```
+> `--reload-dir src --reload-dir ../ai` makes the backend also auto-restart when files under the `ai/` package (validation gates, anomaly detection, etc.) change. Logs go to `logs/backend.log` (repo root, gitignored).
 
 **See [Complete Dashboard Setup Guide](docs/complete-dashboard-setup.md) and [Dashboard Testing Guide](docs/dashboard-testing-guide.md)**
 
