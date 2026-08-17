@@ -144,14 +144,24 @@ class DataIntegrityGate(Gate):
             "disk_percent": total - disk_n,
             "network_latency_ms": total - lat_n,
         }
-        completeness_ratio = 1 - (sum(null_counts.values()) / (total * 4))
-        passed = all(n == 0 for n in null_counts.values())
+        total_nulls = sum(null_counts.values())
+        passed = total_nulls == 0
+
+        if passed:
+            message = f"Non-null completeness 100.0% over {total} rows."
+        else:
+            missing = ", ".join(
+                f"{col}={n}" for col, n in null_counts.items() if n
+            )
+            message = (
+                f"{total_nulls} null value(s) detected ({missing}) over {total} rows."
+            )
 
         return CheckResult(
             check_id="B.completeness",
             name="Completeness",
             passed=passed,
-            message=f"Non-null completeness {completeness_ratio:.1%} over {total} rows.",
+            message=message,
             evidence=[
                 EvidenceRef(
                     table="device_metrics",
