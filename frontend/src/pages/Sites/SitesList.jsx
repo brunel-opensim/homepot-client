@@ -82,12 +82,12 @@ export default function SitesList() {
     }
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async (mode) => {
     if (!siteToDelete) return;
 
     try {
       setIsDeleting(true);
-      await api.sites.delete(siteToDelete.id);
+      await api.sites.delete(siteToDelete.id, mode);
       setSites(sites.filter((s) => s.id !== siteToDelete.id));
       setDeleteDialogOpen(false);
       setSiteToDelete(null);

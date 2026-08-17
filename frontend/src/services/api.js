@@ -202,10 +202,14 @@ const api = {
     },
 
     /**
-     * Delete site
+     * Delete site.
+     * `mode` is 'archive' (default, reversible) or 'purge' (permanent).
+     * Purge requires `confirm=true` on the backend, so it is always sent.
      */
-    delete: async (siteId) => {
-      const response = await apiClient.delete(`/sites/${siteId}`);
+    delete: async (siteId, mode = 'archive') => {
+      const response = await apiClient.delete(`/sites/${siteId}`, {
+        params: { mode, confirm: true },
+      });
       return response.data;
     },
 
@@ -295,10 +299,14 @@ const api = {
     },
 
     /**
-     * Delete device
+     * Delete device.
+     * `mode` is 'archive' (default, reversible) or 'purge' (permanent).
+     * Purge requires `confirm=true` on the backend, so it is always sent.
      */
-    delete: async (deviceId) => {
-      const response = await apiClient.delete(`/devices/device/${deviceId}`);
+    delete: async (deviceId, mode = 'archive') => {
+      const response = await apiClient.delete(`/devices/device/${deviceId}`, {
+        params: { mode, confirm: true },
+      });
       return response.data;
     },
 
