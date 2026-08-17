@@ -42,6 +42,7 @@ from homepot.models import (
     DeviceCommand,
     DeviceCredential,
     DeviceLifecycleEvent,
+    DeviceStatus,
     HealthState,
     Job,
     LifecycleEpoch,
@@ -860,6 +861,7 @@ async def unpair_device(
         device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
         device.is_active = False  # type: ignore[assignment]
         device.api_key_hash = None  # type: ignore[assignment]
+        device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
         # The device was loaded via get_device_by_device_id, whose session is
         # already closed; merge the changes back into a fresh session so the
         # state transition actually persists.

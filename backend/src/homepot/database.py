@@ -507,6 +507,7 @@ class DatabaseService:
             device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
             device.is_active = False  # type: ignore[assignment]
             device.api_key_hash = None  # type: ignore[assignment]
+            device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
 
             # Revoke all active credentials
             cred_result = await session.execute(

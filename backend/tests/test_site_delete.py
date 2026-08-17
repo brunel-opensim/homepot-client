@@ -172,6 +172,9 @@ def test_device_archive_default_retains_data(file_db: Any) -> None:
     try:
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
         assert device is not None and device.is_active is False
+        # archived device is no longer reachable, so connectivity status is offline
+        assert device.status == "offline"
+        assert device.lifecycle_state == "unpaired"
     finally:
         sync_db.close()
 
