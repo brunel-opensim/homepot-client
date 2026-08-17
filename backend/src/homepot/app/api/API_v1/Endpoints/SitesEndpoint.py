@@ -161,10 +161,17 @@ async def create_site(
 
 @router.get("/", tags=["Sites"])
 async def list_sites(
+    include_archived: bool = Query(
+        False, description="Include archived (hidden) sites"
+    ),
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, List[Dict]]:
-    """List all sites (scoped to user's accessible sites)."""
+    """List all sites (scoped to user's accessible sites).
+
+    By default only active sites are returned. Pass ``include_archived=true``
+    to also include archived (is_active=false) sites for the restore view.
+    """
     try:
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
@@ -173,7 +180,9 @@ async def list_sites(
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:
-            query = select(Site).where(Site.is_active.is_(True))
+            query = select(Site)
+            if not include_archived:
+                query = query.where(Site.is_active.is_(True))
 
             # Non-admin users only see sites they can access
             if not db_user.is_admin:
@@ -190,11 +199,10 @@ async def list_sites(
             site_ids = [site.id for site in sites]
             devices_by_site: Dict[Any, Any] = {}
             if site_ids:
-                devices_result = await session.execute(
-                    select(Device).where(
-                        Device.site_id.in_(site_ids), Device.is_active.is_(True)
-                    )
-                )
+                devices_query = select(Device).where(Device.site_id.in_(site_ids))
+                if not include_archived:
+                    devices_query = devices_query.where(Device.is_active.is_(True))
+                devices_result = await session.execute(devices_query)
                 for device in devices_result.scalars().all():
                     devices_by_site.setdefault(device.site_id, []).append(device)
 
@@ -261,6 +269,8 @@ async def list_sites(
                         "description": site.description,
                         "location": site.location,
                         "is_monitored": site.is_monitored,
+                        "is_active": site.is_active,
+                        "lifecycle_state": site.lifecycle_state,
                         "status": status,
                         "os_types": list(os_types),
                         "devices_count": len(devices),

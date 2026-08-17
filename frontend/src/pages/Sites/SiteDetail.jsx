@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   CheckCircle,
   KeyRound,
+  RotateCcw,
+  Archive,
 } from 'lucide-react';
 import api from '@/services/api';
 import OsIcon from '@/components/common/OsIcon';
@@ -50,9 +52,13 @@ export default function SiteDetail() {
   // Device deletion state
   const [deviceToDelete, setDeviceToDelete] = useState(null);
   const [isDeletingDevice, setIsDeletingDevice] = useState(false);
+  const [isRestoringDevice, setIsRestoringDevice] = useState(false);
+  const [isRestoringSite, setIsRestoringSite] = useState(false);
 
   // Bootstrap key dialog state
   const [isBootstrapKeyOpen, setIsBootstrapKeyOpen] = useState(false);
+
+  const isArchived = site ? site.is_active === false : false;
 
   useEffect(() => {
     const fetchSiteAndDevices = async () => {
@@ -65,9 +71,10 @@ export default function SiteDetail() {
 
       setLoading(true);
 
+      let siteData = null;
       try {
         // Fetch Site
-        const siteData = await api.sites.get(id);
+        siteData = await api.sites.get(id);
         setSite(siteData);
       } catch (err) {
         console.error('Failed to load site:', err);
@@ -77,8 +84,10 @@ export default function SiteDetail() {
       }
 
       try {
-        // Fetch Devices
-        const devicesData = await api.devices.getSiteId(id);
+        // Fetch Devices (include unpaired/suspended for archived sites)
+        const devicesData = await api.devices.getSiteId(id, {
+          includeUnpaired: siteData.is_active === false,
+        });
         const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
 
         // Sort alphabetically by name
@@ -108,6 +117,40 @@ export default function SiteDetail() {
       setSite((prev) => ({ ...prev, is_monitored: updatedSite.is_monitored }));
     } catch (err) {
       console.error('Failed to toggle monitor:', err);
+    }
+  };
+
+  const handleRestoreSite = async () => {
+    try {
+      setIsRestoringSite(true);
+      await api.sites.restore(id);
+      // Re-fetch site + devices in active mode
+      const siteData = await api.sites.get(id);
+      setSite(siteData);
+      const devicesData = await api.devices.getSiteId(id);
+      const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
+      devicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setDevices(devicesList);
+    } catch (err) {
+      console.error('Failed to restore site:', err);
+      alert(`Failed to restore site: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setIsRestoringSite(false);
+    }
+  };
+
+  const handleRestoreDevice = async (device) => {
+    const deviceId = device.device_id || device.id;
+    try {
+      setIsRestoringDevice(true);
+      await api.devices.resume(deviceId);
+      // Remove from the archived list (it becomes active again)
+      setDevices((prev) => prev.filter((d) => (d.device_id || d.id) !== deviceId));
+    } catch (err) {
+      console.error('Failed to restore device:', err);
+      alert(`Failed to restore device: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setIsRestoringDevice(false);
     }
   };
 
@@ -195,32 +238,54 @@ export default function SiteDetail() {
                 <MapPin className="h-4 w-4 mr-1.5" />
                 {site.location || 'No location specified'}
               </div>
+              {isArchived && (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-400">
+                  <Archive className="h-3.5 w-3.5" />
+                  <span>
+                    This site is <span className="text-gray-200">archived</span>. Its devices are
+                    suspended and hidden from the Dashboard.
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
-              <Button
-                onClick={handleToggleMonitor}
-                className={`bg-transparent border ${
-                  site.is_monitored
-                    ? 'text-yellow-400 border-yellow-400 hover:bg-yellow-400/10'
-                    : 'text-gray-400 border-gray-400 hover:bg-gray-400/10'
-                }`}
-              >
-                <Activity className="h-4 w-4 mr-2" />
-                {site.is_monitored ? 'Monitored' : 'Add to Dashboard'}
-              </Button>
-              <Button
-                onClick={() => navigate(`/sites/${site.site_id || site.id}/enrolment-intents`)}
-                className="bg-transparent border text-blue-400 border-blue-400 hover:bg-blue-400/10"
-              >
-                Enrolment Intents
-              </Button>
-              <Button
-                onClick={() => setIsBootstrapKeyOpen(true)}
-                className="bg-transparent border text-teal-400 border-teal-400 hover:bg-teal-400/10"
-              >
-                <KeyRound className="h-4 w-4 mr-2" />
-                Bootstrap Key
-              </Button>
+              {isArchived ? (
+                <Button
+                  onClick={handleRestoreSite}
+                  disabled={isRestoringSite}
+                  className="bg-transparent border text-teal-400 border-teal-400 hover:bg-teal-400/10 disabled:opacity-50"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  {isRestoringSite ? 'Restoring...' : 'Restore Site'}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleToggleMonitor}
+                    className={`bg-transparent border ${
+                      site.is_monitored
+                        ? 'text-yellow-400 border-yellow-400 hover:bg-yellow-400/10'
+                        : 'text-gray-400 border-gray-400 hover:bg-gray-400/10'
+                    }`}
+                  >
+                    <Activity className="h-4 w-4 mr-2" />
+                    {site.is_monitored ? 'Monitored' : 'Add to Dashboard'}
+                  </Button>
+                  <Button
+                    onClick={() => navigate(`/sites/${site.site_id || site.id}/enrolment-intents`)}
+                    className="bg-transparent border text-blue-400 border-blue-400 hover:bg-blue-400/10"
+                  >
+                    Enrolment Intents
+                  </Button>
+                  <Button
+                    onClick={() => setIsBootstrapKeyOpen(true)}
+                    className="bg-transparent border text-teal-400 border-teal-400 hover:bg-teal-400/10"
+                  >
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    Bootstrap Key
+                  </Button>
+                </>
+              )}
               <Button
                 onClick={() => navigate('/dashboard')}
                 className="bg-transparent border text-gray-400 border-gray-400 hover:bg-gray-400/10"
@@ -312,8 +377,15 @@ export default function SiteDetail() {
         {/* Scrollable Devices Section */}
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="shrink-0 flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">Associated Devices</h2>
-            {healthFilter && (
+            <h2 className="text-xl font-semibold text-white">
+              {isArchived ? 'Suspended Devices' : 'Associated Devices'}
+            </h2>
+            {isArchived && (
+              <span className="text-sm text-gray-400">
+                Suspended by the site archive. Restore to re-activate.
+              </span>
+            )}
+            {!isArchived && healthFilter && (
               <span className="text-sm text-gray-400">
                 Showing <span className="text-teal-400">{filteredDevices.length}</span>{' '}
                 {healthFilter} device{filteredDevices.length === 1 ? '' : 's'}
@@ -447,35 +519,53 @@ export default function SiteDetail() {
                     </div>
                   </td>
                   <td className="p-4 align-middle text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/device/${device.device_id || device.id}/settings`, {
-                            state: {
-                              mode: 'edit',
-                              from: 'site',
-                            },
-                          });
-                        }}
-                        className="h-8 w-8 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteDeviceClick(device);
-                        }}
-                        className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {isArchived ? (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRestoreDevice(device);
+                          }}
+                          disabled={isRestoringDevice}
+                          title="Restore device"
+                          className="h-8 w-8 text-gray-400 hover:text-teal-400 hover:bg-teal-400/10"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/device/${device.device_id || device.id}/settings`, {
+                              state: {
+                                mode: 'edit',
+                                from: 'site',
+                              },
+                            });
+                          }}
+                          className="h-8 w-8 text-gray-400 hover:text-blue-400 hover:bg-blue-400/10"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDeviceClick(device);
+                          }}
+                          className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -158,9 +158,12 @@ const api = {
   sites: {
     /**
      * List all sites
+     * @param {object} opts - { includeArchived: boolean }
      */
-    list: async () => {
-      const response = await apiClient.get('/sites/');
+    list: async ({ includeArchived = false } = {}) => {
+      const response = await apiClient.get('/sites/', {
+        params: includeArchived ? { include_archived: true } : {},
+      });
       return response.data;
     },
 
@@ -169,6 +172,14 @@ const api = {
      */
     get: async (siteId) => {
       const response = await apiClient.get(`/sites/${siteId}`);
+      return response.data;
+    },
+
+    /**
+     * Restore an archived site (flips is_active + lifecycle_state back to active)
+     */
+    restore: async (siteId) => {
+      const response = await apiClient.post(`/sites/${siteId}/restore`);
       return response.data;
     },
 
@@ -255,8 +266,18 @@ const api = {
       return response.data;
     },
 
-    getSiteId: async (siteId) => {
-      const response = await apiClient.get(`/devices/sites/${siteId}/devices`);
+    getSiteId: async (siteId, { includeUnpaired = false } = {}) => {
+      const response = await apiClient.get(`/devices/sites/${siteId}/devices`, {
+        params: includeUnpaired ? { include_unpaired: true } : {},
+      });
+      return response.data;
+    },
+
+    /**
+     * Resume a suspended device (suspended -> active)
+     */
+    resume: async (deviceId) => {
+      const response = await apiClient.post(`/devices/device/${deviceId}/resume`);
       return response.data;
     },
 
