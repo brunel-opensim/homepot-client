@@ -348,3 +348,59 @@ def test_emulated_device_archive_and_purge(file_db: Any) -> None:
         assert device is None
     finally:
         sync_db.close()
+
+
+# --------------------------------------------------------------------------
+# AI visibility guards (archived sites/devices must be invisible to the AI)
+# --------------------------------------------------------------------------
+
+
+def test_ai_insights_device_hidden_after_archive(file_db: Any) -> None:
+    """AI device insights return 404 once the device is archived."""
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    active = client.get(f"/api/v1/ai/insights/device/{device_id}", headers=_headers())
+    assert active.status_code in (200, 500)
+
+    response = client.delete(f"/api/v1/devices/device/{device_id}", headers=_headers())
+    assert response.status_code == 200
+
+    archived = client.get(f"/api/v1/ai/insights/device/{device_id}", headers=_headers())
+    assert archived.status_code == 404
+    assert "not found or not active" in archived.json()["detail"].lower()
+
+
+def test_ai_failure_prediction_hidden_after_archive(file_db: Any) -> None:
+    """AI failure prediction returns 404 once the device is archived."""
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    active = client.get(
+        f"/api/v1/ai/predictions/failure/{device_id}", headers=_headers()
+    )
+    assert active.status_code in (200, 500)
+
+    response = client.delete(f"/api/v1/devices/device/{device_id}", headers=_headers())
+    assert response.status_code == 200
+
+    archived = client.get(
+        f"/api/v1/ai/predictions/failure/{device_id}", headers=_headers()
+    )
+    assert archived.status_code == 404
+
+
+def test_ai_site_insights_hidden_after_archive(file_db: Any) -> None:
+    """AI site insights return 404 once the site is archived."""
+    site_id, _, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    active = client.get(f"/api/v1/ai/insights/site/{site_id}", headers=_headers())
+    assert active.status_code in (200, 500)
+
+    response = client.delete(f"/api/v1/sites/{site_id}", headers=_headers())
+    assert response.status_code == 200
+
+    archived = client.get(f"/api/v1/ai/insights/site/{site_id}", headers=_headers())
+    assert archived.status_code == 404
+    assert "not found or not active" in archived.json()["detail"].lower()
