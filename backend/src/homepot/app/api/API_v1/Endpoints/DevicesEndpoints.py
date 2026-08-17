@@ -690,8 +690,12 @@ async def delete_device(
         )
         db_service = await get_database_service()
 
-        # Verify access before deletion — operator role required
-        device = await db_service.get_device_by_device_id(device_id)
+        # Verify access before deletion — operator role required.
+        # For purge, also match archived (is_active=false) devices so an
+        # already-archived device can still be permanently removed.
+        device = await db_service.get_device_by_device_id(
+            device_id, include_unpaired=(mode == "purge")
+        )
         if not device:
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"

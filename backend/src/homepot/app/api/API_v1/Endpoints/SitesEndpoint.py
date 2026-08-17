@@ -25,7 +25,13 @@ from homepot.canonical_ids import generate_site_id as generate_site_id
 from homepot.client import HomepotClient
 from homepot.database import get_database_service, get_db
 from homepot.error_logger import log_error
-from homepot.models import Device, Site, User
+from homepot.models import (
+    Device,
+    LifecycleState,
+    Site,
+    SiteLifecycleState,
+    User,
+)
 
 client_instance: Optional[HomepotClient] = None
 
@@ -405,6 +411,7 @@ async def delete_site(
             if mode == "archive":
                 # --- ARCHIVE: hide the site and its devices, keep all data ---
                 site.is_active = False  # type: ignore[assignment]
+                site.lifecycle_state = SiteLifecycleState.ARCHIVED.value  # type: ignore[assignment]
                 # Mark the site's devices as inactive so they disappear from the
                 # Dashboard too, while preserving their data.
                 await session.execute(
@@ -424,10 +431,14 @@ async def delete_site(
                         "name": site_name,
                         "db_id": site_pk,
                         "cleanup_policy": "archive",
+                        "lifecycle_state": "archived",
                     },
                 )
                 return {
-                    "message": f"Site {site_id} archived (data retained; set is_active=true to restore)"
+                    "message": (
+                        f"Site {site_id} archived (data retained; "
+                        "set lifecycle_state='active' to restore)"
+                    )
                 }
 
             # --- PURGE: delete the site and ALL associated data ---
@@ -579,6 +590,92 @@ async def delete_site(
             context={"site_id": site_id, "action": "delete_site"},
         )
         raise HTTPException(status_code=500, detail="Failed to delete site")
+
+
+@router.post("/{site_id}/restore", tags=["Sites"])
+async def restore_site(
+    site_id: str,
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, str]:
+    """Restore an archived site (reverses ``mode=archive``).
+
+    Sets the site back to ``active`` and re-activates its devices so they
+    reappear on the Dashboard, retaining all historical data. Permanently
+    purged sites cannot be restored (the row no longer exists).
+    """
+    try:
+        db_user = cast(
+            User, db.query(User).filter(User.email == current_user["email"]).first()
+        )
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+
+        db_service = await get_database_service()
+        from sqlalchemy import update
+
+        async with db_service.get_session() as session:
+            result = await session.execute(select(Site).where(Site.site_id == site_id))
+            site = result.scalars().first()
+
+            if not site:
+                raise HTTPException(
+                    status_code=404, detail=f"Site '{site_id}' not found"
+                )
+
+            if (
+                site.is_active
+                and site.lifecycle_state == SiteLifecycleState.ACTIVE.value
+            ):
+                return {
+                    "message": f"Site {site_id} is already active (nothing to restore)"
+                }
+
+            site.is_active = True  # type: ignore[assignment]
+            site.lifecycle_state = SiteLifecycleState.ACTIVE.value  # type: ignore[assignment]
+            # Re-activate the site's devices so they reappear on the Dashboard,
+            # but leave independently unpaired/retired devices untouched.
+            await session.execute(
+                update(Device)
+                .where(
+                    Device.site_id == site.id,
+                    Device.lifecycle_state.in_(
+                        [
+                            LifecycleState.ACTIVE.value,
+                            LifecycleState.PENDING.value,
+                            LifecycleState.SUSPENDED.value,
+                        ]
+                    ),
+                )
+                .values(is_active=True)
+            )
+            await session.commit()
+
+            audit_logger = get_audit_logger()
+            await audit_logger.log_event(
+                AuditEventType.SITE_UPDATED,
+                f"Site '{site.name}' restored (archived -> active)",
+                site_id=int(site.id),
+                old_values={
+                    "site_id": site.site_id,
+                    "cleanup_policy": "restore",
+                    "lifecycle_state": "active",
+                },
+            )
+            return {"message": f"Site {site_id} restored (lifecycle_state='active')"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to restore site {site_id}: {e}", exc_info=True)
+        await log_error(
+            category="api",
+            severity="error",
+            error_message=f"Failed to restore site {site_id}",
+            exception=e,
+            endpoint=f"/api/v1/sites/{site_id}/restore",
+            context={"site_id": site_id, "action": "restore_site"},
+        )
+        raise HTTPException(status_code=500, detail="Failed to restore site")
 
 
 @router.put("/{site_id}/monitor", tags=["Sites"])

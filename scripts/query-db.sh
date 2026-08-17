@@ -31,7 +31,7 @@ if [ $# -eq 0 ]; then
     echo "  where                      - Show where PostgreSQL stores data"
     echo "  site_devices [site_id]     - Show all devices for a specific site"
     echo "  device_details [device_id] - Show full details and recent metrics for a device"
-    echo "  archived_purged            - Show archived (data retained) and purged (tombstone) devices"
+    echo "  archived_purged            - Show archived (data retained) and purged (tombstone) sites/devices"
     echo "  sql 'query'                - Run custom SQL query"
     echo ""
     echo "Examples:"
@@ -67,7 +67,7 @@ EOF
         ;;
     sites)
         psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
-SELECT id, site_id, name, location, is_active FROM sites;
+SELECT id, site_id, name, location, lifecycle_state, is_active FROM sites;
 EOF
         ;;
     devices)
@@ -80,7 +80,15 @@ LIMIT 10;
 EOF
         ;;
     archived_purged)
-        echo "=== Archived / Purged Devices ==="
+        echo "=== Archived / Purged Entities ==="
+        echo ""
+        echo "--- Archived sites (data retained, hidden) ---"
+        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+SELECT site_id, name, lifecycle_state
+FROM sites
+WHERE is_active = false OR lifecycle_state = 'archived'
+ORDER BY id;
+EOF
         echo ""
         echo "--- Archived devices (unpaired/retired, data retained) ---"
         psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
@@ -89,6 +97,17 @@ FROM devices d
 JOIN sites s ON d.site_id = s.id
 WHERE d.is_active = false OR d.lifecycle_state IN ('unpaired','retired')
 ORDER BY d.id;
+EOF
+        echo ""
+        echo "--- Purged sites (data deleted; tombstone from audit_logs) ---"
+        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+SELECT al.created_at AS purged_at,
+       (al.old_values->>'site_id') AS site_id,
+       (al.old_values->>'name') AS name
+FROM audit_logs al
+WHERE al.event_type = 'site_deleted'
+  AND al.old_values->>'cleanup_policy' = 'purge'
+ORDER BY al.created_at DESC;
 EOF
         echo ""
         echo "--- Purged devices (data deleted; tombstone from audit_logs) ---"

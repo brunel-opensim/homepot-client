@@ -117,6 +117,7 @@ def test_site_archive_default_retains_data(file_db: Any) -> None:
         site = sync_db.query(Site).filter(Site.site_id == site_id).first()
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
         assert site is not None and site.is_active is False
+        assert site.lifecycle_state == "archived"
         assert device is not None and device.is_active is False
     finally:
         sync_db.close()
@@ -131,6 +132,38 @@ def test_site_purge_requires_confirm(file_db: Any) -> None:
     )
     assert response.status_code == 400
     assert "confirm" in response.json()["detail"].lower()
+
+
+def test_site_restore_reactivates_site_and_devices(file_db: Any) -> None:
+    """Restore flips an archived site back to active and re-activates devices."""
+    site_id, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    response = client.delete(f"/api/v1/sites/{site_id}", headers=_headers())
+    assert response.status_code == 200
+
+    response = client.post(f"/api/v1/sites/{site_id}/restore", headers=_headers())
+    assert response.status_code == 200
+    assert "restored" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        site = sync_db.query(Site).filter(Site.site_id == site_id).first()
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert site is not None and site.is_active is True
+        assert site.lifecycle_state == "active"
+        assert device is not None and device.is_active is True
+    finally:
+        sync_db.close()
+
+
+def test_site_restore_active_site_is_idempotent(file_db: Any) -> None:
+    """Restoring an already-active site is a no-op success."""
+    site_id, _, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.post(f"/api/v1/sites/{site_id}/restore", headers=_headers())
+    assert response.status_code == 200
+    assert "already active" in response.json()["message"].lower()
 
 
 def test_site_purge_with_confirm_deletes_everything(file_db: Any) -> None:
@@ -239,5 +272,79 @@ def test_device_purge_creates_audit_tombstone(file_db: Any) -> None:
         assert tombstone.device_id is None
         assert tombstone.old_values.get("device_id") == device_id
         assert tombstone.old_values.get("cleanup_policy") == "purge"
+    finally:
+        sync_db.close()
+
+
+def _seed_emulated_device_admin() -> tuple[str, str]:
+    """Create a site + an EMULATED device (device_source=emulator) + admin."""
+    sync_db = homepot.database.SessionLocal()
+    try:
+        site = Site(site_id="test-emu-arch", name="Test Emu", is_active=True)
+        sync_db.add(site)
+        sync_db.commit()
+        sync_db.refresh(site)
+
+        device = Device(
+            device_id="dev-emu-001",
+            name="Emulated POS",
+            device_type="pos_terminal",
+            site_id=site.id,
+            is_active=True,
+            is_simulated=True,
+            status=DeviceStatus.ONLINE,
+            config={"device_source": "emulator"},
+        )
+        sync_db.add(device)
+        sync_db.commit()
+
+        admin = User(
+            email="admin@emu-arch.test",
+            username="admin_emu",
+            hashed_password=hash_password("pass"),
+            is_admin=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        sync_db.add(admin)
+        sync_db.commit()
+        return site.site_id, device.device_id
+    finally:
+        sync_db.close()
+
+
+def test_emulated_device_archive_and_purge(file_db: Any) -> None:
+    """Archive/purge apply to emulated devices too (device-agnostic)."""
+    site_id, device_id = _seed_emulated_device_admin()
+    client = TestClient(app)
+    token = create_access_token({"sub": "admin@emu-arch.test"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Archive (default)
+    response = client.delete(f"/api/v1/devices/device/{device_id}", headers=headers)
+    assert response.status_code == 200
+    assert "archived" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None and device.is_active is False
+        assert device.status == "offline"
+    finally:
+        sync_db.close()
+
+    # Purge (with confirm)
+    response = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "purge", "confirm": "true"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert "purged" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is None
     finally:
         sync_db.close()
