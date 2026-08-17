@@ -978,7 +978,7 @@ alembic upgrade head
 python -m homepot.ai.init_chromadb
 
 # 9. Start backend with AI service
-uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn homepot.main:app --reload --reload-dir src --reload-dir ../ai --host 0.0.0.0 --port 8000
 ```
 
 ---
