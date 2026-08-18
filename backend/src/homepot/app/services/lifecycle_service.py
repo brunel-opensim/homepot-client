@@ -21,15 +21,12 @@ ALLOWED_TRANSITIONS: dict[Optional[LifecycleState], list[LifecycleState]] = {
     LifecycleState.ACTIVE: [
         LifecycleState.SUSPENDED,
         LifecycleState.UNPAIRED,
-        LifecycleState.RETIRED,
     ],
     LifecycleState.SUSPENDED: [
         LifecycleState.ACTIVE,
         LifecycleState.UNPAIRED,
-        LifecycleState.RETIRED,
     ],
-    LifecycleState.UNPAIRED: [LifecycleState.RETIRED],
-    LifecycleState.RETIRED: [],
+    LifecycleState.UNPAIRED: [LifecycleState.ACTIVE],
 }
 
 
@@ -69,14 +66,12 @@ class LifecycleService:
 
         device.lifecycle_state = new_state.value  # type: ignore[assignment]
 
-        if new_state in (LifecycleState.UNPAIRED, LifecycleState.RETIRED):
-            device.is_active = False  # type: ignore[assignment]
-        elif new_state in (
+        # is_active is a visibility/operating flag derived from lifecycle:
+        # active/pending are visible; suspended/unpaired are hidden.
+        device.is_active = new_state in (  # type: ignore[assignment]
             LifecycleState.ACTIVE,
             LifecycleState.PENDING,
-            LifecycleState.SUSPENDED,
-        ):
-            device.is_active = True  # type: ignore[assignment]
+        )
 
         self.db.add(device)
 

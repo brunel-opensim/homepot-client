@@ -97,7 +97,6 @@ export default function AgentList() {
       active: 'bg-green-500/10 text-green-400 border-green-500/20',
       suspended: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
       unpaired: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-      retired: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
       pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
     };
     return (

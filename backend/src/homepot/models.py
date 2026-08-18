@@ -85,13 +85,16 @@ class DeviceStatus(str, Enum):
 
 
 class LifecycleState(str, Enum):
-    """Device lifecycle state — the administrative management phase."""
+    """Device lifecycle state — the administrative management phase.
+
+    ``retired`` was folded into ``unpaired``: both revoke credentials and hide
+    the device, and permanent removal is provided by ``purge``.
+    """
 
     PENDING = "pending"
     ACTIVE = "active"
     SUSPENDED = "suspended"
     UNPAIRED = "unpaired"
-    RETIRED = "retired"
 
 
 class SiteLifecycleState(str, Enum):

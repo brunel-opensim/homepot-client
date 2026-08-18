@@ -19,7 +19,6 @@ const LIFECYCLE_COLORS = {
   active: 'bg-green-500/10 text-green-400',
   suspended: 'bg-orange-500/10 text-orange-400',
   unpaired: 'bg-gray-500/10 text-gray-400',
-  retired: 'bg-red-500/10 text-red-400',
 };
 
 const CONNECTIVITY_COLORS = {
@@ -123,7 +122,6 @@ export default function DeviceList() {
             <option value="active">Active</option>
             <option value="suspended">Suspended</option>
             <option value="unpaired">Unpaired</option>
-            <option value="retired">Retired</option>
           </select>
         </div>
       </div>
