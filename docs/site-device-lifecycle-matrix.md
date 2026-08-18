@@ -85,6 +85,54 @@ recovery of an archived site requires two steps:
 
 Purged sites/devices cannot be restored (their data no longer exists).
 
+## Data collection & lifecycle
+
+**Data collection only happens for `active` (or `pending`) devices.** Every
+device-authenticated ingestion path — heartbeat, telemetry, command polling,
+error/log submission, jobs, alerts — is gated by `get_current_device`
+(`backend/src/homepot/app/auth_utils.py`), which rejects authentication with
+`403` for any device whose `lifecycle_state` is not `active`/`pending`. So a
+`suspended` or `unpaired` device cannot send data.
+
+This applies **uniformly** to real devices, emulated devices, and the in-process
+simulated agents — they all authenticate through the same dependency, so there
+is one code path and no per-source exceptions.
+
+### Expected behaviour
+
+| Action                      | Device state | Ingested data | Notes                                                         |
+| --------------------------- | ------------ | ------------- | ------------------------------------------------------------- |
+| Site is active              | `active`     | ✅ collected  | Heartbeats, telemetry, commands, logs all accepted.           |
+| **Archive site**            | `suspended`  | ❌ **stopped**| Emulator/agent requests return `403`; no new rows written.    |
+| **Restore site + resume dev**| `active`     | ✅ **resumed**| Requests accepted again; data collection picks up where it left off. |
+| **Unpair / retire device**  | `unpaired`   | ❌ **stopped**| Same `403` gate; device must be resumed to collect again.     |
+
+### Verifying it on a live system
+
+Observe the device's own collection loop (e.g. an emulator log or the simulated
+agent log). When the site is archived you should see the requests start to fail:
+
+```
+[heartbeat] error: 403 {"detail":"Device lifecycle state is 'suspended'; only 'active' or 'pending' devices may authenticate"}
+[telemetry] error: 403 {"detail":"Device lifecycle state is 'suspended'; only 'active' or 'pending' devices may authenticate"}
+```
+
+After restoring the site and resuming the device, the same loop returns to:
+
+```
+[heartbeat] OK
+[telemetry] OK
+```
+
+You can also confirm at the database level: the row count of an ingested table
+(e.g. `health_checks`) for the affected device stays flat while suspended and
+grows again once the device is resumed.
+
+> A device that is `unpaired` has its API key revoked, so it cannot even
+> authenticate. A `suspended` device keeps its key but is still rejected by the
+> lifecycle check. In both cases the practical effect is identical: no data
+> collection until the device is restored to `active`.
+
 ## Design notes / open questions
 
 - `active` site + `suspended` device can arise either from a direct device
