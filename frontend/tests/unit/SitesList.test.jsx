@@ -115,4 +115,19 @@ describe('SitesList', () => {
 
     await waitFor(() => expect(screen.queryByText('Head Office')).not.toBeInTheDocument());
   });
+
+  it('shows a notice instead of navigating when View Details is clicked on an archived site', async () => {
+    api.sites.list.mockResolvedValueOnce(mockActiveSites).mockResolvedValueOnce(mockArchivedSites);
+
+    renderList();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived' }));
+
+    const viewDetailsButtons = await screen.findAllByRole('button', { name: 'View Details' });
+    fireEvent.click(viewDetailsButtons[0]);
+
+    expect(
+      await screen.findByText(/details for .* are not available until the site is restored/i)
+    ).toBeInTheDocument();
+  });
 });

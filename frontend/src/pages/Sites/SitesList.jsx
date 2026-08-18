@@ -28,6 +28,7 @@ export default function SitesList() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [copiedSiteId, setCopiedSiteId] = useState(null);
   const [activeTab, setActiveTab] = useState('active');
+  const [notice, setNotice] = useState(null);
 
   useEffect(() => {
     fetchSites();
@@ -78,6 +79,7 @@ export default function SitesList() {
     setActiveTab(tab);
     setSearchTerm('');
     setLocationFilter('');
+    setNotice(null);
     fetchSites(tab === 'archived');
   };
 
@@ -117,6 +119,20 @@ export default function SitesList() {
     } catch {
       console.error('Failed to copy site ID');
     }
+  };
+
+  const handleViewDetails = (e, site) => {
+    e.stopPropagation();
+    if (!site.id) return;
+
+    trackActivity('click', '/sites', { site_id: site.id }, 'view_site_details_btn');
+
+    if (site.is_active === false) {
+      setNotice(`Details for "${site.name}" are not available until the site is restored.`);
+      return;
+    }
+
+    navigate(`/sites/${site.id}`);
   };
 
   const handleConfirmDelete = async (mode) => {
@@ -191,6 +207,19 @@ export default function SitesList() {
             Archived
           </button>
         </div>
+
+        {notice && (
+          <div className="flex items-center justify-between gap-3 mb-4 px-4 py-2.5 rounded-lg bg-[#1a1f2b] border border-yellow-500/30 text-yellow-300 text-sm">
+            <span>{notice}</span>
+            <button
+              onClick={() => setNotice(null)}
+              className="text-gray-400 hover:text-white transition-colors shrink-0"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <div className="flex flex-col md:flex-row items-center gap-2 mb-4">
           {/* Search input */}
@@ -374,18 +403,7 @@ export default function SitesList() {
 
                 {/* View Details button */}
                 <button
-                  // onClick={(e) => {
-                  //   e.stopPropagation();
-                  //   navigate(`/sites/${site.id}`);
-                  // }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!site.id) return;
-
-                    trackActivity('click', '/sites', { site_id: site.id }, 'view_site_details_btn');
-
-                    navigate(`/sites/${site.id}`);
-                  }}
+                  onClick={(e) => handleViewDetails(e, site)}
                   className="mt-auto w-full border border-[#1f2735] py-2 rounded-lg text-sm hover:bg-[#1f2735] text-gray-300 transition"
                 >
                   View Details
