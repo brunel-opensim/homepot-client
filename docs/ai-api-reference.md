@@ -1,139 +1,178 @@
 # AI Service API Reference
 
-> **Version:** 1.0  
-> **Status:** Experimental  
-> **Base URL:** `/api/ai`
+> **Status:** Experimental
+> **Base URL:** `/api/v1/ai`
 
-The AI Service provides intelligent analysis and natural language querying capabilities for the HOMEPOT Client. It leverages a local LLM (Ollama) and Vector Memory (ChromaDB) to ensure data privacy.
+The AI Service provides intelligent analysis and natural-language querying for the HOMEPOT Client. It uses a local LLM (Ollama) with Vector Memory (ChromaDB) for data privacy, and wraps every chat answer in a [trust & validation-gate envelope](ai-validation-gates.md) so confidence is always surfaced.
 
 ---
 
-## 1. Analyze Device Metrics
+## 1. Natural Language Query
 
-Analyze a set of device metrics to detect anomalies and receive actionable recommendations. This endpoint uses a **Hybrid Approach**:
-1.  **Rule-Based Detection:** Instantly flags known issues (e.g., CPU > 90%).
-2.  **LLM Analysis:** Provides context, explanation, and troubleshooting steps based on the rule-based findings.
+Ask questions about the system, specific devices, or historical incidents. The system uses **RAG** and **Context Injection**, and returns the answer together with a **trust envelope** describing how much confidence to place in it.
 
 ### Endpoint
-`POST /analyze`
+`POST /api/v1/ai/query`
 
 ### Request Body
 ```json
 {
-  "device_id": "pos-terminal-01",
-  "metrics": {
-    "cpu_percent": 92.5,
-    "memory_percent": 60.0,
-    "disk_percent": 45.0,
-    "error_rate": 0.05,
-    "network_latency_ms": 120
-  }
-}
-```
-
-### Response
-```json
-{
-  "device_id": "pos-terminal-01",
-  "anomaly_score": 0.4,
-  "is_anomaly": false,
-  "analysis": "The CPU usage is high (92.5%), which exceeds the 90% threshold. However, memory and disk usage are within normal limits. This suggests a compute-intensive process is running. Recommendation: Check for stuck background jobs or recent software updates.",
-  "status": "processed"
-}
-```
-
----
-
-## 2. Set Analysis Mode
-
-Switch the AI's "persona" to tailor the analysis output for different audiences.
-
-### Endpoint
-`POST /mode`
-
-### Request Body
-```json
-{
-  "mode": "executive"
-}
-```
-
-**Available Modes:**
-- `maintenance` (Default): Technical focus, root cause analysis, fix recommendations.
-- `predictive`: Trend analysis, failure prediction, risk assessment.
-- `executive`: High-level summaries, business impact, KPIs.
-
-### Response
-```json
-{
-  "status": "success",
-  "mode": "executive"
-}
-```
-
----
-
-## 3. Natural Language Query
-
-Ask questions about the system, specific devices, or historical incidents. The system uses **RAG (Retrieval-Augmented Generation)** and **Context Injection** to provide accurate answers based on:
-
-1.  **Real-Time Context:** Current device status, health checks, and push notification stats.
-2.  **System Knowledge:** Awareness of the codebase structure and project documentation.
-3.  **Long-Term Memory:** Historical logs and similar past incidents stored in ChromaDB.
-4.  **Short-Term Memory:** The recent conversation history (last 5 messages).
-
-### Endpoint
-`POST /query`
-
-### Request Body
-```json
-{
-  "query": "Why is device pos-terminal-01 failing?",
-  "device_id": "pos-terminal-01",
+  "query": "Why is device DEVICE-8TKX-MVVG-U4EH failing?",
+  "device_id": "DEVICE-8TKX-MVVG-U4EH",
+  "role": "Admin",
   "history": [
-    {
-      "role": "user",
-      "content": "Is the system healthy?"
-    },
-    {
-      "role": "assistant",
-      "content": "Yes, most devices are online, but pos-terminal-01 is reporting errors."
-    }
+    { "role": "user", "content": "Is the system healthy?" },
+    { "role": "assistant", "content": "Most devices are online, but one is reporting errors." }
   ]
 }
 ```
 
 **Parameters:**
-*   `query` (string, required): The question to ask.
-*   `device_id` (string, optional): If provided, fetches specific context for this device.
-*   `history` (list, optional): A list of previous messages to maintain conversation context.
+* `query` (string, required): the question to ask.
+* `context` (string, optional): extra context appended verbatim to the prompt.
+* `device_id` (string, optional): if provided, fetches device-specific context and runs the per-device gates (D, E).
+* `role` (string, optional): the requester's role, injected into the prompt.
+* `history` (list, optional): prior `{role, content}` messages for short-term memory.
 
 ### Response
 ```json
 {
-  "response": "Based on recent logs, pos-terminal-01 is experiencing high CPU usage (92.5%) and intermittent network latency. This pattern matches a known issue with the 'v2.4.1' firmware update. I recommend rolling back to v2.4.0.",
-  "context_used": {
-    "long_term_memories": 3,
-    "short_term_messages": 2
+  "response": "Based on recent logs, DEVICE-8TKX-MVVG-U4EH is experiencing high CPU usage (92.5%) and intermittent network latency. This pattern matches a known issue with the v2.4.1 firmware update. I recommend rolling back to v2.4.0.",
+  "timestamp": "2026-07-17T15:13:16.418238",
+  "trust": {
+    "trust_mode": "grounded",
+    "trust_mode_label": "Grounded LLM Interface",
+    "trust_score": 1.0,
+    "actionable": true,
+    "passed_gates": ["A", "B", "C", "D", "E", "C"],
+    "failed_gate": null,
+    "summary": "Passed all gates (A, B, C, D, E, C) — Grounded LLM Interface",
+    "gates": [
+      {
+        "gate_id": "A",
+        "name": "Contract and Infrastructure",
+        "status": "pass",
+        "score": 1.0,
+        "checks": [ { "check_id": "A.db_readiness", "passed": true, "message": "...", "evidence": [] } ]
+      }
+    ]
+  }
+}
+```
+
+The `trust` object is the `EnvelopeResult` from `ai/gates/envelope.py`. See [Trust & Validation Gates](ai-validation-gates.md) for the mode reference and how trust is surfaced in the Dashboard.
+
+---
+
+## 2. Anomaly Scan
+
+Return the current rule-based anomaly scan across active devices.
+
+### Endpoint
+`GET /api/v1/ai/anomalies`
+
+### Response
+```json
+{
+  "anomalies": [
+    {
+      "device_id": "DEVICE-8TKX-MVVG-U4EH",
+      "device_name": "Web Dashboard 1-4",
+      "score": 0.82,
+      "severity": "high",
+      "reason": "CPU 92.5% and memory 85% sustained"
+    }
+  ],
+  "status": "success"
+}
+```
+
+---
+
+## 3. Insights
+
+Per-scope analytics summaries.
+
+### Endpoint
+`GET /api/v1/ai/insights/device/{device_id}`
+`GET /api/v1/ai/insights/site/{site_id}`
+`GET /api/v1/ai/insights/push-notifications`
+
+### Example (site)
+`GET /api/v1/ai/insights/site/SITE-6725-FUJH`
+
+```json
+{
+  "site_id": "SITE-6725-FUJH",
+  "insights": {
+    "performance_trend": "...",
+    "configuration_impact": "...",
+    "job_outcomes": "..."
   }
 }
 ```
 
 ---
 
-## 4. Health Check
+## 4. Predictions
 
-Verify that the AI Service and LLM are operational.
+Failure-risk assessments for devices.
 
-### Endpoint
-`GET /health`
+### Endpoints
+`GET /api/v1/ai/predictions/failure/{device_id}`
+`GET /api/v1/ai/predictions/at-risk-devices`
 
-### Response
+### Example
+`GET /api/v1/ai/predictions/failure/DEVICE-8TKX-MVVG-U4EH`
+
 ```json
 {
-  "status": "healthy",
-  "llm_connected": true,
-  "version": "1.0.0",
-  "mode": "maintenance"
+  "device_id": "DEVICE-8TKX-MVVG-U4EH",
+  "risk_score": 0.4,
+  "risk_level": "medium",
+  "factors": { "resource_trend": 0.35, "error_trend": 0.3 },
+  "prediction_window_hours": 24,
+  "recommendation": "..."
 }
 ```
+
+---
+
+## 5. Recommendations
+
+Job-scheduling recommendations.
+
+### Endpoints
+`POST /api/v1/ai/recommendations/schedule-job`
+`POST /api/v1/ai/recommendations/success-probability`
+`GET /api/v1/ai/recommendations/optimal-windows/{site_id}`
+
+### Example
+`POST /api/v1/ai/recommendations/schedule-job`
+
+```json
+{ "site_id": "SITE-6725-FUJH", "job_priority": "medium", "earliest_start": "2026-07-17T20:00:00Z" }
+```
+
+---
+
+## 6. Health Forecast
+
+`GET /api/v1/ai/health-forecast`
+
+Aggregate operational-health forecast across all active devices.
+
+---
+
+## 7. Status
+
+`GET /api/v1/ai/status`
+
+Static capability/status report for the AI service.
+
+---
+
+## Authentication
+
+!!! warning
+    As of the current implementation, the `/api/v1/ai/*` endpoints do **not** enforce authentication or per-site/tenant authorization. They are intended to be reached from within the Dashboard, which is itself unauthenticated at the API layer. Adding `Depends(require_user())` and site/tenant scoping to these routes is a tracked improvement.

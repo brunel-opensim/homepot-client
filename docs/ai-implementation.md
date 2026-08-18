@@ -39,13 +39,15 @@ As of January 2026, the AI has been upgraded with a **Dual-Memory System** and *
 
 ## Key Components
 
-The implementation consists of core modules:
+The live AI surface is exposed through the main backend at `/api/v1/ai/*`, implemented in `backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py` and the `ai/` package:
 
-*   **`api.py` (The Brain)**: A FastAPI application serving as the entry point.
-    *   `POST /api/ai/analyze`: Analyzes metrics, scores anomalies, and generates LLM explanations.
-    *   `POST /api/ai/query`: Answers natural language questions using RAG (Retrieval-Augmented Generation).
-    *   `POST /api/ai/mode`: Switches the AI's analysis persona (Maintenance, Predictive, Executive).
-    *   `GET /api/ai/anomalies`: Returns a list of currently detected anomalies. See [Anomaly Detection](anomaly-detection.md) for details.
+*   **`AIEndpoint.py` (The API Surface)**: The FastAPI router mounted at `/api/v1/ai`.
+    *   `POST /api/v1/ai/query`: Answers natural-language questions using RAG, wrapped in the [validation-gate trust envelope](ai-validation-gates.md). Returns `{response, timestamp, trust}`.
+    *   `GET /api/v1/ai/anomalies`: Returns the current rule-based anomaly scan. See [Anomaly Detection](anomaly-detection.md).
+    *   `GET /api/v1/ai/insights/...` and `/api/v1/ai/predictions/...`: Per-device/site insights and failure predictions.
+    *   `POST /api/v1/ai/recommendations/...`: Job-scheduling recommendations and success-probability estimates.
+*   **`context_builder.py` (The Context)**: Assembles the real-time, historical, and system context handed to the LLM (sites, devices, alerts, jobs, memories).
+*   **`gates/` (The Validation Envelope)**: Gates A-E bound the trust of every answer (see [Trust & Validation Gates](ai-validation-gates.md)).
 *   **`system_knowledge.py` (The Self-Awareness)**:
     *   Scans the project directory structure.
     *   Reads the root `README.md` to understand the project's purpose.
@@ -56,8 +58,10 @@ The implementation consists of core modules:
     *   See [Anomaly Detection Documentation](anomaly-detection.md) for scoring logic.
 *   **`llm.py` (The Voice)**: A wrapper for **Ollama** that manages the connection to local models (Llama/Mistral) and constructs context-aware prompts.
 *   **`device_memory.py` (The Long-Term Memory)**: Manages **ChromaDB** interactions for storing and retrieving semantic vector embeddings of device logs.
-*   **`event_store.py` (The Short-Term Device Memory)**: Caches recent device events in-memory and persists them to the **PostgreSQL** `device_metrics` table to provide immediate context for analysis.
-*   **`analysis_modes.py` (The Persona)**: Manages different system prompts to tailor the AI's output style and focus (e.g., technical vs. executive).
+*   **`failure_predictor.py` / `job_scheduler.py` / `analytics_service.py`**: Predictive-maintenance risk scoring, job scheduling recommendations, and analytics aggregations.
+
+!!! note "Legacy standalone service"
+    An older, standalone FastAPI app in `ai/api.py` (routes like `POST /api/ai/analyze`, `POST /api/ai/query`, `POST /api/ai/mode`, `GET /predict/{device_id}`) predates the integrated `/api/v1/ai` surface. It is **not** the live service, is not started by any launch script, and does **not** run the validation gates. It remains in the repository and is still exercised by some backend tests. Prefer the integrated `/api/v1/ai/*` endpoints for all new work.
 
 ## Predictive Maintenance
 
@@ -66,11 +70,11 @@ We have introduced a **Predictive Maintenance** module (`failure_predictor.py`) 
 ### Features
 *   **Risk Scoring**: Calculates a risk score (0.0 - 1.0) based on CPU, Memory, and Disk usage trends.
 *   **Trend Analysis**: Detects increasing resource usage over time.
-*   **API Endpoint**: `GET /predict/{device_id}` returns the current risk assessment.
+*   **API Endpoint**: `GET /api/v1/ai/predictions/failure/{device_id}` returns the current risk assessment.
 
 ## NLP Context Injection
 
-The AI Query endpoint (`/api/ai/query`) has been enhanced to bridge the gap between historical knowledge and real-time status.
+The AI Query endpoint (`POST /api/v1/ai/query`) has been enhanced to bridge the gap between historical knowledge and real-time status.
 
 ### How it Works
 When a user asks a question about a specific device (e.g., "Is the kitchen camera failing?"), the system:
@@ -114,13 +118,13 @@ We prioritize **normal execution cycles** (running directly in a local environme
     pip install -r backend/requirements.txt
     ```
 
-3.  **Run the Service**:
+3.  **Run the Service**: The AI endpoints are part of the main backend, so start the normal backend app rather than a separate AI process:
     ```bash
-    python ai/api.py
+    python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
     ```
-    The API will be available at `http://localhost:8000`.
+    The AI API is available at `http://localhost:8000/api/v1/ai/*`. The legacy standalone `ai/api.py` service can still be run on port 8001 for debugging legacy paths, but it is not the live service.
 
 4.  **Run Tests**:
     ```bash
-    pytest backend/tests/test_ai_service.py
+    pytest backend/tests/test_ai_service.py backend/tests/test_ai_nlp_integration.py backend/tests/test_validation_gates.py
     ```

@@ -141,9 +141,11 @@ nav:
       - AI & Cognitive Engine:
           - Roadmap: ai-roadmap.md
           - Implementation: ai-implementation.md
+          - API Reference: ai-api-reference.md
           - Context Builder: ai-context-builder.md
           - Trust & Validation Gates: ai-validation-gates.md
           - Anomaly Detection: anomaly-detection.md
+          - Infrastructure: ai-infrastructure.md
           - Memory Inspection: ai-memory-inspection.md
       - Audit System: audit-compliance.md
       - Background Analytics: backend-analytics.md
