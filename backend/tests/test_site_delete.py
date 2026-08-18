@@ -289,6 +289,70 @@ def test_site_restore_active_site_is_idempotent(file_db: Any) -> None:
     assert "already active" in response.json()["message"].lower()
 
 
+def test_device_resume_reactivates_suspended_device(file_db: Any) -> None:
+    """Resuming a device that was suspended by a site archive re-activates it.
+
+    Model B: after archiving + restoring a site, the device stays suspended
+    (is_active=false). Calling resume should bring it back to active/online so
+    it reappears on the Dashboard.
+    """
+    site_id, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    archived = client.delete(f"/api/v1/sites/{site_id}", headers=_headers())
+    assert archived.status_code == 200
+
+    restored = client.post(f"/api/v1/sites/{site_id}/restore", headers=_headers())
+    assert restored.status_code == 200
+
+    resumed = client.post(
+        f"/api/v1/devices/device/{device_id}/resume", headers=_headers(), json={}
+    )
+    assert resumed.status_code == 200
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        assert device.is_active is True
+        assert device.lifecycle_state == "active"
+        assert device.status == "online"
+    finally:
+        sync_db.close()
+
+
+def test_device_resume_reactivates_unpaired_device(file_db: Any) -> None:
+    """Resuming an independently-unpaired device re-activates it.
+
+    A device archived directly (not via a site) has lifecycle_state 'unpaired'.
+    The restore/resume action should bring it back to active/online.
+    """
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    archived = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "archive"},
+        headers=_headers(),
+    )
+    assert archived.status_code == 200
+
+    resumed = client.post(
+        f"/api/v1/devices/device/{device_id}/resume", headers=_headers(), json={}
+    )
+    assert resumed.status_code == 200
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        assert device.is_active is True
+        assert device.lifecycle_state == "active"
+        assert device.status == "online"
+    finally:
+        sync_db.close()
+
+
 def test_site_purge_with_confirm_deletes_everything(file_db: Any) -> None:
     """Purge with confirm=true deletes the site and its devices."""
     site_id, device_id, _ = _seed_site_device_admin()

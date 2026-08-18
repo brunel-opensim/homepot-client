@@ -1109,7 +1109,12 @@ async def resume_device(
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Resume a suspended device: ``suspended → active``.
+    """Resume/restore a device back to active.
+
+    Works for devices in ``suspended`` or ``unpaired`` state (e.g. devices that
+    were hidden when their site was archived, or independently unpaired):
+    sets ``lifecycle_state`` back to ``active``, ``is_active`` to true and
+    ``status`` to ``online`` so the device reappears on the Dashboard.
 
     Requires operator-level access on the device's site.
     """
@@ -1121,22 +1126,31 @@ async def resume_device(
             raise HTTPException(status_code=403, detail="User not found")
         db_service = await get_database_service()
 
-        device = await db_service.get_device_by_device_id(device_id)
+        # Restoring targets devices that are currently hidden (is_active=false),
+        # so include unpaired/suspended devices in the lookup.
+        device = await db_service.get_device_by_device_id(
+            device_id, include_unpaired=True
+        )
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
         current_lifecycle = device.lifecycle_state
-        if current_lifecycle != LifecycleState.SUSPENDED.value:
+        if current_lifecycle not in (
+            LifecycleState.SUSPENDED.value,
+            LifecycleState.UNPAIRED.value,
+        ):
             raise HTTPException(
                 status_code=400,
                 detail=(
                     f"Device lifecycle state is '{current_lifecycle}'; "
-                    "only 'suspended' devices may be resumed"
+                    "only 'suspended' or 'unpaired' devices may be restored"
                 ),
             )
 
         device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
+        device.is_active = True  # type: ignore[assignment]
+        device.status = DeviceStatus.ONLINE.value  # type: ignore[assignment]
 
         await db_service.persist_device(device)
 
@@ -1830,6 +1844,7 @@ async def get_devices_by_site(
                 )
                 or os_family(cast(Optional[str], d.os_details)),
                 "lifecycle_state": d.lifecycle_state,
+                "is_active": d.is_active,
                 "connectivity_state": _compute_connectivity(d),
                 "health_state": d.health_state or HealthState.UNKNOWN.value,
                 "pairing_status": (
