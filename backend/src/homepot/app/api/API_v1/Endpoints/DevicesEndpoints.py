@@ -1047,6 +1047,8 @@ async def suspend_device(
             )
 
         device.lifecycle_state = LifecycleState.SUSPENDED.value  # type: ignore[assignment]
+        device.is_active = False  # type: ignore[assignment]
+        device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
 
         await db_service.persist_device(device)
 
@@ -1251,6 +1253,7 @@ async def retire_device(
         device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
         device.is_active = False  # type: ignore[assignment]
         device.api_key_hash = None  # type: ignore[assignment]
+        device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
 
         await db_service.persist_device(device)
 
