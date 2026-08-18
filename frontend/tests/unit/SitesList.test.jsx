@@ -42,6 +42,25 @@ const mockArchivedSites = {
   ],
 };
 
+// Backend returns ALL sites when include_archived=true; the Archived tab must
+// still filter down to archived-only.
+const mockAllSites = {
+  sites: [
+    ...mockActiveSites.sites,
+    {
+      site_id: 'SITE-BBB',
+      id: 'SITE-BBB',
+      name: 'Retired Depot',
+      location: 'Paris',
+      status: 'Offline',
+      is_active: false,
+      lifecycle_state: 'archived',
+      devices_count: 1,
+      os_types: [],
+    },
+  ],
+};
+
 describe('SitesList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,7 +85,7 @@ describe('SitesList', () => {
   });
 
   it('fetches archived sites when the Archived tab is clicked and shows a restore button', async () => {
-    api.sites.list.mockResolvedValueOnce(mockActiveSites).mockResolvedValueOnce(mockArchivedSites);
+    api.sites.list.mockResolvedValueOnce(mockActiveSites).mockResolvedValueOnce(mockAllSites);
 
     renderList();
 
@@ -74,7 +93,10 @@ describe('SitesList', () => {
 
     await waitFor(() => expect(api.sites.list).toHaveBeenLastCalledWith({ includeArchived: true }));
 
+    // Archived tab must only show archived sites, not active ones
     expect(await screen.findByRole('button', { name: 'Restore' })).toBeInTheDocument();
+    expect(screen.getByText('Retired Depot')).toBeInTheDocument();
+    expect(screen.queryByText('Head Office')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
   });

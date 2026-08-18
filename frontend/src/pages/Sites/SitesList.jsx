@@ -58,10 +58,15 @@ export default function SitesList() {
         alert: site.alert || null,
       }));
 
-      // Sort alphabetically by name
-      withStaticValues.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      // When viewing the Archived tab, only keep archived sites.
+      const tabSites = includeArchived
+        ? withStaticValues.filter((s) => s.is_active === false)
+        : withStaticValues;
 
-      setSites(withStaticValues);
+      // Sort alphabetically by name
+      tabSites.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+      setSites(tabSites);
     } catch (err) {
       console.error('Failed to fetch sites:', err);
     } finally {
