@@ -504,7 +504,6 @@ def test_agent_list_includes_modern_state_fields(client: TestClient) -> None:
         "active",
         "suspended",
         "unpaired",
-        "retired",
     )
     assert agent["connectivity_state"] in ("unknown", "online", "offline")
     assert agent["health_state"] in (
@@ -540,7 +539,6 @@ def test_agent_detail_includes_modern_state_fields(client: TestClient) -> None:
         "active",
         "suspended",
         "unpaired",
-        "retired",
     )
     assert data["connectivity_state"] in ("unknown", "online", "offline")
     assert data["device_id"] == device_id

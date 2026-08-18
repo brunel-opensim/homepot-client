@@ -1109,7 +1109,12 @@ async def resume_device(
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Resume a suspended device: ``suspended → active``.
+    """Resume/restore a device back to active.
+
+    Works for devices in ``suspended`` or ``unpaired`` state (e.g. devices that
+    were hidden when their site was archived, or independently unpaired):
+    sets ``lifecycle_state`` back to ``active``, ``is_active`` to true and
+    ``status`` to ``online`` so the device reappears on the Dashboard.
 
     Requires operator-level access on the device's site.
     """
@@ -1121,22 +1126,31 @@ async def resume_device(
             raise HTTPException(status_code=403, detail="User not found")
         db_service = await get_database_service()
 
-        device = await db_service.get_device_by_device_id(device_id)
+        # Restoring targets devices that are currently hidden (is_active=false),
+        # so include unpaired/suspended devices in the lookup.
+        device = await db_service.get_device_by_device_id(
+            device_id, include_unpaired=True
+        )
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
         current_lifecycle = device.lifecycle_state
-        if current_lifecycle != LifecycleState.SUSPENDED.value:
+        if current_lifecycle not in (
+            LifecycleState.SUSPENDED.value,
+            LifecycleState.UNPAIRED.value,
+        ):
             raise HTTPException(
                 status_code=400,
                 detail=(
                     f"Device lifecycle state is '{current_lifecycle}'; "
-                    "only 'suspended' devices may be resumed"
+                    "only 'suspended' or 'unpaired' devices may be restored"
                 ),
             )
 
         device.lifecycle_state = LifecycleState.ACTIVE.value  # type: ignore[assignment]
+        device.is_active = True  # type: ignore[assignment]
+        device.status = DeviceStatus.ONLINE.value  # type: ignore[assignment]
 
         await db_service.persist_device(device)
 
@@ -1199,12 +1213,13 @@ async def retire_device(
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Retire a device from eligible lifecycle states.
+    """Unpair a device from eligible lifecycle states.
+
+    The ``retired`` state was folded into ``unpaired`` (both revoke credentials
+    and hide the device; permanent removal is provided by ``purge``). This
+    endpoint is kept for API compatibility and performs an unpair.
 
     Eligible states: ``active``, ``suspended``, ``unpaired``.
-
-    Retired is a terminal state — the device cannot be re-enrolled
-    or transferred.  Requires operator-level access on the site.
     """
     try:
         db_user = cast(
@@ -1229,11 +1244,11 @@ async def retire_device(
             raise HTTPException(
                 status_code=400,
                 detail=f"Device lifecycle state is '{current_lifecycle}'; "
-                "only 'active', 'suspended', or 'unpaired' devices may be retired",
+                "only 'active', 'suspended', or 'unpaired' devices may be unpaired",
             )
 
         now = datetime.now(timezone.utc)
-        device.lifecycle_state = LifecycleState.RETIRED.value  # type: ignore[assignment]
+        device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
         device.is_active = False  # type: ignore[assignment]
         device.api_key_hash = None  # type: ignore[assignment]
 
@@ -1280,7 +1295,7 @@ async def retire_device(
             db_service,
             device,
             from_state=str(current_lifecycle),
-            to_state=LifecycleState.RETIRED.value,
+            to_state=LifecycleState.UNPAIRED.value,
             triggered_by_user_id=int(db_user.id),
             reason=payload.reason,
             idempotency_key=payload.idempotency_key,
@@ -1290,8 +1305,8 @@ async def retire_device(
         user_agent = request.headers.get("user-agent")
         audit_logger = get_audit_logger()
         await audit_logger.log_event(
-            AuditEventType.DEVICE_RETIRED,
-            f"Device '{device.name}' ({device.device_id}) retired by "
+            AuditEventType.DEVICE_UNPAIRED,
+            f"Device '{device.name}' ({device.device_id}) unpaired by "
             f"{current_user['email']}"
             + (f" — {payload.reason}" if payload.reason else ""),
             device_id=int(device.id),
@@ -1301,25 +1316,25 @@ async def retire_device(
             user_agent=user_agent,
             old_values={"lifecycle_state": current_lifecycle, "is_active": True},
             new_values={
-                "lifecycle_state": LifecycleState.RETIRED.value,
+                "lifecycle_state": LifecycleState.UNPAIRED.value,
                 "is_active": False,
                 "reason": payload.reason,
             },
             event_metadata={"idempotency_key": payload.idempotency_key},
         )
 
-        logger.info("Device retired: %s by %s", device_id, current_user["email"])
+        logger.info("Device unpaired: %s by %s", device_id, current_user["email"])
 
         return {
             "status": "success",
-            "message": f"Device '{device_id}' retired",
+            "message": f"Device '{device_id}' unpaired",
             "device_id": device_id,
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to retire device {device_id}: {e}", exc_info=True)
+        logger.error(f"Failed to unpair device {device_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -1830,12 +1845,12 @@ async def get_devices_by_site(
                 )
                 or os_family(cast(Optional[str], d.os_details)),
                 "lifecycle_state": d.lifecycle_state,
+                "is_active": d.is_active,
                 "connectivity_state": _compute_connectivity(d),
                 "health_state": d.health_state or HealthState.UNKNOWN.value,
                 "pairing_status": (
                     "unpaired"
-                    if d.lifecycle_state
-                    in (LifecycleState.UNPAIRED.value, LifecycleState.RETIRED.value)
+                    if d.lifecycle_state == LifecycleState.UNPAIRED.value
                     else "paired"
                 ),
                 "status": d.status,

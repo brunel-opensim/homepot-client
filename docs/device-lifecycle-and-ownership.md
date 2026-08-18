@@ -98,8 +98,11 @@ Lifecycle, connectivity and health are independent dimensions.
 | `pending`   | An enrolment intent or pre-provisioned slot exists, but no endpoint has proved possession. | None                                                                  | Rejected                                  |
 | `active`    | Enrolment is complete and the management relationship is valid.                            | Valid                                                                 | Allowed when authenticated and authorised |
 | `suspended` | Management is temporarily disabled by an authorised operator or policy.                    | Retained or rotated according to policy, but rejected while suspended | Rejected                                  |
-| `unpaired`  | The management relationship has ended, while records are retained for audit and analytics. | Revoked                                                               | Rejected                                  |
-| `retired`   | Terminal state for that lifecycle epoch. Ordinary claim or reactivation is forbidden.      | Revoked                                                               | Rejected                                  |
+| `unpaired`  | The management relationship has ended, while records are retained for audit and analytics. | Revoked                                                               | Rejected (can be resumed/re-activated)    |
+
+> `retired` was folded into `unpaired`. Both revoke credentials and hide the
+> device; permanent removal is provided by `purge`. The `retire` action remains
+> available as an alias for unpairing.
 
 `is_active` may remain as a compatibility field, but it must not form a second lifecycle model. Its mapping to canonical lifecycle states must be defined once and used consistently.
 
@@ -127,8 +130,8 @@ An unpaired device is not merely offline: it no longer has an active management 
 | `active`                            | Suspend                       | `suspended`                            | Authorised operator or policy; reject device operations and record the reason.                                                   |
 | `suspended`                         | Resume                        | `active`                               | Authorised operator or policy; rotate credentials if compromise is possible.                                                     |
 | `active` or `suspended`             | Unpair                        | `unpaired`                             | Authorised user or device flow; revoke credentials and provider channels; retain history.                                        |
-| `active`, `suspended` or `unpaired` | Retire                        | `retired`                              | Tenant administrator; revoke credentials and prevent ordinary reactivation.                                                      |
-| `unpaired`                          | Re-enrol                      | `active` in a new epoch                | Repeat authorisation and device proof; retain the old epoch and issue new credentials.                                           |
+| `active`, `suspended` or `unpaired` | Retire (alias → unpair)       | `unpaired`                             | Tenant administrator; revoke credentials and prevent ordinary reactivation.                                                      |
+| `unpaired`                          | Re-enrol / resume             | `active` in a new epoch                | Repeat authorisation and device proof; retain the old epoch and issue new credentials.                                           |
 | `active` or `suspended`             | Transfer                      | `active` in a new assignment and epoch | Authorised at source and destination; revoke old credentials and retain historical ownership.                                    |
 
 Transitions must be idempotent or accept an idempotency key. Concurrent claim, unpair, transfer and credential-rotation operations must be transactionally serialised.

@@ -161,10 +161,17 @@ async def create_site(
 
 @router.get("/", tags=["Sites"])
 async def list_sites(
+    include_archived: bool = Query(
+        False, description="Include archived (hidden) sites"
+    ),
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, List[Dict]]:
-    """List all sites (scoped to user's accessible sites)."""
+    """List all sites (scoped to user's accessible sites).
+
+    By default only active sites are returned. Pass ``include_archived=true``
+    to also include archived (is_active=false) sites for the restore view.
+    """
     try:
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
@@ -173,7 +180,9 @@ async def list_sites(
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:
-            query = select(Site).where(Site.is_active.is_(True))
+            query = select(Site)
+            if not include_archived:
+                query = query.where(Site.is_active.is_(True))
 
             # Non-admin users only see sites they can access
             if not db_user.is_admin:
@@ -190,11 +199,10 @@ async def list_sites(
             site_ids = [site.id for site in sites]
             devices_by_site: Dict[Any, Any] = {}
             if site_ids:
-                devices_result = await session.execute(
-                    select(Device).where(
-                        Device.site_id.in_(site_ids), Device.is_active.is_(True)
-                    )
-                )
+                devices_query = select(Device).where(Device.site_id.in_(site_ids))
+                if not include_archived:
+                    devices_query = devices_query.where(Device.is_active.is_(True))
+                devices_result = await session.execute(devices_query)
                 for device in devices_result.scalars().all():
                     devices_by_site.setdefault(device.site_id, []).append(device)
 
@@ -261,6 +269,8 @@ async def list_sites(
                         "description": site.description,
                         "location": site.location,
                         "is_monitored": site.is_monitored,
+                        "is_active": site.is_active,
+                        "lifecycle_state": site.lifecycle_state,
                         "status": status,
                         "os_types": list(os_types),
                         "devices_count": len(devices),
@@ -636,7 +646,6 @@ async def restore_site(
         verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
         db_service = await get_database_service()
-        from sqlalchemy import update
 
         async with db_service.get_session() as session:
             result = await session.execute(select(Site).where(Site.site_id == site_id))
@@ -657,22 +666,10 @@ async def restore_site(
 
             site.is_active = True  # type: ignore[assignment]
             site.lifecycle_state = SiteLifecycleState.ACTIVE.value  # type: ignore[assignment]
-            # Re-activate the site's devices so they reappear on the Dashboard,
-            # but leave independently unpaired/retired devices untouched.
-            await session.execute(
-                update(Device)
-                .where(
-                    Device.site_id == site.id,
-                    Device.lifecycle_state.in_(
-                        [
-                            LifecycleState.ACTIVE.value,
-                            LifecycleState.PENDING.value,
-                            LifecycleState.SUSPENDED.value,
-                        ]
-                    ),
-                )
-                .values(is_active=True)
-            )
+            # Model B: restoring a site only un-hides the site itself. Devices
+            # that were suspended by the site archive stay suspended (is_active
+            # remains false) until they are individually restored, so a
+            # technician can review them on the Site page and restore per device.
             await session.commit()
 
             audit_logger = get_audit_logger()

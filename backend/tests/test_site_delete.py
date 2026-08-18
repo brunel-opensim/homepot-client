@@ -214,6 +214,33 @@ def test_site_archive_default_retains_data(file_db: Any) -> None:
         sync_db.close()
 
 
+def test_site_list_excludes_archived_by_default(file_db: Any) -> None:
+    """GET /sites/ hides archived sites unless include_archived=true."""
+    site_id, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    archived = client.delete(f"/api/v1/sites/{site_id}", headers=_headers())
+    assert archived.status_code == 200
+
+    default_list = client.get("/api/v1/sites/", headers=_headers())
+    assert default_list.status_code == 200
+    default_ids = [s["site_id"] for s in default_list.json()["sites"]]
+    assert site_id not in default_ids
+
+    archived_list = client.get(
+        "/api/v1/sites/", params={"include_archived": "true"}, headers=_headers()
+    )
+    assert archived_list.status_code == 200
+    archived_ids = [s["site_id"] for s in archived_list.json()["sites"]]
+    assert site_id in archived_ids
+    archived_site = next(
+        s for s in archived_list.json()["sites"] if s["site_id"] == site_id
+    )
+    assert archived_site["is_active"] is False
+    assert archived_site["lifecycle_state"] == "archived"
+    assert archived_site["devices_count"] == 1
+
+
 def test_site_purge_requires_confirm(file_db: Any) -> None:
     """Purge without confirm=true is rejected."""
     site_id, _, _ = _seed_site_device_admin()
@@ -225,8 +252,12 @@ def test_site_purge_requires_confirm(file_db: Any) -> None:
     assert "confirm" in response.json()["detail"].lower()
 
 
-def test_site_restore_reactivates_site_and_devices(file_db: Any) -> None:
-    """Restore flips an archived site back to active and re-activates devices."""
+def test_site_restore_keeps_devices_suspended(file_db: Any) -> None:
+    """Restore flips an archived site back to active but leaves devices suspended.
+
+    Model B: restoring a site un-hides the site; its devices stay suspended
+    (is_active=false) until each is individually restored.
+    """
     site_id, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
 
@@ -243,7 +274,8 @@ def test_site_restore_reactivates_site_and_devices(file_db: Any) -> None:
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
         assert site is not None and site.is_active is True
         assert site.lifecycle_state == "active"
-        assert device is not None and device.is_active is True
+        assert device is not None and device.is_active is False
+        assert device.lifecycle_state == "suspended"
     finally:
         sync_db.close()
 
@@ -255,6 +287,70 @@ def test_site_restore_active_site_is_idempotent(file_db: Any) -> None:
     response = client.post(f"/api/v1/sites/{site_id}/restore", headers=_headers())
     assert response.status_code == 200
     assert "already active" in response.json()["message"].lower()
+
+
+def test_device_resume_reactivates_suspended_device(file_db: Any) -> None:
+    """Resuming a device that was suspended by a site archive re-activates it.
+
+    Model B: after archiving + restoring a site, the device stays suspended
+    (is_active=false). Calling resume should bring it back to active/online so
+    it reappears on the Dashboard.
+    """
+    site_id, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    archived = client.delete(f"/api/v1/sites/{site_id}", headers=_headers())
+    assert archived.status_code == 200
+
+    restored = client.post(f"/api/v1/sites/{site_id}/restore", headers=_headers())
+    assert restored.status_code == 200
+
+    resumed = client.post(
+        f"/api/v1/devices/device/{device_id}/resume", headers=_headers(), json={}
+    )
+    assert resumed.status_code == 200
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        assert device.is_active is True
+        assert device.lifecycle_state == "active"
+        assert device.status == "online"
+    finally:
+        sync_db.close()
+
+
+def test_device_resume_reactivates_unpaired_device(file_db: Any) -> None:
+    """Resuming an independently-unpaired device re-activates it.
+
+    A device archived directly (not via a site) has lifecycle_state 'unpaired'.
+    The restore/resume action should bring it back to active/online.
+    """
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    archived = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "archive"},
+        headers=_headers(),
+    )
+    assert archived.status_code == 200
+
+    resumed = client.post(
+        f"/api/v1/devices/device/{device_id}/resume", headers=_headers(), json={}
+    )
+    assert resumed.status_code == 200
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        assert device.is_active is True
+        assert device.lifecycle_state == "active"
+        assert device.status == "online"
+    finally:
+        sync_db.close()
 
 
 def test_site_purge_with_confirm_deletes_everything(file_db: Any) -> None:
