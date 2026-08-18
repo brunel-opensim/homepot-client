@@ -84,10 +84,10 @@ export default function SiteDetail() {
       }
 
       try {
-        // Fetch Devices (include unpaired/suspended for archived sites)
-        const devicesData = await api.devices.getSiteId(id, {
-          includeUnpaired: siteData.is_active === false,
-        });
+        // Fetch Devices. Always include unpaired/suspended devices so they show
+        // on archived sites AND on restored sites (Model B: a restored site is
+        // active but its devices stay suspended until individually restored).
+        const devicesData = await api.devices.getSiteId(id, { includeUnpaired: true });
         const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
 
         // Sort alphabetically by name
@@ -124,10 +124,11 @@ export default function SiteDetail() {
     try {
       setIsRestoringSite(true);
       await api.sites.restore(id);
-      // Re-fetch site + devices in active mode
+      // Re-fetch site + devices. Devices stay suspended (Model B) and remain
+      // visible, so keep includeUnpaired=true.
       const siteData = await api.sites.get(id);
       setSite(siteData);
-      const devicesData = await api.devices.getSiteId(id);
+      const devicesData = await api.devices.getSiteId(id, { includeUnpaired: true });
       const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
       devicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       setDevices(devicesList);
@@ -144,8 +145,14 @@ export default function SiteDetail() {
     try {
       setIsRestoringDevice(true);
       await api.devices.resume(deviceId);
-      // Remove from the archived list (it becomes active again)
-      setDevices((prev) => prev.filter((d) => (d.device_id || d.id) !== deviceId));
+      // Re-activate the device in place so it stops being grayed out.
+      setDevices((prev) =>
+        prev.map((d) =>
+          (d.device_id || d.id) === deviceId
+            ? { ...d, is_active: true, lifecycle_state: 'active' }
+            : d
+        )
+      );
     } catch (err) {
       console.error('Failed to restore device:', err);
       alert(`Failed to restore device: ${err.response?.data?.detail || err.message}`);
@@ -377,12 +384,10 @@ export default function SiteDetail() {
         {/* Scrollable Devices Section */}
         <div className="flex-1 min-h-0 flex flex-col">
           <div className="shrink-0 flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">
-              {isArchived ? 'Suspended Devices' : 'Associated Devices'}
-            </h2>
-            {isArchived && (
+            <h2 className="text-xl font-semibold text-white">Associated Devices</h2>
+            {devices.some((d) => d.is_active === false) && (
               <span className="text-sm text-gray-400">
-                Suspended by the site archive. Restore to re-activate.
+                Grayed-out devices are suspended. Restore them to re-activate.
               </span>
             )}
             {!isArchived && healthFilter && (
@@ -407,7 +412,9 @@ export default function SiteDetail() {
               {filteredDevices.map((device) => (
                 <tr
                   key={device.id}
-                  className="border-b border-border transition-colors hover:bg-muted/50"
+                  className={`border-b border-border transition-colors hover:bg-muted/50 ${
+                    device.is_active === false ? 'bg-gray-500/5 opacity-60 hover:opacity-80' : ''
+                  }`}
                 >
                   <td
                     className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
@@ -519,7 +526,7 @@ export default function SiteDetail() {
                     </div>
                   </td>
                   <td className="p-4 align-middle text-right">
-                    {isArchived ? (
+                    {device.is_active === false ? (
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="ghost"

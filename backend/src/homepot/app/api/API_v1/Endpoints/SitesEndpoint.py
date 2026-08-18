@@ -646,7 +646,6 @@ async def restore_site(
         verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
         db_service = await get_database_service()
-        from sqlalchemy import update
 
         async with db_service.get_session() as session:
             result = await session.execute(select(Site).where(Site.site_id == site_id))
@@ -667,22 +666,10 @@ async def restore_site(
 
             site.is_active = True  # type: ignore[assignment]
             site.lifecycle_state = SiteLifecycleState.ACTIVE.value  # type: ignore[assignment]
-            # Re-activate the site's devices so they reappear on the Dashboard,
-            # but leave independently unpaired/retired devices untouched.
-            await session.execute(
-                update(Device)
-                .where(
-                    Device.site_id == site.id,
-                    Device.lifecycle_state.in_(
-                        [
-                            LifecycleState.ACTIVE.value,
-                            LifecycleState.PENDING.value,
-                            LifecycleState.SUSPENDED.value,
-                        ]
-                    ),
-                )
-                .values(is_active=True)
-            )
+            # Model B: restoring a site only un-hides the site itself. Devices
+            # that were suspended by the site archive stay suspended (is_active
+            # remains false) until they are individually restored, so a
+            # technician can review them on the Site page and restore per device.
             await session.commit()
 
             audit_logger = get_audit_logger()

@@ -252,8 +252,12 @@ def test_site_purge_requires_confirm(file_db: Any) -> None:
     assert "confirm" in response.json()["detail"].lower()
 
 
-def test_site_restore_reactivates_site_and_devices(file_db: Any) -> None:
-    """Restore flips an archived site back to active and re-activates devices."""
+def test_site_restore_keeps_devices_suspended(file_db: Any) -> None:
+    """Restore flips an archived site back to active but leaves devices suspended.
+
+    Model B: restoring a site un-hides the site; its devices stay suspended
+    (is_active=false) until each is individually restored.
+    """
     site_id, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
 
@@ -270,7 +274,8 @@ def test_site_restore_reactivates_site_and_devices(file_db: Any) -> None:
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
         assert site is not None and site.is_active is True
         assert site.lifecycle_state == "active"
-        assert device is not None and device.is_active is True
+        assert device is not None and device.is_active is False
+        assert device.lifecycle_state == "suspended"
     finally:
         sync_db.close()
 
