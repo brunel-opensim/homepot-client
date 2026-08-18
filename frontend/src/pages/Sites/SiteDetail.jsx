@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -60,6 +60,26 @@ export default function SiteDetail() {
 
   const isArchived = site ? site.is_active === false : false;
 
+  const refreshStats = useCallback(async () => {
+    try {
+      const statsData = await api.sites.getDashboard(id);
+      setStats(statsData);
+    } catch (err) {
+      console.error('Failed to load dashboard stats:', err);
+    }
+  }, [id]);
+
+  const refreshDevices = useCallback(async () => {
+    try {
+      const devicesData = await api.devices.getSiteId(id, { includeUnpaired: true });
+      const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
+      devicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      setDevices(devicesList);
+    } catch (err) {
+      console.error('Failed to load devices:', err);
+    }
+  }, [id]);
+
   useEffect(() => {
     const fetchSiteAndDevices = async () => {
       if (!id || id === 'undefined' || id === 'null') {
@@ -84,23 +104,8 @@ export default function SiteDetail() {
       }
 
       try {
-        // Fetch Devices. Always include unpaired/suspended devices so they show
-        // on archived sites AND on restored sites (Model B: a restored site is
-        // active but its devices stay suspended until individually restored).
-        const devicesData = await api.devices.getSiteId(id, { includeUnpaired: true });
-        const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
-
-        // Sort alphabetically by name
-        devicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-        setDevices(devicesList);
-
-        try {
-          const statsData = await api.sites.getDashboard(id);
-          setStats(statsData);
-        } catch (err) {
-          console.error('Failed to load dashboard stats:', err);
-        }
+        await refreshDevices();
+        await refreshStats();
       } catch (err) {
         console.error('Failed to load devices:', err);
       } finally {
@@ -109,7 +114,19 @@ export default function SiteDetail() {
     };
 
     fetchSiteAndDevices();
-  }, [id, navigate]);
+  }, [id, navigate, refreshDevices, refreshStats]);
+
+  // Poll for live stats (Total Devices, Devices by Health) and the device list
+  // so values update without a manual page refresh when devices are added or
+  // removed from any source.
+  useEffect(() => {
+    if (!id || id === 'undefined' || id === 'null') return;
+    const timer = setInterval(async () => {
+      await refreshStats();
+      await refreshDevices();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [id, refreshStats, refreshDevices]);
 
   const handleToggleMonitor = async () => {
     try {
@@ -128,10 +145,8 @@ export default function SiteDetail() {
       // visible, so keep includeUnpaired=true.
       const siteData = await api.sites.get(id);
       setSite(siteData);
-      const devicesData = await api.devices.getSiteId(id, { includeUnpaired: true });
-      const devicesList = Array.isArray(devicesData) ? devicesData : devicesData.devices || [];
-      devicesList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      setDevices(devicesList);
+      await refreshDevices();
+      await refreshStats();
     } catch (err) {
       console.error('Failed to restore site:', err);
       alert(`Failed to restore site: ${err.response?.data?.detail || err.message}`);
