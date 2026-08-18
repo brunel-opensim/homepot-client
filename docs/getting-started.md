@@ -16,7 +16,7 @@ Before starting, ensure your system meets the following requirements:
     *   *(Note: Our install script will attempt to install this automatically if missing.)*
 6.  **Ollama** (Required for AI Features):
     *   **Option A (Automated)**: Run `./scripts/setup-ollama.sh` (uses Homebrew on Mac).
-    *   **Option B (Manual)**: Install from [ollama.com](https://ollama.com) and pull the `qwen3:4b` model manually.
+    *   **Option B (Manual)**: Install from [ollama.com](https://ollama.com) and pull the `llama3.2` model manually.
 
 ## Quick Start Guide
 

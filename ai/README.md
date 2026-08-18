@@ -143,13 +143,38 @@ The active model is read from `ai/config.yaml`:
 
 ```yaml
 llm:
-  model: "qwen3:4b"
+  model: "llama3.2"
   base_url: "http://localhost:11434"
   temperature: 0.7
   context_window: 4096
 ```
 
-`./scripts/setup-ollama.sh` reads the model name from this file and pulls it if it is not already present, so a model switch is a one-line change followed by `ollama pull <model>`.
+`./scripts/setup-ollama.sh` reads the model name from this file and pulls it if it is not already present.
+
+### How to switch models
+
+A model switch is a three-step procedure; the backend reload is easy to miss:
+
+1. **Pull the model** so Ollama can serve it:
+   ```bash
+   ollama pull <model>
+   ```
+2. **Edit `ai/config.yaml`** and set `llm.model` to the new name.
+3. **Reload the backend.** This is required and non-obvious: the backend runs under
+   `uvicorn --reload`, but uvicorn's default reload filter watches **`*.py` files
+   only**, so a `.yaml` change does **not** restart it. The `LLMService` singleton
+   is initialised once per process and keeps serving the old model until the
+   process restarts. Either touch any `.py` under `backend/src` or `ai/` to
+   trigger a reload, or restart uvicorn yourself.
+
+No `ollama` restart is needed for a switch: Ollama loads any pulled model on
+demand. (If the Ollama runner ever wedges — e.g. after a client is killed
+mid-request — `sudo systemctl restart ollama` recovers it, but that is a
+recovery action, not part of a normal model switch.)
+
+To verify the switch took effect, run the live endpoint and compare latency;
+each AI request generates far fewer tokens on the new model, so the timing and
+the answer should change.
 
 ### Why GPU memory is the binding constraint
 
@@ -199,6 +224,30 @@ Estimated fit for larger candidates at a 4096-token context:
 | qwen3:14b | Q4_K_M | ~8.9 GB | ~9.6 GiB | No |
 
 **Conclusion for this class of machine:** a **4 GiB card tops out around a 4B-parameter model at Q4**. To go 8B+ with quality you need ~12-16 GiB VRAM; on 4 GiB the only options are a heavy quantization (poor quality) or accepting CPU offload.
+
+### Measured inference latency (reference machine)
+
+Both models fit on the P620, but generation speed differs sharply. Measured with `ai/utils/bench_llm.py` (server-reported timings, median of 3, unique prompt per trial to defeat the prompt cache; 200-token output cap):
+
+| Metric | llama3.2 (3B) | qwen3:4b (4B) |
+|---|---|---|
+| Decode, short prompt | 22.0 t/s | 7.6 t/s |
+| Decode, long context (2050 tok) | 12.0 t/s | 5.6 t/s |
+| Prefill, long context | 230 t/s | 153 t/s |
+| End-to-end HOMEPOT `/ai/query` | **~57 s** | **~474 s (~8 min)** |
+
+Two things make qwen3:4b dramatically slower here:
+
+1. **Bigger model on a weak GPU**: decode is ~2x slower than llama3.2.
+2. **Thinking mode is always on and cannot be disabled**: `think: false`
+   (as an option or top-level) is silently ignored by Ollama 0.32.5, and qwen3
+   still emits 1k+ reasoning tokens per response. A `num_predict` cap below the
+   thinking length returns an **empty** answer. So each request pays 60-80% of
+   its token budget on hidden reasoning before producing any text.
+
+**Takeaway:** for an interactive query workload on a 4 GiB card, llama3.2 is the
+pragmatic default; qwen3:4b is a better-quality alternative only where answers
+are produced asynchronously and an 8-minute wait is acceptable.
 
 ### How to verify a switch (the tests we ran)
 
