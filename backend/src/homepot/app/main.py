@@ -95,6 +95,32 @@ async def initialize_database() -> None:
 
 
 @app.on_event("startup")
+async def start_agent_manager() -> None:
+    """Auto-start the device agent simulator when the API starts.
+
+    Previously the agent manager only started lazily when an endpoint (e.g.
+    ``/health/system-pulse``) first called ``get_agent_manager()``, so after a
+    backend restart no simulated data collection ran until something pinged it.
+    Starting it here makes simulated/emulated device data collection resume
+    automatically on startup (respecting ``enable_agent_simulation``).
+    """
+    if not get_settings().enable_agent_simulation:
+        logging.getLogger(__name__).info(
+            "Agent simulation disabled — skipping agent manager startup"
+        )
+        return
+    try:
+        from homepot.agents import get_agent_manager
+
+        await get_agent_manager()
+        logging.getLogger(__name__).info("Agent manager started on API startup")
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            f"Failed to start agent manager on startup: {e}"
+        )
+
+
+@app.on_event("startup")
 async def initialize_client() -> None:
     """Connect the HOMEPOT client and wire it into the endpoints that need it.
 
