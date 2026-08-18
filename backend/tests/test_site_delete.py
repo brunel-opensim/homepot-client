@@ -651,3 +651,49 @@ def test_ai_site_insights_hidden_after_archive(file_db: Any) -> None:
     archived = client.get(f"/api/v1/ai/insights/site/{site_id}", headers=_headers())
     assert archived.status_code == 404
     assert "not found or not active" in archived.json()["detail"].lower()
+
+
+def test_ai_endpoints_require_auth(file_db: Any) -> None:
+    """AI endpoints reject unauthenticated requests (401/403)."""
+    site_id, _, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    response = client.get(f"/api/v1/ai/insights/site/{site_id}")
+    assert response.status_code in (401, 403)
+
+    query = client.post("/api/v1/ai/query", json={"query": "hi"})
+    assert query.status_code in (401, 403)
+
+
+def test_ai_site_insights_scoped_to_user_access(file_db: Any) -> None:
+    """A non-admin user without site membership is denied AI site insights."""
+    site_id, _, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    # Seed a non-admin viewer with no site membership.
+    sync_db = homepot.database.SessionLocal()
+    try:
+        viewer = User(
+            email="viewer@arch-purge.test",
+            username="viewer_ap",
+            hashed_password=hash_password("pass"),
+            is_admin=False,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        sync_db.add(viewer)
+        sync_db.commit()
+    finally:
+        sync_db.close()
+
+    viewer_headers = {
+        "Authorization": f"Bearer {create_access_token({'sub': 'viewer@arch-purge.test'})}"
+    }
+
+    # The viewer is not a member of the site, so AI insights are forbidden.
+    denied = client.get(f"/api/v1/ai/insights/site/{site_id}", headers=viewer_headers)
+    assert denied.status_code == 403
+
+    # The admin still has access.
+    allowed = client.get(f"/api/v1/ai/insights/site/{site_id}", headers=_headers())
+    assert allowed.status_code in (200, 500)

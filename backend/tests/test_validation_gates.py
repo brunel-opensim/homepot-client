@@ -373,7 +373,8 @@ async def test_query_ai_always_calls_llm_even_when_not_actionable():
         ),
     ):
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
-        response = await AIEndpoint.query_ai(request)
+        current_user = {"email": "admin@test", "role": "Admin", "user_id": 1}
+        response = await AIEndpoint.query_ai(request, current_user)
 
     assert mock_llm.generate_response.called
     call_kwargs = mock_llm.generate_response.call_args.kwargs
@@ -452,7 +453,8 @@ async def test_query_ai_includes_insights_when_gate_b_passes():
         ),
     ):
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
-        response = await AIEndpoint.query_ai(request)
+        current_user = {"email": "admin@test", "role": "Admin", "user_id": 1}
+        response = await AIEndpoint.query_ai(request, current_user)
 
     assert mock_llm.generate_response.called
     call_kwargs = mock_llm.generate_response.call_args.kwargs
@@ -530,7 +532,8 @@ async def test_query_ai_downgrades_trust_when_post_insight_gate_c_fails():
         ),
     ):
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
-        response = await AIEndpoint.query_ai(request)
+        current_user = {"email": "admin@test", "role": "Admin", "user_id": 1}
+        response = await AIEndpoint.query_ai(request, current_user)
 
     assert mock_llm.generate_response.called
     call_kwargs = mock_llm.generate_response.call_args.kwargs
