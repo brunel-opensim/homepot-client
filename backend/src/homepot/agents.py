@@ -814,6 +814,31 @@ class DeviceAgentSimulator:
             try:
                 await asyncio.sleep(2)  # Check every 2 seconds
                 if self.state == AgentState.IDLE:
+                    # Stop simulating once the device is no longer active
+                    # (suspended/unpaired/archived). Prevents the agent from
+                    # flipping a hidden device's status back to online.
+                    try:
+                        db_service = await get_database_service()
+                        from sqlalchemy import select
+
+                        from homepot.models import Device
+
+                        async with db_service.get_session() as session:
+                            result = await session.execute(
+                                select(Device).where(Device.device_id == self.device_id)
+                            )
+                            device = result.scalar_one_or_none()
+                            if device is not None and not device.is_active:
+                                logger.info(
+                                    f"Agent {self.device_id} stopping: device inactive"
+                                )
+                                self.is_running = False
+                                break
+                    except Exception as e:
+                        logger.debug(
+                            f"Agent {self.device_id} inactive check failed: {e}"
+                        )
+
                     await self._run_health_check()
                     await self._simulate_background_jobs()
             except Exception as e:

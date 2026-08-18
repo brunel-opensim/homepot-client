@@ -241,6 +241,43 @@ def test_site_list_excludes_archived_by_default(file_db: Any) -> None:
     assert archived_site["devices_count"] == 1
 
 
+def test_archived_site_status_is_offline_even_if_device_status_online(
+    file_db: Any,
+) -> None:
+    """An archived site shows Offline even if a suspended device's raw status column still says online.
+
+    The raw status field can be stale (from the simulation agent). Site status
+    must only consider active devices; suspended devices must not make an
+    archived site appear online.
+    """
+    site_id, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+
+    archived = client.delete(f"/api/v1/sites/{site_id}", headers=_headers())
+    assert archived.status_code == 200
+
+    # Simulate a stale raw status field on the suspended device (the simulation
+    # agent used to flip this back to 'online').
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        device.status = DeviceStatus.ONLINE.value
+        sync_db.commit()
+    finally:
+        sync_db.close()
+
+    archived_list = client.get(
+        "/api/v1/sites/", params={"include_archived": "true"}, headers=_headers()
+    )
+    assert archived_list.status_code == 200
+    archived_site = next(
+        s for s in archived_list.json()["sites"] if s["site_id"] == site_id
+    )
+    assert archived_site["is_active"] is False
+    assert archived_site["status"] == "Offline"
+
+
 def test_site_purge_requires_confirm(file_db: Any) -> None:
     """Purge without confirm=true is rejected."""
     site_id, _, _ = _seed_site_device_admin()

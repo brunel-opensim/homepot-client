@@ -210,12 +210,15 @@ async def list_sites(
             for site in sites:
                 devices = devices_by_site.get(site.id, [])
 
-                # Determine status
+                # Determine status. Only ACTIVE devices contribute to the site's
+                # connectivity status — suspended/unpaired devices (e.g. on an
+                # archived site) must not make the site appear online.
+                active_devices = [d for d in devices if d.is_active]
                 status = "Offline"
-                if devices:
-                    if any(d.status == "error" for d in devices):
+                if active_devices:
+                    if any(d.status == "error" for d in active_devices):
                         status = "Warning"
-                    elif any(d.status == "online" for d in devices):
+                    elif any(d.status == "online" for d in active_devices):
                         status = "Online"
 
                 # Collect OS types
@@ -398,10 +401,16 @@ async def delete_site(
         from homepot.models import (
             AuditLog,
             Device,
+            DeviceAssignment,
             DeviceCommand,
+            DeviceCredential,
+            DeviceLifecycleEvent,
+            EnrolmentIntent,
             HealthCheck,
             Job,
+            LifecycleEpoch,
             Site,
+            SiteMembership,
         )
 
         async with db_service.get_session() as session:
@@ -527,6 +536,14 @@ async def delete_site(
                     SiteOperatingSchedule.site_id == site_pk
                 )
             )
+            # Enrolment intents bound to the site
+            await session.execute(
+                delete(EnrolmentIntent).where(EnrolmentIntent.site_id == site_pk)
+            )
+            # Site memberships bound to the site
+            await session.execute(
+                delete(SiteMembership).where(SiteMembership.site_id == site_pk)
+            )
             # Configuration History (linked to site)
             await session.execute(
                 delete(ConfigurationHistory).where(
@@ -557,6 +574,41 @@ async def delete_site(
                 # Delete AuditLogs for devices
                 await session.execute(
                     delete(AuditLog).where(AuditLog.device_id.in_(device_pk_ids))
+                )
+                # Delete lifecycle events (device_id FK and triggered_by FK)
+                await session.execute(
+                    delete(DeviceLifecycleEvent).where(
+                        DeviceLifecycleEvent.device_id.in_(device_pk_ids)
+                    )
+                )
+                await session.execute(
+                    delete(DeviceLifecycleEvent).where(
+                        DeviceLifecycleEvent.triggered_by_device_id.in_(device_pk_ids)
+                    )
+                )
+                # Delete lifecycle epochs (first null the device FK reference
+                # to avoid devices_lifecycle_epoch_id_fkey violations)
+                await session.execute(
+                    update(Device)
+                    .where(Device.id.in_(device_pk_ids))
+                    .values(lifecycle_epoch_id=None)
+                )
+                await session.execute(
+                    delete(LifecycleEpoch).where(
+                        LifecycleEpoch.device_id.in_(device_pk_ids)
+                    )
+                )
+                # Delete device credentials
+                await session.execute(
+                    delete(DeviceCredential).where(
+                        DeviceCredential.device_id.in_(device_pk_ids)
+                    )
+                )
+                # Delete device assignments
+                await session.execute(
+                    delete(DeviceAssignment).where(
+                        DeviceAssignment.device_id.in_(device_pk_ids)
+                    )
                 )
 
             # Delete AuditLogs for the site
