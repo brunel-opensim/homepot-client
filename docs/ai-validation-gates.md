@@ -3,7 +3,7 @@
 > **Status:** Implemented (July 2026)
 > **Related:** [AI Implementation & Architecture](ai-implementation.md) &middot; [Context Builder](ai-context-builder.md) &middot; [Anomaly Detection](anomaly-detection.md)
 
-The **System Diagnostics AI** does not treat every LLM answer as equally trustworthy. Before a question reaches the model, the underlying telemetry passes through a sequential chain of **validation gates** (Gate A &rarr; Gate B &rarr; Gate C &rarr; &hellip;). Each gate either passes or fails; a failure short-circuits the chain into a named, capped-trust **mode** instead of silently allowing an unqualified narrative. This is the implementation of the *validation-first* architecture described in the HOMEPOT ICCS2026 paper (Fig. 2).
+The **System Diagnostics AI** does not treat every LLM answer as equally trustworthy. Before a question reaches the model, the underlying telemetry passes through a sequential chain of **validation gates** (Gate A &rarr; Gate B &rarr; Gate C &rarr; Gate D &rarr; Gate E). Each gate either passes or fails; a failure short-circuits the chain into a named, capped-trust **mode** instead of silently allowing an unqualified narrative. This is the implementation of the *validation-first* architecture described in the HOMEPOT ICCS2026 paper (Fig. 2).
 
 The goal is simple: **a technician should never see a recommendation without also seeing how much confidence to place in it.**
 
@@ -13,7 +13,7 @@ An LLM will happily produce a fluent, confident-sounding answer even when the da
 
 * Each gate inspects a specific quality dimension of the data the LLM is about to be given.
 * A failing gate doesn't necessarily block the chat turn -- the LLM still responds -- but the response is explicitly labeled as non-actionable/advisory, and the reported trust score is capped accordingly.
-* The chain is **extensible**: new gates (e.g. a future cybersecurity/provenance Gate D) can be appended without modifying Gate A/B/C.
+* The chain is **extensible**: new gates can be appended without modifying Gate A/B/C/D/E.
 
 ## The gate chain
 
@@ -21,10 +21,14 @@ An LLM will happily produce a fluent, confident-sounding answer even when the da
 flowchart LR
     A[Gate A<br/>Contract & Infrastructure] -->|pass| B[Gate B<br/>Data Integrity]
     B -->|pass| C[Gate C<br/>Context Readiness]
-    C -->|pass| G[Grounded LLM Interface<br/>trust = 1.0, actionable]
+    C -->|pass| D[Gate D<br/>Permissions & Capabilities]
+    D -->|pass| E[Gate E<br/>Lifecycle Integrity]
+    E -->|pass| G[Grounded LLM Interface<br/>trust = 1.0, actionable]
     A -->|fail| M1[Mode 1: Status-only<br/>trust ceiling 0.0]
     B -->|fail| M2[Mode 2: Best-effort analytics<br/>trust ceiling 0.5]
     C -->|fail| M3[Mode 3: Cautionary summaries<br/>trust ceiling 0.75]
+    D -->|fail| M4[Mode 4: Permission Gap<br/>trust ceiling 0.75]
+    E -->|fail| M5[Mode 5: Lifecycle Halt<br/>trust ceiling 0.5]
 ```
 
 ### Gate A -- Contract and Infrastructure
@@ -66,6 +70,30 @@ Failing Gate C falls back to **Mode 3: Cautionary summaries** -- only uncertaint
 
 Gate C is deliberately **re-evaluated twice** per query: once against the base context, and again after the AI Insights block (anomaly/failure-prediction signals, see below) is appended -- since that append can push the context past the size threshold or otherwise disturb readiness. If the post-insight check fails, the trust mode is downgraded to Mode 3 even if the first pass was fully actionable.
 
+### Gate D -- Permissions and Capabilities
+
+Implemented in `ai/gates/gate_d.py`. Validates that a device's requested permissions are bounded by its capabilities, so the AI never recommends an action the device is not permitted or able to perform:
+
+| Check | What it verifies |
+|---|---|
+| `D.capabilities_defined` | The device has a defined capability set. |
+| `D.permissions_defined` | The device has a defined permission set. |
+| `D.permissions_within_capabilities` | Every requested permission is a subset of the device's capabilities. |
+
+Failing Gate D falls back to **Mode 4: Permission Gap** (trust ceiling `0.75`) -- the AI cannot safely recommend device actions when permissions and capabilities are inconsistent or undefined. Gate D only applies when a specific device is the subject of the query; it passes trivially when no device is identified.
+
+### Gate E -- Lifecycle Integrity
+
+Implemented in `ai/gates/gate_e.py`. Confirms the device is in a valid, healthy, manageable state before the AI can recommend actionable changes:
+
+| Check | What it verifies |
+|---|---|
+| `E.lifecycle_active` | `lifecycle_state == "active"` (suspended/unpaired/archived devices are not actionable). |
+| `E.health_ok` | Device health state is not `error`. |
+| `E.credentials_ok` | At least one active, non-revoked credential exists. |
+
+Failing Gate E falls back to **Mode 5: Lifecycle Halt** (trust ceiling `0.50`) -- the AI may still provide analytic summaries, but it cannot make actionable recommendations for a device that is suspended, in error, or has compromised credentials. This is the gate that prevents the AI from recommending actions on devices hidden by a site archive or device suspension (see the [Site & Device Lifecycle Matrix](site-device-lifecycle-matrix.md)).
+
 ### Grounded LLM Interface
 
 If every gate in the chain passes, the envelope reports the **`grounded`** mode: full, actionable AI inference and recommendations, trust score up to `1.0`.
@@ -77,6 +105,8 @@ If every gate in the chain passes, the envelope reports the **`grounded`** mode:
 | Mode 1: Status-only | `mode_1` | No | `0.0` | Raw status may be reported; no LLM narrative permitted. |
 | Mode 2: Best-effort analytics | `mode_2` | No | `0.5` | LLM analysis permitted but explicitly limited-trust. |
 | Mode 3: Cautionary summaries | `mode_3` | No | `0.75` | Only non-actionable, uncertainty-qualified summaries. |
+| Mode 4: Permission Gap | `mode_4` | No | `0.75` | Permissions/capabilities inconsistent; no device-action recommendations. |
+| Mode 5: Lifecycle Halt | `mode_5` | No | `0.5` | Device not active/healthy/credentialed; no actionable recommendations. |
 | Grounded LLM Interface | `grounded` | Yes | `1.0` | All gates passed -- full grounded inference. |
 
 !!! note "Tunable, not yet calibrated"
@@ -99,9 +129,9 @@ The chat response also surfaces the same anomaly-detection and failure-predictio
     "trust_mode_label": "Grounded LLM Interface",
     "trust_score": 1.0,
     "actionable": true,
-    "passed_gates": ["A", "B", "C", "C"],
+    "passed_gates": ["A", "B", "C", "D", "E", "C"],
     "failed_gate": null,
-    "summary": "Passed all gates (A, B, C, C) \u2014 Grounded LLM Interface",
+    "summary": "Passed all gates (A, B, C, D, E, C) \u2014 Grounded LLM Interface",
     "gates": [
       {
         "gate_id": "A",
@@ -110,7 +140,7 @@ The chat response also surfaces the same anomaly-detection and failure-predictio
         "score": 1.0,
         "checks": [ { "check_id": "A.db_readiness", "passed": true, "message": "...", "evidence": [ /* traceable table/row refs */ ] } ]
       }
-      // ...B, C (pre-insight), C (post-insight)
+      // ...B, C (pre-insight), D, E, C (post-insight)
     ]
   }
 }
@@ -123,7 +153,7 @@ Every check carries `evidence` entries (table, field, record ID, observed value,
 The **System Diagnostics AI** widget (`frontend/src/components/Dashboard/AskAIWidget.jsx`) renders a **trust banner** above every recommendation, so the gate outcome is never hidden behind the answer text:
 
 * A color-coded icon + label for the resulting trust mode (green for `grounded`, amber/orange/red for the degraded modes).
-* De-duplicated gate chips (`A`, `B`, `C`) -- green if that gate passed, red if it's the one that failed.
+* De-duplicated gate chips (`A`, `B`, `C`, `D`, `E`) -- green if that gate passed, red if it's the one that failed.
 * An overall **Trust %** score.
 * A click-to-expand detail view listing every gate's individual check messages (row counts, freshness, completeness, etc.), including both the pre- and post-insight Gate C re-validation.
 
@@ -131,13 +161,13 @@ The **System Diagnostics AI** widget (`frontend/src/components/Dashboard/AskAIWi
 
 ## Extending the chain
 
-New gates can be appended to the envelope without touching Gate A/B/C:
+New gates can be appended to the envelope without touching Gate A/B/C/D/E:
 
 ```python
 from ai.gates.envelope import build_default_envelope
 
 envelope = build_default_envelope()
-envelope.add_gate(MyCybersecurityGate())  # e.g. a future Gate D
+envelope.add_gate(MyCybersecurityGate())  # e.g. a future Gate F
 ```
 
 Each gate defines its own `failure_mode` (a `Mode` instance), so a new gate can introduce its own fallback trust mode independently of the existing ones.

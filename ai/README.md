@@ -8,7 +8,9 @@ This directory contains the AI and Machine Learning services for the HOMEPOT Cli
 
 ## Context Builder
 
-The **Context Builder** (`ai/context_builder.py`) aggregates data from all **25 database tables** to provide "situational awareness" to the LLM:
+The **Context Builder** (`ai/context_builder.py`) exposes many context sources for "situational awareness" to the LLM. Note that this README describes the standalone/legacy architecture; the **live integrated** AI surface (`/api/v1/ai/query` in `AIEndpoint.py`) injects a focused, real-time subset (current site/device status, push stats, active alerts, recent jobs) rather than every table on every request — see [AI Implementation & Architecture](../docs/ai-implementation.md) and the [API Reference](../docs/ai-api-reference.md).
+
+Available context sources include:
 
 *   **Tenants:** Multi-tenancy organisations and their active status.
 *   **Tenant Memberships:** User-role assignments within tenants.

@@ -47,34 +47,18 @@ Currently, the system uses a **Rule-Based Heuristic Engine**, not a black-box ma
 There is a distinction in how alerts are displayed across the application:
 
 1.  **Dashboard (Real-Time + Persistent)**:
-    *   Shows anomalies detected **right now** in memory (e.g., a sudden 5-second CPU spike).
+    *   Shows anomalies detected **right now** in memory (e.g., a sudden 5-second CPU spike) via the `ActiveAlertsTicker`.
     *   Shows persistent alerts stored in the database.
     *   *Purpose*: Immediate operational awareness.
 
-2.  **Device Detail Page (Persistent Only)**:
-    *   Under the "Alerts" tab, this view shows **only** alerts that have been formally logged to the database.
-    *   Transient anomalies (like a momentary spike) may appear on the Dashboard but not here unless they persist long enough to be committed to the database.
-    *   *Purpose*: Historical audit trail and case management.
+2.  **Device Detail Page (Merged DB + AI Anomalies)**:
+    *   Under the "Alerts" tab, this view merges formally logged database alerts with the live AI anomaly scan (`GET /api/v1/ai/anomalies`), tagging AI-sourced rows with an **AI Analysis** source badge and de-duplicating against the DB alerts by reason.
+    *   The anomaly list is fetched on load and re-polled every few seconds so it stays live.
+    *   *Purpose*: A single, current view of both committed and detected issues for that device.
 
-## Configuration
-Thresholds are defined in `ai/config.yaml` under the `anomaly_detection` section.
+## Triggering a scan
 
-```yaml
-anomaly_detection:
-  sensitivity: 0.8
-  thresholds:
-    max_latency_ms: 500
-    max_error_rate: 0.05
-    max_flapping_count: 5
-    consecutive_failures: 3
-```
-
-## API Usage & Frequency
-The anomaly detection is **Pull-Based** (On-Demand), meaning the calculation runs whenever the API is called.
-
-*   **Trigger**: The Dashboard automatically calls this API every **30 seconds**.
-*   **Effect**: This provides "Near Real-Time" monitoring for any user viewing the dashboard.
-*   **Endpoint**: `GET /api/v1/ai/anomalies`
+`GET /api/v1/ai/anomalies` is **pull-based**: it runs the rule-based scan on demand across active devices, and the Dashboard calls it on a polling cycle for near-real-time visibility. Note that calling it also syncs each device's `online`/`offline` status based on consecutive health-check failures.
 
 **Response**:
 ```json
@@ -82,17 +66,40 @@ The anomaly detection is **Pull-Based** (On-Demand), meaning the calculation run
   "count": 1,
   "anomalies": [
     {
-      "device_id": "dev-123",
-      "device_name": "POS Terminal 1",
+      "device_id": "DEVICE-8TKX-MVVG-U4EH",
+      "device_name": "Web Dashboard 1-4",
       "score": 1.0,
+      "reasons": ["High CPU: 92.5%", "High Memory: 88.0%"],
       "severity": "critical",
       "metrics": {
         "flapping_count": 12,
         "consecutive_failures": 5,
-        "cpu_percent": 45.0
+        "cpu_percent": 92.5,
+        "memory_percent": 88.0
       },
-      "timestamp": "2025-12-30T10:00:00Z"
+      "timestamp": "2026-07-17T10:00:00Z"
     }
   ]
 }
 ```
+
+The response is limited to the top 5 anomalies by score.
+
+## Configuration
+Thresholds are defined in `ai/config.yaml` under the `anomaly_detection` section.
+
+```yaml
+anomaly_detection:
+  sensitivity: 0.8
+  window_size: 50
+  thresholds:
+    network_latency_ms: 200          # ms; above this flags "High Latency"
+    cpu_percent: 90.0                # %; above this flags "High CPU"
+    memory_percent: 90.0             # %; above this flags "High Memory"
+    disk_percent: 90.0               # %; above this flags "High Disk Usage"
+    error_rate: 0.05                 # ratio (5%); above this flags "High Error Rate"
+    max_flapping_count: 5            # state changes per hour; above this flags "High Instability"
+    consecutive_failures: 3          # health-check failures in a row; at/above this flags "System Failure"
+```
+
+`sensitivity` scales the final anomaly score (`score * sensitivity`, capped at `1.0`); it changes the reported score but not which thresholds fire. `window_size` is reserved and not currently applied.

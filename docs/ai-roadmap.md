@@ -102,7 +102,7 @@ app/
 | AI Infrastructure (FastAPI + Ollama + ChromaDB) | ✅ | `ai/api.py`, `ai/llm.py`, `ai/device_memory.py` |
 | Context Builder (12 data sources) | ✅ | `ai/context_builder.py` — parallel async DB queries |
 | Anomaly Detection (rule-based) | ✅ | `ai/anomaly_detection.py` — 6-factor scoring |
-| Validation Gates (A, B, C) | ✅ | `ai/gates/` — contract, integrity, context readiness |
+| Validation Gates (A, B, C, D, E) | ✅ | `ai/gates/` — contract, integrity, context readiness, permissions/capabilities, lifecycle integrity |
 | Analysis Modes (3 personas) | ✅ | `ai/analysis_modes.py` — maintenance, predictive, executive |
 | AI Query Endpoint (`/api/v1/ai/query`) | ✅ | `AIEndpoint.py` with trust envelope |
 | Device Memory (ChromaDB RAG) | ✅ | `ai/device_memory.py` — semantic vector storage |
