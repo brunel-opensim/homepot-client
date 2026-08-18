@@ -124,7 +124,7 @@ export default function SiteDetail() {
     const timer = setInterval(async () => {
       await refreshStats();
       await refreshDevices();
-    }, 15000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [id, refreshStats, refreshDevices]);
 
