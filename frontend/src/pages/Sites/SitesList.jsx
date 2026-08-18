@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import OsIcon from '@/components/common/OsIcon';
+import { Toast } from '@/components/ui/Toast';
 import api from '@/services/api';
 import SiteDeleteDialog from '@/components/Sites/SiteDeleteDialog';
 import { trackActivity, trackSearch } from '@/utils/analytics';
@@ -28,7 +29,7 @@ export default function SitesList() {
   const [isRestoring, setIsRestoring] = useState(false);
   const [copiedSiteId, setCopiedSiteId] = useState(null);
   const [activeTab, setActiveTab] = useState('active');
-  const [notice, setNotice] = useState(null);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     fetchSites();
@@ -79,7 +80,7 @@ export default function SitesList() {
     setActiveTab(tab);
     setSearchTerm('');
     setLocationFilter('');
-    setNotice(null);
+    setToast(null);
     fetchSites(tab === 'archived');
   };
 
@@ -128,7 +129,11 @@ export default function SitesList() {
     trackActivity('click', '/sites', { site_id: site.id }, 'view_site_details_btn');
 
     if (site.is_active === false) {
-      setNotice(`Details for "${site.name}" are not available until the site is restored.`);
+      setToast({
+        title: 'Archived site',
+        message: `Details for "${site.name}" are not available until the site is restored.`,
+        type: 'error',
+      });
       return;
     }
 
@@ -207,19 +212,6 @@ export default function SitesList() {
             Archived
           </button>
         </div>
-
-        {notice && (
-          <div className="flex items-center justify-between gap-3 mb-4 px-4 py-2.5 rounded-lg bg-[#1a1f2b] border border-yellow-500/30 text-yellow-300 text-sm">
-            <span>{notice}</span>
-            <button
-              onClick={() => setNotice(null)}
-              className="text-gray-400 hover:text-white transition-colors shrink-0"
-              title="Dismiss"
-            >
-              ✕
-            </button>
-          </div>
-        )}
 
         <div className="flex flex-col md:flex-row items-center gap-2 mb-4">
           {/* Search input */}
@@ -421,6 +413,8 @@ export default function SitesList() {
         siteName={siteToDelete?.name}
         isDeleting={isDeleting}
       />
+
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
     </div>
   );
 }
