@@ -7,11 +7,19 @@ from datetime import datetime, timedelta
 import logging
 import os
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
+from sqlalchemy.orm import Session as SASession
+
+from homepot.app.auth_utils import (  # noqa: E402
+    require_user,
+    verify_device_belongs_to_user,
+    verify_site_access_for_user,
+)
+from homepot.app.schemas.schemas import UserDict  # noqa: E402
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -45,12 +53,56 @@ from homepot.app.models.AnalyticsModel import (  # noqa: E402
 )
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
-from homepot.database import get_database_service  # noqa: E402
-from homepot.models import Device, HealthCheck, Site  # noqa: E402
+from homepot.database import get_database_service, get_db  # noqa: E402
+from homepot.models import Device, HealthCheck, Site, User  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_user())])
+
+# Tokens commonly used to break out of a prompt context and inject adversarial
+# instructions. These are neutralized in any user-supplied text before it is
+# placed into the LLM prompt (see _sanitize_ai_input).
+_INJECTION_TOKENS = (
+    "[INST]",
+    "[/INST]",
+    "<|im_start|>",
+    "<|im_end|>",
+    "<|system|>",
+    "<|assistant|>",
+    "<|user|>",
+    "### Instruction",
+    "### System",
+    "### Human:",
+    "Ignore all previous instructions",
+    "Ignore previous instructions",
+    "Disregard all previous",
+    "You are now",
+    "You are a helpful",
+)
+
+
+def _sanitize_ai_input(text: Optional[str], label: str = "text") -> str:
+    """Neutralize common prompt-injection tokens in user-supplied input.
+
+    User-provided ``context``, ``role`` and chat ``history`` are placed into the
+    LLM prompt, so they are a prompt-injection surface. This helper strips and
+    flags any tokens that could be used to break out of the instruction context.
+    """
+    if not text:
+        return ""
+    sanitized = text
+    flagged = 0
+    for token in _INJECTION_TOKENS:
+        if token.lower() in sanitized.lower():
+            flagged += 1
+            sanitized = sanitized.replace(token, "[neutralized]")
+    if flagged:
+        logger.warning(
+            "Sanitized %d injection token(s) from AI %s input", flagged, label
+        )
+    # Limit length so a single field cannot blow out the bounded context.
+    return sanitized[:4000]
 
 
 # Request/Response Models
@@ -345,12 +397,16 @@ def get_ai_services() -> Any:
 
 
 @router.post("/query", tags=["AI Chat"])
-async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
+async def query_ai(
+    request: AIQueryRequest,
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
     """Query the AI assistant."""
     logger.info(
-        "AI query | device_id=%s | query_len=%d",
+        "AI query | device_id=%s | query_len=%d | user=%s",
         request.device_id or "N/A",
         len(request.query),
+        current_user.get("email"),
     )
     try:
         # Use singletons for heavy services
@@ -363,7 +419,11 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
         if request.history:
             short_term_context = "\n[CONVERSATION HISTORY]\n"
             short_term_context += "\n".join(
-                [f"{msg.role}: {msg.content}" for msg in request.history[-5:]]
+                [
+                    f"{_sanitize_ai_input(msg.role, 'history-role')}: "
+                    f"{_sanitize_ai_input(msg.content, 'history')}"
+                    for msg in request.history[-5:]
+                ]
             )
 
         # 2. Build Long-Term Context (Vector Memory)
@@ -475,10 +535,12 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
             full_context = f"{site_context}\n{job_context}\n{long_term_context}\n{short_term_context}"
 
             if request.context:
-                full_context += f"\n[USER CONTEXT]\n{request.context}"
+                sanitized_context = _sanitize_ai_input(request.context, "context")
+                full_context += f"\n[USER CONTEXT]\n{sanitized_context}"
 
             if request.role:
-                full_context += f"\n[REQUESTER ROLE]\n{request.role}"
+                sanitized_role = _sanitize_ai_input(request.role, "role")
+                full_context += f"\n[REQUESTER ROLE]\n{sanitized_role}"
 
             if request.device_id:
                 full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
@@ -721,6 +783,7 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
                     f"AI query | device={request.device_id or 'N/A'} | "
                     f"mode={trust.trust_mode.label} | score={trust.trust_score:.2f}"
                 ),
+                user_id=current_user.get("user_id"),
                 event_metadata={
                     "query_length": len(request.query),
                     "trust_mode": trust.trust_mode.label,
@@ -735,6 +798,7 @@ async def query_ai(request: AIQueryRequest) -> Dict[str, Any]:
                     description=(
                         f"Gate {trust.failed_gate_id} failed | device={request.device_id or 'N/A'}"
                     ),
+                    user_id=current_user.get("user_id"),
                     event_metadata={
                         "trust_score": trust.trust_score,
                         "failed_gate": trust.failed_gate_id,
@@ -796,10 +860,13 @@ async def get_push_insights(
 async def get_device_insights(
     device_id: str,
     days: int = Query(default=30, ge=1, le=90, description="Analysis period in days"),
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
     """Get comprehensive AI insights for a device.
 
     Includes performance trends, health score, and predictive analysis.
+    Restricted to users with access to the device's site.
     """
     try:
         analytics = AIAnalyticsService()
@@ -816,6 +883,13 @@ async def get_device_insights(
                 status_code=404,
                 detail=f"Device '{device_id}' not found or not active",
             )
+
+        # Scope to the caller's site/tenant access.
+        db_user = cast(
+            "User",
+            db.query(User).filter(User.email == current_user["email"]).first(),
+        )
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="viewer")
 
         # Get performance trends
         performance = await analytics.get_device_performance_trends(device_id, days)
@@ -852,10 +926,13 @@ async def get_device_insights(
 async def get_site_insights(
     site_id: str,
     days: int = Query(default=30, ge=1, le=90, description="Analysis period in days"),
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
     """Get comprehensive AI insights for a site.
 
     Includes job patterns, optimal scheduling windows, and site-level analytics.
+    Restricted to users with access to the site.
     """
     try:
         analytics = AIAnalyticsService()
@@ -872,6 +949,13 @@ async def get_site_insights(
                 status_code=404,
                 detail=f"Site '{site_id}' not found or not active",
             )
+
+        # Scope to the caller's site/tenant access.
+        db_user = cast(
+            "User",
+            db.query(User).filter(User.email == current_user["email"]).first(),
+        )
+        verify_site_access_for_user(db_user, site_id, db, minimum_role="viewer")
 
         # Get job outcome patterns
         job_patterns = await analytics.get_job_outcome_patterns(site_id, days)
@@ -912,10 +996,13 @@ async def predict_device_failure(
     window_hours: int = Query(
         default=24, ge=1, le=168, description="Prediction window in hours (max 7 days)"
     ),
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
     """Predict likelihood of device failure in the next N hours.
 
     Returns probability, risk level, contributing factors, and recommendations.
+    Restricted to users with access to the device's site.
     """
     try:
         # Archived/unpaired/retired devices must not be visible to the AI.
@@ -930,6 +1017,13 @@ async def predict_device_failure(
                 status_code=404,
                 detail=f"Device '{device_id}' not found or not active",
             )
+
+        # Scope to the caller's site/tenant access.
+        db_user = cast(
+            "User",
+            db.query(User).filter(User.email == current_user["email"]).first(),
+        )
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="viewer")
 
         predictor = FailurePredictor()
         prediction = await predictor.predict_device_failure(device_id, window_hours)
