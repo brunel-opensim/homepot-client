@@ -5,7 +5,11 @@ app:
   port: 8001
 
 llm:
-  model: "llama3.2"
+  # Larger models with better reasoning (8B+) generally require a GPU with
+  # 12-16 GiB VRAM to stay fully on-GPU. On a 4 GiB card like the Quadro P620,
+  # qwen3:4b offers a good reasoning-to-VRAM trade-off (see README section
+  # "Switching LLM Models Locally" for sizing guidance and measured data).
+  model: "qwen3:4b"
   base_url: "http://localhost:11434"
   temperature: 0.7
   context_window: 4096
