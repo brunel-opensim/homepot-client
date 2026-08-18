@@ -989,13 +989,20 @@ class AgentManager:
             )
 
     async def _start_agent_for_device(self, device_id: str, device_name: str) -> None:
-        """Start an agent for a specific device."""
-        if device_id not in self.agents:
-            # Fix: Pass device_type explicitly, don't use name as type
-            agent = DeviceAgentSimulator(device_id, device_type="pos_terminal")
-            self.agents[device_id] = agent
-            await agent.start()
-            logger.info(f"Started agent for device {device_id} ({device_name})")
+        """Start an agent for a specific device.
+
+        Also (re)starts an existing agent that previously stopped — e.g. because
+        its device was suspended/archived — so data collection resumes when the
+        device is restored (is_active becomes true again).
+        """
+        existing = self.agents.get(device_id)
+        if existing is not None and existing.is_running:
+            return
+
+        agent = existing or DeviceAgentSimulator(device_id, device_type="pos_terminal")
+        self.agents[device_id] = agent
+        await agent.start()
+        logger.info(f"Started agent for device {device_id} ({device_name})")
 
     async def _device_monitor_loop(self) -> None:
         """Monitor for new devices and start agents for them."""
