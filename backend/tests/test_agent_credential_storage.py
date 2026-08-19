@@ -19,6 +19,7 @@ import pytest
 from homepot.agent.credential_storage import (
     KeyringCredentialStorage,
     LinuxFileStorage,
+    MacOSFileStorage,
     SimulationStorage,
     WindowsCredManager,
     WindowsFileStorage,
@@ -487,10 +488,12 @@ class TestCreateCredentialStorage:
         """Factory falls back to platform file storage when keyring is absent."""
         with patch.dict("sys.modules", {"keyring": None}):
             storage = create_credential_storage()
-            if os.name == "posix" and sys.platform != "darwin":
-                assert isinstance(storage, LinuxFileStorage)
-            elif sys.platform == "win32":
+            if sys.platform == "win32":
                 assert isinstance(storage, WindowsFileStorage)
+            elif sys.platform == "darwin":
+                assert isinstance(storage, MacOSFileStorage)
+            elif os.name == "posix":
+                assert isinstance(storage, LinuxFileStorage)
             else:
                 assert isinstance(storage, SimulationStorage)
 
@@ -500,10 +503,12 @@ class TestCreateCredentialStorage:
             with tempfile.TemporaryDirectory() as tmpdir:
                 path = Path(tmpdir) / "custom" / "creds.json"
                 storage = create_credential_storage(storage_path=path)
-                if os.name == "posix" and sys.platform != "darwin":
-                    assert isinstance(storage, LinuxFileStorage)
-                elif sys.platform == "win32":
+                if sys.platform == "win32":
                     assert isinstance(storage, WindowsFileStorage)
+                elif sys.platform == "darwin":
+                    assert isinstance(storage, MacOSFileStorage)
+                elif os.name == "posix":
+                    assert isinstance(storage, LinuxFileStorage)
                 else:
                     assert isinstance(storage, SimulationStorage)
                 storage.save({"device_id": "d1"})
@@ -514,10 +519,12 @@ class TestCreateCredentialStorage:
         mock_kr = MagicMock()
         with patch.dict("sys.modules", {"keyring": mock_kr}):
             storage = create_credential_storage()
-            if os.name == "posix" and sys.platform != "darwin":
-                assert isinstance(storage, KeyringCredentialStorage)
-            elif sys.platform == "win32":
+            if sys.platform == "win32":
                 assert isinstance(storage, WindowsCredManager)
+            elif sys.platform == "darwin":
+                assert isinstance(storage, KeyringCredentialStorage)
+            elif os.name == "posix":
+                assert isinstance(storage, KeyringCredentialStorage)
             else:
                 assert isinstance(storage, SimulationStorage)
 
@@ -539,6 +546,33 @@ class TestCreateCredentialStorage:
             with patch.dict("sys.modules", {"keyring": mock_kr}):
                 storage = create_credential_storage()
                 assert isinstance(storage, WindowsCredManager)
+
+    def test_returns_macos_file_storage_on_darwin_without_keyring(self):
+        """Factory returns MacOSFileStorage on macOS when keyring is absent."""
+        with patch("sys.platform", "darwin"):
+            with patch.dict("sys.modules", {"keyring": None}):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    path = Path(tmpdir) / "creds.json"
+                    storage = create_credential_storage(storage_path=path)
+                    assert isinstance(storage, MacOSFileStorage)
+                    storage.save({"device_id": "d1"})
+                    assert storage.get_device_id() == "d1"
+
+    def test_returns_keyring_cred_storage_on_darwin_with_keyring(self):
+        """Factory returns KeyringCredentialStorage on macOS when keyring is available."""
+        mock_kr = MagicMock()
+        with patch("sys.platform", "darwin"):
+            with patch.dict("sys.modules", {"keyring": mock_kr}):
+                storage = create_credential_storage()
+                assert isinstance(storage, KeyringCredentialStorage)
+
+    def test_macos_file_storage_default_path(self):
+        """Storage defaults to the macOS Application Support path."""
+        storage = MacOSFileStorage()
+        expected = (
+            Path.home() / "Library" / "Application Support" / "Homepot" / "credentials"
+        )
+        assert storage._file_path == expected
 
 
 # ============================================================================
