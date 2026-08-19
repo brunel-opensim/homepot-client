@@ -10,6 +10,7 @@ development simulations and production platforms.
 Implementations:
 - ``SimulationStorage`` — in-memory dict / temp file (for dev/testing)
 - ``LinuxFileStorage`` — file on disk with strict permissions (0o600)
+- ``MacOSFileStorage`` — file fallback on macOS (``~/Library/Application Support/Homepot``)
 - ``KeyringCredentialStorage`` — OS keyring via the ``keyring`` library
 - ``WindowsCredManager`` — Windows Credential Manager via ``keyring``
 - ``WindowsFileStorage`` — file fallback on Windows (``%PROGRAMDATA%``)
@@ -227,6 +228,28 @@ class LinuxFileStorage(CredentialStorage):
     def is_provisioned(self) -> bool:
         """Return True if the file contains a device_id."""
         return self._file_path.exists() and "device_id" in self._read()
+
+
+# ---------------------------------------------------------------------------
+# macOS file storage (file on disk with strict permissions)
+# ---------------------------------------------------------------------------
+
+
+class MacOSFileStorage(LinuxFileStorage):
+    """Stores credentials in a JSON file with ``0o600`` permissions.
+
+    Default location: ``~/Library/Application Support/Homepot/credentials``
+
+    Reuses the ``LinuxFileStorage`` implementation; only the default path
+    differs to follow macOS conventions.
+    """
+
+    def __init__(self, file_path: Optional[Path] = None) -> None:
+        """Initialize macOS file storage at the given path."""
+        if file_path is None:
+            base = Path.home() / "Library" / "Application Support" / "Homepot"
+            file_path = base / "credentials"
+        super().__init__(file_path=file_path)
 
 
 # ---------------------------------------------------------------------------
@@ -507,6 +530,11 @@ def create_credential_storage(
     2. **WindowsFileStorage** — JSON file under ``%PROGRAMDATA%``
     3. **SimulationStorage** — in-memory fallback (dev / testing)
 
+    **macOS:**
+    1. **KeyringCredentialStorage** — macOS Keychain via the ``keyring`` library
+    2. **MacOSFileStorage** — file on disk with ``0o600`` permissions
+    3. **SimulationStorage** — in-memory fallback (dev / testing)
+
     **Linux:**
     1. **KeyringCredentialStorage** — OS keyring via the ``keyring`` library
     2. **LinuxFileStorage** — file on disk with ``0o600`` permissions
@@ -526,7 +554,20 @@ def create_credential_storage(
             )
         return WindowsFileStorage(file_path=storage_path)
 
-    if os.name == "posix" and sys.platform != "darwin":
+    if sys.platform == "darwin":
+        try:
+            from importlib import import_module
+
+            import_module("keyring")
+            return KeyringCredentialStorage()
+        except (ImportError, Exception) as exc:
+            logger.debug(
+                "Keychain unavailable (%s); falling back to MacOSFileStorage",
+                exc,
+            )
+        return MacOSFileStorage(file_path=storage_path)
+
+    if os.name == "posix":
         try:
             from importlib import import_module
 
