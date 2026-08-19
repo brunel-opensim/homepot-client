@@ -54,7 +54,7 @@ def _get_intent_by_id_sync(db: Session, intent_id: str) -> Optional[EnrolmentInt
     tags=["Enrolment Intents"],
     response_model=Dict[str, Any],
 )
-def create_enrolment_intent(
+async def create_enrolment_intent(
     site_id: str,
     payload: EnrolmentIntentCreate,
     db: Session = Depends(get_db),
@@ -95,24 +95,18 @@ def create_enrolment_intent(
         claim_token = secrets.token_urlsafe(32)
         claim_token_hash = pwd_context.hash(claim_token)
 
-        import asyncio
-
-        async def _create() -> EnrolmentIntent:
-            svc = await get_database_service()
-            intent = await svc.create_enrolment_intent(
-                intent_id=intent_id,
-                site_id=site.id,  # type: ignore[arg-type]
-                tenant_id=site.tenant_id,  # type: ignore[arg-type]
-                enrolment_method=payload.enrolment_method,
-                claim_token_hash=claim_token_hash,
-                expires_at=expires_at,
-                creator_id=db_user.id,  # type: ignore[arg-type]
-                idempotency_key=payload.idempotency_key,
-                expected_device_identity=payload.expected_device_identity,
-            )
-            return intent
-
-        intent = asyncio.run(_create())
+        svc = await get_database_service()
+        intent = await svc.create_enrolment_intent(
+            intent_id=intent_id,
+            site_id=site.id,  # type: ignore[arg-type]
+            tenant_id=site.tenant_id,  # type: ignore[arg-type]
+            enrolment_method=payload.enrolment_method,
+            claim_token_hash=claim_token_hash,
+            expires_at=expires_at,
+            creator_id=db_user.id,  # type: ignore[arg-type]
+            idempotency_key=payload.idempotency_key,
+            expected_device_identity=payload.expected_device_identity,
+        )
         return {
             "status": "success",
             "message": "Enrolment intent created",
@@ -132,7 +126,7 @@ def create_enrolment_intent(
     tags=["Enrolment Intents"],
     response_model=Dict[str, Any],
 )
-def list_enrolment_intents(
+async def list_enrolment_intents(
     site_id: str,
     status: Optional[str] = None,
     limit: int = 50,
@@ -151,19 +145,13 @@ def list_enrolment_intents(
         site = _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(db_user, site_id, db, minimum_role="viewer")
 
-        import asyncio
-
-        async def _list() -> tuple:
-            svc = await get_database_service()
-            intents = await svc.get_enrolment_intents_by_site(
-                site.id, status=status, limit=limit, offset=offset  # type: ignore[arg-type]
-            )
-            total = await svc.count_enrolment_intents_by_site(
-                site.id, status=status  # type: ignore[arg-type]
-            )
-            return intents, total
-
-        intents, total = asyncio.run(_list())
+        svc = await get_database_service()
+        intents = await svc.get_enrolment_intents_by_site(
+            site.id, status=status, limit=limit, offset=offset  # type: ignore[arg-type]
+        )
+        total = await svc.count_enrolment_intents_by_site(
+            site.id, status=status  # type: ignore[arg-type]
+        )
         return {
             "intents": [
                 {
@@ -245,7 +233,7 @@ def get_enrolment_intent(
     tags=["Enrolment Intents"],
     response_model=Dict[str, Any],
 )
-def update_enrolment_intent_status(
+async def update_enrolment_intent_status(
     site_id: str,
     intent_id: str,
     payload: EnrolmentIntentApprove,
@@ -277,15 +265,12 @@ def update_enrolment_intent_status(
 
         new_status = EnrolmentIntentStatus(payload.status)
 
-        import asyncio
-
-        async def _update() -> Any:
-            svc = await get_database_service()
-            return await svc.update_enrolment_intent_status(
-                intent_id=intent_id, status=new_status
-            )
-
-        updated = asyncio.run(_update())
+        svc = await get_database_service()
+        updated = await svc.update_enrolment_intent_status(
+            intent_id=intent_id, status=new_status
+        )
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Enrolment intent not found")
         return {
             "status": "success",
             "message": f"Enrolment intent {new_status.value}",
@@ -304,7 +289,7 @@ def update_enrolment_intent_status(
     tags=["Enrolment Intents"],
     response_model=Dict[str, Any],
 )
-def claim_enrolment_intent(
+async def claim_enrolment_intent(
     intent_id: str,
     payload: EnrolmentIntentClaim,
     db: Session = Depends(get_db),
@@ -318,22 +303,16 @@ def claim_enrolment_intent(
     Uses an atomic database operation (row-level locking) to prevent
     duplicate and concurrent claims.
     """
-    import asyncio
-
     try:
-
-        async def _claim() -> Dict[str, Any]:
-            svc = await get_database_service()
-            return await svc.claim_enrolment_intent_atomic(
-                intent_id=intent_id,
-                claim_token=payload.claim_token,
-                device_name=payload.device_name,
-                device_type=payload.device_type,
-                os_details=payload.os_details,
-                expected_device_identity=payload.expected_device_identity,
-            )
-
-        result = asyncio.run(_claim())
+        svc = await get_database_service()
+        result = await svc.claim_enrolment_intent_atomic(
+            intent_id=intent_id,
+            claim_token=payload.claim_token,
+            device_name=payload.device_name,
+            device_type=payload.device_type,
+            os_details=payload.os_details,
+            expected_device_identity=payload.expected_device_identity,
+        )
         return {
             "status": "success",
             "message": "Device claimed successfully",
@@ -354,7 +333,7 @@ def claim_enrolment_intent(
     tags=["Enrolment Intents"],
     response_model=Dict[str, Any],
 )
-def regenerate_claim_token(
+async def regenerate_claim_token(
     site_id: str,
     intent_id: str,
     db: Session = Depends(get_db),
@@ -375,13 +354,8 @@ def regenerate_claim_token(
         _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
 
-        import asyncio
-
-        async def _regenerate() -> Dict[str, str]:
-            svc = await get_database_service()
-            return await svc.regenerate_claim_token(intent_id=intent_id)
-
-        result = asyncio.run(_regenerate())
+        svc = await get_database_service()
+        result = await svc.regenerate_claim_token(intent_id=intent_id)
         return {
             "status": "success",
             "message": "Claim token regenerated",
