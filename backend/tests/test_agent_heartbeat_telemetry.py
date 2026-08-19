@@ -15,6 +15,7 @@ from homepot.agent.utils.telemetry import (
     measure_network_latency_ms,
 )
 from homepot.agent.utils.telemetry import utc_now_iso as te_utc_now
+from homepot.app.schemas.agent import AgentRegisterRequest, AgentTelemetryRequest
 
 
 class TestHeartbeatUtcNowIso:
@@ -133,21 +134,64 @@ class TestCollectSystemTelemetry:
         assert 0 <= metrics["disk_usage"] <= 100
 
     def test_includes_uptime_seconds(self):
-        """System telemetry includes a host uptime value."""
+        """System telemetry includes a whole-second host uptime value."""
         metrics = collect_system_telemetry()
         assert "uptime_seconds" in metrics
-        assert isinstance(metrics["uptime_seconds"], float)
+        assert isinstance(metrics["uptime_seconds"], int)
         assert metrics["uptime_seconds"] >= 0
 
 
 class TestCollectUptimeSeconds:
     """Tests for ``collect_uptime_seconds``."""
 
-    def test_returns_non_negative_float(self):
-        """Uptime is a non-negative float."""
+    def test_returns_non_negative_int(self):
+        """Uptime is a non-negative integer, as the backend schema expects."""
         uptime = collect_uptime_seconds()
-        assert isinstance(uptime, float)
+        assert isinstance(uptime, int)
         assert uptime >= 0
+
+
+class TestTelemetryPayloadMatchesBackendSchema:
+    """The agent's telemetry payload must validate against the live backend schema."""
+
+    def test_build_telemetry_payload_validates(self):
+        """Telemetry payload built by the agent passes the backend schema."""
+        payload = build_telemetry_payload("DEVICE-TEST-0001")
+        AgentTelemetryRequest(**payload)
+
+    def test_build_telemetry_payload_with_site_id_validates(self):
+        """Telemetry payload with an extra site_id still passes the schema."""
+        payload = build_telemetry_payload(
+            "DEVICE-TEST-0001", collection_interval_seconds=30
+        )
+        payload["site_id"] = "SITE-TEST"
+        AgentTelemetryRequest(**payload)
+
+
+class TestDeviceDnaPayloadMatchesBackendSchema:
+    """The agent's device-DNA payload must validate against the backend schema."""
+
+    def test_dna_payload_with_int_site_id_validates(self):
+        """DNA payload stringifies the int site_id so the schema accepts it."""
+        config = {
+            "device_id": "DEVICE-TEST-0001",
+            "site_id": 2,
+            "device_name": "test-device",
+            "device_type": "pos_terminal",
+            "os_details": "Darwin 25.6.0",
+        }
+        payload = {
+            "device_id": config["device_id"],
+            "site_id": str(config.get("site_id") or ""),
+            "device_name": config.get("device_name"),
+            "device_type": config.get("device_type", "pos_terminal"),
+            "mac_address": "00:00:00:00:00:00",
+            "os_details": config.get("os_details"),
+            "local_ip": None,
+            "wan_ip": None,
+            "peripherals": {"printers": [], "scanners": [], "card_readers": []},
+        }
+        AgentRegisterRequest(**payload)
 
 
 class TestMeasureNetworkLatencyMs:
