@@ -762,7 +762,7 @@ async def bootstrap_agent(
     async with httpx.AsyncClient(**build_httpx_proxy_kwargs()) as client:
         response = await client.post(claim_url, json=claim_payload, timeout=30.0)
         response.raise_for_status()
-        result = await response.json()
+        result = response.json()
 
         device_id: str = result["device_id"]
         api_key: str = result["api_key"]

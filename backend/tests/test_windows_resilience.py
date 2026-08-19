@@ -358,7 +358,7 @@ async def test_duplicate_enrolment_overwrites(
             "site_id": "site-second",
             "epoch_id": "epoch-002",
         }
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
         mock_resp.json.return_value = claim_response
 
