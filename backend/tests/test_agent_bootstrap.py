@@ -99,7 +99,7 @@ async def test_bootstrap_agent_success(
     }
 
     async def _mock_post(url, **kwargs):
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
         if "/enrolment-intents/" in url and "/claim" in url:
             mock_resp.json.return_value = claim_response
@@ -145,7 +145,7 @@ async def test_bootstrap_agent_claim_fails(
     """When the claim endpoint returns an error, bootstrap_agent should raise."""
 
     async def _mock_post(url, **kwargs):
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock(
             side_effect=Exception("401 Unauthorized")
         )
@@ -177,7 +177,7 @@ async def test_bootstrap_agent_passes_expected_identity(
 
     async def _mock_post(url, json=None, **kwargs):
         nonlocal sent_payload
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
         if "/claim" in url:
             sent_payload = json or {}
@@ -217,7 +217,7 @@ async def test_bootstrap_agent_auto_detects_os_details(
 
     async def _mock_post(url, json=None, **kwargs):
         nonlocal sent_payload
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
         if "/claim" in url:
             sent_payload = json or {}
@@ -263,7 +263,7 @@ async def test_bootstrap_agent_windows_credential_storage(
     }
 
     async def _mock_post(url, **kwargs):
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
         mock_resp.json.return_value = claim_response
         return mock_resp
