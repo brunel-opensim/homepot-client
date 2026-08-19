@@ -23,12 +23,16 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def collect_uptime_seconds() -> float:
-    """Return host OS uptime in seconds derived from the boot time."""
+def collect_uptime_seconds() -> int:
+    """Return host OS uptime in whole seconds derived from the boot time.
+
+    The backend ``AgentTelemetryRequest`` schema expects ``uptime_seconds``
+    as an integer, so the fractional part is truncated here.
+    """
     try:
-        return max(0.0, time.time() - psutil.boot_time())
+        return int(max(0.0, time.time() - psutil.boot_time()))
     except Exception:
-        return 0.0
+        return 0
 
 
 def collect_system_telemetry() -> Dict[str, float]:

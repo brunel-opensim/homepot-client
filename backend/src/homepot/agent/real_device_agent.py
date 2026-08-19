@@ -796,7 +796,7 @@ async def bootstrap_agent(
 
             payload: Dict[str, Any] = {
                 "device_id": config["device_id"],
-                "site_id": config["site_id"],
+                "site_id": str(config.get("site_id") or ""),
                 "device_name": config.get("device_name"),
                 "device_type": config.get("device_type", "pos_terminal"),
                 "mac_address": get_mac_address(),
