@@ -2113,36 +2113,45 @@ async def get_device_error_logs(
 
 @router.get("/device/{device_id}/push-logs", tags=["Devices"])
 async def get_device_push_logs(device_id: str, limit: int = 50) -> List[Dict[str, Any]]:
-    """Get push notification logs for a specific device."""
+    """Get push notification delivery logs for a specific device."""
     try:
-        # device_id column removed from schema due to mismatch.
-        # Returning empty list until schema migration catches up.
-        return []
+        from sqlalchemy import select
 
-        # db_service = await get_database_service()
-        # async with db_service.get_session() as session:
-        #     # Note: PushNotificationLog uses string device_id
-        #     logs_result = await session.execute(
-        #         select(analytics_models.PushNotificationLog)
-        #         .where(analytics_models.PushNotificationLog.device_id == device_id)
-        #         .order_by(desc(analytics_models.PushNotificationLog.sent_at))
-        #         .limit(limit)
-        #     )
-        #     logs = logs_result.scalars().all()
-        #
-        #     return [
-        #         {
-        #             "message_id": log.message_id,
-        #             "provider": log.provider,
-        #             "status": log.status,
-        #             "sent_at": log.sent_at.isoformat(),
-        #             "received_at": (
-        #                 log.received_at.isoformat() if log.received_at else None
-        #             ),
-        #             "error_message": log.error_message,
-        #         }
-        #         for log in logs
-        #     ]
+        from homepot.app.models.AnalyticsModel import PushNotificationLog
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            logs_result = await session.execute(
+                select(PushNotificationLog)
+                .where(PushNotificationLog.device_id == device_id)
+                .order_by(PushNotificationLog.sent_at.desc())
+                .limit(limit)
+            )
+            logs = logs_result.scalars().all()
+
+        return [
+            {
+                "message_id": log.message_id,
+                "provider": log.provider,
+                "status": log.status,
+                "title": payload.get("title", ""),
+                "body": payload.get("body", ""),
+                "sent_at": log.sent_at.isoformat() if log.sent_at else None,
+                "received_at": (
+                    log.received_at.isoformat() if log.received_at else None
+                ),
+                "latency_ms": log.latency_ms,
+                "error_message": log.error_message,
+            }
+            for log in logs
+            for payload in [
+                (
+                    log.payload
+                    if isinstance(log.payload, dict)
+                    else ({} if log.payload is None else {"data": log.payload})
+                )
+            ]
+        ]
     except Exception as e:
         logger.error(f"Failed to get push logs for {device_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")

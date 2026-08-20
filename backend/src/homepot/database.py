@@ -125,6 +125,58 @@ def _ensure_device_dna_columns(bind: Any) -> None:
             raise
 
 
+def _ensure_push_log_columns(bind: Any) -> None:
+    """Ensure new columns exist on the push_notification_logs table.
+
+    SQLAlchemy `create_all()` does not alter existing tables, so this helper
+    applies safe additive `ALTER TABLE` statements to pick up the `device_id`
+    and `payload` columns added to ``PushNotificationLog`` without dropping data.
+    """
+    inspector = inspect(bind)
+    if "push_notification_logs" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        column["name"] for column in inspector.get_columns("push_notification_logs")
+    }
+    dialect = bind.dialect.name
+
+    if dialect == "sqlite":
+        ddl_map = {
+            "device_id": "ALTER TABLE push_notification_logs ADD COLUMN device_id VARCHAR(100)",
+            "payload": "ALTER TABLE push_notification_logs ADD COLUMN payload JSON",
+        }
+    elif dialect == "postgresql":
+        ddl_map = {
+            "device_id": "ALTER TABLE push_notification_logs ADD COLUMN device_id VARCHAR(100)",
+            "payload": "ALTER TABLE push_notification_logs ADD COLUMN payload JSON",
+        }
+    else:
+        ddl_map = {
+            "device_id": "ALTER TABLE push_notification_logs ADD COLUMN device_id VARCHAR(100)",
+            "payload": "ALTER TABLE push_notification_logs ADD COLUMN payload JSON",
+        }
+
+    for column_name, ddl in ddl_map.items():
+        if column_name in existing_columns:
+            continue
+        try:
+            bind.execute(text(ddl))
+            logger.info("Added missing push_notification_logs.%s column", column_name)
+        except Exception as e:
+            error_text = str(e).lower()
+            duplicate_markers = (
+                "duplicate column",
+                "already exists",
+            )
+            if any(marker in error_text for marker in duplicate_markers):
+                logger.info(
+                    "push_notification_logs.%s already exists, skipping", column_name
+                )
+                continue
+            raise
+
+
 class DatabaseService:
     """Async database service for HOMEPOT operations."""
 
@@ -189,6 +241,7 @@ class DatabaseService:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 await conn.run_sync(_ensure_device_dna_columns)
+                await conn.run_sync(_ensure_push_log_columns)
 
             logger.info("Database initialized successfully")
 

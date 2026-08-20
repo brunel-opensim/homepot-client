@@ -184,6 +184,7 @@ class EmulatorConfig:
     heartbeat_interval: float = 10.0
     telemetry_interval: float = 15.0
     command_poll_interval: float = 15.0
+    push_poll_interval: float = 15.0
     logs_interval: float = 15.0
     audit_interval: float = 60.0
     jobs_interval: float = 30.0
@@ -208,6 +209,7 @@ class EmulatorConfig:
             heartbeat_interval=float(d.get("heartbeat_interval_seconds", 10)),
             telemetry_interval=float(d.get("telemetry_interval_seconds", 15)),
             command_poll_interval=float(d.get("command_poll_interval_seconds", 15)),
+            push_poll_interval=float(d.get("push_poll_interval_seconds", 15)),
             logs_interval=float(d.get("logs_interval_seconds", 15)),
             audit_interval=float(d.get("audit_interval_seconds", 60)),
             jobs_interval=float(d.get("jobs_interval_seconds", 30)),
@@ -941,6 +943,116 @@ class POSEmulator:
 
             await self._wait_or_shutdown(self.config.command_poll_interval)
 
+    async def _push_loop(self) -> None:
+        """Poll undelivered push notifications and model the delivery lifecycle.
+
+        The dashboard sends non-executable notifications via the backend, which
+        persists them as ``sent``. This loop picks them up and acks them so the
+        lifecycle advances to ``delivered`` (with latency) exactly like a real
+        push-capable agent.
+        """
+        while not self._shutdown_event.is_set():
+            try:
+                resp = await self._http.get(
+                    f"{self._backend}/push/pending", headers=self._headers()
+                )
+                if resp.status_code >= 400:
+                    print(f"  [push] poll error: {resp.status_code} {resp.text[:120]}")
+                    await self._wait_or_shutdown(self.config.push_poll_interval)
+                    continue
+
+                body = resp.json()
+                pushes = body.get("pushes", []) if isinstance(body, dict) else []
+                if not pushes:
+                    print(
+                        f"  [push] none pending ({datetime.now(timezone.utc).strftime('%H:%M:%S')})"
+                    )
+                else:
+                    print(f"  [push] {len(pushes)} pending")
+                    for push in pushes:
+                        await self._deliver_push(push)
+            except httpx.RequestError as exc:
+                print(f"  [push] connection error: {exc}")
+
+            await self._wait_or_shutdown(self.config.push_poll_interval)
+
+    async def _deliver_push(self, push: dict) -> None:
+        message_id = push.get("message_id", "")
+        payload = push.get("payload")
+        payload = payload if isinstance(payload, dict) else {}
+        title = payload.get("title") or "Push notification"
+        body = payload.get("body") or ""
+        channel = self._push_delivery_note("push")
+
+        await asyncio.sleep(random.uniform(0.2, 1.5))
+        failed = self._command_should_fail()
+        received_at = datetime.now(timezone.utc).isoformat()
+        ack = {
+            "message_id": message_id,
+            "device_id": self.device_id,
+            "status": "failed" if failed else "delivered",
+        }
+        if not failed:
+            ack["received_at"] = received_at
+        else:
+            ack["error_message"] = random.choice(
+                [
+                    "Client connection lost before delivery",
+                    "Message dropped by push service",
+                ]
+            )
+
+        resp = await self._http.post(
+            f"{self._backend}/push/ack",
+            json=ack,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(
+                f"  [push] ack failed for {message_id}: {resp.status_code} {resp.text[:120]}"
+            )
+            return
+
+        note = f" [{channel}]" if channel else ""
+        if failed:
+            print(
+                f"  [push] delivery FAILED for {message_id}{note}: {ack['error_message']}"
+            )
+        else:
+            print(f"  [push] delivered {title!r}{note} ({message_id[:8]})")
+
+        await self._report_push_log(payload, title, body, failed)
+
+    async def _report_push_log(
+        self, payload: dict, title: str, body: str, failed: bool
+    ) -> None:
+        extra = ""
+        if body:
+            extra = f" | {body[:120]}"
+        if payload.get("action") and payload.get("action") != "notification":
+            extra += f" | action={payload['action']}"
+        message = (
+            f"Push notification delivered: {title}{extra}"
+            if not failed
+            else f"Push notification delivery failed: {title}"
+        )
+        log_payload = {
+            "device_id": self.device_id,
+            "level": "error" if failed else "info",
+            "category": "push",
+            "message": message,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        resp = await self._http.post(
+            f"{self._backend}/agent/logs",
+            json=log_payload,
+            headers=self._headers(),
+        )
+        if resp.status_code >= 400:
+            print(f"  [push] log failed: {resp.status_code} {resp.text[:120]}")
+        else:
+            print("  [push] delivery logged to Live Logs")
+
     async def _handle_command(self, cmd: dict) -> None:
         cid = cmd["command_id"]
         ctype = cmd["command_type"]
@@ -1394,6 +1506,7 @@ class POSEmulator:
                 f" (heartbeat={self.config.heartbeat_interval}s"
                 f", telemetry={self.config.telemetry_interval}s"
                 f", commands={self.config.command_poll_interval}s"
+                f", pushes={self.config.push_poll_interval}s"
                 f", logs={self.config.logs_interval}s"
                 f", audits={self.config.audit_interval}s"
                 f", jobs={self.config.jobs_interval}s"
@@ -1406,6 +1519,7 @@ class POSEmulator:
                 self._heartbeat_loop(),
                 self._telemetry_loop(),
                 self._command_poll_loop(),
+                self._push_loop(),
                 self._logs_loop(),
                 self._audit_loop(),
                 self._jobs_loop(),
@@ -1500,6 +1614,12 @@ def parse_args(
         help="Command poll interval (seconds)",
     )
     parser.add_argument(
+        "--push-poll-interval",
+        type=float,
+        default=15.0,
+        help="Push notification poll interval (seconds)",
+    )
+    parser.add_argument(
         "--logs-interval",
         type=float,
         default=15.0,
@@ -1590,6 +1710,7 @@ def build_config(
         heartbeat_interval=args.heartbeat_interval,
         telemetry_interval=args.telemetry_interval,
         command_poll_interval=args.command_poll_interval,
+        push_poll_interval=args.push_poll_interval,
         logs_interval=args.logs_interval,
         audit_interval=args.audit_interval,
         jobs_interval=args.jobs_interval,
