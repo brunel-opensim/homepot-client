@@ -750,6 +750,7 @@ export const DirectConnectWidget = ({
   setTerminalInput,
   handleTerminalSubmit,
   terminalEndRef,
+  terminalBusy,
   deviceName,
 }) => {
   if (!isOpen) return null;
@@ -766,6 +767,13 @@ export const DirectConnectWidget = ({
             <X className="h-4 w-4" />
           </button>
         </div>
+      </div>
+      <div className="bg-[#0f172a] px-4 py-1 border-b border-[#1e293b]">
+        <span
+          className={`text-[10px] font-mono ${terminalBusy ? 'text-amber-400' : 'text-teal-400'}`}
+        >
+          {terminalBusy ? '● awaiting device response...' : '● connected (command pipeline)'}
+        </span>
       </div>
       <div
         className="p-4 h-64 overflow-y-auto font-mono text-xs space-y-1"
@@ -801,8 +809,9 @@ export const DirectConnectWidget = ({
           type="text"
           value={terminalInput}
           onChange={(e) => setTerminalInput(e.target.value)}
-          className="flex-1 bg-transparent border-none focus:ring-0 text-slate-200 font-mono text-sm placeholder-slate-600"
-          placeholder="Enter command..."
+          disabled={terminalBusy}
+          className="flex-1 bg-transparent border-none focus:ring-0 text-slate-200 font-mono text-sm placeholder-slate-600 disabled:opacity-50"
+          placeholder={terminalBusy ? 'Awaiting device response...' : 'Enter command...'}
           autoComplete="off"
           autoFocus
         />
