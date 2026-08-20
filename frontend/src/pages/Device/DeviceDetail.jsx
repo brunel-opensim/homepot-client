@@ -246,6 +246,7 @@ export default function Device() {
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState([]);
   const [terminalInput, setTerminalInput] = useState('');
+  const [terminalBusy, setTerminalBusy] = useState(false);
   const terminalEndRef = useRef(null);
 
   useEffect(() => {
@@ -473,42 +474,113 @@ export default function Device() {
     }
   };
 
-  const handleTerminalSubmit = (e) => {
+  const handleTerminalSubmit = async (e) => {
     e.preventDefault();
-    if (!terminalInput.trim()) return;
+    if (!terminalInput.trim() || terminalBusy) return;
 
     const cmd = terminalInput.trim();
-    setTerminalOutput((prev) => [
-      ...prev,
-      {
-        type: 'input',
-        text: `root@${device?.name?.toLowerCase().replace(/\s+/g, '-') || 'device'}:~# ${cmd}`,
-      },
-    ]);
+    const promptText = `root@${device?.name?.toLowerCase().replace(/\s+/g, '-') || 'device'}:~# ${cmd}`;
+    setTerminalOutput((prev) => [...prev, { type: 'input', text: promptText }]);
     setTerminalInput('');
+    setTerminalBusy(true);
 
-    // Mock terminal responses
-    setTimeout(() => {
-      let response = { type: 'output', text: '' };
-      switch (cmd.toLowerCase()) {
-        case 'help':
-          response.text = 'Available commands: status, reboot, logs, clear, exit';
-          break;
-        case 'status':
-          response.text = `Device: ${device?.name}\nStatus: ${device?.status}\nUptime: 14d 2h 12m`;
-          break;
-        case 'clear':
-          setTerminalOutput([]);
-          return;
-        case 'exit':
-          setIsTerminalOpen(false);
-          return;
-        default:
-          response.text = `Command not found: ${cmd}`;
-          response.type = 'error';
+    // Client-side commands handled locally
+    const local = cmd.toLowerCase();
+    if (local === 'exit') {
+      setTerminalBusy(false);
+      setIsTerminalOpen(false);
+      return;
+    }
+    if (local === 'clear') {
+      setTerminalOutput([]);
+      setTerminalBusy(false);
+      return;
+    }
+    if (local === 'help') {
+      setTerminalOutput((prev) => [
+        ...prev,
+        {
+          type: 'output',
+          text: 'Available commands: status, help, clear, exit\nAny other command is sent to the device as a remote shell command.',
+        },
+      ]);
+      setTerminalBusy(false);
+      return;
+    }
+    if (local === 'status') {
+      // Route through the status_request command so the device reports live health
+      try {
+        await api.devices.triggerAction(id, 'status_request', {});
+        setTerminalOutput((prev) => [
+          ...prev,
+          {
+            type: 'output',
+            text: 'Status request sent — check the Live Logs tab for the device report.',
+          },
+        ]);
+      } catch (err) {
+        setTerminalOutput((prev) => [
+          ...prev,
+          { type: 'error', text: `Failed to request status: ${err.message}` },
+        ]);
+      } finally {
+        setTerminalBusy(false);
       }
-      setTerminalOutput((prev) => [...prev, response]);
-    }, 300);
+      return;
+    }
+
+    // Remote shell command via the device command pipeline
+    try {
+      const cmdResp = await api.devices.triggerAction(id, 'run_command', {
+        data: { command: cmd },
+      });
+      const commandId = cmdResp.command_id;
+      setTerminalOutput((prev) => [
+        ...prev,
+        { type: 'output', text: `Command queued (${commandId}) — waiting for device response...` },
+      ]);
+
+      // Poll the command history until the device reports completion
+      let done = false;
+      for (let attempt = 0; attempt < 30 && !done; attempt++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const history = await api.devices.getCommands(id, 10);
+          const finished = history.find((c) => c.command_id === commandId);
+          if (finished && (finished.status === 'completed' || finished.status === 'failed')) {
+            done = true;
+            const res = finished.result || {};
+            const text =
+              res.message ||
+              res.stdout ||
+              (typeof res === 'string' ? res : JSON.stringify(res, null, 2));
+            setTerminalOutput((prev) => [
+              ...prev,
+              {
+                type: finished.status === 'completed' ? 'success' : 'error',
+                text: String(text),
+              },
+            ]);
+          }
+        } catch (pollErr) {
+          console.debug('Terminal poll skipped', pollErr);
+        }
+      }
+      if (!done) {
+        setTerminalOutput((prev) => [
+          ...prev,
+          { type: 'error', text: 'Timed out waiting for the device to respond.' },
+        ]);
+      }
+    } catch (err) {
+      console.error('Failed to run remote command:', err);
+      setTerminalOutput((prev) => [
+        ...prev,
+        { type: 'error', text: `Failed to send command: ${err.message}` },
+      ]);
+    } finally {
+      setTerminalBusy(false);
+    }
   };
 
   const handleSendPush = async () => {
@@ -830,6 +902,7 @@ export default function Device() {
                 setTerminalInput={setTerminalInput}
                 handleTerminalSubmit={handleTerminalSubmit}
                 terminalEndRef={terminalEndRef}
+                terminalBusy={terminalBusy}
                 deviceName={device?.name}
               />
             </div>
