@@ -264,7 +264,7 @@ export default function Device() {
               api.devices.getAuditLogs(id, 10),
               api.devices.getJobs(id, 10),
               api.devices.getErrorLogs(id, 10),
-              api.devices.getHistory(id),
+              api.devices.getCommands(id, 10),
             ]);
 
             setAuditLogs(auditData);

@@ -628,6 +628,15 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
   const navigate = useNavigate();
   const deviceId = device?.device_id;
 
+  const statusMeta = (status) =>
+    ({
+      pending: { label: 'Queued', color: 'text-amber-400' },
+      sent: { label: 'Acknowledged', color: 'text-blue-400' },
+      completed: { label: 'Completed', color: 'text-emerald-400' },
+      failed: { label: 'Failed', color: 'text-red-400' },
+      expired: { label: 'Expired', color: 'text-slate-400' },
+    })[status] || { label: status || 'Unknown', color: 'text-slate-400' };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -653,28 +662,36 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
             {history.map((item, i) => {
               let StatusIcon = CheckCircle2;
               let statusColor = 'text-emerald-400';
-              if (item.status === 'failed' || item.status === 'error') {
+              if (item.status === 'failed' || item.status === 'expired') {
                 StatusIcon = XCircle;
                 statusColor = 'text-red-400';
               } else if (item.status === 'pending' || item.status === 'sent') {
                 StatusIcon = Loader2;
                 statusColor = 'text-blue-400';
               }
+              const title =
+                item.command_type || item.payload?.title || item.action_type || 'Push Command';
+              const label = statusMeta(item.status).label;
 
               return (
                 <div
-                  key={item.id || i}
+                  key={item.command_id || item.id || i}
                   onClick={() => navigate(`/device/${deviceId}/history`)}
                   className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50 cursor-pointer hover:bg-[#0b2024]/80 hover:border-teal-500/30 transition-colors"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <StatusIcon className={`w-3.5 h-3.5 shrink-0 ${statusColor}`} />
                     <span className="text-slate-200 font-medium truncate">
-                      {item.action_type || item.title || 'Push Command'}
+                      {title.replace(/_/g, ' ')}
+                    </span>
+                    <span
+                      className={`text-[9px] font-mono shrink-0 ${statusMeta(item.status).color}`}
+                    >
+                      {label.toUpperCase()}
                     </span>
                   </div>
                   <span className="text-slate-500 shrink-0 ml-2">
-                    {item.timestamp ? new Date(item.timestamp).toLocaleString() : ''}
+                    {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
                   </span>
                 </div>
               );

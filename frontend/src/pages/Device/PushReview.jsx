@@ -1,15 +1,20 @@
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/Toast';
 import api from '@/services/api';
+import { lifecycleStages, formatCommandType } from '@/utils/commandLifecycle';
 // Cleaned up unused imports that were causing blank page errors
 import {
   AlertTriangle,
   ArrowLeft,
+  CheckCircle2,
+  Clock,
   FileJson,
+  Loader2,
   MessageSquare,
   Rocket,
   ShieldAlert,
   Terminal,
+  XCircle,
 } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -90,6 +95,92 @@ function initialTemplate(action) {
   return ACTION_TO_TEMPLATE[action] || 'APPLY_CONFIG';
 }
 
+function LifecycleTracker({ commandId, commandType, command, onViewHistory }) {
+  const { status, meta, stages, finalStage } = lifecycleStages(command || {});
+  const done = status === 'completed' || status === 'failed' || status === 'expired';
+
+  const node = (label, time, doneState, icon) => (
+    <div className="flex flex-col items-center gap-1">
+      {icon}
+      <span className="text-[10px] text-slate-400 whitespace-nowrap">{label}</span>
+      <span className="text-[9px] font-mono text-slate-500">
+        {time ? new Date(time).toLocaleTimeString() : '—'}
+      </span>
+    </div>
+  );
+
+  const connector = () => <div className="flex-1 h-px bg-slate-700 mx-2 mt-5 min-w-4" />;
+
+  const stageIcons = {
+    queued: done ? (
+      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+    ) : (
+      <Loader2 className="h-5 w-5 shrink-0 text-amber-400 animate-pulse" />
+    ),
+    acknowledged: done ? (
+      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+    ) : (
+      <Loader2 className="h-5 w-5 shrink-0 text-amber-400 animate-pulse" />
+    ),
+    executed: done ? (
+      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+    ) : (
+      <Loader2 className="h-5 w-5 shrink-0 text-amber-400 animate-pulse" />
+    ),
+  };
+
+  const finalIcon = done ? (
+    finalStage.label === 'Failed' || finalStage.label === 'Expired' ? (
+      <XCircle className="h-5 w-5 shrink-0 text-red-400" />
+    ) : (
+      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+    )
+  ) : (
+    <Loader2 className="h-5 w-5 shrink-0 text-blue-400 animate-spin" />
+  );
+
+  return (
+    <div className="shrink-0 bg-[#06181c] border border-[#0e2f37] rounded-xl p-4 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-teal-400" />
+          <span className="text-xs font-medium text-teal-100">
+            Lifecycle — {formatCommandType(commandType)}
+          </span>
+          <span className="font-mono text-[10px] text-slate-500">{commandId.substring(0, 8)}</span>
+        </div>
+        <span
+          className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${meta.color} ${meta.bg} ${meta.border}`}
+        >
+          {meta.label.toUpperCase()}
+        </span>
+      </div>
+
+      <div className="flex items-start">
+        {stages.map((stage) => (
+          <span key={stage.key} className="flex items-center flex-1">
+            {node(stage.label, stage.time, stage.done, stageIcons[stage.key])}
+            {connector()}
+          </span>
+        ))}
+        <span className="flex items-center flex-1">
+          {node(finalStage.label, finalStage.time, finalStage.done, finalIcon)}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between mt-3">
+        <p className="text-[10px] text-slate-400">{meta.description}</p>
+        <button
+          onClick={onViewHistory}
+          className="text-[10px] text-teal-400 hover:text-teal-300 font-medium"
+        >
+          View in Push History →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function PushReview() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -112,6 +203,9 @@ export default function PushReview() {
       : JSON.stringify(COMMAND_TEMPLATES['APPLY_CONFIG'].defaultData, null, 2)
   );
   const [jsonError, setJsonError] = useState(null);
+  const [trackingCommandId, setTrackingCommandId] = useState(null);
+  const [trackingCommandType, setTrackingCommandType] = useState(null);
+  const [trackingData, setTrackingData] = useState(null);
 
   // Ref to track if we are initializing from reuse
   const isReuseInit = useRef(!!location.state?.initialData);
@@ -237,26 +331,62 @@ export default function PushReview() {
       };
 
       const response = await api.devices.triggerAction(id, action, finalPayload);
-      const jobId = response.command_id?.substring(0, 8) || 'queued';
+      const commandId = response.command_id;
+      setTrackingCommandId(commandId);
+      setTrackingCommandType(action);
+      setTrackingData(null);
 
       setToast({
-        message: `Command Sent Successfully! Job ID: ${jobId}`,
+        message: `Command queued (${commandId.substring(0, 8)}…) — tracking lifecycle`,
         type: 'success',
       });
-
-      setTimeout(() => {
-        navigate(`/device/${id}/history`);
-      }, 1500);
     } catch (err) {
       console.error('Failed to send push:', err);
       setToast({
-        message: `Failed to send command: ${err.message || 'Unknown error'}`,
+        message: `Failed to queue command: ${err.message || 'Unknown error'}`,
         type: 'error',
       });
     } finally {
       setSending(false);
     }
   };
+
+  // Poll the command lifecycle after queueing, then hand off to the history page
+  useEffect(() => {
+    if (!trackingCommandId) return;
+    let active = true;
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      if (!active) return;
+      attempts += 1;
+      try {
+        const history = await api.devices.getCommands(id, 10);
+        const cmd = history.find((c) => c.command_id === trackingCommandId);
+        if (cmd) {
+          setTrackingData(cmd);
+          const done =
+            cmd.status === 'completed' || cmd.status === 'failed' || cmd.status === 'expired';
+          if (done) {
+            clearInterval(interval);
+            setToast({
+              message: `Command ${cmd.status.toUpperCase()} — ${cmd.command_id.substring(0, 8)}`,
+              type: cmd.status === 'completed' ? 'success' : 'error',
+            });
+            setTimeout(() => {
+              if (active) navigate(`/device/${id}/history`);
+            }, 1500);
+          }
+        }
+      } catch (pollErr) {
+        console.debug('Lifecycle poll skipped', pollErr);
+      }
+      if (attempts >= 30) clearInterval(interval);
+    }, 2000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [trackingCommandId, id, navigate]);
 
   const handleRequestAccess = async () => {
     setSending(true);
@@ -324,6 +454,16 @@ export default function PushReview() {
             )}
           </Button>
         </div>
+
+        {/* Live Command Lifecycle Tracker */}
+        {trackingCommandId && (
+          <LifecycleTracker
+            commandId={trackingCommandId}
+            commandType={trackingCommandType}
+            command={trackingData}
+            onViewHistory={() => navigate(`/device/${id}/history`)}
+          />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0 overflow-hidden">
           {/* Left Column: Command Builder */}
