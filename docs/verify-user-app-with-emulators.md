@@ -1,7 +1,11 @@
-# Verifying the User App ↔ Dashboard flow with the emulator
+# Verifying the User App ↔ Dashboard flow with emulators
 
 A technician-style runbook for testing the HOMEPOT device setup flow locally,
-mimicking a **User App on a real system** using the Linux POS emulator.
+mimicking a **User App on a real system** using one of the five OS device
+emulators. The walkthrough below uses the **Linux POS** emulator, and the same
+flow applies to every OS — swap the emulator with `--emulator <os>` and adjust
+the launch command, as described in
+[Running a specific OS emulator](#running-a-specific-os-emulator).
 
 ```mermaid
 flowchart TB
@@ -56,6 +60,91 @@ flowchart TB
 4. (Optional) Commands queued from the Dashboard are picked up and completed by
    the device.
 
+## Available emulators
+
+Everything in the `emulators/` directory. Each OS is a thin wrapper around the
+same engine, so every one speaks the identical provisioning / heartbeat /
+telemetry / command protocol; only the **identity**, **capabilities** and
+**push channel** differ:
+
+| OS | Emulator file | Device type | OS identity (`os_details`) | Permission capabilities | Command transport |
+|----|---------------|-------------|----------------------------|-------------------------|-------------------|
+| Linux POS | `linux_pos_emulator.py` | `pos_terminal` | `Linux 6.8.0 (Debian 12)` | all (root + process/filesystem/network) | HTTP polling |
+| Android POS | `android_pos_emulator.py` | `pos_terminal` | `Android 14` | process/filesystem/network (no root) | FCM push channel |
+| Windows POS | `windows_pos_emulator.py` | `pos_terminal` | `Windows 11` | process/filesystem/network (no root) | WNS push channel |
+| macOS POS | `macos_pos_emulator.py` | `pos_terminal` | `macOS 14` | all (root + process/filesystem/network) | HTTP polling |
+| iOS | `ios_pos_emulator.py` | `tablet` | `iOS 17` | network monitoring only | APNs push channel |
+
+The **mock MAC / hostname** each wrapper reports are
+`02:42:ac:11:00:02`…`02:42:ac:11:00:06` and `<os>-pos-001`, so you can tell
+which emulator is which in the Dashboard device list.
+
+## How the emulator engine works
+
+All behaviour lives in `emulators/pos_engine.py` — a single, OS-agnostic
+engine (`POSEmulator`) shared by the five wrappers. A wrapper such as
+`macos_pos_emulator.py` is typically a ~40-line file that only overrides the
+identity defaults and calls `main(...)`; see
+[Creating a new emulator](device-emulators.md#creating-a-new-emulator) to add
+an OS.
+
+On startup the engine, in order:
+
+1. **Config** — reads a JSON config file (`--config`) or CLI flags: backend
+   URL, site ID, bootstrap key, mock DNA, interval timings. CLI flags override
+   config values; every config field maps to a `--flag`.
+2. **Provision** — on first run calls `POST /devices/bootstrap-provision` and
+   saves `device_id` / `api_key` to
+   `~/.homepot/emulators/<device_name>.json` (0600). Re-runs **resume** from
+   the saved credentials instead of re-provisioning.
+3. **DNA registration** — `POST /agent/device-dna` with the mock MAC / IP /
+   hostname / `os_details`.
+4. **Concurrent loops** run until shutdown:
+   - `heartbeat` (`POST /agent/heartbeat`),
+   - `telemetry` (`POST /agent/telemetry` — CPU/memory/disk, latency, uptime),
+   - `commands` (`GET /devices/pending` → ACK → execute → report result via
+     `PUT /devices/{id}/status`),
+   - `logs`, `audits`, `jobs`, `alerts` (Live Logs / Audit Trail / Job History
+     / Alerts tabs), and
+   - a device-side **permission consent** loop when `--permission-consent-mode auto`.
+
+Capabilities (`root_access`, `command_execution`, `process_monitoring`,
+`filesystem_access`, `network_monitoring`) and the **push channel** (FCM/WNS/
+APNs or `None` for polling) are derived from `os_details` by
+`derive_os_capabilities()` / `derive_push_channel()` — mirroring the backend's
+mapping, so selecting an OS identity automatically selects the right profile.
+
+See [Device emulators](device-emulators.md) for the full config reference
+(config fields, CLI flags, failure-rate / consent-mode simulation, push
+channels, and the User App Electron integration).
+
+## Running a specific OS emulator
+
+`./scripts/start-emulator.sh` accepts an `--emulator` flag that selects the
+wrapper script and its default JSON config:
+
+```bash
+./scripts/start-emulator.sh --emulator linux                 # default
+./scripts/start-emulator.sh --emulator android
+./scripts/start-emulator.sh --emulator windows
+./scripts/start-emulator.sh --emulator macos
+./scripts/start-emulator.sh --emulator ios
+```
+
+Every OS takes the same provisioning arguments; only the identity defaults
+change:
+
+```bash
+./scripts/start-emulator.sh --emulator macos \
+  --site-id site-it-demo1 \
+  --bootstrap-key <key-from-step-2> \
+  --device-name "demo-macos-pos-1"
+```
+
+> All five emulators can also be launched from the **User App** setup wizard
+> ("Launch emulated device" mode → OS picker), which spawns the chosen wrapper
+> via Electron IPC; see [User App integration](device-emulators.md#user-app-integration).
+
 ## Prerequisites
 
 - Repository cloned, Python venv at `.venv/`, backend deps installed
@@ -67,7 +156,9 @@ flowchart TB
 - Two terminals (or one terminal + one browser window). Everything below runs
   on a single machine; in a distributed test, "Terminal 1" and "Terminal 2"
   would be different machines and the **handoff card** below is what the
-  technician sends to the user.
+  technician sends to the user. That is exactly how the **macOS emulator** is
+  run against a backend hosted on another machine — see
+  [Running the macOS emulator](#running-the-macos-emulator).
 
 ## Step 0 — Start the stack (Technician)
 
@@ -221,8 +312,8 @@ validated:
   screen and in the backend `os_details` value.
 - Confirm explicitly selecting an OS still overrides auto-detection.
 - Add equivalent checks when native Android, iOS, or other OS clients are
-  implemented. The current emulator launcher supports only Linux POS and
-  Android POS identities.
+  implemented. The current emulator launcher supports all five emulator
+  identities (Linux, Android, Windows, macOS, iOS).
 
 > **Note:** in dev mode the wizard simulates completion with local dev
 > credentials and does **not** call the backend. The actual backend-facing
@@ -332,6 +423,116 @@ Back in **Terminal 1** / the Dashboard browser:
    the default ~10% failure rate. Restart via
    `./scripts/stop-emulator.sh && ./scripts/start-emulator.sh --command-failure-rate 1.0`.
 
+## Running the macOS emulator
+
+The macOS POS emulator (`emulators/macos_pos_emulator.py`) is a thin wrapper
+around the shared engine. It reports **macOS 14** identity (mock MAC
+`02:42:ac:11:00:05`, hostname `macos-pos-001`), inherits the full *nix
+capability map (root access + process / filesystem / network monitoring —
+same as Linux), and — like Linux — receives commands by **HTTP polling**
+(no FCM/WNS/APNs channel).
+
+### How it is set up
+
+Nothing OS-specific is hard-coded into the Mac flow. The wrapper only supplies
+`MACOS_DEFAULTS`; everything else (provisioning, DNA, loops, command handling)
+comes from `pos_engine.py`. Because the engine is shared, any backend or engine
+change applies to all emulators equally. The practical macOS setup details that
+matter are:
+
+1. **The backend can run on a different machine.** The emulator is just a
+   Python process that talks HTTP to `--backend-url`. The common test layout is
+   the backend + Dashboard on a Windows (WSL2) or Linux host, and the **Mac
+   running only the User App + emulator** on the same LAN.
+2. **The Mac must reach the backend over the LAN.** Use the host's LAN IP, not
+   `localhost`:
+   `--backend-url http://192.168.1.176:8000`. (The technician hands this URL
+   to the Mac in the Step 3 handoff card.) Confirm reachability from the Mac
+   first: `curl http://<host-lan-ip>:8000/api/v1/health`.
+3. **Disable the in-process simulator on the host**
+   (`ENABLE_AGENT_SIMULATION=false`) or the backend writes fake telemetry into
+   the emulated device and corrupts the `real`/`controlled`/`simulated`
+   provenance.
+4. **Use `--permission-consent-mode fixed` for a stable demo.** The default
+   `auto` mode periodically toggles the granted permissions to mimic a device
+   owner changing their mind. If a command is queued while a permission is
+   temporarily revoked, the backend rejects it with
+   `403 Device owner has not granted the required permissions`. `fixed` grants
+   all supported permissions at boot and keeps them, so pushes reliably succeed.
+5. **Restart the emulator after pulling new engine code.** The wrapper/engine
+   loads on startup; a background emulator started before a `git pull` keeps
+   running the old code until you stop and restart it.
+
+### Run it
+
+On the Mac (same repo checked out, venv set up, backend reachable over LAN):
+
+```bash
+# Terminal 2 (Mac) — after completing Steps 1–3 on the host
+./scripts/start-emulator.sh --emulator macos \
+  --backend-url http://192.168.1.176:8000 \
+  --site-id site-it-demo1 \
+  --bootstrap-key <key-from-step-2> \
+  --device-name "demo-macos-pos-1" \
+  --permission-consent-mode fixed
+```
+
+Watch it come up (same banner as Linux, but "HOMEPOT macOS POS Emulator"):
+
+```bash
+tail -f logs/emulator.log
+```
+
+Then complete **Step 5** on the host's Dashboard: the Mac-emulated device
+appears with `macOS 14` identity, online status, live telemetry, Live Logs /
+Audit / Jobs / Alerts, and answers queued / composed commands.
+
+Running everything on a single Mac? Start the backend + Dashboard locally
+(`./scripts/start-dashboard.sh`) and run the emulator without `--backend-url`
+(i.e. `http://localhost:8000`), exactly like the Linux walkthrough.
+
+### User App on the Mac
+
+The Mac can also run the **User App** (Electron) in addition to the emulator,
+which is the real end-to-end test: the User App setup wizard provisions the
+emulated device, spawns the macOS emulator, and manages it like a physical
+device. Use `./scripts/start-userapp.sh` and pick **Launch emulated device →
+macOS POS** in the wizard. The Electron shell writes a temp config (with the
+backend URL you set in the wizard) and spawns the wrapper itself — see
+[User App integration](device-emulators.md#user-app-integration).
+
+## Running the Android / Windows / iOS emulators
+
+The flow is identical to the Linux runbook; only the identity, capabilities and
+push transport differ (see the [table above](#available-emulators)):
+
+```bash
+# Android POS — FCM push channel, no root, process/filesystem/network monitoring
+./scripts/start-emulator.sh --emulator android \
+  --site-id site-it-demo1 --bootstrap-key <key> --device-name "demo-android-pos-1"
+
+# Windows POS — WNS push channel, no root, process/filesystem/network monitoring
+./scripts/start-emulator.sh --emulator windows \
+  --site-id site-it-demo1 --bootstrap-key <key> --device-name "demo-windows-pos-1"
+
+# iOS — APNs push channel, network-monitoring only, device type "tablet"
+./scripts/start-emulator.sh --emulator ios \
+  --site-id site-it-demo1 --bootstrap-key <key> --device-name "demo-ios-pos-1"
+```
+
+The engine prints each OS's derived push channel + synthetic registration
+token at boot (e.g. `push_channel=fcm`), and reports it in DNA registration and
+every status report, mirroring how the real agent registers a `device_token`.
+For **push notification** testing (Compose Push → the emulator polling
+`/push/pending`, simulating delivery, and ACKing), run a desktop/POS emulator
+(Linux or macOS) against a backend that supports the push lifecycle.
+
+> The **Web Browser** (`virtual_terminal`) and **MQTT Sensor**
+> (`mobile_scanner`) rows listed in
+> [device-emulators.md](device-emulators.md#available-emulators) are the other
+> two integration modes (WebSocket / MQTT transports) and are not part of the
+> five POS wrappers covered here.
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
@@ -343,6 +544,9 @@ Back in **Terminal 1** / the Dashboard browser:
 | Emulator re-provisions but Dashboard shows the old device | Stale credentials file — delete `~/.homepot/emulators/<device_name>.json` and re-run **with a different `--device-name`** (the old name is still registered and the duplicate check will reject it). |
 | `health_state` shows `error` on a healthy device | The legacy simulator was enabled (`ENABLE_AGENT_SIMULATION=true`). Restart the backend with it disabled (Step 0). |
 | Two emulators clash on one machine | Use different `--device-name` values (each gets its own credentials file). |
+| Emulator on the Mac never connects / no device appears | `--backend-url` must be the host's **LAN IP** (not `localhost`) and reachable from the Mac: `curl http://<host-lan-ip>:8000/api/v1/health`. Check the host firewall / WSL2 `netsh portproxy` mapping. |
+| Command rejected with `403 Device owner has not granted the required permissions` | The emulator's `auto` consent loop revoked the permission (default mode toggles grants over time). Restart with `--permission-consent-mode fixed` for a stable demo. |
+| Emulator ignores recent code changes | The wrapper/engine loads at process start. `./scripts/stop-emulator.sh` then `./scripts/start-emulator.sh ...` to pick up the new code. |
 | Dashboard frontend can't reach the backend | Confirm the backend is up and CORS is configured; `curl http://localhost:8000/` should return `{"message":"I Am Alive"}`. |
 
 ## Related documentation

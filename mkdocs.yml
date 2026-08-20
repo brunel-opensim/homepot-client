@@ -186,7 +186,7 @@ nav:
       - Frontend Guide: user-app-frontend-guide.md
       - Wireframes: user-app-wireframes.md
       - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
-      - Verify with Emulator: verify-user-app-with-emulator.md
+      - Verify with Emulators: verify-user-app-with-emulators.md
       - Team Tasks (Dealdio): dealdio-user-app-tasks.md
 
   - Dev & Ops:
