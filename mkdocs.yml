@@ -181,7 +181,7 @@ nav:
           - Real Device Transition: real-device-transition.md
           - Team Tasks (Readiness): real-device-readiness-tasks.md
 
-  - HOMEPOT User App:
+  - User App:
       - Getting Started: get_start_userapp.md
       - Frontend Guide: user-app-frontend-guide.md
       - Wireframes: user-app-wireframes.md

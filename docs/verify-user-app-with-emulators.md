@@ -449,6 +449,26 @@ matter are:
    `--backend-url http://192.168.1.176:8000`. (The technician hands this URL
    to the Mac in the Step 3 handoff card.) Confirm reachability from the Mac
    first: `curl http://<host-lan-ip>:8000/api/v1/health`.
+
+   **Backend on Windows + WSL2?** The backend runs inside WSL2, which has its
+   own private IP that changes on reboot (e.g. `172.20.213.57`). Windows does
+   not forward `localhost:8000` to WSL2 by default, so on the **Windows host**
+   (in an **elevated** PowerShell / Command Prompt) expose it to the LAN once
+   per WSL2 IP change:
+
+   ```bat
+   :: map the Windows host's 0.0.0.0:8000 -> the current WSL2 IP:8000
+   netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=172.20.213.57
+
+   :: open TCP 8000 on the Windows firewall (run once)
+   netsh advfirewall firewall add rule name="HOMEPOT Backend 8000" dir=in action=allow protocol=TCP localport=8000
+   ```
+
+   Get the current WSL2 IP with `wsl hostname -I` (first address). After this,
+   the backend is reachable from the Mac at `http://<windows-lan-ip>:8000`,
+   and the portproxy survives as long as the WSL2 IP stays the same — re-run
+   the `netsh interface portproxy` command whenever WSL2 is rebooted with a
+   new IP.
 3. **Disable the in-process simulator on the host**
    (`ENABLE_AGENT_SIMULATION=false`) or the backend writes fake telemetry into
    the emulated device and corrupts the `real`/`controlled`/`simulated`
@@ -544,7 +564,7 @@ For **push notification** testing (Compose Push → the emulator polling
 | Emulator re-provisions but Dashboard shows the old device | Stale credentials file — delete `~/.homepot/emulators/<device_name>.json` and re-run **with a different `--device-name`** (the old name is still registered and the duplicate check will reject it). |
 | `health_state` shows `error` on a healthy device | The legacy simulator was enabled (`ENABLE_AGENT_SIMULATION=true`). Restart the backend with it disabled (Step 0). |
 | Two emulators clash on one machine | Use different `--device-name` values (each gets its own credentials file). |
-| Emulator on the Mac never connects / no device appears | `--backend-url` must be the host's **LAN IP** (not `localhost`) and reachable from the Mac: `curl http://<host-lan-ip>:8000/api/v1/health`. Check the host firewall / WSL2 `netsh portproxy` mapping. |
+| Emulator on the Mac never connects / no device appears | `--backend-url` must be the host's **LAN IP** (not `localhost`) and reachable from the Mac: `curl http://<host-lan-ip>:8000/api/v1/health`. Check the host firewall / WSL2 `netsh portproxy` mapping (see [macOS section](#how-it-is-set-up)). |
 | Command rejected with `403 Device owner has not granted the required permissions` | The emulator's `auto` consent loop revoked the permission (default mode toggles grants over time). Restart with `--permission-consent-mode fixed` for a stable demo. |
 | Emulator ignores recent code changes | The wrapper/engine loads at process start. `./scripts/stop-emulator.sh` then `./scripts/start-emulator.sh ...` to pick up the new code. |
 | Dashboard frontend can't reach the backend | Confirm the backend is up and CORS is configured; `curl http://localhost:8000/` should return `{"message":"I Am Alive"}`. |
