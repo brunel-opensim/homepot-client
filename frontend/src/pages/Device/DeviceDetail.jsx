@@ -388,6 +388,12 @@ export default function Device() {
 
       console.log(`Triggering action: ${actionKey} for device ${id}`);
 
+      // Compose Command opens the payload builder — no backend command to queue
+      if (actionKey === 'update_settings') {
+        navigate(`/device/${id}/push-review`);
+        return;
+      }
+
       // Call the Generic API
       await api.devices.triggerAction(id, actionKey);
 
@@ -424,8 +430,6 @@ export default function Device() {
           message: `Status request sent. Job created.`,
           type: 'success',
         });
-      } else if (actionKey === 'update_settings') {
-        navigate(`/device/${id}/push-review`);
       } else {
         setToast({
           message: `Action ${actionKey.replace('_', ' ')} triggered successfully`,
