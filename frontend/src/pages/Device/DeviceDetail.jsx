@@ -729,7 +729,7 @@ export default function Device() {
       )}
 
       <div className="h-full bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-2 font-sans flex flex-col overflow-hidden">
-        <div className="max-w-[1582px] mx-auto w-full h-full flex flex-col">
+        <div className="max-w-[1370px] mx-auto w-full h-full flex flex-col">
           {/* Fixed Header Section */}
           <div className="shrink-0 space-y-2 mb-4">
             <Button
