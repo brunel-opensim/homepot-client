@@ -402,7 +402,7 @@ export default function PushReview() {
   return (
     <div className="h-full bg-gradient-to-b from-[#041014] to-[#03121a] text-slate-200 p-2 font-sans flex flex-col overflow-hidden">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="max-w-7xl mx-auto w-full h-full flex flex-col">
+      <div className="max-w-content mx-auto w-full h-full flex flex-col">
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
