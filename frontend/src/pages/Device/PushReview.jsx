@@ -335,11 +335,6 @@ export default function PushReview() {
       setTrackingCommandId(commandId);
       setTrackingCommandType(action);
       setTrackingData(null);
-
-      setToast({
-        message: `Command queued (${commandId.substring(0, 8)}…) — tracking lifecycle`,
-        type: 'success',
-      });
     } catch (err) {
       console.error('Failed to send push:', err);
       setToast({
@@ -368,10 +363,6 @@ export default function PushReview() {
             cmd.status === 'completed' || cmd.status === 'failed' || cmd.status === 'expired';
           if (done) {
             clearInterval(interval);
-            setToast({
-              message: `Command ${cmd.status.toUpperCase()} — ${cmd.command_id.substring(0, 8)}`,
-              type: cmd.status === 'completed' ? 'success' : 'error',
-            });
             setTimeout(() => {
               if (active) navigate(`/device/${id}/history`);
             }, 1500);
