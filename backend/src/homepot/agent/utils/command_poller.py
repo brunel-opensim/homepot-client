@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import logging
 import re
 import shlex
+import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 from typing import Any, Dict, List, Optional
 
@@ -19,6 +20,7 @@ COMMAND_TYPES = frozenset(
         "run_command",
         "run_script",
         "shutdown",
+        "status_request",
         "update_config",
         "update_pos_payment_config",
     }
@@ -287,6 +289,37 @@ def process_command(
         "command_id": command_id,
         "status": "failed",
         "result": {"error": f"Unhandled command type: {command_type}"},
+    }
+
+
+def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a live device status snapshot for a ``status_request`` command.
+
+    Uses the same system telemetry sources as the telemetry loop so the
+    reported values reflect the host in near real time.
+    """
+    from homepot.agent.utils.telemetry import (
+        collect_system_telemetry,
+        collect_uptime_seconds,
+        utc_now_iso,
+    )
+
+    metrics = collect_system_telemetry()
+    return {
+        "device_id": config["device_id"],
+        "device_name": config.get("device_name", ""),
+        "device_type": config.get("device_type", "pos_terminal"),
+        "status": "online",
+        "connectivity_state": "online",
+        "hostname": socket.gethostname(),
+        "os_details": config.get("os_details", ""),
+        "local_ip": config.get("local_ip", ""),
+        "firmware_version": config.get("firmware_version", ""),
+        "uptime_seconds": collect_uptime_seconds(),
+        "cpu_usage": metrics["cpu_usage"],
+        "memory_usage": metrics["memory_usage"],
+        "disk_usage": metrics["disk_usage"],
+        "timestamp": utc_now_iso(),
     }
 
 

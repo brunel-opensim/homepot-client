@@ -4,9 +4,12 @@ from datetime import datetime
 from unittest.mock import patch
 
 from homepot.agent.utils.command_poller import (
+    COMMAND_TYPES,
+    build_status_report,
     build_status_update_payload,
     parse_pending_commands,
     process_command,
+    required_permissions_for_command,
 )
 from homepot.agent.utils.push_listener import PushWakeupListener
 
@@ -246,6 +249,39 @@ class TestBuildStatusUpdatePayload:
         """Payload omits result key when not provided."""
         payload = build_status_update_payload("c1", "failed")
         assert "result" not in payload
+
+
+class TestStatusRequest:
+    """Tests for the ``status_request`` command and status report builder."""
+
+    def test_status_request_is_supported(self):
+        """The backend accepts the status_request command type."""
+        assert "status_request" in COMMAND_TYPES
+
+    def test_status_request_requires_no_permission(self):
+        """A status check is read-only and needs no device permission grant."""
+        assert required_permissions_for_command("status_request") == []
+
+    def test_build_status_report_returns_snapshot(self):
+        """The report contains the expected live device fields."""
+        report = build_status_report(
+            {
+                "device_id": "DEVICE-TEST-0001",
+                "device_name": "test-pos",
+                "device_type": "pos_terminal",
+                "os_details": "macOS 14",
+            }
+        )
+        assert report["device_id"] == "DEVICE-TEST-0001"
+        assert report["device_name"] == "test-pos"
+        assert report["status"] == "online"
+        assert report["connectivity_state"] == "online"
+        assert isinstance(report["uptime_seconds"], int)
+        assert isinstance(report["cpu_usage"], float)
+        assert isinstance(report["memory_usage"], float)
+        assert isinstance(report["disk_usage"], float)
+        assert "hostname" in report
+        assert "timestamp" in report
 
 
 class TestPushWakeupListener:

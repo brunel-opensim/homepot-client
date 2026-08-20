@@ -21,6 +21,7 @@ from homepot.agent.credential_storage import (
     create_credential_storage,
 )
 from homepot.agent.utils.command_poller import (
+    build_status_report,
     build_status_update_payload,
     fetch_device_permissions,
     parse_pending_commands,
@@ -226,6 +227,41 @@ async def ack_command_backend(
         return False
 
 
+async def _report_status_to_live_logs(
+    client: httpx.AsyncClient, config: Dict[str, Any], report: Dict[str, Any]
+) -> None:
+    """Report a status snapshot to Live Logs via ``POST /api/v1/agent/logs``."""
+    uptime = report.get("uptime_seconds") or 0
+    message = (
+        "Status report: ONLINE | "
+        f"uptime {int(uptime)}s | "
+        f"cpu {report.get('cpu_usage')}% | "
+        f"mem {report.get('memory_usage')}% | "
+        f"disk {report.get('disk_usage')}% | "
+        f"host {report.get('hostname', '')} | "
+        f"os {report.get('os_details', '')} | "
+        f"ip {report.get('local_ip', '')}"
+    )
+    payload = {
+        "device_id": config["device_id"],
+        "level": "info",
+        "category": "status",
+        "message": message,
+        "timestamp": report.get("timestamp"),
+    }
+    url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/logs"
+    try:
+        response = await client.post(
+            url, json=payload, headers=get_auth_headers(config)
+        )
+        response.raise_for_status()
+        logger.info(
+            "Status report posted to Live Logs for device=%s", config["device_id"]
+        )
+    except Exception as e:
+        logger.warning("Status log post failed url=%s error=%s", url, e)
+
+
 async def pending_commands_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
@@ -316,11 +352,20 @@ async def pending_commands_loop(
                 if ipc_available and command.get("command_type") not in {
                     "run_command",
                     "run_script",
+                    "status_request",
                 }:
                     app = cast("FastAPI", ipc_server.config.app)  # type: ignore[union-attr]
                     push_pending_command(app, command)
                 else:
-                    result = process_command(command, cached_permissions)
+                    if command.get("command_type") == "status_request":
+                        report = build_status_report(config)
+                        result = {
+                            "command_id": cid,
+                            "status": "completed",
+                            "result": report,
+                        }
+                    else:
+                        result = process_command(command, cached_permissions)
                     ok = await update_command_status(
                         client,
                         config,
@@ -339,6 +384,12 @@ async def pending_commands_loop(
                                     cid, result["status"], result.get("result")
                                 ),
                             }
+                        )
+                    if command.get("command_type") == "status_request" and result.get(
+                        "result"
+                    ):
+                        await _report_status_to_live_logs(
+                            client, config, result["result"]
                         )
         except Exception as e:
             logger.error("Pending commands loop error: %s", e, exc_info=True)
