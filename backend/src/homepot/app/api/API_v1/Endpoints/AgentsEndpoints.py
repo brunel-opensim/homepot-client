@@ -199,6 +199,27 @@ async def send_push_notification(
     verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
     notification_data = {**notification_data, "action": "notification"}
 
+    # Persist the push lifecycle record so the device can pick it up and ack it
+    import uuid
+
+    from homepot.app.models.AnalyticsModel import PushNotificationLog
+
+    message_id = str(uuid.uuid4())
+    notification_data = {**notification_data, "message_id": message_id}
+    try:
+        push_log = PushNotificationLog(
+            message_id=message_id,
+            device_id=device_id,
+            provider="web_push",
+            payload=notification_data,
+            sent_at=datetime.utcnow(),
+            status="sent",
+        )
+        sync_db.add(push_log)
+        sync_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to persist push log for {device_id}: {e}")
+
     try:
         from homepot.agents import get_agent_manager
 
@@ -215,12 +236,14 @@ async def send_push_notification(
             "status": "success",
             "message": "Notification accepted for device agent",
             "device_id": device_id,
+            "message_id": message_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     return {
         "message": f"Push notification sent to {device_id}",
         "device_id": device_id,
+        "message_id": message_id,
         "response": response,
     }
 

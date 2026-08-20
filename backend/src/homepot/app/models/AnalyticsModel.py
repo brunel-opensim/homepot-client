@@ -288,10 +288,12 @@ class PushNotificationLog(Base):
     message_id = Column(String(100), unique=True, index=True, nullable=False)
 
     # Context
-    # device_id removed because it does not exist in the database schema yet
-    # device_id = Column(String(100), index=True, nullable=True)
+    device_id = Column(String(100), index=True, nullable=True)
     job_id = Column(String(100), index=True, nullable=True)
     provider = Column(String(20), nullable=False)  # fcm, apns, mqtt, wns, web_push
+
+    # Payload snapshot so the recipient/consumer can render the notification
+    payload = Column(JSON, nullable=True)
 
     # Timestamps
     sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -307,7 +309,7 @@ class PushNotificationLog(Base):
 
     __table_args__ = (
         Index("idx_push_message_id", "message_id"),
-        # Index("idx_push_device", "device_id"),
+        Index("idx_push_device", "device_id"),
         Index("idx_push_status", "status"),
     )
 

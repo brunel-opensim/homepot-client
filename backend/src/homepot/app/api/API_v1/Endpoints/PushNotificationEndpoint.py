@@ -9,12 +9,14 @@ import logging
 from typing import Any, Dict, List, Optional
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from homepot.app.auth_utils import get_current_device
 from homepot.app.models.AnalyticsModel import PushNotificationLog
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service
+from homepot.models import Device
 from homepot.push_notifications.factory import PushNotificationProvider
 
 # Configure logging
@@ -562,3 +564,49 @@ async def acknowledge_push_notification(ack_request: PushAckRequest) -> Dict[str
             "status": "error",
             "message": "An internal error occurred processing the acknowledgment",
         }
+
+
+@router.get("/pending", tags=["Push Notifications"])
+async def get_pending_pushes(
+    current_device: Device = Depends(get_current_device),
+) -> Dict[str, Any]:
+    """Get undelivered push notifications for the authenticated device.
+
+    The device polls this endpoint and acknowledges each push once it has
+    been received/displayed, advancing the delivery lifecycle (sent -> delivered).
+    """
+    try:
+        from sqlalchemy import select
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(PushNotificationLog)
+                .where(
+                    PushNotificationLog.device_id == current_device.device_id,
+                    PushNotificationLog.status == "sent",
+                )
+                .order_by(PushNotificationLog.sent_at.asc())
+                .limit(50)
+            )
+            pushes = result.scalars().all()
+
+        return {
+            "device_id": current_device.device_id,
+            "pushes": [
+                {
+                    "message_id": p.message_id,
+                    "provider": p.provider,
+                    "payload": p.payload,
+                    "sent_at": p.sent_at.isoformat() if p.sent_at else None,
+                    "status": p.status,
+                }
+                for p in pushes
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch pending pushes: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch pending pushes",
+        )
