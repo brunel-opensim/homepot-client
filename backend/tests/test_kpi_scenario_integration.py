@@ -207,7 +207,9 @@ def test_end_to_end_evidence_flow_yields_kpis(client: TestClient) -> None:
         headers=user_headers,
     )
     assert resp.status_code == 201, resp.text
-    command_id = resp.json()["command_id"]
+    cmd_payload = resp.json()
+    command_id = cmd_payload["command_id"]
+    created_at = datetime.fromisoformat(cmd_payload["created_at"])
 
     resp = client.post(
         f"/api/v1/devices/e2e-pos-001/commands/{command_id}/ack",
@@ -215,7 +217,7 @@ def test_end_to_end_evidence_flow_yields_kpis(client: TestClient) -> None:
     )
     assert resp.status_code == 200, resp.text
 
-    executed_at = (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()
+    executed_at = (created_at + timedelta(seconds=5)).isoformat()
     resp = client.put(
         f"/api/v1/devices/{command_id}/status",
         json={"status": "completed", "executed_at": executed_at},
