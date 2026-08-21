@@ -19,6 +19,12 @@ Each emulator runs as an independent process that provisions itself with the bac
 
 ## Quick start
 
+> **Replace `site-it-demo1` with a real site ID from your backend.** It is an
+> example placeholder only — if the site does not exist, provisioning fails
+> with `404 Site not found`. Find your site IDs via the Dashboard (Sites) or
+> `SELECT site_id FROM sites;` on the database, or create a new site first
+> (Sites → *Create Site* / `POST /api/v1/sites`).
+
 ```bash
 # 1. Start the Dashboard (backend + frontend)
 ./scripts/start-dashboard.sh
@@ -26,7 +32,7 @@ Each emulator runs as an independent process that provisions itself with the bac
 # 2. Generate a bootstrap key for your site (via API or operator UI)
 #    POST /api/v1/sites/{site_id}/bootstrap-key
 
-# 3. Run the Linux POS emulator
+# 3. Run the Linux POS emulator (replace site-it-demo1 with a real site ID)
 ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
 #    Use a different --device-name per emulator to run several on one site
 
