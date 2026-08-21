@@ -6,7 +6,10 @@
 # This script starts both the backend and frontend servers for the complete
 # HOMEPOT dashboard experience with full integration.
 #
-# Usage: ./scripts/start-dashboard.sh
+# Usage: ./scripts/start-dashboard.sh [simulation|emulation|real]
+#   simulation  Simulated devices via the in-process agent simulator (default)
+#   emulation   Emulated devices via emulator processes started separately
+#   real        Real devices (flag provisioned; backend support pending)
 ################################################################################
 
 set -e
@@ -28,6 +31,42 @@ echo -e "${CYAN}║                                                             
 echo -e "${CYAN}║                  HOMEPOT COMPLETE DASHBOARD SETUP              ║${NC}"
 echo -e "${CYAN}║                                                                ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+################################################################################
+# Mode selection
+################################################################################
+# The dashboard can run in three data-source modes:
+#   simulation — the backend's in-process agent simulator drives the devices
+#   emulation  — emulator processes (started separately) provide the data
+#   real       — real device agents connect (flag provisioned; not yet wired)
+#
+# Emulation and real both require the simulator to be OFF; the difference is
+# only what connects. The mode is persisted to backend/.env so the backend
+# honours it regardless of how it is launched.
+MODE="${1:-simulation}"
+case "$MODE" in
+    simulation)
+        ENABLE_AGENT_SIMULATION="true"
+        MODE_LABEL="SIMULATION"
+        ;;
+    emulation)
+        ENABLE_AGENT_SIMULATION="false"
+        MODE_LABEL="EMULATION"
+        ;;
+    real)
+        ENABLE_AGENT_SIMULATION="false"
+        MODE_LABEL="REAL"
+        ;;
+    *)
+        echo "Usage: $0 [simulation|emulation|real]"
+        echo "  simulation  Simulated devices via the in-process agent simulator (default)"
+        echo "  emulation   Emulated devices via emulator processes you start separately"
+        echo "  real        Real devices (flag provisioned; backend support pending)"
+        exit 1
+        ;;
+esac
+echo -e "${CYAN}ℹ${NC} Mode: $MODE_LABEL (ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION)"
 echo ""
 
 ################################################################################
@@ -189,12 +228,23 @@ mkdir -p "$REPO_ROOT/logs"
 # Start backend in background
 print_info "Starting backend server on http://localhost:8000..."
 cd "$REPO_ROOT/backend"
+
+# Persist the selected mode to backend/.env so the backend honours it
+# regardless of how it is launched afterwards.
+ENV_FILE="$REPO_ROOT/backend/.env"
+if [ -f "$ENV_FILE" ] && grep -q '^ENABLE_AGENT_SIMULATION=' "$ENV_FILE"; then
+    sed -i.bak "s/^ENABLE_AGENT_SIMULATION=.*/ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION/" "$ENV_FILE"
+    rm -f "$ENV_FILE.bak"
+else
+    echo "ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION" >> "$ENV_FILE"
+fi
+
 # Use bash -c to activate venv in the subshell
 # Redirect stdout/stderr to backend.out (overwritten on start)
 # The application handles backend.log with rotation
 # --reload-dir watches the ai/ package (outside backend/) too, so edits to the
 # AI gates/context code trigger an auto-restart alongside backend changes.
-nohup bash -c "source $REPO_ROOT/.venv/bin/activate && python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai" \
+nohup bash -c "source $REPO_ROOT/.venv/bin/activate && ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai" \
     > "$REPO_ROOT/logs/backend.out" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"
@@ -295,6 +345,21 @@ echo ""
 echo -e "${GREEN}Process IDs:${NC}"
 echo -e "  Backend:  $BACKEND_PID"
 echo -e "  Frontend: $FRONTEND_PID"
+echo ""
+
+echo -e "${GREEN}Mode:${NC} $MODE_LABEL"
+case "$MODE" in
+    simulation)
+        echo -e "  ${CYAN}Simulated devices are driven by the backend simulator.${NC}"
+        ;;
+    emulation)
+        echo -e "  ${CYAN}Start emulators separately, e.g.:${NC}"
+        echo -e "  ${CYAN}  ./scripts/start-emulator.sh --emulator macos --site-id <id> --bootstrap-key <key> --device-name demo-pos-1${NC}"
+        ;;
+    real)
+        echo -e "  ${YELLOW}Real-device support is provisioned but not yet wired up.${NC}"
+        ;;
+esac
 echo ""
 echo -e "${GREEN}Log Files:${NC}"
 echo -e "  Backend:  $REPO_ROOT/logs/backend.log"
