@@ -86,7 +86,7 @@ clean start/stop cycle, which doubles as a smoke test to catch startup issues ea
 | **Backend** (API :8000) | `backend.log`, `backend.out` | `backend.pid` | `./scripts/start-dashboard.sh` | `./scripts/stop-dashboard.sh` |
 | **Frontend** (Vite :5173) | `frontend.log` | `frontend.pid` | `./scripts/start-dashboard.sh` | `./scripts/stop-dashboard.sh` |
 | **AI / LLM** (Ollama :11434) | `ai.log` | `ai.pid` | `./scripts/setup-ollama.sh` | n/a (see note) |
-| **Emulator** (POS terminal) | `emulator.log` | `emulator.pid` | `./scripts/start-emulator.sh` | `./scripts/stop-emulator.sh` |
+| **Emulator** (POS terminal) | `emulator-<name>.log` | `emulator-<name>.pid` | `./scripts/start-emulator.sh` | `./scripts/stop-emulator.sh [name]` |
 | **User App** (Electron agent) | `userapp.log` | `userapp.pid` | `./scripts/start-userapp.sh` | `./scripts/stop-userapp.sh` |
 
 ### Full Restart (verified smoke test)

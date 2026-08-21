@@ -323,7 +323,8 @@ validated:
 Still in **Terminal 2**, run the Linux POS emulator. It performs the same
 `POST /devices/bootstrap-provision` call the User App's setup wizard makes, then
 runs heartbeat/telemetry as the device would. It runs in the **background**,
-logging to `logs/emulator.log` and recording its PID in `logs/emulator.pid`:
+logging to `logs/emulator-<device_name>.log` and recording its PID in
+`logs/emulator-<device_name>.pid` (each instance gets its own files):
 
 ```bash
 # in the repository root
@@ -345,7 +346,7 @@ The script echoes `Emulator started (PID: ...)` on success. Watch the emulator's
 own output as it registers DNA, then starts its loops:
 
 ```
-tail -f logs/emulator.log
+tail -f logs/emulator-demo-pos-1.log
 ```
 
 You should see:
@@ -370,7 +371,8 @@ You should see:
   [heartbeat] OK  (13:23:25)...
 ```
 
-Stop it any time with `./scripts/stop-emulator.sh`.
+Stop it any time with `./scripts/stop-emulator.sh demo-pos-1` (by name), or
+`./scripts/stop-emulator.sh` to stop all running emulators.
 
 Notes:
 
@@ -401,7 +403,7 @@ Back in **Terminal 1** / the Dashboard browser:
    (e.g. `High Latency: 474ms`) appears, injected by the emulator via
    `POST /agent/alert` (configurable `alerts_interval_seconds`).
 7. *(Optional)* queue a command (e.g. `ping` or `restart`) from the device
-   detail page — within a few seconds `logs/emulator.log` shows it being ACKed
+   detail page — within a few seconds `logs/emulator-<device_name>.log` shows it being ACKed
    and completed, and the Dashboard records the result.
 8. *(Optional)* **Compose Command** — from the device detail page, open
    **Compose Command**, pick a command (e.g. `RUN_DIAGNOSTICS` or
@@ -500,7 +502,7 @@ On the Mac (same repo checked out, venv set up, backend reachable over LAN):
 Watch it come up (same banner as Linux, but "HOMEPOT macOS POS Emulator"):
 
 ```bash
-tail -f logs/emulator.log
+tail -f logs/emulator-demo-macos-pos-1.log
 ```
 
 Then complete **Step 5** on the host's Dashboard: the Mac-emulated device
@@ -566,7 +568,7 @@ For **push notification** testing (Compose Push → the emulator polling
 | Two emulators clash on one machine | Use different `--device-name` values (each gets its own credentials file). |
 | Emulator on the Mac never connects / no device appears | `--backend-url` must be the host's **LAN IP** (not `localhost`) and reachable from the Mac: `curl http://<host-lan-ip>:8000/api/v1/health`. Check the host firewall / WSL2 `netsh portproxy` mapping (see [macOS section](#how-it-is-set-up)). |
 | Command rejected with `403 Device owner has not granted the required permissions` | The emulator's `auto` consent loop revoked the permission (default mode toggles grants over time). Restart with `--permission-consent-mode fixed` for a stable demo. |
-| Emulator ignores recent code changes | The wrapper/engine loads at process start. `./scripts/stop-emulator.sh` then `./scripts/start-emulator.sh ...` to pick up the new code. |
+| Emulator ignores recent code changes | The wrapper/engine loads at process start. `./scripts/stop-emulator.sh <name>` then `./scripts/start-emulator.sh ...` to pick up the new code. |
 | Dashboard frontend can't reach the backend | Confirm the backend is up and CORS is configured; `curl http://localhost:8000/` should return `{"message":"I Am Alive"}`. |
 
 ## Related documentation
