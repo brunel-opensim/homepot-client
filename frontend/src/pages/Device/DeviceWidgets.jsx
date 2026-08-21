@@ -463,7 +463,7 @@ export const DeviceInfoWidget = ({ device }) => (
     <div className="border-t border-[#1f2735] mb-3"></div>
     <div className="space-y-3 text-sm">
       <div className="flex justify-between items-center">
-        <span className="text-slate-400">Status</span>
+        <span className="text-slate-400">Connectivity</span>
         <span
           className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
             device?.connectivity_state === 'online'

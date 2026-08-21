@@ -455,6 +455,26 @@ export default function SiteDetail() {
                   <td className="p-4 align-middle">
                     <div className="flex items-center gap-2">
                       <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium uppercase ${
+                          device.connectivity_state === 'online'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : device.connectivity_state === 'offline'
+                              ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                              : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            device.connectivity_state === 'online'
+                              ? 'bg-emerald-400'
+                              : device.connectivity_state === 'offline'
+                                ? 'bg-gray-400'
+                                : 'bg-yellow-400'
+                          }`}
+                        />
+                        {device.connectivity_state || 'unknown'}
+                      </span>
+                      <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           device.lifecycle_state === 'active'
                             ? 'bg-green-500/10 text-green-500'
