@@ -525,40 +525,57 @@ The Site Detail page (`frontend/src/pages/Sites/SiteDetail.jsx`) displays a tabl
 |---|---|---|
 | **Name** | `device.name` | Clickable link to Device Detail page |
 | **Type** | `device.device_type` | Uppercase, underscores replaced with spaces |
-| **Status** | `lifecycle_state` + `connectivity_state` + `health_state` | Badge + connectivity dot + health pill (see colour reference below) |
+| **Connectivity** | `device.connectivity_state` | Badge: `ONLINE` / `OFFLINE` / `UNKNOWN` (see colour reference below) |
+| **Status** | `device.lifecycle_state` | Badge: `ACTIVE` / `SUSPENDED` / `UNPAIRED` (see colour reference below) |
+| **Health** | `device.health_state` | Badge: `HEALTHY` / `WARNING` / `ERROR` / `MAINTENANCE` (see colour reference below) |
+| **Mode** | `device.enrollment_method` / `device.device_source` / `device.is_simulated` | Badge: `EMU` (cyan), `SIM` (purple), `REAL` (slate) |
 | **Enrollment** | `device.enrollment_method` | Pill: `self-enrolled` (purple) or `Pre-Provisioned` (blue) |
 | **Alerts** | `device.active_alerts` | Count with icon; green checkmark when zero |
 | **Last Seen** | `device.last_seen` + `device.last_heartbeat_at` | Timestamp plus heartbeat timestamp on a second line |
 | **Actions** | — | Edit and Delete icon buttons |
 
-#### Status column colour reference
+#### Status columns colour reference
 
-**Lifecycle badge (background + text):**
+Each status badge uses **background + text** colours. Green always means "OK",
+red always means "not OK" / needs attention; neutral states (unpaired, unknown)
+are gray.
 
-| State | Colour |
-|---|---|
-| `active` | green-500 on green-500/10 |
-| `suspended` | orange-500 on orange-500/10 |
-| `unpaired` | gray-500 on gray-500/10 |
-| `pending`, `retired`, or unknown | yellow-500 on yellow-500/10 |
-
-**Connectivity dot (within the lifecycle badge):**
+**Connectivity badge:**
 
 | State | Colour |
 |---|---|
-| `online` | green-500 |
-| `offline` | gray-500 |
-| `unknown` | yellow-500 |
+| `online` | emerald-400 text on emerald-500/10, emerald border |
+| `offline` | red-400 text on red-500/10, red border |
+| `unknown` | yellow-400 text on yellow-500/10, yellow border |
 
-**Health pill (separate pill next to the lifecycle badge):**
+**Status badge (lifecycle):**
 
 | State | Colour |
 |---|---|
-| `healthy` | green-400 on green-500/10 |
-| `warning` | yellow-400 on yellow-500/10 |
-| `error` | red-400 on red-500/10 |
-| `maintenance` | blue-400 on blue-500/10 |
-| `unknown` or absent | gray-400 on gray-500/10 |
+| `active` | green-500 text on green-500/10 |
+| `suspended` | orange-500 text on orange-500/10 |
+| `unpaired` | gray-500 text on gray-500/10 |
+| `pending`, `retired`, or unknown | yellow-500 text on yellow-500/10 |
+
+**Health badge:**
+
+| State | Colour |
+|---|---|
+| `healthy` | green-400 text on green-500/10 |
+| `warning` | yellow-400 text on yellow-500/10 |
+| `error` | red-400 text on red-500/10 |
+| `maintenance` | blue-400 text on blue-500/10 |
+| `unknown` or absent | gray-400 text on gray-500/10 |
+
+**Mode badge:**
+
+| State | Colour |
+|---|---|
+| `EMU` (emulated) | cyan-400 text on cyan-500/10, cyan border |
+| `SIM` (simulated) | purple-400 text on purple-500/10, purple border |
+| `REAL` (physical) | slate-400 text on slate-500/10, slate border |
+
+> All badges are rendered **uppercase** at a uniform `text-xs` size.
 
 ## Windows adaptation
 Only after the Linux real-device contract works:
