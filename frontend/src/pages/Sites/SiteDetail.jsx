@@ -238,7 +238,7 @@ export default function SiteDetail() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-[#0b0e13] p-2">
-      <div className="mx-auto max-w-content h-full flex flex-col">
+      <div className="mx-auto max-w-content w-full h-full flex flex-col">
         {/* Fixed Header Section */}
         <div className="shrink-0 mb-4 space-y-4">
           <Button
