@@ -470,23 +470,23 @@ export const DeviceInfoWidget = ({ device }) => (
               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
               : device?.connectivity_state === 'offline'
                 ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                : 'bg-slate-700 text-slate-300'
+                : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
           }`}
         >
           {device?.connectivity_state || 'UNKNOWN'}
         </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-slate-400">Lifecycle</span>
+        <span className="text-slate-400">Status</span>
         <span
           className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
             device?.lifecycle_state === 'active'
-              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              ? 'bg-green-500/10 text-green-500 border border-green-500/20'
               : device?.lifecycle_state === 'suspended'
-                ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
                 : device?.lifecycle_state === 'unpaired'
-                  ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                  : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                  ? 'bg-gray-500/10 text-gray-500 border border-gray-500/20'
+                  : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
           }`}
         >
           {device?.lifecycle_state || 'N/A'}
@@ -497,18 +497,34 @@ export const DeviceInfoWidget = ({ device }) => (
         <span
           className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
             device?.health_state === 'healthy'
-              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              ? 'bg-green-500/10 text-green-400 border border-green-500/20'
               : device?.health_state === 'warning'
                 ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
                 : device?.health_state === 'error'
                   ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                   : device?.health_state === 'maintenance'
                     ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                    : 'bg-slate-700 text-slate-300'
+                    : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
           }`}
         >
           {device?.health_state || 'UNKNOWN'}
         </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Mode</span>
+        {device?.enrollment_method === 'emulated' || device?.device_source === 'emulator' ? (
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            EMU
+          </span>
+        ) : device?.is_simulated ? (
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+            SIM
+          </span>
+        ) : (
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+            REAL
+          </span>
+        )}
       </div>
       <div className="flex justify-between">
         <span className="text-slate-400">Credential</span>
@@ -522,21 +538,6 @@ export const DeviceInfoWidget = ({ device }) => (
           {device?.credential_status || 'N/A'}
         </span>
       </div>
-      {device?.enrollment_method === 'emulated' || device?.device_source === 'emulator' ? (
-        <div className="flex justify-between">
-          <span className="text-slate-400">Source</span>
-          <span className="px-2 py-0.5 rounded text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-            EMULATED
-          </span>
-        </div>
-      ) : device?.is_simulated ? (
-        <div className="flex justify-between">
-          <span className="text-slate-400">Source</span>
-          <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
-            SIMULATED
-          </span>
-        </div>
-      ) : null}
       <div className="flex justify-between">
         <span className="text-slate-400">IP Address</span>
         <span className="text-slate-200 font-mono">
