@@ -417,7 +417,10 @@ export default function SiteDetail() {
               columns={[
                 { key: 'name', label: 'Name' },
                 { key: 'type', label: 'Type' },
+                { key: 'conn', label: 'Conn' },
                 { key: 'status', label: 'Status' },
+                { key: 'health', label: 'Health' },
+                { key: 'mode', label: 'Mode' },
                 { key: 'enrollment', label: 'Enrollment' },
                 { key: 'alerts', label: 'Alerts' },
                 { key: 'last_seen', label: 'Last Seen' },
@@ -453,66 +456,74 @@ export default function SiteDetail() {
                     )}
                   </td>
                   <td className="p-4 align-middle">
-                    <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium uppercase ${
+                        device.connectivity_state === 'online'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : device.connectivity_state === 'offline'
+                            ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                            : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                      }`}
+                    >
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium uppercase ${
+                        className={`w-1.5 h-1.5 rounded-full ${
                           device.connectivity_state === 'online'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            ? 'bg-emerald-400'
                             : device.connectivity_state === 'offline'
-                              ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                              : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                              ? 'bg-gray-400'
+                              : 'bg-yellow-400'
                         }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            device.connectivity_state === 'online'
-                              ? 'bg-emerald-400'
-                              : device.connectivity_state === 'offline'
-                                ? 'bg-gray-400'
-                                : 'bg-yellow-400'
-                          }`}
-                        />
-                        {device.connectivity_state || 'unknown'}
+                      />
+                      {device.connectivity_state || 'unknown'}
+                    </span>
+                  </td>
+                  <td className="p-4 align-middle">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        device.lifecycle_state === 'active'
+                          ? 'bg-green-500/10 text-green-500'
+                          : device.lifecycle_state === 'suspended'
+                            ? 'bg-orange-500/10 text-orange-500'
+                            : device.lifecycle_state === 'unpaired'
+                              ? 'bg-gray-500/10 text-gray-500'
+                              : 'bg-yellow-500/10 text-yellow-500'
+                      }`}
+                    >
+                      {device.lifecycle_state || 'Unknown'}
+                    </span>
+                  </td>
+                  <td className="p-4 align-middle">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        device.health_state === 'healthy'
+                          ? 'bg-green-500/10 text-green-400'
+                          : device.health_state === 'warning'
+                            ? 'bg-yellow-500/10 text-yellow-400'
+                            : device.health_state === 'error'
+                              ? 'bg-red-500/10 text-red-400'
+                              : device.health_state === 'maintenance'
+                                ? 'bg-blue-500/10 text-blue-400'
+                                : 'bg-gray-500/10 text-gray-400'
+                      }`}
+                    >
+                      {device.health_state || 'unknown'}
+                    </span>
+                  </td>
+                  <td className="p-4 align-middle">
+                    {device.enrollment_method === 'emulated' ||
+                    device.device_source === 'emulator' ? (
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                        EMU
                       </span>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          device.lifecycle_state === 'active'
-                            ? 'bg-green-500/10 text-green-500'
-                            : device.lifecycle_state === 'suspended'
-                              ? 'bg-orange-500/10 text-orange-500'
-                              : device.lifecycle_state === 'unpaired'
-                                ? 'bg-gray-500/10 text-gray-500'
-                                : 'bg-yellow-500/10 text-yellow-500'
-                        }`}
-                      >
-                        {device.lifecycle_state || 'Unknown'}
+                    ) : device.is_simulated ? (
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                        SIM
                       </span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          device.health_state === 'healthy'
-                            ? 'bg-green-500/10 text-green-400'
-                            : device.health_state === 'warning'
-                              ? 'bg-yellow-500/10 text-yellow-400'
-                              : device.health_state === 'error'
-                                ? 'bg-red-500/10 text-red-400'
-                                : device.health_state === 'maintenance'
-                                  ? 'bg-blue-500/10 text-blue-400'
-                                  : 'bg-gray-500/10 text-gray-400'
-                        }`}
-                      >
-                        {device.health_state || 'unknown'}
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                        REAL
                       </span>
-                      {device.enrollment_method === 'emulated' ||
-                      device.device_source === 'emulator' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                          EMU
-                        </span>
-                      ) : device.is_simulated ? (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                          SIM
-                        </span>
-                      ) : null}
-                    </div>
+                    )}
                   </td>
                   <td className="p-4 align-middle">
                     <span
