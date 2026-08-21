@@ -150,7 +150,7 @@ if [ -f "./scripts/setup-pgpass.sh" ]; then
     ./scripts/setup-pgpass.sh
 fi
 
-echo "Initializing database schema and seed data..."
+echo "Initializing database schema and admin user..."
 
 # Determine Python executable
 if [ -f ".venv/bin/python3" ]; then
@@ -161,9 +161,11 @@ else
     PYTHON_CMD="python3"
 fi
 
-# Run Python script to initialize database
+# Run Python script to initialize the schema + default admin user only.
+# Demo data (tenants, sites, simulated devices, analytics) is opt-in via
+# ./scripts/seed-demo-data.sh so a fresh database starts clean.
 DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
-    $PYTHON_CMD backend/utils/seed_data.py
+    $PYTHON_CMD backend/utils/seed_data.py --schema-only
 
 # Upgrade alembic migration state so that schema PRs cannot silently break
 # existing installs.  This runs after the app's create_all bootstraps the
