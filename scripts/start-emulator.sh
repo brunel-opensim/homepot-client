@@ -2,19 +2,30 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# start-emulator.sh — Launch a HOMEPOT device emulator in the background,
-# logging to logs/emulator.log and recording its PID in logs/emulator.pid
-# (mirrors start-userapp.sh).
+# start-emulator.sh — Launch a HOMEPOT device emulator in the background.
+#
+# Each instance gets its own log/PID file, so several emulators can run at
+# once (use a unique --device-name per instance).
 #
 # Usage:
-#   ./scripts/start-emulator.sh                    # uses default (Linux) config
-#   ./scripts/start-emulator.sh --emulator android # uses the Android emulator + config
+#   ./scripts/start-emulator.sh                    # default (Linux) config
+#   ./scripts/start-emulator.sh --emulator android # select emulator + config
 #   ./scripts/start-emulator.sh --config emulators/my-device.json
-#   ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
+#   ./scripts/start-emulator.sh --emulator macos \
+#     --backend-url http://192.168.1.176:8000 \
+#     --site-id SITE-7UAH-963T --bootstrap-key <key> --device-name demo-macos-1
 #
 # Options:
 #   --emulator linux|android|windows|macos|ios   Select the emulator script + default config
 #                              (default: linux). Extend the map below for new OSes.
+#
+#   All other arguments (--backend-url, --site-id, --bootstrap-key,
+#   --device-name, --permission-consent-mode, ...) are forwarded to the
+#   selected emulator. --device-name is also used to name the log/PID file.
+#
+# Log/PID files:
+#   logs/emulator-<instance>.log   (instance = --device-name, else emulator type)
+#   logs/emulator-<instance>.pid
 #
 # Prerequisites:
 #   - Python virtual environment at .venv/ with httpx installed
@@ -99,19 +110,36 @@ if [[ "$#" -eq 0 ]]; then
     fi
 fi
 
+# --- Instance slug ----------------------------------------------------------
+
+# Derive a per-instance name from --device-name if provided, else the emulator
+# type. This is used to give each running emulator its own log/PID file so
+# several instances can run concurrently.
+INSTANCE="$EMULATOR"
+ARGS_COPY=("$@")
+for ((i = 0; i < ${#ARGS_COPY[@]}; i++)); do
+    if [[ "${ARGS_COPY[$i]}" == "--device-name" && -n "${ARGS_COPY[$((i + 1))]:-}" ]]; then
+        INSTANCE="${ARGS_COPY[$((i + 1))]}"
+        break
+    fi
+done
+INSTANCE_SLUG="$(printf '%s' "$INSTANCE" | tr ' /' '__')"
+
 # --- Logging ----------------------------------------------------------------
 
 mkdir -p "$PROJECT_DIR/logs"
-LOG_FILE="$PROJECT_DIR/logs/emulator.log"
-PID_FILE="$PROJECT_DIR/logs/emulator.pid"
+LOG_FILE="$PROJECT_DIR/logs/emulator-${INSTANCE_SLUG}.log"
+PID_FILE="$PROJECT_DIR/logs/emulator-${INSTANCE_SLUG}.pid"
 
 # --- Guard against duplicate instances ---------------------------------------
 
+# Only guard this instance's own PID file, so different emulators can run
+# simultaneously while a repeat launch of the same instance is refused.
 if [ -f "$PID_FILE" ]; then
     OLD_PID=$(cat "$PID_FILE")
     if ps -p "$OLD_PID" > /dev/null 2>&1; then
-        echo "Error: an emulator is already running (PID $OLD_PID)"
-        echo "  Stop it first: ./scripts/stop-emulator.sh"
+        echo "Error: emulator instance '$INSTANCE' is already running (PID $OLD_PID)"
+        echo "  Stop it first: ./scripts/stop-emulator.sh $INSTANCE"
         exit 1
     fi
 fi
@@ -119,10 +147,12 @@ fi
 # --- Run --------------------------------------------------------------------
 
 echo "Starting HOMEPOT device emulator ..."
-echo "  Emulator: $EMULATOR_SCRIPT"
-echo "  Python:   $PYTHON"
+echo "  Emulator:  $EMULATOR_SCRIPT"
+echo "  Instance:  $INSTANCE"
+echo "  Python:    $PYTHON"
 echo "  Config args: ${CONFIG_ARGS[*]:-} $*"
-echo "  Log file: $LOG_FILE"
+echo "  Log file:  $LOG_FILE"
+echo "  PID file:  $PID_FILE"
 echo ""
 
 nohup "$PYTHON" -u "$EMULATOR_SCRIPT" "${CONFIG_ARGS[@]}" "$@" \
@@ -141,4 +171,4 @@ fi
 
 echo "Emulator started (PID: $EMULATOR_PID)"
 echo "  View logs:  tail -f $LOG_FILE"
-echo "  Stop:       ./scripts/stop-emulator.sh"
+echo "  Stop:       ./scripts/stop-emulator.sh $INSTANCE"

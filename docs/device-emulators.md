@@ -87,27 +87,35 @@ Credentials are persisted across restarts. If the emulator is stopped and re-run
 
 ### Restarting
 
-`start-emulator.sh` runs the emulator in the background, writes its output to
-`logs/emulator.log`, and records its PID in `logs/emulator.pid` (same
-convention as `backend.log`, `frontend.log`, `ai.log`).
+`start-emulator.sh` runs the emulator in the background. Each instance writes
+to its own per-instance log/PID file, named after the `--device-name` (or the
+emulator type when no name is given):
+`logs/emulator-<instance>.log` and `logs/emulator-<instance>.pid`. This means
+several emulators can run at once — just give each a unique `--device-name`.
 
 ```bash
-# Stop any running instance
+# Launch an emulator (each instance gets its own log/PID file)
+./scripts/start-emulator.sh --emulator android --device-name demo-android-1
+
+# Launch another emulator concurrently with a different name
+./scripts/start-emulator.sh --emulator macos --device-name demo-macos-1
+
+# Watch a specific instance's live output
+tail -f logs/emulator-demo-macos-1.log
+
+# Stop one instance by name (its --device-name, else emulator type)
+./scripts/stop-emulator.sh demo-macos-1
+
+# Stop ALL emulators
 ./scripts/stop-emulator.sh
-
-# Re-launch (backgrounds the process)
-./scripts/start-emulator.sh
-
-# Launch a specific OS emulator (default is linux)
-./scripts/start-emulator.sh --emulator android
-
-# Watch live output
-tail -f logs/emulator.log
 ```
 
-`start-emulator.sh` accepts an `--emulator linux|android|windows|macos|ios` flag (default `linux`)
-that selects the emulator script and its default config. Any emulator launch
-arguments, including `--os-details`, are forwarded to the Python emulator.
+`start-emulator.sh` accepts an `--emulator linux|android|windows|macos|ios`
+flag (default `linux`) that selects the emulator script and its default config.
+Any emulator launch arguments — `--backend-url`, `--site-id`, `--bootstrap-key`,
+`--device-name`, `--os-details`, `--permission-consent-mode`, … — are forwarded
+to the Python emulator. A repeat launch of the **same** instance (same name) is
+refused while it is running; different instances run side by side.
 
 **User App (Electron)** — Quit and re-open the User App. The Electron main process kills the child emulator on quit; re-opening restarts it automatically when the setup-to-home flow completes.
 
@@ -159,7 +167,7 @@ Terminal 1:  ./scripts/start-dashboard.sh
 Terminal 2:  ./scripts/start-emulator.sh --site-id site-it-demo1 --bootstrap-key <key> --device-name demo-pos-1
              # Emulator provisions, heartbeats, sends telemetry
              # Use a different --device-name per emulator to run several on one site
-             # Live output: tail -f logs/emulator.log
+             # Live output: tail -f logs/emulator-demo-pos-1.log
 
 Terminal 3:  ./scripts/start-userapp.sh
              # User App on :5174 — login and manage the emulated device
