@@ -40,6 +40,7 @@ if project_root not in sys.path:
 
 from ai.anomaly_detection import AnomalyDetector
 
+from homepot.app.api.API_v1.Endpoints.SitesEndpoint import generate_site_id
 from homepot.app.models.AnalyticsModel import (
     Alert,
     APIRequestLog,
@@ -52,7 +53,6 @@ from homepot.app.models.AnalyticsModel import (
     SiteOperatingSchedule,
     UserActivity,
 )
-from homepot.app.api.API_v1.Endpoints.SitesEndpoint import generate_site_id
 from homepot.app.models.UserModel import Base as AppBase
 from homepot.canonical_ids import generate_device_id
 from homepot.database import DatabaseService
@@ -298,13 +298,8 @@ def generate_active_alerts(device_id: str, site_id: int) -> list[Alert]:
     return alerts
 
 
-async def init_database():
-    """Initialize PostgreSQL database with schema and seed data."""
-    print("Importing database service...")
-
-    # Create database service (will use DATABASE__URL from .env)
-    db_service = DatabaseService()
-
+async def init_schema(db_service: DatabaseService) -> None:
+    """Drop existing tables and create the full schema (core + analytics)."""
     _DROP_TABLES = [
         "device_lifecycle_events",
         "lifecycle_epochs",
@@ -350,6 +345,53 @@ async def init_database():
         await conn.run_sync(AppBase.metadata.create_all)
 
     print("Database schema created")
+
+
+async def create_admin_user(db_service: DatabaseService) -> None:
+    """Create the default admin user (no demo data). Idempotent."""
+    print("\n=== Creating Admin User ===")
+    async with db_service.get_session() as session:
+        existing = await session.execute(
+            select(User).where(User.email == "admin@homepot.com")
+        )
+        if existing.scalar_one_or_none() is not None:
+            print("Admin user already exists, skipping")
+            return
+        admin_user = await create_user(
+            session,
+            username="homepot_admin",
+            email="admin@homepot.com",
+            full_name="System Administrator",
+            password="homepot_dev_password",
+            is_admin=True,
+            tenant_id=None,
+        )
+        await session.commit()
+        print(f"Created admin user: {admin_user.username}")
+
+
+async def init_database(schema_only: bool = False):
+    """Initialize the database schema and, optionally, the demo seed data.
+
+    With ``schema_only=True`` only the schema and the default admin user are
+    created — no tenants, sites, simulated devices or demo analytics data.
+    Used by ``init-postgresql.sh`` so a fresh database starts clean and
+    devices are added explicitly (simulation / emulation / real).
+    """
+    print("Importing database service...")
+
+    # Create database service (will use DATABASE__URL from .env)
+    db_service = DatabaseService()
+
+    await init_schema(db_service)
+
+    if schema_only:
+        await create_admin_user(db_service)
+        print("\n" + "=" * 50)
+        print("SCHEMA + ADMIN CREATED (no demo data)")
+        print("=" * 50)
+        await db_service.close()
+        return
 
     # --- TENANTS ---
     print("\n=== Creating Tenants ===")
@@ -531,18 +573,78 @@ async def init_database():
         )
         return device
 
-    _linux_caps = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
-    _linux_perms = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
-    _windows_caps = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
-    _windows_perms = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
-    _macos_caps = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
-    _macos_perms = {"root_access": True, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
-    _web_caps = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": True}
-    _web_perms = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": True}
-    _iot_caps = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": False}
-    _iot_perms = {"root_access": False, "process_monitoring": False, "filesystem_access": False, "network_monitoring": False}
-    _android_caps = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
-    _android_perms = {"root_access": False, "process_monitoring": True, "filesystem_access": True, "network_monitoring": True}
+    _linux_caps = {
+        "root_access": True,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
+    _linux_perms = {
+        "root_access": True,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
+    _windows_caps = {
+        "root_access": False,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
+    _windows_perms = {
+        "root_access": False,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
+    _macos_caps = {
+        "root_access": True,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
+    _macos_perms = {
+        "root_access": True,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
+    _web_caps = {
+        "root_access": False,
+        "process_monitoring": False,
+        "filesystem_access": False,
+        "network_monitoring": True,
+    }
+    _web_perms = {
+        "root_access": False,
+        "process_monitoring": False,
+        "filesystem_access": False,
+        "network_monitoring": True,
+    }
+    _iot_caps = {
+        "root_access": False,
+        "process_monitoring": False,
+        "filesystem_access": False,
+        "network_monitoring": False,
+    }
+    _iot_perms = {
+        "root_access": False,
+        "process_monitoring": False,
+        "filesystem_access": False,
+        "network_monitoring": False,
+    }
+    _android_caps = {
+        "root_access": False,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
+    _android_perms = {
+        "root_access": False,
+        "process_monitoring": True,
+        "filesystem_access": True,
+        "network_monitoring": True,
+    }
 
     async with db_service.get_session() as session:
         await get_or_create_device(
@@ -884,7 +986,9 @@ async def init_database():
             session.add_all(active_alerts)
 
             # 2. Add the supporting data (High CPU metrics)
-            problem_metrics = generate_problematic_metrics(first_device.id, provenance=prov)
+            problem_metrics = generate_problematic_metrics(
+                first_device.id, provenance=prov
+            )
             session.add_all(problem_metrics)
 
             # Generate historical user activity
@@ -939,7 +1043,9 @@ async def init_database():
         site2 = await session.execute(select(Site).where(Site.site_id == site2_id))
         site2 = site2.scalar_one()
 
-        admin_user = await session.execute(select(User).where(User.username == "homepot_admin"))
+        admin_user = await session.execute(
+            select(User).where(User.username == "homepot_admin")
+        )
         admin_user = admin_user.scalar_one()
 
         now = datetime.now(timezone.utc)
@@ -1136,4 +1242,15 @@ async def init_database():
 
 
 if __name__ == "__main__":
-    asyncio.run(init_database())
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Initialize the HOMEPOT database schema and optional demo data."
+    )
+    parser.add_argument(
+        "--schema-only",
+        action="store_true",
+        help="Create the schema and the admin user only (no demo/simulated data)",
+    )
+    args = parser.parse_args()
+    asyncio.run(init_database(schema_only=args.schema_only))

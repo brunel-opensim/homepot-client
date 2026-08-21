@@ -38,13 +38,29 @@ chmod +x scripts/*.sh
 
 ### Step 2: Initialize Database
 
-Initialize the PostgreSQL database with the required schema and demo data. This script detects your local PostgreSQL installation (via Homebrew on macOS or system packages on Linux) and ensures the service is running before creating the database.
+Initialize the PostgreSQL database with the schema and default admin user
+(`admin@homepot.com` / `homepot_dev_password`). This script detects your local
+PostgreSQL installation (via Homebrew on macOS or system packages on Linux) and
+ensures the service is running before creating the database. A fresh database
+starts **clean — no devices**.
 
 ```bash
 ./scripts/init-postgresql.sh
 ```
 
 > **Note**: This setup uses a local PostgreSQL instance and does not require Docker.
+
+To load the **demo / simulated fleet** (tenants, sites, simulated devices,
+historical analytics) — e.g. for a demo or to see the simulator in action —
+run the opt-in seeder:
+
+```bash
+./scripts/seed-demo-data.sh
+```
+
+Without seeding, devices are added explicitly via **simulation**,
+**emulation**, or **real** devices (see
+[Device Emulators](device-emulators.md) and the three integration modes).
 
 
 ### Step 3: Start the Application

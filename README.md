@@ -29,6 +29,15 @@ We recommend running the project locally without Docker for the best development
     ```bash
     ./scripts/init-postgresql.sh
     ```
+    This creates a **clean** database: schema + default admin user
+    (`admin@homepot.com` / `homepot_dev_password`), with **no** devices. Devices
+    are added explicitly via simulation, emulation, or real devices.
+
+    To also load the **demo / simulated fleet** (tenants, sites, simulated
+    devices, historical analytics), run the opt-in seeder:
+    ```bash
+    ./scripts/seed-demo-data.sh
+    ```
 
 3.  **Run**:
     ```bash
@@ -123,8 +132,11 @@ Simple installation command:
 Working on the UI? Here's the fastest way to get started:
 
 ```bash
-# 1. Create PostgreSQL database
+# 1. Create PostgreSQL database (schema + admin user, no demo data)
 ./scripts/init-postgresql.sh
+
+# (optional) Load the demo/simulated fleet
+./scripts/seed-demo-data.sh
 
 # 2. Start both backend and frontend
 ./scripts/start-dashboard.sh
