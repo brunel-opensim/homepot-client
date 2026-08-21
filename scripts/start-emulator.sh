@@ -160,7 +160,7 @@ echo "  Log file:  $LOG_FILE"
 echo "  PID file:  $PID_FILE"
 echo ""
 
-nohup "$PYTHON" -u "$EMULATOR_SCRIPT" "${CONFIG_ARGS[@]}" "$@" \
+nohup "$PYTHON" -u "$EMULATOR_SCRIPT" ${CONFIG_ARGS[@]+"${CONFIG_ARGS[@]}"} "$@" \
     > "$LOG_FILE" 2>&1 &
 EMULATOR_PID=$!
 echo "$EMULATOR_PID" > "$PID_FILE"
