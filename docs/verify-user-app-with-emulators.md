@@ -560,6 +560,7 @@ For **push notification** testing (Compose Push → the emulator polling
 | Symptom | Cause / fix |
 |---------|-------------|
 | "Device name ... already in use" (400) | A live device in the site already uses that name (case-insensitive). Pick a different name, or retire/unpair the old device first. |
+| Emulator exits with `Provisioning failed (404): Site not found` | The `--site-id` does not exist on the backend. `site-it-demo1` is a placeholder — use a real site ID from your backend (Sites page / `SELECT site_id FROM sites;`) or create the site first. |
 | User App opens on Home instead of the Setup wizard | The device is already provisioned (`~/.homepot/credentials` exists). Relaunch with `./scripts/start-userapp.sh --reset` to clear it and start a fresh setup. |
 | User App window is gone but the app is still running | Closing the window hides it to the system tray (the process, running emulator, and setup state are preserved). Re-run `./scripts/start-userapp.sh` to reopen the window, or click the tray icon. |
 | Device never appears on the Dashboard | Bootstrap key typo, or wrong `--site-id`. The key is single-use-ish — generate a new one in Step 2. |
