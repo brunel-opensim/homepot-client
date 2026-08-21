@@ -417,7 +417,7 @@ export default function SiteDetail() {
               columns={[
                 { key: 'name', label: 'Name' },
                 { key: 'type', label: 'Type' },
-                { key: 'conn', label: 'Conn' },
+                { key: 'conn', label: 'Connectivity' },
                 { key: 'status', label: 'Status' },
                 { key: 'health', label: 'Health' },
                 { key: 'mode', label: 'Mode' },
@@ -465,21 +465,12 @@ export default function SiteDetail() {
                             : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
                       }`}
                     >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          device.connectivity_state === 'online'
-                            ? 'bg-emerald-400'
-                            : device.connectivity_state === 'offline'
-                              ? 'bg-gray-400'
-                              : 'bg-yellow-400'
-                        }`}
-                      />
                       {device.connectivity_state || 'unknown'}
                     </span>
                   </td>
                   <td className="p-4 align-middle">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium uppercase ${
                         device.lifecycle_state === 'active'
                           ? 'bg-green-500/10 text-green-500'
                           : device.lifecycle_state === 'suspended'
@@ -489,12 +480,12 @@ export default function SiteDetail() {
                               : 'bg-yellow-500/10 text-yellow-500'
                       }`}
                     >
-                      {device.lifecycle_state || 'Unknown'}
+                      {device.lifecycle_state || 'UNKNOWN'}
                     </span>
                   </td>
                   <td className="p-4 align-middle">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${
                         device.health_state === 'healthy'
                           ? 'bg-green-500/10 text-green-400'
                           : device.health_state === 'warning'
@@ -506,7 +497,7 @@ export default function SiteDetail() {
                                 : 'bg-gray-500/10 text-gray-400'
                       }`}
                     >
-                      {device.health_state || 'unknown'}
+                      {device.health_state || 'UNKNOWN'}
                     </span>
                   </td>
                   <td className="p-4 align-middle">
