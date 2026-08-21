@@ -465,27 +465,8 @@ export default function SiteDetail() {
                                 : 'bg-yellow-500/10 text-yellow-500'
                         }`}
                       >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            device.connectivity_state === 'online'
-                              ? 'bg-green-500'
-                              : device.connectivity_state === 'offline'
-                                ? 'bg-gray-500'
-                                : 'bg-yellow-500'
-                          }`}
-                        />
                         {device.lifecycle_state || 'Unknown'}
                       </span>
-                      {device.enrollment_method === 'emulated' ||
-                      device.device_source === 'emulator' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                          EMU
-                        </span>
-                      ) : device.is_simulated ? (
-                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                          SIM
-                        </span>
-                      ) : null}
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                           device.health_state === 'healthy'
@@ -501,6 +482,16 @@ export default function SiteDetail() {
                       >
                         {device.health_state || 'unknown'}
                       </span>
+                      {device.enrollment_method === 'emulated' ||
+                      device.device_source === 'emulator' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                          EMU
+                        </span>
+                      ) : device.is_simulated ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                          SIM
+                        </span>
+                      ) : null}
                     </div>
                   </td>
                   <td className="p-4 align-middle">

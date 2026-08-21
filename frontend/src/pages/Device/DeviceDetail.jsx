@@ -357,7 +357,24 @@ export default function Device() {
         .catch((err) => console.debug('Alerts poll skipped', err));
     }, 2000);
 
-    return () => clearInterval(pollInterval);
+    // Refresh the device status fields (connectivity / lifecycle / health /
+    // credential) periodically so the DEVICE INFO panel stays in sync when the
+    // device starts or stops (e.g. the emulator). The emulator heartbeats every
+    // 10s and the backend flips connectivity to offline ~120s after the last
+    // heartbeat, so a 10s refresh keeps it timely without heavy polling.
+    const devicePoll = setInterval(async () => {
+      try {
+        const fresh = await api.devices.getDeviceById(id);
+        if (fresh) setDevice((prev) => ({ ...prev, ...fresh }));
+      } catch (err) {
+        console.debug('Device status poll skipped', err);
+      }
+    }, 10000);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearInterval(devicePoll);
+    };
   }, [id]);
 
   useEffect(() => {
