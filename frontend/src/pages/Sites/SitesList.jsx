@@ -398,7 +398,13 @@ export default function SitesList() {
                   <div className="flex flex-col gap-2 mb-3">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`w-3 h-3 rounded-full ${site.status === 'Online' ? 'bg-green-400' : 'bg-red-500'}`}
+                        className={`w-3 h-3 rounded-full ${
+                          site.status === 'Online'
+                            ? 'bg-green-400'
+                            : site.status === 'Warning'
+                              ? 'bg-yellow-400'
+                              : 'bg-red-500'
+                        }`}
                       ></span>
                       <span className="text-sm">{site.status}</span>
                     </div>

@@ -1,5 +1,6 @@
 """API endpoints for managing sites in the HomePot system."""
 
+from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
 
@@ -42,6 +43,25 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
+
+
+# A site counts as Online when any of its active devices has heartbeated
+# recently. This mirrors the device page's connectivity_state computation —
+# it must NOT rely on the stored Device.status field, which is only set to
+# OFFLINE on explicit events (unpair/delete) and otherwise stays ONLINE.
+_HEARTBEAT_ONLINE_SECONDS = 120
+
+
+def _device_is_online(device: Device) -> bool:
+    """Return True if the device heartbeated within the online window."""
+    heartbeat = device.last_heartbeat_at
+    if not heartbeat:
+        return False
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - heartbeat
+    is_online: bool = delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
+    return is_online
 
 
 class SiteHealthResponse(BaseModel):
@@ -212,14 +232,18 @@ async def list_sites(
 
                 # Determine status. Only ACTIVE devices contribute to the site's
                 # connectivity status — suspended/unpaired devices (e.g. on an
-                # archived site) must not make the site appear online.
+                # archived site) must not make the site appear online. Online is
+                # based on heartbeat recency (not the stored status field), and
+                # takes precedence: if any active device is online the site is
+                # Online; otherwise a device in error state makes it Warning;
+                # otherwise Offline.
                 active_devices = [d for d in devices if d.is_active]
                 status = "Offline"
                 if active_devices:
-                    if any(d.status == "error" for d in active_devices):
-                        status = "Warning"
-                    elif any(d.status == "online" for d in active_devices):
+                    if any(_device_is_online(d) for d in active_devices):
                         status = "Online"
+                    elif any(d.status == "error" for d in active_devices):
+                        status = "Warning"
 
                 # Collect OS types
                 os_types = set()
