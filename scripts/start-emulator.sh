@@ -53,24 +53,28 @@ fi
 
 # --- Emulator & Config -------------------------------------------------------
 
-# Map each OS emulator to its script stem + default config file. Optionally
-# provide identity overrides that get passed to the emulator as flags, so a
-# wrapper (e.g. the User App) or a plain launch always uses real OS identity.
-declare -A EMULATORS=(
-    [linux]="linux_pos:linux_pos_emulator.json"
-    [android]="android_pos:android_pos_emulator.json"
-    [windows]="windows_pos:windows_pos_emulator.json"
-    [macos]="macos_pos:macos_pos_emulator.json"
-    [ios]="ios_pos:ios_pos_emulator.json"
-)
+# Map each OS emulator to its script stem + default config file. Implemented as
+# a case function (not an associative array) so the script runs on macOS's
+# default bash 3.2, which does not support `declare -A`.
+emulator_info() {
+    case "$1" in
+        linux)   echo "linux_pos:linux_pos_emulator.json" ;;
+        android) echo "android_pos:android_pos_emulator.json" ;;
+        windows) echo "windows_pos:windows_pos_emulator.json" ;;
+        macos)   echo "macos_pos:macos_pos_emulator.json" ;;
+        ios)     echo "ios_pos:ios_pos_emulator.json" ;;
+        *)       echo "" ;;
+    esac
+}
 
 EMULATOR="linux"
 FORWARD_ARGS=()
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --emulator)
-            if [[ -z "${2:-}" ]] || [[ ! "${EMULATORS[$2]:-}" ]]; then
-                echo "Error: unknown emulator '${2:-}'. Valid choices: ${!EMULATORS[*]}"
+            EMULATOR_INFO="$(emulator_info "${2:-}")"
+            if [[ -z "${2:-}" ]] || [[ -z "$EMULATOR_INFO" ]]; then
+                echo "Error: unknown emulator '${2:-}'. Valid choices: linux android windows macos ios"
                 exit 1
             fi
             EMULATOR="$2"
@@ -84,8 +88,9 @@ while [[ "$#" -gt 0 ]]; do
 done
 set -- "${FORWARD_ARGS[@]}"
 
-EMULATOR_SCRIPT="emulators/${EMULATORS[$EMULATOR]%%:*}_emulator.py"
-EMULATOR_CONFIG="emulators/${EMULATORS[$EMULATOR]#*:}"
+EMULATOR_INFO="$(emulator_info "$EMULATOR")"
+EMULATOR_SCRIPT="emulators/${EMULATOR_INFO%%:*}_emulator.py"
+EMULATOR_CONFIG="emulators/${EMULATOR_INFO#*:}"
 
 CONFIG_ARGS=()
 if [[ "$#" -eq 0 ]]; then
