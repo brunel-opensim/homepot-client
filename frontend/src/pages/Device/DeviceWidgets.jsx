@@ -511,7 +511,7 @@ export const DeviceInfoWidget = ({ device }) => (
         </span>
       </div>
       <div className="flex justify-between">
-        <span className="text-slate-400">Mode</span>
+        <span className="text-slate-400">Source</span>
         {device?.enrollment_method === 'emulated' || device?.device_source === 'emulator' ? (
           <span className="px-2 py-0.5 rounded text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
             EMU

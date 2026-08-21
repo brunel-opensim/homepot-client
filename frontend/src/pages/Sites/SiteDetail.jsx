@@ -420,7 +420,7 @@ export default function SiteDetail() {
                 { key: 'conn', label: 'Connectivity' },
                 { key: 'status', label: 'Status' },
                 { key: 'health', label: 'Health' },
-                { key: 'mode', label: 'Mode' },
+                { key: 'mode', label: 'Source' },
                 { key: 'enrollment', label: 'Enrollment' },
                 { key: 'alerts', label: 'Alerts' },
                 { key: 'last_seen', label: 'Last Seen' },
