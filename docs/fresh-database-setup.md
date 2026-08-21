@@ -57,10 +57,16 @@ GRANT ALL PRIVILEGES ON DATABASE homepot_db TO homepot_user;
 
 ### 4. Seeding Script (`seed_data.py`)
 
-The database is populated using `backend/utils/seed_data.py`. This script is automatically executed by `init-postgresql.sh` but can also be run manually if needed.
+The schema and demo data are managed by `backend/utils/seed_data.py`:
 
-**Key Features:**
-- **Deterministic Seeding:** Creates a fixed set of 4 sites and 20 devices to ensure consistent testing environments.
+- **`init-postgresql.sh`** runs it with `--schema-only`, creating the schema +
+  the default admin user with **no** demo data. A fresh database is clean.
+- **`scripts/seed-demo-data.sh`** (opt-in) runs the full demo seed — tenants,
+  sites, simulated devices, and historical analytics — when you want the
+  simulated fleet.
+
+**Key Features (full seed):**
+- **Deterministic Seeding:** Creates a fixed set of sites and devices to ensure consistent testing environments.
 - **Credential Alignment:** Creates a single application user (`homepot_user`) that matches the database credentials, simplifying the developer experience.
 - **Sample Analytics:** Generates initial sample data for jobs, health checks, audit logs, and analytics events to populate the dashboard immediately.
 - **Dependency Handling:** Includes patches for library compatibility (e.g., `bcrypt`/`passlib`).
