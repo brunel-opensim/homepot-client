@@ -49,6 +49,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import random
 import signal
@@ -1749,12 +1750,20 @@ def main(
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _signal_handler)
 
+    print(
+        f"\n  Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f" (PID {os.getpid()})"
+    )
+
     try:
         loop.run_until_complete(emulator.start())
     except KeyboardInterrupt:
         pass
     finally:
-        print("  Emulator stopped.")
+        print(
+            f"  Emulator stopped at "
+            f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (PID {os.getpid()})"
+        )
         loop.close()
 
 
