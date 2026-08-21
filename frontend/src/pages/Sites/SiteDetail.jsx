@@ -461,7 +461,7 @@ export default function SiteDetail() {
                         device.connectivity_state === 'online'
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : device.connectivity_state === 'offline'
-                            ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                             : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
                       }`}
                     >
