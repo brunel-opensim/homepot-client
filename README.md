@@ -48,13 +48,84 @@ See [docs/getting-started.md](docs/getting-started.md) for full details.
 
 ## Three Test Integration Modes
 
-The system supports **three** device integration modes. **Test technicians must know which mode they are running**, because each one produces telemetry through a different path:
+The system supports **three** device integration modes. **Test technicians must
+know which mode they are running**, because each one produces telemetry through
+a different path. Only one mode should be active for a given device at a time —
+with simulation on, the simulator also drives emulated/real device records, so
+switch it off when emulating or using real devices.
 
-1. **Simulation** — The backend's in-process agent simulator (`ENABLE_AGENT_SIMULATION=true`, the default in `backend/.env`) starts a simulated agent for every active POS/IoT device on startup. It writes heartbeats, health checks, and metrics directly to the database, and flips devices from `pending` to `active`. No external process is needed.
-2. **Emulation** — Standalone emulator processes (`./scripts/start-emulator.sh`) authenticate against the backend and behave like real hardware over the agent API (device DNA, heartbeat, telemetry, command polling). Use for end-to-end testing of the device lifecycle and User App without physical hardware. See [Device Emulators](docs/device-emulators.md).
-3. **Real Devices** — Physical devices running the HOMEPOT agent (or the Dealdio integration) talk to the backend over the network via the agent API. See the [Agent API Contract](backend/README.md#agent-api-contract-pilot).
+Start from a clean database, then choose a mode:
 
-> **Tip for test technicians:** if Simulation is disabled (`ENABLE_AGENT_SIMULATION=false`), the **Data Collection** page cannot be started, devices stay `pending`, and telemetry appears empty. Keep `ENABLE_AGENT_SIMULATION=true` to collect data via simulation.
+```bash
+./scripts/init-postgresql.sh          # clean DB: schema + admin (no devices)
+```
+
+### Mode 1: Simulation
+
+The backend's **in-process agent simulator** drives every active POS/IoT device
+(`ENABLE_AGENT_SIMULATION=true`) — no external process is needed. It writes
+heartbeats, health checks, and metrics directly to the database.
+
+```bash
+# clean DB, then start the stack in simulation mode
+./scripts/init-postgresql.sh
+./scripts/start-dashboard.sh simulation
+
+# (optional) load the demo/simulated fleet instead of an empty dashboard
+./scripts/seed-demo-data.sh
+```
+
+- Devices appear **online** immediately (the simulator heartbeats for them).
+- The simulator attaches to **existing active devices** — with an empty DB there
+  is nothing to simulate, so seed the demo fleet or add devices first.
+- Switch to another mode at runtime: `./scripts/set-simulation-mode.sh off`.
+
+### Mode 2: Emulation
+
+Standalone **emulator processes** (`./scripts/start-emulator.sh`) authenticate
+against the backend and behave like real hardware over the agent API (device
+DNA, heartbeat, telemetry, command polling). Use for end-to-end testing of the
+device lifecycle and User App without physical hardware.
+
+```bash
+# clean DB, then start the stack in emulation mode (simulator OFF)
+./scripts/init-postgresql.sh
+./scripts/start-dashboard.sh emulation
+
+# in another terminal, run one or more emulators
+./scripts/start-emulator.sh --emulator macos \
+  --backend-url http://localhost:8000 \
+  --site-id <site-id> --bootstrap-key <key> \
+  --device-name demo-pos-1
+```
+
+- The site must exist first (create it via the Dashboard or API).
+- Each emulator provisions itself and streams DNA/heartbeat/telemetry/logs.
+- See [Device Emulators](docs/device-emulators.md) for all OS emulators
+  (Linux, Android, Windows, macOS, iOS) and their configuration.
+- Switch to simulation at runtime: `./scripts/set-simulation-mode.sh on`.
+
+### Mode 3: Real Devices
+
+Physical devices running the HOMEPOT agent talk to the backend over the network
+via the agent API.
+
+```bash
+# clean DB, then start the stack in real mode (simulator OFF)
+./scripts/init-postgresql.sh
+./scripts/start-dashboard.sh real
+```
+
+- The `real` flag is **provisioned**: it keeps the simulator OFF (the same
+  backend setting as emulation) so real agents are the sole data source.
+  Full real-device onboarding support is pending.
+- See the [Agent API Contract](backend/README.md#agent-api-contract-pilot).
+
+> **Tip for test technicians:** with the simulator ON
+> (`ENABLE_AGENT_SIMULATION=true`), devices get heartbeats/telemetry written for
+> them; with it OFF (emulation/real), telemetry comes only from emulators or
+> real agents. A fresh DB starts with no devices either way — devices are added
+> via seeding, emulators, or real onboarding.
 
 ## Documentation
 
