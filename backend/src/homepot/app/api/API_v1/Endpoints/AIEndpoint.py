@@ -3,7 +3,7 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import sys
@@ -103,6 +103,37 @@ def _sanitize_ai_input(text: Optional[str], label: str = "text") -> str:
         )
     # Limit length so a single field cannot blow out the bounded context.
     return sanitized[:4000]
+
+
+# --- Device context helpers ---------------------------------------------------
+
+# A device counts as online if it heartbeated recently (mirrors the site-status
+# computation). The stored Device.status field is NOT used: it only flips to
+# OFFLINE on explicit events and otherwise stays ONLINE even after a device
+# stops heartbeating.
+_HEARTBEAT_ONLINE_SECONDS = 120
+
+
+def _device_is_online(device: Device) -> bool:
+    """Return True if the device heartbeated within the online window."""
+    heartbeat = device.last_heartbeat_at
+    if not heartbeat:
+        return False
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - heartbeat
+    is_online: bool = delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
+    return is_online
+
+
+def _device_mode(device: Device) -> str:
+    """Classify a device's data source: simulated, emulated or real."""
+    config: dict = device.config if isinstance(device.config, dict) else {}
+    if device.enrollment_method == "emulated" or config.get("device_source") == "emulator":
+        return "emulated"
+    if device.is_simulated:
+        return "simulated"
+    return "real"
 
 
 # Request/Response Models
@@ -455,6 +486,7 @@ async def query_ai(
             sites = result.scalars().all()
             site_ids = [s.id for s in sites]
             devices_by_site: dict = {}
+            all_active_devices: list = []
             if site_ids:
                 dev_result = await session.execute(
                     select(Device).where(
@@ -464,9 +496,26 @@ async def query_ai(
                 )
                 for dev in dev_result.scalars().all():
                     devices_by_site.setdefault(dev.site_id, []).append(dev)
+                    all_active_devices.append(dev)
+
+            # Fleet summary: connectivity (heartbeat-based), health and mode.
+            online_count = sum(1 for d in all_active_devices if _device_is_online(d))
+            healthy_count = sum(
+                1 for d in all_active_devices if d.health_state == "healthy"
+            )
+            mode_counts: dict = {"simulated": 0, "emulated": 0, "real": 0}
+            for d in all_active_devices:
+                mode_counts[_device_mode(d)] += 1
 
             site_context = "[CURRENT SYSTEM STATUS]\n"
             site_context += f"Total Sites: {len(sites)}\n"
+            site_context += f"Total Active Devices: {len(all_active_devices)}\n"
+            site_context += f"Online Devices: {online_count}\n"
+            site_context += f"Healthy Devices: {healthy_count}\n"
+            site_context += (
+                f"Devices by Mode: {mode_counts['simulated']} simulated, "
+                f"{mode_counts['emulated']} emulated, {mode_counts['real']} real\n"
+            )
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
                 site_devices = devices_by_site.get(site.id, [])
@@ -477,7 +526,10 @@ async def query_ai(
                             f"    * Name: {d.name}\n"
                             f"      ID: {d.device_id}\n"
                             f"      Type: {d.device_type}\n"
-                            f"      Status: {d.status}\n"
+                            f"      Status: "
+                            f"{'online' if _device_is_online(d) else 'offline'}\n"
+                            f"      Health: {d.health_state or 'unknown'}\n"
+                            f"      Mode: {_device_mode(d)}\n"
                             f"      IP: {d.ip_address or 'N/A'}\n"
                         )
 
