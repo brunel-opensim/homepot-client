@@ -17,6 +17,26 @@ Each emulator runs as an independent process that provisions itself with the bac
     [Getting started — Simulation](getting-started.md) for what the simulator
     does when enabled.
 
+### Switching between simulation and emulation
+
+Use the helper to switch the backend between the two modes without editing
+`.env` by hand:
+
+```bash
+./scripts/set-simulation-mode.sh on    # simulation: backend simulates all devices (no emulator)
+./scripts/set-simulation-mode.sh off   # emulation: only real emulators provide data
+```
+
+- **`on`** sets `ENABLE_AGENT_SIMULATION=true`, restarts the backend, and stops
+  any running emulators first (the simulator would otherwise double-simulate
+  the emulator's device and corrupt provenance).
+- **`off`** sets `ENABLE_AGENT_SIMULATION=false` and restarts the backend; start
+  your emulator(s) afterwards.
+
+> Only **one** mode should be active at a time for a given device. With
+> simulation on, the simulator also marks the emulator's device online and
+> writes telemetry for it, even if the emulator is not running.
+
 ## Quick start
 
 > **Replace `site-it-demo1` with a real site ID from your backend.** It is an
