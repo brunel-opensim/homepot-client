@@ -129,7 +129,10 @@ def _device_is_online(device: Device) -> bool:
 def _device_mode(device: Device) -> str:
     """Classify a device's data source: simulated, emulated or real."""
     config: dict = device.config if isinstance(device.config, dict) else {}
-    if device.enrollment_method == "emulated" or config.get("device_source") == "emulator":
+    if (
+        device.enrollment_method == "emulated"
+        or config.get("device_source") == "emulator"
+    ):
         return "emulated"
     if device.is_simulated:
         return "simulated"
