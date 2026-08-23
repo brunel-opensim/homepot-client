@@ -23,9 +23,6 @@ const SEVERITY_COLORS: Record<string, string> = {
   warning: 'bg-amber-500',
   error: 'bg-red-500',
   critical: 'bg-red-600',
-  high: 'bg-red-500',
-  medium: 'bg-amber-500',
-  low: 'bg-slate-500',
 }
 
 function severityDot(severity: string): string {
@@ -92,7 +89,7 @@ export default function Logs() {
             <p className="text-slate-500 text-xs">Application Logs</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center">
-            <span className="text-base">📊</span>
+            <span className="text-base">📋</span>
           </div>
         </div>
 
@@ -114,7 +111,7 @@ export default function Logs() {
               <Row
                 key={log.id}
                 title={log.message}
-                subtitle={log.category}
+                subtitle={`${log.category} · ${log.level}`}
                 meta={formatTime(log.timestamp)}
                 dot={severityDot(log.level)}
               />
