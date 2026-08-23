@@ -45,7 +45,7 @@ Avoids running `nvm use` every time you open a new terminal.
 | Command | What it does |
 |---|---|
 | `./scripts/start-userapp.sh` | Automatically check requirements and start the App via `nohup`; if the App is already running, reopens its window |
-| `./scripts/start-userapp.sh --reset` | Clear stored device credentials and start the App **directly into the Setup wizard** so a new device can be provisioned |
+| `./scripts/start-userapp.sh --fresh` | Clear stored device credentials and start the App **directly into the Setup wizard** so a new device can be provisioned |
 | `./scripts/stop-userapp.sh` | Kill the `nohup` server processes running the user app |
 | `npm run dev` | Start local dev server at http://localhost:5174 |
 | `npm run build` | Production build → output to `dist/` |
@@ -118,12 +118,12 @@ Once provisioned, the app opens on the **Home Dashboard**. To start a fresh
 setup and provision a new device, clear those credentials **before** launching:
 
 ```bash
-# Stop the app if it is running, then relaunch in reset mode
+# Stop the app if it is running, then relaunch in fresh mode
 ./scripts/stop-userapp.sh
-./scripts/start-userapp.sh --reset
+./scripts/start-userapp.sh --fresh
 ```
 
-`--reset` deletes the stored credentials and boots the app straight into the
+`--fresh` deletes the stored credentials and boots the app straight into the
 Setup wizard. You can also run `./scripts/start-userapp.sh --help` for a list
 of options.
 

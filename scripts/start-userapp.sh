@@ -5,12 +5,12 @@
 #
 # This script starts the HOMEPOT User App (Agent) locally.
 #
-# Usage: ./scripts/start-userapp.sh [--reset]
+# Usage: ./scripts/start-userapp.sh [--fresh]
 #
 # Options:
-#   -r, --reset   Clear stored device credentials and the emulator credential
+#   -f, --fresh   Clear stored device credentials and the emulator credential
 #                 stash, then boot directly into the Setup wizard so a new
-#                 device can be provisioned.
+#                 device can be provisioned. (Alias: --reset)
 #   -h, --help    Show usage information.
 ################################################################################
 
@@ -89,7 +89,7 @@ userapp_ready() {
 # Command-line Arguments
 ################################################################################
 
-RESET_MODE=false
+FRESH_MODE=false
 PREFILL_SITE_ID=""
 PREFILL_BOOTSTRAP_KEY=""
 PREFILL_DEVICE_NAME=""
@@ -98,15 +98,15 @@ PREFILL_OS_DETAILS=""
 
 show_help() {
     cat <<EOF
-Usage: ./scripts/start-userapp.sh [--reset] [--site-id <id>] [--bootstrap-key <key>]
+Usage: ./scripts/start-userapp.sh [--fresh] [--site-id <id>] [--bootstrap-key <key>]
                            [--device-name <name>] [--device-type <type>] [--os-details <os>]
 
 Starts the HOMEPOT User App (Agent) desktop application.
 
 Options:
-  -r, --reset   Clear stored device credentials and the emulator credential
+  -f, --fresh   Clear stored device credentials and the emulator credential
                 stash, then boot directly into the Setup wizard so a new
-                device can be provisioned.
+                device can be provisioned. (Alias: --reset)
       --site-id <id>
                 Pre-fill the Site ID in the Setup wizard.
       --bootstrap-key <key>
@@ -121,7 +121,7 @@ Options:
   -h, --help    Show this help message.
 
 Examples:
-  ./scripts/start-userapp.sh --reset --site-id SITE-7UAH-963T \\
+  ./scripts/start-userapp.sh --fresh --site-id SITE-7UAH-963T \\
     --bootstrap-key homepot-dev-emulator-key --device-name demo-mac-1 \\
     --device-type pos_terminal --os-details mac
 EOF
@@ -130,7 +130,7 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -r|--reset) RESET_MODE=true; shift ;;
+        -f|--fresh|-r|--reset) FRESH_MODE=true; shift ;;
         -h|--help) show_help ;;
         --site-id)
             if [[ -z "${2:-}" ]]; then print_error "--site-id requires a value"; show_help; fi
@@ -169,7 +169,7 @@ if [ -n "$PREFILL_OS_DETAILS" ]; then
     export HOMEPOT_PREFILL_OS_DETAILS="$PREFILL_OS_DETAILS"
 fi
 
-if [ "$RESET_MODE" = true ]; then
+if [ "$FRESH_MODE" = true ]; then
     print_step "Reset mode: clearing stored device credentials..."
     CREDENTIALS_FILE="$HOME/.homepot/credentials"
     if [ -f "$CREDENTIALS_FILE" ]; then
@@ -182,7 +182,7 @@ if [ "$RESET_MODE" = true ]; then
     # ~/.homepot/emulators/ (keyed by device name) and restores from them on
     # launch (_try_restore -> load_credentials). If a device was deleted on the
     # backend, leaving these behind makes a same-named emulator reuse a deleted
-    # device_id and get 403s. Empty the stash so --reset yields a clean slate.
+    # device_id and get 403s. Empty the stash so --fresh yields a clean slate.
     EMULATOR_STASH="$HOME/.homepot/emulators"
     if [ -d "$EMULATOR_STASH" ]; then
         if rm -rf "$EMULATOR_STASH" 2>/dev/null; then
@@ -359,6 +359,6 @@ echo -e "  1. The Electron User App is ready."
 echo -e "  2. Complete setup in the ${BLUE}HOMEPOT Agent${NC} desktop window."
 echo -e ""
 echo -e "  ${YELLOW}Tip:${NC} To provision a new device later, stop the app and run"
-echo -e "       ${CYAN}$SCRIPT_DIR/start-userapp.sh --reset${NC}"
+echo -e "       ${CYAN}$SCRIPT_DIR/start-userapp.sh --fresh${NC}"
 echo ""
 exit 0
