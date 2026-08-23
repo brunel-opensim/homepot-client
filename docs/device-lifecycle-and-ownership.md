@@ -192,6 +192,41 @@ The device `DELETE` endpoints (`DELETE /api/v1/devices/device/{id}`) use **archi
 
 So "archive" is the `DELETE`-method alias for the `unpaired` lifecycle state; "purge" is the hard-deletion path that sits outside the lifecycle model (line above). Sites follow the same pattern (`DELETE /api/v1/sites/{id}?mode=archive|purge`), where archiving a site also archives its devices. These apply uniformly regardless of whether a device is simulated, emulated, or real.
 
+### User-initiated unpair and re-enrolment
+
+The **User App** lets the device owner unpair the device themselves
+(`POST /api/v1/devices/device/{id}/unpair`, device-authenticated). On unpair the
+device's credentials are revoked, the record is set `unpaired`/`inactive`, and
+the User App clears its local credentials and returns to the Setup wizard.
+
+Re-enrolling **with the same device name creates a fresh device** (new
+`device_id`) — unpaired/retired records are excluded from the name-availability
+check, so the user can re-pair immediately without waiting for a technician.
+This is the intended model: unpairing removes the device from management;
+re-enrolment is a new provisioning session.
+
+**Cleanup is a technician task.** Old unpaired records accumulate until the
+technician either:
+
+- **archives** them (`mode=archive`, default) — keeps the record + history for
+  audit, or
+- **purges** them (`mode=purge`, `confirm=true`) — permanently deletes the
+  device and all associated data.
+
+### Restore ("resume") semantics
+
+The restore endpoint (`POST /api/v1/devices/device/{id}/resume`) re-activates a
+**suspended or unpaired** device *record*: it sets `lifecycle_state = 'active'`,
+`is_active = true`, and `status = 'online'`, so the device reappears on the
+Dashboard.
+
+**Restore does NOT re-issue API credentials.** Unpairing/archiving clears
+`api_key_hash` and revokes all credentials; restore leaves them cleared. So a
+restored device record is visible and `active`, but the **device itself cannot
+reconnect** until it is provisioned again (a fresh bootstrap enrolment issues a
+new API key). Restore is for recovering the *record* (e.g. after an accidental
+archive), not for bringing a device back online on its own.
+
 ## API representation
 
 Device responses should expose the independent state dimensions:
