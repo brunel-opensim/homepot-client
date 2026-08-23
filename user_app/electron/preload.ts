@@ -1,11 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-// Pre-fill values passed by scripts/start-userapp.sh via env (--site-id and
-// --bootstrap-key). Exposed synchronously so the Setup wizard can initialise
-// its fields without a race.
+// Pre-fill values passed by scripts/start-userapp.sh via env (--site-id,
+// --bootstrap-key, --device-name, --device-type, --os-details). Exposed
+// synchronously so the Setup wizard can initialise its fields without a race.
 const prefill = {
   siteId: process.env.HOMEPOT_PREFILL_SITE_ID || '',
   bootstrapKey: process.env.HOMEPOT_PREFILL_BOOTSTRAP_KEY || '',
+  deviceName: process.env.HOMEPOT_PREFILL_DEVICE_NAME || '',
+  deviceType: process.env.HOMEPOT_PREFILL_DEVICE_TYPE || '',
+  osDetails: process.env.HOMEPOT_PREFILL_OS_DETAILS || '',
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
