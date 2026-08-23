@@ -84,13 +84,66 @@ For detailed development information, refer to the [Development Guide](developme
 
 ## Three Test Integration Modes
 
-The system supports **three** device modes. **Test technicians should know which mode they are running**, because each one produces telemetry through a different path:
+The system supports **three** device modes. **Test technicians should know which mode they are running**, because each one produces telemetry through a different path. Only one mode should be active for a given device at a time.
 
-1. **Simulation** — The backend's in-process agent simulator (`ENABLE_AGENT_SIMULATION=true`, the default in `backend/.env`) starts a simulated agent for every active POS/IoT device on startup. It writes heartbeats, health checks, and metrics directly to the database, and flips devices from `pending` to `active`. No external process is needed.
-2. **Emulation** — Standalone emulator processes (`./scripts/start-emulator.sh`) authenticate against the backend and behave like real hardware over the agent API (device DNA, heartbeat, telemetry, command polling). Use this for end-to-end testing of the device lifecycle and User App without physical hardware. See [Device Emulators](device-emulators.md).
-3. **Real Devices** — Physical devices running the HOMEPOT agent (or the Dealdio integration) talk to the backend over the network. See the [Agent API Contract](getfudo-preparatory-tasks.md#3-api-contract-summary) for the endpoint summary.
+Start from a clean database, then pick a mode:
 
-> **Tip for test technicians:** if Simulation is disabled (`ENABLE_AGENT_SIMULATION=false`), the **Data Collection** page cannot be started, devices stay `pending`, and telemetry appears empty. Keep `ENABLE_AGENT_SIMULATION=true` to collect data via simulation.
+```bash
+./scripts/init-postgresql.sh          # clean DB: schema + admin (no devices)
+```
+
+### Mode 1: Simulation
+
+The backend's in-process agent simulator (`ENABLE_AGENT_SIMULATION=true`) drives every active POS/IoT device — no external process. It writes heartbeats, health checks, and metrics directly to the database.
+
+```bash
+./scripts/init-postgresql.sh
+./scripts/start-dashboard.sh simulation
+
+# (optional) load the demo/simulated fleet
+./scripts/seed-demo-data.sh
+```
+
+- Devices appear **online** immediately (the simulator heartbeats for them).
+- The simulator attaches to **existing active devices** — with an empty DB there is nothing to simulate, so seed the demo fleet or add devices first.
+- Switch mode at runtime: `./scripts/set-simulation-mode.sh off`.
+
+### Mode 2: Emulation
+
+Standalone emulator processes (`./scripts/start-emulator.sh`) authenticate against the backend and behave like real hardware over the agent API (device DNA, heartbeat, telemetry, command polling). Use for end-to-end testing of the device lifecycle and User App without physical hardware.
+
+```bash
+./scripts/init-postgresql.sh
+./scripts/start-dashboard.sh emulation   # simulator OFF
+
+# in another terminal, run one or more emulators
+./scripts/start-emulator.sh --emulator macos \
+  --backend-url http://localhost:8000 \
+  --site-id <site-id> --bootstrap-key <key> \
+  --device-name demo-pos-1
+```
+
+- The site must exist first (create it via the Dashboard or API).
+- See [Device Emulators](device-emulators.md) for all OS emulators and configuration.
+- Switch to simulation at runtime: `./scripts/set-simulation-mode.sh on`.
+
+### Mode 3: Real Devices
+
+Physical devices running the HOMEPOT agent talk to the backend over the network via the agent API.
+
+```bash
+./scripts/init-postgresql.sh
+./scripts/start-dashboard.sh real        # flag provisioned; simulator OFF
+```
+
+- The `real` flag keeps the simulator OFF so real agents are the sole data source; full real-device onboarding support is pending.
+- See the [Agent API Contract](getfudo-preparatory-tasks.md#3-api-contract-summary).
+
+> **Tip for test technicians:** a fresh DB starts with **no devices** in any
+> mode — devices are added via seeding (simulation), emulators (emulation), or
+> real onboarding. With the simulator ON, devices get heartbeats/telemetry
+> written for them; with it OFF (emulation/real), telemetry comes only from
+> emulators or real agents.
 
 ## Starting & Stopping All Services
 
@@ -122,10 +175,10 @@ clean start/stop cycle, which doubles as a smoke test to catch startup issues ea
     ss -tlnp | grep -E '8000|5173|11434'   # expect no listeners (or only 11434 = ollama)
     ```
 
-3.  **Start the core platform** (backend + frontend):
+3.  **Start the core platform** (backend + frontend) in a mode:
 
     ```bash
-    ./scripts/start-dashboard.sh
+    ./scripts/start-dashboard.sh simulation   # or: emulation | real
     ```
 
 4.  **Start optional services** as needed:
@@ -133,7 +186,7 @@ clean start/stop cycle, which doubles as a smoke test to catch startup issues ea
     ```bash
     ./scripts/setup-ollama.sh             # AI / LLM service
     ./scripts/start-emulator.sh --emulator linux \
-        --site-id SITE-P7K5-BPHZ \
+        --site-id <site-id> \
         --bootstrap-key <key> --device-name demo-pos-1
     ./scripts/start-userapp.sh            # Electron User App
     ```
