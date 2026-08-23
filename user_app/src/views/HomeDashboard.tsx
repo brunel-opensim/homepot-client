@@ -3,6 +3,7 @@ import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
 import { credentialStorage } from '../services/credentialStorage'
 import { fetchDeviceStatus, fetchDeviceMetrics } from '../services/api'
+import { getCachedTelemetry, setCachedTelemetry } from '../services/telemetryCache'
 import type { DeviceStatus, DeviceMetrics } from '../services/api'
 
 function formatUptime(totalSeconds: number | null): string {
@@ -52,7 +53,10 @@ export default function HomeDashboard() {
       const aKey = apiKeyRef.current
       if (!dId || !aKey) return
       try {
-        setStatus(await fetchDeviceStatus(dId, aKey))
+        const fresh = await fetchDeviceStatus(dId, aKey)
+        setStatus(fresh)
+        const cached = getCachedTelemetry(dId)
+        setCachedTelemetry(dId, fresh, cached?.metrics ?? null)
       } catch {
         // silently degrade
       }
@@ -62,12 +66,24 @@ export default function HomeDashboard() {
       const aKey = apiKeyRef.current
       if (!dId || !aKey) return
       try {
-        setMetrics(await fetchDeviceMetrics(dId, aKey))
+        const fresh = await fetchDeviceMetrics(dId, aKey)
+        setMetrics(fresh)
+        const cached = getCachedTelemetry(dId)
+        setCachedTelemetry(dId, cached?.status ?? null, fresh)
       } catch {
         // silently degrade
       }
     }
     if (!deviceIdRef.current || !apiKeyRef.current) return
+
+    // Render any cached telemetry immediately, then refresh from the backend.
+    const dId = deviceIdRef.current
+    const cached = getCachedTelemetry(dId)
+    if (cached) {
+      if (cached.status) setStatus(cached.status)
+      if (cached.metrics) setMetrics(cached.metrics)
+    }
+
     fetchStatus()
     fetchMetrics()
     const statusInterval = setInterval(fetchStatus, 30000)
