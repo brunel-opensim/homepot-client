@@ -402,7 +402,7 @@ export default function SiteDetail() {
             <h2 className="text-xl font-semibold text-white">Associated Devices</h2>
             {devices.some((d) => d.is_active === false) && (
               <span className="text-sm text-gray-400">
-                Grayed-out devices are inactive. Restore to re-activate, or archive/purge to clean
+                Grayed-out devices are inactive. Restore to see records, or archive/purge to clean
                 up.
               </span>
             )}
@@ -436,11 +436,18 @@ export default function SiteDetail() {
                   }`}
                 >
                   <td
-                    className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
-                    onClick={() =>
-                      navigate(`/device/${device.device_id || device.id}`, {
-                        state: { from: 'site', siteId: id },
-                      })
+                    className={`p-4 align-middle font-medium text-white ${
+                      device.is_active === false
+                        ? 'cursor-default'
+                        : 'cursor-pointer hover:underline'
+                    }`}
+                    onClick={
+                      device.is_active === false
+                        ? undefined
+                        : () =>
+                            navigate(`/device/${device.device_id || device.id}`, {
+                              state: { from: 'site', siteId: id },
+                            })
                     }
                   >
                     {device.name}
