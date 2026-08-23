@@ -60,6 +60,13 @@ if [ -n "$LEGACY_EMULATOR_PIDS" ]; then
     kill $LEGACY_EMULATOR_PIDS 2>/dev/null || true
 fi
 
+# macOS: the Electron.app child is not in the tracked process group (no
+# setsid) and its binary path differs from $ELECTRON_BIN, so it survives the
+# wrapper kill above. Match the npm electron dist tree to fully quit it.
+if [[ "$(uname)" == "Darwin" ]]; then
+    pkill -f "$REPO_ROOT/user_app/node_modules/electron/dist" 2>/dev/null || true
+fi
+
 # Fallback: kill anything running on port 5174
 if lsof -Pi :5174 -sTCP:LISTEN -t >/dev/null 2>&1; then
     lsof -ti:5174 | xargs kill 2>/dev/null
