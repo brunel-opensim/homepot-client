@@ -4,6 +4,7 @@ import TabBar from '../components/TabBar'
 import { useApp } from '../context/AppContext'
 import { credentialStorage } from '../services/credentialStorage'
 import { fetchDevice, unpairDevice, ApiError } from '../services/api'
+import { clearCachedTelemetry } from '../services/telemetryCache'
 import type { DeviceRecord } from '../services/api'
 
 function formatDeviceType(v: string) {
@@ -116,6 +117,7 @@ export default function DeviceInfo() {
         reason: 'User-initiated unpair from device settings',
         idempotencyKey,
       })
+      clearCachedTelemetry(deviceId)
       setUnpairStatus('confirmed')
       await credentialStorage.clear()
       setIsProvisioned(false)
@@ -126,6 +128,7 @@ export default function DeviceInfo() {
         setUnpairStatus('error')
       } else {
         // Network failure — perform local-only reset
+        clearCachedTelemetry(deviceId)
         await credentialStorage.clear()
         setIsProvisioned(false)
         setUnpairStatus('pending-revocation')
