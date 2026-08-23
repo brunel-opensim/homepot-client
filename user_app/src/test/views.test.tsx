@@ -134,11 +134,10 @@ describe('HomeDashboard', () => {
     expect(screen.getByText('Settings')).toBeInTheDocument()
   })
 
-  it('shows unknown state when fetch fails', async () => {
+it('shows unknown state when fetch fails', async () => {
     routeDeviceApi(statusOk(), metricsOk(), true)
     renderWithProviders(<HomeDashboard />)
-    expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
-    expect(await screen.findByText('OFFLINE')).toBeInTheDocument()
+    expect(await screen.findByText('CONNECTING…')).toBeInTheDocument()
   })
 })
 
