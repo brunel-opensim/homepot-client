@@ -488,7 +488,9 @@ export default function SiteDetail() {
                               : 'bg-yellow-500/10 text-yellow-500'
                       }`}
                     >
-                      {device.lifecycle_state || 'UNKNOWN'}
+                      {device.lifecycle_state === 'unpaired'
+                        ? 'INACTIVE'
+                        : device.lifecycle_state || 'UNKNOWN'}
                     </span>
                   </td>
                   <td className="p-4 align-middle">
