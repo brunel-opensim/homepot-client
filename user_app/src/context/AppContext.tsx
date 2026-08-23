@@ -16,6 +16,9 @@ interface SetupState {
   deviceType: string
   deviceOs: string
   bootstrapKey: string
+  /** Override for the backend URL used by emulator launches (LAN IP for Mac
+   *  testing); empty means fall back to the configured apiBaseUrl. */
+  backendUrl: string
 }
 
 interface AppContextType {
@@ -46,6 +49,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deviceType: '',
     deviceOs: 'auto',
     bootstrapKey: '',
+    backendUrl: '',
   })
   const [useEmulator, setUseEmulator] = useState<boolean | null>(null)
   const [emulatorType, setEmulatorType] = useState('linux_pos')

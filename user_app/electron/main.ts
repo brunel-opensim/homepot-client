@@ -18,6 +18,9 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let emulatorProcess: ChildProcess | null = null
 let emulatorDeviceId: string | null = null
+// Recent stderr lines from the emulator process, surfaced in the setup error
+// when the emulator fails to start (e.g. missing python/httpx).
+let emulatorStderr: string[] = []
 
 interface EmulatorFileConfig {
   emulator_type?: string
@@ -410,8 +413,12 @@ function registerIpcHandlers() {
     const creds = await pollForCredentials(credsPath, 30_000)
     if (!creds) {
       killEmulator()
+      const stderr = emulatorStderr.join('\n')
       recordAppEvent('error', 'setup', 'Device emulator setup timed out')
-      throw new Error('Emulator did not provision within 30 seconds')
+      const detail = stderr
+        ? ` Emulator output: ${stderr.slice(0, 500)}`
+        : ' The emulator did not provision within 30 seconds.'
+      throw new Error(`Device emulator failed to start.${detail}`)
     }
 
     emulatorDeviceId = creds.device_id
@@ -461,6 +468,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
   }
 
   const pythonExe = findPython(projectRoot)
+  emulatorStderr = []
   const child = spawn(pythonExe, [emulatorScript, '--config', configPath], {
     cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -475,7 +483,11 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
   })
 
   child.stderr?.on('data', (data: Buffer) => {
-    console.error(`[emulator:err] ${data.toString().trim()}`)
+    const lines = data.toString().split('\n').filter(Boolean)
+    for (const line of lines) {
+      console.error(`[emulator:err] ${line}`)
+    }
+    emulatorStderr = [...emulatorStderr, ...lines].slice(-15)
   })
 
   child.on('error', (error) => {
@@ -567,6 +579,13 @@ function pollForCredentials(credsPath: string, timeoutMs: number): Promise<Recor
             return
           }
         } catch { /* file may still be being written */ }
+      }
+      // Abort early if the emulator process has already exited (e.g. a python
+      // import failure like missing httpx) so the error surfaces immediately
+      // instead of waiting out the timeout.
+      if (!emulatorProcess) {
+        resolve(null)
+        return
       }
       if (Date.now() - start >= timeoutMs) {
         resolve(null)
