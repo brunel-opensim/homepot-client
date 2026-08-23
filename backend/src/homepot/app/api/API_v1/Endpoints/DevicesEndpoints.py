@@ -366,6 +366,14 @@ async def list_device(
                         ),
                         "is_monitored": device.is_monitored,
                         "is_simulated": device.is_simulated,
+                        "enrollment_method": (
+                            device.enrollment_method or "pre-provisioned"
+                        ),
+                        "device_source": (
+                            device.config.get("device_source")
+                            if device.config
+                            else None
+                        ),
                         "created_at": (
                             device.created_at.isoformat() if device.created_at else None
                         ),
