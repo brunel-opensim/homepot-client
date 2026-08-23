@@ -92,10 +92,14 @@ userapp_ready() {
 RESET_MODE=false
 PREFILL_SITE_ID=""
 PREFILL_BOOTSTRAP_KEY=""
+PREFILL_DEVICE_NAME=""
+PREFILL_DEVICE_TYPE=""
+PREFILL_OS_DETAILS=""
 
 show_help() {
     cat <<EOF
 Usage: ./scripts/start-userapp.sh [--reset] [--site-id <id>] [--bootstrap-key <key>]
+                           [--device-name <name>] [--device-type <type>] [--os-details <os>]
 
 Starts the HOMEPOT User App (Agent) desktop application.
 
@@ -107,11 +111,19 @@ Options:
                 Pre-fill the Site ID in the Setup wizard.
       --bootstrap-key <key>
                 Pre-fill the Bootstrap Key in the Setup wizard.
+      --device-name <name>
+                Pre-fill the Device Name in the Setup wizard.
+      --device-type <type>
+                Pre-fill the Device Type (e.g. pos_terminal, kiosk, tablet).
+      --os-details <os>
+                Pre-fill the Operating System (e.g. mac, linux, windows,
+                android, ios; default is 'auto' = Auto-detect).
   -h, --help    Show this help message.
 
 Examples:
   ./scripts/start-userapp.sh --reset --site-id SITE-7UAH-963T \\
-    --bootstrap-key homepot-dev-emulator-key
+    --bootstrap-key homepot-dev-emulator-key --device-name demo-mac-1 \\
+    --device-type pos_terminal --os-details mac
 EOF
     exit 0
 }
@@ -126,6 +138,15 @@ while [[ $# -gt 0 ]]; do
         --bootstrap-key)
             if [[ -z "${2:-}" ]]; then print_error "--bootstrap-key requires a value"; show_help; fi
             PREFILL_BOOTSTRAP_KEY="$2"; shift 2 ;;
+        --device-name)
+            if [[ -z "${2:-}" ]]; then print_error "--device-name requires a value"; show_help; fi
+            PREFILL_DEVICE_NAME="$2"; shift 2 ;;
+        --device-type)
+            if [[ -z "${2:-}" ]]; then print_error "--device-type requires a value"; show_help; fi
+            PREFILL_DEVICE_TYPE="$2"; shift 2 ;;
+        --os-details)
+            if [[ -z "${2:-}" ]]; then print_error "--os-details requires a value"; show_help; fi
+            PREFILL_OS_DETAILS="$2"; shift 2 ;;
         *) print_error "Unknown argument: $1"; show_help ;;
     esac
 done
@@ -137,6 +158,15 @@ if [ -n "$PREFILL_SITE_ID" ]; then
 fi
 if [ -n "$PREFILL_BOOTSTRAP_KEY" ]; then
     export HOMEPOT_PREFILL_BOOTSTRAP_KEY="$PREFILL_BOOTSTRAP_KEY"
+fi
+if [ -n "$PREFILL_DEVICE_NAME" ]; then
+    export HOMEPOT_PREFILL_DEVICE_NAME="$PREFILL_DEVICE_NAME"
+fi
+if [ -n "$PREFILL_DEVICE_TYPE" ]; then
+    export HOMEPOT_PREFILL_DEVICE_TYPE="$PREFILL_DEVICE_TYPE"
+fi
+if [ -n "$PREFILL_OS_DETAILS" ]; then
+    export HOMEPOT_PREFILL_OS_DETAILS="$PREFILL_OS_DETAILS"
 fi
 
 if [ "$RESET_MODE" = true ]; then

@@ -44,15 +44,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isProvisioned, setIsProvisioned] = useState(false)
   const [provisionedChecked, setProvisionedChecked] = useState(false)
   const [setupState, setSetupState] = useState<SetupState>(() => {
-    // Pre-fill Site ID / Bootstrap Key from scripts/start-userapp.sh args.
+    // Pre-fill Setup wizard fields from scripts/start-userapp.sh args.
     const prefill =
-      (window as { electronAPI?: { app?: { prefill?: { siteId?: string; bootstrapKey?: string } } } })
-        .electronAPI?.app?.prefill
+      (window as {
+        electronAPI?: {
+          app?: {
+            prefill?: {
+              siteId?: string
+              bootstrapKey?: string
+              deviceName?: string
+              deviceType?: string
+              osDetails?: string
+            }
+          }
+        }
+      }).electronAPI?.app?.prefill
     return {
       siteId: prefill?.siteId || '',
-      deviceName: '',
-      deviceType: '',
-      deviceOs: 'auto',
+      deviceName: prefill?.deviceName || '',
+      deviceType: prefill?.deviceType || '',
+      deviceOs: prefill?.osDetails || 'auto',
       bootstrapKey: prefill?.bootstrapKey || '',
       backendUrl: '',
     }
