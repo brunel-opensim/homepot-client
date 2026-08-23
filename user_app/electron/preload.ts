@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+// Pre-fill values passed by scripts/start-userapp.sh via env (--site-id and
+// --bootstrap-key). Exposed synchronously so the Setup wizard can initialise
+// its fields without a race.
+const prefill = {
+  siteId: process.env.HOMEPOT_PREFILL_SITE_ID || '',
+  bootstrapKey: process.env.HOMEPOT_PREFILL_BOOTSTRAP_KEY || '',
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   credentials: {
     save: (data: Record<string, string>) => ipcRenderer.invoke('credentials:save', data),
@@ -15,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getRecentLogs: (limit = 15) => ipcRenderer.invoke('app:getRecentLogs', limit),
+    prefill,
   },
   emulator: {
     start: (config: {

@@ -90,10 +90,12 @@ userapp_ready() {
 ################################################################################
 
 RESET_MODE=false
+PREFILL_SITE_ID=""
+PREFILL_BOOTSTRAP_KEY=""
 
 show_help() {
     cat <<EOF
-Usage: ./scripts/start-userapp.sh [--reset]
+Usage: ./scripts/start-userapp.sh [--reset] [--site-id <id>] [--bootstrap-key <key>]
 
 Starts the HOMEPOT User App (Agent) desktop application.
 
@@ -101,18 +103,41 @@ Options:
   -r, --reset   Clear stored device credentials and the emulator credential
                 stash, then boot directly into the Setup wizard so a new
                 device can be provisioned.
+      --site-id <id>
+                Pre-fill the Site ID in the Setup wizard.
+      --bootstrap-key <key>
+                Pre-fill the Bootstrap Key in the Setup wizard.
   -h, --help    Show this help message.
+
+Examples:
+  ./scripts/start-userapp.sh --reset --site-id SITE-7UAH-963T \\
+    --bootstrap-key homepot-dev-emulator-key
 EOF
     exit 0
 }
 
-for arg in "$@"; do
-    case "$arg" in
-        -r|--reset) RESET_MODE=true ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -r|--reset) RESET_MODE=true; shift ;;
         -h|--help) show_help ;;
-        *) print_error "Unknown argument: $arg"; show_help ;;
+        --site-id)
+            if [[ -z "${2:-}" ]]; then print_error "--site-id requires a value"; show_help; fi
+            PREFILL_SITE_ID="$2"; shift 2 ;;
+        --bootstrap-key)
+            if [[ -z "${2:-}" ]]; then print_error "--bootstrap-key requires a value"; show_help; fi
+            PREFILL_BOOTSTRAP_KEY="$2"; shift 2 ;;
+        *) print_error "Unknown argument: $1"; show_help ;;
     esac
 done
+
+# Pass the pre-fill values to the User App renderer via env (read by the
+# Electron preload script and used to initialise the Setup wizard fields).
+if [ -n "$PREFILL_SITE_ID" ]; then
+    export HOMEPOT_PREFILL_SITE_ID="$PREFILL_SITE_ID"
+fi
+if [ -n "$PREFILL_BOOTSTRAP_KEY" ]; then
+    export HOMEPOT_PREFILL_BOOTSTRAP_KEY="$PREFILL_BOOTSTRAP_KEY"
+fi
 
 if [ "$RESET_MODE" = true ]; then
     print_step "Reset mode: clearing stored device credentials..."
