@@ -1,3 +1,10 @@
+"""Tests for the AI endpoint device context helpers.
+
+Covers the heartbeat-recency connectivity helper and the device mode
+classification (simulated / emulated / real) used to build the fleet
+summary for AI queries.
+"""
+
 from datetime import datetime, timedelta, timezone
 
 from homepot.app.api.API_v1.Endpoints.AIEndpoint import _device_is_online, _device_mode
@@ -5,6 +12,7 @@ from homepot.models import Device
 
 
 def test_device_is_online_uses_heartbeat_recency():
+    """A device is online only when it heartbeated within the window."""
     device = Device(
         device_id="device-online",
         name="Online Device",
@@ -23,6 +31,7 @@ def test_device_is_online_uses_heartbeat_recency():
 
 
 def test_device_mode_classifies_real_simulated_and_emulated_devices():
+    """Mode classification: emulated > simulated > real."""
     simulated_device = Device(
         device_id="device-simulated",
         name="Simulated Device",
