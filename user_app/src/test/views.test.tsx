@@ -2,12 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AppProvider } from '../context/AppContext'
+import { clearAllCachedTelemetry } from '../services/telemetryCache'
 import HomeDashboard from '../views/HomeDashboard'
 import DeviceInfo from '../views/DeviceInfo'
 import Permissions from '../views/Permissions'
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
+
+beforeEach(() => {
+  // The telemetry cache is module-level (persists across renders); clear it so
+  // tests are isolated from each other.
+  clearAllCachedTelemetry()
+})
 
 vi.mock('../services/credentialStorage', () => ({
   credentialStorage: {

@@ -4,7 +4,7 @@ import TabBar from '../components/TabBar'
 import { useApp } from '../context/AppContext'
 import { credentialStorage } from '../services/credentialStorage'
 import { fetchDevice, unpairDevice, ApiError } from '../services/api'
-import { clearCachedTelemetry } from '../services/telemetryCache'
+import { clearCachedTelemetry, getCachedDevice, setCachedDevice } from '../services/telemetryCache'
 import type { DeviceRecord } from '../services/api'
 
 function formatDeviceType(v: string) {
@@ -40,54 +40,64 @@ export default function DeviceInfo() {
         credentialStorage.getMetadata('device_os'),
       ])
 
-      let backend: DeviceRecord | null = null
+      const localDna = window.electronAPI ? await window.electronAPI.device.dna() : null
+      const appVersion = window.electronAPI ? await window.electronAPI.app.getVersion() : null
+
+      const build = (backend: DeviceRecord | null) => {
+        let hostname: string
+        let mac: string
+        let ip: string
+        let os: string
+        let version = 'v0.1.0'
+        let lifecycle: string | null = null
+
+        if (localDna) {
+          hostname = localDna.hostname
+          mac = backend?.mac_address || localDna.mac
+          ip = backend?.local_ip || localDna.ip
+          os = backend?.os_details ? formatOs(backend.os_details) : formatOs(localDna.platform)
+          version = `v${appVersion ?? '0.1.0'}`
+        } else {
+          hostname = backend?.name || deviceName || 'My-Device'
+          mac = backend?.mac_address || '—'
+          ip = backend?.local_ip || '—'
+          os = backend?.os_details ? formatOs(backend.os_details) : (deviceOs ? formatOs(deviceOs) : 'Web')
+        }
+
+        if (backend?.lifecycle_state) {
+          lifecycle = backend.lifecycle_state.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+        }
+
+        const rows: DnaRow[] = [
+          { label: 'Hostname', value: hostname },
+          { label: 'Site ID', value: backend?.site_id || siteId || '—' },
+          { label: 'Device Type', value: backend?.device_type ? formatDeviceType(backend.device_type) : (deviceType ? formatDeviceType(deviceType) : 'POS Terminal') },
+          { label: 'MAC Addr', value: mac },
+          { label: 'Local IP', value: ip },
+          { label: 'OS', value: os },
+        ]
+        if (lifecycle) {
+          rows.push({ label: 'Lifecycle', value: lifecycle })
+        }
+        rows.push({ label: 'Agent Ver', value: version })
+
+        setDnaRows(rows)
+      }
+
+      // Phase 1: render immediately from a cached device record (or the local
+      // fallbacks) so the page never shows an empty DNA template.
+      build(deviceId ? getCachedDevice(deviceId) : null)
+
+      // Phase 2: refresh from the backend and cache the result.
       if (deviceId && apiKey) {
         try {
-          backend = await fetchDevice(deviceId, apiKey)
+          const backend = await fetchDevice(deviceId, apiKey)
+          setCachedDevice(deviceId, backend)
+          build(backend)
         } catch {
-          // backend unreachable — fall through to local fallbacks
+          // keep the cached/local rows
         }
       }
-
-      let hostname: string
-      let mac: string
-      let ip: string
-      let os: string
-      let version = 'v0.1.0'
-      let lifecycle: string | null = null
-
-      if (window.electronAPI) {
-        const dna = await window.electronAPI.device.dna()
-        hostname = dna.hostname
-        mac = backend?.mac_address || dna.mac
-        ip = backend?.local_ip || dna.ip
-        os = backend?.os_details ? formatOs(backend.os_details) : formatOs(dna.platform)
-        version = `v${await window.electronAPI.app.getVersion()}`
-      } else {
-        hostname = backend?.name || deviceName || 'My-Device'
-        mac = backend?.mac_address || '—'
-        ip = backend?.local_ip || '—'
-        os = backend?.os_details ? formatOs(backend.os_details) : (deviceOs ? formatOs(deviceOs) : 'Web')
-      }
-
-      if (backend?.lifecycle_state) {
-        lifecycle = backend.lifecycle_state.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-      }
-
-      const rows: DnaRow[] = [
-        { label: 'Hostname', value: hostname },
-        { label: 'Site ID', value: backend?.site_id || siteId || '—' },
-        { label: 'Device Type', value: backend?.device_type ? formatDeviceType(backend.device_type) : (deviceType ? formatDeviceType(deviceType) : 'POS Terminal') },
-        { label: 'MAC Addr', value: mac },
-        { label: 'Local IP', value: ip },
-        { label: 'OS', value: os },
-      ]
-      if (lifecycle) {
-        rows.push({ label: 'Lifecycle', value: lifecycle })
-      }
-      rows.push({ label: 'Agent Ver', value: version })
-
-      setDnaRows(rows)
     }
     loadDna()
   }, [])
