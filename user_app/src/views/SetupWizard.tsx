@@ -160,7 +160,7 @@ function Step1() {
 
   const handleNext = async () => {
     const resolvedOs = deviceOs === 'auto' ? await detectOS() : deviceOs
-    setSetupState({ siteId, deviceName, deviceType, deviceOs: resolvedOs, bootstrapKey })
+    setSetupState({ siteId, deviceName, deviceType, deviceOs: resolvedOs, bootstrapKey, backendUrl: setupState.backendUrl })
     navigate('/method')
   }
 
@@ -322,7 +322,7 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
         }
         const config = {
           emulatorType,
-          backendUrl: apiBaseUrl.replace('/api/v1', ''),
+          backendUrl: setupState.backendUrl || apiBaseUrl.replace('/api/v1', ''),
           siteId,
           bootstrapKey,
           deviceName: deviceName || 'Emulated Device',
@@ -455,10 +455,17 @@ function EmulatorConfigStep() {
   const navigate = useNavigate()
   const { emulatorType, setEmulatorType, setUseEmulator, setSetupState, setupState } = useApp()
   const selected = EMULATOR_TYPES.find(t => t.value === emulatorType) ?? EMULATOR_TYPES[0]
+  const defaultBackendUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1').replace(/\/$/, '').replace(/\/api\/v1$/, '')
+  const [backendUrl, setBackendUrl] = useState(setupState.backendUrl || defaultBackendUrl)
 
   const handleNext = () => {
     setUseEmulator(true)
-    setSetupState({ ...setupState, deviceType: selected.deviceType, deviceOs: selected.os })
+    setSetupState({
+      ...setupState,
+      deviceType: selected.deviceType,
+      deviceOs: selected.os,
+      backendUrl: backendUrl.trim() || defaultBackendUrl,
+    })
     navigate('/setup/review')
   }
 
@@ -490,6 +497,25 @@ function EmulatorConfigStep() {
             <p className="text-slate-500 text-xs">{t.os}</p>
           </button>
         ))}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="emulator-backend-url" className="text-slate-300 text-xs font-medium">
+          Backend URL
+        </label>
+        <input
+          id="emulator-backend-url"
+          type="text"
+          value={backendUrl}
+          onChange={e => setBackendUrl(e.target.value)}
+          placeholder="http://192.168.1.176:8000"
+          className="w-full px-3 py-2 rounded-lg bg-slate-700/70 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:border-emerald-500"
+        />
+        <p className="text-slate-500 text-xs">
+          The backend the emulator connects to. Use the host's LAN IP (e.g.
+          <span className="text-slate-400"> http://192.168.1.176:8000</span>) when
+          the backend runs on another machine (e.g. Windows/WSL) than this Mac.
+        </p>
       </div>
 
       <div className="flex gap-3 mt-2">
