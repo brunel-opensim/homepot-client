@@ -43,13 +43,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null)
   const [isProvisioned, setIsProvisioned] = useState(false)
   const [provisionedChecked, setProvisionedChecked] = useState(false)
-  const [setupState, setSetupState] = useState<SetupState>({
-    siteId: '',
-    deviceName: '',
-    deviceType: '',
-    deviceOs: 'auto',
-    bootstrapKey: '',
-    backendUrl: '',
+  const [setupState, setSetupState] = useState<SetupState>(() => {
+    // Pre-fill Site ID / Bootstrap Key from scripts/start-userapp.sh args.
+    const prefill =
+      (window as { electronAPI?: { app?: { prefill?: { siteId?: string; bootstrapKey?: string } } } })
+        .electronAPI?.app?.prefill
+    return {
+      siteId: prefill?.siteId || '',
+      deviceName: '',
+      deviceType: '',
+      deviceOs: 'auto',
+      bootstrapKey: prefill?.bootstrapKey || '',
+      backendUrl: '',
+    }
   })
   const [useEmulator, setUseEmulator] = useState<boolean | null>(null)
   const [emulatorType, setEmulatorType] = useState('linux_pos')
