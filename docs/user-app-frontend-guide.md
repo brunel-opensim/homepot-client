@@ -126,6 +126,84 @@ This avoids running `nvm use` every time you open a terminal.
 
 ---
 
+## 4.5 Emulator mode (development)
+
+The setup wizard has an **emulator mode** ("Launch emulated device") that
+spawns one of the POS emulators from the **Electron** app instead of a real
+device — useful for end-to-end testing without physical hardware, and to
+validate the User App ↔ Dashboard flow on a Mac.
+
+- Requires the **Electron** app (`window.electronAPI`). The browser-only dev
+  server cannot spawn an emulator process.
+- Pick an OS in `EmulatorConfigStep` — **macOS POS** is included alongside
+  Linux/Android/Windows/iOS.
+- The **Backend URL** field lets you point the spawned emulator at a LAN
+  backend (e.g. `http://192.168.1.176:8000` when the backend runs on a
+  Windows/WSL host and the User App runs on the Mac). It defaults to the
+  configured `VITE_API_BASE_URL`.
+- If the emulator fails to start (e.g. missing `httpx` in the venv, or the
+  script can't be found), the **error is shown in the wizard** — stderr from
+  the emulator process is captured and included, and the credential poll
+  aborts as soon as the process exits instead of waiting 30s.
+
+Run it in development:
+
+```bash
+npm run electron:dev      # Electron with the Vite dev server
+```
+
+## 4.6 Packaging & running on macOS (real-device-style testing)
+
+To test the User App like a **real device** on a Mac (its emulator provisioning
+against a remote backend):
+
+**1. Configure the backend URL.** The Mac must reach the backend over the LAN,
+not `localhost`:
+
+```bash
+# user_app/.env.local
+VITE_API_BASE_URL=http://192.168.1.176:8000/api/v1
+```
+
+**2. Ensure the emulator venv is ready on the Mac.** The Electron app spawns
+the emulator via the project venv (`.venv/bin/python3`), so it must exist with
+`httpx` installed:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate && pip install httpx
+```
+
+**3. Build the packaged app:**
+
+```bash
+cd user_app
+npm install
+npm run electron:build      # electron-builder → .app / .dmg (platform of the Mac)
+```
+
+Or, for a faster dev loop without packaging:
+
+```bash
+npm run electron:dev
+```
+
+**4. Run it on the Mac** and go through setup:
+- Choose **Launch emulated device** → **macOS POS**.
+- Set the **Backend URL** to `http://192.168.1.176:8000`.
+- Enter the site ID + bootstrap key, review, and complete — the User App
+  spawns `emulators/macos_pos_emulator.py`, which provisions the device and
+  streams DNA/heartbeat/telemetry to the backend.
+
+**5. Verify on the Dashboard** (host machine): the `macOS POS` device appears
+online with the **EMU** badge, live telemetry, and an active command/history —
+the same as running the emulator directly via `./scripts/start-emulator.sh`.
+
+> The backend should be in **emulation mode** for this
+> (`./scripts/start-dashboard.sh emulation`, simulator OFF) so the emulator is
+> the sole data source for the device.
+
+---
+
 ## 5. Page Working Flow
 
 ### Page 1 — Setup / Provisioning Wizard (First Run Only)
