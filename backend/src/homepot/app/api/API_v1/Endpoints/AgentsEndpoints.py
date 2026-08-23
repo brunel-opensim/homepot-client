@@ -43,8 +43,11 @@ async def list_agents() -> Dict[str, List[Dict]]:
         agents_status = []
 
         async with db_service.get_session() as session:
-            # Get all devices
-            result = await session.execute(select(Device))
+            # Get all active devices (exclude suspended/unpaired so the Data
+            # Collection page reflects only live, managed agents).
+            result = await session.execute(
+                select(Device).where(Device.is_active.is_(True))
+            )
             devices = result.scalars().all()
 
             if not devices:
