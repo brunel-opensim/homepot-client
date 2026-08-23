@@ -1545,9 +1545,7 @@ def parse_args(
     parser = argparse.ArgumentParser(description="HOMEPOT POS Device Emulator")
     d = defaults or {}
     parser.add_argument("--config", "-c", type=str, help="Path to JSON config file")
-    parser.add_argument(
-        "--backend-url", type=str, default=DEFAULT_BACKEND_URL, help="Backend URL"
-    )
+    parser.add_argument("--backend-url", type=str, default=None, help="Backend URL")
     parser.add_argument(
         "--site-id", type=str, default="", help="Site ID to provision under"
     )
@@ -1682,7 +1680,8 @@ def build_config(
         with open(path) as f:
             cfg = json.load(f)
         config = EmulatorConfig.from_dict({**d, **cfg})
-        config.backend_url = args.backend_url
+        if args.backend_url:
+            config.backend_url = args.backend_url
         if args.os_details:
             config.os_details = args.os_details
         if args.device_type:
@@ -1698,7 +1697,7 @@ def build_config(
         return config
 
     return EmulatorConfig(
-        backend_url=args.backend_url,
+        backend_url=args.backend_url or DEFAULT_BACKEND_URL,
         site_id=args.site_id,
         bootstrap_key=args.bootstrap_key,
         device_name=args.device_name.strip(),
