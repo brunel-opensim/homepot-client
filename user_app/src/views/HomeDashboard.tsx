@@ -97,7 +97,37 @@ export default function HomeDashboard() {
   const connectivity = status?.connectivity_state || 'unknown'
   const lifecycle = status?.lifecycle_state || 'unknown'
   const isOnline = connectivity === 'online'
+  const isOffline = connectivity === 'offline'
+  // 'unknown' (no heartbeat yet — e.g. right after provisioning) renders as
+  // CONNECTING instead of alarming red OFFLINE.
+  const isConnecting = !isOnline && !isOffline
 
+  const statusStyles = isOnline
+    ? {
+        card: 'bg-emerald-950 border border-emerald-800',
+        circle: 'border-emerald-400 bg-emerald-900',
+        text: 'text-emerald-400',
+        glyph: '✓',
+        label: 'SECURE — ONLINE',
+        dot: 'bg-emerald-400 animate-pulse',
+      }
+    : isConnecting
+      ? {
+          card: 'bg-amber-950 border border-amber-800',
+          circle: 'border-amber-400 bg-amber-900',
+          text: 'text-amber-400',
+          glyph: '⋯',
+          label: 'CONNECTING…',
+          dot: 'bg-amber-400 animate-pulse',
+        }
+      : {
+          card: 'bg-red-950 border border-red-800',
+          circle: 'border-red-400 bg-red-900',
+          text: 'text-red-400',
+          glyph: '✕',
+          label: 'OFFLINE',
+          dot: 'bg-red-500',
+        }
   const cpu = metrics?.cpu_percent ?? 0
   const mem = metrics?.memory_percent ?? 0
   const disk = metrics?.disk_percent ?? 0
@@ -133,24 +163,18 @@ export default function HomeDashboard() {
 
         {/* Status Badge */}
         <div className="px-5 pt-4">
-          <div className={`w-full rounded-xl p-4 flex items-center gap-3 ${
-            isOnline ? 'bg-emerald-950 border border-emerald-800' : 'bg-red-950 border border-red-800'
-          }`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 flex-shrink-0 ${
-              isOnline ? 'border-emerald-400 bg-emerald-900' : 'border-red-400 bg-red-900'
-            }`}>
-              <span className={`text-lg font-bold ${isOnline ? 'text-emerald-400' : 'text-red-400'}`}>
-                {isOnline ? '✓' : '✕'}
+          <div className={`w-full rounded-xl p-4 flex items-center gap-3 ${statusStyles.card}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 flex-shrink-0 ${statusStyles.circle}`}>
+              <span className={`text-lg font-bold ${statusStyles.text}`}>
+                {statusStyles.glyph}
               </span>
             </div>
             <div>
-              <p className={`font-bold text-sm ${isOnline ? 'text-emerald-400' : 'text-red-400'}`}>
-                {isOnline ? 'SECURE — ONLINE' : 'OFFLINE'}
+              <p className={`font-bold text-sm ${statusStyles.text}`}>
+                {statusStyles.label}
               </p>
             </div>
-            <div className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${
-              isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'
-            }`} />
+            <div className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${statusStyles.dot}`} />
           </div>
         </div>
 
