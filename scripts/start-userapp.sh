@@ -72,9 +72,17 @@ port_in_use() {
 
 userapp_ready() {
     local pid=$1
-    ps -p "$pid" >/dev/null 2>&1 \
-        && port_in_use 5174 \
-        && pgrep -g "$pid" -f "^$ELECTRON_BIN .* \\.$" >/dev/null 2>&1
+    ps -p "$pid" >/dev/null 2>&1 || return 1
+    port_in_use 5174 || return 1
+    if command_exists setsid; then
+        # Linux: confirm the Electron child via process-group tracking.
+        pgrep -g "$pid" -f "^$ELECTRON_BIN .* \\.$" >/dev/null 2>&1
+    else
+        # macOS has no setsid, so the Electron child shares the shell's
+        # process group; a live npm wrapper + the Vite port is the readiness
+        # signal here.
+        return 0
+    fi
 }
 
 ################################################################################
@@ -153,7 +161,9 @@ if ! command_exists npm; then
 fi
 print_success "npm found: $(npm --version)"
 
-for command in lsof pgrep setsid; do
+# setsid is Linux-only (util-linux); macOS falls back to nohup for process
+# detachment, so it is not required.
+for command in lsof pgrep; do
     if ! command_exists "$command"; then
         print_error "$command is required to manage the Electron User App lifecycle"
         exit 1
@@ -239,7 +249,12 @@ if command_exists nvm; then
 fi
 
 print_info "Starting Electron User App on http://localhost:5174..."
-nohup setsid npm run electron:dev > "$LOG_FILE" 2>&1 &
+if command_exists setsid; then
+    nohup setsid npm run electron:dev > "$LOG_FILE" 2>&1 &
+else
+    # macOS: no setsid, so detach with nohup only.
+    nohup npm run electron:dev > "$LOG_FILE" 2>&1 &
+fi
 USERAPP_PID=$!
 echo "$USERAPP_PID" > "$PID_FILE"
 
