@@ -402,7 +402,8 @@ export default function SiteDetail() {
             <h2 className="text-xl font-semibold text-white">Associated Devices</h2>
             {devices.some((d) => d.is_active === false) && (
               <span className="text-sm text-gray-400">
-                Grayed-out devices are suspended. Restore them to re-activate.
+                Grayed-out devices are inactive. Restore to see records, or archive/purge to clean
+                up.
               </span>
             )}
             {!isArchived && healthFilter && (
@@ -435,11 +436,18 @@ export default function SiteDetail() {
                   }`}
                 >
                   <td
-                    className="p-4 align-middle font-medium text-white cursor-pointer hover:underline"
-                    onClick={() =>
-                      navigate(`/device/${device.device_id || device.id}`, {
-                        state: { from: 'site', siteId: id },
-                      })
+                    className={`p-4 align-middle font-medium text-white ${
+                      device.is_active === false
+                        ? 'cursor-default'
+                        : 'cursor-pointer hover:underline'
+                    }`}
+                    onClick={
+                      device.is_active === false
+                        ? undefined
+                        : () =>
+                            navigate(`/device/${device.device_id || device.id}`, {
+                              state: { from: 'site', siteId: id },
+                            })
                     }
                   >
                     {device.name}
@@ -480,7 +488,9 @@ export default function SiteDetail() {
                               : 'bg-yellow-500/10 text-yellow-500'
                       }`}
                     >
-                      {device.lifecycle_state || 'UNKNOWN'}
+                      {device.lifecycle_state === 'unpaired'
+                        ? 'INACTIVE'
+                        : device.lifecycle_state || 'UNKNOWN'}
                     </span>
                   </td>
                   <td className="p-4 align-middle">
@@ -568,6 +578,18 @@ export default function SiteDetail() {
                           className="h-8 w-8 text-gray-400 hover:text-teal-400 hover:bg-teal-400/10"
                         >
                           <RotateCcw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDeviceClick(device);
+                          }}
+                          title="Archive or purge device"
+                          className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     ) : (
