@@ -402,7 +402,8 @@ export default function SiteDetail() {
             <h2 className="text-xl font-semibold text-white">Associated Devices</h2>
             {devices.some((d) => d.is_active === false) && (
               <span className="text-sm text-gray-400">
-                Grayed-out devices are suspended. Restore them to re-activate.
+                Grayed-out devices are inactive. Restore to re-activate, or archive/purge to clean
+                up.
               </span>
             )}
             {!isArchived && healthFilter && (
@@ -568,6 +569,18 @@ export default function SiteDetail() {
                           className="h-8 w-8 text-gray-400 hover:text-teal-400 hover:bg-teal-400/10"
                         >
                           <RotateCcw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDeviceClick(device);
+                          }}
+                          title="Archive or purge device"
+                          className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     ) : (
