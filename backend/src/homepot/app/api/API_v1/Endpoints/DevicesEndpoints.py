@@ -22,6 +22,7 @@ from homepot.app.auth_utils import (
     authenticate_device_credentials,
     device_id_header,
     get_accessible_site_ids,
+    get_current_device,
     require_user,
     security,
     verify_device_belongs_to_user,
@@ -744,14 +745,16 @@ async def unpair_device(
     payload: UnpairDeviceRequest,
     request: Request,
     db: SASession = Depends(get_db),
-    current_user: UserDict = Depends(require_user()),
+    current_device: Device = Depends(get_current_device),
 ) -> Dict[str, Any]:
     """Explicitly unpair a device.
 
-    Authenticates the caller, verifies site ownership (operator+ role),
-    validates the current lifecycle state, supports idempotency,
-    revokes credentials and commands, transitions the device to
-    ``unpaired`` state, and produces a complete audit event.
+    Device-initiated: the device authenticates with its own API key/ID (as the
+    User App does) and unpairs itself. It may only unpair its own record.
+
+    Validates the current lifecycle state, supports idempotency, revokes
+    credentials and commands, transitions the device to ``unpaired`` state, and
+    produces a complete audit event.
 
     Idempotency
     -----------
@@ -761,11 +764,12 @@ async def unpair_device(
     side-effects.
     """
     try:
-        db_user = cast(
-            User, db.query(User).filter(User.email == current_user["email"]).first()
-        )
-        if not db_user:
-            raise HTTPException(status_code=403, detail="User not found")
+        # A device may only unpair itself.
+        if current_device.device_id != device_id:
+            raise HTTPException(
+                status_code=403,
+                detail="A device may only unpair its own record",
+            )
         db_service = await get_database_service()
 
         # Look up the device
@@ -774,9 +778,6 @@ async def unpair_device(
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
-
-        # Verify site ownership (operator+)
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
         # ----- Idempotency check -----
         if payload.idempotency_key:
@@ -879,11 +880,11 @@ async def unpair_device(
         await audit_logger.log_event(
             AuditEventType.DEVICE_UNPAIRED,
             f"Device '{device.name}' ({device.device_id}) unpaired by "
-            f"{current_user['email']}"
+            f"the device itself (self-unpair)"
             + (f" — {payload.reason}" if payload.reason else ""),
             device_id=int(device.id),
             site_id=int(device.site_id) if device.site_id else None,
-            user_id=int(db_user.id),
+            user_id=None,
             ip_address=ip_address,
             user_agent=user_agent,
             old_values={
@@ -904,7 +905,7 @@ async def unpair_device(
         logger.info(
             "Device unpaired: %s by %s (reason=%s)",
             device_id,
-            current_user["email"],
+            "device-self",
             payload.reason,
         )
 
@@ -1299,7 +1300,7 @@ async def retire_device(
             device,
             from_state=str(current_lifecycle),
             to_state=LifecycleState.UNPAIRED.value,
-            triggered_by_user_id=int(db_user.id),
+            triggered_by_user_id=None,
             reason=payload.reason,
             idempotency_key=payload.idempotency_key,
         )
@@ -1310,11 +1311,11 @@ async def retire_device(
         await audit_logger.log_event(
             AuditEventType.DEVICE_UNPAIRED,
             f"Device '{device.name}' ({device.device_id}) unpaired by "
-            f"{current_user['email']}"
+            f"the device itself (self-unpair)"
             + (f" — {payload.reason}" if payload.reason else ""),
             device_id=int(device.id),
             site_id=int(device.site_id) if device.site_id else None,
-            user_id=int(db_user.id),
+            user_id=None,
             ip_address=ip_address,
             user_agent=user_agent,
             old_values={"lifecycle_state": current_lifecycle, "is_active": True},
