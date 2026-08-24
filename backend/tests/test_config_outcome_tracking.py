@@ -121,7 +121,7 @@ def test_config_history_persists_outcome_and_rollback(client: TestClient) -> Non
         CONFIG_HISTORY_URL,
         json={
             "device_id": "real-pos-outcome",
-            "action": "update_pos_payment_config",
+            "action": "update_config",
             "parameter_name": "push_command:APPLY_CONFIG",
             "old_value": {"version": "2.0.0"},
             "new_value": {"version": "2.1.0"},
@@ -175,7 +175,7 @@ def test_config_history_derives_simulated_provenance(client: TestClient) -> None
         CONFIG_HISTORY_URL,
         json={
             "device_id": "sim-pos-outcome",
-            "action": "update_pos_payment_config",
+            "action": "update_config",
             "parameter_name": "push_command:APPLY_CONFIG",
             "new_value": {"version": "9.9.9"},
             "success": True,
@@ -204,7 +204,7 @@ def test_config_history_rejects_mismatched_device(client: TestClient) -> None:
         CONFIG_HISTORY_URL,
         json={
             "device_id": "some-other-device",
-            "action": "update_pos_payment_config",
+            "action": "update_config",
             "parameter_name": "push_command:APPLY_CONFIG",
             "new_value": {"version": "1.0.0"},
             "success": True,

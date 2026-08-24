@@ -204,11 +204,11 @@ class DeviceAgentSimulator:
             config_url = data.get("config_url", "")
             config_version = data.get("config_version", "")
 
-            if action == "update_pos_payment_config":
+            if action == "update_config":
                 return await self._handle_config_update(
                     config_url, config_version, data, notification_data
                 )
-            elif action == "restart_pos_app":
+            elif action == "restart":
                 return await self._handle_restart()
             elif action == "health_check":
                 return await self._handle_health_check()

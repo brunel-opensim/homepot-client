@@ -281,10 +281,10 @@ def _set_permissions(device_id: str, permissions: Dict[str, bool]) -> None:
         db.close()
 
 
-def test_run_command_requires_owner_grant(client: TestClient) -> None:
-    """The API rejects commands before the owner grants execution."""
+def test_run_command_requires_root_grant(client: TestClient) -> None:
+    """The API rejects command execution before the owner grants root."""
     ctx = _setup_site_and_device(client)
-    _set_permissions(ctx["device_id"], {"command_execution": False})
+    _set_permissions(ctx["device_id"], {"root_access": False})
 
     resp = client.post(
         f"/api/v1/devices/{ctx['device_id']}/commands",
@@ -296,11 +296,11 @@ def test_run_command_requires_owner_grant(client: TestClient) -> None:
     )
 
     assert resp.status_code == 403
-    assert resp.json()["detail"]["missing_permissions"] == ["command_execution"]
+    assert resp.json()["detail"]["missing_permissions"] == ["root_access"]
 
 
-def test_run_command_queues_after_owner_grant(client: TestClient) -> None:
-    """The API queues commands after owner approval."""
+def test_manage_grant_alone_denies_run_command(client: TestClient) -> None:
+    """A manage (command_execution) grant alone cannot run commands — root needed."""
     ctx = _setup_site_and_device(client)
     _set_permissions(ctx["device_id"], {"command_execution": True})
 
@@ -313,28 +313,26 @@ def test_run_command_queues_after_owner_grant(client: TestClient) -> None:
         headers=ctx["auth_headers"],
     )
 
-    assert resp.status_code == 201
-    assert resp.json()["command_type"] == "run_command"
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["missing_permissions"] == ["root_access"]
 
 
-def test_root_command_requires_separate_root_grant(client: TestClient) -> None:
-    """The API requires a separate root grant for sudo execution."""
+def test_run_command_queues_after_root_grant(client: TestClient) -> None:
+    """The API queues commands after the owner grants root access."""
     ctx = _setup_site_and_device(client)
-    _set_permissions(
-        ctx["device_id"], {"command_execution": True, "root_access": False}
-    )
+    _set_permissions(ctx["device_id"], {"root_access": True})
 
     resp = client.post(
         f"/api/v1/devices/{ctx['device_id']}/commands",
         json={
             "command_type": "run_command",
-            "payload": {"data": {"command": "id", "run_as_root": True}},
+            "payload": {"data": {"command": "whoami"}},
         },
         headers=ctx["auth_headers"],
     )
 
-    assert resp.status_code == 403
-    assert resp.json()["detail"]["missing_permissions"] == ["root_access"]
+    assert resp.status_code == 201
+    assert resp.json()["command_type"] == "run_command"
 
 
 def test_command_history_endpoint(client: TestClient) -> None:

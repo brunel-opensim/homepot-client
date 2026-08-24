@@ -337,7 +337,7 @@ class AgentConfigHistoryRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "device_id": "physical-pos-001",
-                "action": "update_pos_payment_config",
+                "action": "update_config",
                 "parameter_name": "push_command:APPLY_CONFIG",
                 "new_value": {"command": "APPLY_CONFIG", "version": "2.1.0"},
                 "success": True,

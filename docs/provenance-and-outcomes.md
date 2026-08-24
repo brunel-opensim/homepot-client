@@ -84,11 +84,11 @@ Terminal statuses are `completed`, `failed`, and `expired`; these form the
 denominator of MW-01 and MW-02.
 
 A command can only be queued for a device once its owner has granted the
-command's required permission (`restart`/`shutdown` need `root_access`;
-`update_config`/`update_pos_payment_config` need `filesystem_access`;
-`health_check`/`restart_pos_app`/`run_command`/`run_script` need
-`command_execution`; `ping` and `request_permission` need none). Command KPIs
-therefore cover only the granted command types.
+command's required permission (`run_command`/`run_script`/`scan_filesystem`/
+`update_config`/`restart`/`shutdown` need `root_access`; `health_check` needs
+`command_execution`; `list_processes` needs `process_monitoring`;
+`list_connections` needs `network_monitoring`; `ping` and `request_permission`
+need none). Command KPIs therefore cover only the granted command types.
 
 The agent polls for pending commands (`GET /api/v1/devices/{id}/pending` or
 equivalent), acknowledges each one (stamping `sent_at`), executes it, and

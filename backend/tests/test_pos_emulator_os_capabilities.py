@@ -85,7 +85,7 @@ def test_derive_push_channel_and_token_for_os(os_details, expected_channel):
         eng = emu.POSEmulator(cfg)
         assert eng.push_channel is None
         assert eng.push_token is None
-        assert eng._push_delivery_note("restart_pos_app") is None
+        assert eng._push_delivery_note("restart") is None
         return
     cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
     cfg.os_details = os_details
@@ -98,7 +98,7 @@ def test_derive_push_channel_and_token_for_os(os_details, expected_channel):
         assert host.startswith("wns.")
     else:
         assert eng.push_token.startswith(expected_channel)
-    note = eng._push_delivery_note("restart_pos_app")
+    note = eng._push_delivery_note("restart")
     assert note is not None
     assert expected_channel in note.lower()
 

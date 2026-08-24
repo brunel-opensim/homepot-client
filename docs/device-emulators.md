@@ -104,7 +104,7 @@ The Dashboard immediately shows the emulated device with its mock DNA, online st
 4. **Loops** — Three concurrent async loops run until shutdown:
    - **Heartbeat** — `POST /agent/heartbeat` at a configurable interval
    - **Telemetry** — `POST /agent/telemetry` with simulated CPU/memory/disk metrics, network latency, and runtime uptime (`uptime_seconds`)
-   - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`; `status_request` returns a live status snapshot to Live Logs, and composed push commands (`update_pos_payment_config`, `restart_pos_app`, `health_check`, custom) are applied/acknowledged and summarised to Live Logs. Successful pushes are recorded in Push History (`POST /agent/config-history`); a push that fails on the device is recorded there too with `success=false` and the failure reason, and posts an error-level line to Live Logs.
+   - **Command polling** — `GET /devices/pending`, ACK each command, simulate execution, then report result via `PUT /devices/{command_id}/status`; `status_request` returns a live status snapshot to Live Logs, and composed push commands (`update_config`, `restart`, `health_check`, custom) are applied/acknowledged and summarised to Live Logs. Successful pushes are recorded in Push History (`POST /agent/config-history`); a push that fails on the device is recorded there too with `success=false` and the failure reason, and posts an error-level line to Live Logs.
    - **Alert injection** — `POST /agent/alert` with occasional network-latency spikes, so the Dashboard's Alerts tab is populated
 
 ### Persistence
@@ -219,10 +219,10 @@ Queuing a command via the Dashboard (e.g. `restart`, `ping`, `update_config`) se
 
 ### Push-command failure simulation
 
-Composed push commands (`update_pos_payment_config`, `restart_pos_app`, `health_check`, custom) have a configurable failure probability controlled by `--command-failure-rate` (default `0.1`). When a push fails the emulator:
+Composed push commands (`update_config`, `restart`, `health_check`, custom) have a configurable failure probability controlled by `--command-failure-rate` (default `0.1`). When a push fails the emulator:
 
 - reports `status: "failed"` to `PUT /devices/{command_id}/status`, so the device command is marked `failed` with the reason in its `result`;
-- posts an **error-level** line to Live Logs (e.g. `Command received: Apply Config (update_pos_payment_config) | Configuration download failed: Connection timeout`);
+- posts an **error-level** line to Live Logs (e.g. `Command received: Apply Config (update_config) | Configuration download failed: Connection timeout`);
 - records a **failed** entry in Push History with the reason in the card title and `result` details (rendered with a red X on the Push History page).
 
 `health_check` fails when any of its tests fails (e.g. `network=fail: timeout`). Set `--command-failure-rate 1.0` to make every pushed config/restart/custom command fail, which makes the failure path easy to demo end-to-end.
@@ -296,7 +296,7 @@ assert derive_push_channel("Linux 6.8.0 (Debian 12)") is None
 On boot, a push-capable emulator prints its channel + token and includes
 `device_token` in the `device-dna` registration payload. `push_channel` and
 `push_token` also appear in every status report. When a command is received the
-engine logs an OS-specific delivery note (e.g. `restart_pos_app pushed via WNS`).
+engine logs an OS-specific delivery note (e.g. `restart pushed via WNS`).
 
 These are the engine's **OS behavior hooks**:
 
