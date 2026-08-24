@@ -53,7 +53,13 @@ _HEARTBEAT_ONLINE_SECONDS = 120
 
 
 def _device_is_online(device: Device) -> bool:
-    """Return True if the device heartbeated within the online window."""
+    """Return True if the device heartbeated within the online window.
+
+    A device outside the ``active`` lifecycle (pending, suspended, unpaired)
+    is never counted as online.
+    """
+    if device.lifecycle_state != LifecycleState.ACTIVE.value:
+        return False
     heartbeat = device.last_heartbeat_at
     if not heartbeat:
         return False
