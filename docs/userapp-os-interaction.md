@@ -215,6 +215,9 @@ User App (Electron main):
 - [ ] Map the nine command types to OS calls per tier (Monitor read-only;
       Manage via `sudo`). — done in `command_poller.process_command`, reused by
       the bundled agent.
+- [ ] **Packaging**: bundle the Python agent + its venv + `backend/src` inside the
+      Electron app so the real device works from an installed app, not just a dev
+      checkout. (Readiness gates in the [Testing Runbook](userapp-os-interaction-testing.md).)
 
 Docs:
 

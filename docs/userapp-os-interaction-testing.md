@@ -92,6 +92,28 @@ picks up from `/push/pending` and reacts to by polling `/devices/pending` **imme
 On macOS (polling-only) there is no wake-up, so the command arrives on the next poll
 interval — that is expected.
 
+### Real-device readiness checklist
+
+The code path for a real device is built, but "moving to real devices" has four
+gates before the emulator stops being the primary validation target:
+
+1. **Real-agent path proven on the Mac.** Run Path 2 above end-to-end once on the
+   target Mac and confirm every link in the verify table — registration, heartbeat,
+   permission sync, a Monitor-tier command, and a Manage-tier command.
+2. **Electron packaging.** Today `main.ts` spawns the agent using the **repo's**
+   `.venv` and walks up to find `emulators/` (`getProjectRoot()`). A self-contained
+   installed app must **bundle the Python agent + its venv + `backend/src`** inside
+   the app (e.g. `resources/`). Until that is done, the real device only works from a
+   dev checkout, not as an installed app.
+3. **Host setup on the target Mac.** Manage-tier execution needs **passwordless sudo**
+   for the agent user (`sudo -n`), and `brightness`/`volume` config needs its CLI
+   tools installed. These are ops notes, not code.
+4. **APNs push (Phase 2).** macOS delivery works by polling; near-instant wake-up
+   needs an Apple Developer ID + push entitlement + certificate.
+
+Until gates 1–3 are green, treat the emulator as the reliable baseline and the
+real-agent path as the thing to validate each change against.
+
 ### Granting Manage (root) — sudo caveat
 
 Manage-tier execution runs through `sudo -n`:
