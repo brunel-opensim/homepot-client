@@ -113,6 +113,21 @@ re-checks it **before** executing.
 Every permission key now gates at least one command, so a grant in the
 User App always enables something.
 
+### User App presentation (owner-facing)
+
+The User App presents permissions to the device owner as **two grouped
+toggles** rather than the five raw keys — owners don't reason about the
+per-command granularity, they decide whether the Dashboard may manage the
+device and whether that may include root:
+
+| User App toggle | Maps to permissions | Enables |
+|---|---|---|
+| **Allow Dashboard to manage this device** | `command_execution`, `filesystem_access`, `process_monitoring`, `network_monitoring` | run command/script, restart app, diagnostics, update config/settings, scan filesystem, view processes & network |
+| **Allow root access** | `root_access` | sudo on commands/scripts, reboot, shutdown (only available when management is on) |
+
+The backend still enforces the strict **per-command** permission checks; the
+two-toggles are purely the owner-facing simplification.
+
 ## Command dispatch flow (end-to-end)
 
 ```
