@@ -585,42 +585,61 @@ export const DeviceInfoWidget = ({ device }) => (
   </Card>
 );
 
-const PERMISSION_LABELS = {
-  root_access: 'Root Access',
-  command_execution: 'Command & Script Execution',
-  process_monitoring: 'Process Monitoring',
-  filesystem_access: 'Filesystem Access',
-  network_monitoring: 'Network Monitoring',
-};
+const PERMISSION_GROUPS = [
+  {
+    key: 'monitor',
+    label: 'Monitoring Access',
+    keys: ['command_execution', 'filesystem_access', 'process_monitoring', 'network_monitoring'],
+    commands: 'Run Diagnostics, List Processes, List Network Connections',
+  },
+  {
+    key: 'manage',
+    label: 'Managing Access',
+    keys: ['root_access'],
+    commands: 'Run Command, Run Script, Scan Filesystem, Update Config/Firmware, Reboot, Shut Down',
+  },
+];
 
 const CapabilitiesMatrix = ({ device }) => {
   const permissions = device?.device_permissions || {};
   const capabilities = device?.capabilities || {};
-  const keys = Object.keys(PERMISSION_LABELS);
+
+  const groupState = (group) => {
+    const supported = group.keys.filter((key) => capabilities[key]);
+    const capable = supported.length > 0;
+    const granted = capable && supported.every((key) => permissions[key]);
+    return { capable, granted };
+  };
 
   return (
     <div className="space-y-2 text-xs">
-      {keys.map((key) => (
-        <div key={key} className="flex items-center justify-between">
-          <span className="text-slate-400">{PERMISSION_LABELS[key]}</span>
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-[10px] font-mono ${capabilities[key] ? 'text-emerald-500' : 'text-slate-600'}`}
-            >
-              {capabilities[key] ? 'capable' : '—'}
-            </span>
-            {permissions[key] ? (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                granted
-              </span>
-            ) : (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
-                none
-              </span>
-            )}
+      {PERMISSION_GROUPS.map((group) => {
+        const { capable, granted } = groupState(group);
+        return (
+          <div key={group.key}>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">{group.label}</span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-[10px] font-mono ${capable ? 'text-emerald-500' : 'text-slate-600'}`}
+                >
+                  {capable ? 'capable' : '—'}
+                </span>
+                {granted ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    granted
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                    none
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-0.5">{group.commands}</p>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -725,40 +744,6 @@ export const DeviceActionsWidget = ({ actions, onActionClick, loadingAction }) =
     </div>
   </Card>
 );
-
-export const PermissionsWidget = ({ device }) => {
-  const permissions = device?.device_permissions || {};
-  const capabilities = device?.capabilities || {};
-  const keys = Object.keys(PERMISSION_LABELS);
-
-  return (
-    <Card>
-      <h3 className="text-sm text-slate-300 font-medium mb-3">PERMISSIONS</h3>
-      <div className="border-t border-[#1f2735] mb-2"></div>
-      <div className="space-y-2">
-        {keys.map((key) => (
-          <div key={key} className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">{PERMISSION_LABELS[key]}</span>
-            <div className="flex items-center gap-2">
-              {capabilities[key] ? (
-                <span className="text-[10px] text-slate-500 font-mono">capable</span>
-              ) : null}
-              {permissions[key] ? (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  granted
-                </span>
-              ) : (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/10 text-slate-500 border border-slate-500/20">
-                  none
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-};
 
 export const DirectConnectWidget = ({
   isOpen,
