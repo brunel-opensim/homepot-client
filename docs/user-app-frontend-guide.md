@@ -202,6 +202,70 @@ the same as running the emulator directly via `./scripts/start-emulator.sh`.
 > (`./scripts/start-dashboard.sh emulation`, simulator OFF) so the emulator is
 > the sole data source for the device.
 
+## 4.7 Runbook — User App + emulator on macOS (end-to-end)
+
+A concise, repeatable sequence for running the User App on a Mac and having it
+provision an emulator into the backend, with live telemetry on both sides.
+
+### 1. Dashboard (technician) — prepare the site
+
+1. Add a **Site** via the Dashboard (Sites → **Add Site**).
+2. Copy the **Site ID**.
+3. Generate a **Bootstrap Key** for that site.
+4. Hand the **Site ID** and **Bootstrap Key** to the user.
+
+### 2. Mac — configure and launch the User App
+
+```bash
+# Step 1 — stop any running instance
+./scripts/stop-userapp.sh
+
+# Step 2 — create the local env file (once)
+cp .env.example .env.local
+
+# Step 3 — point the app at the backend over the LAN (edit .env.local)
+# VITE_API_BASE_URL=http://192.168.1.176:8000/api/v1
+
+# Step 4 — launch fresh with the site details pre-filled
+./scripts/start-userapp.sh --reset \
+  --site-id <site-id> \
+  --bootstrap-key '<bootstrap-key>' \
+  --device-name demo-mac-1 \
+  --device-type pos_terminal \
+  --os-details mac
+```
+
+Then, in the wizard: **Launch emulated device → macOS POS**, confirm the
+**Backend URL** (`http://192.168.1.176:8000`), and complete — the User App
+spawns `emulators/macos_pos_emulator.py`, which provisions the device and
+streams heartbeats/telemetry/logs to the backend.
+
+> For development, the well-known dev bootstrap key `homepot-dev-emulator-key`
+> is accepted for emulated devices (outside production). A generated key works
+> the same way.
+
+### Where the User App's telemetry comes from
+
+The telemetry shown in the User App comes from the **backend (Dashboard)
+database, in real time** — not from any local device database:
+
+1. **Emulator** (the Python process on the Mac) pushes heartbeats, telemetry,
+   and logs to the backend over the LAN (`POST /agent/heartbeat`,
+   `/agent/telemetry`, `/agent/logs`), which stores them in PostgreSQL
+   (`device_metrics`, `error_logs`, etc.).
+2. **User App** (Electron renderer) pulls that data from the backend via the
+   API:
+   - `fetchDeviceMetrics` → `GET /agent/{deviceId}/metrics`
+   - `fetchDeviceStatus` → `GET /agent/{deviceId}/status`
+   - `fetchDevice` → `GET /devices/device/{deviceId}`
+   - it polls every **15s** (`setInterval(fetchMetrics, 15000)` in
+     `HomeDashboard`).
+
+So the User App is a **client that mirrors the Dashboard** — it doesn't keep a
+telemetry store of its own. The only local persistence on the Mac is the device
+credentials (`~/.homepot/credentials`) and the emulator's config/credentials
+(`~/.homepot/emulators/`), not telemetry.
+
 ---
 
 ## 5. Page Working Flow
