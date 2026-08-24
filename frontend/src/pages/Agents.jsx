@@ -234,7 +234,7 @@ export default function AgentList() {
         <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
           <div className="relative w-full overflow-auto flex-1">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-slate-900/80 text-slate-400 border-b border-slate-800">
+              <thead className="text-xs bg-slate-900/80 text-slate-400 border-b border-slate-800">
                 <tr>
                   <th
                     className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
