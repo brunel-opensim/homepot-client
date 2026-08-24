@@ -79,6 +79,90 @@ async def test_lifecycle_active_device_online_connectivity(temp_db: Any) -> None
 
 
 @pytest.mark.asyncio
+async def test_connectivity_reflects_lifecycle_state(temp_db: Any) -> None:
+    """Non-active devices report offline even with a recent heartbeat."""
+    from datetime import datetime, timedelta, timezone
+
+    from homepot.app.api.API_v1.Endpoints.DevicesEndpoints import (
+        _compute_connectivity,
+    )
+
+    db_service = await get_database_service()
+
+    unique_suffix = str(uuid.uuid4())[:8]
+    site_id = f"test-site-conn-life-{unique_suffix}"
+
+    async with db_service.get_session() as session:
+        site = Site(site_id=site_id, name="Test Site", is_active=True)
+        session.add(site)
+        await session.commit()
+        await session.refresh(site)
+
+        recent = datetime.now(timezone.utc)
+        devices = [
+            Device(
+                device_id=f"test-conn-active-{unique_suffix}",
+                name="Active",
+                device_type="pos_terminal",
+                site_id=site.id,
+                is_active=True,
+                lifecycle_state=LifecycleState.ACTIVE.value,
+                last_heartbeat_at=recent,
+            ),
+            Device(
+                device_id=f"test-conn-unpaired-{unique_suffix}",
+                name="Unpaired",
+                device_type="pos_terminal",
+                site_id=site.id,
+                is_active=False,
+                lifecycle_state=LifecycleState.UNPAIRED.value,
+                last_heartbeat_at=recent,
+            ),
+            Device(
+                device_id=f"test-conn-suspended-{unique_suffix}",
+                name="Suspended",
+                device_type="pos_terminal",
+                site_id=site.id,
+                is_active=False,
+                lifecycle_state=LifecycleState.SUSPENDED.value,
+                last_heartbeat_at=recent,
+            ),
+            Device(
+                device_id=f"test-conn-stale-{unique_suffix}",
+                name="Stale active",
+                device_type="pos_terminal",
+                site_id=site.id,
+                is_active=True,
+                lifecycle_state=LifecycleState.ACTIVE.value,
+                last_heartbeat_at=recent - timedelta(minutes=10),
+            ),
+        ]
+        session.add_all(devices)
+        await session.commit()
+
+        for device in devices:
+            await session.refresh(device)
+
+        by_id = {d.device_id: d for d in devices}
+        assert (
+            _compute_connectivity(by_id[f"test-conn-active-{unique_suffix}"])
+            == "online"
+        )
+        assert (
+            _compute_connectivity(by_id[f"test-conn-unpaired-{unique_suffix}"])
+            == "offline"
+        )
+        assert (
+            _compute_connectivity(by_id[f"test-conn-suspended-{unique_suffix}"])
+            == "offline"
+        )
+        assert (
+            _compute_connectivity(by_id[f"test-conn-stale-{unique_suffix}"])
+            == "offline"
+        )
+
+
+@pytest.mark.asyncio
 async def test_lifecycle_unpair_sets_state(temp_db: Any) -> None:
     """Unpairing a device should set lifecycle_state to unpaired."""
     db_service = await get_database_service()

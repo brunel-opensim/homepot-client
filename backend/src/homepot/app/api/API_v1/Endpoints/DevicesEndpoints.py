@@ -62,7 +62,14 @@ _HEARTBEAT_ONLINE_SECONDS = 120
 
 
 def _compute_connectivity(device: Device) -> str:
-    """Return online/offline/unknown based on heartbeat recency."""
+    """Return online/offline/unknown based on heartbeat recency.
+
+    A device that is not in the ``active`` lifecycle (pending, suspended,
+    unpaired) is never online — it cannot heartbeat its way back after being
+    suspended or unpaired.
+    """
+    if device.lifecycle_state != LifecycleState.ACTIVE.value:
+        return ConnectivityState.OFFLINE.value
     if not device.last_heartbeat_at:
         return ConnectivityState.UNKNOWN.value
     heartbeat = device.last_heartbeat_at
