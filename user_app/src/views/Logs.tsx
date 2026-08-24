@@ -80,10 +80,10 @@ export default function Logs() {
   }, [refresh])
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
-      <div className="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700">
+    <div className="h-screen bg-slate-900 flex items-center justify-center p-4 font-sans overflow-hidden">
+      <div className="w-full max-w-sm h-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden">
+        {/* Header — stays fixed */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700 shrink-0">
           <div>
             <h1 className="text-slate-100 font-bold text-base tracking-wide">HOMEPOT Agent</h1>
             <p className="text-slate-500 text-xs">Application Logs</p>
@@ -95,15 +95,15 @@ export default function Logs() {
 
         {/* Error banner */}
         {error && (
-          <div className="px-5 pt-3">
+          <div className="px-5 pt-3 shrink-0">
             <div className="bg-red-950 border border-red-800 rounded-lg px-4 py-2.5">
               <p className="text-xs text-red-300">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Content */}
-        <div className="px-5 py-2 min-h-40">
+        {/* Content — scrollable logs, header + tab bar stay fixed */}
+        <div className="px-5 py-2 flex-1 overflow-y-auto min-h-0">
           {logs.length === 0 ? (
             <p className="text-center text-slate-600 text-sm py-8">No application events yet.</p>
           ) : (
