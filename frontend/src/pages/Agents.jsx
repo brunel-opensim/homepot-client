@@ -118,9 +118,6 @@ export default function AgentList() {
             : 'bg-red-900/30 text-red-400 border border-red-800'
         }`}
       >
-        <span
-          className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isOnline ? 'bg-green-400' : 'bg-red-400'}`}
-        />
         {isOnline ? 'Online' : 'Offline'}
       </span>
     );
