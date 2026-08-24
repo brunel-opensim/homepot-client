@@ -39,12 +39,36 @@ How the installed app hands a received command to the host OS. IPC is **here**,
 not on the delivery path:
 
 - The User App is an Electron shell. It owns a small **local dispatch service**
-  (embedded Node code, or the bundled Python agent) and talks to it over IPC —
-  the context-isolated `ipcMain`/preload bridge already in
-  `user_app/electron/main.ts`.
+  and talks to it over IPC — the context-isolated `ipcMain`/preload bridge
+  already in `user_app/electron/main.ts`.
 - The renderer never talks to the OS directly; every privileged action goes
-  through the main process, which performs the OS call (`child_process`,
-  `sudo`, filesystem, reboot/shutdown) and returns the result.
+  through the main process, which performs the OS call and returns the result.
+
+#### Decision: the local dispatch engine is the bundled Python agent
+
+The User App reuses the **bundled Python device agent**
+(`homepot.agent.real_device_agent` → `command_poller.process_command`) as a
+background child process, rather than reimplementing command execution in
+TypeScript. This reuses the real execution for all nine command types
+(including the OS settings adapter and `sudo` handling) and the permission
+gating, and matches how the app already spawns Python emulators.
+
+- **Spawn**: Electron main runs
+  `python -m homepot.agent.real_device_agent` with
+  `PYTHONPATH=<repo>/backend/src` and `HOMEPOT_AGENT_CONFIG=<config>`.
+- **Config**: Electron writes `~/.homepot/agent/agent-config.json` from the
+  stored credentials (`device_id`, `api_key`, `site_id`, `device_type`,
+  `os_details`) and resolves `backend_url` from `HOMEPOT_BACKEND_URL` →
+  stored `backend_url` → `http://localhost:8000/api/v1`.
+- **Credentials handoff**: the agent's `create_credential_storage()` reads the
+  same `~/.homepot/credentials` file Electron writes, so provisioned values
+  are consistent either way.
+- **Lifecycle**: Electron auto-starts the agent on launch when provisioned
+  (`enrollment_method !== 'emulated'`, which keeps using the emulator), stops
+  it on quit, and exposes `agent:start` / `agent:status` / `agent:stop` IPC.
+- The agent then runs registration, heartbeat, telemetry, the pending-command
+  loop (poll → permission re-check → `process_command` → report), and a
+  watchdog — exactly the on-device command loop the User App needs.
 
 ## Platform channel matrix
 
@@ -176,14 +200,17 @@ Backend:
 
 User App (Electron main):
 
-- [ ] On-device command loop: poll `GET /devices/pending`, re-check
-      `device_permissions`, execute, report `PUT /devices/{id}/status`.
-- [ ] Local dispatch service over IPC (`ipcMain` handlers that execute commands
-      against the host and return results).
+- [x] **On-device command loop**: resolved by bundling the Python device agent
+      (spawn via `HOMEPOT_AGENT_CONFIG` + `PYTHONPATH`; it polls `GET /devices/pending`,
+      re-checks `device_permissions`, executes, reports `PUT /devices/{id}/status`).
+- [x] **Local dispatch service**: Electron main spawns the agent, auto-starts it
+      when provisioned, stops it on quit; `agent:start` / `agent:status` /
+      `agent:stop` IPC handlers.
 - [ ] Wake-up listener per platform (FCM/WNS/APNs) that triggers a
       `GET /devices/pending` pull; polling interval as fallback.
 - [ ] Map the nine command types to OS calls per tier (Monitor read-only;
-      Manage via `sudo`).
+      Manage via `sudo`). — done in `command_poller.process_command`, reused by
+      the bundled agent.
 
 Docs:
 
@@ -193,7 +220,7 @@ Docs:
 ## Open questions
 
 - Should the local dispatch service be embedded Node (TS) or the bundled
-  Python agent? (Embedded TS keeps the app single-runtime; the Python agent
-  reuses `command_poller`'s sudo/execution logic today.)
+  Python agent? → **Resolved: bundled Python agent** (reuses `process_command`
+  execution, permission gating, and the emulator-spawn pattern).
 - Does Windows POS need a packaged identity for WNS, or will it poll?
 - Which MDM provider (if any) targets macOS and Windows fleets first?

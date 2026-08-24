@@ -11,6 +11,8 @@ const CREDENTIALS_DIR = path.join(os.homedir(), '.homepot')
 const CREDENTIALS_FILE = path.join(CREDENTIALS_DIR, 'credentials')
 const IDENTITY_FILE = path.join(CREDENTIALS_DIR, 'identity')
 const EMULATOR_DIR = path.join(CREDENTIALS_DIR, 'emulators')
+const AGENT_DIR = path.join(CREDENTIALS_DIR, 'agent')
+const AGENT_CONFIG_FILE = path.join(AGENT_DIR, 'agent-config.json')
 const MAX_APP_LOG_ENTRIES = 15
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
@@ -18,6 +20,7 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let emulatorProcess: ChildProcess | null = null
 let emulatorDeviceId: string | null = null
+let agentProcess: ChildProcess | null = null
 // Recent stderr lines from the emulator process, surfaced in the setup error
 // when the emulator fails to start (e.g. missing python/httpx).
 let emulatorStderr: string[] = []
@@ -438,6 +441,139 @@ function registerIpcHandlers() {
       deviceId: emulatorDeviceId,
     }
   })
+
+  ipcMain.handle('agent:start', async () => {
+    recordAppEvent('info', 'agent', 'Starting on-device agent')
+    const started = startAgentProcess()
+    return { started }
+  })
+
+  ipcMain.handle('agent:status', async () => {
+    return {
+      running: agentProcess !== null,
+      pid: agentProcess?.pid ?? null,
+    }
+  })
+
+  ipcMain.handle('agent:stop', async () => {
+    killAgent()
+    return true
+  })
+}
+
+// --- On-device agent (real command execution) -------------------------------
+
+/**
+ * The self-contained User App runs the bundled Python device agent
+ * (`homepot.agent.real_device_agent`) as a background child process. The agent
+ * registers with the backend, streams telemetry/heartbeats, polls pending
+ * commands, executes them against the host OS via `command_poller.process_command`,
+ * and reports results — the same runtime the emulators simulate.
+ *
+ * Credential handoff: the agent's `create_credential_storage()` reads
+ * `~/.homepot/credentials` (the same file Electron writes), and we also write an
+ * explicit config file so `device_id`/`api_key`/`backend_url` are always present.
+ */
+function resolveBackendUrl(credentials: Record<string, string>): string {
+  if (process.env.HOMEPOT_BACKEND_URL) return process.env.HOMEPOT_BACKEND_URL
+  if (credentials.backend_url) return credentials.backend_url
+  return 'http://localhost:8000/api/v1'
+}
+
+function writeAgentConfig(): string | null {
+  const credentials = readCredentialsFile()
+  const deviceId = credentials.device_id
+  const apiKey = credentials.api_key
+  if (!deviceId || !apiKey) return null
+
+  const config = {
+    backend_url: resolveBackendUrl(credentials),
+    device_id: deviceId,
+    api_key: apiKey,
+    site_id: credentials.site_id ?? '',
+    device_name: credentials.device_name ?? '',
+    device_type: credentials.device_type ?? 'pos_terminal',
+    os_details: credentials.device_os ?? os.platform(),
+    heartbeat_interval_seconds: 30,
+    telemetry_interval_seconds: 30,
+    command_poll_interval_seconds: 15,
+    retry_flush_interval_seconds: 60,
+    ipc_enabled: false,
+    watchdog_enabled: true,
+    watchdog_interval_seconds: 10,
+    shutdown_timeout_seconds: 30,
+    log_level: 'INFO',
+  }
+
+  ensureCredentialsDir()
+  if (!fs.existsSync(AGENT_DIR)) {
+    fs.mkdirSync(AGENT_DIR, { recursive: true, mode: 0o700 })
+  }
+  fs.writeFileSync(AGENT_CONFIG_FILE, JSON.stringify(config, null, 2), { mode: 0o600 })
+  return AGENT_CONFIG_FILE
+}
+
+function startAgentProcess(): boolean {
+  const configPath = writeAgentConfig()
+  if (!configPath) return false
+  if (agentProcess) return true
+
+  const projectRoot = getProjectRoot()
+  const pythonExe = findPython(projectRoot)
+  const child = spawn(pythonExe, ['-m', 'homepot.agent.real_device_agent'], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      PYTHONPATH: path.join(projectRoot, 'backend', 'src'),
+      HOMEPOT_AGENT_CONFIG: configPath,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  agentProcess = child
+
+  child.stdout?.on('data', (data: Buffer) => {
+    for (const line of data.toString().split('\n').filter(Boolean)) {
+      console.log(`[agent] ${line}`)
+    }
+  })
+  child.stderr?.on('data', (data: Buffer) => {
+    for (const line of data.toString().split('\n').filter(Boolean)) {
+      console.error(`[agent:err] ${line}`)
+    }
+  })
+  child.on('error', (error) => {
+    recordAppEvent('error', 'agent', `Device agent process error: ${error.message}`)
+  })
+  child.on('exit', (code) => {
+    console.log(`[agent] exited with code ${code}`)
+    recordAppEvent(code === 0 ? 'info' : 'error', 'agent', `Device agent exited with code ${code ?? 'unknown'}`)
+    if (agentProcess === child) {
+      agentProcess = null
+    }
+  })
+
+  recordAppEvent('info', 'agent', 'Device agent started')
+  return true
+}
+
+function killAgent(): void {
+  if (!agentProcess) return
+  recordAppEvent('info', 'agent', 'Stopping device agent')
+  const processToKill = agentProcess
+  try {
+    processToKill.kill('SIGTERM')
+    agentProcess = null
+  } catch {
+    agentProcess = null
+  }
+}
+
+function startDeviceAgentIfProvisioned(): void {
+  const credentials = readCredentialsFile()
+  if (!credentials.device_id || !credentials.api_key) return
+  // Emulated devices keep using the emulator process instead.
+  if (credentials.enrollment_method === 'emulated') return
+  startAgentProcess()
 }
 
 function killEmulator(): void {
@@ -607,6 +743,7 @@ app.whenReady().then(() => {
   registerIpcHandlers()
   adoptExistingEmulatorDevice()
   resumePersistedEmulator()
+  startDeviceAgentIfProvisioned()
   createWindow()
   createTray()
 
@@ -620,6 +757,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   recordAppEvent('info', 'application', 'HOMEPOT Agent is stopping')
   killEmulator()
+  killAgent()
 })
 
 app.on('window-all-closed', () => {
