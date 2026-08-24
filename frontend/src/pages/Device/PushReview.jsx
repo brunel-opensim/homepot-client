@@ -82,21 +82,32 @@ const COMMAND_TEMPLATES = {
     label: 'List Processes',
     action: 'list_processes',
     permission: 'process_monitoring',
-    defaultData: {},
+    defaultData: {
+      max_results: 50,
+      sort_by: 'cpu',
+      include_memory: true,
+    },
     description: 'List the running processes on the device.',
   },
   LIST_CONNECTIONS: {
     label: 'List Network Connections',
     action: 'list_connections',
     permission: 'network_monitoring',
-    defaultData: {},
+    defaultData: {
+      filter_state: 'ESTABLISHED',
+      limit: 100,
+    },
     description: 'List the device\u2019s active network connections.',
   },
   SCAN_FILESYSTEM: {
     label: 'Scan Filesystem',
     action: 'scan_filesystem',
     permission: 'filesystem_access',
-    defaultData: {},
+    defaultData: {
+      path: '/var/homepot',
+      max_depth: 3,
+      include_sizes: true,
+    },
     description: 'Scan the device filesystem for files.',
   },
 };

@@ -1417,6 +1417,8 @@ class POSEmulator:
                 {"pid": 118, "name": "pos-svc", "cpu": 2.4, "mem": 12.8},
                 {"pid": 320, "name": "WindowServer", "cpu": 1.8, "mem": 9.3},
             ]
+            max_results = int(data.get("max_results") or 50)
+            processes = processes[: max(1, min(max_results, len(processes)))]
             return {
                 "status": "completed",
                 "result": {
@@ -1444,6 +1446,11 @@ class POSEmulator:
                     "state": "ESTABLISHED",
                 },
             ]
+            state_filter = data.get("filter_state")
+            if state_filter:
+                connections = [c for c in connections if c["state"] == state_filter]
+            limit = int(data.get("limit") or 100)
+            connections = connections[: max(0, limit)]
             return {
                 "status": "completed",
                 "result": {
@@ -1457,9 +1464,10 @@ class POSEmulator:
                 return self._fail_result(
                     "Filesystem scan failed", "Permission denied on /var"
                 )
+            scan_path = data.get("path") or "/var/homepot"
             files = [
-                {"path": "/var/homepot/config.json", "size": 2048},
-                {"path": "/var/homepot/logs/app.log", "size": 65536},
+                {"path": f"{scan_path}/config.json", "size": 2048},
+                {"path": f"{scan_path}/logs/app.log", "size": 65536},
             ]
             return {
                 "status": "completed",
