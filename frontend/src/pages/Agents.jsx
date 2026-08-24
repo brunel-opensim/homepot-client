@@ -71,6 +71,10 @@ export default function AgentList() {
             aValue = a.last_seen || a.last_health_check?.timestamp || '';
             bValue = b.last_seen || b.last_health_check?.timestamp || '';
             break;
+          case 'name':
+            aValue = (a.name || a.device_id || '').toLowerCase();
+            bValue = (b.name || b.device_id || '').toLowerCase();
+            break;
           case 'device_id':
             aValue = a.device_id;
             bValue = b.device_id;
@@ -104,6 +108,29 @@ export default function AgentList() {
         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase border ${colors[s] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}
       >
         {s}
+      </span>
+    );
+  };
+
+  const getModeBadge = (agent) => {
+    const isEmulator = agent.enrollment_method === 'emulated' || agent.device_source === 'emulator';
+    if (isEmulator) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          EMU
+        </span>
+      );
+    }
+    if (agent.is_simulated) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          SIM
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+        REAL
       </span>
     );
   };
@@ -238,12 +265,12 @@ export default function AgentList() {
                 <tr>
                   <th
                     className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
-                    onClick={() => handleSort('device_id')}
+                    onClick={() => handleSort('name')}
                   >
                     <div className="flex items-center gap-2">
-                      Device ID
+                      Device
                       <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'device_id' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
+                        className={`h-3 w-3 ${sortConfig.key === 'name' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
                       />
                     </div>
                   </th>
@@ -274,12 +301,16 @@ export default function AgentList() {
                     onClick={() => handleSort('health')}
                   >
                     <div className="flex items-center gap-2">
-                      Health Check
+                      Health
                       <ArrowUpDown
                         className={`h-3 w-3 ${sortConfig.key === 'health' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
                       />
                     </div>
                   </th>
+                  <th className="px-6 py-4 font-medium">Mode</th>
+                  <th className="px-6 py-4 font-medium">Site</th>
+                  <th className="px-6 py-4 font-medium">OS / Type</th>
+                  <th className="px-6 py-4 font-medium">IP</th>
                   <th
                     className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
                     onClick={() => handleSort('last_seen')}
@@ -297,7 +328,7 @@ export default function AgentList() {
               <tbody className="divide-y divide-slate-800">
                 {sortedAgents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                       No agents found. Register a device to get started.
                     </td>
                   </tr>
@@ -308,10 +339,26 @@ export default function AgentList() {
                       className="hover:bg-slate-800/50 transition-colors cursor-pointer hover:bg-slate-800/70"
                       onClick={() => navigate(`/device/${agent.device_id}`)}
                     >
-                      <td className="px-6 py-4 font-medium text-white">{agent.device_id}</td>
+                      <td className="px-6 py-4">
+                        <div className="text-white font-medium">
+                          {agent.name || agent.device_id}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono">{agent.device_id}</div>
+                      </td>
                       <td className="px-6 py-4">{getStatusBadge(agent.connectivity_state)}</td>
                       <td className="px-6 py-4">{getLifecycleBadge(agent.lifecycle_state)}</td>
                       <td className="px-6 py-4">{getHealthIcon(agent.health_state)}</td>
+                      <td className="px-6 py-4">{getModeBadge(agent)}</td>
+                      <td className="px-6 py-4 text-slate-400 text-xs">{agent.site_id || '—'}</td>
+                      <td className="px-6 py-4">
+                        <div className="text-slate-300 text-xs">{agent.os_details || '—'}</div>
+                        <div className="text-slate-500 text-[10px] uppercase">
+                          {agent.device_type?.replace(/_/g, ' ') || '—'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-400 font-mono text-xs">
+                        {agent.ip_address || '—'}
+                      </td>
                       <td className="px-6 py-4 text-slate-400 font-mono text-xs">
                         {formatDate(agent.last_seen || agent.last_health_check?.timestamp)}
                       </td>
