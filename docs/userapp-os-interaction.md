@@ -191,10 +191,11 @@ Backend:
 - [ ] Complete `process_command` execution: `health_check`, `list_processes`,
       `list_connections`, `scan_filesystem`, and a real `update_config` OS
       settings adapter; wire real `restart` / `shutdown`.
-- [ ] Real `device_token` registration (store per-device token + channel on
+- [x] Real `device_token` registration (store per-device token + channel on
       registration / status report).
-- [ ] Wake-up sending: after queueing a `DeviceCommand`, send the minimal
-      wake-up via the resolved provider; no-op for polling-only devices.
+- [x] Wake-up sending: after queueing a `DeviceCommand`, the backend sends a
+      minimal silent wake-up (`push_notifications/wakeup.py`) via the resolved
+      provider for the device's channel; no-op for polling-only devices.
 - [ ] APNs / WNS credentials (certificate/key, bundle/AUMID) and FCM service
       account wiring.
 
