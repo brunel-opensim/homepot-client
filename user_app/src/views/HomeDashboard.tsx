@@ -27,6 +27,28 @@ function formatHeartbeat(iso: string | null): string {
   }
 }
 
+// Lightweight "connecting" indicator: three dots that fill in sequence
+// (•  ••  •••  then restart) until the connection is established.
+function ConnectingDots() {
+  const [dots, setDots] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => setDots((d) => (d + 1) % 4), 350)
+    return () => clearInterval(interval)
+  }, [])
+  return (
+    <span className="inline-flex items-center gap-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={`h-1.5 w-1.5 rounded-full transition-opacity duration-300 ${
+            i < dots ? 'bg-amber-400 opacity-100' : 'bg-amber-400/30 opacity-40'
+          }`}
+        />
+      ))}
+    </span>
+  )
+}
+
 export default function HomeDashboard() {
   const [deviceName, setDeviceName] = useState('My Device')
   const [deviceId, setDeviceId] = useState<string | null>(null)
@@ -165,8 +187,8 @@ export default function HomeDashboard() {
         <div className="px-5 pt-4">
           <div className={`w-full rounded-xl p-4 flex items-center gap-3 ${statusStyles.card}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 flex-shrink-0 ${statusStyles.circle}`}>
-              <span className={`text-lg font-bold ${statusStyles.text}`}>
-                {statusStyles.glyph}
+              <span className={`text-lg font-bold flex items-center ${statusStyles.text}`}>
+                {isConnecting ? <ConnectingDots /> : statusStyles.glyph}
               </span>
             </div>
             <div>
