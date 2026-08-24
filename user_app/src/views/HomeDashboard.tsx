@@ -49,9 +49,20 @@ function ConnectingDots() {
   )
 }
 
+// Pick a device-representing icon for the header, based on the device type.
+function deviceEmoji(deviceType: string | null): string {
+  const t = (deviceType || '').toLowerCase()
+  if (t.includes('tablet')) return '📱'
+  if (t.includes('scanner') || t.includes('mobile')) return '📟'
+  if (t.includes('kiosk')) return '🖥️'
+  if (t.includes('virtual')) return '💻'
+  return '🖥️' // pos_terminal and default
+}
+
 export default function HomeDashboard() {
   const [deviceName, setDeviceName] = useState('My Device')
   const [deviceId, setDeviceId] = useState<string | null>(null)
+  const [deviceType, setDeviceType] = useState<string | null>(null)
   const [status, setStatus] = useState<DeviceStatus | null>(null)
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null)
   const deviceIdRef = useRef<string | null>(null)
@@ -62,10 +73,12 @@ export default function HomeDashboard() {
       credentialStorage.getDeviceId(),
       credentialStorage.getApiKey(),
       credentialStorage.getMetadata('device_name'),
-    ]).then(([did, key, name]) => {
+      credentialStorage.getMetadata('device_type'),
+    ]).then(([did, key, name, type]) => {
       if (did) { setDeviceId(did); deviceIdRef.current = did }
       if (key) apiKeyRef.current = key
       if (name) setDeviceName(name)
+      if (type) setDeviceType(type)
     })
   }, [])
 
@@ -178,7 +191,7 @@ export default function HomeDashboard() {
           <div className="flex items-center gap-2">
             <span className="text-slate-300 text-sm font-medium">{deviceName}</span>
             <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-base">
-              👤
+              {deviceEmoji(deviceType)}
             </div>
           </div>
         </div>
