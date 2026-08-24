@@ -90,7 +90,7 @@ export default function DeviceList() {
         </Button>
 
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-3">
-          <h1 className="text-2xl font-semibold">Manage Devices</h1>
+          <h1 className="text-2xl font-semibold">Managed Devices</h1>
         </div>
 
         <div className="flex flex-col md:flex-row items-center gap-3 mb-6">
