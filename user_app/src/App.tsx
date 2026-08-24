@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AppProvider, useApp } from './context/AppContext'
+import { useApp } from './context/AppContext'
+import { AppProvider } from './context/AppProvider'
 import ErrorBoundary from './components/ErrorBoundary'
 import PermissionConsentPrompt from './components/PermissionConsentPrompt'
 import SetupWizard from './views/SetupWizard'

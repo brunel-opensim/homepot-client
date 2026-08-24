@@ -1,43 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { credentialStorage } from '../services/credentialStorage'
 import { verifyDeviceCredentials } from '../services/api'
-
-interface DeviceInfo {
-  deviceId: string
-  siteId: string
-  deviceName: string
-  token: string
-}
-
-interface SetupState {
-  siteId: string
-  deviceName: string
-  deviceType: string
-  deviceOs: string
-  bootstrapKey: string
-  /** Override for the backend URL used by emulator launches (LAN IP for Mac
-   *  testing); empty means fall back to the configured apiBaseUrl. */
-  backendUrl: string
-}
-
-interface AppContextType {
-  deviceInfo: DeviceInfo | null
-  setDeviceInfo: (info: DeviceInfo) => void
-  isProvisioned: boolean
-  setIsProvisioned: (val: boolean) => void
-  provisionedChecked: boolean
-  setupState: SetupState
-  setSetupState: (state: SetupState) => void
-  useEmulator: boolean | null
-  setUseEmulator: (val: boolean | null) => void
-  emulatorType: string
-  setEmulatorType: (val: string) => void
-  isEmulatorRunning: boolean
-  setIsEmulatorRunning: (val: boolean) => void
-}
-
-const AppContext = createContext<AppContextType | null>(null)
+import { AppContext } from './AppContext'
+import type { AppContextType, DeviceInfo, SetupState } from './AppContext'
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null)
@@ -100,23 +66,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const value: AppContextType = {
+    deviceInfo, setDeviceInfo,
+    isProvisioned, setIsProvisioned,
+    provisionedChecked,
+    setupState, setSetupState,
+    useEmulator, setUseEmulator,
+    emulatorType, setEmulatorType,
+    isEmulatorRunning, setIsEmulatorRunning,
+  }
+
   return (
-    <AppContext.Provider value={{
-      deviceInfo, setDeviceInfo,
-      isProvisioned, setIsProvisioned,
-      provisionedChecked,
-      setupState, setSetupState,
-      useEmulator, setUseEmulator,
-      emulatorType, setEmulatorType,
-      isEmulatorRunning, setIsEmulatorRunning,
-    }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   )
-}
-
-export function useApp() {
-  const ctx = useContext(AppContext)
-  if (!ctx) throw new Error('useApp must be used within AppProvider')
-  return ctx
 }

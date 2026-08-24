@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { AppProvider } from '../context/AppContext'
+import { AppProvider } from '../context/AppProvider'
 import { clearAllCachedTelemetry } from '../services/telemetryCache'
 import HomeDashboard from '../views/HomeDashboard'
 import DeviceInfo from '../views/DeviceInfo'
