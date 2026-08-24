@@ -6,6 +6,7 @@ import os
 import secrets
 import tempfile
 from typing import Any, Dict
+from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 import pytest
@@ -333,6 +334,40 @@ def test_run_command_queues_after_root_grant(client: TestClient) -> None:
 
     assert resp.status_code == 201
     assert resp.json()["command_type"] == "run_command"
+
+
+def test_queueing_command_sends_wakeup(client, monkeypatch) -> None:
+    """Queuing a command triggers a best-effort silent wake-up."""
+    from homepot.database import SessionLocal
+    from homepot.models import Device
+
+    wakeup = AsyncMock()
+    wakeup.return_value = None
+    monkeypatch.setattr(
+        "homepot.app.api.API_v1.Endpoints.DeviceCommandsEndpoint.send_command_wakeup",
+        wakeup,
+    )
+
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+
+    db = SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        device.push_channel = "fcm"
+        device.push_token = "tok-wakeup-test"
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/devices/{device_id}/commands",
+        json={"command_type": "ping", "payload": {}},
+        headers=ctx["auth_headers"],
+    )
+    assert resp.status_code == 201
+    wakeup.assert_awaited_once()
 
 
 def test_command_history_endpoint(client: TestClient) -> None:

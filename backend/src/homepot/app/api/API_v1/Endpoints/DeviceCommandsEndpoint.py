@@ -1,6 +1,7 @@
 """API endpoints for managing device commands."""
 
 from datetime import datetime, timezone
+import logging
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -21,6 +22,9 @@ from homepot.app.utils.limiter import limiter
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service, get_db
 from homepot.models import CommandStatus, Device, User
+from homepot.push_notifications.wakeup import send_command_wakeup
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -126,6 +130,13 @@ async def queue_command(
         command_type=command_type,
         payload=command_request.payload,
     )
+
+    # Best-effort silent wake-up so a push-capable device polls immediately.
+    # The command remains queued regardless; polling is the fallback.
+    try:
+        await send_command_wakeup(device)
+    except Exception:  # noqa: BLE001 - never fail the queue on a wake-up error
+        logger.exception("Command wake-up failed for device=%s", device_id)
 
     # Audit log
     audit_logger = get_audit_logger()
