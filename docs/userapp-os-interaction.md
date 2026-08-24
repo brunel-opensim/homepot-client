@@ -94,6 +94,55 @@ Because the authoritative state is the queued command, this works even when a
 push never arrives: polling picks up the command on the next interval, and
 `ttl_seconds` / `collapse_key` govern expiry and de-duplication.
 
+## Worked example: "increase brightness" on a Mac
+
+Assumes the owner has granted **full manage access** (`root_access`) and the
+Dashboard is synced. The command is an `update_config` with a `brightness`
+key, traced end-to-end against what is built today:
+
+| Step | What happens | Status |
+|---|---|---|
+| 1. Dashboard compose | `PushReview.jsx` → **Apply Configuration** (`update_config`), sets `brightness`; required group = **Manage device**, granted → **Queue Command** | ✅ built |
+| 2. Backend queue + gate | `DeviceCommandsEndpoint` computes `required_permissions_for_command` → `["root_access"]`, checks the owner grant, creates `DeviceCommand` (`queued`) + audit | ✅ built |
+| 3. Delivery | The **emulator** polls `GET /devices/pending` (15s). The **User App itself has no pending-command loop** and no real APNs token/wake-up yet | ⚠️ polling only |
+| 4. On-device permission re-check | `command_poller._check_permission` re-verifies `root_access` — exists in the Python agent, not in the Electron app | ⚠️ agent only |
+| 5. Execute brightness on macOS | `process_command("update_config")` currently only records `applied_keys` ("config update acknowledged") — **no real brightness call** | ❌ gap |
+| 6. Report result | `PUT /devices/{id}/status` with `{status, executed_at, result}` — done by the agent/emulator, not the User App | ⚠️ agent only |
+| 7. Dashboard reflects result | Command History / Push History renders the terminal status | ✅ built |
+
+### Gaps for this example
+
+1. **The User App must run the on-device command loop** — poll pending →
+   re-check permission → execute → report. Today only the emulator / separate
+   Python agent does this.
+2. **`update_config` execution is a stub** — it needs a real **OS settings
+   adapter** that maps keys (e.g. `brightness`) to actual OS calls
+   (`brightness <level>`, `osascript`/IOKit on macOS), run with the appropriate
+   privilege (sudo for system prefs).
+3. **Real push delivery** (optional Phase 1) — APNs token registration +
+   wake-up listener in Electron; otherwise rely on polling.
+
+## Execution maturity
+
+The backend agent's `process_command` (`command_poller.py`) is not yet complete
+for every command type. Status as of writing:
+
+| Command type | Tier | Execution status |
+|---|---|---|
+| `run_command` | Manage | ✅ real (subprocess + `sudo`) |
+| `run_script` | Manage | ✅ real (subprocess + `sudo`) |
+| `ping` / `status_request` | — | ✅ real |
+| `update_config` | Manage | ❌ stub — records `applied_keys`, no OS call |
+| `restart` / `shutdown` | Manage | ❌ stub — acknowledged, not executed |
+| `health_check` | Monitor | ❌ unhandled (`Unhandled command type`) |
+| `list_processes` | Monitor | ❌ unhandled |
+| `list_connections` | Monitor | ❌ unhandled |
+| `scan_filesystem` | Manage | ❌ unhandled |
+
+The emulator (`pos_engine.py`) simulates all nine, but the real agent only
+executes `run_command`/`run_script` against the host today. Closing these gaps
+is the "local execution" work that makes a self-contained User App real.
+
 ## MDM decision
 
 Treat MDM as a **Phase 2 complement**, not a Phase 1 requirement:
@@ -114,6 +163,10 @@ first; add MDM when the fleet needs managed enrollment or kiosk-locked control.
 
 Backend:
 
+- [x] Permission tiers + command→permission mapping (Monitor / Manage).
+- [ ] Complete `process_command` execution: `health_check`, `list_processes`,
+      `list_connections`, `scan_filesystem`, and a real `update_config` OS
+      settings adapter; wire real `restart` / `shutdown`.
 - [ ] Real `device_token` registration (store per-device token + channel on
       registration / status report).
 - [ ] Wake-up sending: after queueing a `DeviceCommand`, send the minimal
@@ -123,6 +176,8 @@ Backend:
 
 User App (Electron main):
 
+- [ ] On-device command loop: poll `GET /devices/pending`, re-check
+      `device_permissions`, execute, report `PUT /devices/{id}/status`.
 - [ ] Local dispatch service over IPC (`ipcMain` handlers that execute commands
       against the host and return results).
 - [ ] Wake-up listener per platform (FCM/WNS/APNs) that triggers a
@@ -132,7 +187,7 @@ User App (Electron main):
 
 Docs:
 
-- [ ] This page linked from the User App nav.
+- [x] This page linked from the User App nav.
 - [ ] Record the final decision once Phase 2 (MDM) is scoped.
 
 ## Open questions
