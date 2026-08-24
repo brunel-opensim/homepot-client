@@ -145,6 +145,9 @@ async def list_agents() -> Dict[str, List[Dict]]:
                     "connectivity_state": conn,
                     "health_state": device.health_state or HealthState.UNKNOWN.value,
                     "config_version": device.firmware_version or "unknown",
+                    "last_seen": (
+                        device.last_seen.isoformat() if device.last_seen else None
+                    ),
                     "last_health_check": hc_data,
                     "uptime": (
                         "running"

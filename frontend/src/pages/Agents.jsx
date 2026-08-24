@@ -68,8 +68,8 @@ export default function AgentList() {
             bValue = b.health_state === 'healthy' ? 1 : 0;
             break;
           case 'last_seen':
-            aValue = a.last_health_check?.timestamp || '';
-            bValue = b.last_health_check?.timestamp || '';
+            aValue = a.last_seen || a.last_health_check?.timestamp || '';
+            bValue = b.last_seen || b.last_health_check?.timestamp || '';
             break;
           case 'device_id':
             aValue = a.device_id;
@@ -313,7 +313,7 @@ export default function AgentList() {
                       <td className="px-6 py-4">{getLifecycleBadge(agent.lifecycle_state)}</td>
                       <td className="px-6 py-4">{getHealthIcon(agent.health_state)}</td>
                       <td className="px-6 py-4 text-slate-400 font-mono text-xs">
-                        {formatDate(agent.last_health_check?.timestamp)}
+                        {formatDate(agent.last_seen || agent.last_health_check?.timestamp)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button
