@@ -150,6 +150,7 @@ async def list_agents() -> Dict[str, List[Dict]]:
                     "config_version": device.firmware_version or "unknown",
                     "name": device.name,
                     "site_id": device.site.site_id if device.site else None,
+                    "site_name": device.site.name if device.site else None,
                     "device_type": device.device_type,
                     "os_details": device.os_details,
                     "ip_address": device.local_ip or device.ip_address,
