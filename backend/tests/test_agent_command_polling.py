@@ -89,12 +89,17 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert result["result"]["message"] == "pong"
 
-    def test_restart_allowed_with_root_access(self):
-        """Restart succeeds when root_access is granted."""
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_restart_allowed_with_root_access(self, run):
+        """Restart succeeds when root_access is granted (sudo shutdown -r)."""
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
         result = process_command(
             {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
         )
         assert result["status"] == "completed"
+        assert run.call_args.args[0] == ["sudo", "-n", "--", "shutdown", "-r", "now"]
 
     def test_restart_denied_without_root_access(self):
         """Restart fails when root_access is denied."""
@@ -104,12 +109,17 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "denied" in result["result"]["error"]
 
-    def test_shutdown_allowed_with_root_access(self):
-        """Shutdown succeeds when root_access is granted."""
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_shutdown_allowed_with_root_access(self, run):
+        """Shutdown succeeds when root_access is granted (sudo shutdown -h)."""
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
         result = process_command(
             {"command_id": "c1", "command_type": "shutdown"}, ALLOW_ALL
         )
         assert result["status"] == "completed"
+        assert run.call_args.args[0] == ["sudo", "-n", "--", "shutdown", "-h", "now"]
 
     def test_shutdown_denied_without_root_access(self):
         """Shutdown fails when root_access is denied."""
@@ -132,13 +142,45 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert set(result["result"]["applied_keys"]) == {"theme", "polling_rate"}
 
-    def test_update_config_denied_without_root_access(self):
-        """Update_config fails when root_access is denied."""
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_update_config_brightness_applies_os_action(self, run, system):
+        """A known config key (brightness) runs the platform OS action."""
+        system.return_value = "Darwin"
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
         result = process_command(
-            {"command_id": "c1", "command_type": "update_config"}, DENY_ALL
+            {
+                "command_id": "c1",
+                "command_type": "update_config",
+                "payload": {"data": {"brightness": 75}},
+            },
+            ALLOW_ALL,
         )
-        assert result["status"] == "failed"
-        assert "denied" in result["result"]["error"]
+        assert result["status"] == "completed"
+        assert run.call_args.args[0] == ["brightness", "75"]
+        assert result["result"]["results"]["brightness"]["status"] == "applied"
+
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_update_config_brightness_failure_is_reported(self, run, system):
+        """A failed OS action is reported as failed, not silently dropped."""
+        system.return_value = "Linux"
+        run.return_value.returncode = 1
+        run.return_value.stdout = ""
+        run.return_value.stderr = "brightnessctl: no such device"
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "update_config",
+                "payload": {"data": {"brightness": 50}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert result["result"]["results"]["brightness"]["status"] == "failed"
+        assert "no such device" in result["result"]["results"]["brightness"]["stderr"]
 
     def test_update_config_without_payload(self):
         """Update_config command with no payload returns empty applied_keys."""
@@ -147,6 +189,87 @@ class TestProcessCommand:
         )
         assert result["status"] == "completed"
         assert result["result"]["applied_keys"] == []
+
+    @patch("homepot.agent.utils.telemetry.collect_system_telemetry")
+    def test_health_check_reports_per_test_results(self, telemetry):
+        """Health check reports pass/fail per requested test."""
+        telemetry.return_value = {
+            "cpu_usage": 12.0,
+            "memory_usage": 45.0,
+            "disk_usage": 95.0,
+            "uptime_seconds": 1000,
+        }
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "health_check",
+                "payload": {"data": {"tests": ["cpu", "memory", "storage"]}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        results = result["result"]["results"]
+        assert results["cpu"]["status"] == "pass"
+        assert results["memory"]["status"] == "pass"
+        assert results["storage"]["status"] == "fail"
+
+    def test_list_processes_returns_snapshot(self):
+        """List processes returns a bounded, sorted snapshot."""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "list_processes",
+                "payload": {"data": {"max_results": 5, "sort_by": "memory"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert "processes" in result["result"]
+        assert result["result"]["count"] >= 0
+
+    @patch("homepot.agent.utils.command_poller.psutil.net_connections")
+    def test_list_connections_filters_by_state(self, net_connections):
+        """List connections filters to the requested state."""
+        import types
+
+        laddr = types.SimpleNamespace(ip="127.0.0.1", port=9000)
+        raddr = types.SimpleNamespace(ip="10.0.0.5", port=443)
+        net_connections.return_value = [
+            types.SimpleNamespace(
+                pid=1, status="ESTABLISHED", laddr=laddr, raddr=raddr
+            ),
+            types.SimpleNamespace(pid=2, status="LISTEN", laddr=laddr, raddr=None),
+        ]
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "list_connections",
+                "payload": {"data": {"filter_state": "ESTABLISHED", "limit": 10}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert result["result"]["count"] == 1
+        assert result["result"]["connections"][0]["pid"] == 1
+
+    def test_scan_filesystem_walks_bounded_dirs(self, tmp_path):
+        """Scan filesystem returns entries within the requested depth."""
+        (tmp_path / "a").mkdir()
+        (tmp_path / "a" / "b").mkdir()
+        (tmp_path / "file1.txt").write_text("x")
+        (tmp_path / "a" / "file2.txt").write_text("yy")
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "scan_filesystem",
+                "payload": {"data": {"path": str(tmp_path), "max_depth": 1}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        paths = {e["path"] for e in result["result"]["entries"]}
+        assert str(tmp_path / "a") in paths
+        assert str(tmp_path / "file1.txt") in paths
 
     def test_missing_command_id_does_not_raise(self):
         """Missing command_id does not raise."""

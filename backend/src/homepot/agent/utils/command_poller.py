@@ -2,10 +2,14 @@
 
 from datetime import datetime, timezone
 import logging
+import os
+import platform
 import shlex
 import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 from typing import Any, Dict, List, Optional
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +187,301 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
     }
 
 
+def _run_argv(argv: List[str]) -> Dict[str, Any]:
+    """Run an explicit argv list (no shell) and return a status dict."""
+    try:
+        completed = subprocess.run(  # noqa: S603 - explicit argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=MAX_COMMAND_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"ok": False, "error": str(exc)}
+    return {
+        "ok": completed.returncode == 0,
+        "exit_code": completed.returncode,
+        "stdout": completed.stdout[-MAX_COMMAND_OUTPUT:],
+        "stderr": completed.stderr[-MAX_COMMAND_OUTPUT:],
+    }
+
+
+# --- health_check -----------------------------------------------------------
+
+_HEALTH_THRESHOLDS = {
+    "cpu": 90.0,
+    "memory": 90.0,
+    "storage": 90.0,
+}
+
+_HEALTH_METRIC_KEYS = {
+    "cpu": "cpu_usage",
+    "memory": "memory_usage",
+    "storage": "disk_usage",
+}
+
+
+def _run_health_check(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Run the requested diagnostics against the host and report pass/fail."""
+    from homepot.agent.utils.telemetry import collect_system_telemetry
+
+    requested = data.get("tests") or ["network", "storage", "memory"]
+    if isinstance(requested, str):
+        requested = [requested]
+    metrics = collect_system_telemetry()
+
+    results: Dict[str, Dict[str, Any]] = {}
+    all_pass = True
+    for test in requested:
+        name = str(test)
+        if name in _HEALTH_THRESHOLDS:
+            value = metrics[_HEALTH_METRIC_KEYS[name]]
+            passed = float(value) < _HEALTH_THRESHOLDS[name]
+            results[name] = {"status": "pass" if passed else "fail", "value": value}
+        elif name == "network":
+            up = any(
+                addr.family == socket.AF_INET
+                and not (addr.address or "").startswith("127.")
+                for iface in psutil.net_if_addrs().values()
+                for addr in iface
+            )
+            results[name] = {
+                "status": "pass" if up else "fail",
+                "value": "ok" if up else "unreachable",
+            }
+        else:
+            results[name] = {"status": "fail", "error": f"unknown test: {name}"}
+        if results[name]["status"] != "pass":
+            all_pass = False
+
+    return {
+        "status": "completed" if all_pass else "failed",
+        "result": {
+            "message": (
+                "health check completed"
+                if all_pass
+                else "one or more diagnostics failed"
+            ),
+            "results": results,
+        },
+    }
+
+
+# --- list_processes ---------------------------------------------------------
+
+
+def _run_list_processes(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Snapshot running processes, sorted and limited like the Dashboard asks."""
+    sort_by = str(data.get("sort_by") or "cpu")
+    try:
+        max_results = max(1, min(int(data.get("max_results", 50)), 500))
+    except (TypeError, ValueError):
+        max_results = 50
+    include_memory = bool(data.get("include_memory", True))
+
+    processes = []
+    for proc in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
+        try:
+            processes.append(
+                {
+                    "pid": proc.info["pid"],
+                    "name": proc.info["name"] or "",
+                    "cpu": round(float(proc.info["cpu_percent"] or 0.0), 2),
+                    "memory": (
+                        round(float(proc.info["memory_percent"] or 0.0), 2)
+                        if include_memory
+                        else None
+                    ),
+                }
+            )
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    processes.sort(
+        key=lambda p: p.get(sort_by, 0.0) if p.get(sort_by) is not None else 0.0,
+        reverse=True,
+    )
+    return {
+        "status": "completed",
+        "result": {
+            "count": len(processes),
+            "processes": processes[:max_results],
+        },
+    }
+
+
+# --- list_connections -------------------------------------------------------
+
+
+def _run_list_connections(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Snapshot active network connections, optionally filtered by state."""
+    filter_state = data.get("filter_state")
+    try:
+        limit = max(1, min(int(data.get("limit", 100)), 1000))
+    except (TypeError, ValueError):
+        limit = 100
+
+    connections = []
+    try:
+        conns = psutil.net_connections(kind="inet")
+    except (psutil.AccessDenied, OSError) as exc:
+        return {
+            "status": "failed",
+            "result": {
+                "error": f"connection listing requires elevated privileges: {exc}"
+            },
+        }
+
+    for conn in conns:
+        if filter_state and filter_state != "ALL" and conn.status != filter_state:
+            continue
+        connections.append(
+            {
+                "pid": conn.pid,
+                "status": conn.status,
+                "laddr": f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else None,
+                "raddr": f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None,
+            }
+        )
+
+    return {
+        "status": "completed",
+        "result": {
+            "count": len(connections),
+            "connections": connections[:limit],
+        },
+    }
+
+
+# --- scan_filesystem --------------------------------------------------------
+
+
+def _run_scan_filesystem(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Walk the filesystem within a bounded depth/entry cap."""
+    root = str(data.get("path") or "/")
+    try:
+        max_depth = max(1, min(int(data.get("max_depth", 2)), 10))
+    except (TypeError, ValueError):
+        max_depth = 2
+    include_sizes = bool(data.get("include_sizes", True))
+    max_entries = 200
+
+    entries: List[Dict[str, Any]] = []
+
+    def _entry(path: str, kind: str) -> Dict[str, Any]:
+        entry: Dict[str, Any] = {"path": path, "type": kind}
+        if include_sizes:
+            try:
+                entry["size"] = os.path.getsize(path)
+            except OSError:
+                entry["size"] = None
+        return entry
+
+    for base, dirs, files in os.walk(root, topdown=True):
+        depth = base[len(root) :].count(os.sep)
+        if depth >= max_depth:
+            dirs[:] = []
+        for name in dirs[: max_entries - len(entries)]:
+            if len(entries) >= max_entries:
+                break
+            entries.append(_entry(os.path.join(base, name), "directory"))
+        for name in files:
+            if len(entries) >= max_entries:
+                break
+            entries.append(_entry(os.path.join(base, name), "file"))
+        if len(entries) >= max_entries:
+            break
+
+    return {
+        "status": "completed",
+        "result": {
+            "count": len(entries),
+            "root": root,
+            "truncated": len(entries) >= max_entries,
+            "entries": entries,
+        },
+    }
+
+
+# --- update_config (OS settings adapter) ------------------------------------
+
+
+def _config_appliers(platform_name: str) -> Dict[str, Any]:
+    """Return key -> argv builder for host settings that have a real OS action."""
+    if platform_name == "darwin":
+        return {
+            "brightness": lambda value: ["brightness", str(int(value))],
+            "volume": lambda value: [
+                "osascript",
+                "-e",
+                f"set volume output volume {int(value)}",
+            ],
+        }
+    return {
+        "brightness": lambda value: ["brightnessctl", "set", f"{int(value)}%"],
+        "volume": lambda value: ["amixer", "-q", "set", "Master", f"{int(value)}%"],
+    }
+
+
+def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Apply a config update; keys with a known OS action run it on the host."""
+    new_config = payload if isinstance(payload, dict) else {}
+    platform_name = platform.system().lower()
+    appliers = _config_appliers(platform_name)
+
+    applied_keys: List[str] = []
+    results: Dict[str, Any] = {}
+    for key, value in new_config.items():
+        applier = appliers.get(key)
+        if applier is None:
+            applied_keys.append(key)
+            results[key] = {"status": "acknowledged", "message": "no OS action defined"}
+            continue
+        try:
+            outcome = _run_argv(applier(value))
+            applied_keys.append(key)
+            results[key] = {
+                "status": "applied" if outcome["ok"] else "failed",
+                **(outcome if not outcome["ok"] else {}),
+            }
+        except Exception as exc:  # noqa: BLE001 - report any applier failure
+            applied_keys.append(key)
+            results[key] = {"status": "error", "message": str(exc)}
+
+    return {
+        "status": "completed",
+        "result": {
+            "message": "config update applied",
+            "applied_keys": applied_keys,
+            "results": results,
+        },
+    }
+
+
+# --- restart / shutdown -----------------------------------------------------
+
+
+def _system_control(command_type: str) -> Dict[str, Any]:
+    """Reboot or power off the host system via non-interactive sudo."""
+    action = "-r" if command_type == "restart" else "-h"
+    outcome = _run_argv(["sudo", "-n", "--", "shutdown", action, "now"])
+    if outcome["ok"]:
+        return {
+            "status": "completed",
+            "result": {"message": f"{command_type} initiated"},
+        }
+    return {
+        "status": "failed",
+        "result": {
+            "error": (
+                f"{command_type} failed: "
+                f"{outcome.get('stderr') or outcome.get('error') or outcome.get('exit_code')}"
+            )
+        },
+    }
+
+
 def process_command(
     command: Dict[str, Any],
     permissions: Optional[Dict[str, bool]] = None,
@@ -203,7 +502,6 @@ def process_command(
     """
     command_id = command.get("command_id", "")
     command_type = command.get("command_type", "")
-    payload = command.get("payload")
 
     if command_type not in COMMAND_TYPES:
         logger.warning("Unknown command type=%s id=%s", command_type, command_id)
@@ -234,40 +532,26 @@ def process_command(
             "result": {"message": "pong"},
         }
 
+    if command_type == "health_check":
+        return _run_health_check(_command_data(command))
+
+    if command_type == "list_processes":
+        return _run_list_processes(_command_data(command))
+
+    if command_type == "list_connections":
+        return _run_list_connections(_command_data(command))
+
+    if command_type == "scan_filesystem":
+        return _run_scan_filesystem(_command_data(command))
+
     if command_type == "restart":
-        logger.warning(
-            "Restart command received id=%s — execution handler not yet integrated",
-            command_id,
-        )
-        return {
-            "command_id": command_id,
-            "status": "completed",
-            "result": {"message": "restart acknowledged"},
-        }
+        return _system_control("restart")
 
     if command_type == "shutdown":
-        logger.warning(
-            "Shutdown command received id=%s — execution handler not yet integrated",
-            command_id,
-        )
-        return {
-            "command_id": command_id,
-            "status": "completed",
-            "result": {"message": "shutdown acknowledged"},
-        }
+        return _system_control("shutdown")
 
     if command_type == "update_config":
-        new_config = payload if isinstance(payload, dict) else {}
-        applied_keys = list(new_config.keys())
-        logger.info("Config update command id=%s keys=%s", command_id, applied_keys)
-        return {
-            "command_id": command_id,
-            "status": "completed",
-            "result": {
-                "message": "config update acknowledged",
-                "applied_keys": applied_keys,
-            },
-        }
+        return _apply_config(_command_data(command))
 
     if command_type in {"run_command", "run_script"}:
         return _execute_local(command, script=command_type == "run_script")
