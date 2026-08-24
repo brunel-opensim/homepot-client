@@ -188,6 +188,7 @@ nav:
       - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
       - Verify with Emulators: verify-user-app-with-emulators.md
       - Host OS Interaction: userapp-os-interaction.md
+      - Host OS Testing Runbook: userapp-os-interaction-testing.md
       - Team Tasks (Dealdio): dealdio-user-app-tasks.md
 
   - Dev & Ops:

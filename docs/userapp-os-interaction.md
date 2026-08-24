@@ -15,6 +15,9 @@ This document separates the problem into two layers — **delivery** (how a
 command travels from the backend to the device) and **local dispatch** (how the
 installed app hands a command to the OS) — and records the chosen pattern.
 
+> **Testing:** see the [Testing Runbook](userapp-os-interaction-testing.md)
+> for step-by-step instructions on running this end-to-end against a Mac.
+
 ## The two layers
 
 ### 1. Delivery layer (backend → device)
