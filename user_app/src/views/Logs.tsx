@@ -103,7 +103,7 @@ export default function Logs() {
         )}
 
         {/* Content — scrollable logs, header + tab bar stay fixed */}
-        <div className="px-5 py-2 flex-1 overflow-y-auto min-h-0">
+        <div className="px-5 py-2 flex-1 overflow-y-auto min-h-0 logs-scroll">
           {logs.length === 0 ? (
             <p className="text-center text-slate-600 text-sm py-8">No application events yet.</p>
           ) : (
