@@ -34,6 +34,7 @@ async def list_agents() -> Dict[str, List[Dict]]:
     """List all active agents and their status from the database."""
     try:
         from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
 
         from homepot.app.models.AnalyticsModel import DeviceMetrics
         from homepot.database import get_database_service
@@ -46,9 +47,11 @@ async def list_agents() -> Dict[str, List[Dict]]:
             # Get all active devices (exclude suspended/unpaired so the Data
             # Collection page reflects only live, managed agents).
             result = await session.execute(
-                select(Device).where(Device.is_active.is_(True))
+                select(Device)
+                .options(joinedload(Device.site))
+                .where(Device.is_active.is_(True))
             )
-            devices = result.scalars().all()
+            devices = result.unique().scalars().all()
 
             if not devices:
                 return {"agents": []}
@@ -145,6 +148,20 @@ async def list_agents() -> Dict[str, List[Dict]]:
                     "connectivity_state": conn,
                     "health_state": device.health_state or HealthState.UNKNOWN.value,
                     "config_version": device.firmware_version or "unknown",
+                    "name": device.name,
+                    "site_id": device.site.site_id if device.site else None,
+                    "site_name": device.site.name if device.site else None,
+                    "device_type": device.device_type,
+                    "os_details": device.os_details,
+                    "ip_address": device.local_ip or device.ip_address,
+                    "enrollment_method": device.enrollment_method or "pre-provisioned",
+                    "is_simulated": device.is_simulated,
+                    "device_source": (
+                        device.config.get("device_source") if device.config else None
+                    ),
+                    "last_seen": (
+                        device.last_seen.isoformat() if device.last_seen else None
+                    ),
                     "last_health_check": hc_data,
                     "uptime": (
                         "running"

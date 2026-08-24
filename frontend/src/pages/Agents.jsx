@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Server,
   Activity,
-  ArrowUpDown,
 } from 'lucide-react';
 import api from '@/services/api';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +18,7 @@ export default function AgentList() {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: 'status', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'site', direction: 'asc' });
 
   const fetchAgents = async () => {
     try {
@@ -68,8 +67,16 @@ export default function AgentList() {
             bValue = b.health_state === 'healthy' ? 1 : 0;
             break;
           case 'last_seen':
-            aValue = a.last_health_check?.timestamp || '';
-            bValue = b.last_health_check?.timestamp || '';
+            aValue = a.last_seen || a.last_health_check?.timestamp || '';
+            bValue = b.last_seen || b.last_health_check?.timestamp || '';
+            break;
+          case 'name':
+            aValue = (a.name || a.device_id || '').toLowerCase();
+            bValue = (b.name || b.device_id || '').toLowerCase();
+            break;
+          case 'site':
+            aValue = (a.site_name || a.site_id || '').toLowerCase();
+            bValue = (b.site_name || b.site_id || '').toLowerCase();
             break;
           case 'device_id':
             aValue = a.device_id;
@@ -101,9 +108,32 @@ export default function AgentList() {
     };
     return (
       <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[s] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase border ${colors[s] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}
       >
         {s}
+      </span>
+    );
+  };
+
+  const getModeBadge = (agent) => {
+    const isEmulator = agent.enrollment_method === 'emulated' || agent.device_source === 'emulator';
+    if (isEmulator) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          EMU
+        </span>
+      );
+    }
+    if (agent.is_simulated) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          SIM
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+        REAL
       </span>
     );
   };
@@ -112,15 +142,12 @@ export default function AgentList() {
     const isOnline = state === 'online';
     return (
       <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase ${
           isOnline
             ? 'bg-green-900/30 text-green-400 border border-green-800'
             : 'bg-red-900/30 text-red-400 border border-red-800'
         }`}
       >
-        <span
-          className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isOnline ? 'bg-green-400' : 'bg-red-400'}`}
-        />
         {isOnline ? 'Online' : 'Offline'}
       </span>
     );
@@ -129,7 +156,7 @@ export default function AgentList() {
   const getHealthIcon = (healthState) => {
     if (!healthState || healthState === 'unknown') {
       return (
-        <span className="flex items-center gap-1.5 text-yellow-500 text-sm">
+        <span className="flex items-center gap-1.5 text-yellow-500 text-xs uppercase">
           <AlertTriangle className="w-4 h-4" />
           Unknown
         </span>
@@ -139,7 +166,7 @@ export default function AgentList() {
     const isHealthy = healthState === 'healthy';
     return (
       <span
-        className={`flex items-center gap-1.5 ${isHealthy ? 'text-emerald-400' : 'text-red-400'} text-sm`}
+        className={`flex items-center gap-1.5 ${isHealthy ? 'text-emerald-400' : 'text-red-400'} text-xs uppercase`}
       >
         {isHealthy ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
         {healthState.charAt(0).toUpperCase() + healthState.slice(1)}
@@ -237,62 +264,41 @@ export default function AgentList() {
         <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
           <div className="relative w-full overflow-auto flex-1">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-slate-900/80 text-slate-400 border-b border-slate-800">
+              <thead className="text-xs bg-slate-900/80 text-slate-400 border-b border-slate-800">
                 <tr>
+                  <th className="px-6 py-4 font-medium">Site</th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
-                    onClick={() => handleSort('device_id')}
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
+                    onClick={() => handleSort('name')}
                   >
-                    <div className="flex items-center gap-2">
-                      Device ID
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'device_id' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Device
                   </th>
+                  <th className="px-6 py-4 font-medium">OS / Type</th>
+                  <th className="px-6 py-4 font-medium">IP</th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('status')}
                   >
-                    <div className="flex items-center gap-2">
-                      Status
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'status' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Status
                   </th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('lifecycle')}
                   >
-                    <div className="flex items-center gap-2">
-                      Lifecycle
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'lifecycle' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Lifecycle
                   </th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('health')}
                   >
-                    <div className="flex items-center gap-2">
-                      Health Check
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'health' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Health
                   </th>
+                  <th className="px-6 py-4 font-medium">Mode</th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('last_seen')}
                   >
-                    <div className="flex items-center gap-2">
-                      Last Seen
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'last_seen' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Last Seen
                   </th>
                   <th className="px-6 py-4 font-medium text-right">Actions</th>
                 </tr>
@@ -300,7 +306,7 @@ export default function AgentList() {
               <tbody className="divide-y divide-slate-800">
                 {sortedAgents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                       No agents found. Register a device to get started.
                     </td>
                   </tr>
@@ -311,12 +317,35 @@ export default function AgentList() {
                       className="hover:bg-slate-800/50 transition-colors cursor-pointer hover:bg-slate-800/70"
                       onClick={() => navigate(`/device/${agent.device_id}`)}
                     >
-                      <td className="px-6 py-4 font-medium text-white">{agent.device_id}</td>
+                      <td className="px-6 py-4">
+                        <div className="text-white font-medium">
+                          {agent.site_name || agent.site_id || '—'}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono">
+                          {agent.site_id || '—'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-white font-medium">
+                          {agent.name || agent.device_id}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono">{agent.device_id}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-slate-300 text-xs">{agent.os_details || '—'}</div>
+                        <div className="text-slate-500 text-[10px] uppercase">
+                          {agent.device_type?.replace(/_/g, ' ') || '—'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-400 font-mono text-xs">
+                        {agent.ip_address || '—'}
+                      </td>
                       <td className="px-6 py-4">{getStatusBadge(agent.connectivity_state)}</td>
                       <td className="px-6 py-4">{getLifecycleBadge(agent.lifecycle_state)}</td>
                       <td className="px-6 py-4">{getHealthIcon(agent.health_state)}</td>
+                      <td className="px-6 py-4">{getModeBadge(agent)}</td>
                       <td className="px-6 py-4 text-slate-400 font-mono text-xs">
-                        {formatDate(agent.last_health_check?.timestamp)}
+                        {formatDate(agent.last_seen || agent.last_health_check?.timestamp)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button
