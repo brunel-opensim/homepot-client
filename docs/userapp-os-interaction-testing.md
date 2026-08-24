@@ -54,10 +54,13 @@ ack → result reporting, with the emulator standing in for the OS.
 
 ## Path 2 — Real agent (the new code)
 
-In Setup, **do not** pick an emulator — choose a real device type/OS
-(self-enrolled). The app writes `enrollment_method: 'self-enrolled'`, so the
-Electron main process spawns the **real Python agent**
-(`python -m homepot.agent.real_device_agent`) instead of an emulator.
+In Setup, **do not** pick an emulator — choose **"Set up a real device"**
+(self-enrolled). The wizard auto-detects the host: on a Mac it fills the OS
+(macOS) and defaults the **Device Type to Desktop** (Laptop / POS Terminal etc.
+are available if you override). The app writes
+`enrollment_method: 'self-enrolled'`, so the Electron main process spawns the
+**real Python agent** (`python -m homepot.agent.real_device_agent`) instead of
+an emulator.
 
 ### Verify each link
 
