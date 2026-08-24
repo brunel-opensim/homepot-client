@@ -77,6 +77,21 @@ an emulator.
 | Permission gating | With Monitor only, **Run Command** shows **Request Access**; grant **Manage** on the User App → **Queue Command** appears |
 | Command wake-up | Only for push-capable OSes (Android FCM / Windows WNS); on macOS it is a no-op and delivery relies on polling |
 
+### Testing the wake-up with the emulator
+
+Set up an **Android** (or Windows) emulator — those register `push_channel`/`push_token`,
+so queueing a command makes the backend persist a `command_wakeup` push that the emulator
+picks up from `/push/pending` and reacts to by polling `/devices/pending` **immediately**
+(instead of waiting out the poll interval). Watch the emulator log for:
+
+```
+[push] command wake-up received — polling pending commands now
+[commands] N pending
+```
+
+On macOS (polling-only) there is no wake-up, so the command arrives on the next poll
+interval — that is expected.
+
 ### Granting Manage (root) — sudo caveat
 
 Manage-tier execution runs through `sudo -n`:
