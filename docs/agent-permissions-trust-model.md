@@ -87,6 +87,9 @@ re-checks it **before** executing.
 | `shutdown` | `root_access` | power off |
 | `update_config` | `filesystem_access` | config files |
 | `update_pos_payment_config` | `filesystem_access` | payment / app settings |
+| `list_processes` | `process_monitoring` | view running processes |
+| `list_connections` | `network_monitoring` | view network connections |
+| `scan_filesystem` | `filesystem_access` | scan files / folders |
 
 ### Non-privileged commands
 
@@ -103,14 +106,12 @@ re-checks it **before** executing.
 | Reboot Device | `restart_pos_app` | `command_execution` |
 | Update Firmware | `update_pos_payment_config` | `filesystem_access` |
 | Run Diagnostics | `health_check` | `command_execution` |
+| List Processes | `list_processes` | `process_monitoring` |
+| List Network Connections | `list_connections` | `network_monitoring` |
+| Scan Filesystem | `scan_filesystem` | `filesystem_access` |
 
-### Permissions without a command today
-
-`process_monitoring` and `network_monitoring` are part of the permission model
-(and exposed in the User App), but **no command currently requires them**. The
-intended mapping is monitoring / scan commands (list processes, scan the
-filesystem, list network connections), planned so that every permission is
-meaningful. This section will be updated as those commands land.
+Every permission key now gates at least one command, so a grant in the
+User App always enables something.
 
 ## Command dispatch flow (end-to-end)
 
