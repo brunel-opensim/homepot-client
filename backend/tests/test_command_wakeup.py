@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 from homepot.push_notifications.wakeup import send_command_wakeup
 
 
