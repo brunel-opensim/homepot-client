@@ -324,6 +324,7 @@ class POSEmulator:
         self._device_id: str | None = None
         self._api_key: str | None = None
         self._shutdown_event = asyncio.Event()
+        self._command_wake_event = asyncio.Event()
         self._metrics = SimulatedMetrics()
         self._started = time.monotonic()
         self._config_version: str = "1.0.1"
@@ -935,7 +936,16 @@ class POSEmulator:
             except httpx.RequestError as exc:
                 print(f"  [commands] connection error: {exc}")
 
-            await self._wait_or_shutdown(self.config.command_poll_interval)
+            # Wait for the poll interval, or wake earlier when a push wake-up
+            # arrives (a queued command is waiting to be pulled).
+            try:
+                await asyncio.wait_for(
+                    self._command_wake_event.wait(),
+                    timeout=self.config.command_poll_interval,
+                )
+            except asyncio.TimeoutError:
+                pass
+            self._command_wake_event.clear()
 
     async def _push_loop(self) -> None:
         """Poll undelivered push notifications and model the delivery lifecycle.
@@ -1016,6 +1026,12 @@ class POSEmulator:
             print(f"  [push] delivered {title!r}{note} ({message_id[:8]})")
 
         await self._report_push_log(payload, title, body, failed)
+
+        # A command wake-up tells the command loop to poll /devices/pending now
+        # instead of waiting out the poll interval (push-as-wake-up, pull-as-payload).
+        if (payload.get("data") or {}).get("type") == "command_wakeup":
+            print("  [push] command wake-up received — polling pending commands now")
+            self._command_wake_event.set()
 
     async def _report_push_log(
         self, payload: dict, title: str, body: str, failed: bool

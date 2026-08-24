@@ -32,6 +32,61 @@ import pos_engine as emu  # noqa: E402
 import windows_pos_emulator  # noqa: E402
 
 
+def test_command_wakeup_sets_wake_event():
+    """A command_wakeup push makes the command loop poll immediately."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
+    cfg.os_details = "Android 14"
+    eng = emu.POSEmulator(cfg)
+    eng._device_id = "device-test-001"
+    eng._api_key = "api-key-test"
+
+    async def deliver():
+        eng._http = AsyncMock()
+        eng._http.post.return_value = SimpleNamespace(status_code=200)
+        eng._report_push_log = AsyncMock()
+        await eng._deliver_push(
+            {
+                "message_id": "m1",
+                "payload": {
+                    "title": "",
+                    "body": "",
+                    "data": {"type": "command_wakeup", "device_id": "d"},
+                },
+            }
+        )
+        return eng._command_wake_event.is_set()
+
+    assert asyncio.run(deliver())
+
+
+def test_regular_push_does_not_wake_command_loop():
+    """A non-wake-up push leaves the command loop on its own interval."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
+    cfg.os_details = "Android 14"
+    eng = emu.POSEmulator(cfg)
+    eng._device_id = "device-test-001"
+    eng._api_key = "api-key-test"
+
+    async def deliver():
+        eng._http = AsyncMock()
+        eng._http.post.return_value = SimpleNamespace(status_code=200)
+        eng._report_push_log = AsyncMock()
+        await eng._deliver_push(
+            {"message_id": "m2", "payload": {"title": "Hello", "body": "World"}}
+        )
+        return eng._command_wake_event.is_set()
+
+    assert not asyncio.run(deliver())
+
+
 @pytest.mark.parametrize(
     ("os_details", "expected_root_access", "expected_network_monitoring"),
     [
