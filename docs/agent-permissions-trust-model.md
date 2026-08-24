@@ -130,8 +130,7 @@ device and whether that may include root:
 
 The backend still enforces the strict **per-command** permission checks; the
 two-toggles are purely the owner-facing simplification. `root_access` is only
-granted by the User App when monitoring is enabled, so the Manage tier is
-additive to Monitor.
+granted by the User App when managing is enabled.
 
 ## Command dispatch flow (end-to-end)
 
