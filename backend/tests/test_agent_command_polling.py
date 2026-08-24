@@ -119,8 +119,8 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "denied" in result["result"]["error"]
 
-    def test_update_config_allowed_with_filesystem_access(self):
-        """Update_config succeeds when filesystem_access is granted."""
+    def test_update_config_allowed_with_root_access(self):
+        """Update_config succeeds when root_access is granted."""
         result = process_command(
             {
                 "command_id": "c1",
@@ -132,8 +132,8 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert set(result["result"]["applied_keys"]) == {"theme", "polling_rate"}
 
-    def test_update_config_denied_without_filesystem_access(self):
-        """Update_config fails when filesystem_access is denied."""
+    def test_update_config_denied_without_root_access(self):
+        """Update_config fails when root_access is denied."""
         result = process_command(
             {"command_id": "c1", "command_type": "update_config"}, DENY_ALL
         )
@@ -164,8 +164,8 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "not available" in result["result"]["error"]
 
-    def test_run_command_requires_command_execution(self):
-        """Command execution is denied without the owner grant."""
+    def test_run_command_requires_root_access(self):
+        """Command execution is denied without the root_access grant."""
         result = process_command(
             {
                 "command_id": "c1",
@@ -175,38 +175,45 @@ class TestProcessCommand:
             DENY_ALL,
         )
         assert result["status"] == "failed"
-        assert "command_execution" in result["result"]["error"]
+        assert "root_access" in result["result"]["error"]
 
-    def test_root_command_requires_both_grants(self):
-        """Root execution requires command and root grants."""
-        permissions = {**ALLOW_ALL, "root_access": False}
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_run_command_allowed_with_root_access(self, run):
+        """Command execution runs via non-interactive sudo once root is granted."""
+        run.return_value.returncode = 0
+        run.return_value.stdout = "root\n"
+        run.return_value.stderr = ""
         result = process_command(
             {
                 "command_id": "c1",
                 "command_type": "run_command",
-                "payload": {"data": {"command": "id", "run_as_root": True}},
+                "payload": {"data": {"command": "id -u", "timeout_seconds": 10}},
             },
-            permissions,
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0] == ["sudo", "-n", "--", "id", "-u"]
+
+    def test_scan_filesystem_requires_root_access(self):
+        """Filesystem scans are denied without the root_access grant."""
+        result = process_command(
+            {"command_id": "c1", "command_type": "scan_filesystem"}, DENY_ALL
         )
         assert result["status"] == "failed"
         assert "root_access" in result["result"]["error"]
 
-    def test_script_cannot_embed_sudo_without_root_request(self):
-        """Scripts cannot bypass explicit root approval with embedded sudo."""
+    def test_health_check_requires_command_execution(self):
+        """Diagnostics are a manage-tier command, denied without the manage grant."""
         result = process_command(
-            {
-                "command_id": "c1",
-                "command_type": "run_script",
-                "payload": {"data": {"script": "echo ready\nsudo id"}},
-            },
-            ALLOW_ALL,
+            {"command_id": "c1", "command_type": "health_check"},
+            {**ALLOW_ALL, "command_execution": False},
         )
         assert result["status"] == "failed"
-        assert "run_as_root" in result["result"]["error"]
+        assert "command_execution" in result["result"]["error"]
 
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_root_script_uses_non_interactive_sudo(self, run):
-        """Approved root scripts use non-interactive sudo."""
+    def test_script_runs_with_non_interactive_sudo(self, run):
+        """Scripts always run through non-interactive sudo once root is granted."""
         run.return_value.returncode = 0
         run.return_value.stdout = "root\n"
         run.return_value.stderr = ""
@@ -217,7 +224,6 @@ class TestProcessCommand:
                 "payload": {
                     "data": {
                         "script": "id -u",
-                        "run_as_root": True,
                         "timeout_seconds": 10,
                     }
                 },
@@ -227,6 +233,19 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert run.call_args.args[0] == ["sudo", "-n", "--", "/bin/sh", "-s"]
         assert run.call_args.kwargs["input"] == "id -u"
+
+    def test_script_with_embedded_sudo_requires_root_grant(self):
+        """Embedded sudo in a script still requires the root_access grant."""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_script",
+                "payload": {"data": {"script": "echo ready\nsudo id"}},
+            },
+            {**ALLOW_ALL, "root_access": False},
+        )
+        assert result["status"] == "failed"
+        assert "root_access" in result["result"]["error"]
 
 
 class TestBuildStatusUpdatePayload:

@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 import logging
-import re
 import shlex
 import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
@@ -16,39 +15,35 @@ COMMAND_TYPES = frozenset(
         "health_check",
         "request_permission",
         "restart",
-        "restart_pos_app",
         "run_command",
         "run_script",
         "shutdown",
         "status_request",
         "update_config",
-        "update_pos_payment_config",
         "list_processes",
         "list_connections",
         "scan_filesystem",
     }
 )
 
-# Each privileged command type requires a specific device_permission key.
+# Each command type requires a specific device_permission key. Commands that
+# execute, modify, or reboot/shut down the host system are gated on the
+# owner-facing "root_access" grant; read-only management (diagnostics,
+# monitoring) is gated on the "manage" group keys.
 REQUIRED_PERMISSION: Dict[str, str] = {
     "health_check": "command_execution",
     "restart": "root_access",
-    "restart_pos_app": "command_execution",
-    "run_command": "command_execution",
-    "run_script": "command_execution",
+    "run_command": "root_access",
+    "run_script": "root_access",
     "shutdown": "root_access",
-    "update_config": "filesystem_access",
-    "update_pos_payment_config": "filesystem_access",
+    "update_config": "root_access",
     "list_processes": "process_monitoring",
     "list_connections": "network_monitoring",
-    "scan_filesystem": "filesystem_access",
+    "scan_filesystem": "root_access",
 }
 
 MAX_COMMAND_OUTPUT = 64 * 1024
 MAX_COMMAND_TIMEOUT = 300
-PRIVILEGE_ESCALATION_PATTERN = re.compile(
-    r"(^|[;&|()\n]\s*|\b(?:exec|command|env)\s+)(sudo|su|doas|pkexec)\b"
-)
 
 
 def _command_data(command: Dict[str, Any]) -> Dict[str, Any]:
@@ -67,13 +62,6 @@ def required_permissions_for_command(
     base_permission = REQUIRED_PERMISSION.get(command_type)
     if base_permission:
         required.append(base_permission)
-
-    data = payload.get("data") if isinstance(payload, dict) else None
-    command_data = data if isinstance(data, dict) else payload or {}
-    if command_type in {"run_command", "run_script"} and command_data.get(
-        "run_as_root", False
-    ):
-        required.append("root_access")
     return required
 
 
@@ -156,16 +144,10 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
             "result": {"error": "timeout_seconds must be an integer"},
         }
 
-    run_as_root = data.get("run_as_root", False) is True
-    if not run_as_root and PRIVILEGE_ESCALATION_PATTERN.search(source):
-        return {
-            "status": "failed",
-            "result": {
-                "error": "Privilege escalation requires run_as_root and root_access"
-            },
-        }
+    # Command/script execution is always elevated: it is gated on the
+    # root_access grant and runs through non-interactive sudo.
     if script:
-        argv = ["/bin/sh", "-s"]
+        argv = ["sudo", "-n", "--", "/bin/sh", "-s"]
     else:
         try:
             argv = shlex.split(source)
@@ -176,7 +158,6 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
                 "status": "failed",
                 "result": {"error": "Command produced no executable arguments"},
             }
-    if run_as_root:
         argv = ["sudo", "-n", "--", *argv]
 
     try:

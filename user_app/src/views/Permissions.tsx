@@ -42,16 +42,18 @@ const PERMISSION_DEFS: { key: string; label: string; description: string }[] = [
   },
 ];
 
-// The owner-facing permission groups. "Manage device" maps to all the
-// non-root capabilities; "Root access" is the privileged sudo/reboot/shutdown
-// grant (only meaningful when management is enabled).
-const MANAGE_KEYS = [
+// The owner-facing permission groups. "Monitor device" maps to the non-root
+// read-only capabilities (diagnostics, monitoring); "Manage device" is the
+// elevated grant (root_access) that enables command/script execution,
+// filesystem scans, config/firmware updates, and reboot/shutdown — it is only
+// meaningful when monitoring is enabled.
+const MONITOR_KEYS = [
   "command_execution",
   "filesystem_access",
   "process_monitoring",
   "network_monitoring",
 ];
-const ROOT_KEY = "root_access";
+const MANAGE_KEY = "root_access";
 
 function Toggle({
   enabled,
@@ -172,18 +174,18 @@ export default function Permissions() {
 
   // --- Grouped (owner-facing) toggles ----------------------------------------
 
-  const manageSupported = MANAGE_KEYS.filter(
+  const monitorSupported = MONITOR_KEYS.filter(
     (key) => permissions.find((p) => p.key === key)?.supported,
   );
-  const manageEnabled =
-    manageSupported.length > 0 &&
-    manageSupported.every(
+  const monitorEnabled =
+    monitorSupported.length > 0 &&
+    monitorSupported.every(
       (key) => permissions.find((p) => p.key === key)?.enabled,
     );
-  const rootSupported =
-    permissions.find((p) => p.key === ROOT_KEY)?.supported ?? false;
-  const rootEnabled =
-    permissions.find((p) => p.key === ROOT_KEY)?.enabled ?? false;
+  const manageSupported =
+    permissions.find((p) => p.key === MANAGE_KEY)?.supported ?? false;
+  const manageEnabled =
+    permissions.find((p) => p.key === MANAGE_KEY)?.enabled ?? false;
 
   const syncGroup = useCallback(
     async (keys: string[], enabled: boolean, group: string) => {
@@ -211,14 +213,14 @@ export default function Permissions() {
     [],
   );
 
-  function handleManageToggle() {
+  function handleMonitorToggle() {
     setOverrideNotice(false);
-    const nextEnabled = !manageEnabled;
-    const supportedKeys = manageSupported;
-    // Turning management OFF also clears root access (root depends on it).
+    const nextEnabled = !monitorEnabled;
+    const supportedKeys = monitorSupported;
+    // Turning monitoring OFF also clears manage (manage depends on it).
     const keys = nextEnabled
       ? supportedKeys
-      : [...supportedKeys, ROOT_KEY].filter(
+      : [...supportedKeys, MANAGE_KEY].filter(
           (k) => permissions.find((p) => p.key === k)?.supported,
         );
     setPermissions((prev) => {
@@ -228,20 +230,20 @@ export default function Permissions() {
       latestPermissionsRef.current = next;
       return next;
     });
-    syncGroup(keys, nextEnabled, "manage");
+    syncGroup(keys, nextEnabled, "monitor");
   }
 
-  function handleRootToggle() {
+  function handleManageToggle() {
     setOverrideNotice(false);
-    const nextEnabled = !rootEnabled;
+    const nextEnabled = !manageEnabled;
     setPermissions((prev) => {
       const next = prev.map((p) =>
-        p.key === ROOT_KEY ? { ...p, enabled: nextEnabled } : p,
+        p.key === MANAGE_KEY ? { ...p, enabled: nextEnabled } : p,
       );
       latestPermissionsRef.current = next;
       return next;
     });
-    syncGroup([ROOT_KEY], nextEnabled, "root");
+    syncGroup([MANAGE_KEY], nextEnabled, "manage");
   }
 
   if (loading) {
@@ -305,46 +307,44 @@ export default function Permissions() {
 
         {/* Permission Toggles */}
         <div className="px-5 pt-4 flex flex-col">
-          {/* Manage device */}
+          {/* Monitor device */}
           <div className="flex items-center justify-between py-3.5">
             <div className="flex flex-col gap-0.5 flex-1 mr-4">
               <span className="text-sm font-medium text-slate-200">
-                Allow Dashboard to manage this device
+                Allow Dashboard to monitor this device
               </span>
               <span className="text-slate-500 text-xs">
-                Run commands &amp; scripts, restart apps, run diagnostics,
-                update settings, scan the filesystem, and view processes &amp;
-                network.
+                Run diagnostics, and view processes &amp; network connections.
               </span>
             </div>
             <Toggle
-              enabled={manageEnabled}
-              disabled={manageSupported.length === 0}
-              saving={savingGroup === "manage"}
-              onChange={handleManageToggle}
+              enabled={monitorEnabled}
+              disabled={monitorSupported.length === 0}
+              saving={savingGroup === "monitor"}
+              onChange={handleMonitorToggle}
             />
           </div>
           <div className="border-t border-slate-700" />
 
-          {/* Root access */}
+          {/* Manage device */}
           <div className="flex items-center justify-between py-3.5">
             <div className="flex flex-col gap-0.5 flex-1 mr-4">
               <span
-                className={`text-sm font-medium ${rootSupported ? "text-slate-200" : "text-slate-500"}`}
+                className={`text-sm font-medium ${manageSupported ? "text-slate-200" : "text-slate-500"}`}
               >
-                Allow root access
+                Allow Dashboard to manage this device
               </span>
               <span className="text-slate-500 text-xs">
-                {rootSupported
-                  ? "Let approved commands, scripts, reboot and shutdown run with root (sudo) privileges."
+                {manageSupported
+                  ? "Run commands & scripts with root (sudo) privileges, scan the filesystem, update configuration & firmware, and reboot or shut down the system."
                   : "Not supported on this OS"}
               </span>
             </div>
             <Toggle
-              enabled={rootEnabled}
-              disabled={!rootSupported || !manageEnabled}
-              saving={savingGroup === "root"}
-              onChange={handleRootToggle}
+              enabled={manageEnabled}
+              disabled={!manageSupported || !monitorEnabled}
+              saving={savingGroup === "manage"}
+              onChange={handleManageToggle}
             />
           </div>
         </div>
@@ -365,7 +365,7 @@ export default function Permissions() {
             </span>
             <p className="text-xs text-slate-300">
               {savingGroup
-                ? `Syncing ${savingGroup === "manage" ? "management" : "root access"}…`
+                ? `Syncing ${savingGroup === "monitor" ? "monitoring" : "management"}…`
                 : "All changes synced to the server."}
             </p>
           </div>

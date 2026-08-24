@@ -1002,7 +1002,7 @@ async def trigger_health_check(device_id: str) -> Dict[str, Any]:
 @app.post("/devices/{device_id}/restart", tags=["Actions"])
 @app.post("/api/v1/devices/{device_id}/restart", tags=["Actions"])
 async def restart_device(device_id: str) -> Dict[str, Any]:
-    """Restart the POS application on a device."""
+    """Restart the host system on a device."""
     try:
         from homepot.agents import get_agent_manager
 
@@ -1010,7 +1010,7 @@ async def restart_device(device_id: str) -> Dict[str, Any]:
 
         # Send restart request to agent
         response = await agent_manager.send_push_notification(
-            device_id, {"action": "restart_pos_app", "data": {}}
+            device_id, {"action": "restart", "data": {}}
         )
 
         if not response:

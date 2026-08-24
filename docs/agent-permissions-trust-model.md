@@ -47,10 +47,9 @@ device.
    reaches the device
 6. **Agent executes** only commands that pass the permission gate (U5)
 
-Technician commands and scripts require `command_execution`. When a command or
-script sets `run_as_root: true`, it additionally requires `root_access`. Root
-execution uses non-interactive `sudo`; an unavailable or disallowed sudo policy
-fails the command rather than prompting on the device.
+Technician command and script execution is always elevated: it requires
+`root_access` and runs through non-interactive `sudo`; an unavailable or
+disallowed sudo policy fails the command rather than prompting on the device.
 
 ## Heterogeneous device handling
 
@@ -77,19 +76,22 @@ re-checks it **before** executing.
 
 ### Privileged commands
 
-| Command type | Required permission | Notes |
-|---|---|---|
-| `run_command` | `command_execution` | + `root_access` when `run_as_root: true` |
-| `run_script` | `command_execution` | + `root_access` when `run_as_root: true` |
-| `restart_pos_app` | `command_execution` | app / OS restart |
-| `health_check` | `command_execution` | self-tests / diagnostics |
-| `restart` | `root_access` | full OS reboot |
-| `shutdown` | `root_access` | power off |
-| `update_config` | `filesystem_access` | config files |
-| `update_pos_payment_config` | `filesystem_access` | payment / app settings |
-| `list_processes` | `process_monitoring` | view running processes |
-| `list_connections` | `network_monitoring` | view network connections |
-| `scan_filesystem` | `filesystem_access` | scan files / folders |
+Commands are classified into **two owner-facing tiers**: read-only monitoring
+(Monitor device) and elevated execution / system control (Manage device). All
+command/script execution is elevated — it runs through `sudo` and is gated on
+`root_access`.
+
+| Command type | Required permission | Tier | Notes |
+|---|---|---|---|
+| `run_command` | `root_access` | Manage | always runs via `sudo` |
+| `run_script` | `root_access` | Manage | always runs via `sudo` |
+| `scan_filesystem` | `root_access` | Manage | full filesystem scan |
+| `update_config` | `root_access` | Manage | config / firmware / settings |
+| `restart` | `root_access` | Manage | reboot the host system |
+| `shutdown` | `root_access` | Manage | power off the host system |
+| `health_check` | `command_execution` | Monitor | self-tests / diagnostics |
+| `list_processes` | `process_monitoring` | Monitor | view running processes |
+| `list_connections` | `network_monitoring` | Monitor | view network connections |
 
 ### Non-privileged commands
 
@@ -100,15 +102,16 @@ re-checks it **before** executing.
 
 | Template | Command type | Required permission |
 |---|---|---|
-| Run Command | `run_command` | `command_execution` |
-| Run Script | `run_script` | `command_execution` |
-| Apply Configuration | `update_pos_payment_config` | `filesystem_access` |
-| Reboot Device | `restart_pos_app` | `command_execution` |
-| Update Firmware | `update_pos_payment_config` | `filesystem_access` |
+| Run Command | `run_command` | `root_access` |
+| Run Script | `run_script` | `root_access` |
+| Apply Configuration | `update_config` | `root_access` |
+| Reboot System | `restart` | `root_access` |
+| Update Firmware | `update_config` | `root_access` |
 | Run Diagnostics | `health_check` | `command_execution` |
 | List Processes | `list_processes` | `process_monitoring` |
 | List Network Connections | `list_connections` | `network_monitoring` |
-| Scan Filesystem | `scan_filesystem` | `filesystem_access` |
+| Scan Filesystem | `scan_filesystem` | `root_access` |
+| Shut Down System | `shutdown` | `root_access` |
 
 Every permission key now gates at least one command, so a grant in the
 User App always enables something.
@@ -122,11 +125,13 @@ device and whether that may include root:
 
 | User App toggle | Maps to permissions | Enables |
 |---|---|---|
-| **Allow Dashboard to manage this device** | `command_execution`, `filesystem_access`, `process_monitoring`, `network_monitoring` | run command/script, restart app, diagnostics, update config/settings, scan filesystem, view processes & network |
-| **Allow root access** | `root_access` | sudo on commands/scripts, reboot, shutdown (only available when management is on) |
+| **Allow Dashboard to monitor this device** | `command_execution`, `filesystem_access`, `process_monitoring`, `network_monitoring` | run diagnostics, view processes & network |
+| **Allow Dashboard to manage this device** | `root_access` | run commands/scripts with sudo, scan the filesystem, update config/firmware, reboot or shut down the system (only available when monitoring is on) |
 
 The backend still enforces the strict **per-command** permission checks; the
-two-toggles are purely the owner-facing simplification.
+two-toggles are purely the owner-facing simplification. `root_access` is only
+granted by the User App when monitoring is enabled, so the Manage tier is
+additive to Monitor.
 
 ## Command dispatch flow (end-to-end)
 

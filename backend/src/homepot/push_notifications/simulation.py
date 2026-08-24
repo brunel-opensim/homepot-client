@@ -322,7 +322,7 @@ class SimulationProvider(PushNotificationProvider):
         payload_data = payload.data
         assert isinstance(payload_data, dict)
         if "config_url" in payload_data:
-            notification["action"] = "update_pos_payment_config"
+            notification["action"] = "update_config"
             notification_data = notification["data"]
             assert isinstance(notification_data, dict)
             notification_data["config_url"] = payload_data["config_url"]
@@ -330,12 +330,12 @@ class SimulationProvider(PushNotificationProvider):
                 "config_version", "1.0.0"
             )
         elif "restart" in payload.data and payload.data["restart"]:
-            notification["action"] = "restart_pos_app"
+            notification["action"] = "restart"
         elif "action" in payload.data:
             # Allow direct action specification in payload data
             valid_actions = [
-                "update_pos_payment_config",
-                "restart_pos_app",
+                "update_config",
+                "restart",
                 "health_check",
             ]
             if payload.data["action"] in valid_actions:

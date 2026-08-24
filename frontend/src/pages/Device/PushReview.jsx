@@ -24,43 +24,44 @@ const COMMAND_TEMPLATES = {
   RUN_COMMAND: {
     label: 'Run Command',
     action: 'run_command',
-    permission: 'command_execution',
-    defaultData: { command: 'uname -a', run_as_root: false, timeout_seconds: 30 },
-    description: 'Run one executable with arguments. Shell operators are not interpreted.',
+    permission: 'root_access',
+    defaultData: { command: 'uname -a', timeout_seconds: 30 },
+    description:
+      'Run one executable with root (sudo) privileges. Shell operators are not interpreted.',
   },
   RUN_SCRIPT: {
     label: 'Run Script',
     action: 'run_script',
-    permission: 'command_execution',
-    defaultData: { script: '#!/bin/sh\nid', run_as_root: false, timeout_seconds: 30 },
-    description: 'Run a POSIX shell script supplied through standard input.',
+    permission: 'root_access',
+    defaultData: { script: '#!/bin/sh\nid', timeout_seconds: 30 },
+    description: 'Run a POSIX shell script through standard input with root (sudo) privileges.',
   },
   APPLY_CONFIG: {
     label: 'Apply Configuration',
-    action: 'update_pos_payment_config',
-    permission: 'filesystem_access',
+    action: 'update_config',
+    permission: 'root_access',
     defaultData: {
       volume: 50,
       brightness: 75,
       kiosk_mode: true,
       maintenance_window: '02:00-04:00',
     },
-    description: 'Update device settings like volume, brightness, or app preferences.',
+    description: 'Update system settings with root privileges.',
   },
-  REBOOT_DEVICE: {
-    label: 'Reboot Device',
-    action: 'restart_pos_app',
-    permission: 'command_execution',
+  REBOOT_SYSTEM: {
+    label: 'Reboot System',
+    action: 'restart',
+    permission: 'root_access',
     defaultData: {
       delay_seconds: 10,
       reason: 'Scheduled maintenance',
     },
-    description: 'Restart the device operating system.',
+    description: 'Reboot the system the User App runs on.',
   },
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
-    action: 'update_pos_payment_config',
-    permission: 'filesystem_access',
+    action: 'update_config',
+    permission: 'root_access',
     defaultData: {
       version: '2.4.0',
       url: 'https://firmware.homepot.io/v2.4.0.bin',
@@ -102,23 +103,39 @@ const COMMAND_TEMPLATES = {
   SCAN_FILESYSTEM: {
     label: 'Scan Filesystem',
     action: 'scan_filesystem',
-    permission: 'filesystem_access',
+    permission: 'root_access',
     defaultData: {
       path: '/var/homepot',
       max_depth: 3,
       include_sizes: true,
     },
-    description: 'Scan the device filesystem for files.',
+    description: 'Scan the system filesystem for files with root privileges.',
+  },
+  SHUT_DOWN: {
+    label: 'Shut Down System',
+    action: 'shutdown',
+    permission: 'root_access',
+    defaultData: {
+      delay_seconds: 10,
+      reason: 'Maintenance complete',
+    },
+    description: 'Shut down the system the User App runs on.',
   },
 };
 
-const PERMISSION_LABELS = {
-  command_execution: 'Command & Script Execution',
-  filesystem_access: 'File System Access',
-  root_access: 'Root / Full Access',
-  process_monitoring: 'Process Monitoring',
-  network_monitoring: 'Network Monitoring',
+const PERMISSION_GROUPS = {
+  monitor: {
+    label: 'Monitor device',
+    keys: ['command_execution', 'filesystem_access', 'process_monitoring', 'network_monitoring'],
+  },
+  manage: {
+    label: 'Manage device',
+    keys: ['root_access'],
+  },
 };
+const PERMISSION_TO_GROUP = Object.fromEntries(
+  Object.entries(PERMISSION_GROUPS).flatMap(([group, def]) => def.keys.map((key) => [key, group]))
+);
 
 const ACTION_TO_TEMPLATE = Object.fromEntries(
   Object.entries(COMMAND_TEMPLATES).map(([key, template]) => [template.action, key])
@@ -325,13 +342,18 @@ export default function PushReview() {
   }
 
   const template = COMMAND_TEMPLATES[selectedCommand];
-  const requiredPermissions = [
-    template?.permission,
-    ...(parsedData.run_as_root ? ['root_access'] : []),
-  ].filter(Boolean);
+  const requiredPermissions = [template?.permission].filter(Boolean);
   const missingPermissions = requiredPermissions.filter(
     (permission) => !device?.device_permissions?.[permission]
   );
+
+  // Owner-facing groups required / missing for this command (ties the
+  // Dashboard's request/approval to the User App's two toggles).
+  const requiredGroups = [...new Set(requiredPermissions.map((p) => PERMISSION_TO_GROUP[p]))];
+  const missingGroups = requiredGroups.filter((group) =>
+    PERMISSION_GROUPS[group].keys.some((key) => !device?.device_permissions?.[key])
+  );
+  const groupLabel = (group) => PERMISSION_GROUPS[group].label;
 
   const payloadPreview = {
     title: payloadConfig.title,
@@ -456,7 +478,7 @@ export default function PushReview() {
             </div>
           </div>
           <Button
-            onClick={missingPermissions.length ? handleRequestAccess : handleSend}
+            onClick={missingGroups.length ? handleRequestAccess : handleSend}
             disabled={sending || !!jsonError}
             className={`px-4 h-9 ${jsonError ? 'bg-slate-700 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-500 text-white'}`}
           >
@@ -464,7 +486,7 @@ export default function PushReview() {
               'Sending...'
             ) : (
               <>
-                {missingPermissions.length ? (
+                {missingGroups.length ? (
                   <>
                     <ShieldAlert className="h-4 w-4 mr-2" />
                     Request Access
@@ -525,13 +547,14 @@ export default function PushReview() {
 
                 <div
                   className={`border rounded-lg px-3 py-2 text-xs ${
-                    missingPermissions.length
+                    missingGroups.length
                       ? 'border-amber-700/60 bg-amber-950/30 text-amber-300'
                       : 'border-emerald-700/50 bg-emerald-950/20 text-emerald-300'
                   }`}
                 >
-                  Required: {requiredPermissions.map((key) => PERMISSION_LABELS[key]).join(' + ')}
-                  {missingPermissions.length > 0 && ' — awaiting device-owner approval'}
+                  Required: {requiredGroups.map(groupLabel).join(' + ')}
+                  {missingGroups.length > 0 &&
+                    ` — awaiting device-owner approval for ${missingGroups.map(groupLabel).join(' + ')}`}
                 </div>
 
                 {/* JSON Data Editor */}

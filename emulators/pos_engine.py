@@ -23,8 +23,8 @@ then runs four concurrent loops:
   metrics, network latency, plus runtime uptime (``uptime_seconds``)
 - **Command polling** — ``GET /devices/pending``, ACK, and respond with mock results;
   a ``status_request`` command returns a live device-status snapshot and posts it
-  to the Dashboard's Live Logs tab; composed push commands (``update_pos_payment_config``,
-  ``restart_pos_app``, ``health_check``, or custom actions) are applied/acknowledged,
+  to the Dashboard's Live Logs tab; composed push commands (``update_config``,
+  ``restart``, ``health_check``, or custom actions) are applied/acknowledged,
   summarised to Live Logs, and recorded in the Push History page
 - **Live logs** — ``POST /agent/logs`` with realistic POS terminal log lines
 - **Audit events** — ``POST /agent/audit`` with realistic device audit events
@@ -85,15 +85,13 @@ PERMISSION_CONSENT_MODES = ("auto", "fixed", "deny", "external")
 COMMAND_PERMISSIONS = {
     "health_check": "command_execution",
     "restart": "root_access",
-    "restart_pos_app": "command_execution",
-    "run_command": "command_execution",
-    "run_script": "command_execution",
+    "run_command": "root_access",
+    "run_script": "root_access",
     "shutdown": "root_access",
-    "update_config": "filesystem_access",
-    "update_pos_payment_config": "filesystem_access",
+    "update_config": "root_access",
     "list_processes": "process_monitoring",
     "list_connections": "network_monitoring",
-    "scan_filesystem": "filesystem_access",
+    "scan_filesystem": "root_access",
 }
 
 
@@ -330,7 +328,6 @@ class POSEmulator:
         self._started = time.monotonic()
         self._config_version: str = "1.0.1"
         self._applied_config: dict[str, object] = {}
-        self._app_restarts: int = 0
         self._capabilities: dict[str, bool] = derive_os_capabilities(config.os_details)
         self._push_channel: str | None = derive_push_channel(config.os_details)
         self._push_token: str | None = (
@@ -433,13 +430,6 @@ class POSEmulator:
         base_permission = COMMAND_PERMISSIONS.get(command_type)
         if base_permission:
             required.append(base_permission)
-        payload_dict = payload if isinstance(payload, dict) else {}
-        data = payload_dict.get("data")
-        command_data = data if isinstance(data, dict) else payload_dict
-        if command_type in ("run_command", "run_script") and command_data.get(
-            "run_as_root", False
-        ):
-            required.append("root_access")
         missing = [key for key in required if not self._granted.get(key, False)]
         if missing:
             return f"Permission denied: {', '.join(missing)} not granted"
@@ -1332,7 +1322,7 @@ class POSEmulator:
                 },
             }
 
-        if command_type == "update_pos_payment_config":
+        if command_type == "update_config":
             if self._command_should_fail():
                 return self._fail_result(
                     "Configuration update failed",
@@ -1360,21 +1350,6 @@ class POSEmulator:
                     "config_url": data.get("config_url", ""),
                     "config_version": self._config_version,
                     "applied_settings": self._applied_config,
-                },
-            }
-
-        if command_type == "restart_pos_app":
-            if self._command_should_fail():
-                return self._fail_result(
-                    "POS application restart failed",
-                    "Service dependency error: pos-svc on localhost:9100 unreachable",
-                )
-            self._app_restarts += 1
-            return {
-                "status": "completed",
-                "result": {
-                    "message": f"POS application restarted (restart #{self._app_restarts})",
-                    "delay_seconds": data.get("delay_seconds", 10),
                 },
             }
 
@@ -1501,13 +1476,6 @@ class POSEmulator:
             "shutdown": {
                 "status": "completed",
                 "result": {"message": "Device shutdown initiated"},
-            },
-            "update_config": {
-                "status": "completed",
-                "result": {
-                    "message": "Configuration updated successfully",
-                    "applied_settings": {"log_level": "INFO"},
-                },
             },
             "ping": {
                 "status": "completed",
