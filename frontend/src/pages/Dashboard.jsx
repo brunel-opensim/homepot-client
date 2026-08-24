@@ -9,6 +9,18 @@ import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
 import WorldMapImage from '@/assets/images/world-map.png';
 
+// Collapse an alert reason to a stable "kind" by stripping the numeric metric
+// value and units, e.g. 'High Latency: 825ms' -> 'high latency'. This lets
+// repeated periodic alerts of the same kind be deduplicated.
+const normalizeAlertKind = (reason) =>
+  String(reason || '')
+    .replace(/\d+(\.\d+)?/g, '')
+    .replace(/\b(ms|%|mb|gb|bytes?|seconds?|secs?)\b/g, '')
+    .replace(/[:.,]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
@@ -76,7 +88,19 @@ export default function Dashboard() {
           const anomalyData = await api.ai.getAnomalies();
           if (anomalyData && anomalyData.anomalies) {
             anomalies = anomalyData.anomalies;
-            finalAlerts = anomalies.map((a) => ({
+            // Keep only the LATEST anomaly per (device, alert kind) so
+            // repeated periodic alerts (e.g. 'High Latency' at different
+            // values) collapse to the most recent one instead of accumulating.
+            const latestByKind = new Map();
+            for (const a of anomalies) {
+              const kind = normalizeAlertKind(a.reasons?.[0] || a.severity || 'alert');
+              const key = `${a.device_id}::${kind}`;
+              const existing = latestByKind.get(key);
+              if (!existing || new Date(a.timestamp) > new Date(existing.timestamp)) {
+                latestByKind.set(key, a);
+              }
+            }
+            finalAlerts = Array.from(latestByKind.values()).map((a) => ({
               id: a.id,
               message:
                 a.reasons && a.reasons.length > 0
