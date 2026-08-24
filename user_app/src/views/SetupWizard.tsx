@@ -56,6 +56,15 @@ async function detectOS(): Promise<string> {
   return detectBrowserOS()
 }
 
+// A sensible device type default for the host OS (used when the user leaves
+// the Device Type unset). Desktop OSes map to a desktop; Android POS to a POS
+// terminal; iOS to a tablet.
+function defaultDeviceTypeFor(os: string): string {
+  if (os === 'android') return 'pos_terminal'
+  if (os === 'ios') return 'tablet'
+  return 'desktop'
+}
+
 type SetupStep = { label: string; path?: string }
 
 function StepIndicator({ current, steps }: { current: number; steps: SetupStep[] }) {
@@ -160,7 +169,8 @@ function Step1() {
 
   const handleNext = async () => {
     const resolvedOs = deviceOs === 'auto' ? await detectOS() : deviceOs
-    setSetupState({ siteId, deviceName, deviceType, deviceOs: resolvedOs, bootstrapKey, backendUrl: setupState.backendUrl })
+    const resolvedType = deviceType || defaultDeviceTypeFor(resolvedOs)
+    setSetupState({ siteId, deviceName, deviceType: resolvedType, deviceOs: resolvedOs, bootstrapKey, backendUrl: setupState.backendUrl })
     navigate('/method')
   }
 
@@ -256,7 +266,7 @@ function Step1() {
 
       <div className="flex flex-col gap-1">
         <label className="text-slate-300 text-sm font-medium">
-          Device Type <span className="text-red-400">*</span>
+          Device Type
         </label>
         <select
           value={deviceType}
@@ -264,6 +274,8 @@ function Step1() {
           className="w-full px-3 py-2.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
         >
           <option value="">-</option>
+          <option value="desktop">Desktop</option>
+          <option value="laptop">Laptop</option>
           <option value="pos_terminal">POS Terminal</option>
           <option value="virtual_terminal">Virtual Terminal</option>
           <option value="kiosk">Kiosk</option>
@@ -293,7 +305,7 @@ function Step1() {
 
       <button
         onClick={handleNext}
-        disabled={credentialStatus !== 'verified' || nameStatus !== 'available' || !deviceType}
+        disabled={credentialStatus !== 'verified' || nameStatus !== 'available'}
         className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
       >
         Next →
