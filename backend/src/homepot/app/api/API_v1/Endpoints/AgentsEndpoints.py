@@ -35,6 +35,7 @@ async def list_agents() -> Dict[str, List[Dict]]:
     try:
         from sqlalchemy import select
 
+        from homepot.app.models.AnalyticsModel import DeviceMetrics
         from homepot.database import get_database_service
         from homepot.models import Device, HealthCheck
 
@@ -42,8 +43,11 @@ async def list_agents() -> Dict[str, List[Dict]]:
         agents_status = []
 
         async with db_service.get_session() as session:
-            # Get all devices
-            result = await session.execute(select(Device))
+            # Get all active devices (exclude suspended/unpaired so the Data
+            # Collection page reflects only live, managed agents).
+            result = await session.execute(
+                select(Device).where(Device.is_active.is_(True))
+            )
             devices = result.scalars().all()
 
             if not devices:
@@ -87,11 +91,52 @@ async def list_agents() -> Dict[str, List[Dict]]:
                     if "timestamp" not in hc_data and latest_hc.timestamp:
                         hc_data["timestamp"] = latest_hc.timestamp.isoformat()
                 else:
-                    # Log warning if no health check found for active device
-                    if _compute_connectivity(device) == ConnectivityState.ONLINE.value:
-                        logger.warning(
-                            f"No health check found for online device {device.device_id} (PK: {device.id})"
+                    # No HealthCheck for this device — e.g. an emulator that
+                    # reports telemetry (device_metrics) but not health checks.
+                    # Fall back to the latest metrics so the Data Collection
+                    # page shows live data for emulated devices too.
+                    metrics_stmt = (
+                        select(DeviceMetrics)
+                        .where(DeviceMetrics.device_id == device.id)
+                        .order_by(DeviceMetrics.timestamp.desc())
+                        .limit(1)
+                    )
+                    latest_metrics = (
+                        await session.execute(metrics_stmt)
+                    ).scalar_one_or_none()
+                    if latest_metrics:
+                        extra: dict = (
+                            latest_metrics.extra_metrics
+                            if isinstance(latest_metrics.extra_metrics, dict)
+                            else {}
                         )
+                        hc_data = {
+                            "metrics": {
+                                "cpu_usage_percent": latest_metrics.cpu_percent,
+                                "memory_usage_percent": latest_metrics.memory_percent,
+                                "disk_usage_percent": latest_metrics.disk_percent,
+                                "network_latency_ms": latest_metrics.network_latency_ms,
+                                "error_rate": latest_metrics.error_rate,
+                                "transaction_count": latest_metrics.transaction_count,
+                                "transaction_volume": latest_metrics.transaction_volume,
+                                "active_connections": latest_metrics.active_connections,
+                                "uptime_seconds": extra.get("uptime_seconds"),
+                            },
+                            "timestamp": (
+                                latest_metrics.timestamp.isoformat()
+                                if latest_metrics.timestamp
+                                else None
+                            ),
+                        }
+                    else:
+                        # Log warning if no health check found for active device
+                        if (
+                            _compute_connectivity(device)
+                            == ConnectivityState.ONLINE.value
+                        ):
+                            logger.warning(
+                                f"No health check found for online device {device.device_id}"
+                            )
 
                 conn = _compute_connectivity(device)
                 status_data = {
