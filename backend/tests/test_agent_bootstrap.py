@@ -1,5 +1,6 @@
 """Tests for the agent bootstrap flow (claim enrolment intent + DNA registration)."""
 
+import json
 from pathlib import Path
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -7,6 +8,42 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from homepot.agent.credential_storage import SimulationStorage
+from homepot.agent.real_device_agent import load_agent_config
+
+
+def test_load_agent_config_electron_shape(monkeypatch) -> None:
+    """The config file the User App's Electron main writes loads correctly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg_path = Path(tmpdir) / "agent-config.json"
+        cfg_path.write_text(
+            json.dumps(
+                {
+                    "backend_url": "http://localhost:8000/api/v1",
+                    "device_id": "device-test-mac-001",
+                    "api_key": "mM2fake",
+                    "site_id": "site-it-demo1",
+                    "device_name": "My Mac",
+                    "device_type": "pos_terminal",
+                    "os_details": "darwin",
+                    "heartbeat_interval_seconds": 30,
+                    "telemetry_interval_seconds": 30,
+                    "command_poll_interval_seconds": 15,
+                    "retry_flush_interval_seconds": 60,
+                    "ipc_enabled": False,
+                    "watchdog_enabled": True,
+                    "watchdog_interval_seconds": 10,
+                    "shutdown_timeout_seconds": 30,
+                    "log_level": "INFO",
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HOMEPOT_AGENT_CONFIG", str(cfg_path))
+        config = load_agent_config()
+        assert config["device_id"] == "device-test-mac-001"
+        assert config["api_key"] == "mM2fake"
+        assert config["backend_url"] == "http://localhost:8000/api/v1"
+        assert config["command_poll_interval_seconds"] == 15
 
 
 @pytest.fixture
