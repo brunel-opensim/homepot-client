@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Server,
   Activity,
-  ArrowUpDown,
 } from 'lucide-react';
 import api from '@/services/api';
 import { useNavigate } from 'react-router-dom';
@@ -19,7 +18,7 @@ export default function AgentList() {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: 'status', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'site', direction: 'asc' });
 
   const fetchAgents = async () => {
     try {
@@ -74,6 +73,10 @@ export default function AgentList() {
           case 'name':
             aValue = (a.name || a.device_id || '').toLowerCase();
             bValue = (b.name || b.device_id || '').toLowerCase();
+            break;
+          case 'site':
+            aValue = (a.site_name || a.site_id || '').toLowerCase();
+            bValue = (b.site_name || b.site_id || '').toLowerCase();
             break;
           case 'device_id':
             aValue = a.device_id;
@@ -265,62 +268,37 @@ export default function AgentList() {
                 <tr>
                   <th className="px-6 py-4 font-medium">Site</th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('name')}
                   >
-                    <div className="flex items-center gap-2">
-                      Device
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'name' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Device
                   </th>
                   <th className="px-6 py-4 font-medium">OS / Type</th>
                   <th className="px-6 py-4 font-medium">IP</th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('status')}
                   >
-                    <div className="flex items-center gap-2">
-                      Status
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'status' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Status
                   </th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('lifecycle')}
                   >
-                    <div className="flex items-center gap-2">
-                      Lifecycle
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'lifecycle' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Lifecycle
                   </th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('health')}
                   >
-                    <div className="flex items-center gap-2">
-                      Health
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'health' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Health
                   </th>
                   <th className="px-6 py-4 font-medium">Mode</th>
                   <th
-                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
+                    className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('last_seen')}
                   >
-                    <div className="flex items-center gap-2">
-                      Last Seen
-                      <ArrowUpDown
-                        className={`h-3 w-3 ${sortConfig.key === 'last_seen' ? 'text-teal-400' : 'text-slate-600 group-hover:text-slate-400'}`}
-                      />
-                    </div>
+                    Last Seen
                   </th>
                   <th className="px-6 py-4 font-medium text-right">Actions</th>
                 </tr>
