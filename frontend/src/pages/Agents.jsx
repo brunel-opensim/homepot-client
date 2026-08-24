@@ -112,6 +112,29 @@ export default function AgentList() {
     );
   };
 
+  const getModeBadge = (agent) => {
+    const isEmulator = agent.enrollment_method === 'emulated' || agent.device_source === 'emulator';
+    if (isEmulator) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          EMU
+        </span>
+      );
+    }
+    if (agent.is_simulated) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          SIM
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+        REAL
+      </span>
+    );
+  };
+
   const getStatusBadge = (state) => {
     const isOnline = state === 'online';
     return (
@@ -287,6 +310,7 @@ export default function AgentList() {
                       />
                     </div>
                   </th>
+                  <th className="px-6 py-4 font-medium">Mode</th>
                   <th
                     className="px-6 py-4 font-medium cursor-pointer hover:text-white transition-colors group"
                     onClick={() => handleSort('last_seen')}
@@ -304,7 +328,7 @@ export default function AgentList() {
               <tbody className="divide-y divide-slate-800">
                 {sortedAgents.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={10} className="px-6 py-12 text-center text-slate-500">
                       No agents found. Register a device to get started.
                     </td>
                   </tr>
@@ -341,6 +365,7 @@ export default function AgentList() {
                       <td className="px-6 py-4">{getStatusBadge(agent.connectivity_state)}</td>
                       <td className="px-6 py-4">{getLifecycleBadge(agent.lifecycle_state)}</td>
                       <td className="px-6 py-4">{getHealthIcon(agent.health_state)}</td>
+                      <td className="px-6 py-4">{getModeBadge(agent)}</td>
                       <td className="px-6 py-4 text-slate-400 font-mono text-xs">
                         {formatDate(agent.last_seen || agent.last_health_check?.timestamp)}
                       </td>
