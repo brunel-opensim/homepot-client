@@ -23,6 +23,9 @@ COMMAND_TYPES = frozenset(
         "status_request",
         "update_config",
         "update_pos_payment_config",
+        "list_processes",
+        "list_connections",
+        "scan_filesystem",
     }
 )
 
@@ -36,6 +39,9 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "shutdown": "root_access",
     "update_config": "filesystem_access",
     "update_pos_payment_config": "filesystem_access",
+    "list_processes": "process_monitoring",
+    "list_connections": "network_monitoring",
+    "scan_filesystem": "filesystem_access",
 }
 
 MAX_COMMAND_OUTPUT = 64 * 1024
