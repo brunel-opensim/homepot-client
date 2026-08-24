@@ -80,11 +80,21 @@ const COMMAND_TEMPLATES = {
   },
 };
 
-const PERMISSION_LABELS = {
-  command_execution: 'Command & Script Execution',
-  filesystem_access: 'File System Access',
-  root_access: 'Root / Full Access',
+// Map the raw permissions to the two owner-facing groups the User App shows,
+// so the technician sees the same decisions as the device owner.
+const PERMISSION_GROUPS = {
+  manage: {
+    label: 'Manage device',
+    keys: ['command_execution', 'filesystem_access', 'process_monitoring', 'network_monitoring'],
+  },
+  root: {
+    label: 'Root access',
+    keys: ['root_access'],
+  },
 };
+const PERMISSION_TO_GROUP = Object.fromEntries(
+  Object.entries(PERMISSION_GROUPS).flatMap(([group, def]) => def.keys.map((key) => [key, group]))
+);
 
 const ACTION_TO_TEMPLATE = Object.fromEntries(
   Object.entries(COMMAND_TEMPLATES).map(([key, template]) => [template.action, key])
@@ -299,6 +309,14 @@ export default function PushReview() {
     (permission) => !device?.device_permissions?.[permission]
   );
 
+  // Owner-facing groups required / missing for this command (ties the
+  // Dashboard's request/approval to the User App's two toggles).
+  const requiredGroups = [...new Set(requiredPermissions.map((p) => PERMISSION_TO_GROUP[p]))];
+  const missingGroups = requiredGroups.filter((group) =>
+    PERMISSION_GROUPS[group].keys.some((key) => !device?.device_permissions?.[key])
+  );
+  const groupLabel = (group) => PERMISSION_GROUPS[group].label;
+
   const payloadPreview = {
     title: payloadConfig.title,
     body: payloadConfig.body,
@@ -422,7 +440,7 @@ export default function PushReview() {
             </div>
           </div>
           <Button
-            onClick={missingPermissions.length ? handleRequestAccess : handleSend}
+            onClick={missingGroups.length ? handleRequestAccess : handleSend}
             disabled={sending || !!jsonError}
             className={`px-4 h-9 ${jsonError ? 'bg-slate-700 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-500 text-white'}`}
           >
@@ -430,7 +448,7 @@ export default function PushReview() {
               'Sending...'
             ) : (
               <>
-                {missingPermissions.length ? (
+                {missingGroups.length ? (
                   <>
                     <ShieldAlert className="h-4 w-4 mr-2" />
                     Request Access
@@ -496,8 +514,9 @@ export default function PushReview() {
                       : 'border-emerald-700/50 bg-emerald-950/20 text-emerald-300'
                   }`}
                 >
-                  Required: {requiredPermissions.map((key) => PERMISSION_LABELS[key]).join(' + ')}
-                  {missingPermissions.length > 0 && ' — awaiting device-owner approval'}
+                  Required: {requiredGroups.map(groupLabel).join(' + ')}
+                  {missingGroups.length > 0 &&
+                    ` — awaiting device-owner approval for ${missingGroups.map(groupLabel).join(' + ')}`}
                 </div>
 
                 {/* JSON Data Editor */}
