@@ -101,7 +101,7 @@ export default function AgentList() {
     };
     return (
       <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[s] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase border ${colors[s] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}
       >
         {s}
       </span>
@@ -112,7 +112,7 @@ export default function AgentList() {
     const isOnline = state === 'online';
     return (
       <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase ${
           isOnline
             ? 'bg-green-900/30 text-green-400 border border-green-800'
             : 'bg-red-900/30 text-red-400 border border-red-800'
@@ -129,7 +129,7 @@ export default function AgentList() {
   const getHealthIcon = (healthState) => {
     if (!healthState || healthState === 'unknown') {
       return (
-        <span className="flex items-center gap-1.5 text-yellow-500 text-sm">
+        <span className="flex items-center gap-1.5 text-yellow-500 text-xs uppercase">
           <AlertTriangle className="w-4 h-4" />
           Unknown
         </span>
@@ -139,7 +139,7 @@ export default function AgentList() {
     const isHealthy = healthState === 'healthy';
     return (
       <span
-        className={`flex items-center gap-1.5 ${isHealthy ? 'text-emerald-400' : 'text-red-400'} text-sm`}
+        className={`flex items-center gap-1.5 ${isHealthy ? 'text-emerald-400' : 'text-red-400'} text-xs uppercase`}
       >
         {isHealthy ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
         {healthState.charAt(0).toUpperCase() + healthState.slice(1)}
