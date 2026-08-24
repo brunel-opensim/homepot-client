@@ -67,6 +67,51 @@ this through device-reported OS DNA (set at provision/registration time):
 A future capability-to-permission mapping layer will reject PATCH requests
 for permissions the device's OS cannot support.
 
+## Command-to-permission mapping
+
+Each command type dispatched to a device requires a specific
+`device_permissions` flag. The backend enforces this **before** queueing
+(`required_permissions_for_command` in
+`backend/src/homepot/agent/utils/command_poller.py`), and the agent
+re-checks it **before** executing.
+
+### Privileged commands
+
+| Command type | Required permission | Notes |
+|---|---|---|
+| `run_command` | `command_execution` | + `root_access` when `run_as_root: true` |
+| `run_script` | `command_execution` | + `root_access` when `run_as_root: true` |
+| `restart_pos_app` | `command_execution` | app / OS restart |
+| `health_check` | `command_execution` | self-tests / diagnostics |
+| `restart` | `root_access` | full OS reboot |
+| `shutdown` | `root_access` | power off |
+| `update_config` | `filesystem_access` | config files |
+| `update_pos_payment_config` | `filesystem_access` | payment / app settings |
+
+### Non-privileged commands
+
+`ping`, `status_request` and `request_permission` are allowed without a grant
+(system / read-only).
+
+### Dashboard Compose Command templates
+
+| Template | Command type | Required permission |
+|---|---|---|
+| Run Command | `run_command` | `command_execution` |
+| Run Script | `run_script` | `command_execution` |
+| Apply Configuration | `update_pos_payment_config` | `filesystem_access` |
+| Reboot Device | `restart_pos_app` | `command_execution` |
+| Update Firmware | `update_pos_payment_config` | `filesystem_access` |
+| Run Diagnostics | `health_check` | `command_execution` |
+
+### Permissions without a command today
+
+`process_monitoring` and `network_monitoring` are part of the permission model
+(and exposed in the User App), but **no command currently requires them**. The
+intended mapping is monitoring / scan commands (list processes, scan the
+filesystem, list network connections), planned so that every permission is
+meaningful. This section will be updated as those commands land.
+
 ## Command dispatch flow (end-to-end)
 
 ```
