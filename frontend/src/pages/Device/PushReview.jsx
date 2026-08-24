@@ -78,12 +78,46 @@ const COMMAND_TEMPLATES = {
     },
     description: 'Execute self-tests and report status.',
   },
+  LIST_PROCESSES: {
+    label: 'List Processes',
+    action: 'list_processes',
+    permission: 'process_monitoring',
+    defaultData: {
+      max_results: 50,
+      sort_by: 'cpu',
+      include_memory: true,
+    },
+    description: 'List the running processes on the device.',
+  },
+  LIST_CONNECTIONS: {
+    label: 'List Network Connections',
+    action: 'list_connections',
+    permission: 'network_monitoring',
+    defaultData: {
+      filter_state: 'ESTABLISHED',
+      limit: 100,
+    },
+    description: 'List the device\u2019s active network connections.',
+  },
+  SCAN_FILESYSTEM: {
+    label: 'Scan Filesystem',
+    action: 'scan_filesystem',
+    permission: 'filesystem_access',
+    defaultData: {
+      path: '/var/homepot',
+      max_depth: 3,
+      include_sizes: true,
+    },
+    description: 'Scan the device filesystem for files.',
+  },
 };
 
 const PERMISSION_LABELS = {
   command_execution: 'Command & Script Execution',
   filesystem_access: 'File System Access',
   root_access: 'Root / Full Access',
+  process_monitoring: 'Process Monitoring',
+  network_monitoring: 'Network Monitoring',
 };
 
 const ACTION_TO_TEMPLATE = Object.fromEntries(

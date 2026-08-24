@@ -91,6 +91,9 @@ COMMAND_PERMISSIONS = {
     "shutdown": "root_access",
     "update_config": "filesystem_access",
     "update_pos_payment_config": "filesystem_access",
+    "list_processes": "process_monitoring",
+    "list_connections": "network_monitoring",
+    "scan_filesystem": "filesystem_access",
 }
 
 
@@ -1401,6 +1404,76 @@ class POSEmulator:
                     "message": "Diagnostics completed",
                     "tests": test_results,
                     "healthy": healthy,
+                },
+            }
+
+        if command_type == "list_processes":
+            if self._command_should_fail():
+                return self._fail_result(
+                    "Process listing failed", "Unable to read process table"
+                )
+            processes = [
+                {"pid": 1, "name": "launchd", "cpu": 0.2, "mem": 1.1},
+                {"pid": 118, "name": "pos-svc", "cpu": 2.4, "mem": 12.8},
+                {"pid": 320, "name": "WindowServer", "cpu": 1.8, "mem": 9.3},
+            ]
+            max_results = int(data.get("max_results") or 50)
+            processes = processes[: max(1, min(max_results, len(processes)))]
+            return {
+                "status": "completed",
+                "result": {
+                    "message": f"Listed {len(processes)} processes",
+                    "processes": processes,
+                },
+            }
+
+        if command_type == "list_connections":
+            if self._command_should_fail():
+                return self._fail_result(
+                    "Connection listing failed", "Unable to read network table"
+                )
+            connections = [
+                {
+                    "proto": "tcp",
+                    "local": "192.168.1.100:8000",
+                    "peer": "192.168.1.176:51123",
+                    "state": "ESTABLISHED",
+                },
+                {
+                    "proto": "tcp",
+                    "local": "192.168.1.100:53",
+                    "peer": "8.8.8.8:53",
+                    "state": "ESTABLISHED",
+                },
+            ]
+            state_filter = data.get("filter_state")
+            if state_filter:
+                connections = [c for c in connections if c["state"] == state_filter]
+            limit = int(data.get("limit") or 100)
+            connections = connections[: max(0, limit)]
+            return {
+                "status": "completed",
+                "result": {
+                    "message": f"Listed {len(connections)} network connections",
+                    "connections": connections,
+                },
+            }
+
+        if command_type == "scan_filesystem":
+            if self._command_should_fail():
+                return self._fail_result(
+                    "Filesystem scan failed", "Permission denied on /var"
+                )
+            scan_path = data.get("path") or "/var/homepot"
+            files = [
+                {"path": f"{scan_path}/config.json", "size": 2048},
+                {"path": f"{scan_path}/logs/app.log", "size": 65536},
+            ]
+            return {
+                "status": "completed",
+                "result": {
+                    "message": f"Scanned {len(files)} files",
+                    "files": files,
                 },
             }
 
