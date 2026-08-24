@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { AppProvider } from '../context/AppContext'
+import { AppProvider } from '../context/AppProvider'
 import SetupWizard from '../views/SetupWizard'
 
 const mockFetch = vi.fn()
