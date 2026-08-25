@@ -557,6 +557,22 @@ class TestEndToEndWorkflows:
             headers=h,
         )
 
+        # Mark the device as simulated (seed) so the in-process simulator drives
+        # it. Simulation only drives seed data — emulators and real devices are
+        # driven by their own processes and are never double-simulated.
+        from homepot.database import SessionLocal
+        from homepot.models import Device
+
+        db = SessionLocal()
+        try:
+            dev = db.query(Device).filter(Device.device_id == setup_device_id).first()
+            assert dev is not None
+            dev.is_simulated = True
+            dev.config = {"device_source": "simulation"}
+            db.commit()
+        finally:
+            db.close()
+
         client.post("/api/v1/agents/simulation/stop", headers=h)
         client.post("/api/v1/agents/simulation/start", headers=h)
 
