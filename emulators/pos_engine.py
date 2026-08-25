@@ -976,8 +976,12 @@ class POSEmulator:
                     for push in pushes:
                         try:
                             await self._deliver_push(push)
-                        except Exception as exc:  # noqa: BLE001 - never kill the push loop
-                            print(f"  [push] delivery error for {push.get('message_id', '?')}: {exc}")
+                        except (
+                            Exception
+                        ) as exc:  # noqa: BLE001 - never kill the push loop
+                            print(
+                                f"  [push] delivery error for {push.get('message_id', '?')}: {exc}"
+                            )
             except httpx.RequestError as exc:
                 print(f"  [push] connection error: {exc}")
 
