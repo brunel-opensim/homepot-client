@@ -534,11 +534,13 @@ function startAgentProcess(): boolean {
   child.stdout?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
       console.log(`[agent] ${line}`)
+      appendDeviceLog('agent', line)
     }
   })
   child.stderr?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
       console.error(`[agent:err] ${line}`)
+      appendDeviceLog('agent:err', line)
     }
   })
   child.on('error', (error) => {
@@ -596,6 +598,25 @@ function killEmulator(): void {
   }
 }
 
+/**
+ * Persist device (emulator/agent) stdout+stderr to a dedicated file under the
+ * repo's `logs/` dir so live output (telemetry, commands, wake-ups) is
+ * available on disk regardless of where Electron's console goes. Falls back
+ * silently when the logs dir isn't writable (e.g. packaged apps).
+ */
+function appendDeviceLog(tag: string, line: string): void {
+  try {
+    const logsDir = path.join(getProjectRoot(), 'logs')
+    fs.mkdirSync(logsDir, { recursive: true })
+    fs.appendFileSync(
+      path.join(logsDir, 'device.log'),
+      `[${new Date().toISOString()}] [${tag}] ${line}\n`,
+    )
+  } catch {
+    // Log file is best-effort; never break the app because of it.
+  }
+}
+
 function startEmulatorProcess(emulatorType: string, configPath: string): void {
   const projectRoot = getProjectRoot()
   const emulatorScript = path.join(projectRoot, 'emulators', `${emulatorType}_emulator.py`)
@@ -615,6 +636,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
     const lines = data.toString().split('\n').filter(Boolean)
     for (const line of lines) {
       console.log(`[emulator] ${line}`)
+      appendDeviceLog('emulator', line)
     }
   })
 
@@ -622,6 +644,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
     const lines = data.toString().split('\n').filter(Boolean)
     for (const line of lines) {
       console.error(`[emulator:err] ${line}`)
+      appendDeviceLog('emulator:err', line)
     }
     emulatorStderr = [...emulatorStderr, ...lines].slice(-15)
   })

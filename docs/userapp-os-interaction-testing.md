@@ -141,6 +141,11 @@ and `restart`/`shutdown` report `failed` — expected. The Monitor-tier and
 
 ## Troubleshooting
 
+- **Device output on the Mac** — the emulator/agent stdout+stderr is appended to
+  `logs/device.log` (tagged `emulator` / `agent`) with timestamps, so you can
+  `tail -f logs/device.log` for live telemetry, commands, and wake-ups. It is
+  separate from `logs/userapp.log` (the app launcher log).
+
 - **Agent exits immediately** — check the User App console / app log
   (`~/Library/Application Support/.../app-events.json`) and run the spawn
   manually:
