@@ -1,11 +1,27 @@
 #!/bin/bash
 # Simple PostgreSQL query helper for HOMEPOT database
+#
+# Connection is configurable via env vars (defaults target a local dev
+# PostgreSQL, e.g. the one running inside WSL next to the backend):
+#   HOMEPOT_DB_HOST / _PORT / _USER / _NAME / _PASSWORD
+# Example (from macOS, pointing at the WSL/Windows host):
+#   HOMEPOT_DB_HOST=192.168.x.x ./scripts/query-db.sh devices
 
-export PGPASSWORD='homepot_dev_password'
+DB_HOST="${HOMEPOT_DB_HOST:-localhost}"
+DB_PORT="${HOMEPOT_DB_PORT:-5432}"
+DB_USER="${HOMEPOT_DB_USER:-homepot_user}"
+DB_NAME="${HOMEPOT_DB_NAME:-homepot_db}"
+DB_PASSWORD="${HOMEPOT_DB_PASSWORD:-homepot_dev_password}"
+export PGPASSWORD="$DB_PASSWORD"
+
+# Run a psql query against the configured database.
+psqlq() {
+  psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" "$@"
+}
 
 # If no argument provided, show usage
 if [ $# -eq 0 ]; then
-    echo "Usage: ./scripts/query-db.sh [command] [command]"
+    echo "Usage: ./scripts/query-db.sh [command] [argument]"
     echo ""
     echo "Available commands:"
     echo "  tables                     - List all tables with row counts"
@@ -13,6 +29,7 @@ if [ $# -eq 0 ]; then
     echo "  users                      - Show all users"
     echo "  sites                      - Show all sites"
     echo "  devices                    - Show all devices"
+    echo "  devices_by_name [name]     - Find a device by name (e.g. demo-mac-1)"
     echo "  jobs                       - Show all jobs"
     echo "  health_checks              - Show recent health checks"
     echo "  audit_logs                 - Show recent audit logs"
@@ -23,7 +40,9 @@ if [ $# -eq 0 ]; then
     echo "  configuration_history      - Show configuration changes"
     echo "  site_operating_schedules   - Show site schedules"
     echo "  job_outcomes               - Show job execution outcomes"
-    echo "  push_logs                  - Show push notification logs"
+    echo "  push_logs [device]         - Show push notification logs (alias: push_notification_logs)"
+    echo "  push_notification_logs [device] - Show push logs; filter by device name (e.g. demo-mac-1)"
+    echo "  device_commands [device]   - Show the command queue/outcomes (e.g. health_check); filter by device name"
     echo "  error_logs                 - Show recent errors"
     echo "  alerts                     - Show active alerts"
     echo "  count                      - Count rows in all tables"
@@ -40,6 +59,9 @@ if [ $# -eq 0 ]; then
     echo "  ./scripts/query-db.sh show tenants"
     echo "  ./scripts/query-db.sh site_devices site-001"
     echo "  ./scripts/query-db.sh device_details DEVICE-XXXX-XXXX-XXXX"
+    echo "  ./scripts/query-db.sh devices_by_name demo-mac-1"
+    echo "  ./scripts/query-db.sh push_notification_logs demo-mac-1"
+    echo "  ./scripts/query-db.sh device_commands demo-mac-1"
     echo "  ./scripts/query-db.sh jobs"
     exit 0
 fi
@@ -48,30 +70,30 @@ case "$1" in
     tables)
         echo "All public tables (with size info):"
         echo "-----------------------------------"
-        echo "\dt+" | psql -h localhost -p 5432 -U homepot_user -d homepot_db 2>/dev/null
+        echo "\dt+" | psqlq 2>/dev/null
         echo ""
         echo "Row counts:"
         echo "-----------"
-        TABLES=$(psql -h localhost -p 5432 -U homepot_user -d homepot_db -t -A -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;")
+        TABLES=$(psqlq -t -A -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;")
         for t in $TABLES; do
-          COUNT=$(psql -h localhost -p 5432 -U homepot_user -d homepot_db -t -A -c "SELECT COUNT(*) FROM public.$t;" 2>/dev/null)
+          COUNT=$(psqlq -t -A -c "SELECT COUNT(*) FROM public.$t;" 2>/dev/null)
           printf "  %-35s %s rows\n" "$t" "$COUNT"
         done
         echo ""
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db -c "SELECT COUNT(*) as total_tables FROM pg_tables WHERE schemaname = 'public';"
+        psqlq -c "SELECT COUNT(*) as total_tables FROM pg_tables WHERE schemaname = 'public';"
         ;;
     users)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, username, full_name, email, is_admin, is_active, created_at FROM users;
 EOF
         ;;
     sites)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, site_id, name, location, lifecycle_state, is_active FROM sites;
 EOF
         ;;
     devices)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT d.id, d.device_id, d.name, d.device_type, s.site_id, d.lifecycle_state, d.is_active, d.status
 FROM devices d
 JOIN sites s ON d.site_id = s.id
@@ -83,7 +105,7 @@ EOF
         echo "=== Archived / Purged Entities ==="
         echo ""
         echo "--- Archived sites (data retained, hidden) ---"
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT site_id, name, lifecycle_state
 FROM sites
 WHERE is_active = false OR lifecycle_state = 'archived'
@@ -91,7 +113,7 @@ ORDER BY id;
 EOF
         echo ""
         echo "--- Archived devices (unpaired/retired, data retained) ---"
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT d.device_id, d.name, d.lifecycle_state, s.site_id
 FROM devices d
 JOIN sites s ON d.site_id = s.id
@@ -100,7 +122,7 @@ ORDER BY d.id;
 EOF
         echo ""
         echo "--- Purged sites (data deleted; tombstone from audit_logs) ---"
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT al.created_at AS purged_at,
        (al.old_values->>'site_id') AS site_id,
        (al.old_values->>'name') AS name
@@ -111,7 +133,7 @@ ORDER BY al.created_at DESC;
 EOF
         echo ""
         echo "--- Purged devices (data deleted; tombstone from audit_logs) ---"
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT al.created_at AS purged_at,
        (al.old_values->>'device_id') AS device_id,
        (al.old_values->>'name') AS name
@@ -121,7 +143,7 @@ ORDER BY al.created_at DESC;
 EOF
         ;;
     jobs)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT j.id, j.job_id, j.action, j.status, s.site_id, d.device_id, j.created_at 
 FROM jobs j
 JOIN sites s ON j.site_id = s.id
@@ -131,7 +153,7 @@ LIMIT 10;
 EOF
         ;;
     health_checks)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT h.id, d.device_id, h.is_healthy, h.response_time_ms, h.status_code, h.timestamp 
 FROM health_checks h
 JOIN devices d ON h.device_id = d.id
@@ -140,7 +162,7 @@ LIMIT 10;
 EOF
         ;;
     audit_logs)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, event_type, description, user_id, job_id, device_id, created_at 
 FROM audit_logs 
 ORDER BY created_at DESC 
@@ -148,7 +170,7 @@ LIMIT 10;
 EOF
         ;;
     api_request_logs)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, endpoint, method, status_code, response_time_ms, user_id, timestamp 
 FROM api_request_logs 
 ORDER BY timestamp DESC 
@@ -156,7 +178,7 @@ LIMIT 10;
 EOF
         ;;
     user_activities)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, user_id, activity_type, page_url, duration_ms, timestamp 
 FROM user_activities 
 ORDER BY timestamp DESC 
@@ -164,7 +186,7 @@ LIMIT 10;
 EOF
         ;;
     device_state_history)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, device_id, previous_state, new_state, changed_by, reason, timestamp 
 FROM device_state_history 
 ORDER BY timestamp DESC 
@@ -172,23 +194,61 @@ LIMIT 10;
 EOF
         ;;
     job_outcomes)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, job_id, job_type, device_id, status, duration_ms, timestamp 
 FROM job_outcomes 
 ORDER BY timestamp DESC 
 LIMIT 10;
 EOF
         ;;
-    push_logs)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
-SELECT id, message_id, provider, status, latency_ms, sent_at, received_at 
-FROM push_notification_logs 
-ORDER BY sent_at DESC 
-LIMIT 10;
+    push_logs|push_notification_logs)
+        # Optional filter by device name (or device_id) as $2.
+        FILTER=""
+        if [ -n "$2" ]; then
+            FILTER="WHERE d.name = '$2' OR d.device_id = '$2'"
+        fi
+        psqlq <<EOF
+SELECT p.id, d.name AS device, p.message_id, p.provider, p.status,
+       p.payload, p.sent_at, p.received_at
+FROM push_notification_logs p
+LEFT JOIN devices d ON p.device_id = d.device_id
+${FILTER}
+ORDER BY p.sent_at DESC
+LIMIT 20;
+EOF
+        ;;
+    device_commands)
+        # Command queue/outcomes; optional filter by device name (or device_id).
+        FILTER=""
+        if [ -n "$2" ]; then
+            FILTER="WHERE d.name = '$2' OR d.device_id = '$2'"
+        fi
+        psqlq <<EOF
+SELECT c.command_id, d.name AS device, c.command_type, c.status,
+       c.created_at, c.sent_at, c.executed_at, c.result
+FROM device_commands c
+LEFT JOIN devices d ON c.device_id = d.id
+${FILTER}
+ORDER BY c.created_at DESC
+LIMIT 20;
+EOF
+        ;;
+    devices_by_name)
+        if [ -z "$2" ]; then
+            echo "Please provide a device name: ./scripts/query-db.sh devices_by_name demo-mac-1"
+            exit 1
+        fi
+        psqlq <<EOF
+SELECT d.id, d.device_id, d.name, d.device_type, s.site_id, d.lifecycle_state,
+       d.is_active, d.status, d.last_heartbeat_at
+FROM devices d
+JOIN sites s ON d.site_id = s.id
+WHERE d.name = '$2' OR d.device_id = '$2'
+ORDER BY d.id;
 EOF
         ;;
     error_logs)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, category, severity, error_code, error_message, endpoint, timestamp 
 FROM error_logs 
 ORDER BY timestamp DESC 
@@ -196,14 +256,14 @@ LIMIT 10;
 EOF
         ;;
     alerts)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, device_id, category as type, severity, status, title, timestamp
 FROM alerts 
 ORDER BY timestamp DESC;
 EOF
         ;;
     device_metrics)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT m.id, d.device_id, m.cpu_percent, m.memory_percent, m.transaction_count, m.timestamp 
 FROM device_metrics m
 JOIN devices d ON m.device_id = d.id
@@ -212,7 +272,7 @@ LIMIT 10;
 EOF
         ;;
     configuration_history)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, change_type, entity_id, parameter_name, 
        was_successful, timestamp, changed_by
 FROM configuration_history 
@@ -221,7 +281,7 @@ LIMIT 20;
 EOF
         ;;
     site_operating_schedules)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT id, site_id, day_of_week, open_time, close_time, 
        is_maintenance_window, expected_transaction_volume 
 FROM site_operating_schedules 
@@ -229,7 +289,7 @@ ORDER BY site_id, day_of_week;
 EOF
         ;;
     count)
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT 'alerts' as table_name, COUNT(*) as rows FROM alerts
 UNION ALL SELECT 'api_request_logs', COUNT(*) FROM api_request_logs
 UNION ALL SELECT 'audit_logs', COUNT(*) FROM audit_logs
@@ -254,7 +314,7 @@ EOF
             echo "Please specify a table name: ./scripts/query-db.sh schema users"
             exit 1
         fi
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT 
     column_name, 
     data_type,
@@ -279,7 +339,7 @@ EOF
         echo "You cannot directly open these files - you MUST use psql to access data."
         echo ""
         echo "To explore interactively, run:"
-        echo "  PGPASSWORD='homepot_dev_password' psql -h localhost -p 5432 -U homepot_user -d homepot_db"
+        echo "  PGPASSWORD='homepot_dev_password' psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
         echo ""
         ;;
     sql)
@@ -287,7 +347,7 @@ EOF
             echo "Please provide a SQL query: ./scripts/query-db.sh sql 'SELECT * FROM sites;'"
             exit 1
         fi
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 $2
 EOF
         ;;
@@ -298,7 +358,7 @@ EOF
         fi
         echo "Devices for Site: $2"
         echo "------------------------------------------------"
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT d.device_id, d.name, d.device_type, d.status, d.ip_address 
 FROM devices d
 JOIN sites s ON d.site_id = s.id
@@ -312,12 +372,12 @@ EOF
             exit 1
         fi
         echo "=== Device Information: $2 ==="
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db -x <<EOF
+        psqlq -x <<EOF
 SELECT * FROM devices WHERE device_id = '$2';
 EOF
         echo ""
         echo "=== Recent Metrics (Last 5) ==="
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT timestamp, cpu_percent, memory_percent, transaction_count, error_rate 
 FROM device_metrics 
 WHERE device_id = (SELECT id FROM devices WHERE device_id = '$2') 
@@ -331,7 +391,7 @@ EOF
             exit 1
         fi
         echo "=== Configuration History Details: $2 ==="
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db -x <<EOF
+        psqlq -x <<EOF
 SELECT * FROM configuration_history WHERE id = $2;
 EOF
         ;;
@@ -344,7 +404,7 @@ EOF
         echo "=== Hierarchy Report for Site: $SITE_ID ==="
         
         # Get Site PK
-        SITE_PK=$(psql -h localhost -p 5432 -U homepot_user -d homepot_db -t -c "SELECT id FROM sites WHERE site_id = '$SITE_ID';" | tr -d ' ')
+        SITE_PK=$(psqlq -t -c "SELECT id FROM sites WHERE site_id = '$SITE_ID';" | tr -d ' ')
         
         if [ -z "$SITE_PK" ]; then
             echo "Site not found!"
@@ -357,7 +417,7 @@ EOF
         echo "--- Devices & Associated Records ---"
         echo "This report confirms that records are correctly linked to devices under this site."
         echo ""
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
         SELECT 
             d.device_id,
             d.name,
@@ -376,10 +436,10 @@ EOF
             echo "Usage: ./scripts/query-db.sh show <table_name>"
             echo ""
             echo "Available tables:"
-            psql -h localhost -p 5432 -U homepot_user -d homepot_db -t -A -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
+            psqlq -t -A -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;"
             exit 1
         fi
-        psql -h localhost -p 5432 -U homepot_user -d homepot_db <<EOF
+        psqlq <<EOF
 SELECT * FROM public.$2 ORDER BY id DESC NULLS LAST LIMIT 50;
 EOF
         ;;
