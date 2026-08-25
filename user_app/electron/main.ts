@@ -390,6 +390,10 @@ function registerIpcHandlers() {
       heartbeat_interval_seconds: 10,
       telemetry_interval_seconds: 15,
       command_poll_interval_seconds: 15,
+      // The app's device experience should not randomly simulate command/push
+      // failures (the failure rate is a standalone start-emulator.sh testing
+      // knob); the wake-up must fire reliably so commands are pulled instantly.
+      command_failure_rate: 0,
       permission_consent_mode: 'external',
     }
 
