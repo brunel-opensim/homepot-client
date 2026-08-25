@@ -545,30 +545,28 @@ class TestEndToEndWorkflows:
         assert site_resp.status_code == 200
         site_id = site_resp.json()["site_id"]
         setup_device_id = generate_random_id("AGENT_WF_DEVICE")
-        client.post(
-            "/api/v1/devices/device",
-            json={
-                "site_id": site_id,
-                "device_id": setup_device_id,
-                "name": "Agent Workflow Test Device",
-                "device_type": "pos_terminal",
-                "location": "Test Counter",
-            },
-            headers=h,
-        )
 
-        # Mark the device as simulated (seed) so the in-process simulator drives
-        # it. Simulation only drives seed data — emulators and real devices are
-        # driven by their own processes and are never double-simulated.
+        # Create a simulated (seed) device directly so the in-process simulator
+        # drives it. Simulation only drives seed data — emulators and real
+        # devices are driven by their own processes and are never simulated.
         from homepot.database import SessionLocal
-        from homepot.models import Device
+        from homepot.models import Device, Site
 
         db = SessionLocal()
         try:
-            dev = db.query(Device).filter(Device.device_id == setup_device_id).first()
-            assert dev is not None
-            dev.is_simulated = True
-            dev.config = {"device_source": "simulation"}
+            site = db.query(Site).filter(Site.site_id == site_id).first()
+            assert site is not None
+            db.add(
+                Device(
+                    device_id=setup_device_id,
+                    name="Agent Workflow Test Device",
+                    device_type="pos_terminal",
+                    site_id=site.id,
+                    is_active=True,
+                    is_simulated=True,
+                    config={"device_source": "simulation"},
+                )
+            )
             db.commit()
         finally:
             db.close()
