@@ -518,6 +518,10 @@ function startAgentProcess(): boolean {
   if (!configPath) return false
   if (agentProcess) return true
 
+  const credentials = readCredentialsFile()
+  const deviceSlug = credentials.device_name || credentials.device_id || 'agent'
+  const logFile = deviceLogFile(deviceSlug, 'agent')
+
   const projectRoot = getProjectRoot()
   const pythonExe = findPython(projectRoot)
   const child = spawn(pythonExe, ['-m', 'homepot.agent.real_device_agent'], {
@@ -534,11 +538,13 @@ function startAgentProcess(): boolean {
   child.stdout?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
       console.log(`[agent] ${line}`)
+      appendDeviceLog(logFile, 'agent', line)
     }
   })
   child.stderr?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
       console.error(`[agent:err] ${line}`)
+      appendDeviceLog(logFile, 'agent:err', line)
     }
   })
   child.on('error', (error) => {
@@ -596,6 +602,36 @@ function killEmulator(): void {
   }
 }
 
+/**
+ * Persist device (emulator/agent) stdout+stderr to a dedicated file under the
+ * repo's `logs/` dir so live output (telemetry, commands, wake-ups) is
+ * available on disk regardless of where Electron's console goes. Falls back
+ * silently when the logs dir isn't writable (e.g. packaged apps).
+ */
+/**
+ * Resolve a per-device log file under the repo's `logs/` dir, mirroring the
+ * standalone launcher convention (`logs/emulator-<instance>.log`).
+ */
+function deviceLogFile(slug: string, kind: 'emulator' | 'agent'): string {
+  const safeSlug = slug.replace(/[\\/]/g, '_')
+  const logsDir = path.join(getProjectRoot(), 'logs')
+  fs.mkdirSync(logsDir, { recursive: true })
+  return path.join(logsDir, `${kind}-${safeSlug}.log`)
+}
+
+/**
+ * Persist device (emulator/agent) stdout+stderr to a per-device file so live
+ * output (telemetry, commands, wake-ups) is available on disk regardless of
+ * where Electron's console goes. Falls back silently when not writable.
+ */
+function appendDeviceLog(logFile: string, tag: string, line: string): void {
+  try {
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] [${tag}] ${line}\n`)
+  } catch {
+    // Log file is best-effort; never break the app because of it.
+  }
+}
+
 function startEmulatorProcess(emulatorType: string, configPath: string): void {
   const projectRoot = getProjectRoot()
   const emulatorScript = path.join(projectRoot, 'emulators', `${emulatorType}_emulator.py`)
@@ -605,6 +641,8 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
 
   const pythonExe = findPython(projectRoot)
   emulatorStderr = []
+  const deviceSlug = path.basename(configPath).replace(/-config\.json$/, '')
+  const logFile = deviceLogFile(deviceSlug, 'emulator')
   const child = spawn(pythonExe, [emulatorScript, '--config', configPath], {
     cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -615,6 +653,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
     const lines = data.toString().split('\n').filter(Boolean)
     for (const line of lines) {
       console.log(`[emulator] ${line}`)
+      appendDeviceLog(logFile, 'emulator', line)
     }
   })
 
@@ -622,6 +661,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
     const lines = data.toString().split('\n').filter(Boolean)
     for (const line of lines) {
       console.error(`[emulator:err] ${line}`)
+      appendDeviceLog(logFile, 'emulator:err', line)
     }
     emulatorStderr = [...emulatorStderr, ...lines].slice(-15)
   })
