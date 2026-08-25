@@ -54,6 +54,11 @@ declare global {
         stop(): Promise<boolean>
         status(): Promise<{ running: boolean; pid: number | null; deviceId: string | null }>
       }
+      agent: {
+        start(): Promise<{ started: boolean }>
+        status(): Promise<{ running: boolean; pid: number | null }>
+        stop(): Promise<boolean>
+      }
     }
   }
 }

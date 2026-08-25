@@ -42,4 +42,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stop: () => ipcRenderer.invoke('emulator:stop'),
     status: () => ipcRenderer.invoke('emulator:status'),
   },
+  agent: {
+    start: () => ipcRenderer.invoke('agent:start'),
+    status: () => ipcRenderer.invoke('agent:status'),
+    stop: () => ipcRenderer.invoke('agent:stop'),
+  },
 })
