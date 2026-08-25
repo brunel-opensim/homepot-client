@@ -107,6 +107,21 @@ export default function DeviceInfo() {
     setTimeout(() => setUpdateStatus('uptodate'), 2000)
   }
 
+  async function stopDeviceProcesses() {
+    // Stop the emulator/agent child processes so telemetry stops and the
+    // device stays unpaired (no orphaned process re-sends/re-provisions).
+    try {
+      await window.electronAPI?.emulator?.stop()
+    } catch {
+      /* best-effort */
+    }
+    try {
+      await window.electronAPI?.agent?.stop()
+    } catch {
+      /* best-effort */
+    }
+  }
+
   async function handleUnpair() {
     setUnpairStatus('unpairing')
     setUnpairError('')
@@ -116,6 +131,7 @@ export default function DeviceInfo() {
     const idempotencyKey = `unpair-${deviceId}-${Date.now()}`
 
     if (!deviceId || deviceId.startsWith('mock-token-')) {
+      await stopDeviceProcesses()
       await credentialStorage.clear()
       setIsProvisioned(false)
       navigate('/setup')
@@ -128,6 +144,7 @@ export default function DeviceInfo() {
         idempotencyKey,
       })
       clearCachedTelemetry(deviceId)
+      await stopDeviceProcesses()
       setUnpairStatus('confirmed')
       await credentialStorage.clear()
       setIsProvisioned(false)
@@ -139,6 +156,7 @@ export default function DeviceInfo() {
       } else {
         // Network failure — perform local-only reset
         clearCachedTelemetry(deviceId)
+        await stopDeviceProcesses()
         await credentialStorage.clear()
         setIsProvisioned(false)
         setUnpairStatus('pending-revocation')

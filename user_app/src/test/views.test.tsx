@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AppProvider } from '../context/AppProvider'
 import { clearAllCachedTelemetry } from '../services/telemetryCache'
@@ -210,6 +210,38 @@ describe('DeviceInfo', () => {
     renderWithProviders(<DeviceInfo />)
     expect(await screen.findByText('HOMEPOT Agent')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Disconnect & Unpair Device$/ })).toBeInTheDocument()
+  })
+
+  it('stops the emulator and agent on unpair', async () => {
+    const emulatorStop = vi.fn().mockResolvedValue(true)
+    const agentStop = vi.fn().mockResolvedValue(true)
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+      device: {
+        identity: vi.fn().mockResolvedValue({ deviceId: 'test-device', machineId: 'mac-1' }),
+        dna: vi.fn().mockResolvedValue({ hostname: 'test-mac', platform: 'darwin', release: 'x', mac: '00:00', ip: '127.0.0.1' }),
+      },
+      app: {
+        getVersion: vi.fn().mockResolvedValue('1.0.0'),
+        getRecentLogs: vi.fn().mockResolvedValue([]),
+      },
+      emulator: { stop: emulatorStop },
+      agent: { stop: agentStop },
+    } as never
+
+    routeDeviceApi({
+      device_id: 'test-device',
+      name: 'Test Device',
+      device_type: 'pos_terminal',
+      os_details: 'linux',
+      lifecycle_state: 'active',
+    })
+    renderWithProviders(<DeviceInfo />)
+    fireEvent.click(await screen.findByRole('button', { name: /Disconnect & Unpair Device$/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Yes, Unpair/ }))
+
+    await waitFor(() => expect(emulatorStop).toHaveBeenCalled())
+    expect(agentStop).toHaveBeenCalled()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
   })
 })
 
