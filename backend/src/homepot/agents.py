@@ -951,7 +951,15 @@ class AgentManager:
         logger.info("Agent Manager stopped")
 
     async def _discover_and_start_agents(self) -> None:
-        """Discover existing devices and start agents for them."""
+        """Discover simulated (seed) devices and start agents for them.
+
+        Only devices flagged as simulated (``config.device_source ==
+        "simulation"`` or ``is_simulated``) are driven by the in-process
+        simulator. Emulated devices (``device_source == "emulator"``) and real
+        devices (``device_source == "physical"`` / otherwise) are driven by
+        their own emulator / real-agent processes and must never be
+        double-simulated by the backend.
+        """
         try:
             db_service = await get_database_service()
 
@@ -973,6 +981,14 @@ class AgentManager:
                 devices = result.scalars().all()
 
                 for device in devices:
+                    # Simulation mode must only drive seed data — never
+                    # emulators (CONTROLLED) or real devices (REAL).
+                    source = None
+                    if isinstance(device.config, dict):
+                        source = device.config.get("device_source")
+                    is_simulated_seed = device.is_simulated or source == "simulation"
+                    if not is_simulated_seed:
+                        continue
                     await self._start_agent_for_device(
                         str(device.device_id), str(device.name)
                     )

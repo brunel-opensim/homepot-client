@@ -139,6 +139,21 @@ and `restart`/`shutdown` report `failed` — expected. The Monitor-tier and
 | Apply Configuration | Manage | brightness/volume OS action; unknown keys acknowledged |
 | Reboot System / Shut Down System | Manage | `sudo shutdown` (actually reboots/shuts down!) |
 
+## Modes: Simulation vs Emulation vs Real
+
+These are **separate modes** and must not be conflated:
+
+| Mode | What runs | Backend simulator drives |
+|---|---|---|
+| **Simulation** (`set-simulation-mode.sh on`) | in-process seed agents | **only** seed data (`is_simulated` / `device_source='simulation'`) |
+| **Emulation** (`set-simulation-mode.sh off` + User App emulator) | emulator processes (`pos_engine`) | **never** — emulators are `device_source='emulator'` (CONTROLLED) |
+| **Real** (`set-simulation-mode.sh off` + real agent) | bundled `real_device_agent` | **never** — real devices are REAL |
+
+The backend simulator filters to seed devices only (`agents._discover_and_start_agents`),
+so emulators/real devices are never double-simulated. For emulator or real-device testing,
+ensure simulation is **off** — otherwise the backend fakes heartbeats/telemetry for all
+devices and the device stays "online" even after you stop the User App.
+
 ## Troubleshooting
 
 - **Device output on the Mac** — the emulator/agent stdout+stderr is appended to
