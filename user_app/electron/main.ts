@@ -394,6 +394,9 @@ function registerIpcHandlers() {
       // failures (the failure rate is a standalone start-emulator.sh testing
       // knob); the wake-up must fire reliably so commands are pulled instantly.
       command_failure_rate: 0,
+      // Poll the pending-push queue frequently so a command wake-up is
+      // discovered quickly (near-instant pull) instead of the default 15s.
+      push_poll_interval_seconds: 2,
       permission_consent_mode: 'external',
     }
 
