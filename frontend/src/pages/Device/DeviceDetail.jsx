@@ -759,7 +759,7 @@ export default function Device() {
   // NOTE: Capabilities are now handled by tab visibility or individual widget logic in the new layout
   const actions = (DEVICE_ACTIONS[device?.device_type] || []).filter((action) => {
     if (action.key === 'suspend') {
-      return device?.lifecycle_state === 'active';
+      return device?.lifecycle_state === 'active' && device?.connectivity_state === 'online';
     }
     if (action.key === 'resume') {
       return device?.lifecycle_state === 'suspended' || device?.lifecycle_state === 'unpaired';
