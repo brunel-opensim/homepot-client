@@ -418,7 +418,8 @@ export default function Device() {
       setToast({ message: 'Device suspended successfully', type: 'success' });
     } catch (err) {
       console.error('Failed to suspend device:', err);
-      const msg = err?.response?.data?.detail?.message || err?.response?.data?.detail || err.message;
+      const msg =
+        err?.response?.data?.detail?.message || err?.response?.data?.detail || err.message;
       setToast({ message: `Failed to suspend device: ${msg}`, type: 'error' });
     } finally {
       setActionLoading(null);
@@ -761,10 +762,7 @@ export default function Device() {
       return device?.lifecycle_state === 'active';
     }
     if (action.key === 'resume') {
-      return (
-        device?.lifecycle_state === 'suspended' ||
-        device?.lifecycle_state === 'unpaired'
-      );
+      return device?.lifecycle_state === 'suspended' || device?.lifecycle_state === 'unpaired';
     }
     return true;
   });
@@ -806,8 +804,8 @@ export default function Device() {
           <div className="bg-[#062125] border border-[#0e3b3f] rounded-xl p-6 w-96 shadow-xl">
             <h2 className="text-xl font-semibold text-amber-400 mb-2">Suspend Device</h2>
             <p className="text-sm text-slate-400 mb-4">
-              This will immediately stop telemetry collection and mark the device as offline.
-              Only an authorized operator or administrator can resume this device.
+              This will immediately stop telemetry collection and mark the device as offline. Only
+              an authorized operator or administrator can resume this device.
             </p>
             <input
               type="text"
