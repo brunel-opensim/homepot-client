@@ -17,7 +17,6 @@ from homepot.app.auth_utils import (
 )
 from homepot.app.schemas.permissions import os_family
 from homepot.audit import AuditEventType, get_audit_logger
-from homepot.config import get_settings
 
 # Canonical site IDs live in the shared canonical_ids module (which also
 # hosts canonical device IDs); re-export the previous public names so
@@ -25,6 +24,7 @@ from homepot.config import get_settings
 from homepot.canonical_ids import _SITE_ID_PATTERN as _SITE_ID_PATTERN  # noqa: F401
 from homepot.canonical_ids import generate_site_id as generate_site_id
 from homepot.client import HomepotClient
+from homepot.config import get_settings
 from homepot.database import get_database_service, get_db
 from homepot.error_logger import log_error
 from homepot.models import (
