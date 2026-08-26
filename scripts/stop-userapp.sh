@@ -55,9 +55,19 @@ if [ -n "$LEGACY_ELECTRON_PIDS" ]; then
     kill $LEGACY_ELECTRON_PIDS 2>/dev/null || true
 fi
 
-LEGACY_EMULATOR_PIDS="$(pgrep -f "^$REPO_ROOT/.venv/bin/python3 $REPO_ROOT/emulators/(linux_pos|android_pos)_emulator.py --config $HOME/.homepot/emulators/.*-config.json$" || true)"
+# Compatibility cleanup for emulator/agent processes. Match any python
+# interpreter running the emulator/agent scripts (earlier versions matched
+# only .venv/bin/python3, but the User App may spawn the emulator with the
+# system python — an unmatched process would survive the stop and keep
+# heartbeating the device, leaving it "online").
+LEGACY_EMULATOR_PIDS="$(pgrep -f "emulators/(linux_pos|android_pos|macos_pos|windows_pos|ios_pos)_emulator.py --config" || true)"
 if [ -n "$LEGACY_EMULATOR_PIDS" ]; then
     kill $LEGACY_EMULATOR_PIDS 2>/dev/null || true
+fi
+
+LEGACY_AGENT_PIDS="$(pgrep -f "real_device_agent" || true)"
+if [ -n "$LEGACY_AGENT_PIDS" ]; then
+    kill $LEGACY_AGENT_PIDS 2>/dev/null || true
 fi
 
 # macOS: the Electron.app child is not in the tracked process group (no
