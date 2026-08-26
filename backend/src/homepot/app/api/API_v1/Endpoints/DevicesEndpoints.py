@@ -66,9 +66,13 @@ def _compute_connectivity(device: Device) -> str:
 
     A device that is not in the ``active`` lifecycle (pending, suspended,
     unpaired) is never online — it cannot heartbeat its way back after being
-    suspended or unpaired.
+    suspended or unpaired. A device explicitly marked OFFLINE (graceful
+    shutdown heartbeat) is reported offline immediately instead of waiting out
+    the online window.
     """
     if device.lifecycle_state != LifecycleState.ACTIVE.value:
+        return ConnectivityState.OFFLINE.value
+    if device.status == DeviceStatus.OFFLINE.value:
         return ConnectivityState.OFFLINE.value
     if not device.last_heartbeat_at:
         return ConnectivityState.UNKNOWN.value

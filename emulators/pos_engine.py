@@ -641,6 +641,26 @@ class POSEmulator:
 
             await self._wait_or_shutdown(self.config.heartbeat_interval)
 
+    async def _send_final_offline_heartbeat(self) -> None:
+        """Best-effort final heartbeat marking the device OFFLINE on shutdown."""
+        try:
+            payload = {
+                "device_id": self.device_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "online": False,
+            }
+            resp = await self._http.post(
+                f"{self._backend}/agent/heartbeat",
+                json=payload,
+                headers=self._headers(),
+            )
+            if resp.status_code >= 400:
+                print(f"  [heartbeat] final OFFLINE ack failed: {resp.status_code}")
+            else:
+                print("  [heartbeat] sent final OFFLINE signal")
+        except Exception as exc:  # noqa: BLE001 - best-effort shutdown signal
+            print(f"  [heartbeat] final OFFLINE signal failed: {exc}")
+
     async def _telemetry_loop(self) -> None:
         while not self._shutdown_event.is_set():
             try:
@@ -1592,6 +1612,7 @@ class POSEmulator:
                 self._consent_loop(),
             )
         finally:
+            await self._send_final_offline_heartbeat()
             await self._http.aclose()
 
     def stop(self) -> None:
