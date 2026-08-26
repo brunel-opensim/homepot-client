@@ -274,6 +274,14 @@ const api = {
     },
 
     /**
+     * Suspend an active device (active -> suspended)
+     */
+    suspend: async (deviceId, { reason } = {}) => {
+      const response = await apiClient.post(`/devices/device/${deviceId}/suspend`, { reason });
+      return response.data;
+    },
+
+    /**
      * Resume/restore a suspended or unpaired device (back to active)
      */
     resume: async (deviceId) => {
