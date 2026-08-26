@@ -642,7 +642,11 @@ class POSEmulator:
             await self._wait_or_shutdown(self.config.heartbeat_interval)
 
     async def _send_final_offline_heartbeat(self) -> None:
-        """Best-effort final heartbeat marking the device OFFLINE on shutdown."""
+        """Best-effort final heartbeat marking the device OFFLINE on shutdown.
+
+        A 403 means the device was already unpaired (lifecycle/credential
+        revoked) — it is already OFFLINE, so this is expected and not an error.
+        """
         try:
             payload = {
                 "device_id": self.device_id,
@@ -654,7 +658,9 @@ class POSEmulator:
                 json=payload,
                 headers=self._headers(),
             )
-            if resp.status_code >= 400:
+            if resp.status_code == 403:
+                print("  [heartbeat] device already offline (unpaired)")
+            elif resp.status_code >= 400:
                 print(f"  [heartbeat] final OFFLINE ack failed: {resp.status_code}")
             else:
                 print("  [heartbeat] sent final OFFLINE signal")

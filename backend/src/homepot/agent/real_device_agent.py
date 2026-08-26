@@ -561,7 +561,9 @@ async def send_final_offline_heartbeat(
 
     The backend sets the device's status to OFFLINE and clears its heartbeat
     timestamp, so the Dashboard reflects the offline state immediately instead
-    of waiting out the online window.
+    of waiting out the online window. A 403 means the device was already
+    unpaired (lifecycle/credential revoked) — it is already OFFLINE, so this is
+    expected and logged quietly.
     """
     url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/heartbeat"
     try:
@@ -571,7 +573,20 @@ async def send_final_offline_heartbeat(
             status="OFFLINE",
             online=False,
         )
-        await post_json(client, url, payload, get_auth_headers(config))
+        response = await client.post(
+            url,
+            json=payload,
+            headers=get_auth_headers(config),
+            timeout=10.0,
+        )
+        if response.status_code == 403:
+            logger.info("Final offline heartbeat: device already offline (unpaired)")
+        elif response.status_code >= 400:
+            logger.warning(
+                "Final offline heartbeat failed: HTTP %s", response.status_code
+            )
+        else:
+            logger.info("Final offline heartbeat sent")
     except Exception as exc:  # noqa: BLE001 - best-effort shutdown signal
         logger.warning("Final offline heartbeat failed: %s", exc)
 
