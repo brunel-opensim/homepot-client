@@ -71,22 +71,32 @@ const DEVICE_ACTIONS = {
   pos_terminal: [
     { key: 'status_request', label: 'Request Status' },
     { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
   ],
   iot_sensor: [
     { key: 'status_request', label: 'Request Status' },
     { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
   ],
   industrial_controller: [
     { key: 'status_request', label: 'Request Status' },
     { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
   ],
   gateway: [
     { key: 'status_request', label: 'Request Status' },
     { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
   ],
   unknown: [
     { key: 'status_request', label: 'Request Status' },
     { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
   ],
 };
 
@@ -237,6 +247,9 @@ export default function Device() {
   const [pushMessage, setPushMessage] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
+
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
 
   const handleToastClose = useCallback(() => {
     setToast(null);
@@ -395,6 +408,24 @@ export default function Device() {
     }
   };
 
+  const handleSuspendConfirm = async () => {
+    try {
+      await api.devices.suspend(id, { reason: suspendReason || undefined });
+      const deviceData = await api.devices.getDeviceById(id);
+      setDevice(deviceData);
+      setShowSuspendModal(false);
+      setSuspendReason('');
+      setToast({ message: 'Device suspended successfully', type: 'success' });
+    } catch (err) {
+      console.error('Failed to suspend device:', err);
+      const msg =
+        err?.response?.data?.detail?.message || err?.response?.data?.detail || err.message;
+      setToast({ message: `Failed to suspend device: ${msg}`, type: 'error' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleActionClick = async (actionKey) => {
     try {
       setActionLoading(actionKey);
@@ -409,6 +440,21 @@ export default function Device() {
       // Compose Command opens the payload builder — no backend command to queue
       if (actionKey === 'update_settings') {
         navigate(`/device/${id}/push-review`);
+        return;
+      }
+
+      // Suspend opens the confirmation modal
+      if (actionKey === 'suspend') {
+        setShowSuspendModal(true);
+        return;
+      }
+
+      // Resume calls the resume endpoint directly
+      if (actionKey === 'resume') {
+        await api.devices.resume(id);
+        const deviceData = await api.devices.getDeviceById(id);
+        setDevice(deviceData);
+        setToast({ message: 'Device resumed successfully', type: 'success' });
         return;
       }
 
@@ -711,7 +757,15 @@ export default function Device() {
   // const deviceType = device?.device_type || 'unknown';
   // const capabilities = DEVICE_CAPABILITIES[deviceType] || DEVICE_CAPABILITIES['unknown'];
   // NOTE: Capabilities are now handled by tab visibility or individual widget logic in the new layout
-  const actions = DEVICE_ACTIONS[device?.device_type] || [];
+  const actions = (DEVICE_ACTIONS[device?.device_type] || []).filter((action) => {
+    if (action.key === 'suspend') {
+      return device?.lifecycle_state === 'active';
+    }
+    if (action.key === 'resume') {
+      return device?.lifecycle_state === 'suspended' || device?.lifecycle_state === 'unpaired';
+    }
+    return true;
+  });
 
   return (
     <>
@@ -739,6 +793,43 @@ export default function Device() {
                 className="px-4 py-2 rounded-md text-sm font-medium bg-teal-600 text-white hover:bg-teal-500"
               >
                 Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSuspendModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#062125] border border-[#0e3b3f] rounded-xl p-6 w-96 shadow-xl">
+            <h2 className="text-xl font-semibold text-amber-400 mb-2">Suspend Device</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              This will immediately stop telemetry collection and mark the device as offline. Only
+              an authorized operator or administrator can resume this device.
+            </p>
+            <input
+              type="text"
+              className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg p-3 text-slate-200 focus:outline-none focus:border-amber-500 mb-4 text-sm"
+              placeholder="Reason (optional)"
+              value={suspendReason}
+              onChange={(e) => setSuspendReason(e.target.value)}
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowSuspendModal(false);
+                  setSuspendReason('');
+                  setActionLoading(null);
+                }}
+                className="px-4 py-2 rounded-md text-sm font-medium text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSuspendConfirm}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-amber-600 text-white hover:bg-amber-500"
+              >
+                Suspend Device
               </button>
             </div>
           </div>
