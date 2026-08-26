@@ -137,6 +137,33 @@ def test_heartbeat_updates_last_heartbeat(client: TestClient):
     assert payload["data"]["last_heartbeat_at"] is not None
 
 
+def test_offline_heartbeat_marks_device_offline(client: TestClient):
+    """A heartbeat with online=false marks the device OFFLINE immediately."""
+    from homepot.models import Device, DeviceStatus
+
+    site = _create_site("site-heartbeat-offline")
+    api_key = _create_device("heartbeat-offline-1", int(site.id))
+
+    now = datetime.now(timezone.utc).isoformat()
+    response = client.post(
+        "/api/v1/agent/heartbeat",
+        json={"device_id": "heartbeat-offline-1", "timestamp": now, "online": False},
+        headers=_device_headers("heartbeat-offline-1", api_key),
+    )
+    assert response.status_code == 200
+
+    db = homepot.database.SessionLocal()
+    try:
+        device = (
+            db.query(Device).filter(Device.device_id == "heartbeat-offline-1").first()
+        )
+        assert device is not None
+        assert device.status == DeviceStatus.OFFLINE.value
+        assert device.last_heartbeat_at is None
+    finally:
+        db.close()
+
+
 def test_telemetry_single_is_saved(client: TestClient):
     """POST /api/v1/agent/telemetry should persist a single telemetry record."""
     site = _create_site("site-telemetry-single")

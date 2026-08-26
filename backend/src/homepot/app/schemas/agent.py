@@ -75,12 +75,20 @@ class AgentHeartbeatRequest(BaseModel):
     timestamp: datetime = Field(
         default_factory=utc_now, description="Heartbeat timestamp in UTC"
     )
+    online: bool = Field(
+        default=True,
+        description=(
+            "Whether the device is online. A graceful shutdown sends "
+            "online=false so the backend can mark the device OFFLINE immediately."
+        ),
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "device_id": "physical-pos-001",
                 "timestamp": "2026-03-31T10:45:00Z",
+                "online": True,
             }
         }
     )
