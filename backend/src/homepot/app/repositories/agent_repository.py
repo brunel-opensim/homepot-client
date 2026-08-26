@@ -11,6 +11,7 @@ from homepot.app.schemas.permissions import derive_capabilities
 from homepot.models import (
     ConnectivityState,
     Device,
+    DeviceStatus,
     HealthState,
     LifecycleState,
     Site,
@@ -134,12 +135,24 @@ class AgentRepository:
         self.db.refresh(device)
         return device
 
-    def update_last_heartbeat(self, device: Device, heartbeat_at: datetime) -> Device:
-        """Record a device heartbeat and mark the device as online and healthy."""
-        cast(Any, device).last_heartbeat_at = heartbeat_at
+    def update_last_heartbeat(
+        self, device: Device, heartbeat_at: datetime, *, online: bool = True
+    ) -> Device:
+        """Record a device heartbeat.
+
+        ``online=False`` is a graceful-shutdown signal: the device is marked
+        OFFLINE and its heartbeat timestamp cleared so connectivity reflects
+        the offline state immediately instead of waiting out the online window.
+        """
         cast(Any, device).last_seen = heartbeat_at
-        cast(Any, device).status = ConnectivityState.ONLINE.value
-        cast(Any, device).health_state = HealthState.HEALTHY.value
+        if not online:
+            cast(Any, device).last_heartbeat_at = None
+            cast(Any, device).status = DeviceStatus.OFFLINE.value
+            cast(Any, device).health_state = HealthState.ERROR.value
+        else:
+            cast(Any, device).last_heartbeat_at = heartbeat_at
+            cast(Any, device).status = ConnectivityState.ONLINE.value
+            cast(Any, device).health_state = HealthState.HEALTHY.value
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)

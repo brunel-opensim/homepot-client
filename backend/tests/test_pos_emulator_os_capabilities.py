@@ -87,6 +87,30 @@ def test_regular_push_does_not_wake_command_loop():
     assert not asyncio.run(deliver())
 
 
+def test_final_offline_heartbeat_sends_online_false():
+    """The shutdown heartbeat marks the device OFFLINE on the backend."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    cfg = emu.build_config(emu.parse_args([], defaults=None), defaults=None)
+    cfg.os_details = "Android 14"
+    eng = emu.POSEmulator(cfg)
+    eng._device_id = "device-test-001"
+    eng._api_key = "api-key-test"
+
+    async def send():
+        eng._http = AsyncMock()
+        eng._http.post.return_value = SimpleNamespace(status_code=200)
+        await eng._send_final_offline_heartbeat()
+        return eng._http.post.await_args
+
+    call = asyncio.run(send())
+    assert call.args[0].endswith("/agent/heartbeat")
+    assert call.kwargs["json"]["online"] is False
+    assert call.kwargs["json"]["device_id"] == "device-test-001"
+
+
 @pytest.mark.parametrize(
     ("os_details", "expected_root_access", "expected_network_monitoring"),
     [

@@ -553,6 +553,29 @@ async def send_registration(
         logger.error("Registration payload build/send failed: %s", e, exc_info=True)
 
 
+async def send_final_offline_heartbeat(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+) -> None:
+    """Best-effort final heartbeat marking the device OFFLINE on graceful stop.
+
+    The backend sets the device's status to OFFLINE and clears its heartbeat
+    timestamp, so the Dashboard reflects the offline state immediately instead
+    of waiting out the online window.
+    """
+    url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/heartbeat"
+    try:
+        payload = build_heartbeat_payload(
+            config["device_id"],
+            site_id=config.get("site_id"),
+            status="OFFLINE",
+            online=False,
+        )
+        await post_json(client, url, payload, get_auth_headers(config))
+    except Exception as exc:  # noqa: BLE001 - best-effort shutdown signal
+        logger.warning("Final offline heartbeat failed: %s", exc)
+
+
 async def heartbeat_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
@@ -980,6 +1003,9 @@ async def run_agent(
             logger.info("Agent tasks cancelled, shutting down…")
         except Exception as e:
             logger.error("Agent runtime error: %s", e, exc_info=True)
+
+        # Graceful shutdown: mark the device OFFLINE on the backend now.
+        await send_final_offline_heartbeat(client, config)
 
     logger.info("Agent stopped")
 

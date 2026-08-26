@@ -167,7 +167,9 @@ class AgentService:
 
             self.lifecycle.assert_active(device)
 
-            updated = self.repository.update_last_heartbeat(device, payload.timestamp)
+            updated = self.repository.update_last_heartbeat(
+                device, payload.timestamp, online=payload.online
+            )
             return {
                 "device_id": updated.device_id,
                 "last_heartbeat_at": (
