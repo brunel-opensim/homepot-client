@@ -961,6 +961,29 @@ class DatabaseService:
             await session.commit()
             return len(commands)
 
+    async def mark_stale_devices_offline(self, threshold_seconds: int = 300) -> int:
+        """Mark active devices with a stale heartbeat as OFFLINE.
+
+        Handles devices that stopped sending heartbeats without a graceful
+        shutdown (power loss, crash). Returns the number of devices flipped.
+        """
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+            seconds=threshold_seconds
+        )
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(Device).where(
+                    Device.is_active.is_(True),
+                    Device.last_heartbeat_at.is_not(None),
+                    Device.last_heartbeat_at < cutoff,
+                )
+            )
+            devices = list(result.scalars().all())
+            for device in devices:
+                device.status = DeviceStatus.OFFLINE  # type: ignore[assignment]
+            await session.commit()
+            return len(devices)
+
     # Health check operations
     async def create_health_check(
         self,

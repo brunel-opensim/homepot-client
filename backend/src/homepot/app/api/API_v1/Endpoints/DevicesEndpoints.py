@@ -33,6 +33,7 @@ from homepot.app.schemas.permissions import os_family
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.canonical_ids import generate_device_id
 from homepot.client import HomepotClient
+from homepot.config import get_settings
 from homepot.database import get_database_service, get_db
 from homepot.models import (
     AuditLog,
@@ -58,15 +59,14 @@ client_instance: Optional[HomepotClient] = None
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-_HEARTBEAT_ONLINE_SECONDS = 120
-
 
 def _compute_connectivity(device: Device) -> str:
     """Return online/offline/unknown based on heartbeat recency.
 
     A device that is not in the ``active`` lifecycle (pending, suspended,
     unpaired) is never online — it cannot heartbeat its way back after being
-    suspended or unpaired.
+    suspended or unpaired. The online window comes from the configured
+    ``device_offline_threshold`` (default 300s).
     """
     if device.lifecycle_state != LifecycleState.ACTIVE.value:
         return ConnectivityState.OFFLINE.value
@@ -76,9 +76,10 @@ def _compute_connectivity(device: Device) -> str:
     if heartbeat.tzinfo is None:
         heartbeat = heartbeat.replace(tzinfo=timezone.utc)
     delta = datetime.now(timezone.utc) - heartbeat
+    threshold = get_settings().devices.device_offline_threshold
     return (
         ConnectivityState.ONLINE.value
-        if delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
+        if delta.total_seconds() <= threshold
         else ConnectivityState.OFFLINE.value
     )
 

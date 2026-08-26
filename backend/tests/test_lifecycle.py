@@ -380,3 +380,71 @@ async def test_lifecycle_get_device_status_returns_three_dimensions(
         assert status["health_state"] == "healthy"
     finally:
         sync_db.close()
+
+
+@pytest.mark.asyncio
+async def test_stale_devices_marked_offline(temp_db: Any) -> None:
+    """Active devices with a stale heartbeat are flipped to OFFLINE."""
+    from datetime import datetime, timedelta, timezone
+
+    from homepot.models import DeviceStatus
+
+    db_service = await get_database_service()
+
+    unique_suffix = str(uuid.uuid4())[:8]
+    site_id = f"test-site-stale-{unique_suffix}"
+
+    async with db_service.get_session() as session:
+        site = Site(site_id=site_id, name="Test Site", is_active=True)
+        session.add(site)
+        await session.commit()
+        await session.refresh(site)
+
+        stale = datetime.now(timezone.utc) - timedelta(minutes=10)
+        recent = datetime.now(timezone.utc)
+        devices = [
+            Device(
+                device_id=f"test-stale-old-{unique_suffix}",
+                name="Stale",
+                device_type="pos_terminal",
+                site_id=site.id,
+                is_active=True,
+                lifecycle_state=LifecycleState.ACTIVE.value,
+                status=DeviceStatus.ONLINE,
+                last_heartbeat_at=stale,
+            ),
+            Device(
+                device_id=f"test-stale-recent-{unique_suffix}",
+                name="Recent",
+                device_type="pos_terminal",
+                site_id=site.id,
+                is_active=True,
+                lifecycle_state=LifecycleState.ACTIVE.value,
+                status=DeviceStatus.ONLINE,
+                last_heartbeat_at=recent,
+            ),
+            Device(
+                device_id=f"test-stale-no-hb-{unique_suffix}",
+                name="No heartbeat",
+                device_type="pos_terminal",
+                site_id=site.id,
+                is_active=True,
+                lifecycle_state=LifecycleState.ACTIVE.value,
+                status=DeviceStatus.ONLINE,
+                last_heartbeat_at=None,
+            ),
+        ]
+        session.add_all(devices)
+        await session.commit()
+
+    flipped = await db_service.mark_stale_devices_offline(threshold_seconds=300)
+
+    assert flipped == 1
+    async with db_service.get_session() as session:
+        from sqlalchemy import select
+
+        rows = (await session.execute(select(Device))).scalars().all()
+        status = {d.device_id: d.status for d in rows}
+        assert status[f"test-stale-old-{unique_suffix}"] == DeviceStatus.OFFLINE.value
+        assert status[f"test-stale-recent-{unique_suffix}"] == DeviceStatus.ONLINE.value
+        assert status[f"test-stale-no-hb-{unique_suffix}"] == DeviceStatus.ONLINE.value
