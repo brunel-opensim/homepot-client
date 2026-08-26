@@ -24,6 +24,7 @@ from homepot.audit import AuditEventType, get_audit_logger
 from homepot.canonical_ids import _SITE_ID_PATTERN as _SITE_ID_PATTERN  # noqa: F401
 from homepot.canonical_ids import generate_site_id as generate_site_id
 from homepot.client import HomepotClient
+from homepot.config import get_settings
 from homepot.database import get_database_service, get_db
 from homepot.error_logger import log_error
 from homepot.models import (
@@ -46,17 +47,13 @@ router = APIRouter()
 
 
 # A site counts as Online when any of its active devices has heartbeated
-# recently. This mirrors the device page's connectivity_state computation —
-# it must NOT rely on the stored Device.status field, which is only set to
-# OFFLINE on explicit events (unpair/delete) and otherwise stays ONLINE.
-_HEARTBEAT_ONLINE_SECONDS = 120
-
-
+# recently. This mirrors the device page's connectivity_state computation.
 def _device_is_online(device: Device) -> bool:
     """Return True if the device heartbeated within the online window.
 
     A device outside the ``active`` lifecycle (pending, suspended, unpaired)
-    is never counted as online.
+    is never counted as online. The window uses the configured
+    ``device_offline_threshold`` (default 300s).
     """
     if device.lifecycle_state != LifecycleState.ACTIVE.value:
         return False
@@ -66,7 +63,8 @@ def _device_is_online(device: Device) -> bool:
     if heartbeat.tzinfo is None:
         heartbeat = heartbeat.replace(tzinfo=timezone.utc)
     delta = datetime.now(timezone.utc) - heartbeat
-    is_online: bool = delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
+    threshold = get_settings().devices.device_offline_threshold
+    is_online: bool = delta.total_seconds() <= threshold
     return is_online
 
 

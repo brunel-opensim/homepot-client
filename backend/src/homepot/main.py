@@ -46,6 +46,7 @@ client_instance: Optional[HomepotClient] = None
 # Background task for command expiry
 _command_expiry_task: Optional[asyncio.Task[None]] = None
 _intent_expiry_task: Optional[asyncio.Task[None]] = None
+_stale_device_task: Optional[asyncio.Task[None]] = None
 
 
 async def _run_command_expiry_loop() -> None:
@@ -77,10 +78,25 @@ async def _run_intent_expiry_loop() -> None:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
+async def _run_stale_device_detection_loop() -> None:
+    """Periodically mark active devices with stale heartbeats as OFFLINE."""
+    POLL_INTERVAL_SECONDS = 60
+    while True:
+        try:
+            threshold = get_settings().devices.device_offline_threshold
+            db = await get_database_service()
+            flipped = await db.mark_stale_devices_offline(threshold_seconds=threshold)
+            if flipped:
+                logger.info(f"Marked {flipped} stale device(s) OFFLINE")
+        except Exception as e:
+            logger.error(f"Stale device detection error: {e}", exc_info=True)
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan events."""
-    global client_instance, _command_expiry_task, _intent_expiry_task
+    global client_instance, _command_expiry_task, _intent_expiry_task, _stale_device_task
 
     # Startup
     logger.info("Starting HOMEPOT Client application...")
@@ -100,6 +116,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start background enrolment intent expiry task
     _intent_expiry_task = asyncio.create_task(_run_intent_expiry_loop())
     logger.info("Enrolment intent expiry background task started")
+
+    # Start background stale-device detection task
+    _stale_device_task = asyncio.create_task(_run_stale_device_detection_loop())
+    logger.info("Stale device detection background task started")
 
     # Initialize job orchestrator
     try:
@@ -206,6 +226,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             pass
         _intent_expiry_task = None
         logger.info("Enrolment intent expiry background task stopped")
+
+    # Cancel background stale-device detection task
+    if _stale_device_task is not None:
+        _stale_device_task.cancel()
+        try:
+            await _stale_device_task
+        except asyncio.CancelledError:
+            pass
+        _stale_device_task = None
+        logger.info("Stale device detection background task stopped")
 
     # Shutdown database
     try:
