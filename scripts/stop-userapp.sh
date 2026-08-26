@@ -65,7 +65,9 @@ if [ -n "$LEGACY_EMULATOR_PIDS" ]; then
     kill $LEGACY_EMULATOR_PIDS 2>/dev/null || true
 fi
 
-LEGACY_AGENT_PIDS="$(pgrep -f "real_device_agent" || true)"
+# Match the bundled real agent by its module name (its config path is passed
+# via HOMEPOT_AGENT_CONFIG env, not on the command line).
+LEGACY_AGENT_PIDS="$(pgrep -f "homepot.agent.real_device_agent" || true)"
 if [ -n "$LEGACY_AGENT_PIDS" ]; then
     kill $LEGACY_AGENT_PIDS 2>/dev/null || true
 fi
