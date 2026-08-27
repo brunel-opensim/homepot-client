@@ -16,6 +16,11 @@ function ok(body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
 }
 
+// GET /permissions response: root_access is supported on this (mock) device.
+function permissionsOk() {
+  return ok({ data: { permissions: {}, capabilities: { root_access: true } } })
+}
+
 const pendingCommand = {
   command_id: 'cmd-1',
   command_type: 'request_permission',
@@ -33,17 +38,19 @@ describe('PermissionConsentPrompt', () => {
 
   it('shows a prompt when a request_permission command is pending', async () => {
     mockFetch
+      .mockResolvedValueOnce(permissionsOk()) // GET /permissions
       .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending
     render(<PermissionConsentPrompt />)
     expect(await screen.findByText('Permission request')).toBeInTheDocument()
     expect(screen.getByText(/admin@example\.com/)).toBeInTheDocument()
-    expect(screen.getByText(/Root \/ Full Access/)).toBeInTheDocument()
+    expect(screen.getByText(/Manage device \(root\/sudo access\)/)).toBeInTheDocument()
     expect(screen.getByText('Allow')).toBeInTheDocument()
     expect(screen.getByText('Deny')).toBeInTheDocument()
   })
 
   it('does not render when no request_permission command is pending', async () => {
     mockFetch
+      .mockResolvedValueOnce(permissionsOk()) // GET /permissions
       .mockResolvedValueOnce(ok([])) // GET /pending
     render(<PermissionConsentPrompt />)
     await waitFor(() => {
@@ -54,6 +61,7 @@ describe('PermissionConsentPrompt', () => {
 
   it('grants the permission on accept', async () => {
     mockFetch
+      .mockResolvedValueOnce(permissionsOk()) // GET /permissions
       .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending
       .mockResolvedValueOnce(ok({})) // PATCH permissions
       .mockResolvedValueOnce(ok({})) // audit
@@ -85,6 +93,7 @@ describe('PermissionConsentPrompt', () => {
 
   it('denies the permission on deny', async () => {
     mockFetch
+      .mockResolvedValueOnce(permissionsOk()) // GET /permissions
       .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending
       .mockResolvedValueOnce(ok({})) // PATCH permissions
       .mockResolvedValueOnce(ok({})) // audit
@@ -112,9 +121,41 @@ describe('PermissionConsentPrompt', () => {
       },
     }
     mockFetch
+      .mockResolvedValueOnce(permissionsOk()) // GET /permissions
       .mockResolvedValueOnce(ok([revokeCommand])) // GET /pending
     render(<PermissionConsentPrompt />)
     expect(await screen.findByText('Revoke access requested')).toBeInTheDocument()
     expect(screen.getByText('Approve revocation')).toBeInTheDocument()
+  })
+
+  it('shows a not-supported notice for unsupported permissions', async () => {
+    // capabilities omit root_access → the grant can't succeed.
+    mockFetch
+      .mockResolvedValueOnce(ok({ data: { permissions: {}, capabilities: {} } })) // GET /permissions
+      .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending (root_access grant)
+    render(<PermissionConsentPrompt />)
+    expect(await screen.findByText(/not supported on this device/)).toBeInTheDocument()
+    expect(screen.queryByText('Allow')).not.toBeInTheDocument()
+    expect(screen.queryByText('Deny')).not.toBeInTheDocument()
+  })
+
+  it('completes an unsupported request as failed on close', async () => {
+    mockFetch
+      .mockResolvedValueOnce(ok({ data: { permissions: {}, capabilities: {} } })) // GET /permissions
+      .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending (root_access grant)
+      .mockResolvedValueOnce(ok({})) // PUT status (failed)
+    render(<PermissionConsentPrompt />)
+    fireEvent.click(await screen.findByText('Close'))
+
+    await waitFor(() => {
+      const put = mockFetch.mock.calls.find(([, init]) => init?.method === 'PUT')
+      expect(put).toBeTruthy()
+      const body = JSON.parse(String(put![1].body))
+      expect(body.status).toBe('failed')
+      expect(body.result).toMatchObject({ granted: false })
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('Permission request')).not.toBeInTheDocument()
+    })
   })
 })
