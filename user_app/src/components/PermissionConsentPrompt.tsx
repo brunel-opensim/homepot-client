@@ -10,11 +10,11 @@ import {
 import type { PendingCommand } from '../services/api'
 
 const PERMISSION_LABELS: Record<string, string> = {
-  root_access: 'Root / Full Access',
-  command_execution: 'Command & Script Execution',
-  process_monitoring: 'Process Monitoring',
-  filesystem_access: 'File System Access',
-  network_monitoring: 'Network Monitoring',
+  root_access: 'Manage device (root/sudo access)',
+  command_execution: 'Monitor device (diagnostics)',
+  process_monitoring: 'Monitor device (processes)',
+  filesystem_access: 'Monitor device (files)',
+  network_monitoring: 'Monitor device (network)',
 }
 
 function permissionLabel(permission: string): string {
@@ -26,6 +26,7 @@ export default function PermissionConsentPrompt() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
+  const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false)
 
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
@@ -40,8 +41,11 @@ export default function PermissionConsentPrompt() {
 
   // A grant cannot succeed for a permission the device's OS doesn't support
   // (e.g. root_access on an Android emulator) — surface that instead of leaving
-  // the request stuck pending.
-  const unsupported = action === 'grant' && Boolean(permission) && !capabilities[permission]
+  // the request stuck pending. Only treat a permission as unsupported once the
+  // capabilities are actually loaded (a transient fetch failure must not mark
+  // a supported grant as unsupported).
+  const unsupported =
+    capabilitiesLoaded && action === 'grant' && Boolean(permission) && !capabilities[permission]
 
   async function loadCapabilities() {
     const dId = deviceIdRef.current
@@ -50,6 +54,7 @@ export default function PermissionConsentPrompt() {
     try {
       const data = await fetchPermissions(dId, aKey)
       setCapabilities(data.capabilities || {})
+      setCapabilitiesLoaded(true)
     } catch {
       // Best-effort; grant failures are handled gracefully regardless.
     }

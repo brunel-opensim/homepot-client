@@ -43,7 +43,7 @@ describe('PermissionConsentPrompt', () => {
     render(<PermissionConsentPrompt />)
     expect(await screen.findByText('Permission request')).toBeInTheDocument()
     expect(screen.getByText(/admin@example\.com/)).toBeInTheDocument()
-    expect(screen.getByText(/Root \/ Full Access/)).toBeInTheDocument()
+    expect(screen.getByText(/Manage device \(root\/sudo access\)/)).toBeInTheDocument()
     expect(screen.getByText('Allow')).toBeInTheDocument()
     expect(screen.getByText('Deny')).toBeInTheDocument()
   })
