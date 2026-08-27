@@ -96,7 +96,10 @@ export default function Permissions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingGroup, setSavingGroup] = useState<string | null>(null);
-  const [overrideNotice, setOverrideNotice] = useState(false);
+  const [overrideChange, setOverrideChange] = useState<{
+    monitor: boolean;
+    manage: boolean;
+  } | null>(null);
 
   const deviceIdRef = useRef<string | null>(null);
   const apiKeyRef = useRef<string | null>(null);
@@ -134,13 +137,24 @@ export default function Permissions() {
 
       if (silent) {
         const current = latestPermissionsRef.current;
-        const changedExternally =
-          current.length > 0 &&
-          entries.some((entry, index) => {
-            const prev = current[index];
-            return prev && prev.enabled !== entry.enabled;
+        if (current.length > 0) {
+          const tierState = (list: PermissionEntry[]) => ({
+            monitor:
+              MONITOR_KEYS.filter((k) => list.find((p) => p.key === k)?.supported).every(
+                (k) => list.find((p) => p.key === k)?.enabled,
+              ),
+            manage: list.find((p) => p.key === MANAGE_KEY)?.enabled ?? false,
           });
-        if (changedExternally) setOverrideNotice(true);
+          const prev = tierState(current);
+          const next = tierState(entries);
+          const changed = {
+            monitor: prev.monitor !== next.monitor,
+            manage: prev.manage !== next.manage,
+          };
+          if (changed.monitor || changed.manage) {
+            setOverrideChange(changed);
+          }
+        }
       }
 
       setPermissions(entries);
@@ -214,7 +228,7 @@ export default function Permissions() {
   );
 
   function handleMonitorToggle() {
-    setOverrideNotice(false);
+    setOverrideChange(null);
     const nextEnabled = !monitorEnabled;
     const supportedKeys = monitorSupported;
     // Turning monitoring OFF also clears manage (manage depends on it).
@@ -234,7 +248,7 @@ export default function Permissions() {
   }
 
   function handleManageToggle() {
-    setOverrideNotice(false);
+    setOverrideChange(null);
     const nextEnabled = !manageEnabled;
     setPermissions((prev) => {
       const next = prev.map((p) =>
@@ -283,13 +297,21 @@ export default function Permissions() {
         </div>
 
         {/* Operator/admin override notice */}
-        {overrideNotice && (
+        {overrideChange && (
           <div className="px-5 pt-3">
             <div className="bg-amber-950 border border-amber-800 rounded-lg px-4 py-2.5 flex items-start gap-2">
               <span className="text-amber-400 text-sm shrink-0">⚠</span>
               <p className="text-xs text-amber-300">
                 An operator or administrator has updated this device's
-                permissions. Review and adjust if needed.
+                permissions
+                {overrideChange.monitor && overrideChange.manage
+                  ? " (Monitor and Manage access)"
+                  : overrideChange.monitor
+                    ? " (Monitor access)"
+                    : overrideChange.manage
+                      ? " (Manage access)"
+                      : ""}
+                . Review and adjust if needed.
               </p>
             </div>
           </div>
