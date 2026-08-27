@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { credentialStorage } from '../services/credentialStorage'
 import {
   fetchPendingCommands,
+  fetchPermissions,
   updatePermissions,
   updateCommandStatus,
   reportPermissionAudit,
@@ -24,6 +25,7 @@ export default function PermissionConsentPrompt() {
   const [request, setRequest] = useState<PendingCommand | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({})
 
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
@@ -35,6 +37,23 @@ export default function PermissionConsentPrompt() {
   const action = typeof data?.action === 'string' ? data.action : 'grant'
   const requestedBy = typeof data?.requested_by === 'string' ? data.requested_by : 'HOMEPOT operator'
   const isRevoke = action === 'revoke'
+
+  // A grant cannot succeed for a permission the device's OS doesn't support
+  // (e.g. root_access on an Android emulator) — surface that instead of leaving
+  // the request stuck pending.
+  const unsupported = action === 'grant' && Boolean(permission) && !capabilities[permission]
+
+  async function loadCapabilities() {
+    const dId = deviceIdRef.current
+    const aKey = apiKeyRef.current
+    if (!dId || !aKey) return
+    try {
+      const data = await fetchPermissions(dId, aKey)
+      setCapabilities(data.capabilities || {})
+    } catch {
+      // Best-effort; grant failures are handled gracefully regardless.
+    }
+  }
 
   const poll = useCallback(async () => {
     const dId = deviceIdRef.current
@@ -73,6 +92,7 @@ export default function PermissionConsentPrompt() {
       if (!deviceIdRef.current || !apiKeyRef.current) {
         if (!(await ensureCreds()) || cancelled) return
       }
+      await loadCapabilities()
       await poll()
     }
 
@@ -83,6 +103,37 @@ export default function PermissionConsentPrompt() {
       clearInterval(interval)
     }
   }, [poll])
+
+  // Complete the pending request as failed so it leaves the pending queue
+  // instead of hanging forever.
+  async function completeRequestFailed(cmd: PendingCommand, message: string) {
+    const dId = deviceIdRef.current
+    const aKey = apiKeyRef.current
+    if (!dId || !aKey) return
+    try {
+      await updateCommandStatus(dId, aKey, cmd.command_id, 'failed', {
+        permission,
+        action,
+        granted: false,
+        message,
+      })
+    } catch {
+      // Best-effort; the local prompt is still dismissed below.
+    }
+    handledRef.current.add(cmd.command_id)
+    setRequest(null)
+    requestRef.current = null
+  }
+
+  async function dismissUnsupported() {
+    if (!request) return
+    setBusy(true)
+    await completeRequestFailed(
+      request,
+      `Permission '${permission}' is not supported on this device's OS`,
+    )
+    setBusy(false)
+  }
 
   async function respond(decision: 'accept' | 'deny') {
     const cmd = request
@@ -108,7 +159,12 @@ export default function PermissionConsentPrompt() {
       setRequest(null)
       requestRef.current = null
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to respond to permission request')
+      // The grant/deny failed (e.g. the OS doesn't support the permission) —
+      // resolve the request so it doesn't stay pending forever.
+      const message =
+        err instanceof Error ? err.message : 'Failed to respond to permission request'
+      await completeRequestFailed(cmd, message)
+      setError(message)
       setBusy(false)
     }
   }
@@ -139,24 +195,44 @@ export default function PermissionConsentPrompt() {
           </div>
         )}
 
-        <div className="flex gap-3 mt-5">
-          <button
-            onClick={() => respond('deny')}
-            disabled={busy}
-            className="flex-1 py-2.5 rounded-lg border border-slate-600 text-slate-300 text-sm font-medium disabled:opacity-50"
-          >
-            Deny
-          </button>
-          <button
-            onClick={() => respond('accept')}
-            disabled={busy}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50 ${
-              isRevoke ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white'
-            }`}
-          >
-            {busy ? '…' : acceptLabel}
-          </button>
-        </div>
+        {unsupported ? (
+          <>
+            <div className="mt-3 bg-amber-950 border border-amber-800 rounded-lg px-3 py-2">
+              <p className="text-xs text-amber-300">
+                This permission is not supported on this device&apos;s OS, so it cannot be
+                granted.
+              </p>
+            </div>
+            <div className="flex justify-end mt-5">
+              <button
+                onClick={dismissUnsupported}
+                disabled={busy}
+                className="px-5 py-2.5 rounded-lg border border-slate-600 text-slate-300 text-sm font-medium disabled:opacity-50"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex gap-3 mt-5">
+            <button
+              onClick={() => respond('deny')}
+              disabled={busy}
+              className="flex-1 py-2.5 rounded-lg border border-slate-600 text-slate-300 text-sm font-medium disabled:opacity-50"
+            >
+              Deny
+            </button>
+            <button
+              onClick={() => respond('accept')}
+              disabled={busy}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-50 ${
+                isRevoke ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white'
+              }`}
+            >
+              {busy ? '…' : acceptLabel}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
