@@ -2,6 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import TabBar from "../components/TabBar";
 import { credentialStorage } from "../services/credentialStorage";
 import {
+  onPermissionsChanged,
+  MANAGE_KEY,
+  MONITOR_KEYS,
+} from "../services/permissionsEvents";
+import {
   fetchPermissions as fetchPermissionsApi,
   updatePermissions,
 } from "../services/api";
@@ -41,19 +46,6 @@ const PERMISSION_DEFS: { key: string; label: string; description: string }[] = [
     description: "Track network connections",
   },
 ];
-
-// The owner-facing permission groups. "Monitor device" maps to the non-root
-// read-only capabilities (diagnostics, monitoring); "Manage device" is the
-// elevated grant (root_access) that enables command/script execution,
-// filesystem scans, config/firmware updates, and reboot/shutdown — it is only
-// meaningful when monitoring is enabled.
-const MONITOR_KEYS = [
-  "command_execution",
-  "filesystem_access",
-  "process_monitoring",
-  "network_monitoring",
-];
-const MANAGE_KEY = "root_access";
 
 function Toggle({
   enabled,
@@ -180,9 +172,16 @@ export default function Permissions() {
     const refresh = setInterval(() => {
       fetchPermissions(true);
     }, 15000);
+    // Re-fetch immediately when a permission decision is made elsewhere (e.g.
+    // the consent prompt accepts/denies a request) instead of waiting for the
+    // next poll.
+    const offPermissionsChanged = onPermissionsChanged(() => {
+      fetchPermissions(true);
+    });
     return () => {
       clearInterval(credsReady);
       clearInterval(refresh);
+      offPermissionsChanged();
     };
   }, [fetchPermissions]);
 
