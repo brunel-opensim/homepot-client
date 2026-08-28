@@ -182,6 +182,40 @@ describe('PermissionConsentPrompt', () => {
     expect(screen.queryByText('Deny')).not.toBeInTheDocument()
   })
 
+  it('resolves a follow-up request without hanging', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const secondCommand = { ...pendingCommand, command_id: 'cmd-2' }
+    mockFetch
+      .mockResolvedValueOnce(permissionsOk()) // GET /permissions (mount)
+      .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending (first request)
+      .mockResolvedValueOnce(ok({})) // PATCH (first accept)
+      .mockResolvedValueOnce(ok({})) // audit
+      .mockResolvedValueOnce(ok({})) // PUT status -> completed
+      .mockResolvedValueOnce(permissionsOk()) // GET /permissions (10s poll: loadCapabilities)
+      .mockResolvedValueOnce(ok([secondCommand])) // GET /pending (10s poll: second request)
+      .mockResolvedValueOnce(ok({})) // PATCH (second accept)
+      .mockResolvedValueOnce(ok({})) // audit
+      .mockResolvedValueOnce(ok({})) // PUT status -> completed
+    render(<PermissionConsentPrompt />)
+
+    fireEvent.click(await screen.findByText('Allow'))
+    await waitFor(() => {
+      expect(screen.queryByText('Permission request')).not.toBeInTheDocument()
+    })
+
+    // The second request arrives on the next poll and must NOT be stuck busy.
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(await screen.findByText('Permission request')).toBeInTheDocument()
+    const allow = screen.getByText('Allow')
+    expect(allow).toBeEnabled()
+
+    fireEvent.click(allow)
+    await waitFor(() => {
+      expect(screen.queryByText('Permission request')).not.toBeInTheDocument()
+    })
+    vi.useRealTimers()
+  })
+
   it('completes an unsupported request as failed on close', async () => {
     mockFetch
       .mockResolvedValueOnce(ok({ data: { permissions: {}, capabilities: {} } })) // GET /permissions
