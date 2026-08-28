@@ -457,7 +457,7 @@ User App (Electron)
 | **Dev-only vs toggleable** | Dev-only (`import.meta.env.DEV`). Hidden from production builds — it is a developer tool, not a user feature. |
 | **Python discovery** | Try `.venv/bin/python3` first, then fall back to `python3` on PATH, with a configurable override. |
 | **Single vs multiple** | Single emulator per User App instance. Matches the real-world model (one device per User App). |
-| **Emulator output** | Stdout/stderr piped to `~/.homepot/emulators/<name>.log`. A debug panel in Electron DevTools can tail it. |
+| **Emulator output** | Spawned with unbuffered Python (`-u`) and streamed to `<repo>/logs/emulator-<name>.log` (per-device, separate from `logs/userapp.log`). A debug panel in Electron DevTools can tail it. |
 
 ### Preload API shape
 
