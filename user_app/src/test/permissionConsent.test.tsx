@@ -91,6 +91,49 @@ describe('PermissionConsentPrompt', () => {
     })
   })
 
+  it('grants the whole monitor group when accepting a monitor request', async () => {
+    const monitorCommand = {
+      ...pendingCommand,
+      payload: {
+        data: { permission: 'command_execution', action: 'grant', requested_by: 'admin@example.com' },
+      },
+    }
+    mockFetch
+      .mockResolvedValueOnce(
+        ok({
+          data: {
+            permissions: {},
+            capabilities: {
+              command_execution: true,
+              filesystem_access: true,
+              process_monitoring: true,
+              network_monitoring: true,
+            },
+          },
+        }),
+      ) // GET /permissions
+      .mockResolvedValueOnce(ok([monitorCommand])) // GET /pending
+      .mockResolvedValueOnce(ok({})) // PATCH permissions
+      .mockResolvedValueOnce(ok({})) // audit
+      .mockResolvedValueOnce(ok({})) // PUT status
+    render(<PermissionConsentPrompt />)
+    expect(await screen.findByText('Permission request')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Allow'))
+
+    await waitFor(() => {
+      const patch = mockFetch.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      expect(patch).toBeTruthy()
+      expect(JSON.parse(String(patch![1].body))).toEqual({
+        permissions: {
+          command_execution: true,
+          filesystem_access: true,
+          process_monitoring: true,
+          network_monitoring: true,
+        },
+      })
+    })
+  })
+
   it('denies the permission on deny', async () => {
     mockFetch
       .mockResolvedValueOnce(permissionsOk()) // GET /permissions

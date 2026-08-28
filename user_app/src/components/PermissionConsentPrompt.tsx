@@ -8,6 +8,7 @@ import {
   reportPermissionAudit,
 } from '../services/api'
 import type { PendingCommand } from '../services/api'
+import { emitPermissionsChanged, MANAGE_KEY, MONITOR_KEYS } from '../services/permissionsEvents'
 
 const PERMISSION_LABELS: Record<string, string> = {
   root_access: 'Manage device (root/sudo access)',
@@ -128,6 +129,7 @@ export default function PermissionConsentPrompt() {
     handledRef.current.add(cmd.command_id)
     setRequest(null)
     requestRef.current = null
+    emitPermissionsChanged()
   }
 
   async function dismissUnsupported() {
@@ -150,7 +152,16 @@ export default function PermissionConsentPrompt() {
     setError('')
     try {
       const granted = decision === 'accept' ? !isRevoke : isRevoke
-      await updatePermissions(dId, aKey, { [permission]: granted })
+      // The owner-facing decision is per tier, so resolving a request updates
+      // the whole (supported) group — accepting "Monitor device" turns on every
+      // monitor key, keeping the Permissions page toggles consistent.
+      const groupKeys = permission === MANAGE_KEY ? [MANAGE_KEY] : MONITOR_KEYS
+      const patch: Record<string, boolean> = {}
+      for (const key of groupKeys) {
+        if (capabilities[key]) patch[key] = granted
+      }
+      if (Object.keys(patch).length === 0) patch[permission] = granted
+      await updatePermissions(dId, aKey, patch)
       await reportPermissionAudit(dId, aKey, { permission, granted, requestedBy, action })
       await updateCommandStatus(dId, aKey, cmd.command_id, 'completed', {
         permission,
@@ -163,6 +174,7 @@ export default function PermissionConsentPrompt() {
       handledRef.current.add(cmd.command_id)
       setRequest(null)
       requestRef.current = null
+      emitPermissionsChanged()
     } catch (err) {
       // The grant/deny failed (e.g. the OS doesn't support the permission) —
       // resolve the request so it doesn't stay pending forever.
