@@ -174,6 +174,7 @@ export default function PermissionConsentPrompt() {
       handledRef.current.add(cmd.command_id)
       setRequest(null)
       requestRef.current = null
+      setBusy(false)
       emitPermissionsChanged()
     } catch (err) {
       // The grant/deny failed (e.g. the OS doesn't support the permission) —
