@@ -82,13 +82,10 @@ class JobOrchestrator:
 
         self._running = True
 
-        # Start worker tasks
-        num_workers = self.settings.devices.max_concurrent_jobs
-        for i in range(num_workers):
-            task = asyncio.create_task(self._worker(f"worker-{i}"))
-            self._worker_tasks.append(task)
-
-        logger.info(f"Job orchestrator started with {num_workers} workers")
+        # Worker tasks are spawned on demand by _ensure_workers() when a job
+        # is first enqueued, so an idle installation with no enrolled devices
+        # does not run a background worker pool.
+        logger.info("Job orchestrator started (workers spawn on demand)")
 
     async def stop(self) -> None:
         """Stop the job orchestrator."""
@@ -193,6 +190,9 @@ class JobOrchestrator:
         # Add job to queue for processing
         await self._job_queue.put(job)
 
+        # Spawn worker tasks to process it (no-op if workers already running)
+        await self._ensure_workers()
+
         # Create audit log
         await db_service.create_audit_log(
             event_type="job_created",
@@ -236,6 +236,25 @@ class JobOrchestrator:
             "result": job.result,
             "error_message": job.error_message,
         }
+
+    async def _ensure_workers(self) -> None:
+        """Start worker tasks on demand, up to max_concurrent_jobs.
+
+        Workers are only spawned once a job is enqueued (and never more than
+        the configured concurrency cap), so an idle system with no enrolled
+        devices does not sit on a pool of idle asyncio tasks.
+        """
+        if not self._running:
+            return
+
+        target = min(
+            self.settings.devices.max_concurrent_jobs,
+            max(1, self._job_queue.qsize()),
+        )
+        for i in range(len(self._worker_tasks), target):
+            task = asyncio.create_task(self._worker(f"worker-{i}"))
+            self._worker_tasks.append(task)
+            logger.info(f"Job worker worker-{i} started")
 
     async def _worker(self, worker_name: str) -> None:
         """Worker task for processing jobs from the queue."""
