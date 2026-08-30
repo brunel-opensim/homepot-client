@@ -762,7 +762,7 @@ export default function Device() {
       return device?.lifecycle_state === 'active' && device?.connectivity_state === 'online';
     }
     if (action.key === 'resume') {
-      return device?.lifecycle_state === 'suspended' || device?.lifecycle_state === 'unpaired';
+      return device?.lifecycle_state === 'suspended';
     }
     return true;
   });

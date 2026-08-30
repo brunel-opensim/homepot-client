@@ -21,7 +21,7 @@ from homepot.app.auth_utils import (
 from homepot.app.utils.limiter import limiter
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service, get_db
-from homepot.models import CommandStatus, Device, User
+from homepot.models import CommandStatus, Device, LifecycleState, User
 from homepot.push_notifications.wakeup import send_command_wakeup
 
 logger = logging.getLogger(__name__)
@@ -93,11 +93,27 @@ async def queue_command(
         User, sync_db.query(User).filter(User.email == current_user["email"]).first()
     )
     db = await get_database_service()
-    device = await db.get_device_by_device_id(device_id)
+    # include_unpaired: suspended/unpaired devices are inactive (is_active False),
+    # so find them anyway and let the lifecycle gate below reject with a clear
+    # message instead of a misleading 404.
+    device = await db.get_device_by_device_id(device_id, include_unpaired=True)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
     verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
+
+    # Commands must only be queued for active devices. A suspended device is
+    # server-side isolated (its polls get 403), so queued commands would sit
+    # unseen during the suspension and then be delivered the moment the device
+    # is resumed, without any re-authorisation at execution time.
+    if device.lifecycle_state != LifecycleState.ACTIVE.value:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Device lifecycle state is '{device.lifecycle_state}'; "
+                "commands can only be queued for 'active' devices"
+            ),
+        )
 
     command_type = command_request.command_type.strip().lower()
     if command_type not in COMMAND_TYPES:
