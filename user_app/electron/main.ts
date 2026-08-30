@@ -441,6 +441,28 @@ function registerIpcHandlers() {
     return true
   })
 
+  ipcMain.handle('emulator:cleanup', async () => {
+    // Delete persisted emulator stash files (~/.homepot/emulators/<device>.json
+    // and <device>-config.json) so an unpaired device is not re-adopted on the
+    // next launch (see adoptExistingEmulatorDevice).
+    ensureCredentialsDir()
+    if (!fs.existsSync(EMULATOR_DIR)) return 0
+    let removed = 0
+    for (const entry of fs.readdirSync(EMULATOR_DIR)) {
+      if (!entry.endsWith('.json')) continue
+      try {
+        fs.unlinkSync(path.join(EMULATOR_DIR, entry))
+        removed += 1
+      } catch {
+        // Best-effort cleanup; ignore files that cannot be removed.
+      }
+    }
+    if (removed > 0) {
+      recordAppEvent('info', 'emulator', `Cleaned up ${removed} emulator stash file(s) after unpair`)
+    }
+    return removed
+  })
+
   ipcMain.handle('emulator:status', async () => {
     return {
       running: emulatorProcess !== null,
@@ -576,6 +598,11 @@ function killAgent(): void {
   try {
     processToKill.kill('SIGTERM')
     agentProcess = null
+    if (!processToKill.killed) {
+      setTimeout(() => {
+        try { processToKill.kill('SIGKILL') } catch { /* ignore */ }
+      }, 3000)
+    }
   } catch {
     agentProcess = null
   }

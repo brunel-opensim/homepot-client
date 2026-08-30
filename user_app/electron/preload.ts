@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => ipcRenderer.invoke('emulator:start', config),
     stop: () => ipcRenderer.invoke('emulator:stop'),
     status: () => ipcRenderer.invoke('emulator:status'),
+    cleanup: () => ipcRenderer.invoke('emulator:cleanup'),
   },
   agent: {
     start: () => ipcRenderer.invoke('agent:start'),

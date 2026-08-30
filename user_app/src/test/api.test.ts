@@ -301,13 +301,40 @@ describe('claimDevice', () => {
 })
 
 describe('unpairDevice', () => {
-  it('sends POST and succeeds on 200', async () => {
+  it('sends POST and returns a confirmed ack on 200', async () => {
+    mockFetch.mockResolvedValueOnce(
+      ok({
+        status: 'success',
+        message: 'ok',
+        device_id: DEVICE_ID,
+        lifecycle_state: 'unpaired',
+        connectivity_state: 'offline',
+        disconnected_at: '2026-08-03T12:34:56.000Z',
+        confirmed: true,
+      }),
+    )
+    const ack = await unpairDevice(DEVICE_ID, API_KEY)
+    expect(ack.confirmed).toBe(true)
+    expect(ack.lifecycle_state).toBe('unpaired')
+    expect(ack.connectivity_state).toBe('offline')
+  })
+
+  it('does not confirm when the response lacks an unpaired lifecycle', async () => {
     mockFetch.mockResolvedValueOnce(ok({}))
-    await expect(unpairDevice(DEVICE_ID, API_KEY)).resolves.toBeUndefined()
+    const ack = await unpairDevice(DEVICE_ID, API_KEY)
+    expect(ack.confirmed).toBe(false)
   })
 
   it('sends POST with reason and idempotency key', async () => {
-    mockFetch.mockResolvedValueOnce(ok({}))
+    mockFetch.mockResolvedValueOnce(
+      ok({
+        status: 'success',
+        message: 'ok',
+        device_id: DEVICE_ID,
+        lifecycle_state: 'unpaired',
+        connectivity_state: 'offline',
+      }),
+    )
     await unpairDevice(DEVICE_ID, API_KEY, {
       reason: 'Upgrade',
       idempotencyKey: 'unpair-x',
@@ -323,7 +350,8 @@ describe('unpairDevice', () => {
 
   it('succeeds on 404 (device already unpaired)', async () => {
     mockFetch.mockResolvedValueOnce(notFound('Device not found'))
-    await expect(unpairDevice(DEVICE_ID, API_KEY)).resolves.toBeUndefined()
+    const ack = await unpairDevice(DEVICE_ID, API_KEY)
+    expect(ack.confirmed).toBe(true)
   })
 
   it('throws on 500', async () => {
