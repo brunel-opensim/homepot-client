@@ -19,9 +19,11 @@ from homepot.app.schemas.permissions import derive_capabilities, derive_push_cha
 from homepot.app.schemas.provision import DeviceProvisionRequest
 from homepot.app.services.lifecycle_service import LifecycleService
 from homepot.canonical_ids import generate_device_id
+from homepot.config import get_settings
 from homepot.models import (
     ConnectivityState,
     DeviceCredential,
+    DeviceStatus,
     EnrollmentMethod,
     HealthState,
     LifecycleEpoch,
@@ -484,15 +486,27 @@ class AgentService:
                 raise LookupError(f"Device '{device_id}' not found")
 
             heartbeat = device.last_heartbeat_at
+            lifecycle = device.lifecycle_state or LifecycleState.PENDING.value
 
-            if not heartbeat:
+            # Connectivity must agree with the dashboard rule
+            # (`_compute_connectivity` in DevicesEndpoints): a device that is not
+            # active, or that gracefully reported offline, is offline regardless
+            # of heartbeat recency. Only compare heartbeat age for active
+            # devices, using the same configured threshold.
+            if lifecycle != LifecycleState.ACTIVE.value:
+                connectivity = ConnectivityState.OFFLINE.value
+            elif device.status == DeviceStatus.OFFLINE.value:
+                connectivity = ConnectivityState.OFFLINE.value
+            elif not heartbeat:
                 connectivity = ConnectivityState.UNKNOWN.value
             else:
                 heartbeat_utc = heartbeat
                 if heartbeat_utc.tzinfo is None:
                     heartbeat_utc = heartbeat_utc.replace(tzinfo=timezone.utc)
                 current_time = _utc_now()
-                is_online = (current_time - heartbeat_utc) <= timedelta(minutes=2)
+                is_online = (current_time - heartbeat_utc) <= timedelta(
+                    seconds=get_settings().devices.device_offline_threshold
+                )
                 connectivity = (
                     ConnectivityState.ONLINE.value
                     if is_online
@@ -501,8 +515,7 @@ class AgentService:
 
             return {
                 "device_id": device.device_id,
-                "lifecycle_state": device.lifecycle_state
-                or LifecycleState.PENDING.value,
+                "lifecycle_state": lifecycle,
                 "connectivity_state": connectivity,
                 "health_state": device.health_state or HealthState.UNKNOWN.value,
                 "last_heartbeat_at": (heartbeat_utc.isoformat() if heartbeat else None),
