@@ -165,14 +165,15 @@ def get_current_user(
     # First, try to get token from httpOnly cookie
     token = request.cookies.get(COOKIE_NAME)
 
-    # Debug logging for cookie issues
+    # Debug logging for cookie issues (debug level so it does not flood the
+    # default INFO logs on every authenticated request).
     if not token:
-        logger.warning(
+        logger.debug(
             f"Auth Debug: No token in cookie '{COOKIE_NAME}'. "
             f"Cookies present: {list(request.cookies.keys())}"
         )
     else:
-        logger.info(f"Auth Debug: Token found in cookie '{COOKIE_NAME}'")
+        logger.debug(f"Auth Debug: Token found in cookie '{COOKIE_NAME}'")
 
     # Fall back to Authorization header if no cookie
     if not token and credentials:
