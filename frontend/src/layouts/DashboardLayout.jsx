@@ -17,7 +17,7 @@ export default function DashboardLayout() {
 
   return (
     <div
-      className={`w-full ${isFullScreen ? 'fixed inset-0 overflow-hidden bg-white' : 'min-h-screen bg-slate-50'}`}
+      className={`w-full ${isFullScreen ? 'fixed inset-0 overflow-hidden bg-background' : 'min-h-screen bg-slate-50'}`}
     >
       <Sidebar />
       <div className={`pl-64 h-full ${isFullScreen ? 'overflow-hidden' : ''}`}>
