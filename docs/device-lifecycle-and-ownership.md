@@ -98,7 +98,7 @@ Lifecycle, connectivity and health are independent dimensions.
 | `pending`   | An enrolment intent or pre-provisioned slot exists, but no endpoint has proved possession. | None                                                                  | Rejected                                  |
 | `active`    | Enrolment is complete and the management relationship is valid.                            | Valid                                                                 | Allowed when authenticated and authorised |
 | `suspended` | Management is temporarily disabled by an authorised operator or policy.                    | Retained or rotated according to policy, but rejected while suspended | Rejected                                  |
-| `unpaired`  | The management relationship has ended, while records are retained for audit and analytics. | Revoked                                                               | Rejected (can be resumed/re-activated)    |
+| `unpaired`  | The management relationship has ended, while records are retained for audit and analytics. | Revoked                                                               | Rejected (must be re-enrolled with new credentials)                     |
 
 > `retired` was folded into `unpaired`. Both revoke credentials and hide the
 > device; permanent removal is provided by `purge`. The `retire` action remains
@@ -131,7 +131,7 @@ An unpaired device is not merely offline: it no longer has an active management 
 | `suspended`                         | Resume                        | `active`                               | Authorised operator or policy; rotate credentials if compromise is possible.                                                     |
 | `active` or `suspended`             | Unpair                        | `unpaired`                             | Authorised user or device flow; revoke credentials and provider channels; retain history.                                        |
 | `active`, `suspended` or `unpaired` | Retire (alias → unpair)       | `unpaired`                             | Tenant administrator; revoke credentials and prevent ordinary reactivation.                                                      |
-| `unpaired`                          | Re-enrol / resume             | `active` in a new epoch                | Repeat authorisation and device proof; retain the old epoch and issue new credentials.                                           |
+| `unpaired`                          | Re-enrol                        | `active` in a new epoch                | Repeat authorisation and device proof; retain the old epoch and issue new credentials.                                           |
 | `active` or `suspended`             | Transfer                      | `active` in a new assignment and epoch | Authorised at source and destination; revoke old credentials and retain historical ownership.                                    |
 
 Transitions must be idempotent or accept an idempotency key. Concurrent claim, unpair, transfer and credential-rotation operations must be transactionally serialised.
@@ -187,7 +187,7 @@ Hard deletion is a separate data-governance operation and is outside ordinary de
 
 The device `DELETE` endpoints (`DELETE /api/v1/devices/device/{id}`) use **archive / purge** modes that map to the lifecycle model above:
 
-- **`archive`** (default) — performs the **unpair** lifecycle transition: revokes credentials, expires outstanding commands, sets `lifecycle_state = 'unpaired'` and `is_active = false`, while **retaining all data**. Restorable by re-activating the device.
+- **`archive`** (default) — performs the **unpair** lifecycle transition: revokes credentials, expires outstanding commands, sets `lifecycle_state = 'unpaired'` and `is_active = false`, while **retaining all data**. Restorable only by re-enrolling the device (new credentials).
 - **`purge`** — the separate hard-deletion data-governance operation (requires `confirm=true`): permanently deletes the device row and all associated data.
 
 So "archive" is the `DELETE`-method alias for the `unpaired` lifecycle state; "purge" is the hard-deletion path that sits outside the lifecycle model (line above). Sites follow the same pattern (`DELETE /api/v1/sites/{id}?mode=archive|purge`), where archiving a site also archives its devices. These apply uniformly regardless of whether a device is simulated, emulated, or real.
@@ -216,16 +216,16 @@ technician either:
 ### Restore ("resume") semantics
 
 The restore endpoint (`POST /api/v1/devices/device/{id}/resume`) re-activates a
-**suspended or unpaired** device *record*: it sets `lifecycle_state = 'active'`,
-`is_active = true`, and `status = 'online'`, so the device reappears on the
-Dashboard.
+**suspended** device: it sets `lifecycle_state = 'active'`, `is_active = true`,
+and `status = 'online'`, so the device reappears on the Dashboard. Because
+suspension does **not** revoke credentials, the device reconnects on its own
+poll cadence and starts delivering telemetry again — no re-enrolment needed.
 
-**Restore does NOT re-issue API credentials.** Unpairing/archiving clears
-`api_key_hash` and revokes all credentials; restore leaves them cleared. So a
-restored device record is visible and `active`, but the **device itself cannot
-reconnect** until it is provisioned again (a fresh bootstrap enrolment issues a
-new API key). Restore is for recovering the *record* (e.g. after an accidental
-archive), not for bringing a device back online on its own.
+**Resume is rejected for `unpaired` devices.** Unpairing/archiving clears
+`api_key_hash` and revokes all credentials, so a plain resume could only create
+a zombie `active`/`online` record that could never authenticate again. Unpaired
+devices must instead be **re-enrolled** through the User App flow (new epoch,
+device proof, and fresh credentials).
 
 ## API representation
 

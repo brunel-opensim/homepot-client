@@ -182,6 +182,69 @@ def test_device_auth_failure(client: TestClient):
     assert response.status_code == 401
 
 
+def test_command_queuing_blocked_while_suspended(client: TestClient):
+    """Commands must not be queueable for a suspended device.
+
+    A suspended device is server-side isolated (its polls get 403), so a queued
+    command would sit unseen and then be delivered the moment the device is
+    resumed, without re-authorisation at execution time.
+    """
+    db = homepot.database.SessionLocal()
+    try:
+        admin = User(
+            email="admin@cmd-suspend.test",
+            username="admin_cmd_suspend",
+            hashed_password=hash_password("pass"),
+            is_admin=True,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(admin)
+        db.commit()
+    finally:
+        db.close()
+
+    token = create_access_token({"sub": "admin@cmd-suspend.test"})
+    auth_headers = {"Authorization": f"Bearer {token}"}
+
+    site_id = "test-site-cmd-suspend"
+    response = client.post(
+        "/api/v1/sites/",
+        json={"site_id": site_id, "name": "Suspend Gate Site", "location": "Lab"},
+        headers=auth_headers,
+    )
+    if response.status_code != 409:
+        assert response.status_code == 200
+    site_id = response.json()["site_id"]
+
+    db = homepot.database.SessionLocal()
+    try:
+        site = db.query(Site).filter(Site.site_id == site_id).first()
+        assert site is not None
+        device_id = "dev-cmd-suspended"
+        device = Device(
+            device_id=device_id,
+            name="Suspended Device",
+            device_type="pos_terminal",
+            site_id=site.id,
+            api_key_hash=hash_password("irrelevant"),
+            is_active=False,
+            lifecycle_state=LifecycleState.SUSPENDED.value,
+        )
+        db.add(device)
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        f"/api/v1/devices/{device_id}/commands",
+        json={"command_type": "ping", "payload": {"reason": "should be blocked"}},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "can only be queued for 'active' devices" in response.json()["detail"]
+
+
 # -- Helpers for command history tests --
 
 TEST_ADMIN_EMAIL = "admin.history@test.local"

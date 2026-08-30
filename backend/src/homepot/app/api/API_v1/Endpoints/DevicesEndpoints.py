@@ -1157,10 +1157,14 @@ async def resume_device(
 ) -> Dict[str, Any]:
     """Resume/restore a device back to active.
 
-    Works for devices in ``suspended`` or ``unpaired`` state (e.g. devices that
-    were hidden when their site was archived, or independently unpaired):
-    sets ``lifecycle_state`` back to ``active``, ``is_active`` to true and
-    ``status`` to ``online`` so the device reappears on the Dashboard.
+    Works for devices in ``suspended`` state: sets ``lifecycle_state`` back to
+    ``active``, ``is_active`` to true and ``status`` to ``online`` so the
+    device reappears on the Dashboard and its existing credentials resume
+    working immediately.
+
+    Unpaired devices are rejected: unpairing revoked the device credentials,
+    so an unpaired record can never authenticate again after a plain resume.
+    Those devices must be re-enrolled through the User App flow instead.
 
     Requires operator-level access on the device's site.
     """
@@ -1182,15 +1186,14 @@ async def resume_device(
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
         current_lifecycle = device.lifecycle_state
-        if current_lifecycle not in (
-            LifecycleState.SUSPENDED.value,
-            LifecycleState.UNPAIRED.value,
-        ):
+        if current_lifecycle != LifecycleState.SUSPENDED.value:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     f"Device lifecycle state is '{current_lifecycle}'; "
-                    "only 'suspended' or 'unpaired' devices may be restored"
+                    "only 'suspended' devices may be resumed. Devices that "
+                    "were unpaired must be re-enrolled through the User App "
+                    "flow (resume cannot restore their revoked credentials)."
                 ),
             )
 

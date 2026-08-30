@@ -358,11 +358,12 @@ def test_device_resume_reactivates_suspended_device(file_db: Any) -> None:
         sync_db.close()
 
 
-def test_device_resume_reactivates_unpaired_device(file_db: Any) -> None:
-    """Resuming an independently-unpaired device re-activates it.
+def test_resume_rejects_unpaired_device(file_db: Any) -> None:
+    """Resuming an unpaired device is rejected.
 
-    A device archived directly (not via a site) has lifecycle_state 'unpaired'.
-    The restore/resume action should bring it back to active/online.
+    Unpairing revokes the device credentials, so a plain resume could never
+    authenticate again — it would only create a zombie 'active/online' record.
+    Unpaired devices must be re-enrolled through the User App instead.
     """
     _, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
@@ -377,6 +378,59 @@ def test_device_resume_reactivates_unpaired_device(file_db: Any) -> None:
     resumed = client.post(
         f"/api/v1/devices/device/{device_id}/resume", headers=_headers(), json={}
     )
+    assert resumed.status_code == 400
+    assert "re-enrolled" in resumed.json()["detail"]
+
+    # The record must not have been flipped back to active/online.
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        assert device.is_active is False
+        assert device.lifecycle_state == "unpaired"
+    finally:
+        sync_db.close()
+
+
+def test_suspend_then_resume_reactivates_device(file_db: Any) -> None:
+    """A suspended device resumes back to active/online with credentials intact.
+
+    This is the supported round-trip: suspend silences the device server-side,
+    and resume restores it (existing credentials remain valid, so the device
+    reconnects without re-enrolment).
+    """
+    _, device_id, _ = _seed_site_device_admin()
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        device.lifecycle_state = "active"  # type: ignore[assignment]
+        sync_db.commit()
+    finally:
+        sync_db.close()
+
+    client = TestClient(app)
+
+    suspended = client.post(
+        f"/api/v1/devices/device/{device_id}/suspend",
+        headers=_headers(),
+        json={"reason": "Technician maintenance window"},
+    )
+    assert suspended.status_code == 200
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        assert device.lifecycle_state == "suspended"
+        assert device.is_active is False
+        assert device.status == DeviceStatus.OFFLINE.value
+    finally:
+        sync_db.close()
+
+    resumed = client.post(
+        f"/api/v1/devices/device/{device_id}/resume", headers=_headers(), json={}
+    )
     assert resumed.status_code == 200
 
     sync_db = homepot.database.SessionLocal()
@@ -385,7 +439,7 @@ def test_device_resume_reactivates_unpaired_device(file_db: Any) -> None:
         assert device is not None
         assert device.is_active is True
         assert device.lifecycle_state == "active"
-        assert device.status == "online"
+        assert device.status == DeviceStatus.ONLINE.value
     finally:
         sync_db.close()
 
