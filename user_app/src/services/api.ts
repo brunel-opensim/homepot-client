@@ -76,6 +76,16 @@ export interface UnpairOptions {
   idempotencyKey?: string
 }
 
+export interface UnpairAck {
+  status: string
+  message: string
+  device_id: string
+  lifecycle_state: string
+  connectivity_state: string
+  disconnected_at: string | null
+  confirmed: boolean
+}
+
 export class ApiError extends Error {
   status: number
 
@@ -90,12 +100,18 @@ function deviceAuthHeaders(deviceId: string, apiKey: string): Headers {
   return { 'X-Device-ID': deviceId, 'X-API-Key': apiKey }
 }
 
+function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+}
+
 function asApiError(message: string, status: number): ApiError {
   return new ApiError(message, status)
 }
 
 export async function fetchDevice(deviceId: string, apiKey: string): Promise<DeviceRecord> {
-  const res = await fetch(`${apiBaseUrl}/devices/device/${deviceId}`, {
+  const res = await fetchWithTimeout(`${apiBaseUrl}/devices/device/${deviceId}`, {
     headers: deviceAuthHeaders(deviceId, apiKey),
   })
   if (!res.ok) {
@@ -253,8 +269,8 @@ export async function unpairDevice(
   deviceId: string,
   apiKey: string,
   options: UnpairOptions = {},
-): Promise<void> {
-  const res = await fetch(`${apiBaseUrl}/devices/device/${deviceId}/unpair`, {
+): Promise<UnpairAck> {
+  const res = await fetchWithTimeout(`${apiBaseUrl}/devices/device/${deviceId}/unpair`, {
     method: 'POST',
     headers: { ...deviceAuthHeaders(deviceId, apiKey), 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -262,9 +278,31 @@ export async function unpairDevice(
       ...(options.idempotencyKey ? { idempotency_key: options.idempotencyKey } : {}),
     }),
   })
-  if (!res.ok && res.status !== 404) {
+  if (res.status === 404) {
+    // Record already gone (e.g. purged) — nothing left to receive; treat as done.
+    return {
+      status: 'success',
+      message: 'Device not found (already unpaired)',
+      device_id: deviceId,
+      lifecycle_state: 'unpaired',
+      connectivity_state: 'offline',
+      disconnected_at: new Date().toISOString(),
+      confirmed: true,
+    }
+  }
+  if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw asApiError(body.detail || `Unpair failed (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return {
+    status: json.status ?? 'success',
+    message: json.message ?? '',
+    device_id: json.device_id ?? deviceId,
+    lifecycle_state: json.lifecycle_state ?? 'unknown',
+    connectivity_state: json.connectivity_state ?? 'unknown',
+    disconnected_at: json.disconnected_at ?? null,
+    confirmed: json.lifecycle_state === 'unpaired',
   }
 }
 

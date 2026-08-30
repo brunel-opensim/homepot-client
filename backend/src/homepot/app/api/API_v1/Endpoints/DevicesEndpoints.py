@@ -820,6 +820,11 @@ async def unpair_device(
                         "status": "success",
                         "message": f"Device '{device_id}' already unpaired",
                         "device_id": device_id,
+                        "lifecycle_state": device.lifecycle_state,
+                        "connectivity_state": _compute_connectivity(device),
+                        "disconnected_at": (
+                            device.updated_at.isoformat() if device.updated_at else None
+                        ),
                     }
 
         # ----- Lifecycle validation -----
@@ -843,6 +848,11 @@ async def unpair_device(
                 "status": "success",
                 "message": f"Device '{device_id}' is already unpaired",
                 "device_id": device_id,
+                "lifecycle_state": device.lifecycle_state,
+                "connectivity_state": _compute_connectivity(device),
+                "disconnected_at": (
+                    device.updated_at.isoformat() if device.updated_at else None
+                ),
             }
 
         now = datetime.now(timezone.utc)
@@ -892,6 +902,16 @@ async def unpair_device(
         # state transition actually persists.
         await db_service.persist_device(device)
 
+        await _record_lifecycle_event(
+            db_service,
+            device,
+            from_state=str(current_lifecycle),
+            to_state=LifecycleState.UNPAIRED.value,
+            triggered_by_user_id=None,
+            reason=payload.reason,
+            idempotency_key=payload.idempotency_key,
+        )
+
         # ----- Audit event -----
         ip_address = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent")
@@ -933,6 +953,9 @@ async def unpair_device(
             "status": "success",
             "message": f"Device '{device_id}' unpaired successfully",
             "device_id": device_id,
+            "lifecycle_state": LifecycleState.UNPAIRED.value,
+            "connectivity_state": _compute_connectivity(device),
+            "disconnected_at": now.isoformat(),
         }
 
     except HTTPException:

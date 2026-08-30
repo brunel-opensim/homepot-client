@@ -158,6 +158,18 @@ describe('DeviceInfo', () => {
       if (String(url).includes('/permissions')) {
         return ok({ data: { permissions: {}, capabilities: {} } })
       }
+      if (String(url).includes('/unpair')) {
+        if (deviceFails) return Promise.reject(new Error('Network error'))
+        return ok({
+          status: 'success',
+          message: 'ok',
+          device_id: 'test-device',
+          lifecycle_state: 'unpaired',
+          connectivity_state: 'offline',
+          disconnected_at: '2026-08-03T12:34:56.000Z',
+          confirmed: true,
+        })
+      }
       if (deviceFails) return Promise.reject(new Error('Network error'))
       return ok(device)
     })
@@ -215,6 +227,7 @@ describe('DeviceInfo', () => {
   it('stops the emulator and agent on unpair', async () => {
     const emulatorStop = vi.fn().mockResolvedValue(true)
     const agentStop = vi.fn().mockResolvedValue(true)
+    const emulatorCleanup = vi.fn().mockResolvedValue(0)
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
       device: {
         identity: vi.fn().mockResolvedValue({ deviceId: 'test-device', machineId: 'mac-1' }),
@@ -224,7 +237,7 @@ describe('DeviceInfo', () => {
         getVersion: vi.fn().mockResolvedValue('1.0.0'),
         getRecentLogs: vi.fn().mockResolvedValue([]),
       },
-      emulator: { stop: emulatorStop },
+      emulator: { stop: emulatorStop, cleanup: emulatorCleanup },
       agent: { stop: agentStop },
     } as never
 
@@ -234,6 +247,7 @@ describe('DeviceInfo', () => {
       device_type: 'pos_terminal',
       os_details: 'linux',
       lifecycle_state: 'active',
+      connectivity_state: 'offline',
     })
     renderWithProviders(<DeviceInfo />)
     fireEvent.click(await screen.findByRole('button', { name: /Disconnect & Unpair Device$/ }))
@@ -241,6 +255,8 @@ describe('DeviceInfo', () => {
 
     await waitFor(() => expect(emulatorStop).toHaveBeenCalled())
     expect(agentStop).toHaveBeenCalled()
+    await waitFor(() => expect(emulatorCleanup).toHaveBeenCalled())
+    expect(await screen.findByText(/Disconnected/)).toBeInTheDocument()
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
   })
 })

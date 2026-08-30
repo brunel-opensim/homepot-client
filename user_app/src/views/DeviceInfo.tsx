@@ -20,12 +20,32 @@ interface DnaRow {
   value: string
 }
 
+const OFFLINE_CHECK_TIMEOUT_MS = 12000
+const OFFLINE_CHECK_INTERVAL_MS = 1500
+
+/** Best-effort "check with the Dashboard": poll the device record until the
+ *  server reports connectivity OFFLINE. Stops early on a fetch error (the
+ *  dashboard is unreachable — the later unpair response is authoritative). */
+async function waitForOffline(deviceId: string, apiKey: string): Promise<boolean> {
+  const deadline = Date.now() + OFFLINE_CHECK_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    try {
+      const record = await fetchDevice(deviceId, apiKey)
+      if (record.connectivity_state === 'offline') return true
+    } catch {
+      return false
+    }
+    await new Promise((resolve) => setTimeout(resolve, OFFLINE_CHECK_INTERVAL_MS))
+  }
+  return false
+}
+
 export default function DeviceInfo() {
   const navigate = useNavigate()
-  const { setIsProvisioned } = useApp()
+  const { setIsProvisioned, setIsEmulatorRunning } = useApp()
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'uptodate'>('idle')
   const [showConfirm, setShowConfirm] = useState(false)
-  const [unpairStatus, setUnpairStatus] = useState<'idle' | 'unpairing' | 'confirmed' | 'pending-revocation' | 'error'>('idle')
+  const [unpairStatus, setUnpairStatus] = useState<'idle' | 'disconnecting' | 'disconnected' | 'pending-revocation' | 'error'>('idle')
   const [unpairError, setUnpairError] = useState('')
   const [dnaRows, setDnaRows] = useState<DnaRow[]>([])
 
@@ -123,32 +143,49 @@ export default function DeviceInfo() {
   }
 
   async function handleUnpair() {
-    setUnpairStatus('unpairing')
+    setUnpairStatus('disconnecting')
     setUnpairError('')
     setShowConfirm(false)
     const deviceId = await credentialStorage.getDeviceId()
     const apiKey = await credentialStorage.getApiKey()
-    const idempotencyKey = `unpair-${deviceId}-${Date.now()}`
 
+    // Mock/absent device: local-only reset — nothing to coordinate with the server.
     if (!deviceId || deviceId.startsWith('mock-token-')) {
-      await stopDeviceProcesses()
-      await credentialStorage.clear()
-      setIsProvisioned(false)
+      await completeLocalTeardown()
       navigate('/setup')
       return
     }
 
     try {
-      await unpairDevice(deviceId, apiKey ?? '', {
-        reason: 'User-initiated unpair from device settings',
-        idempotencyKey,
-      })
-      clearCachedTelemetry(deviceId)
+      // 1) Disconnect: stop the emulator/agent so telemetry stops. The agent
+      //    posts a final OFFLINE heartbeat on graceful shutdown.
       await stopDeviceProcesses()
-      setUnpairStatus('confirmed')
-      await credentialStorage.clear()
-      setIsProvisioned(false)
-      navigate('/setup')
+
+      // 2) Check: ask the Dashboard whether the device is now OFFLINE.
+      //    Best-effort and bounded — unpair below re-confirms the server-side
+      //    state authoritatively, so a timeout here still proceeds.
+      await waitForOffline(deviceId, apiKey ?? '')
+
+      // 3) Unpair: the server revokes credentials, marks the device unpaired and
+      //    returns an acknowledgement describing the confirmed end state.
+      const ack = await unpairDevice(deviceId, apiKey ?? '', {
+        reason: 'User-initiated unpair from device settings',
+        idempotencyKey: `unpair-${deviceId}`,
+      })
+
+      // 4) Acknowledge: only show "Disconnected" once the Dashboard has
+      //    confirmed the lifecycle is unpaired.
+      if (!ack.confirmed) {
+        throw new ApiError(
+          'The Dashboard could not confirm the disconnect. Please retry.',
+          202,
+        )
+      }
+
+      clearCachedTelemetry(deviceId)
+      await completeLocalTeardown()
+      setUnpairStatus('disconnected')
+      window.setTimeout(() => navigate('/setup'), 1800)
     } catch (err) {
       if (err instanceof ApiError) {
         setUnpairError(err.message)
@@ -156,12 +193,25 @@ export default function DeviceInfo() {
       } else {
         // Network failure — perform local-only reset
         clearCachedTelemetry(deviceId)
-        await stopDeviceProcesses()
-        await credentialStorage.clear()
-        setIsProvisioned(false)
+        await completeLocalTeardown()
         setUnpairStatus('pending-revocation')
       }
     }
+  }
+
+  /** Local teardown shared by every completion path: stop processes, wipe the
+   *  emulator stash (so the device isn't re-adopted on next launch), clear the
+   *  credentials file and reset provisioning state. */
+  async function completeLocalTeardown() {
+    await stopDeviceProcesses()
+    try {
+      await window.electronAPI?.emulator?.cleanup()
+    } catch {
+      /* best-effort */
+    }
+    await credentialStorage.clear()
+    setIsEmulatorRunning(false)
+    setIsProvisioned(false)
   }
 
   function handleDismissPendingRevocation() {
@@ -244,6 +294,26 @@ export default function DeviceInfo() {
                 Continue to setup
               </button>
             </div>
+          ) : unpairStatus === 'disconnecting' ? (
+            <div className="flex flex-col gap-2 bg-slate-800 border border-slate-600 rounded-xl p-4">
+              <p className="text-slate-200 text-xs font-medium text-center flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+                Disconnecting...
+              </p>
+              <p className="text-slate-400 text-xs text-center">
+                Stopping telemetry and verifying with the Dashboard…
+              </p>
+            </div>
+          ) : unpairStatus === 'disconnected' ? (
+            <div className="flex flex-col gap-2 bg-emerald-950 border border-emerald-800 rounded-xl p-4">
+              <p className="text-emerald-300 text-xs font-medium text-center">
+                ✓  Disconnected
+              </p>
+              <p className="text-emerald-400 text-xs text-center">
+                The Dashboard has confirmed the device is unpaired. Telemetry has
+                been stopped and local credentials cleared.
+              </p>
+            </div>
           ) : unpairStatus === 'error' ? (
             <div className="flex flex-col gap-2 bg-red-950 border border-red-800 rounded-xl p-4">
               <p className="text-red-300 text-xs font-medium text-center">
@@ -268,17 +338,10 @@ export default function DeviceInfo() {
           ) : !showConfirm ? (
             <button
               onClick={() => setShowConfirm(true)}
-              disabled={unpairStatus === 'unpairing'}
+              disabled={unpairStatus === 'disconnecting' || unpairStatus === 'disconnected'}
               className="w-full py-2.5 rounded-lg border border-red-800 bg-red-950 hover:bg-red-900 text-red-400 hover:text-red-300 text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              {unpairStatus === 'unpairing' ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                  Unpairing...
-                </>
-              ) : (
-                '🔌  Disconnect & Unpair Device'
-              )}
+              🔌  Disconnect & Unpair Device
             </button>
           ) : (
             <div className="flex flex-col gap-2 bg-red-950 border border-red-800 rounded-xl p-4">
@@ -302,7 +365,8 @@ export default function DeviceInfo() {
             </div>
           )}
           <p className="text-center text-slate-600 text-xs mt-2">
-            Sends authenticated unpair request to server
+            Verifies the disconnect with the Dashboard before clearing local
+            credentials.
           </p>
         </div>
 
