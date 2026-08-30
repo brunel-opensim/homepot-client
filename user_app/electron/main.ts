@@ -531,7 +531,7 @@ function startAgentProcess(): boolean {
 
   const projectRoot = getProjectRoot()
   const pythonExe = findPython(projectRoot)
-  const child = spawn(pythonExe, ['-m', 'homepot.agent.real_device_agent'], {
+  const child = spawn(pythonExe, ['-u', '-m', 'homepot.agent.real_device_agent'], {
     cwd: projectRoot,
     env: {
       ...process.env,
@@ -623,7 +623,20 @@ function deviceLogFile(slug: string, kind: 'emulator' | 'agent'): string {
   const safeSlug = slug.replace(/[\\/]/g, '_')
   const logsDir = path.join(getProjectRoot(), 'logs')
   fs.mkdirSync(logsDir, { recursive: true })
-  return path.join(logsDir, `${kind}-${safeSlug}.log`)
+  const logFile = path.join(logsDir, `${kind}-${safeSlug}.log`)
+  try {
+    // Seed the file eagerly so it exists the moment the process starts, even
+    // before the first output line arrives.
+    if (!fs.existsSync(logFile)) {
+      fs.writeFileSync(
+        logFile,
+        `[${new Date().toISOString()}] [${kind}] ${kind} log for '${safeSlug}' created\n`,
+      )
+    }
+  } catch {
+    // Log file is best-effort; never break the app because of it.
+  }
+  return logFile
 }
 
 /**
@@ -650,7 +663,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
   emulatorStderr = []
   const deviceSlug = path.basename(configPath).replace(/-config\.json$/, '')
   const logFile = deviceLogFile(deviceSlug, 'emulator')
-  const child = spawn(pythonExe, [emulatorScript, '--config', configPath], {
+  const child = spawn(pythonExe, ['-u', emulatorScript, '--config', configPath], {
     cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
