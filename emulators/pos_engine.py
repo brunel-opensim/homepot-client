@@ -335,6 +335,7 @@ class POSEmulator:
             self._new_push_token() if self._push_channel else None
         )
         self._granted: dict[str, bool] = {k: False for k in ALL_PERMISSION_KEYS}
+        self._suspension_notified = False
         self._http: httpx.AsyncClient
 
     @property
@@ -353,6 +354,28 @@ class POSEmulator:
 
     def _headers(self) -> dict[str, str]:
         return {"X-Device-ID": self.device_id, "X-API-Key": self.api_key}
+
+    def _suspension_silencer(self, status_code: int) -> bool:
+        """Suppress repeated 403 chatter while the device is suspended.
+
+        A suspension is enforced server-side, so every emulated loop keeps
+        getting 403s until the device is resumed or unpaired. Instead of
+        flooding the console on every tick, announce the condition once and
+        then stay silent until a non-403 response arrives (the device was
+        resumed), so a later suspension is announced again.
+
+        Returns ``True`` when the caller should skip its own error print.
+        """
+        if status_code != 403:
+            self._suspension_notified = False
+            return False
+        if not self._suspension_notified:
+            print(
+                "  [device] suspended or unpaired - telemetry and commands are"
+                " blocked; will resume automatically when re-activated"
+            )
+            self._suspension_notified = True
+        return True
 
     # --
     # OS-specific behavior hooks
@@ -631,8 +654,12 @@ class POSEmulator:
                     headers=self._headers(),
                 )
                 if resp.status_code >= 400:
-                    print(f"  [heartbeat] error: {resp.status_code} {resp.text[:120]}")
+                    if not self._suspension_silencer(resp.status_code):
+                        print(
+                            f"  [heartbeat] error: {resp.status_code} {resp.text[:120]}"
+                        )
                 else:
+                    self._suspension_silencer(resp.status_code)
                     print(
                         f"  [heartbeat] OK  ({datetime.now(timezone.utc).strftime('%H:%M:%S')})"
                     )
@@ -685,8 +712,12 @@ class POSEmulator:
                     headers=self._headers(),
                 )
                 if resp.status_code >= 400:
-                    print(f"  [telemetry] error: {resp.status_code} {resp.text[:120]}")
+                    if not self._suspension_silencer(resp.status_code):
+                        print(
+                            f"  [telemetry] error: {resp.status_code} {resp.text[:120]}"
+                        )
                 else:
+                    self._suspension_silencer(resp.status_code)
                     print(
                         "  [telemetry] OK"
                         f" cpu={metrics['cpu_usage']}%"
@@ -944,11 +975,14 @@ class POSEmulator:
                     f"{self._backend}/devices/pending", headers=self._headers()
                 )
                 if resp.status_code >= 400:
-                    print(
-                        f"  [commands] poll error: {resp.status_code} {resp.text[:120]}"
-                    )
+                    if not self._suspension_silencer(resp.status_code):
+                        print(
+                            f"  [commands] poll error: {resp.status_code} {resp.text[:120]}"
+                        )
                     await self._wait_or_shutdown(self.config.command_poll_interval)
                     continue
+
+                self._suspension_silencer(resp.status_code)
 
                 commands = resp.json()
                 if not commands:
@@ -987,9 +1021,14 @@ class POSEmulator:
                     f"{self._backend}/push/pending", headers=self._headers()
                 )
                 if resp.status_code >= 400:
-                    print(f"  [push] poll error: {resp.status_code} {resp.text[:120]}")
+                    if not self._suspension_silencer(resp.status_code):
+                        print(
+                            f"  [push] poll error: {resp.status_code} {resp.text[:120]}"
+                        )
                     await self._wait_or_shutdown(self.config.push_poll_interval)
                     continue
+
+                self._suspension_silencer(resp.status_code)
 
                 body = resp.json()
                 pushes = body.get("pushes", []) if isinstance(body, dict) else []

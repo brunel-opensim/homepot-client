@@ -1080,6 +1080,34 @@ async def suspend_device(
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
 
+        # ----- Idempotency check (parity with unpair) -----
+        # A retried request (network timeout / double submit) with the same
+        # idempotency_key must not re-apply the transition or write a second
+        # lifecycle/audit event.
+        if payload.idempotency_key:
+            async with db_service.get_session() as session:
+                existing = await session.execute(
+                    select(AuditLog).where(
+                        AuditLog.device_id == device.id,
+                        AuditLog.event_type == AuditEventType.DEVICE_SUSPENDED.value,
+                        AuditLog.event_metadata["idempotency_key"].as_string()
+                        == payload.idempotency_key,
+                    )
+                )
+                if existing.scalars().first():
+                    logger.info(
+                        "Idempotent suspend request for device=%s key=%s",
+                        device_id,
+                        payload.idempotency_key,
+                    )
+                    return {
+                        "status": "success",
+                        "message": f"Device '{device_id}' already suspended",
+                        "device_id": device_id,
+                        "lifecycle_state": device.lifecycle_state,
+                        "connectivity_state": _compute_connectivity(device),
+                    }
+
         current_lifecycle = device.lifecycle_state
         if current_lifecycle != LifecycleState.ACTIVE.value:
             raise HTTPException(
@@ -1184,6 +1212,31 @@ async def resume_device(
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+
+        # ----- Idempotency check (parity with unpair) -----
+        if payload.idempotency_key:
+            async with db_service.get_session() as session:
+                existing = await session.execute(
+                    select(AuditLog).where(
+                        AuditLog.device_id == device.id,
+                        AuditLog.event_type == AuditEventType.DEVICE_RESUMED.value,
+                        AuditLog.event_metadata["idempotency_key"].as_string()
+                        == payload.idempotency_key,
+                    )
+                )
+                if existing.scalars().first():
+                    logger.info(
+                        "Idempotent resume request for device=%s key=%s",
+                        device_id,
+                        payload.idempotency_key,
+                    )
+                    return {
+                        "status": "success",
+                        "message": f"Device '{device_id}' already resumed",
+                        "device_id": device_id,
+                        "lifecycle_state": device.lifecycle_state,
+                        "connectivity_state": _compute_connectivity(device),
+                    }
 
         current_lifecycle = device.lifecycle_state
         if current_lifecycle != LifecycleState.SUSPENDED.value:
