@@ -15,6 +15,7 @@ import {
   KeyRound,
   RotateCcw,
   Archive,
+  Eye,
 } from 'lucide-react';
 import api from '@/services/api';
 import OsIcon from '@/components/common/OsIcon';
@@ -52,7 +53,6 @@ export default function SiteDetail() {
   // Device deletion state
   const [deviceToDelete, setDeviceToDelete] = useState(null);
   const [isDeletingDevice, setIsDeletingDevice] = useState(false);
-  const [isRestoringDevice, setIsRestoringDevice] = useState(false);
   const [isRestoringSite, setIsRestoringSite] = useState(false);
 
   // Bootstrap key dialog state
@@ -155,25 +155,10 @@ export default function SiteDetail() {
     }
   };
 
-  const handleRestoreDevice = async (device) => {
-    const deviceId = device.device_id || device.id;
-    try {
-      setIsRestoringDevice(true);
-      await api.devices.resume(deviceId);
-      // Re-activate the device in place so it stops being grayed out.
-      setDevices((prev) =>
-        prev.map((d) =>
-          (d.device_id || d.id) === deviceId
-            ? { ...d, is_active: true, lifecycle_state: 'active' }
-            : d
-        )
-      );
-    } catch (err) {
-      console.error('Failed to restore device:', err);
-      alert(`Failed to restore device: ${err.response?.data?.detail || err.message}`);
-    } finally {
-      setIsRestoringDevice(false);
-    }
+  const handleViewDevice = (device) => {
+    navigate(`/device/${device.device_id || device.id}`, {
+      state: { from: `site-${id}` },
+    });
   };
 
   const handleDeleteDeviceClick = (device) => {
@@ -402,8 +387,8 @@ export default function SiteDetail() {
             <h2 className="text-xl font-semibold text-white">Associated Devices</h2>
             {devices.some((d) => d.is_active === false) && (
               <span className="text-sm text-gray-400">
-                Grayed-out devices are inactive. Restore to see records, or archive/purge to clean
-                up.
+                Grayed-out devices are inactive. View to see their details, or archive/purge to
+                clean up.
               </span>
             )}
             {!isArchived && healthFilter && (
@@ -568,16 +553,16 @@ export default function SiteDetail() {
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleRestoreDevice(device);
+                            handleViewDevice(device);
                           }}
-                          disabled={isRestoringDevice}
-                          title="Restore device"
-                          className="h-8 w-8 text-gray-400 hover:text-teal-400 hover:bg-teal-400/10"
+                          title="View device details"
+                          className="h-8 text-gray-400 hover:text-teal-400 hover:bg-teal-400/10"
                         >
-                          <RotateCcw className="h-4 w-4" />
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
                         </Button>
                         <Button
                           variant="ghost"
