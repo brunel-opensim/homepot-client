@@ -79,21 +79,21 @@ describe('SiteDetail Model B', () => {
     expect(api.devices.getSiteId).toHaveBeenCalledWith('SITE-RES', { includeUnpaired: true });
   });
 
-  it('shows a restore action for suspended devices and edit for active devices', async () => {
+  it('shows a view action for suspended devices and edit for active devices', async () => {
     renderDetail();
 
     await screen.findByText('Active POS');
 
-    // Suspended device gets a Restore action
-    expect(screen.getByTitle('Restore device')).toBeInTheDocument();
+    // Suspended device gets a View action
+    expect(screen.getByTitle('View device details')).toBeInTheDocument();
   });
 
-  it('does not show a restore action for active devices', async () => {
+  it('does not show a view action for active devices', async () => {
     renderDetail();
 
     await screen.findByText('Active POS');
 
-    // Only one restore button (for the suspended device), not two
-    expect(screen.getAllByTitle('Restore device')).toHaveLength(1);
+    // Only one view button (for the suspended device), not two
+    expect(screen.getAllByTitle('View device details')).toHaveLength(1);
   });
 });
