@@ -1,8 +1,8 @@
 """Tests for command polling and push wake-up utilities."""
 
+from datetime import datetime
 import os
 import sys
-from datetime import datetime
 from unittest.mock import patch
 
 import pytest
