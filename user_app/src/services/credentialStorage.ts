@@ -39,6 +39,13 @@ declare global {
           category: string
           message: string
         }>>
+        checkForUpdates(): Promise<UpdateCheckResult>
+        downloadUpdate(): Promise<{ status: 'downloading' } | { status: 'disabled' } | { status: 'error'; message: string }>
+        restartToInstall(): Promise<{ status: 'installing' } | { status: 'disabled' }>
+        getUpdateState(): Promise<UpdateStatePayload>
+      }
+      updates: {
+        onStatus(callback: (payload: UpdateStatePayload) => void): () => void
       }
       emulator: {
         start(config: {
@@ -53,6 +60,7 @@ declare global {
         }): Promise<{ deviceId: string; apiKey: string }>
         stop(): Promise<boolean>
         status(): Promise<{ running: boolean; pid: number | null; deviceId: string | null }>
+        cleanup(): Promise<boolean>
       }
       agent: {
         start(): Promise<{ started: boolean }>
@@ -66,6 +74,25 @@ declare global {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export interface UpdateCheckResult {
+  status: 'checking' | 'disabled' | 'error'
+  currentVersion?: string
+  message?: string
+}
+
+export interface UpdateStatePayload {
+  state:
+    | { kind: 'idle' }
+    | { kind: 'checking' }
+    | { kind: 'available'; version: string }
+    | { kind: 'not-available' }
+    | { kind: 'downloading'; percent: number }
+    | { kind: 'downloaded'; version: string }
+    | { kind: 'error'; message: string }
+    | { kind: 'disabled' }
+  currentVersion: string
+}
 
 export interface DeviceCredentials {
   deviceId: string

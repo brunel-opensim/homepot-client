@@ -25,6 +25,12 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "brunel-opensim",
+      "repo": "homepot-client",
+      "releaseType": "draft"
+    },
     "linux": {
       "target": [
         "deb",
@@ -50,6 +56,7 @@
     }
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.18.1"

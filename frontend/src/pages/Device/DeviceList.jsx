@@ -158,7 +158,11 @@ export default function DeviceList() {
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
                       SIM
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                      REAL
+                    </span>
+                  )}
                 </div>
               </div>
 

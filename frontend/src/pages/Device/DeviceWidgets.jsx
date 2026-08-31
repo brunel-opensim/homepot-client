@@ -585,6 +585,84 @@ export const DeviceInfoWidget = ({ device }) => (
   </Card>
 );
 
+const PERIPHERAL_CATEGORY_META = {
+  printers: { label: 'Printers', color: 'text-cyan-400' },
+  scanners: { label: 'Scanners', color: 'text-purple-400' },
+  card_readers: { label: 'Card Readers', color: 'text-amber-400' },
+};
+
+export const PeripheralsWidget = ({ peripherals }) => {
+  const populated = Object.entries(PERIPHERAL_CATEGORY_META).filter(
+    ([key]) => Array.isArray(peripherals?.[key]) && peripherals[key].length > 0
+  );
+
+  return (
+    <Card>
+      <h3 className="text-sm text-slate-300 font-medium mb-3">PERIPHERALS</h3>
+      <div className="border-t border-[#1f2735] mb-3"></div>
+
+      {!peripherals || populated.length === 0 ? (
+        <p className="text-xs text-slate-500">No peripheral devices reported.</p>
+      ) : (
+        <div className="space-y-3">
+          {populated.map(([key, meta]) => (
+            <div key={key}>
+              <div className={`text-xs font-medium uppercase tracking-wide mb-1.5 ${meta.color}`}>
+                {meta.label} ({peripherals[key].length})
+              </div>
+              <div className="space-y-1.5">
+                {peripherals[key].map((p, idx) => (
+                  <PeripheralRow
+                    key={`${p.name || p.connection_type || idx}-${idx}`}
+                    peripheral={p}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+};
+
+const PeripheralRow = ({ peripheral }) => {
+  const p = peripheral || {};
+  const status = p.status || (p.error ? 'error' : '');
+  const statusCls =
+    status === 'online' || status === 'ok'
+      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+      : status === 'error' || status === 'offline'
+        ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+        : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+
+  return (
+    <div className="flex items-start justify-between gap-2 rounded border border-[#1f2735] p-2">
+      <div className="min-w-0">
+        <div className="text-xs text-slate-200 truncate">
+          {p.name || p.model || p.driver_name || 'Unknown peripheral'}
+        </div>
+        <div className="text-[10px] text-slate-500 truncate">
+          {[p.manufacturer, p.model, p.connection_type, p.port].filter(Boolean).join(' · ') ||
+            p.source ||
+            p.type ||
+            ''}
+        </div>
+        {p.is_default && (
+          <span className="mt-0.5 inline-block px-1 py-0.5 rounded text-[9px] font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
+            default
+          </span>
+        )}
+      </div>
+      <span
+        className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${statusCls}`}
+      >
+        {status || '—'}
+      </span>
+    </div>
+  );
+};
+
 const PERMISSION_GROUPS = [
   {
     key: 'monitor',

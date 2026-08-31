@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -24,6 +25,86 @@ let agentProcess: ChildProcess | null = null
 // Recent stderr lines from the emulator process, surfaced in the setup error
 // when the emulator fails to start (e.g. missing python/httpx).
 let emulatorStderr: string[] = []
+
+// --- Auto-update state (electron-updater) -----------------------------------
+type UpdateState =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'available'; version: string }
+  | { kind: 'not-available' }
+  | { kind: 'downloading'; percent: number }
+  | { kind: 'downloaded'; version: string }
+  | { kind: 'error'; message: string }
+  | { kind: 'disabled' }
+
+let updateState: UpdateState = { kind: 'idle' }
+
+function updaterConfigured(): boolean {
+  // electron-updater is only usable in a packaged app that ships app-update.yml.
+  return app.isPackaged
+}
+
+function sendUpdateStatus(): void {
+  const payload: Record<string, unknown> = {
+    state: updateState,
+    currentVersion: app.getVersion(),
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('app:update:status', payload)
+  }
+}
+
+function setupAutoUpdater(): void {
+  if (!updaterConfigured() || (autoUpdater as unknown as { __wired?: boolean }).__wired) {
+    return
+  }
+  ;(autoUpdater as unknown as { __wired: boolean }).__wired = true
+
+  autoUpdater.autoDownload = false
+
+  autoUpdater.on('checking-for-update', () => {
+    updateState = { kind: 'checking' }
+    sendUpdateStatus()
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    updateState = { kind: 'available', version: info.version }
+    sendUpdateStatus()
+    recordAppEvent('info', 'updater', `Update available v${info.version}`)
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    updateState = { kind: 'not-available' }
+    sendUpdateStatus()
+    recordAppEvent('info', 'updater', 'Update not available')
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    updateState = { kind: 'downloading', percent: Math.round(progress.percent) }
+    sendUpdateStatus()
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    updateState = { kind: 'downloaded', version: info.version }
+    sendUpdateStatus()
+    recordAppEvent('info', 'updater', `Update downloaded v${info.version}`)
+  })
+
+  autoUpdater.on('error', (err) => {
+    updateState = { kind: recoverFromDownloadError() }
+    sendUpdateStatus()
+    recordAppEvent('error', 'updater', `Update error: ${String(err)}`)
+  })
+}
+
+// If a download error aborts an in-progress download, settle back to idle so
+// the UI can start a fresh check; otherwise surface a terminal error state.
+function recoverFromDownloadError(): UpdateState['kind'] {
+  if (updateState.kind === 'downloading') {
+    return 'idle'
+  }
+  return 'error'
+}
 
 interface EmulatorFileConfig {
   emulator_type?: string
@@ -352,6 +433,45 @@ function registerIpcHandlers() {
 
   ipcMain.handle('app:getVersion', () => {
     return app.getVersion()
+  })
+
+  // --- Update checks ---------------------------------------------------------
+  // electron-updater requires a packaged build (app-update.yml + a publish
+  // provider). In dev / unpackaged runs the updater errors at startup, so we
+  // guard every call so the app still shows its version and reports "disabled".
+
+  ipcMain.handle('app:checkForUpdates', async () => {
+    setupAutoUpdater()
+    const usable = updaterConfigured()
+    if (!usable) return { status: 'disabled', currentVersion: app.getVersion() }
+    try {
+      await autoUpdater.checkForUpdates()
+      return { status: 'checking', currentVersion: app.getVersion() }
+    } catch (err) {
+      recordAppEvent('error', 'updater', `Update check failed: ${String(err)}`)
+      return { status: 'error', message: String(err), currentVersion: app.getVersion() }
+    }
+  })
+
+  ipcMain.handle('app:downloadUpdate', async () => {
+    if (!updaterConfigured()) return { status: 'disabled' }
+    try {
+      autoUpdater.downloadUpdate()
+      return { status: 'downloading' }
+    } catch (err) {
+      recordAppEvent('error', 'updater', `Update download failed: ${String(err)}`)
+      return { status: 'error', message: String(err) }
+    }
+  })
+
+  ipcMain.handle('app:restartToInstall', () => {
+    if (!updaterConfigured()) return { status: 'disabled' }
+    autoUpdater.quitAndInstall()
+    return { status: 'installing' }
+  })
+
+  ipcMain.handle('app:getUpdateState', () => {
+    return { state: updateState, currentVersion: app.getVersion() }
   })
 
   ipcMain.handle('app:getRecentLogs', (_event, requestedLimit = MAX_APP_LOG_ENTRIES) => {

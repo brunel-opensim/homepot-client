@@ -26,7 +26,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getRecentLogs: (limit = 15) => ipcRenderer.invoke('app:getRecentLogs', limit),
+    checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+    downloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
+    restartToInstall: () => ipcRenderer.invoke('app:restartToInstall'),
+    getUpdateState: () => ipcRenderer.invoke('app:getUpdateState'),
     prefill,
+  },
+  updates: {
+    onStatus: (callback: (payload: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload)
+      ipcRenderer.on('app:update:status', listener)
+      return () => {
+        ipcRenderer.removeListener('app:update:status', listener)
+      }
+    },
   },
   emulator: {
     start: (config: {
