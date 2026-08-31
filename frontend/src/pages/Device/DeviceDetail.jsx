@@ -24,6 +24,7 @@ import {
   DeviceInfoWidget,
   DirectConnectWidget,
   LogsWidget,
+  PeripheralsWidget,
   StatBlock,
 } from './DeviceWidgets';
 
@@ -997,6 +998,7 @@ export default function Device() {
             {/* Sidebar Column: Identity & Actions */}
             <div className="w-full lg:w-1/4 space-y-4 overflow-y-auto pr-1">
               <DeviceInfoWidget device={device} />
+              <PeripheralsWidget peripherals={device?.peripherals} />
 
               {actions.length > 0 && (
                 <DeviceActionsWidget

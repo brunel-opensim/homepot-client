@@ -512,6 +512,7 @@ async def get_device(
                 or os_family(cast(Optional[str], device.os_details)),
                 "firmware_version": device.firmware_version
                 or (device.config.get("firmware_version") if device.config else "N/A"),
+                "peripherals": device.peripherals,
                 "last_seen": device.last_seen.isoformat() if device.last_seen else None,
                 "last_heartbeat_at": (
                     device.last_heartbeat_at.isoformat()
