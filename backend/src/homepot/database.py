@@ -311,7 +311,21 @@ class DatabaseService:
 
     async def close(self) -> None:
         """Close database connections."""
-        await self.engine.dispose()
+        try:
+            await self.engine.dispose()
+        except RuntimeError as exc:
+            # The engine may have been created on an event loop that is no
+            # longer running or has already been closed (e.g. a TestClient
+            # portal loop torn down on shutdown, most visible on Windows where
+            # thread/loop teardown races surface as "Event loop is closed").
+            # In that case the loop has already torn down the pooled
+            # connections, so there is nothing left to dispose.
+            msg = str(exc)
+            if "Event loop is closed" not in msg and "no running event loop" not in msg:
+                raise
+            logger.warning(
+                "Database engine event loop already closed; skipping dispose: %s", exc
+            )
         logger.info("Database connections closed")
 
     @asynccontextmanager
