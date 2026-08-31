@@ -1,7 +1,11 @@
 """Tests for command polling and push wake-up utilities."""
 
+import os
+import sys
 from datetime import datetime
 from unittest.mock import patch
+
+import pytest
 
 from homepot.agent.utils.command_poller import (
     COMMAND_TYPES,
@@ -74,6 +78,16 @@ DENY_ALL: dict[str, bool] = {
 }
 
 
+# The command-builders below assert POSIX sudo command construction. On Windows
+# the agent (correctly) builds platform-native commands instead (no sudo;
+# ``shutdown /r /t 0``; ``powershell -Command -``), so these assertions are
+# POSIX-only and are skipped on Windows.
+skip_if_windows = pytest.mark.skipif(
+    os.name == "nt" or sys.platform == "win32",
+    reason="asserts POSIX sudo command construction",
+)
+
+
 class TestProcessCommand:
     """Tests for ``process_command``."""
 
@@ -89,6 +103,7 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert result["result"]["message"] == "pong"
 
+    @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
     def test_restart_allowed_with_root_access(self, run):
         """Restart succeeds when root_access is granted (sudo shutdown -r)."""
@@ -109,6 +124,7 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "denied" in result["result"]["error"]
 
+    @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
     def test_shutdown_allowed_with_root_access(self, run):
         """Shutdown succeeds when root_access is granted (sudo shutdown -h)."""
@@ -300,6 +316,7 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "root_access" in result["result"]["error"]
 
+    @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
     def test_run_command_allowed_with_root_access(self, run):
         """Command execution runs via non-interactive sudo once root is granted."""
@@ -334,6 +351,7 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "command_execution" in result["result"]["error"]
 
+    @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
     def test_script_runs_with_non_interactive_sudo(self, run):
         """Scripts always run through non-interactive sudo once root is granted."""
