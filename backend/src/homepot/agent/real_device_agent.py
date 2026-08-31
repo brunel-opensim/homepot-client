@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+import secrets
 import signal
 import ssl
 import sys
@@ -731,9 +732,16 @@ def start_local_ipc_server(config: Dict[str, Any]) -> Server | None:
     if not bool(config.get("ipc_enabled", True)):
         return None
 
+    # Generate a per-run bearer token unless one is configured so that the
+    # localhost IPC endpoints are not reachable by arbitrary local processes.
+    token = config.get("ipc_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+
     try:
         app = create_local_ipc_app(
-            LocalAgentState(device_id=config["device_id"], status="STARTING")
+            LocalAgentState(device_id=config["device_id"], status="STARTING"),
+            token=token,
         )
         uv_config = Config(
             app=app,

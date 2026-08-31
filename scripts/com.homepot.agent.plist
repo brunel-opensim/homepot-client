@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  HOMEPOT Device Agent — macOS launchd service.
+
+  Install (per-user, run at login):
+    cp scripts/com.homepot.agent.plist ~/Library/LaunchAgents/com.homepot.agent.plist
+    launchctl load ~/Library/LaunchAgents/com.homepot.agent.plist
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.homepot.agent.plist
+    rm ~/Library/LaunchAgents/com.homepot.agent.plist
+
+  The agent is executed through its console script. Update ProgramArguments
+  to point at the installed backend virtualenv if you did not install the
+  package into the default user site-packages.
+-->
+<dict>
+  <key>Label</key>
+  <string>com.homepot.agent</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/homepot-agent</string>
+    <string>run</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>ProcessType</key>
+  <string>Interactive</string>
+
+  <key>WorkingDirectory</key>
+  <string>/opt/homepot</string>
+
+  <key>StandardOutPath</key>
+  <string>/opt/homepot/logs/homepot-agent.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/opt/homepot/logs/homepot-agent.stderr.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOMEPOT_AGENT_CONFIG</key>
+    <string>/opt/homepot/config/agent-config.json</string>
+  </dict>
+</dict>
+</plist>

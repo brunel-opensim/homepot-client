@@ -129,6 +129,27 @@ def _check_permission(
     return None
 
 
+def _elevation_prefix() -> List[str]:
+    """Return the argv prefix used to elevate a privileged command.
+
+    On POSIX platforms the agent runs commands through non-interactive sudo
+    (``sudo -n --``). On Windows there is no ``sudo`` — the agent typically
+    runs as an elevated service — so no prefix is added. ``run_command``,
+    ``run_script``, ``restart`` and ``shutdown`` all use this so they work on
+    both families.
+    """
+    if os.name == "nt" or platform.system().lower() == "windows":
+        return []
+    return ["sudo", "-n", "--"]
+
+
+def _shell_for_scripts() -> List[str]:
+    """Return the argv for a script interpreter on the current platform."""
+    if os.name == "nt" or platform.system().lower() == "windows":
+        return ["powershell", "-NoProfile", "-NonInteractive", "-Command", "-"]
+    return ["/bin/sh", "-s"]
+
+
 def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
     data = _command_data(command)
     source_key = "script" if script else "command"
@@ -149,9 +170,12 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
         }
 
     # Command/script execution is always elevated: it is gated on the
-    # root_access grant and runs through non-interactive sudo.
+    # root_access grant and runs through non-interactive sudo on POSIX
+    # (or directly when the process already runs elevated, e.g. Windows
+    # service).
+    elevation = _elevation_prefix()
     if script:
-        argv = ["sudo", "-n", "--", "/bin/sh", "-s"]
+        argv = [*elevation, *_shell_for_scripts()]
     else:
         try:
             argv = shlex.split(source)
@@ -162,7 +186,7 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
                 "status": "failed",
                 "result": {"error": "Command produced no executable arguments"},
             }
-        argv = ["sudo", "-n", "--", *argv]
+        argv = [*elevation, *argv]
 
     try:
         completed = subprocess.run(  # noqa: S603 - no shell; argv is explicit
@@ -463,9 +487,14 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _system_control(command_type: str) -> Dict[str, Any]:
-    """Reboot or power off the host system via non-interactive sudo."""
-    action = "-r" if command_type == "restart" else "-h"
-    outcome = _run_argv(["sudo", "-n", "--", "shutdown", action, "now"])
+    """Reboot or power off the host system via elevation on POSIX."""
+    elevation = _elevation_prefix()
+    if os.name == "nt" or platform.system().lower() == "windows":
+        action = "/r /t 0" if command_type == "restart" else "/s /t 0"
+        outcome = _run_argv(["shutdown", *shlex.split(action)])
+    else:
+        action = "-r" if command_type == "restart" else "-h"
+        outcome = _run_argv([*elevation, "shutdown", action, "now"])
     if outcome["ok"]:
         return {
             "status": "completed",

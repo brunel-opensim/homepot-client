@@ -1,11 +1,14 @@
 """Local IPC server helpers used by the real device agent."""
 
+import secrets
 import threading
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+AUTH_HEADER = "X-Agent-Token"
 
 
 class LocalAgentState(BaseModel):
@@ -32,32 +35,62 @@ class CommandResultSubmission(BaseModel):
     result: Optional[Dict[str, Any]] = None
 
 
-def create_local_ipc_app(initial_state: LocalAgentState) -> FastAPI:
-    """Create a lightweight localhost FastAPI app for local agent status and command IPC."""
+def _authenticate(token: Optional[str], expected_token: Optional[str]) -> None:
+    """Reject the request when the token is missing or does not match.
+
+    When ``expected_token`` is ``None`` (auth disabled) the check passes.
+    """
+    if expected_token is None:
+        return
+    if not token or not secrets.compare_digest(token, expected_token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def create_local_ipc_app(
+    initial_state: LocalAgentState, token: Optional[str] = None
+) -> FastAPI:
+    """Create a lightweight localhost FastAPI app for local agent status and command IPC.
+
+    Parameters
+    ----------
+    token:
+        Optional bearer token. When set, every endpoint requires it via the
+        ``X-Agent-Token`` header. When ``None``, authentication is disabled
+        (default, matching legacy behaviour).
+    """
     app = FastAPI(title="Homepot Local Agent IPC", version="0.1.0")
     app.state.agent_state = initial_state
     app.state.state_lock = threading.Lock()
     app.state.pending_commands = []  # type: ignore[assignment]
     app.state.command_results = {}  # type: ignore[assignment]
+    app.state.auth_token = token
 
-    # Allow Electron/React UI apps to call localhost IPC from any origin.
+    # The IPC server is localhost-only. CORS is applied for the Electron
+    # renderer, but when auth is enabled the token protects the endpoints
+    # regardless of origin.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"],
+        allow_headers=["*", AUTH_HEADER],
     )
 
     @app.get("/status")
-    def get_status() -> Dict[str, Any]:
+    def get_status(
+        x_agent_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Any]:
         """Return current agent runtime status."""
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             return cast(Dict[str, Any], app.state.agent_state.model_dump())
 
     @app.get("/ipc/status")
-    def get_status_alias() -> Dict[str, Any]:
+    def get_status_alias(
+        x_agent_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Any]:
         """Alias endpoint for UI clients that namespace IPC routes."""
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             return cast(Dict[str, Any], app.state.agent_state.model_dump())
 
@@ -67,14 +100,20 @@ def create_local_ipc_app(initial_state: LocalAgentState) -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/last-telemetry")
-    def get_last_telemetry() -> Dict[str, Any]:
+    def get_last_telemetry(
+        x_agent_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Any]:
         """Return the most recent telemetry snapshot."""
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             return {"data": app.state.agent_state.last_telemetry}
 
     @app.get("/ipc/last-telemetry")
-    def get_last_telemetry_alias() -> Dict[str, Any]:
+    def get_last_telemetry_alias(
+        x_agent_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Any]:
         """Alias endpoint for UI clients that namespace IPC routes."""
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             return {"data": app.state.agent_state.last_telemetry}
 
@@ -84,24 +123,30 @@ def create_local_ipc_app(initial_state: LocalAgentState) -> FastAPI:
     # ------------------------------------------------------------------
 
     @app.get("/ipc/commands/pending")
-    def get_pending_commands_ipc() -> List[Dict[str, Any]]:
+    def get_pending_commands_ipc(
+        x_agent_token: Optional[str] = Header(default=None),
+    ) -> List[Dict[str, Any]]:
         """Return commands waiting for execution by the real device.
 
         The real device should poll this endpoint, execute the command,
         and submit the result via ``POST /ipc/commands/{command_id}/result``.
         """
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             return list(app.state.pending_commands)
 
     @app.post("/ipc/commands/{command_id}/result")
     def submit_command_result(
-        command_id: str, body: CommandResultSubmission
+        command_id: str,
+        body: CommandResultSubmission,
+        x_agent_token: Optional[str] = Header(default=None),
     ) -> Dict[str, str]:
         """Accept the execution result of a command from the real device.
 
         The agent's result loop picks up this result and forwards it to the
-        backend via ``PUT /api/v1/devices/{command_id}/status``.
+        backend via ``PUT /api/v1/devices/commands/{command_id}/status``.
         """
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             original = next(
                 (
@@ -129,14 +174,21 @@ def create_local_ipc_app(initial_state: LocalAgentState) -> FastAPI:
         return {"status": "accepted"}
 
     @app.get("/ipc/commands/results")
-    def collect_command_results() -> Dict[str, Dict[str, Any]]:
+    def collect_command_results(
+        x_agent_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Dict[str, Any]]:
         """Return collected command results (agent uses this to forward to backend)."""
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             return dict(app.state.command_results)
 
     @app.delete("/ipc/commands/results/{command_id}")
-    def clear_command_result(command_id: str) -> Dict[str, str]:
+    def clear_command_result(
+        command_id: str,
+        x_agent_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, str]:
         """Remove a processed result from the results dict."""
+        _authenticate(x_agent_token, app.state.auth_token)
         with app.state.state_lock:
             app.state.command_results.pop(command_id, None)
         return {"status": "cleared"}

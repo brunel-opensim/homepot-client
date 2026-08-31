@@ -370,6 +370,64 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "root_access" in result["result"]["error"]
 
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_run_command_windows_no_sudo(self, run, system):
+        """On Windows run_command runs without a sudo prefix."""
+        system.return_value = "Windows"
+        run.return_value.returncode = 0
+        run.return_value.stdout = "hello\n"
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command",
+                "payload": {"data": {"command": "echo hello"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0] == ["echo", "hello"]
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_restart_windows_uses_shutdown_exe(self, run, system):
+        """On Windows restart uses the shutdown.exe tool directly."""
+        system.return_value = "Windows"
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
+        result = process_command(
+            {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0][0] == "shutdown"
+        assert "/r" in run.call_args.args[0]
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_script_windows_uses_powershell(self, run, system):
+        """On Windows scripts run through PowerShell, not /bin/sh."""
+        system.return_value = "Windows"
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_script",
+                "payload": {"data": {"script": "Get-Date"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        argv = run.call_args.args[0]
+        assert argv[0] == "powershell"
+        assert run.call_args.kwargs["input"] == "Get-Date"
+
 
 class TestBuildStatusUpdatePayload:
     """Tests for ``build_status_update_payload``."""
