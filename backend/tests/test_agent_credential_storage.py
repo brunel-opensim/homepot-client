@@ -826,3 +826,31 @@ class TestWindowsFileStorage:
         assert temp_storage.get_metadata("site_id") == "s1"
         assert temp_storage.get_tls_verify() is False
         assert temp_storage.get_tls_ca_cert() == "C:\\ca.pem"
+
+    @patch("homepot.agent.credential_storage.getpass")
+    @patch("homepot.agent.credential_storage.subprocess.run")
+    def test_write_locks_down_acl_with_icacls(self, run, getpass, temp_storage):
+        """Saving credentials invokes icacls to restrict the file ACL."""
+        getpass.getuser.return_value = "homepot"
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
+        temp_storage.save({"api_key": "sk-acl", "device_id": "d1"})
+        assert temp_storage.get_api_key() == "sk-acl"
+        argv = run.call_args.args[0]
+        assert "icacls" in argv
+        assert "/inheritance:r" in argv
+        assert "homepot:(F)" in argv
+        assert "Administrators:(F)" in argv
+        assert "credentials" in argv
+
+    @patch("homepot.agent.credential_storage.getpass")
+    @patch("homepot.agent.credential_storage.subprocess.run")
+    def test_write_survives_icacls_failure(self, run, getpass, temp_storage):
+        """A failing icacls call does not abort the credential save."""
+        getpass.getuser.return_value = "homepot"
+        run.return_value.returncode = 5
+        run.return_value.stdout = "denied"
+        run.return_value.stderr = "Access is denied"
+        temp_storage.save({"api_key": "sk-ok", "device_id": "d1"})
+        assert temp_storage.get_api_key() == "sk-ok"

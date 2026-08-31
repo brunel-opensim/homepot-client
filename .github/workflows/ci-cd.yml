@@ -233,7 +233,16 @@ jobs:
         DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
       run: |
         cd backend
-        XDIST_ARGS="-n auto"
+        # Windows: the already-sharded jobs run serially (no nested xdist).
+        # Nesting `-n auto` inside the sharded Windows jobs intermittently
+        # triggers a silent pytest-xdist worker-teardown that exits 1 despite
+        # all tests passing. Ubuntu/macOS (single shard, one platform+forked)
+        # keep `-n auto` for speed and are stable.
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          XDIST_ARGS="-n 0"
+        else
+          XDIST_ARGS="-n auto"
+        fi
         TEST_TARGETS="tests/"
 
         if [[ "${{ matrix.shard-count }}" -gt 1 ]]; then

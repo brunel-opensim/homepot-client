@@ -18,10 +18,12 @@ Implementations:
 """
 
 from abc import ABC, abstractmethod
+import getpass
 import json
 import logging
 import os
 from pathlib import Path
+import subprocess  # noqa: S404 - used only for a fixed icacls ACL command
 import sys
 from typing import Dict, Optional
 
@@ -461,6 +463,10 @@ class WindowsFileStorage(CredentialStorage):
 
     Default location: ``%PROGRAMDATA%\Homepot\credentials``
     Fallback: ``%APPDATA%\Homepot\credentials``
+
+    On write the file ACL is locked down to the current user and
+    Administrators via ``icacls`` so the plaintext API key is not readable
+    by other local users.
     """
 
     def __init__(self, file_path: Optional[Path] = None) -> None:
@@ -478,13 +484,45 @@ class WindowsFileStorage(CredentialStorage):
             logger.warning("Failed to read credentials file: %s", exc)
             return {}
 
+    def _lockdown_permissions(self) -> None:
+        """Restrict the credential file to the current user + Administrators.
+
+        ``%PROGRAMDATA%`` is readable by many local users by default, so we
+        explicitly replace the inherited ACL with one granting ``F``
+        (full control) to the current user and Administrators only. Failure
+        to lock down is logged but does not abort the write, mirroring how
+        the POSIX file backends degrade gracefully if a chmod fails.
+        """
+        try:
+            user = getpass.getuser()
+            script = (
+                f'icacls "{self._file_path}" '
+                f'/inheritance:r /grant:r "{user}:(F)" "Administrators:(F)"'
+            )
+            completed = subprocess.run(
+                script,
+                shell=True,  # noqa: S602 - fixed icacls invocation with quoted path
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if completed.returncode != 0:
+                logger.warning(
+                    "Failed to lock down credential ACL (icacls rc=%s): %s",
+                    completed.returncode,
+                    (completed.stderr or completed.stdout).strip(),
+                )
+        except Exception as exc:  # noqa: BLE001 - icacls may be absent/unavailable
+            logger.warning("Could not lock down credential ACL: %s", exc)
+
     def _write(self, data: Dict[str, str]) -> None:
-        """Write credentials to the JSON file."""
+        """Write credentials to the JSON file and restrict its ACL."""
         self._file_path.parent.mkdir(parents=True, exist_ok=True)
         self._file_path.write_text(
             json.dumps(data, indent=2),
             encoding="utf-8",
         )
+        self._lockdown_permissions()
 
     def save(self, creds: DeviceCredentials) -> None:
         """Save credentials to the JSON file."""

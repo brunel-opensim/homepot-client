@@ -214,6 +214,70 @@ class TestIpcHttpEndpoints:
         assert "c1" not in get_resp.json()
 
 
+class TestIpcAuthentication:
+    """Tests for the optional bearer-token gate on IPC endpoints."""
+
+    def test_token_required_when_enabled(self):
+        """Endpoints reject requests without the token when auth is enabled."""
+        from fastapi.testclient import TestClient
+
+        app = create_local_ipc_app(
+            LocalAgentState(device_id="dev-1", status="STARTING"),
+            token="secret-token",
+        )
+        client = TestClient(app)
+        assert client.get("/status").status_code == 401
+        assert client.get("/ipc/status").status_code == 401
+        assert client.get("/last-telemetry").status_code == 401
+        assert client.get("/ipc/commands/pending").status_code == 401
+
+    def test_wrong_token_rejected(self):
+        """Endpoints reject requests with an incorrect token."""
+        from fastapi.testclient import TestClient
+
+        app = create_local_ipc_app(
+            LocalAgentState(device_id="dev-1", status="STARTING"),
+            token="secret-token",
+        )
+        client = TestClient(app)
+        response = client.get("/status", headers={"X-Agent-Token": "wrong-token"})
+        assert response.status_code == 401
+
+    def test_correct_token_accepted(self):
+        """Endpoints accept requests with the matching token."""
+        from fastapi.testclient import TestClient
+
+        app = create_local_ipc_app(
+            LocalAgentState(device_id="dev-42", status="ONLINE"),
+            token="secret-token",
+        )
+        client = TestClient(app)
+        response = client.get("/status", headers={"X-Agent-Token": "secret-token"})
+        assert response.status_code == 200
+        assert response.json()["device_id"] == "dev-42"
+
+    def test_health_stays_open(self):
+        """The /health endpoint remains unauthenticated."""
+        from fastapi.testclient import TestClient
+
+        app = create_local_ipc_app(
+            LocalAgentState(device_id="dev-1", status="STARTING"),
+            token="secret-token",
+        )
+        client = TestClient(app)
+        assert client.get("/health").status_code == 200
+
+    def test_auth_disabled_by_default(self):
+        """When no token is supplied the endpoints stay open."""
+        from fastapi.testclient import TestClient
+
+        app = create_local_ipc_app(
+            LocalAgentState(device_id="dev-1", status="STARTING")
+        )
+        client = TestClient(app)
+        assert client.get("/status").status_code == 200
+
+
 class TestPopNextResult:
     """Tests for ``_pop_next_result`` (used in command_result_loop)."""
 
