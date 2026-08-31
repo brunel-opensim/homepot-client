@@ -593,7 +593,7 @@ const PERIPHERAL_CATEGORY_META = {
 
 export const PeripheralsWidget = ({ peripherals }) => {
   const populated = Object.entries(PERIPHERAL_CATEGORY_META).filter(
-    ([key]) => Array.isArray(peripherals?.[key]) && peripherals[key].length > 0,
+    ([key]) => Array.isArray(peripherals?.[key]) && peripherals[key].length > 0
   );
 
   return (
@@ -612,7 +612,10 @@ export const PeripheralsWidget = ({ peripherals }) => {
               </div>
               <div className="space-y-1.5">
                 {peripherals[key].map((p, idx) => (
-                  <PeripheralRow key={`${p.name || p.connection_type || idx}-${idx}`} peripheral={p} />
+                  <PeripheralRow
+                    key={`${p.name || p.connection_type || idx}-${idx}`}
+                    peripheral={p}
+                  />
                 ))}
               </div>
             </div>
@@ -640,9 +643,7 @@ const PeripheralRow = ({ peripheral }) => {
           {p.name || p.model || p.driver_name || 'Unknown peripheral'}
         </div>
         <div className="text-[10px] text-slate-500 truncate">
-          {[p.manufacturer, p.model, p.connection_type, p.port]
-            .filter(Boolean)
-            .join(' · ') ||
+          {[p.manufacturer, p.model, p.connection_type, p.port].filter(Boolean).join(' · ') ||
             p.source ||
             p.type ||
             ''}
@@ -653,14 +654,17 @@ const PeripheralRow = ({ peripheral }) => {
           </span>
         )}
       </div>
-      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${statusCls}`}>
+      <span
+        className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${statusCls}`}
+      >
         {status || '—'}
       </span>
     </div>
   );
 };
 
-const PERMISSION_GROUPS = [  {
+const PERMISSION_GROUPS = [
+  {
     key: 'monitor',
     label: 'Monitoring Access',
     keys: ['command_execution', 'filesystem_access', 'process_monitoring', 'network_monitoring'],
