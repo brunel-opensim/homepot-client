@@ -1,6 +1,5 @@
 """Homepot agent package initialization."""
 
-from homepot.agent.agent_api import router
 from homepot.agent.credential_storage import (
     CredentialStorage,
     KeyringCredentialStorage,
@@ -18,6 +17,16 @@ from homepot.agent.identity import (
     identity_path,
     reset_device_id,
 )
+
+
+def __getattr__(name: str):
+    """Lazily export ``router`` so the agent runtime does not eagerly pull in
+    the backend API stack (sqlalchemy/passlib/SECRET_KEY) on import."""
+    if name == "router":
+        from homepot.agent.agent_api import router
+
+        return router
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "router",

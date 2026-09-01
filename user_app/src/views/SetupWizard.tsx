@@ -384,6 +384,7 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
       if (!d?.device_id || !d?.api_key) throw new Error('Provisioning response did not include device credentials.')
 
       await credentialStorage.save({ deviceId: d.device_id, apiKey: d.api_key, siteId, deviceName: deviceName || 'My Device', deviceType, deviceOs, enrollmentMethod: 'self-enrolled' })
+      await window.electronAPI?.agent.start()
       setLoading(false)
       setIsProvisioned(true)
       navigate('/home')

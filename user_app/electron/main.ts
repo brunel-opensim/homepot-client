@@ -19,6 +19,9 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+// Set once a genuine quit (Cmd+Q / app.quit) is in progress so the window
+// close-to-tray handler below does not swallow it.
+let isQuitting = false
 let emulatorProcess: ChildProcess | null = null
 let emulatorDeviceId: string | null = null
 let agentProcess: ChildProcess | null = null
@@ -230,7 +233,7 @@ function createWindow() {
   })
 
   mainWindow.on('close', (event) => {
-    if (tray) {
+    if (tray && !isQuitting) {
       event.preventDefault()
       mainWindow?.hide()
     }
@@ -626,7 +629,7 @@ function registerIpcHandlers() {
 function resolveBackendUrl(credentials: Record<string, string>): string {
   if (process.env.HOMEPOT_BACKEND_URL) return process.env.HOMEPOT_BACKEND_URL
   if (credentials.backend_url) return credentials.backend_url
-  return 'http://localhost:8000/api/v1'
+  return 'http://localhost:8000'
 }
 
 function writeAgentConfig(): string | null {
@@ -1004,6 +1007,7 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
   recordAppEvent('info', 'application', 'HOMEPOT Agent is stopping')
   killEmulator()
   killAgent()

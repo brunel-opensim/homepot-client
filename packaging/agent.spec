@@ -41,7 +41,9 @@ a = Analysis(
     datas=[
         (str(AGENT_PKG / "agent-config.json"), "homepot/agent"),
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        "passlib.handlers.bcrypt",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
