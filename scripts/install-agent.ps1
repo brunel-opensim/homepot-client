@@ -78,7 +78,8 @@ function Get-ServiceScript {
         Return the full path to homepot_agent_service.py.
     #>
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-    return Join-Path $scriptDir "homepot_agent_service.py"
+    $repoRoot = Split-Path -Parent $scriptDir
+    return Join-Path $repoRoot "backend/utils/homepot_agent_service.py"
 }
 
 # ---------------------------------------------------------------------------

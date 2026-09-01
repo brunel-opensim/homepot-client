@@ -266,6 +266,39 @@ telemetry store of its own. The only local persistence on the Mac is the device
 credentials (`~/.homepot/credentials`) and the emulator's config/credentials
 (`~/.homepot/emulators/`), not telemetry.
 
+## 4.8 Real-device transition — what the packaged app achieves
+
+Packaging the User App moves it from a simulation-only shell toward managing a
+**real device on site**. For a technician the practical outcome is:
+
+- **No runtime prerequisites on the device.** The packaged app bundles the
+  on-device agent (`homepot-agent`) and the emulator (`homepot-emulator`) as
+  standalone PyInstaller binaries under `Contents/Resources/bin/`
+  (`resources/bin` on Windows/Linux). The Electron shell spawns those frozen
+  binaries directly — no Python install, virtualenv, or checked-out repo is
+  needed on the target machine.
+- **Same agent everywhere.** `homepot-agent` runs the exact
+  `homepot.agent.real_device_agent` code used elsewhere, so a device behaves
+  identically whether driven by the repo's Python or the packaged binary.
+- **Bundled emulator for pilot sites.** `homepot-emulator` lets a device still
+  provision in "launch emulated device" mode from the packaged app, without the
+  `emulators/` source tree on disk.
+- **Auto-update via draft releases.** The CI `package` job builds mac+win+linux
+  and the `publish` job uploads them to **draft GitHub releases**
+  (`electron-updater` reads `latest-mac.yml` / `latest.yml`). Drafts are held
+  back until a technician promotes them, so updates roll out deliberately.
+  See [`packaging/README.md`](https://github.com/brunel-opensim/homepot-client/blob/main/packaging/README.md)
+  for the full build/flows.
+
+Build order matters: the frontend `vite build` (inside `npm run electron:build`)
+empties `user_app/dist`, so the PyInstaller binaries are built into
+`user_app/pyinstaller-dist` (outside `dist/`) before packaging copies them into
+the bundle. The PyInstaller specs + emulator entry live in the top-level
+`packaging/` directory (sibling of `scripts/` and `deploy/`) so the User App
+build stays independent of the Dashboard and its dependencies. See
+`packaging/README.md`, `user_app/README.md` → *Building for distribution* and
+`.github/workflows/user-app-build.yml`.
+
 ---
 
 ## 5. Page Working Flow

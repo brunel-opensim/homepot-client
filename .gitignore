@@ -26,6 +26,11 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
+# The User App PyInstaller build specs (packaging/) are committed (CI + local packaging uses them).
+!packaging/*.spec
+# PyInstaller build output for the User App (binaries shipped via extraResources).
+# Kept outside `user_app/dist` because vite empties `dist/` on each build.
+pyinstaller-dist/
 
 # Installer logs
 pip-log.txt
@@ -213,10 +218,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-# NOTE: We now commit frontend/package-lock.json for reproducible builds and CI caching
-# Only ignore package-lock.json outside of frontend/
+# NOTE: We now commit frontend/package-lock.json for reproducible builds and CI caching.
+# The user_app lockfile is committed too so `npm ci` works in the packaging CI job.
+# Only ignore package-lock.json outside of frontend/ and user_app/
 /**/package-lock.json
 !frontend/package-lock.json
+!user_app/package-lock.json
 .npm
 .yarn-integrity
 
@@ -230,6 +237,12 @@ out/
 .nuxt/
 .cache/
 coverage/
+# The user_app app icons are source assets committed to the repo so CI packaging
+# embeds the real brand icon instead of the default Electron icon.
+!user_app/build/
+!user_app/build/icon.icns
+!user_app/build/icon.ico
+!user_app/build/icon.png
 
 # Frontend environment
 .env.local

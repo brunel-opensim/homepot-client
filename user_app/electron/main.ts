@@ -19,6 +19,9 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+// Set once a genuine quit (Cmd+Q / app.quit) is in progress so the window
+// close-to-tray handler below does not swallow it.
+let isQuitting = false
 let emulatorProcess: ChildProcess | null = null
 let emulatorDeviceId: string | null = null
 let agentProcess: ChildProcess | null = null
@@ -230,7 +233,7 @@ function createWindow() {
   })
 
   mainWindow.on('close', (event) => {
-    if (tray) {
+    if (tray && !isQuitting) {
       event.preventDefault()
       mainWindow?.hide()
     }
@@ -626,7 +629,7 @@ function registerIpcHandlers() {
 function resolveBackendUrl(credentials: Record<string, string>): string {
   if (process.env.HOMEPOT_BACKEND_URL) return process.env.HOMEPOT_BACKEND_URL
   if (credentials.backend_url) return credentials.backend_url
-  return 'http://localhost:8000/api/v1'
+  return 'http://localhost:8000'
 }
 
 function writeAgentConfig(): string | null {
@@ -671,17 +674,29 @@ function startAgentProcess(): boolean {
   const deviceSlug = credentials.device_name || credentials.device_id || 'agent'
   const logFile = deviceLogFile(deviceSlug, 'agent')
 
+  const agentBinary = packagedBinary('homepot-agent')
   const projectRoot = getProjectRoot()
   const pythonExe = findPython(projectRoot)
-  const child = spawn(pythonExe, ['-u', '-m', 'homepot.agent.real_device_agent'], {
-    cwd: projectRoot,
-    env: {
-      ...process.env,
-      PYTHONPATH: path.join(projectRoot, 'backend', 'src'),
-      HOMEPOT_AGENT_CONFIG: configPath,
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
+
+  // Packaged apps ship a frozen `homepot-agent` binary (extraResource); dev /
+  // unpackaged runs fall back to launching Python from the checkout.
+  const child = agentBinary
+    ? spawn(agentBinary, [], {
+        env: {
+          ...process.env,
+          HOMEPOT_AGENT_CONFIG: configPath,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    : spawn(pythonExe, ['-u', '-m', 'homepot.agent.real_device_agent'], {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          PYTHONPATH: path.join(projectRoot, 'backend', 'src'),
+          HOMEPOT_AGENT_CONFIG: configPath,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
   agentProcess = child
 
   child.stdout?.on('data', (data: Buffer) => {
@@ -801,17 +816,33 @@ function appendDeviceLog(logFile: string, tag: string, line: string): void {
 
 function startEmulatorProcess(emulatorType: string, configPath: string): void {
   const projectRoot = getProjectRoot()
-  const emulatorScript = path.join(projectRoot, 'emulators', `${emulatorType}_emulator.py`)
-  if (!fs.existsSync(emulatorScript)) {
-    throw new Error(`Emulator script not found: ${emulatorScript}`)
+  const emulatorBinary = packagedBinary('homepot-emulator')
+
+  let command: string
+  let args: string[]
+  let cwd: string | undefined
+
+  if (emulatorBinary) {
+    // Packaged apps ship a frozen dispatcher that maps emulator_type → wrapper.
+    command = emulatorBinary
+    args = ['--config', configPath]
+    cwd = undefined
+  } else {
+    const emulatorScript = path.join(projectRoot, 'emulators', `${emulatorType}_emulator.py`)
+    if (!fs.existsSync(emulatorScript)) {
+      throw new Error(`Emulator script not found: ${emulatorScript}`)
+    }
+    const pythonExe = findPython(projectRoot)
+    command = pythonExe
+    args = ['-u', emulatorScript, '--config', configPath]
+    cwd = projectRoot
   }
 
-  const pythonExe = findPython(projectRoot)
   emulatorStderr = []
   const deviceSlug = path.basename(configPath).replace(/-config\.json$/, '')
   const logFile = deviceLogFile(deviceSlug, 'emulator')
-  const child = spawn(pythonExe, ['-u', emulatorScript, '--config', configPath], {
-    cwd: projectRoot,
+  const child = spawn(command, args, {
+    cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   emulatorProcess = child
@@ -873,6 +904,20 @@ function resumePersistedEmulator(): void {
     console.error(`[emulator] Failed to resume ${deviceName}:`, error)
     recordAppEvent('error', 'emulator', `Saved device emulator failed to resume: ${error instanceof Error ? error.message : 'unknown error'}`)
   }
+}
+
+/**
+ * Resolve the path of a frozen PyInstaller binary shipped as an
+ * extraResource (``<resources>/bin/<name>/<name>``). Returns null in dev /
+ * unpackaged runs so callers fall back to launching Python from the repo.
+ */
+function packagedBinary(name: string): string | null {
+  if (!app.isPackaged) return null
+  const base = path.join(process.resourcesPath, 'bin', name, name)
+  for (const candidate of [`${base}.exe`, base]) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
 }
 
 function findPython(projectRoot: string): string {
@@ -962,6 +1007,7 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
   recordAppEvent('info', 'application', 'HOMEPOT Agent is stopping')
   killEmulator()
   killAgent()
