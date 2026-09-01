@@ -2,6 +2,8 @@
   "name": "homepot-agent",
   "private": true,
   "version": "0.1.0",
+  "description": "HOMEPOT Agent — desktop client for the HOMEPOT device management platform",
+  "author": "HOMEPOT",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -24,6 +26,12 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "pyinstaller-dist",
+        "to": "bin"
+      }
     ],
     "publish": {
       "provider": "github",

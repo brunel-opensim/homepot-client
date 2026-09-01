@@ -1,0 +1,156 @@
+name: User App Build & Package
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'user_app/**'
+      - '.github/workflows/user-app-build.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'user_app/**'
+      - '.github/workflows/user-app-build.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish draft release (needed for auto-update on real devices)'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: User App Quality Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user_app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: user_app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build production bundle
+        run: npm run build
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: [quality]
+    runs-on: ${{ matrix.os }}
+    # Build packages on main pushes (fresh artifacts for testing) and on manual
+    # dispatch; do not burn three runners on every PR.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            targets: '--mac'
+          - os: windows-latest
+            targets: '--win'
+          - os: ubuntu-latest
+            targets: '--linux'
+    defaults:
+      run:
+        working-directory: user_app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: user_app/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PyInstaller deps
+        run: |
+          pip install pyinstaller fastapi uvicorn httpx==0.27.0 psutil platformdirs
+
+      - name: Build frozen agent + emulator (PyInstaller)
+        run: |
+          python -m PyInstaller packaging/agent.spec \
+            --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-agent
+          python -m PyInstaller packaging/emulator.spec \
+            --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-emulator
+
+      - name: Package with electron-builder
+        run: npx electron-builder ${{ matrix.targets }} --publish never
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}
+          path: user_app/release/**
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish Draft Release
+    needs: [package]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: releases
+          merge-multiple: true
+
+      - name: Show release files
+        run: ls -laR releases
+
+      - name: Get version from app package
+        id: version
+        run: echo "APP_VERSION=v$(node -p "require('./user_app/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Create/update draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.APP_VERSION }}"
+          # Find an existing draft for this version, otherwise create one.
+          DRAFT_URL=$(gh release list --draft --limit 100 --json tagName,isDraft \
+            --jq ".[] | select(.tagName == \"${VERSION}\") | select(.isDraft == true) | .tagName" | head -1)
+          if [ -z "$DRAFT_URL" ]; then
+            gh release create "${VERSION}" --draft --title "HOMEPOT Agent ${VERSION}" \
+              --notes "Packaged HOMEPOT Agent for real-device testing." >/dev/null
+          fi
+          cd releases
+          gh release upload "${VERSION}" ./* --clobber

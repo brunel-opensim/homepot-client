@@ -36,9 +36,7 @@ try:
     import win32service
     import win32serviceutil
 except ImportError:
-    sys.exit(
-        "pywin32 is required.  Install with: pip install homepot-client[agent]"
-    )
+    sys.exit("pywin32 is required.  Install with: pip install homepot-client[agent]")
 
 
 # Constants for SERVICE_CONTROL_PRESHUTDOWN support.
@@ -226,6 +224,7 @@ def main() -> None:
     """Entry point for the Windows service wrapper."""
     if len(sys.argv) == 1:
         import inspect
+
         print(inspect.cleandoc(__doc__))
         return
 

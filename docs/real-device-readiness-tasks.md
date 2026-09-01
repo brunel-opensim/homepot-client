@@ -28,13 +28,14 @@ This document is based on a code-level audit of `backend/`, `frontend/`, and `us
 | Peripheral discovery for printers (CUPS `lpstat`, Windows `Get-Printer`) + emulator toggle | ✅ Partial (printers only) |
 | Dashboard command builder UI (`frontend/src/pages/Device/PushReview.jsx`) | ✅ Done |
 | User App scaffold (`user_app/`) — Vite + React 19 views (SetupWizard, HomeDashboard, Permissions, DeviceInfo) | ✅ Static UI only |
+| User App packaging for real devices — Electron shell + frozen `homepot-agent`/`homepot-emulator` (PyInstaller) bundled via `extraResources` + auto-update via draft GitHub releases | ✅ Partially delivered (see [user-app-frontend-guide.md §4.8](user-app-frontend-guide.md#48-real-device-transition--what-the-packaged-app-achieves)) |
 
 ## 2. Critical gaps found (drive the task list below)
 
 1. **The agent never executes commands.** `real_device_agent.py` only runs `heartbeat_loop`, `telemetry_loop`, and `retry_flush_loop` — there is no loop polling `GET /devices/pending` or reporting results to `PUT /commands/{id}/status`. The command queue is backend-only right now; nothing on a real device ever acts on it.
 2. **`POST /{device_id}/commands` has no authorization check.** Any caller can queue a command for any device (comment in code literally says "Admin/UI only - for now open"). This is a Broken Access Control gap that must close before going to real hardware.
 3. **No real-vs-simulated distinction in the data model.** `Device` has no `source`/`is_simulated` flag, so the Dashboard can't filter or badge real devices, and simulated seed data can silently mix with production fleets.
-4. **Agent has no packaging/deployment story.** `requirements-app.txt` exists, but there's no PyInstaller spec, build script, or service unit (systemd/Windows Service) to actually hand a binary to a pilot site.
+4. **Agent has no packaging/deployment story.** `requirements-app.txt` exists, but there's no PyInstaller spec, build script, or service unit (systemd/Windows Service) to actually hand a binary to a pilot site. *(Partially closed on the User App side: `homepot-agent`/`homepot-emulator` are now frozen with PyInstaller and bundled into the packaged User App — see [user-app-frontend-guide.md §4.8](user-app-frontend-guide.md#48-real-device-transition--what-the-packaged-app-achieves). Standalone systemd/Windows Service deployment remains open.)*
 5. **Peripheral discovery is incomplete.** Scanners and card readers are empty placeholders; Windows printer discovery returns raw PowerShell JSON instead of the normalized schema Linux/macOS uses.
 6. **User App is a static mock, not a runtime shell.** No Electron/Capacitor wrapper, no SQLite, `HomeDashboard.tsx` hardcodes `MOCK_TELEMETRY` and `isOnline = true`, and nothing calls the agent's local IPC endpoints or the backend provisioning API yet.
 7. **No secure local credential storage in the User App.** Token/device info handling is `localStorage`-only placeholder logic; needs to be replaced with OS keychain / secure storage once the Electron/Capacitor shell exists.
@@ -68,6 +69,17 @@ This document is based on a code-level audit of `backend/`, `frontend/`, and `us
 - Add a PyInstaller spec (Linux + Windows) producing a standalone `homepot-agent` binary using `requirements-app.txt` only (no FastAPI/SQLAlchemy).
 - Provide a `systemd` unit file and a Windows Service wrapper/install script.
 - Document install steps in `docs/real-device-agent.md`.
+
+> **Aligning the install scripts with the frozen binary (follow-up).** The
+> standalone OS-service path (`scripts/install-agent.sh` / `install-agent-macos.sh`
+> / `install-agent.ps1` / `upgrade-agent.ps1` + `backend/utils/homepot_agent_service.py`,
+> and the `systemd` unit) currently deploy the agent via `pip install -e ".[agent]"`,
+> which requires a Python environment / repo checkout on the target device. The User
+> App path already solves this by freezing the **same** `homepot-agent` runtime with
+> PyInstaller (`packaging/agent.spec` → `user_app/pyinstaller-dist`). The install
+> scripts should be updated to install the frozen binary instead of pip-installing the
+> package, so headless devices (IoT sensors, gateways, industrial controllers — no User
+> App, and the MQTT/headless fleet) get a no-prereq deployment identical to the User App's.
 
 ### 3.6 Pilot verification
 - Register 3–5 real pilot devices (`physical_terminal` / `pos_terminal`), deploy the packaged agent, and confirm: online status, live telemetry, device DNA, peripheral list, and now command execution round-trips all show correctly on the Dashboard.

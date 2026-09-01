@@ -80,9 +80,25 @@ In dev mode, each flow provides a bypass:
 
 ## Building for distribution
 
+The packaged app ships the **on-device agent** and the **emulator** as frozen
+PyInstaller binaries (no Python/repo checkout needed on the target device):
+
 ```bash
+# 1. Build the frozen binaries (must run before packaging; outputs land in pyinstaller-dist/)
+PYTHONPATH=backend/src python -m PyInstaller packaging/agent.spec --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-agent
+python -m PyInstaller packaging/emulator.spec --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-emulator
+
+# 2. Package the app (copies pyinstaller-dist/ → resources/bin in the bundle)
 npm run electron:build
 ```
+
+`pyinstaller-dist/` stays **outside** `user_app/dist` because the frontend
+`vite build` empties `dist/` on every run and would otherwise wipe the
+binaries before electron-builder copies them into the app. See
+[`packaging/README.md`](../packaging/README.md) for the full packaging
+workings. In CI the `.github/workflows/user-app-build.yml` `package` job runs
+the PyInstaller step per OS and electron-builder publishes **draft GitHub
+releases** (drives auto-update on real devices).
 
 Output goes to `release/`:
 
