@@ -287,7 +287,8 @@ Packaging the User App moves it from a simulation-only shell toward managing a
   and the `publish` job uploads them to **draft GitHub releases**
   (`electron-updater` reads `latest-mac.yml` / `latest.yml`). Drafts are held
   back until a technician promotes them, so updates roll out deliberately.
-  See [`packaging/README.md`](../packaging/README.md) for the full build/flows.
+  See [`packaging/README.md`](https://github.com/brunel-opensim/homepot-client/blob/main/packaging/README.md)
+  for the full build/flows.
 
 Build order matters: the frontend `vite build` (inside `npm run electron:build`)
 empties `user_app/dist`, so the PyInstaller binaries are built into
