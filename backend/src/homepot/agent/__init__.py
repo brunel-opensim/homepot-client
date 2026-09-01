@@ -1,5 +1,7 @@
 """Homepot agent package initialization."""
 
+from typing import Any
+
 from homepot.agent.credential_storage import (
     CredentialStorage,
     KeyringCredentialStorage,
@@ -19,14 +21,20 @@ from homepot.agent.identity import (
 )
 
 
-def __getattr__(name: str):
-    """Lazily export ``router`` so the agent runtime does not eagerly pull in
-    the backend API stack (sqlalchemy/passlib/SECRET_KEY) on import."""
+def __getattr__(name: str) -> Any:
+    """Lazily export ``router`` on package access.
+
+    The agent runtime imports this package at startup, so eagerly pulling
+    in ``agent_api`` would drag the backend API stack (sqlalchemy/passlib/
+    SECRET_KEY) into the frozen binary. ``router`` is only needed by the
+    backend API server.
+    """
     if name == "router":
         from homepot.agent.agent_api import router
 
         return router
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "router",
