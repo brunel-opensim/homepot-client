@@ -98,11 +98,17 @@ jobs:
           pip install pyinstaller fastapi uvicorn httpx==0.27.0 psutil platformdirs
 
       - name: Build frozen agent + emulator (PyInstaller)
+        shell: bash
         run: |
           python -m PyInstaller ../packaging/agent.spec \
             --distpath pyinstaller-dist --workpath /tmp/pyinstaller-agent
           python -m PyInstaller ../packaging/emulator.spec \
             --distpath pyinstaller-dist --workpath /tmp/pyinstaller-emulator
+
+      - name: Build renderer + Electron main bundles
+        run: npm run build
+        env:
+          VITE_ELECTRON: 'true'
 
       - name: Package with electron-builder
         run: npx electron-builder ${{ matrix.targets }} --publish never
