@@ -3,6 +3,7 @@
 from . import (
     AgentAlertEndpoint,
     AgentAuditEndpoint,
+    AgentCommandHistoryEndpoint,
     AgentConfigHistoryEndpoint,
     AgentHeartbeatEndpoint,
     AgentJobsEndpoint,
@@ -37,6 +38,7 @@ from . import (
 __all__ = [
     "AgentAlertEndpoint",
     "AgentAuditEndpoint",
+    "AgentCommandHistoryEndpoint",
     "AgentConfigHistoryEndpoint",
     "AgentHeartbeatEndpoint",
     "AgentJobsEndpoint",

@@ -15,7 +15,16 @@ from homepot.app.models.AnalyticsModel import DeviceMetrics
 from homepot.canonical_ids import _DEVICE_ID_PATTERN
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, Device, LifecycleState, Site, User
+import homepot.models
+from homepot.models import (
+    Base,
+    CommandStatus,
+    Device,
+    DeviceCommand,
+    LifecycleState,
+    Site,
+    User,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -90,6 +99,53 @@ def _create_device(device_id: str, site_pk: int, api_key: str = "test-api-key") 
 
 def _device_headers(device_id: str, api_key: str) -> dict[str, str]:
     return {"X-Device-ID": device_id, "X-API-Key": api_key}
+
+
+def _set_device_permissions(device_id: str, permissions: dict[str, bool]) -> None:
+    """Set the device_permissions JSON column for a device row."""
+    db = homepot.database.SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == device_id).first()
+        device.device_permissions = permissions
+        db.commit()
+    finally:
+        db.close()
+
+
+def _grant_monitor(device_id: str) -> None:
+    """Grant the Monitor (read-only diagnostics) tier to a device row."""
+    _set_device_permissions(
+        device_id,
+        {
+            "command_execution": True,
+            "process_monitoring": True,
+            "filesystem_access": True,
+            "network_monitoring": True,
+        },
+    )
+
+
+def _create_commands_for_device(
+    device_id: str, count: int = 1, command_type: str = "ping"
+) -> None:
+    """Insert DeviceCommand rows linked to a device via the async DB service."""
+    db = homepot.database.SessionLocal()
+    try:
+        device_pk = db.query(Device).filter(Device.device_id == device_id).first().id
+        for i in range(count):
+            db.add(
+                DeviceCommand(
+                    command_id=f"{device_id}-cmd-{i}",
+                    device_id=device_pk,
+                    command_type=command_type,
+                    payload={"index": i},
+                    status=CommandStatus.COMPLETED.value,
+                    result={"ok": True},
+                )
+            )
+        db.commit()
+    finally:
+        db.close()
 
 
 def test_register_updates_authenticated_device(client: TestClient):
@@ -227,6 +283,7 @@ def test_metrics_returns_latest_telemetry(client: TestClient):
     """GET /api/v1/agent/{device_id}/metrics should return the latest entry."""
     site = _create_site("site-metrics-latest")
     api_key = _create_device("metrics-device-1", int(site.id))
+    _grant_monitor("metrics-device-1")
 
     post = client.post(
         "/api/v1/agent/telemetry",
@@ -262,6 +319,7 @@ def test_metrics_returns_empty_values_when_no_telemetry(client: TestClient):
     """GET metrics should return null fields when no telemetry exists yet."""
     site = _create_site("site-metrics-empty")
     api_key = _create_device("metrics-device-2", int(site.id))
+    _grant_monitor("metrics-device-2")
 
     response = client.get(
         "/api/v1/agent/metrics-device-2/metrics",
@@ -289,6 +347,52 @@ def test_metrics_rejects_other_devices_and_missing_credentials(client: TestClien
 
     missing = client.get("/api/v1/agent/metrics-device-3/metrics")
     assert missing.status_code == 401
+
+
+def test_metrics_history_returns_time_ordered_samples(client: TestClient):
+    """GET /api/v1/agent/{device_id}/metrics/history returns samples oldest-first."""
+    site = _create_site("site-metrics-history")
+    api_key = _create_device("metrics-device-5", int(site.id))
+    _grant_monitor("metrics-device-5")
+
+    for i, cpu in enumerate([20.0, 40.0, 60.0]):
+        post = client.post(
+            "/api/v1/agent/telemetry",
+            json={
+                "device_id": "metrics-device-5",
+                "cpu_usage": cpu,
+                "memory_usage": 50.0 + i,
+                "disk_usage": 30.0,
+                "network_latency_ms": 10.0 + i,
+                "uptime_seconds": 1000 + i,
+            },
+            headers=_device_headers("metrics-device-5", api_key),
+        )
+        assert post.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/metrics-device-5/metrics/history?limit=10",
+        headers=_device_headers("metrics-device-5", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 3
+    assert [sample["cpu_percent"] for sample in data] == [20.0, 40.0, 60.0]
+    assert data[-1]["memory_percent"] == 52.0
+    assert data[-1]["uptime_seconds"] == 1002
+
+
+def test_metrics_history_rejects_other_devices(client: TestClient):
+    """GET metrics/history should 403 for another device."""
+    site = _create_site("site-metrics-history-auth")
+    api_key = _create_device("metrics-device-6", int(site.id))
+    _create_device("metrics-device-7", int(site.id), api_key="other-key")
+
+    response = client.get(
+        "/api/v1/agent/metrics-device-7/metrics/history",
+        headers=_device_headers("metrics-device-6", api_key),
+    )
+    assert response.status_code == 403
 
 
 def test_provision_returns_credentials_and_hashes_key(client: TestClient):
@@ -393,6 +497,7 @@ def test_logs_returns_device_log_lines(client: TestClient):
     """GET /api/v1/agent/{device_id}/logs should return the device's log lines."""
     site = _create_site("site-activity-logs")
     api_key = _create_device("activity-log-device", int(site.id))
+    _grant_monitor("activity-log-device")
 
     posted = client.post(
         "/api/v1/agent/logs",
@@ -433,3 +538,232 @@ def test_logs_rejects_other_devices_and_missing_credentials(client: TestClient):
 
     missing = client.get("/api/v1/agent/activity-auth-device-1/logs")
     assert missing.status_code == 401
+
+
+def test_audit_returns_device_audit_events(client: TestClient):
+    """GET /api/v1/agent/{device_id}/audit should return the device's audit events."""
+    site = _create_site("site-activity-audit")
+    api_key = _create_device("activity-audit-device", int(site.id))
+    _grant_monitor("activity-audit-device")
+
+    posted = client.post(
+        "/api/v1/agent/audit",
+        json={
+            "device_id": "activity-audit-device",
+            "event_type": "permission_change",
+            "description": "Root access granted by owner",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "metadata": {"permission": "root_access", "granted": True},
+        },
+        headers=_device_headers("activity-audit-device", api_key),
+    )
+    assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/activity-audit-device/audit",
+        headers=_device_headers("activity-audit-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["event_type"] == "permission_change"
+    assert data[0]["description"] == "Root access granted by owner"
+    assert data[0]["event_metadata"]["permission"] == "root_access"
+
+
+def test_audit_rejects_other_devices_and_missing_credentials(client: TestClient):
+    """Audit reads should 403 for another device and 401 without credentials."""
+    site = _create_site("site-activity-audit-auth")
+    api_key = _create_device("activity-audit-auth-1", int(site.id))
+    _create_device("activity-audit-auth-2", int(site.id), api_key="other-key")
+
+    other = client.get(
+        "/api/v1/agent/activity-audit-auth-2/audit",
+        headers=_device_headers("activity-audit-auth-1", api_key),
+    )
+    assert other.status_code == 403
+
+    missing = client.get("/api/v1/agent/activity-audit-auth-1/audit")
+    assert missing.status_code == 401
+
+
+def _grant_manage(device_id: str) -> None:
+    """Grant the Manage (root_access) permission to a device row."""
+    db = homepot.database.SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        device.device_permissions = {
+            "root_access": True,
+            "command_execution": True,
+            "process_monitoring": True,
+            "filesystem_access": True,
+            "network_monitoring": True,
+        }
+        db.commit()
+    finally:
+        db.close()
+
+
+def _seed_command(
+    device_id: str, command_type: str, payload: dict | None = None
+) -> None:
+    """Insert a command row for a device."""
+    db = homepot.database.SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        command = homepot.models.DeviceCommand(
+            command_id=f"cmd-{command_type}-{device_id}",
+            device_id=device.id,
+            command_type=command_type,
+            payload=payload or {},
+            status="completed",
+            result={"ok": True},
+        )
+        db.add(command)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_command_history_returns_device_commands(client: TestClient):
+    """GET /api/v1/agent/{device_id}/commands returns the device's commands."""
+    site = _create_site("site-activity-commands")
+    api_key = _create_device("activity-command-device-1", int(site.id))
+    _grant_manage("activity-command-device-1")
+    _seed_command("activity-command-device-1", "run_command", {"cmd": "echo hi"})
+    _seed_command("activity-command-device-1", "restart")
+
+    response = client.get(
+        "/api/v1/agent/activity-command-device-1/commands",
+        headers=_device_headers("activity-command-device-1", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 2
+    statuses = {item["command_type"] for item in data}
+    assert statuses == {"run_command", "restart"}
+    run = next(item for item in data if item["command_type"] == "run_command")
+    assert run["command_id"].startswith("cmd-run_command-")
+    assert run["status"] == "completed"
+    assert run["payload"]["cmd"] == "echo hi"
+    assert run["sent_at"] is None
+
+
+def test_command_history_requires_manage_permission(client: TestClient):
+    """Command history reads require the Manage (root_access) permission."""
+    site = _create_site("site-activity-commands-manage")
+    api_key = _create_device("activity-command-device-manage", int(site.id))
+
+    denied = client.get(
+        "/api/v1/agent/activity-command-device-manage/commands",
+        headers=_device_headers("activity-command-device-manage", api_key),
+    )
+    assert denied.status_code == 403
+
+
+def test_command_history_rejects_other_devices_and_missing_credentials(
+    client: TestClient,
+):
+    """Command history reads 403 for another device and 401 without credentials."""
+    site = _create_site("site-activity-commands-auth")
+    api_key = _create_device("activity-command-auth-1", int(site.id))
+    _grant_manage("activity-command-auth-1")
+    _create_device("activity-command-auth-2", int(site.id), api_key="other-key")
+
+    other = client.get(
+        "/api/v1/agent/activity-command-auth-2/commands",
+        headers=_device_headers("activity-command-auth-1", api_key),
+    )
+    assert other.status_code == 403
+
+    missing = client.get("/api/v1/agent/activity-command-auth-1/commands")
+    assert missing.status_code == 401
+
+
+def test_alerts_returns_device_alerts(client: TestClient):
+    """GET /api/v1/agent/{device_id}/alerts returns the device's alerts."""
+    site = _create_site("site-activity-alerts")
+    api_key = _create_device("activity-alert-device-1", int(site.id))
+    _grant_monitor("activity-alert-device-1")
+
+    posted = client.post(
+        "/api/v1/agent/alert",
+        json={
+            "device_id": "activity-alert-device-1",
+            "title": "Disk usage high",
+            "description": "Disk at 92%",
+            "severity": "high",
+            "category": "hardware",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("activity-alert-device-1", api_key),
+    )
+    assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/activity-alert-device-1/alerts",
+        headers=_device_headers("activity-alert-device-1", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 1
+    assert data[0]["title"] == "Disk usage high"
+    assert data[0]["severity"] == "high"
+    assert data[0]["category"] == "hardware"
+
+
+def test_alerts_requires_monitor_permission(client: TestClient):
+    """Alerts reads require the Monitor tier."""
+    site = _create_site("site-activity-alerts-monitor")
+    api_key = _create_device("activity-alert-device-monitor", int(site.id))
+
+    denied = client.get(
+        "/api/v1/agent/activity-alert-device-monitor/alerts",
+        headers=_device_headers("activity-alert-device-monitor", api_key),
+    )
+    assert denied.status_code == 403
+
+
+def test_alerts_rejects_other_devices_and_missing_credentials(client: TestClient):
+    """Alerts reads 403 for another device and 401 without credentials."""
+    site = _create_site("site-activity-alerts-auth")
+    api_key = _create_device("activity-alert-auth-1", int(site.id))
+    _grant_monitor("activity-alert-auth-1")
+    _create_device("activity-alert-auth-2", int(site.id), api_key="other-key")
+
+    other = client.get(
+        "/api/v1/agent/activity-alert-auth-2/alerts",
+        headers=_device_headers("activity-alert-auth-1", api_key),
+    )
+    assert other.status_code == 403
+
+    missing = client.get("/api/v1/agent/activity-alert-auth-1/alerts")
+    assert missing.status_code == 401
+
+
+def test_diagnostics_require_monitor_permission(client: TestClient):
+    """Metrics, logs, and audit reads require the Monitor tier."""
+    site = _create_site("site-diagnostics-monitor")
+    api_key = _create_device("diagnostics-device-1", int(site.id))
+    headers = _device_headers("diagnostics-device-1", api_key)
+
+    assert (
+        client.get(
+            "/api/v1/agent/diagnostics-device-1/metrics", headers=headers
+        ).status_code
+        == 403
+    )
+    assert (
+        client.get(
+            "/api/v1/agent/diagnostics-device-1/logs", headers=headers
+        ).status_code
+        == 403
+    )
+    assert (
+        client.get(
+            "/api/v1/agent/diagnostics-device-1/audit", headers=headers
+        ).status_code
+        == 403
+    )

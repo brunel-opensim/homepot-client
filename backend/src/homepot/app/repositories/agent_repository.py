@@ -1,7 +1,7 @@
 """Repository layer for agent device and telemetry database operations."""
 
 from datetime import datetime
-from typing import Any, Iterable, Optional, cast
+from typing import Any, Iterable, List, Optional, cast
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -65,6 +65,19 @@ class AgentRepository:
             .limit(1)
         )
         return result.scalars().first()
+
+    def get_metrics_history(self, device_pk: int, limit: int) -> List[DeviceMetrics]:
+        """Return the most recent ``limit`` telemetry entries for a device.
+
+        Results are ordered oldest-first so callers can chart a time series.
+        """
+        result = self.db.execute(
+            select(DeviceMetrics)
+            .where(DeviceMetrics.device_id == device_pk)
+            .order_by(desc(DeviceMetrics.timestamp))
+            .limit(limit)
+        )
+        return list(reversed(result.scalars().all()))
 
     def create_device(
         self,

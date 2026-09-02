@@ -1,5 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import TabBar from '../components/TabBar'
+import { credentialStorage } from '../services/credentialStorage'
+import {
+  fetchDeviceLogs,
+  fetchDeviceAuditEvents,
+  fetchDeviceCommandHistory,
+  fetchDeviceAlerts,
+} from '../services/api'
+import type {
+  DeviceLog,
+  AuditEvent,
+  CommandHistoryEntry,
+  AlertEvent,
+} from '../services/api'
+import { ApiError } from '../services/api'
 
 type AppLogEntry = Awaited<ReturnType<NonNullable<Window['electronAPI']>['app']['getRecentLogs']>>[number]
 
@@ -29,6 +43,40 @@ function severityDot(severity: string): string {
   return SEVERITY_COLORS[severity.toLowerCase()] ?? 'bg-slate-500'
 }
 
+function formatEventType(eventType: string): string {
+  return eventType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+const COMMAND_STATUS_META: Record<string, { label: string; dot: string }> = {
+  pending: { label: 'Queued', dot: 'bg-amber-400' },
+  sent: { label: 'Acknowledged', dot: 'bg-blue-500' },
+  completed: { label: 'Completed', dot: 'bg-emerald-500' },
+  failed: { label: 'Failed', dot: 'bg-red-500' },
+  expired: { label: 'Expired', dot: 'bg-slate-500' },
+}
+
+function commandStatusMeta(status: string): { label: string; dot: string } {
+  const normalized = (status || '').toLowerCase()
+  return (
+    COMMAND_STATUS_META[normalized] ?? {
+      label: status || 'Unknown',
+      dot: 'bg-slate-400',
+    }
+  )
+}
+
+const ALERT_SEVERITY_DOT: Record<string, string> = {
+  critical: 'bg-red-600',
+  high: 'bg-red-500',
+  medium: 'bg-amber-500',
+  low: 'bg-sky-500',
+  info: 'bg-slate-400',
+}
+
+function alertSeverityDot(severity: string): string {
+  return ALERT_SEVERITY_DOT[severity.toLowerCase()] ?? 'bg-slate-400'
+}
+
 function Row({
   title,
   subtitle,
@@ -54,6 +102,12 @@ function Row({
 
 export default function Logs() {
   const [logs, setLogs] = useState<AppLogEntry[]>([])
+  const [deviceLogs, setDeviceLogs] = useState<DeviceLog[]>([])
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
+  const [alerts, setAlerts] = useState<AlertEvent[]>([])
+  const [commandHistory, setCommandHistory] = useState<CommandHistoryEntry[]>([])
+  const [diagnosticsGated, setDiagnosticsGated] = useState(false)
+  const [commandHistoryGated, setCommandHistoryGated] = useState(false)
   const [error, setError] = useState('')
 
   const refresh = useCallback(async () => {
@@ -70,6 +124,61 @@ export default function Logs() {
     }
   }, [])
 
+  const refreshDeviceLogs = useCallback(async () => {
+    const [deviceId, apiKey] = await Promise.all([
+      credentialStorage.getDeviceId(),
+      credentialStorage.getApiKey(),
+    ])
+    if (!deviceId || !apiKey) return
+    try {
+      setDeviceLogs(await fetchDeviceLogs(deviceId, apiKey, 50))
+      setDiagnosticsGated(false)
+    } catch (err) {
+      setDiagnosticsGated(err instanceof ApiError && err.status === 403)
+    }
+  }, [])
+
+  const refreshAuditEvents = useCallback(async () => {
+    const [deviceId, apiKey] = await Promise.all([
+      credentialStorage.getDeviceId(),
+      credentialStorage.getApiKey(),
+    ])
+    if (!deviceId || !apiKey) return
+    try {
+      setAuditEvents(await fetchDeviceAuditEvents(deviceId, apiKey, 50))
+    } catch (err) {
+      setDiagnosticsGated(err instanceof ApiError && err.status === 403)
+    }
+  }, [])
+
+  const refreshAlerts = useCallback(async () => {
+    const [deviceId, apiKey] = await Promise.all([
+      credentialStorage.getDeviceId(),
+      credentialStorage.getApiKey(),
+    ])
+    if (!deviceId || !apiKey) return
+    try {
+      setAlerts(await fetchDeviceAlerts(deviceId, apiKey, 50))
+    } catch (err) {
+      setDiagnosticsGated(err instanceof ApiError && err.status === 403)
+    }
+  }, [])
+
+  const refreshCommandHistory = useCallback(async () => {
+    const [deviceId, apiKey] = await Promise.all([
+      credentialStorage.getDeviceId(),
+      credentialStorage.getApiKey(),
+    ])
+    if (!deviceId || !apiKey) return
+    try {
+      setCommandHistory(await fetchDeviceCommandHistory(deviceId, apiKey, 50))
+      setCommandHistoryGated(false)
+    } catch (err) {
+      // A 403 means Manage (root_access) has not been granted for this device.
+      setCommandHistoryGated(err instanceof ApiError && err.status === 403)
+    }
+  }, [])
+
   useEffect(() => {
     const initialRefresh = setTimeout(refresh, 0)
     const poll = setInterval(refresh, 15000)
@@ -78,6 +187,22 @@ export default function Logs() {
       clearInterval(poll)
     }
   }, [refresh])
+
+  const devicePoller = useCallback(() => {
+    refreshDeviceLogs()
+    refreshAuditEvents()
+    refreshAlerts()
+    refreshCommandHistory()
+  }, [refreshDeviceLogs, refreshAuditEvents, refreshAlerts, refreshCommandHistory])
+
+  useEffect(() => {
+    const initialRefresh = setTimeout(devicePoller, 0)
+    const poll = setInterval(devicePoller, 15000)
+    return () => {
+      clearTimeout(initialRefresh)
+      clearInterval(poll)
+    }
+  }, [devicePoller])
 
   return (
     <div className="h-screen bg-slate-900 flex items-center justify-center p-4 font-sans overflow-hidden">
@@ -104,6 +229,109 @@ export default function Logs() {
 
         {/* Content — scrollable logs, header + tab bar stay fixed */}
         <div className="px-5 py-2 flex-1 overflow-y-auto min-h-0 logs-scroll">
+          {diagnosticsGated && (
+            <p className="text-slate-500 text-xs italic pb-2 pt-2">
+              Device diagnostics are hidden — grant Monitor access to this device to view
+              alerts, logs, and audit activity.
+            </p>
+          )}
+          {alerts.length > 0 && (
+            <>
+              <p className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-widest pt-2">
+                Alerts
+              </p>
+              {alerts.map(alert => (
+                <Row
+                  key={`alert-${alert.id}`}
+                  title={alert.title}
+                  subtitle={`${alert.category} · ${alert.status}${alert.description ? ` — ${alert.description}` : ''}`}
+                  meta={formatTime(alert.timestamp)}
+                  dot={alertSeverityDot(alert.severity)}
+                />
+              ))}
+              <div className="border-t border-slate-700 my-2" />
+            </>
+          )}
+          {commandHistoryGated && (
+            <p className="text-slate-500 text-xs italic pb-2 pt-2">
+              Command history is hidden — grant Manage access to this device to view it.
+            </p>
+          )}
+          {commandHistory.length > 0 && (
+            <>
+              <p className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-widest pt-2">
+                Command History
+              </p>
+              {commandHistory.map(entry => {
+                const statusMeta = commandStatusMeta(entry.status)
+                return (
+                  <Row
+                    key={`command-${entry.command_id}`}
+                    title={formatEventType(entry.command_type)}
+                    subtitle={
+                      entry.payload
+                        ? `${Object.keys(entry.payload).length} parameters · ${statusMeta.label}`
+                        : statusMeta.label
+                    }
+                    meta={formatTime(entry.created_at)}
+                    dot={statusMeta.dot}
+                  />
+                )
+              })}
+              <div className="border-t border-slate-700 my-2" />
+            </>
+          )}
+          {commandHistoryGated && commandHistory.length === 0 && (
+            <>
+              <p className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-widest pt-2">
+                Command History
+              </p>
+              <Row
+                title="Manage access not granted"
+                subtitle="Grant the Manage (root access) permission to view command history."
+                meta=""
+                dot="bg-slate-500"
+              />
+              <div className="border-t border-slate-700 my-2" />
+            </>
+          )}
+          {auditEvents.length > 0 && (
+            <>
+              <p className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-widest pt-2">
+                Audit Trail
+              </p>
+              {auditEvents.map(event => (
+                <Row
+                  key={`audit-${event.id}`}
+                  title={formatEventType(event.event_type)}
+                  subtitle={event.description}
+                  meta={formatTime(event.created_at)}
+                  dot="bg-violet-500"
+                />
+              ))}
+              <div className="border-t border-slate-700 my-2" />
+            </>
+          )}
+          {deviceLogs.length > 0 && (
+            <>
+              <p className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-widest pt-2">
+                Device Logs
+              </p>
+              {deviceLogs.map(log => (
+                <Row
+                  key={`device-${log.id}`}
+                  title={log.error_message}
+                  subtitle={`${log.category} · code ${log.error_code ?? '—'}${log.resolved ? ' · resolved' : ''}`}
+                  meta={formatTime(log.timestamp)}
+                  dot={severityDot(log.severity)}
+                />
+              ))}
+              <div className="border-t border-slate-700 my-2" />
+            </>
+          )}
+          <p className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-widest">
+            Application Events
+          </p>
           {logs.length === 0 ? (
             <p className="text-center text-slate-600 text-sm py-8">No application events yet.</p>
           ) : (

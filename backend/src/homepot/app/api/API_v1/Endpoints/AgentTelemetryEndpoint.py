@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Union
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from homepot.app.api.API_v1.Endpoints.agent_permission_gate import require_monitor
 from homepot.app.auth_utils import get_current_device
 from homepot.app.schemas.agent import AgentTelemetryRequest
 from homepot.app.services.agent_service import AgentService
@@ -73,7 +74,7 @@ def get_latest_metrics(
     """Return the latest telemetry metrics for the authenticated device.
 
     The device authenticates via ``X-Device-ID`` and ``X-API-Key`` headers
-    and can only read its own metrics.
+    and can only read its own metrics (Monitor-gated).
     """
     try:
         if current_device.device_id != device_id:
@@ -81,7 +82,7 @@ def get_latest_metrics(
                 status_code=403,
                 detail="Authenticated device can only read its own metrics",
             )
-
+        require_monitor(current_device)
         service = AgentService(db)
         result = service.get_latest_metrics(device_id)
         return {
@@ -96,4 +97,40 @@ def get_latest_metrics(
         raise
     except Exception as e:
         logger.error("Unexpected metrics error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{device_id}/metrics/history", tags=["Agent"])
+def get_metrics_history(
+    device_id: str,
+    limit: int = 100,
+    current_device: Device = Depends(get_current_device),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Return a time-ordered sample of telemetry metrics for a device.
+
+    The device authenticates via ``X-Device-ID`` and ``X-API-Key`` headers
+    and can only read its own history (Monitor-gated).
+    """
+    try:
+        if current_device.device_id != device_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Authenticated device can only read its own metrics",
+            )
+        require_monitor(current_device)
+        service = AgentService(db)
+        result = service.get_metrics_history(device_id, limit=limit)
+        return {
+            "status": "success",
+            "message": "Device metrics history fetched successfully",
+            "data": result,
+        }
+    except LookupError as e:
+        logger.error("Metrics history lookup failed: %s", e)
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Unexpected metrics history error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

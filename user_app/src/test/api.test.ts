@@ -15,6 +15,8 @@ import {
   updateCommandStatus,
   reportPermissionAudit,
   fetchDeviceLogs,
+  fetchDeviceMetricsHistory,
+  fetchDeviceAuditEvents,
 } from '../services/api'
 
 const mockFetch = vi.fn()
@@ -209,6 +211,51 @@ describe('fetchDeviceLogs', () => {
   it('throws on error', async () => {
     mockFetch.mockResolvedValueOnce(serverError('Server error'))
     await expect(fetchDeviceLogs(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
+  })
+})
+
+describe('fetchDeviceMetricsHistory', () => {
+  it('returns time-ordered samples from nested data field with limit param', async () => {
+    const samples = [
+      { device_id: DEVICE_ID, cpu_percent: 20.0, memory_percent: 50.0, disk_percent: 30.0, network_latency_ms: 10.0, uptime_seconds: 1000, timestamp: '2026-08-03T10:00:00.000Z' },
+      { device_id: DEVICE_ID, cpu_percent: 40.0, memory_percent: 51.0, disk_percent: 30.0, network_latency_ms: 11.0, uptime_seconds: 1030, timestamp: '2026-08-03T10:00:30.000Z' },
+    ]
+    mockFetch.mockResolvedValueOnce(ok({ data: samples }))
+    const result = await fetchDeviceMetricsHistory(DEVICE_ID, API_KEY, 50)
+    expect(result).toHaveLength(2)
+    expect(result[1].cpu_percent).toBe(40.0)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/agent/${DEVICE_ID}/metrics/history?limit=50`),
+      expect.objectContaining({
+        headers: { 'X-Device-ID': DEVICE_ID, 'X-API-Key': API_KEY },
+      }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(fetchDeviceMetricsHistory(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
+  })
+})
+
+describe('fetchDeviceAuditEvents', () => {
+  it('returns audit events from nested data field with limit param', async () => {
+    const events = [{ id: 2, event_type: 'permission_change', description: 'Root access granted', event_metadata: { permission: 'root_access' }, created_at: '2026-08-03T10:05:00.000Z' }]
+    mockFetch.mockResolvedValueOnce(ok({ data: events }))
+    const result = await fetchDeviceAuditEvents(DEVICE_ID, API_KEY, 50)
+    expect(result).toHaveLength(1)
+    expect(result[0].event_type).toBe('permission_change')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/agent/${DEVICE_ID}/audit?limit=50`),
+      expect.objectContaining({
+        headers: { 'X-Device-ID': DEVICE_ID, 'X-API-Key': API_KEY },
+      }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(fetchDeviceAuditEvents(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
   })
 })
 

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
+import MetricsHistoryChart from '../components/MetricsHistoryChart'
 import { credentialStorage } from '../services/credentialStorage'
-import { fetchDeviceStatus, fetchDeviceMetrics } from '../services/api'
+import { fetchDeviceStatus, fetchDeviceMetrics, fetchDeviceMetricsHistory } from '../services/api'
 import { getCachedTelemetry, setCachedTelemetry } from '../services/telemetryCache'
 import type { DeviceStatus, DeviceMetrics } from '../services/api'
 
@@ -65,6 +66,7 @@ export default function HomeDashboard() {
   const [deviceType, setDeviceType] = useState<string | null>(null)
   const [status, setStatus] = useState<DeviceStatus | null>(null)
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null)
+  const [history, setHistory] = useState<DeviceMetrics[]>([])
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
 
@@ -109,6 +111,17 @@ export default function HomeDashboard() {
         // silently degrade
       }
     }
+    async function fetchHistory() {
+      const dId = deviceIdRef.current
+      const aKey = apiKeyRef.current
+      if (!dId || !aKey) return
+      try {
+        const samples = await fetchDeviceMetricsHistory(dId, aKey, 60)
+        setHistory(samples)
+      } catch {
+        // silently degrade
+      }
+    }
     if (!deviceIdRef.current || !apiKeyRef.current) return
 
     // Render any cached telemetry immediately, then refresh from the backend.
@@ -121,11 +134,14 @@ export default function HomeDashboard() {
 
     fetchStatus()
     fetchMetrics()
+    fetchHistory()
     const statusInterval = setInterval(fetchStatus, 30000)
     const metricsInterval = setInterval(fetchMetrics, 15000)
+    const historyInterval = setInterval(fetchHistory, 30000)
     return () => {
       clearInterval(statusInterval)
       clearInterval(metricsInterval)
+      clearInterval(historyInterval)
     }
   }, [deviceId])
 
@@ -244,6 +260,30 @@ export default function HomeDashboard() {
             </div>
           </div>
         </div>
+
+        {/* History charts */}
+        {history.length > 0 && (
+          <div className="px-5 pt-5">
+            <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-widest">History</p>
+            <div className="flex justify-around items-end">
+              <MetricsHistoryChart
+                label="CPU"
+                color="#10b981"
+                values={history.map((s) => s.cpu_percent)}
+              />
+              <MetricsHistoryChart
+                label="Memory"
+                color="#f59e0b"
+                values={history.map((s) => s.memory_percent)}
+              />
+              <MetricsHistoryChart
+                label="Disk"
+                color="#3b82f6"
+                values={history.map((s) => s.disk_percent)}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Heartbeat */}
         <div className="px-5 pt-4 pb-5">
