@@ -8,6 +8,7 @@
   "os_details": "Android 13",
   "heartbeat_interval_seconds": 30,
   "telemetry_interval_seconds": 30,
+  "live_log_interval_seconds": 30,
   "retry_flush_interval_seconds": 60,
   "command_poll_interval_seconds": 60,
   "ipc_enabled": true,

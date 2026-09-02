@@ -101,6 +101,7 @@ def load_agent_config() -> Dict[str, Any]:
 
     data.setdefault("heartbeat_interval_seconds", 30)
     data.setdefault("telemetry_interval_seconds", 30)
+    data.setdefault("live_log_interval_seconds", 30)
     data.setdefault("retry_flush_interval_seconds", 60)
     data.setdefault("command_poll_interval_seconds", 60)
     data.setdefault("ipc_enabled", True)
@@ -696,6 +697,46 @@ async def telemetry_loop(
         await asyncio.sleep(interval)
 
 
+async def live_logs_loop(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+) -> None:
+    """Periodically stream a status snapshot to the Dashboard's Live Logs.
+
+    Unlike the telemetry loop (which posts metrics to ``/api/v1/agent/telemetry``
+    for storage/analytics), this loop pushes a compact, human-readable status
+    line to ``POST /api/v1/agent/logs`` on a configurable cadence so the
+    Dashboard "Live Logs" tab shows near-real-time device activity *without*
+    requiring a ``status_request`` command to trigger each update.
+
+    The snapshot is deduplicated: a new line is only posted when the reported
+    values changed since the previous iteration, so a healthy idle device does
+    not spam the log table with identical lines every interval.
+    """
+    interval = int(config.get("live_log_interval_seconds", 30))
+    last_signature: Optional[str] = None
+    while True:
+        try:
+            report = build_status_report(config)
+            signature = json.dumps(
+                {
+                    "cpu_usage": report.get("cpu_usage"),
+                    "memory_usage": report.get("memory_usage"),
+                    "disk_usage": report.get("disk_usage"),
+                    "uptime_seconds": report.get("uptime_seconds"),
+                },
+                sort_keys=True,
+            )
+            if signature != last_signature:
+                await _report_status_to_live_logs(client, config, report)
+                last_signature = signature
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error("Live log loop error: %s", e, exc_info=True)
+        await asyncio.sleep(interval)
+
+
 async def retry_flush_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
@@ -996,6 +1037,7 @@ async def run_agent(
             asyncio.ensure_future(
                 telemetry_loop(client, config, retry_queue, ipc_server, submission_log)
             ),
+            asyncio.ensure_future(live_logs_loop(client, config)),
             asyncio.ensure_future(
                 retry_flush_loop(client, config, retry_queue, submission_log)
             ),

@@ -6,6 +6,8 @@ import json
 
 import httpx
 
+from homepot.agent.real_device_agent import live_logs_loop
+from homepot.agent.utils.command_poller import build_status_report
 from homepot.agent.utils.heartbeat import build_heartbeat_payload, utc_now_iso
 from homepot.agent.utils.telemetry import (
     build_telemetry_payload,
@@ -329,3 +331,78 @@ class TestBuildTelemetryPayload:
         parsed = datetime.fromisoformat(payload["timestamp"])
         diff = abs((datetime.now(timezone.utc) - parsed).total_seconds())
         assert diff < 5
+
+
+class TestLiveLogsLoop:
+    """Tests for the continuous live-log status streaming loop."""
+
+    CONFIG = {
+        "device_id": "live-log-device",
+        "backend_url": "https://backend.example.com",
+        "live_log_interval_seconds": 1,
+        "api_key": "secret",
+    }
+
+    def test_posts_status_line_to_agent_logs(self):
+        """The loop POSTs a status snapshot to /agent/logs on its first iteration."""
+
+        async def _handler(request):
+            self.received = self.received + 1
+            assert request.url.path == "/api/v1/agent/logs"
+            body = json.loads(request.content)
+            assert body["device_id"] == "live-log-device"
+            assert body["category"] == "status"
+            assert body["level"] == "info"
+            assert "cpu" in body["message"]
+            return httpx.Response(200, json={"status": "success"})
+
+        self.received = 0
+        self.cancelled = False
+
+        async def _run():
+            transport = httpx.MockTransport(_handler)
+            async with httpx.AsyncClient(transport=transport) as client:
+                loop = asyncio.ensure_future(live_logs_loop(client, dict(self.CONFIG)))
+                await asyncio.sleep(0.3)
+                loop.cancel()
+                try:
+                    await loop
+                except asyncio.CancelledError:
+                    pass
+
+        asyncio.run(_run())
+        assert self.received == 1, "expected exactly one POST on first iteration"
+
+    def test_deduplicates_unchanged_status(self):
+        """The loop skips posting when the reported metrics are unchanged."""
+
+        async def _handler(request):
+            self.received = self.received + 1
+            return httpx.Response(200, json={"status": "success"})
+
+        self.received = 0
+
+        async def _run():
+            transport = httpx.MockTransport(_handler)
+            async with httpx.AsyncClient(transport=transport) as client:
+                loop = asyncio.ensure_future(live_logs_loop(client, dict(self.CONFIG)))
+                # Allow enough ticks for several iterations; unchanged metrics
+                # should suppress duplicate posts.
+                await asyncio.sleep(0.35)
+                loop.cancel()
+                try:
+                    await loop
+                except asyncio.CancelledError:
+                    pass
+
+        asyncio.run(_run())
+        assert self.received == 1, (
+            "expected one POST only (dedupe of unchanged metrics), got "
+            f"{self.received}"
+        )
+
+    def test_build_status_report_has_live_fields(self):
+        """build_status_report exposes the fields the live-log message uses."""
+        report = build_status_report(dict(self.CONFIG))
+        for key in ("cpu_usage", "memory_usage", "disk_usage", "uptime_seconds"):
+            assert key in report, f"missing {key} in status report"
