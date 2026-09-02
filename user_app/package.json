@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "description": "HOMEPOT Agent — desktop client for the HOMEPOT device management platform",
-  "author": "HOMEPOT",
+  "author": {
+    "name": "HOMEPOT",
+    "email": "homepot@homepot-client.local"
+  },
   "homepage": "https://github.com/brunel-opensim/homepot-client",
   "repository": {
     "type": "git",
