@@ -99,10 +99,10 @@ jobs:
 
       - name: Build frozen agent + emulator (PyInstaller)
         run: |
-          python -m PyInstaller packaging/agent.spec \
-            --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-agent
-          python -m PyInstaller packaging/emulator.spec \
-            --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-emulator
+          python -m PyInstaller ../packaging/agent.spec \
+            --distpath pyinstaller-dist --workpath /tmp/pyinstaller-agent
+          python -m PyInstaller ../packaging/emulator.spec \
+            --distpath pyinstaller-dist --workpath /tmp/pyinstaller-emulator
 
       - name: Package with electron-builder
         run: npx electron-builder ${{ matrix.targets }} --publish never
