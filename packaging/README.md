@@ -50,6 +50,123 @@ npx electron-builder --mac    # or --win / --linux
 `pyinstaller-dist/` is gitignored (build artifact); the binaries are **not**
 committed. Only the specs/entry here and the icon assets are versioned.
 
+## Changing the app icon
+
+The icon assets are versioned, and the platform build configs point at
+three separate files (see `user_app/package.json` → `build`):
+
+| Platform | Icon file |
+| --- | --- |
+| Linux | `user_app/resources/icon.png` |
+| macOS | `user_app/build/icon.icns` |
+| Windows | `user_app/build/icon.ico` |
+
+The **master artwork is `user_app/resources/icon.png`**. It is *not* read
+directly by the mac/win builds, so after you change it you must regenerate
+`build/icon.png`, `build/icon.icns`, and `build/icon.ico` from it, then
+repackage — icons are baked in at build time, not read at runtime.
+
+### Regenerate + repackage (manual)
+
+Requires Python 3 with Pillow (macOS `iconutil` also used on mac):
+
+```bash
+# from the repo root
+python3 - <<'PY'
+from PIL import Image
+
+src = Image.open("user_app/resources/icon.png").convert("RGBA")
+
+# 1024px PNG + Windows ICO (multi-size; PIL resizes internally per `sizes`)
+src.resize((1024, 1024), Image.LANCZOS).save("user_app/build/icon.png", format="PNG")
+src.save("user_app/build/icon.ico", format="ICO",
+         sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+PY
+```
+
+Generate the macOS `.icns` from an iconset (the dir name *must* end in
+`.iconset` or `iconutil` rejects it):
+
+```bash
+mkdir -p /tmp/homepot.iconset
+python3 - <<'PY'
+from PIL import Image
+import json
+
+src = Image.open("user_app/resources/icon.png").convert("RGBA")
+sizes = [
+    ("icon_16x16.png", 16, "1x"), ("icon_16x16@2x.png", 32, "2x"),
+    ("icon_32x32.png", 32, "1x"), ("icon_32x32@2x.png", 64, "2x"),
+    ("icon_128x128.png", 128, "1x"), ("icon_128x128@2x.png", 256, "2x"),
+    ("icon_256x256.png", 256, "1x"), ("icon_256x256@2x.png", 512, "2x"),
+    ("icon_512x512.png", 512, "1x"), ("icon_512x512@2x.png", 1024, "2x"),
+]
+images = []
+for name, px, scale in sizes:
+    src.resize((px, px), Image.LANCZOS).save(f"/tmp/homepot.iconset/{name}", format="PNG")
+    logical = px // 2 if scale == "2x" else px
+    images.append({"filename": name, "idiom": "mac", "scale": scale, "size": f"{logical}x{logical}"})
+with open("/tmp/homepot.iconset/Contents.json", "w") as f:
+    json.dump({"images": images, "info": {"author": "xcode", "version": 1}}, f)
+PY
+iconutil -c icns /tmp/homepot.iconset -o user_app/build/icon.icns
+rm -rf /tmp/homepot.iconset
+```
+
+Then repackage (see "How to package & run" below):
+
+```bash
+# quick sanity check that the freshly built app carries the new icon
+md5 user_app/build/icon.icns
+md5 "user_app/release/mac-arm64/HOMEPOT Agent.app/Contents/Resources/icon.icns"  # must match
+```
+
+> If you only edit a UI-facing asset shipped inside the bundle, freeze/
+> repackage every time — the `.app` is a snapshot of `dist/`,
+> `dist-electron/`, `pyinstaller-dist/`, and the build icons.
+
+## How to package & run (without the assistant)
+
+Full end-to-end recipe for turning source edits into a running app:
+
+```bash
+# 0. (one-time / after changed backend or emulator code) rebuild frozen binaries
+cd <repo-root>
+PYTHONPATH=backend/src python -m PyInstaller packaging/agent.spec \
+    --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-agent
+python -m PyInstaller packaging/emulator.spec \
+    --distpath user_app/pyinstaller-dist --workpath /tmp/pyinstaller-emulator
+
+# 1. build the frontend + package the app in one shot
+cd user_app
+npm install            # one-time; package-lock.json is source of truth
+npm run electron:build # VITE_ELECTRON=true vite build && electron-builder
+                       #   → builds dist/ + dist-electron/ AND packages the app
+```
+
+If you already built the bundle (step 1's `vite build` succeeded and only the
+icons/package.json changed), you can skip straight to packaging alone:
+
+```bash
+cd user_app
+npx electron-builder --mac      # or --win / --linux (each runs on its host OS)
+```
+
+> Never point electron-builder at a `dist/` that misses `pyinstaller-dist/`
+> — see "Build order matters" above.
+
+To run the packaged result without installing (macOS):
+
+```bash
+open "user_app/release/mac-arm64/HOMEPOT Agent.app"
+# or, with console output so you can watch the agent:
+"user_app/release/mac-arm64/HOMEPOT Agent.app/Contents/MacOS/<binary>"
+```
+
+If you want to test with a *different* backend than the packaged default,
+edit `~/.homepot/agent/agent-config.json` first (see `deploy/README` or the
+agent docs for the schema) — the frozen agent reads its config from there.
+
 ## How the binaries reach the packaged app
 
 `user_app/package.json` → `build.extraResources`:
