@@ -14,6 +14,7 @@ from sqlalchemy import String as SA_String
 from sqlalchemy import cast as sa_cast
 from sqlalchemy import desc, select
 
+from homepot.app.api.API_v1.Endpoints.agent_permission_gate import require_monitor
 from homepot.app.auth_utils import get_current_device
 from homepot.app.models.AnalyticsModel import ErrorLog
 from homepot.app.schemas.agent import AgentLogRequest
@@ -90,9 +91,10 @@ async def get_device_logs(
     limit: int = DEFAULT_LIMIT,
     current_device: Device = Depends(get_current_device),
 ) -> Dict[str, Any]:
-    """Return the latest device log lines (Live Logs)."""
+    """Return the latest device log lines (Live Logs), Monitor-gated."""
     try:
         await _require_own_device(device_id, current_device)
+        require_monitor(current_device)
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             result = await session.execute(

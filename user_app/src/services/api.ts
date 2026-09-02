@@ -67,6 +67,37 @@ export interface DeviceLog {
   resolved: boolean
 }
 
+export interface AuditEvent {
+  id: number
+  event_type: string
+  description: string
+  event_metadata: Record<string, unknown> | null
+  created_at: string | null
+}
+
+export interface CommandHistoryEntry {
+  command_id: string
+  command_type: string
+  payload: Record<string, unknown> | null
+  status: string
+  result: Record<string, unknown> | null
+  created_at: string | null
+  sent_at: string | null
+  executed_at: string | null
+}
+
+export interface AlertEvent {
+  id: number
+  title: string
+  description: string | null
+  severity: string
+  category: string
+  status: string
+  timestamp: string | null
+  resolved_at: string | null
+  resolved_by: string | null
+}
+
 interface Headers {
   [key: string]: string
 }
@@ -146,6 +177,23 @@ export async function fetchDeviceMetrics(
   }
   const json = await res.json()
   return json.data as DeviceMetrics
+}
+
+export async function fetchDeviceMetricsHistory(
+  deviceId: string,
+  apiKey: string,
+  limit = 100,
+): Promise<DeviceMetrics[]> {
+  const res = await fetch(
+    `${apiBaseUrl}/agent/${deviceId}/metrics/history?limit=${limit}`,
+    { headers: deviceAuthHeaders(deviceId, apiKey) },
+  )
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch metrics history (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as DeviceMetrics[]
 }
 
 export async function fetchPermissions(deviceId: string, apiKey: string): Promise<PermissionsResponse> {
@@ -383,8 +431,9 @@ export async function reportPermissionAudit(
 export async function fetchDeviceLogs(
   deviceId: string,
   apiKey: string,
+  limit = 50,
 ): Promise<DeviceLog[]> {
-  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/logs`, {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/logs?limit=${limit}`, {
     headers: deviceAuthHeaders(deviceId, apiKey),
   })
   if (!res.ok) {
@@ -393,4 +442,52 @@ export async function fetchDeviceLogs(
   }
   const json = await res.json()
   return json.data as DeviceLog[]
+}
+
+export async function fetchDeviceAuditEvents(
+  deviceId: string,
+  apiKey: string,
+  limit = 50,
+): Promise<AuditEvent[]> {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/audit?limit=${limit}`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch audit events (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as AuditEvent[]
+}
+
+export async function fetchDeviceCommandHistory(
+  deviceId: string,
+  apiKey: string,
+  limit = 50,
+): Promise<CommandHistoryEntry[]> {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/commands?limit=${limit}`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch command history (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as CommandHistoryEntry[]
+}
+
+export async function fetchDeviceAlerts(
+  deviceId: string,
+  apiKey: string,
+  limit = 50,
+): Promise<AlertEvent[]> {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/alerts?limit=${limit}`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch alerts (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as AlertEvent[]
 }

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 import secrets
-from typing import Any, Dict, Sequence, cast
+from typing import Any, Dict, List, Sequence, cast
 import uuid
 
 from sqlalchemy.orm import Session
@@ -565,3 +565,43 @@ class AgentService:
             raise
         except Exception:
             raise Exception("Failed to fetch device metrics")
+
+    def get_metrics_history(self, device_id: str, limit: int) -> List[Dict[str, Any]]:
+        """Return a time-ordered list of telemetry samples for a device.
+
+        Each sample matches the shape of :meth:`get_latest_metrics` so the
+        User App can chart CPU/memory/disk/network/uptime over time.
+        """
+        try:
+            device = self.repository.get_device_by_device_id(device_id)
+            if not device or not device.id:
+                raise LookupError(f"Device '{device_id}' not found")
+
+            metrics = self.repository.get_metrics_history(
+                device_pk=int(device.id), limit=max(1, min(limit, 500))
+            )
+            history: List[Dict[str, Any]] = []
+            for metric in metrics:
+                extra_raw = metric.extra_metrics
+                extra: Dict[str, Any] = (
+                    cast(Dict[str, Any], extra_raw)
+                    if isinstance(extra_raw, dict)
+                    else {}
+                )
+                history.append(
+                    {
+                        "device_id": device.device_id,
+                        "cpu_percent": metric.cpu_percent,
+                        "memory_percent": metric.memory_percent,
+                        "disk_percent": metric.disk_percent,
+                        "network_latency_ms": metric.network_latency_ms,
+                        "uptime_seconds": extra.get("uptime_seconds"),
+                        "timestamp": metric.timestamp.isoformat(),
+                    }
+                )
+            return history
+
+        except LookupError:
+            raise
+        except Exception:
+            raise Exception("Failed to fetch device metrics history")
