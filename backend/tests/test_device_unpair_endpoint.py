@@ -22,8 +22,15 @@ from sqlalchemy.orm import sessionmaker
 from homepot.app.auth_utils import hash_password
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base, Device, DeviceLifecycleEvent, LifecycleState
+from homepot.models import (
+    Base,
+    Device,
+    DeviceCredential,
+    DeviceLifecycleEvent,
+    LifecycleState,
+)
 from homepot.seed_factories import (
+    create_device_credential_sync,
     create_device_sync,
     create_site_sync,
     create_tenant_sync,
@@ -80,6 +87,13 @@ def seeded_client(client: TestClient) -> tuple[TestClient, str]:
         is_active=True,
         lifecycle_state=LifecycleState.ACTIVE.value,
         api_key_hash=hash_password("device-key"),
+    )
+    create_device_credential_sync(
+        db,
+        credential_id="unpair-cred-1",
+        device_id=device.id,
+        key_hash=hash_password("device-key"),
+        is_active=True,
     )
     device_id = device.device_id
     db.commit()
@@ -154,6 +168,54 @@ def test_unpair_records_lifecycle_event(seeded_client: tuple[TestClient, str]) -
     assert events[0].to_state == "unpaired"
     assert events[0].idempotency_key == "unpair-ev-1"
     db.close()
+
+
+def test_unpair_revokes_device_credentials(
+    seeded_client: tuple[TestClient, str],
+) -> None:
+    """Self-unpair must revoke the device's active credentials.
+
+    Regression test: persist_device() merges a detached Device whose
+    "credentials" collection was eagerly loaded with is_active=True. If the
+    merge runs after credential revocation (as it did before), the cascade
+    re-activates the revoked credentials, leaving is_active=t / revoked_at
+    NULL despite the unpair.
+    """
+    client, device_id = seeded_client
+
+    res = client.post(
+        f"/api/v1/devices/device/{device_id}/unpair",
+        headers=_device_headers(device_id),
+        json={"reason": "User-initiated unpair", "idempotency_key": "unpair-cred-1"},
+    )
+    assert res.status_code == 200
+
+    db = homepot.database.SessionLocal()
+    try:
+        device_row = (
+            db.execute(select(Device).where(Device.device_id == device_id))
+            .scalars()
+            .first()
+        )
+        creds = (
+            db.execute(
+                select(DeviceCredential).where(
+                    DeviceCredential.device_id == device_row.id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert creds, "expected at least one DeviceCredential row"
+        for cred in creds:
+            assert (
+                cred.is_active is False
+            ), f"credential {cred.credential_id} must be revoked after unpair"
+            assert (
+                cred.revoked_at is not None
+            ), f"credential {cred.credential_id} must have a revoked_at"
+    finally:
+        db.close()
 
 
 def test_unpaired_device_cannot_authenticate_again(

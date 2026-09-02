@@ -858,6 +858,23 @@ async def unpair_device(
 
         now = datetime.now(timezone.utc)
 
+        # ----- Update device -----
+        device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
+        device.is_active = False  # type: ignore[assignment]
+        device.api_key_hash = None  # type: ignore[assignment]
+        device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
+        # The device was loaded via get_device_by_device_id, whose session is
+        # already closed; merge the changes back into a fresh session so the
+        # state transition actually persists.
+        await db_service.persist_device(device)
+
+        # NOTE: credential revocation and command expiry run AFTER
+        # persist_device(device). persist_device merges the detached Device
+        # instance (whose "credentials" collection was eagerly loaded with
+        # is_active=True); revoking first and persisting afterwards would
+        # cascade the stale collection back and silently re-activate the
+        # revoked credentials. See the retire endpoint for the same ordering.
+
         # ----- Revoke credentials -----
         async with db_service.get_session() as session:
             cred_result = await session.execute(
@@ -882,26 +899,6 @@ async def unpair_device(
             )
             for cmd in cmd_result.scalars().all():
                 cmd.status = CommandStatus.EXPIRED.value  # type: ignore[assignment]
-
-        # ----- Revoke push-provider registrations -----
-        # No persistent push-subscription table exists in this codebase.
-        # PushNotificationLog entries are historical records kept for audit.
-        # Placeholder for future push-provider revocation when a registry is added.
-
-        # ----- Expire sessions -----
-        # No device session table exists.  Sessions are implicitly tied to
-        # the validity of the DeviceCredential / api_key_hash; revoking
-        # those above is sufficient.
-
-        # ----- Update device -----
-        device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
-        device.is_active = False  # type: ignore[assignment]
-        device.api_key_hash = None  # type: ignore[assignment]
-        device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
-        # The device was loaded via get_device_by_device_id, whose session is
-        # already closed; merge the changes back into a fresh session so the
-        # state transition actually persists.
-        await db_service.persist_device(device)
 
         await _record_lifecycle_event(
             db_service,
@@ -1551,7 +1548,15 @@ async def reenrol_device(
 
         new_api_key = secrets.token_urlsafe(32)
         new_key_hash = hash_password(new_api_key)
+        device.api_key_hash = new_key_hash  # type: ignore[assignment]
 
+        # Persist BEFORE issuing the new credential. persist_device merges the
+        # detached Device instance whose "credentials" collection was eagerly
+        # loaded with is_active=True; persisting afterwards would cascade the
+        # stale collection and re-activate previously-revoked credentials.
+        await db_service.persist_device(device)
+
+        # Issue new credential record
         async with db_service.get_session() as session:
             new_credential = DeviceCredential(
                 credential_id=str(uuid.uuid4()),
@@ -1560,9 +1565,6 @@ async def reenrol_device(
                 is_active=True,
             )
             session.add(new_credential)
-        device.api_key_hash = new_key_hash  # type: ignore[assignment]
-
-        await db_service.persist_device(device)
 
         await _record_lifecycle_event(
             db_service,
@@ -1742,6 +1744,22 @@ async def transfer_device(
             await session.flush()
             device.lifecycle_epoch_id = new_epoch.id  # type: ignore[assignment]
 
+        # Issue new credential
+        import secrets
+
+        from homepot.app.auth_utils import hash_password
+
+        new_api_key = secrets.token_urlsafe(32)
+        new_key_hash = hash_password(new_api_key)
+        device.api_key_hash = new_key_hash  # type: ignore[assignment]
+
+        # Persist BEFORE revoking/issuing credentials. persist_device merges the
+        # detached Device instance whose "credentials" collection was eagerly
+        # loaded with is_active=True; revoking first and persisting afterwards
+        # would cascade the stale collection back and re-activate the revoked
+        # credentials (leaving two active credentials).
+        await db_service.persist_device(device)
+
         # Revoke old credentials
         async with db_service.get_session() as session:
             cred_result = await session.execute(
@@ -1754,14 +1772,7 @@ async def transfer_device(
                 cred.is_active = False  # type: ignore[assignment]
                 cred.revoked_at = now  # type: ignore[assignment]
 
-        # Issue new credential
-        import secrets
-
-        from homepot.app.auth_utils import hash_password
-
-        new_api_key = secrets.token_urlsafe(32)
-        new_key_hash = hash_password(new_api_key)
-
+        # Issue new credential record
         async with db_service.get_session() as session:
             new_credential = DeviceCredential(
                 credential_id=str(uuid.uuid4()),
@@ -1770,9 +1781,6 @@ async def transfer_device(
                 is_active=True,
             )
             session.add(new_credential)
-        device.api_key_hash = new_key_hash  # type: ignore[assignment]
-
-        await db_service.persist_device(device)
 
         await _record_lifecycle_event(
             db_service,

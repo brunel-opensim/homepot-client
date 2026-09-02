@@ -248,6 +248,12 @@ coverage/
 .env.local
 .env.*.local
 
+# Android / Gradle build caches (user_app/android)
+.gradle/
+android/
+**/android/.gradle/
+**/android/local.properties
+
 # VSCode
 .vscode/settings.json
 *.db
