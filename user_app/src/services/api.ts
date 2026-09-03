@@ -213,7 +213,9 @@ export async function verifyDeviceCredentials(deviceId: string, apiKey: string):
     await fetchPermissions(deviceId, apiKey)
     return true
   } catch (err) {
-    if (err instanceof ApiError && err.status === 401) return false
+    // 401 = wrong key, 404 = device no longer on backend: both mean the
+    // stored credentials are invalid and the user should be re-enrolled.
+    if (err instanceof ApiError && (err.status === 401 || err.status === 404)) return false
     return true
   }
 }
