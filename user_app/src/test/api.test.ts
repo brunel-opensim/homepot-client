@@ -436,6 +436,15 @@ describe('verifyDeviceCredentials', () => {
     await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(true)
   })
 
+  it('returns false on 404 (device no longer on backend)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      Promise.resolve(
+        new Response(JSON.stringify({ detail: `Device '${DEVICE_ID}' not found` }), { status: 404 }),
+      ),
+    )
+    await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(false)
+  })
+
   it('returns true on network error (do not clear creds offline)', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'))
     await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(true)
