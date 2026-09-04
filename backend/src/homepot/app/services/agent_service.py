@@ -493,6 +493,11 @@ class AgentService:
             # active, or that gracefully reported offline, is offline regardless
             # of heartbeat recency. Only compare heartbeat age for active
             # devices, using the same configured threshold.
+            if heartbeat:
+                heartbeat_utc = heartbeat
+                if heartbeat_utc.tzinfo is None:
+                    heartbeat_utc = heartbeat_utc.replace(tzinfo=timezone.utc)
+
             if lifecycle != LifecycleState.ACTIVE.value:
                 connectivity = ConnectivityState.OFFLINE.value
             elif device.status == DeviceStatus.OFFLINE.value:
@@ -500,9 +505,6 @@ class AgentService:
             elif not heartbeat:
                 connectivity = ConnectivityState.UNKNOWN.value
             else:
-                heartbeat_utc = heartbeat
-                if heartbeat_utc.tzinfo is None:
-                    heartbeat_utc = heartbeat_utc.replace(tzinfo=timezone.utc)
                 current_time = _utc_now()
                 is_online = (current_time - heartbeat_utc) <= timedelta(
                     seconds=get_settings().devices.device_offline_threshold
