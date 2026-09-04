@@ -61,7 +61,7 @@ class AgentRepository:
         result = self.db.execute(
             select(DeviceMetrics)
             .where(DeviceMetrics.device_id == device_pk)
-            .order_by(desc(DeviceMetrics.timestamp))
+            .order_by(desc(DeviceMetrics.timestamp), desc(DeviceMetrics.id))
             .limit(1)
         )
         return result.scalars().first()
@@ -74,7 +74,7 @@ class AgentRepository:
         result = self.db.execute(
             select(DeviceMetrics)
             .where(DeviceMetrics.device_id == device_pk)
-            .order_by(desc(DeviceMetrics.timestamp))
+            .order_by(desc(DeviceMetrics.timestamp), desc(DeviceMetrics.id))
             .limit(limit)
         )
         return list(reversed(result.scalars().all()))
