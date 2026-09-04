@@ -368,8 +368,10 @@ def _idempotent_payload(key: str) -> dict:
 
 
 def test_suspend_resume_are_idempotent_with_same_key(file_db: Any) -> None:
-    """Calling suspend/resume twice with the same idempotency_key
-    returns success without re-applying side-effects."""
+    """Calling suspend/resume twice with the same idempotency_key.
+
+    Returns success without re-applying side-effects.
+    """
     _, device_id, _ = _seed_site_device_admin()
 
     # Put device in active state (default from _seed_site_device_admin).
@@ -454,8 +456,11 @@ def test_suspend_resume_are_idempotent_with_same_key(file_db: Any) -> None:
 
 
 def test_suspend_idempotent_replay_does_not_change_state(file_db: Any) -> None:
-    """Idempotent suspend replay must not alter the device state
-    beyond the original transition."""
+    """Idempotent suspend replay must not alter the device state.
+
+    The replay must not alter the device state beyond the
+    original transition.
+    """
     _, device_id, _ = _seed_site_device_admin()
 
     sync_db = homepot.database.SessionLocal()
