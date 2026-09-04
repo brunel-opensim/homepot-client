@@ -6,10 +6,12 @@
 # This script starts both the backend and frontend servers for the complete
 # HOMEPOT dashboard experience with full integration.
 #
-# Usage: ./scripts/start-dashboard.sh [simulation|emulation|real]
+# Usage: ./scripts/start-dashboard.sh [simulation|emulation|real] [--backend-url URL]
 #   simulation  Simulated devices via the in-process agent simulator (default)
 #   emulation   Emulated devices via emulator processes started separately
-#   real        Real devices (flag provisioned; backend support pending)
+#   real        Real devices — technician creates Sites/Bootstrap keys on
+#               the Dashboard, then passes them to device owners who register
+#               via the User App. No devices are added by default.
 ################################################################################
 
 set -e
@@ -39,7 +41,7 @@ echo ""
 # The dashboard can run in three data-source modes:
 #   simulation — the backend's in-process agent simulator drives the devices
 #   emulation  — emulator processes (started separately) provide the data
-#   real       — real device agents connect (flag provisioned; not yet wired)
+#   real       — real device agents connect; no simulator, no default devices
 #
 # Emulation and real both require the simulator to be OFF; the difference is
 # only what connects. The mode is persisted to backend/.env so the backend
@@ -59,14 +61,32 @@ case "$MODE" in
         MODE_LABEL="REAL"
         ;;
     *)
-        echo "Usage: $0 [simulation|emulation|real]"
+        echo "Usage: $0 [simulation|emulation|real] [--backend-url URL]"
         echo "  simulation  Simulated devices via the in-process agent simulator (default)"
         echo "  emulation   Emulated devices via emulator processes you start separately"
-        echo "  real        Real devices (flag provisioned; backend support pending)"
+        echo "  real        Real devices — technician creates Sites/Bootstrap keys on"
+        echo "              the Dashboard, then passes them to device owners via the User App"
+        echo "  --backend-url URL  Base URL the backend advertises to devices (default: http://localhost:8000)"
         exit 1
         ;;
 esac
 echo -e "${CYAN}ℹ${NC} Mode: $MODE_LABEL (ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION)"
+echo ""
+
+################################################################################
+# Optional --backend-url (for real / emulation devices on the network)
+################################################################################
+BACKEND_URL="http://localhost:8000"
+_ARGS=("$@")
+for (( i=0; i<${#_ARGS[@]}; i++ )); do
+    if [[ "${_ARGS[$i]}" == --backend-url=* ]]; then
+        BACKEND_URL="${_ARGS[$i]#*=}"
+    elif [[ "${_ARGS[$i]}" == "--backend-url" && $((i+1)) -lt ${#_ARGS[@]} ]]; then
+        BACKEND_URL="${_ARGS[$((i+1))]}"
+        (( i++ ))
+    fi
+done
+echo -e "${CYAN}ℹ${NC} Backend URL for devices: $BACKEND_URL"
 echo ""
 
 ################################################################################
@@ -229,8 +249,8 @@ mkdir -p "$REPO_ROOT/logs"
 print_info "Starting backend server on http://localhost:8000..."
 cd "$REPO_ROOT/backend"
 
-# Persist the selected mode to backend/.env so the backend honours it
-# regardless of how it is launched afterwards.
+# Persist the selected mode and backend URL to backend/.env so the
+# backend honours them regardless of how it is launched afterwards.
 ENV_FILE="$REPO_ROOT/backend/.env"
 if [ -f "$ENV_FILE" ] && grep -q '^ENABLE_AGENT_SIMULATION=' "$ENV_FILE"; then
     sed -i.bak "s/^ENABLE_AGENT_SIMULATION=.*/ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION/" "$ENV_FILE"
@@ -238,14 +258,21 @@ if [ -f "$ENV_FILE" ] && grep -q '^ENABLE_AGENT_SIMULATION=' "$ENV_FILE"; then
 else
     echo "ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION" >> "$ENV_FILE"
 fi
+# Also persist the backend URL so devices know where to connect.
+if [ -f "$ENV_FILE" ] && grep -q '^BACKEND_URL=' "$ENV_FILE"; then
+    sed -i.bak "s/^BACKEND_URL=.*/BACKEND_URL=$BACKEND_URL/" "$ENV_FILE"
+    rm -f "$ENV_FILE.bak"
+else
+    echo "BACKEND_URL=$BACKEND_URL" >> "$ENV_FILE"
+fi
 
 # Use bash -c to activate venv in the subshell
 # Redirect stdout/stderr to backend.out (overwritten on start)
 # The application handles backend.log with rotation
 # --reload-dir watches the ai/ package (outside backend/) too, so edits to the
 # AI gates/context code trigger an auto-restart alongside backend changes.
-nohup bash -c "source $REPO_ROOT/.venv/bin/activate && ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai" \
-    > "$REPO_ROOT/logs/backend.out" 2>&1 &
+nohup bash -c "source $REPO_ROOT/.venv/bin/activate && ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION HOMEPOT_BACKEND_URL=$BACKEND_URL python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai" \
+     > "$REPO_ROOT/logs/backend.out" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"
 
@@ -357,7 +384,12 @@ case "$MODE" in
         echo -e "  ${CYAN}  ./scripts/start-emulator.sh --emulator macos --site-id <id> --bootstrap-key <key> --device-name demo-pos-1${NC}"
         ;;
     real)
-        echo -e "  ${YELLOW}Real-device support is provisioned but not yet wired up.${NC}"
+        echo -e "  ${CYAN}No devices are added by default. To add a real device:${NC}"
+        echo -e "  ${CYAN}  1. Create a Site and Bootstrap key on the Dashboard${NC}"
+        echo -e "  ${CYAN}  2. Pass the Site ID and Bootstrap key to the device owner${NC}"
+        echo -e "  ${CYAN}  3. The owner installs the User App and registers the device${NC}"
+        echo -e "  ${CYAN}  4. The device connects to this backend at: ${BACKEND_URL}${NC}"
+        echo -e "  ${BLUE}Backend URL for devices: ${BACKEND_URL}${NC}"
         ;;
 esac
 echo ""
