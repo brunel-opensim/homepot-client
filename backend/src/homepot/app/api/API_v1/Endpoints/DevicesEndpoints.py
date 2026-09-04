@@ -1073,7 +1073,9 @@ async def suspend_device(
             raise HTTPException(status_code=403, detail="User not found")
         db_service = await get_database_service()
 
-        device = await db_service.get_device_by_device_id(device_id)
+        device = await db_service.get_device_by_device_id(
+            device_id, include_unpaired=True
+        )
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")

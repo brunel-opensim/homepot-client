@@ -358,6 +358,152 @@ def test_device_resume_reactivates_suspended_device(file_db: Any) -> None:
         sync_db.close()
 
 
+# --------------------------------------------------------------------------
+# F5 — Suspend/Resume idempotency
+# --------------------------------------------------------------------------
+
+
+def _idempotent_payload(key: str) -> dict:
+    return {"idempotency_key": key}
+
+
+def test_suspend_resume_are_idempotent_with_same_key(file_db: Any) -> None:
+    """Calling suspend/resume twice with the same idempotency_key
+    returns success without re-applying side-effects."""
+    _, device_id, _ = _seed_site_device_admin()
+
+    # Put device in active state (default from _seed_site_device_admin).
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        device.lifecycle_state = "active"
+        sync_db.commit()
+    finally:
+        sync_db.close()
+
+    client = TestClient(app)
+    key = "idemp-suspend-001"
+
+    # First suspend — should succeed.
+    suspended = client.post(
+        f"/api/v1/devices/device/{device_id}/suspend",
+        headers=_headers(),
+        json=_idempotent_payload(key),
+    )
+    assert suspended.status_code == 200
+    assert "suspended" in suspended.json()["message"].lower()
+
+    # Second suspend with same key — should be idempotent replay.
+    suspended_again = client.post(
+        f"/api/v1/devices/device/{device_id}/suspend",
+        headers=_headers(),
+        json=_idempotent_payload(key),
+    )
+    assert suspended_again.status_code == 200
+    assert "already suspended" in suspended_again.json()["message"].lower()
+
+    # Only one audit log entry for this key.
+    sync_db = homepot.database.SessionLocal()
+    try:
+        from homepot.models import AuditLog
+
+        audit_count = (
+            sync_db.query(AuditLog)
+            .filter(
+                AuditLog.event_type == "device_suspended",
+                AuditLog.event_metadata["idempotency_key"].as_string() == key,
+            )
+            .count()
+        )
+        assert audit_count == 1
+    finally:
+        sync_db.close()
+
+    # Resume with a different key to reset state.
+    resume_key = "idemp-resume-001"
+    resumed = client.post(
+        f"/api/v1/devices/device/{device_id}/resume",
+        headers=_headers(),
+        json=_idempotent_payload(resume_key),
+    )
+    assert resumed.status_code == 200
+
+    # Second resume with same key — idempotent replay.
+    resumed_again = client.post(
+        f"/api/v1/devices/device/{device_id}/resume",
+        headers=_headers(),
+        json=_idempotent_payload(resume_key),
+    )
+    assert resumed_again.status_code == 200
+    assert "already resumed" in resumed_again.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        audit_count = (
+            sync_db.query(AuditLog)
+            .filter(
+                AuditLog.event_type == "device_resumed",
+                AuditLog.event_metadata["idempotency_key"].as_string() == resume_key,
+            )
+            .count()
+        )
+        assert audit_count == 1
+    finally:
+        sync_db.close()
+
+
+def test_suspend_idempotent_replay_does_not_change_state(file_db: Any) -> None:
+    """Idempotent suspend replay must not alter the device state
+    beyond the original transition."""
+    _, device_id, _ = _seed_site_device_admin()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        device.lifecycle_state = "active"
+        device.is_active = True
+        device.status = "online"
+        sync_db.commit()
+    finally:
+        sync_db.close()
+
+    client = TestClient(app)
+    key = "idemp-state-001"
+
+    # First suspend.
+    client.post(
+        f"/api/v1/devices/device/{device_id}/suspend",
+        headers=_headers(),
+        json=_idempotent_payload(key),
+    )
+
+    # Verify transition.
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device.lifecycle_state == "suspended"
+        assert device.is_active is False
+    finally:
+        sync_db.close()
+
+    # Idempotent replay — state must not be modified again.
+    client.post(
+        f"/api/v1/devices/device/{device_id}/suspend",
+        headers=_headers(),
+        json=_idempotent_payload(key),
+    )
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device.lifecycle_state == "suspended"
+        assert device.is_active is False
+    finally:
+        sync_db.close()
+
+
 def test_resume_rejects_unpaired_device(file_db: Any) -> None:
     """Resuming an unpaired device is rejected.
 
