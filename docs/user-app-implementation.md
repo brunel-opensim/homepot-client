@@ -41,6 +41,53 @@ npm run dev
 2. **Phase 2:** Wrapping the Vite build in **Electron** (for Desktop OS logic) and **Capacitor** (for Android logic). *(Electron shell + emulator bridge merged)*
 3. **Phase 3:** Connecting the React context state to the local IPC network layer broadcasted by the underlying Python device agent. *(in progress — see PR tracker below)*
 
+## User App — Device Communication Architecture
+
+The User App **never communicates directly with devices**. It always routes through the Dashboard backend, using the device's own API credentials as an authentication proxy.
+
+```
+Technician ──► User App ──► Dashboard Backend ◄── Device Agent
+                  │              ▲                    │
+                  │         (X-Device-ID +       (heartbeat,
+                  │          X-API-Key)         telemetry,
+                  │              │               commands,
+                  │              │               etc.)
+                  │         backend authenticates
+                  │         using device credentials
+```
+
+Every device-facing call in `user_app/src/services/api.ts` sends `deviceAuthHeaders(deviceId, apiKey)` — `X-Device-ID` and `X-API-Key` — to the backend. The backend authenticates the request with those credentials and returns the device's data. The User App is therefore a **credential proxy**: the technician's session delegates to the device's identity.
+
+### Endpoints the User App calls
+
+| Function | Endpoint | Purpose |
+|---|---|---|
+| `fetchDevice()` | `GET /devices/device/{id}` | Device record |
+| `fetchDeviceStatus()` | `GET /agent/{id}/status` | Lifecycle + connectivity |
+| `fetchDeviceMetrics()` | `GET /agent/{id}/metrics` | CPU / memory / disk |
+| `fetchDeviceMetricsHistory()` | `GET /agent/{id}/metrics/history` | Metrics history |
+| `fetchPermissions()` | `GET /devices/device/{id}/permissions` | What the technician can do |
+| `updatePermissions()` | `PATCH /devices/device/{id}/permissions` | Grant / revoke permissions |
+| `fetchPendingCommands()` | `GET /devices/pending` | Commands queued for the device |
+| `ackCommand()` | `POST /devices/{id}/commands/{cid}/ack` | Acknowledge a command |
+| `updateCommandStatus()` | `PUT /devices/{id}/commands/{cid}/status` | Report command result |
+| `verifyDeviceCredentials()` | `GET /devices/device/{id}/permissions` (probe) | Validate stored credentials |
+| `unpairDevice()` | `DELETE /devices/device/{id}` | Unpair a device |
+
+### Credential storage
+
+The User App stores device credentials via an abstract `CredentialStorage` interface (`user_app/src/services/credentialStorage.ts`), with platform-specific implementations:
+
+| Platform | Implementation | Storage location |
+|---|---|---|
+| Browser / simulation | `SimulationStorage` | `sessionStorage` + `localStorage` |
+| Linux (Electron/Tauri) | `LinuxFileStorage` | `~/.homepot/credentials` (mode `0600`) |
+| Electron (macOS / Windows) | `ElectronStorage` | Native IPC bridge to main process |
+| Windows (future) | `WindowsCredManager` | *(placeholder — falls back to `LinuxFileStorage`)* |
+| Android (future) | `AndroidKeystore` | *(placeholder — falls back to `SimulationStorage`)* |
+
+Expanding to a new device/platform means implementing the corresponding `CredentialStorage` backend. The API layer stays the same — every platform hits the same Dashboard endpoints with the same `deviceAuthHeaders`.
+
 ## PR Tracker
 
 Single source of truth for User App pull requests. Each row links the PR, its branch, and what it delivers against the emulator/backend feature set. Emulator/backend work that the User App UI builds on is listed for reference.
