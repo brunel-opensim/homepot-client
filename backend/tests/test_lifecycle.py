@@ -382,6 +382,58 @@ async def test_lifecycle_get_device_status_returns_three_dimensions(
         sync_db.close()
 
 
+async def test_lifecycle_get_device_status_returns_suspended_for_suspended_device(
+    temp_db: Any,
+) -> None:
+    """get_device_status should return lifecycle_state='suspended' and connectivity_state='offline' for suspended devices."""
+    from datetime import datetime, timezone
+
+    from homepot.app.services.agent_service import AgentService
+
+    get_test_db = temp_db
+    unique_suffix = str(uuid.uuid4())[:8]
+    device_id = f"test-dev-suspended-{unique_suffix}"
+
+    sync_db = get_test_db()
+    try:
+        site = Site(
+            site_id=f"test-site-suspended-{unique_suffix}",
+            name="Test Site",
+            is_active=True,
+        )
+        sync_db.add(site)
+        sync_db.commit()
+        sync_db.refresh(site)
+
+        device = Device(
+            device_id=device_id,
+            name="Test Device",
+            device_type="pos_terminal",
+            site_id=site.id,
+            is_active=True,
+            lifecycle_state=LifecycleState.ACTIVE.value,
+            health_state="healthy",
+            last_heartbeat_at=datetime.now(timezone.utc),
+        )
+        sync_db.add(device)
+        sync_db.commit()
+
+        # Suspend the device in-place on the same sync session.
+        device.lifecycle_state = LifecycleState.SUSPENDED.value
+        device.is_active = False
+        device.status = "offline"
+        sync_db.commit()
+
+        service = AgentService(sync_db)
+        status = service.get_device_status(device_id)
+
+        assert status["lifecycle_state"] == LifecycleState.SUSPENDED.value
+        assert status["connectivity_state"] == "offline"
+        assert status["health_state"] == "healthy"
+    finally:
+        sync_db.close()
+
+
 @pytest.mark.asyncio
 async def test_stale_devices_marked_offline(temp_db: Any) -> None:
     """Active devices with a stale heartbeat are flipped to OFFLINE."""
