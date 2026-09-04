@@ -129,6 +129,25 @@ md5 "user_app/release/mac-arm64/HOMEPOT Agent.app/Contents/Resources/icon.icns" 
 
 Full end-to-end recipe for turning source edits into a running app:
 
+### Automated workflow
+
+Technicians coordinate all distribution builds from the Linux Dashboard host.
+Local Linux validation is performed there, then GitHub Actions creates native
+macOS, Windows, and Linux packages on their matching hosted runners. The
+recipient only installs the artifact sent to them; they do not need the source
+repository or build tools.
+
+```bash
+./scripts/package-userapp.sh bootstrap  # first time only
+./scripts/package-userapp.sh all        # validates, packages on GitHub, downloads artifacts
+```
+
+Use `release --ref main` to create the multi-platform build without local
+checks, or `download --run-id <id>` to retrieve an existing build. Artifacts
+are downloaded to `release-artifacts/<run-id>/`; send the macOS `.dmg` or
+`.zip` to a MacBook user. `package` remains available for local Linux-only
+technician testing. Run `./scripts/package-userapp.sh --help` for all options.
+
 ```bash
 # 0. (one-time / after changed backend or emulator code) rebuild frozen binaries
 cd <repo-root>
@@ -144,12 +163,13 @@ npm run electron:build # VITE_ELECTRON=true vite build && electron-builder
                        #   → builds dist/ + dist-electron/ AND packages the app
 ```
 
-If you already built the bundle (step 1's `vite build` succeeded and only the
-icons/package.json changed), you can skip straight to packaging alone:
+If you are building locally for Linux-only technician testing and the bundle
+already exists (step 1's `vite build` succeeded and only icons/package.json
+changed), you can skip straight to packaging alone:
 
 ```bash
 cd user_app
-npx electron-builder --mac      # or --win / --linux (each runs on its host OS)
+npx electron-builder --linux
 ```
 
 > Never point electron-builder at a `dist/` that misses `pyinstaller-dist/`
