@@ -293,6 +293,15 @@ async def pending_commands_loop(
             fresh_perms = await fetch_device_permissions(client, config, headers)
             if fresh_perms is not None:
                 cached_permissions = fresh_perms
+                # Keep the local OS elevation layer in step with the backend
+                # grants: provisioned while root_access is granted, torn down
+                # autonomously once revoked.
+                from homepot.agent.utils.elevation import sync_os_elevation
+
+                try:
+                    sync_os_elevation(cached_permissions)
+                except Exception as e:
+                    logger.warning("OS elevation sync failed: %s", e)
 
             data = await get_json(client, url, headers)
             commands = parse_pending_commands(data)

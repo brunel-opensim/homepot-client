@@ -3,7 +3,8 @@ import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, execFile, type ChildProcess } from 'node:child_process'
+import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -611,6 +612,18 @@ function registerIpcHandlers() {
     killAgent()
     return true
   })
+
+  ipcMain.handle('elevation:supported', () => elevationSupported())
+
+  ipcMain.handle('elevation:status', () => managedElevationStatus())
+
+  ipcMain.handle('elevation:install', async () => {
+    return installManagedElevation()
+  })
+
+  ipcMain.handle('elevation:deprovision', async () => {
+    return deprovisionManagedElevation()
+  })
 }
 
 // --- On-device agent (real command execution) -------------------------------
@@ -740,6 +753,118 @@ function killAgent(): void {
     }
   } catch {
     agentProcess = null
+  }
+}
+
+// --- Managed elevation (scoped sudoers + homepot-ctl) ------------------------
+
+/**
+ * Managed elevation follows the trust model for real devices: install is
+ * unprivileged, so granting "Manage device" (root_access) needs a one-time OS
+ * admin prompt that installs `homepot-ctl` plus a sudoers rule scoped to that
+ * single helper. Revoking the grant tears the rule down *autonomously* through
+ * the helper (no prompt) so the OS never keeps a NOPASSWD grant the backend
+ * has withdrawn.
+ */
+
+const ELEVATION_OPS = ['restart', 'shutdown'] as const
+
+function elevationSupported(): boolean {
+  return process.platform === 'darwin' || process.platform === 'linux'
+}
+
+function elevationPaths(): { privilegedDir: string; ctlSrc: string; installer: string; elevationRoot: string } {
+  const projectRoot = getProjectRoot()
+  const privilegedDir = path.join(projectRoot, 'user_app', 'electron', 'privileged')
+  return {
+    privilegedDir,
+    ctlSrc: process.env.HOMEPOT_CTL_PATH || path.join(privilegedDir, 'homepot-ctl'),
+    installer: path.join(privilegedDir, 'homepot-ctl-install.sh'),
+    elevationRoot: process.env.HOMEPOT_ELEVATION_ROOT || '',
+  }
+}
+
+function installedCtlPath(): string {
+  return process.env.HOMEPOT_CTL_PATH
+    || (process.env.HOMEPOT_ELEVATION_ROOT
+      ? path.join(process.env.HOMEPOT_ELEVATION_ROOT, 'homepot-ctl')
+      : '/usr/local/homepot/homepot-ctl')
+}
+
+function elevationDropinPath(): string {
+  return process.env.HOMEPOT_ELEVATION_ROOT
+    ? path.join(process.env.HOMEPOT_ELEVATION_ROOT, 'sudoers.d', 'homepot')
+    : '/etc/sudoers.d/homepot'
+}
+
+function managedElevationStatus() {
+  return {
+    supported: elevationSupported(),
+    installed: fs.existsSync(installedCtlPath()),
+    provisioned: fs.existsSync(elevationDropinPath()),
+    ops: [...ELEVATION_OPS],
+  }
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+const execFileAsync = promisify(execFile)
+
+async function installManagedElevation(): Promise<{ installed: boolean; reason: string | null }> {
+  if (elevationSupported() === false) {
+    return { installed: false, reason: 'Manage elevation is only available on macOS and Linux' }
+  }
+  const { ctlSrc, installer, elevationRoot } = elevationPaths()
+  if (!fs.existsSync(installer) || !fs.existsSync(ctlSrc)) {
+    return { installed: false, reason: `Elevation installer not found (${installer})` }
+  }
+  let username: string
+  try {
+    username = os.userInfo().username
+  } catch {
+    username = ''
+  }
+  try {
+    if (process.platform === 'darwin') {
+      let script = `/bin/sh ${shellQuote(installer)} --ctl ${shellQuote(ctlSrc)}`
+      if (username) script += ` --uid ${shellQuote(username)}`
+      if (elevationRoot) script += ` --root ${shellQuote(elevationRoot)}`
+      // The one place the owner is explicitly asked for admin authorisation.
+      await execFileAsync('osascript', ['-e', `do shell script ${JSON.stringify(script)} with administrator privileges`])
+    } else {
+      const args = ['/bin/sh', installer, '--ctl', ctlSrc]
+      if (username) args.push('--uid', username)
+      if (elevationRoot) args.push('--root', elevationRoot)
+      await execFileAsync('pkexec', args)
+    }
+  } catch (error) {
+    recordAppEvent('error', 'elevation', `Managed elevation install failed: ${String(error)}`)
+    return {
+      installed: false,
+      reason: error instanceof Error ? error.message : 'Elevation setup was cancelled or failed',
+    }
+  }
+  const provisioned = fs.existsSync(elevationDropinPath())
+  recordAppEvent(provisioned ? 'info' : 'warning', 'elevation', provisioned ? 'Managed elevation installed' : 'Elevation install completed but the sudoers rule was not created')
+  return { installed: provisioned, reason: provisioned ? null : 'Elevation installer ran but the sudoers rule was not created' }
+}
+
+async function deprovisionManagedElevation(): Promise<{ deprovisioned: boolean; reason: string | null }> {
+  if (elevationSupported() === false) return { deprovisioned: true, reason: null }
+  if (!fs.existsSync(elevationDropinPath())) return { deprovisioned: true, reason: null }
+  const ctl = installedCtlPath()
+  if (!fs.existsSync(ctl)) {
+    return { deprovisioned: false, reason: 'homepot-ctl is not installed on this device' }
+  }
+  try {
+    await execFileAsync('sudo', ['-n', ctl, 'deprovision'])
+    recordAppEvent('info', 'elevation', 'Managed elevation deprovisioned')
+    return { deprovisioned: true, reason: null }
+  } catch (error) {
+    recordAppEvent('warning', 'elevation', `Managed elevation deprovision failed: ${String(error)}`)
+    return { deprovisioned: false, reason: error instanceof Error ? error.message : String(error) }
   }
 }
 

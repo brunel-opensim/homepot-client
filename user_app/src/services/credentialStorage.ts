@@ -67,6 +67,17 @@ declare global {
         status(): Promise<{ running: boolean; pid: number | null }>
         stop(): Promise<boolean>
       }
+      elevation: {
+        supported(): Promise<boolean>
+        status(): Promise<{
+          supported: boolean
+          installed: boolean
+          provisioned: boolean
+          ops: string[]
+        }>
+        install(): Promise<{ installed: boolean; reason: string | null }>
+        deprovision(): Promise<{ deprovisioned: boolean; reason: string | null }>
+      }
     }
   }
 }

@@ -31,6 +31,7 @@ export default function PermissionConsentPrompt() {
 
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
+  const enrollmentMethodRef = useRef<string | null>(null)
   const requestRef = useRef<PendingCommand | null>(null)
   const handledRef = useRef<Set<string>>(new Set())
 
@@ -90,6 +91,7 @@ export default function PermissionConsentPrompt() {
       ])
       if (did) deviceIdRef.current = did
       if (key) apiKeyRef.current = key
+      enrollmentMethodRef.current = await credentialStorage.getMetadata('enrollment_method')
       return Boolean(deviceIdRef.current && apiKeyRef.current)
     }
 
@@ -152,6 +154,21 @@ export default function PermissionConsentPrompt() {
     setError('')
     try {
       const granted = decision === 'accept' ? !isRevoke : isRevoke
+      // Manage tier: granting root_access must surface in the OS, not just the
+      // backend. Elevation is installed here (one admin prompt) *before* the
+      // backend grant so a cancelled/failed setup aborts the grant itself.
+      const isManage = permission === MANAGE_KEY && capabilities[MANAGE_KEY]
+      // Emulated devices simulate everything in-process; never surface the OS
+      // admin prompt or sudo layer for them.
+      const isRealDevice = enrollmentMethodRef.current !== 'emulated'
+      if (isManage && granted && isRealDevice && window.electronAPI?.elevation) {
+        const res = await window.electronAPI.elevation.install()
+        if (!res.installed) {
+          throw new Error(
+            res.reason || 'Elevation setup failed — Manage access was not granted',
+          )
+        }
+      }
       // The owner-facing decision is per tier, so resolving a request updates
       // the whole (supported) group — accepting "Monitor device" turns on every
       // monitor key, keeping the Permissions page toggles consistent.
@@ -171,6 +188,15 @@ export default function PermissionConsentPrompt() {
           ? `Permission '${permission}' granted by device owner`
           : `Permission '${permission}' denied by device owner`,
       })
+      // Revoking Manage strips the OS elevation autonomously (no prompt). The
+      // backend revoke already blocked dispatch, so a failed strip is surfaced
+      // as a warning, never as a failed request.
+      if (isManage && !granted && isRealDevice && window.electronAPI?.elevation) {
+        const res = await window.electronAPI.elevation.deprovision()
+        if (res && res.deprovisioned === false) {
+          console.warn('Managed elevation deprovision on revoke failed:', res.reason)
+        }
+      }
       handledRef.current.add(cmd.command_id)
       setRequest(null)
       requestRef.current = null

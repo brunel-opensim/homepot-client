@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import PermissionConsentPrompt from '../components/PermissionConsentPrompt'
 
@@ -9,6 +9,7 @@ vi.mock('../services/credentialStorage', () => ({
   credentialStorage: {
     getDeviceId: vi.fn().mockResolvedValue('test-device'),
     getApiKey: vi.fn().mockResolvedValue('test-key'),
+    getMetadata: vi.fn().mockResolvedValue('self-enrolled'),
   },
 }))
 
@@ -233,6 +234,120 @@ describe('PermissionConsentPrompt', () => {
     })
     await waitFor(() => {
       expect(screen.queryByText('Permission request')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('managed (root_access) elevation lifecycle', () => {
+    let events: string[]
+
+    function mockElevationBridge(overrides: Partial<Record<'install' | 'deprovision', unknown>> = {}) {
+      // Record the order of IPC elevation calls and fetch methods on a shared
+      // timeline so tests can assert install-before-grant / revoke-then-strip.
+      events = []
+      const elevation = {
+        install: vi.fn().mockImplementation(async () => {
+          events.push('elevation:install')
+          return overrides.install ?? { installed: true, reason: null }
+        }),
+        deprovision: vi.fn().mockImplementation(async () => {
+          events.push('elevation:deprovision')
+          return overrides.deprovision ?? { deprovisioned: true, reason: null }
+        }),
+        supported: vi.fn().mockResolvedValue(true),
+        status: vi.fn().mockResolvedValue({ supported: true, installed: true, provisioned: true, ops: ['restart', 'shutdown'] }),
+      }
+      Object.defineProperty(window, 'electronAPI', {
+        value: { elevation },
+        configurable: true,
+      })
+      const wrappedFetch = vi.fn((...args: Parameters<typeof fetch>) => {
+        events.push(`fetch:${String(args[1]?.method ?? 'GET')}`)
+        return mockFetch(...args)
+      })
+      globalThis.fetch = wrappedFetch
+      return elevation
+    }
+
+    afterEach(() => {
+      delete (window as { electronAPI?: unknown }).electronAPI
+      globalThis.fetch = mockFetch
+    })
+
+    it('installs OS elevation before committing a Manage grant', async () => {
+      const elevation = mockElevationBridge()
+      mockFetch
+        .mockResolvedValueOnce(permissionsOk()) // GET /permissions
+        .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending (root_access grant)
+        .mockResolvedValueOnce(ok({})) // PATCH permissions
+        .mockResolvedValueOnce(ok({})) // audit
+        .mockResolvedValueOnce(ok({})) // PUT status
+      render(<PermissionConsentPrompt />)
+      fireEvent.click(await screen.findByText('Allow'))
+
+      await waitFor(() => expect(elevation.install).toHaveBeenCalled())
+      await waitFor(() => expect(events).toContain('fetch:PATCH'))
+      expect(events.indexOf('elevation:install')).toBeLessThan(events.indexOf('fetch:PATCH'))
+    })
+
+    it('fails the Manage grant when OS elevation cannot be installed', async () => {
+      const elevation = mockElevationBridge({ install: { installed: false, reason: 'Elevation setup cancelled' } })
+      mockFetch
+        .mockResolvedValueOnce(permissionsOk()) // GET /permissions
+        .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending
+        .mockResolvedValueOnce(ok({})) // PUT status (failed -> resolves request)
+      render(<PermissionConsentPrompt />)
+      fireEvent.click(await screen.findByText('Allow'))
+
+      await waitFor(() => expect(elevation.install).toHaveBeenCalled())
+      await waitFor(() => {
+        const put = mockFetch.mock.calls.find(([, init]) => init?.method === 'PUT')
+        expect(put).toBeTruthy()
+        const body = JSON.parse(String(put![1].body))
+        expect(body.status).toBe('failed')
+        expect(String(body.result.message)).toContain('Elevation setup cancelled')
+      })
+      expect(events).not.toContain('fetch:PATCH')
+    })
+
+    it('strips OS elevation only after the Manage revoke is committed', async () => {
+      const elevation = mockElevationBridge()
+      const revokeCommand = {
+        ...pendingCommand,
+        payload: {
+          data: { permission: 'root_access', action: 'revoke', requested_by: 'admin@example.com' },
+        },
+      }
+      mockFetch
+        .mockResolvedValueOnce(permissionsOk()) // GET /permissions
+        .mockResolvedValueOnce(ok([revokeCommand])) // GET /pending (revoke request)
+        .mockResolvedValueOnce(ok({})) // PATCH permissions
+        .mockResolvedValueOnce(ok({})) // audit
+        .mockResolvedValueOnce(ok({})) // PUT status
+      render(<PermissionConsentPrompt />)
+      fireEvent.click(await screen.findByText('Approve revocation'))
+
+      await waitFor(() => expect(elevation.deprovision).toHaveBeenCalled())
+      await waitFor(() => expect(events).toContain('fetch:PATCH'))
+      expect(events.indexOf('fetch:PATCH')).toBeLessThan(events.indexOf('elevation:deprovision'))
+    })
+
+    it('does not install OS elevation for emulated devices', async () => {
+      // Emulated enrollment simulates the whole permission flow in-process and
+      // must never surface the OS admin prompt / sudo layer.
+      const { credentialStorage: _unused } = await import('../services/credentialStorage')
+      vi.mocked(_unused.getMetadata).mockResolvedValue('emulated')
+      const elevation = mockElevationBridge()
+      mockFetch
+        .mockResolvedValueOnce(permissionsOk()) // GET /permissions
+        .mockResolvedValueOnce(ok([pendingCommand])) // GET /pending (root_access grant)
+        .mockResolvedValueOnce(ok({})) // PATCH permissions
+        .mockResolvedValueOnce(ok({})) // audit
+        .mockResolvedValueOnce(ok({})) // PUT status
+      render(<PermissionConsentPrompt />)
+      fireEvent.click(await screen.findByText('Allow'))
+
+      await waitFor(() => expect(events).toContain('fetch:PATCH'))
+      expect(elevation.install).not.toHaveBeenCalled()
     })
   })
 })
