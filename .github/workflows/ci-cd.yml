@@ -66,7 +66,7 @@ jobs:
         echo "Documentation files validated"
 
   test:
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     name: Test Suite (${{ matrix.os }}, ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     if: github.repository == 'brunel-opensim/homepot-client'
@@ -78,22 +78,27 @@ jobs:
             python-version: '3.11'
             shard: 1
             shard-count: 1
+            timeout_minutes: 30
           - os: ubuntu-latest
             python-version: '3.12'
             shard: 1
             shard-count: 1
+            timeout_minutes: 30
           - os: windows-latest
             python-version: '3.11'
             shard: 1
             shard-count: 2
+            timeout_minutes: 60
           - os: windows-latest
             python-version: '3.11'
             shard: 2
             shard-count: 2
+            timeout_minutes: 60
           - os: macos-latest
             python-version: '3.11'
             shard: 1
             shard-count: 1
+            timeout_minutes: 30
 
     steps:
     - uses: actions/checkout@v4
