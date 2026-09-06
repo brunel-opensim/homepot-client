@@ -104,9 +104,10 @@ def elevation_status() -> Dict[str, Any]:
 
 def _run_ctl(argv: list[str]) -> Dict[str, Any]:
     """Run ``sudo -n homepot-ctl <...>`` and return a result dict."""
+    cmd = ["sudo", "-n", ctl_path(), *argv]
     try:
         completed = subprocess.run(  # noqa: S603 - fixed argv list, no shell
-            ["sudo", "-n", ctl_path(), *argv],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,
@@ -140,7 +141,11 @@ def provision_elevation() -> Dict[str, Any]:
     outcome = _run_ctl(["ensure-allowlist"])
     return {
         "provisioned": bool(outcome["ok"]),
-        "reason": None if outcome["ok"] else f"ctl error: {outcome.get('stderr') or outcome.get('error')}",
+        "reason": (
+            None
+            if outcome["ok"]
+            else f"ctl error: {outcome.get('stderr') or outcome.get('error')}"
+        ),
     }
 
 
@@ -158,7 +163,9 @@ def deprovision_elevation() -> bool:
     outcome = _run_ctl(["deprovision"])
     if outcome["ok"] or not is_provisioned():
         return True
-    logger.warning("Deprovision failed: %s", outcome.get("stderr") or outcome.get("error"))
+    logger.warning(
+        "Deprovision failed: %s", outcome.get("stderr") or outcome.get("error")
+    )
     return False
 
 

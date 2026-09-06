@@ -137,7 +137,11 @@ class TestProcessCommand:
         )
         assert result["status"] == "completed"
         assert run.call_args.args[0] == [
-            "sudo", "-n", str(fake_elevation["ctl"]), "run", "restart",
+            "sudo",
+            "-n",
+            str(fake_elevation["ctl"]),
+            "run",
+            "restart",
         ]
 
     def test_restart_without_elevation_reports_actionable_failure(self):
@@ -173,7 +177,11 @@ class TestProcessCommand:
         )
         assert result["status"] == "completed"
         assert run.call_args.args[0] == [
-            "sudo", "-n", str(fake_elevation["ctl"]), "run", "shutdown",
+            "sudo",
+            "-n",
+            str(fake_elevation["ctl"]),
+            "run",
+            "shutdown",
         ]
 
     def test_shutdown_denied_without_root_access(self):

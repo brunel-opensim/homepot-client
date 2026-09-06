@@ -9,9 +9,9 @@ import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 from typing import Any, Dict, List, Optional
 
-from homepot.agent.utils import elevation as elevation_util
-
 import psutil
+
+from homepot.agent.utils import elevation as elevation_util
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ def _elevation_prefix() -> List[str]:
 
 
 def _is_windows_platform() -> bool:
-    """True when the host is a Windows device (no POSIX elevation)."""
+    """Return True when the host is a Windows device (no POSIX elevation)."""
     return os.name == "nt" or platform.system().lower() == "windows"
 
 
@@ -517,7 +517,14 @@ def _system_control(command_type: str) -> Dict[str, Any]:
                 },
             }
         if elevated_argv is None:
-            outcome = _run_argv([*_elevation_prefix(), "shutdown", "-r" if command_type == "restart" else "-h", "now"])
+            outcome = _run_argv(
+                [
+                    *_elevation_prefix(),
+                    "shutdown",
+                    "-r" if command_type == "restart" else "-h",
+                    "now",
+                ]
+            )
         else:
             outcome = _run_argv(elevated_argv)
     if outcome["ok"]:
