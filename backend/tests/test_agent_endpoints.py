@@ -26,6 +26,8 @@ from homepot.models import (
     User,
 )
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
