@@ -250,8 +250,13 @@ jobs:
         # keep `-n auto` for speed and are stable.
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           XDIST_ARGS="-n 0"
+          # Performance/slow/integration tests make real network calls to a
+          # localhost backend that is never running in CI, and can hang or
+          # produce spurious failures on Windows runners. Exclude them there.
+          MARKER_ARGS=(-m "not slow and not integration and not performance")
         else
           XDIST_ARGS="-n auto"
+          MARKER_ARGS=()
         fi
         TEST_TARGETS="tests/"
 
@@ -277,13 +282,13 @@ jobs:
 
         if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.11" ]]; then
           # Generate coverage only on Ubuntu 3.11
-          pytest ${XDIST_ARGS} ${TEST_TARGETS} --cov=homepot --cov-report=xml --tb=short --durations=10 \
+          pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" --cov=homepot --cov-report=xml --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         else
           # Coverage is produced only by Ubuntu 3.11; disable global pyproject coverage elsewhere.
-          pytest ${XDIST_ARGS} ${TEST_TARGETS} --no-cov --tb=short --durations=10 \
+          pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" --no-cov --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
