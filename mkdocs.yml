@@ -69,6 +69,10 @@ markdown_extensions:
       smart_enable: all
   - pymdownx.caret
   - pymdownx.details
+  # The !!python/name: tags below are resolved by mkdocs' own YAML loader
+  # (MkDocsLoader: imports the named Python callables). They are intentional and
+  # correct - do not replace them; plain `yaml.safe_load()` will never parse
+  # them. Validate the config with `mkdocs build --strict` instead.
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
@@ -84,7 +88,6 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
@@ -187,6 +190,7 @@ nav:
       - Wireframes: user-app-wireframes.md
       - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
       - Verify with Emulators: verify-user-app-with-emulators.md
+      - Trust Model & OS Elevation: user-app-trust-and-elevation.md
       - Host OS Interaction: userapp-os-interaction.md
       - Host OS Testing Runbook: userapp-os-interaction-testing.md
       - Team Tasks (Dealdio): dealdio-user-app-tasks.md

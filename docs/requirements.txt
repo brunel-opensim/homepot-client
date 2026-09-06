@@ -5,4 +5,9 @@ mkdocs-material-extensions==1.3.1  # Extension pack for MkDocs Material
 pymdown-extensions==10.16.1  # Extensions for Python Markdown
 markdown==3.9  # Python implementation of Markdown
 mkdocs-minify-plugin==0.8.0  # Minifies HTML/JS/CSS for MkDocs
-Pygments==2.18.0
+# Keep Pygments below 2.20.0: 2.20.0+ escapes the code-block `filename` option
+# unconditionally in HtmlFormatter, crashing on title-less code blocks with
+# "'NoneType' object has no attribute 'replace'" (pymdownx passes filename=None).
+# See pygments#3076. Fixed upstream in pymdown-extensions 10.21.2+; once that is
+# bumped, this pin may be relaxed.
+Pygments==2.19.2
