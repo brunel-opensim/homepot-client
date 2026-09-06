@@ -1,5 +1,6 @@
 """Tests for the scoped OS elevation layer (homepot-ctl)."""
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,11 @@ from homepot.agent.utils import elevation
 def _no_env(monkeypatch) -> None:
     monkeypatch.delenv("HOMEPOT_ELEVATION_ROOT", raising=False)
     monkeypatch.delenv("HOMEPOT_CTL_PATH", raising=False)
+
+
+def _posix_env(monkeypatch) -> None:
+    """Ensure os.name is posix for tests that expect macOS/Linux elevation support."""
+    monkeypatch.setattr(os, "name", "posix")
 
 
 def _provisioned_env(monkeypatch, tmp_path):
@@ -39,6 +45,7 @@ def _provisioned_env(monkeypatch, tmp_path):
 def test_is_elevation_supported(monkeypatch, system, expected):
     """Elevation is supported on macOS/Linux but not Windows/FreeBSD."""
     _no_env(monkeypatch)
+    _posix_env(monkeypatch)
     with patch("homepot.agent.utils.elevation.platform.system", return_value=system):
         assert elevation.is_elevation_supported() is expected
 
@@ -53,15 +60,17 @@ def test_is_elevation_supported_false_when_os_name_nt(monkeypatch):
             assert elevation.is_elevation_supported() is False
 
 
-def test_default_paths():
+def test_default_paths(monkeypatch):
     """Paths point at the standard host locations when not redirected."""
-    assert elevation.ctl_path() == "/usr/local/homepot/homepot-ctl"
+    monkeypatch.setattr(os, "name", "posix")
+    assert elevation.ctl_path() == os.path.join("/usr/local/homepot", "homepot-ctl")
     assert elevation.dropin_path() == "/etc/sudoers.d/homepot"
     assert elevation.allowlist_path() == "/etc/homepot/allowlist.json"
 
 
 def test_redirected_paths(monkeypatch, tmp_path):
     """Env overrides redirect all elevation paths (tests/staging/packaging)."""
+    monkeypatch.setattr(os, "name", "posix")
     monkeypatch.setenv("HOMEPOT_ELEVATION_ROOT", str(tmp_path / "root"))
     monkeypatch.setenv("HOMEPOT_CTL_PATH", str(tmp_path / "ctl"))
     assert elevation.ctl_path() == str(tmp_path / "ctl")
@@ -97,6 +106,7 @@ class TestProvisionElevation:
     def test_not_installed(self, monkeypatch, tmp_path):
         """A missing helper/drop-in cannot be repaired autonomously."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -108,6 +118,7 @@ class TestProvisionElevation:
         """A removed drop-in forces the one-time installer (no rule left)."""
         env = _provisioned_env(monkeypatch, tmp_path)
         (env["root"] / "sudoers.d" / "homepot").unlink()
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -117,6 +128,7 @@ class TestProvisionElevation:
     def test_runs_ensure_allowlist_when_provisioned(self, monkeypatch, tmp_path):
         """A healthy installed layer re-pushes the allowlist via the helper."""
         _provisioned_env(monkeypatch, tmp_path)
+        _posix_env(monkeypatch)
         with (
             patch(
                 "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
@@ -145,6 +157,7 @@ class TestDeprovisionElevation:
     def test_not_installed_returns_true(self, monkeypatch, tmp_path):
         """A missing layer is treated as already torn down."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -153,6 +166,7 @@ class TestDeprovisionElevation:
     def test_runs_ctl_deprovision(self, monkeypatch, tmp_path):
         """Deprovision shells out to the helper with no admin prompt."""
         _provisioned_env(monkeypatch, tmp_path)
+        _posix_env(monkeypatch)
         with (
             patch(
                 "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
@@ -186,6 +200,7 @@ class TestElevatedCommandArgv:
     def test_not_installed_returns_none(self, monkeypatch, tmp_path):
         """A missing layer produces no argv — dispatch fails actionably."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -194,6 +209,7 @@ class TestElevatedCommandArgv:
     def test_allowlisted_op_builds_ctl_argv(self, monkeypatch, tmp_path):
         """Allowlisted power ops run through sudo -n <ctl> run <op>."""
         env = _provisioned_env(monkeypatch, tmp_path)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -215,6 +231,7 @@ class TestElevatedCommandArgv:
     def test_non_allowlisted_op_returns_none(self, monkeypatch, tmp_path):
         """Free-form ops never build an elevated argv."""
         _provisioned_env(monkeypatch, tmp_path)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -237,6 +254,7 @@ class TestAllowlistRefusal:
     def test_free_form_refused_on_macos_linux(self, monkeypatch):
         """Free-form ops are refused on macOS/Linux with a clear message."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -246,6 +264,7 @@ class TestAllowlistRefusal:
     def test_fixed_ops_allowed(self, monkeypatch):
         """Allowlisted power ops and non-privileged ops are not refused."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -272,6 +291,7 @@ class TestSyncOsElevation:
     def test_granted_without_dropin_does_not_strip(self, monkeypatch, tmp_path):
         """A grant without an installed drop-in must not be torn down."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -284,6 +304,7 @@ class TestSyncOsElevation:
     def test_revoked_deprovisions(self, monkeypatch, tmp_path):
         """A revoke triggers autonomous teardown even if deprovision is a no-op."""
         _provisioned_env(monkeypatch, tmp_path)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
@@ -297,6 +318,7 @@ class TestSyncOsElevation:
     def test_granted_repairs_allowlist(self, monkeypatch, tmp_path):
         """A grant re-provisions to repair/stage the allowlist."""
         _provisioned_env(monkeypatch, tmp_path)
+        _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
