@@ -288,7 +288,16 @@ jobs:
             -W ignore:".*Could not cleanup temp database.*":UserWarning
         else
           # Coverage is produced only by Ubuntu 3.11; disable global pyproject coverage elsewhere.
-          pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" --no-cov --tb=short --durations=10 \
+          FAULT_ARGS=()
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            # Windows runners have repeatedly black-holed on a hung test and
+            # waited out the full 60-minute job timeout with no diagnostics.
+            # Dump all thread tracebacks and exit instead of hanging forever.
+            # NOTE: pytest 9.0 moved faulthandler timeout to ini keys, so they
+            # are injected via -o (not --faulthandler-* flags).
+            FAULT_ARGS=(-o faulthandler_timeout=300 -o faulthandler_exit_on_timeout=true)
+          fi
+          pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" "${FAULT_ARGS[@]}" --no-cov --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning
