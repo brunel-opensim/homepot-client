@@ -85,11 +85,15 @@ jobs:
           - os: windows-latest
             python-version: '3.11'
             shard: 1
-            shard-count: 2
+            shard-count: 3
           - os: windows-latest
             python-version: '3.11'
             shard: 2
-            shard-count: 2
+            shard-count: 3
+          - os: windows-latest
+            python-version: '3.11'
+            shard: 3
+            shard-count: 3
           - os: macos-latest
             python-version: '3.11'
             shard: 1
