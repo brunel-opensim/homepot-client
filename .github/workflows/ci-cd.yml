@@ -87,12 +87,17 @@ jobs:
           - os: windows-latest
             python-version: '3.11'
             shard: 1
-            shard-count: 2
+            shard-count: 3
             timeout_minutes: 60
           - os: windows-latest
             python-version: '3.11'
             shard: 2
-            shard-count: 2
+            shard-count: 3
+            timeout_minutes: 60
+          - os: windows-latest
+            python-version: '3.11'
+            shard: 3
+            shard-count: 3
             timeout_minutes: 60
           - os: macos-latest
             python-version: '3.11'
