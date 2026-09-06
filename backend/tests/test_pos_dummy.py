@@ -27,6 +27,8 @@ from homepot.agents import DeviceAgentSimulator
 # Import HOMEPOT components
 from homepot.models import Base, User
 
+pytestmark = pytest.mark.slow
+
 
 class TestPOSDummy:
     """POSDummy Integration Test Suite.
