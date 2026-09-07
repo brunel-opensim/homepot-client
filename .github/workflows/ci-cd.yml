@@ -284,20 +284,57 @@ jobs:
         set -o pipefail
         cd backend
         # Allow a manual workflow_dispatch to isolate a single test file on the
-        # Windows shards (fast loop for a known-slow file). Runs once per
-        # dispatched run, streaming live to the step log; the 20-minute step
-        # timeout bounds it, and a 60s per-test faulthandler dump identifies the
-        # exact slow/hung test (pytest 9 uses ini keys, hence -o).
+        # Windows runners (fast loop for a known-slow file). It runs pytest in
+        # the background with output redirected exactly like the normal Windows
+        # shard path so the artifact-upload step preserves a partial log, and
+        # arms a 6-minute session watchdog (exit=True) so a GIL-held hang that
+        # faulthandler cannot dump still terminates the step and leaves a
+        # thread-level traceback behind within ~6-7 minutes instead of waiting
+        # out the ~45-minute runner reclaim.
         MANUAL_FILTER="${{ inputs.test_filter }}"
         if [[ -n "$MANUAL_FILTER" ]]; then
+          export HOMEPOT_CI_WATCHDOG_SECS=360
+          export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
           export PYTHONUNBUFFERED=1
           pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
             -o faulthandler_timeout=60 -o faulthandler_exit_on_timeout=true \
             --no-cov --tb=short --durations=0 --verbose \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
-            -W ignore:".*Could not cleanup temp database.*":UserWarning
-          exit $?
+            -W ignore:".*Could not cleanup temp database.*":UserWarning \
+            > pytest-output.log 2>&1 &
+          PYTEST_PID=$!
+          LAST_SIZE=0
+          STALLS=0
+          while kill -0 "$PYTEST_PID" 2>/dev/null; do
+            sleep 60
+            SIZE=0
+            if [[ -f pytest-output.log ]]; then
+              SIZE=$(wc -c < pytest-output.log)
+            fi
+            if [[ "$SIZE" -eq "$LAST_SIZE" ]]; then
+              STALLS=$((STALLS + 1))
+            else
+              STALLS=0
+            fi
+            LAST_SIZE="$SIZE"
+            if [[ "$STALLS" -ge 5 ]]; then
+              {
+                echo ""
+                echo "=== STALLED: pytest output unchanged for 5 minutes; killing ==="
+              } >> pytest-output.log
+              kill -9 "$PYTEST_PID" 2>/dev/null
+              break
+            fi
+          done
+          wait "$PYTEST_PID"
+          PYTEST_RC=$?
+          if [[ "$STALLS" -ge 5 ]]; then
+            echo "--- tail of pytest-output.log ---"
+            tail -n 40 pytest-output.log
+            PYTEST_RC=1
+          fi
+          exit "$PYTEST_RC"
         fi
         # Windows: the already-sharded jobs run serially (no nested xdist).
         # Nesting `-n auto` inside the sharded Windows jobs intermittently
