@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 import psutil
 
+from homepot.agent.utils import elevation as elevation_util
+
 logger = logging.getLogger(__name__)
 
 COMMAND_TYPES = frozenset(
@@ -141,6 +143,11 @@ def _elevation_prefix() -> List[str]:
     if os.name == "nt" or platform.system().lower() == "windows":
         return []
     return ["sudo", "-n", "--"]
+
+
+def _is_windows_platform() -> bool:
+    """Return True when the host is a Windows device (no POSIX elevation)."""
+    return os.name == "nt" or platform.system().lower() == "windows"
 
 
 def _shell_for_scripts() -> List[str]:
@@ -488,13 +495,38 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 def _system_control(command_type: str) -> Dict[str, Any]:
     """Reboot or power off the host system via elevation on POSIX."""
-    elevation = _elevation_prefix()
     if os.name == "nt" or platform.system().lower() == "windows":
         action = "/r /t 0" if command_type == "restart" else "/s /t 0"
         outcome = _run_argv(["shutdown", *shlex.split(action)])
     else:
-        action = "-r" if command_type == "restart" else "-h"
-        outcome = _run_argv([*elevation, "shutdown", action, "now"])
+        # Elevation is scoped to the homepot-ctl helper, never blanket sudo.
+        # When the helper is absent (e.g. Manage was never granted through
+        # the User App) fail with an actionable message instead of guessing
+        # at a passwordless sudo rule that was never provisioned.
+        elevated_argv = elevation_util.elevated_command_argv(command_type)
+        if elevated_argv is None and elevation_util.is_elevation_supported():
+            return {
+                "status": "failed",
+                "result": {
+                    "error": (
+                        f"{command_type} requires the Manage elevation layer, "
+                        "which is not installed on this device. Grant 'Manage "
+                        "device' access through the Homepot app on this device "
+                        "to enable power operations."
+                    )
+                },
+            }
+        if elevated_argv is None:
+            outcome = _run_argv(
+                [
+                    *_elevation_prefix(),
+                    "shutdown",
+                    "-r" if command_type == "restart" else "-h",
+                    "now",
+                ]
+            )
+        else:
+            outcome = _run_argv(elevated_argv)
     if outcome["ok"]:
         return {
             "status": "completed",
@@ -550,6 +582,21 @@ def process_command(
             "command_id": command_id,
             "status": "failed",
             "result": {"error": denial},
+        }
+
+    # Elevation layer: on macOS/Linux real devices free-form root execution is
+    # no longer reachable — only fixed allowlisted power operations are.
+    refusal = None
+    if not _is_windows_platform():
+        refusal = elevation_util.allowlist_refusal(command_type)
+    if refusal is not None:
+        logger.warning(
+            "Command refused id=%s type=%s reason=%s", command_id, command_type, refusal
+        )
+        return {
+            "command_id": command_id,
+            "status": "failed",
+            "result": {"error": refusal},
         }
 
     logger.info("Processing command id=%s type=%s", command_id, command_type)

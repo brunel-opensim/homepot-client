@@ -88,6 +88,28 @@ skip_if_windows = pytest.mark.skipif(
 )
 
 
+@pytest.fixture
+def fake_elevation(tmp_path, monkeypatch):
+    """Install a fake ``homepot-ctl`` + sudoers drop-in under a temp root.
+
+    Redirects ``HOMEPOT_ELEVATION_ROOT`` / ``HOMEPOT_CTL_PATH`` so the agent's
+    elevation layer believes a scoped helper is provisioned without touching
+    ``/etc``. The helper itself is inert (``exit 0``); assertions focus on the
+    argv the agent builds.
+    """
+    root = tmp_path / "elevation"
+    root.mkdir()
+    ctl = root / "homepot-ctl"
+    ctl.write_text("#!/bin/sh\nexit 0\n")
+    ctl.chmod(0o755)
+    dropin_dir = root / "sudoers.d"
+    dropin_dir.mkdir()
+    (dropin_dir / "homepot").write_text("user ALL=(ALL) NOPASSWD: /tmp/homepot-ctl\n")
+    monkeypatch.setenv("HOMEPOT_ELEVATION_ROOT", str(root))
+    monkeypatch.setenv("HOMEPOT_CTL_PATH", str(ctl))
+    return {"root": root, "ctl": ctl, "dropin": dropin_dir / "homepot"}
+
+
 class TestProcessCommand:
     """Tests for ``process_command``."""
 
@@ -105,8 +127,8 @@ class TestProcessCommand:
 
     @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_restart_allowed_with_root_access(self, run):
-        """Restart succeeds when root_access is granted (sudo shutdown -r)."""
+    def test_restart_allowed_with_root_access(self, run, fake_elevation):
+        """Restart elevates through homepot-ctl, not blanket sudo."""
         run.return_value.returncode = 0
         run.return_value.stdout = ""
         run.return_value.stderr = ""
@@ -114,7 +136,34 @@ class TestProcessCommand:
             {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
         )
         assert result["status"] == "completed"
-        assert run.call_args.args[0] == ["sudo", "-n", "--", "shutdown", "-r", "now"]
+        assert run.call_args.args[0] == [
+            "sudo",
+            "-n",
+            str(fake_elevation["ctl"]),
+            "run",
+            "restart",
+        ]
+
+    @skip_if_windows
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_restart_without_elevation_reports_actionable_failure(self, run):
+        """On macOS/Linux restart without the elevation layer fails clearly.
+
+        A real device never falls back to guessing at a passwordless sudo rule;
+        when ``homepot-ctl`` is absent the agent reports that the Manage
+        elevation layer must be installed through the User App first.
+
+        ``subprocess.run`` is patched (and this test skipped on Windows,
+        where ``restart`` takes an entirely different, non-elevation code
+        path) so a misconfigured environment can never fall through to a
+        real ``shutdown``/reboot call.
+        """
+        result = process_command(
+            {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
+        )
+        run.assert_not_called()
+        assert result["status"] == "failed"
+        assert "Manage elevation layer" in result["result"]["error"]
 
     def test_restart_denied_without_root_access(self):
         """Restart fails when root_access is denied."""
@@ -126,8 +175,8 @@ class TestProcessCommand:
 
     @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_shutdown_allowed_with_root_access(self, run):
-        """Shutdown succeeds when root_access is granted (sudo shutdown -h)."""
+    def test_shutdown_allowed_with_root_access(self, run, fake_elevation):
+        """Shutdown elevates through homepot-ctl, not blanket sudo."""
         run.return_value.returncode = 0
         run.return_value.stdout = ""
         run.return_value.stderr = ""
@@ -135,7 +184,13 @@ class TestProcessCommand:
             {"command_id": "c1", "command_type": "shutdown"}, ALLOW_ALL
         )
         assert result["status"] == "completed"
-        assert run.call_args.args[0] == ["sudo", "-n", "--", "shutdown", "-h", "now"]
+        assert run.call_args.args[0] == [
+            "sudo",
+            "-n",
+            str(fake_elevation["ctl"]),
+            "run",
+            "shutdown",
+        ]
 
     def test_shutdown_denied_without_root_access(self):
         """Shutdown fails when root_access is denied."""
@@ -229,8 +284,29 @@ class TestProcessCommand:
         assert results["memory"]["status"] == "pass"
         assert results["storage"]["status"] == "fail"
 
-    def test_list_processes_returns_snapshot(self):
+    @patch("homepot.agent.utils.command_poller.psutil.process_iter")
+    def test_list_processes_returns_snapshot(self, process_iter):
         """List processes returns a bounded, sorted snapshot."""
+        import types
+
+        process_iter.return_value = [
+            types.SimpleNamespace(
+                info={
+                    "pid": 1,
+                    "name": "low-memory",
+                    "cpu_percent": 10,
+                    "memory_percent": 1,
+                }
+            ),
+            types.SimpleNamespace(
+                info={
+                    "pid": 2,
+                    "name": "high-memory",
+                    "cpu_percent": 5,
+                    "memory_percent": 2,
+                }
+            ),
+        ]
         result = process_command(
             {
                 "command_id": "c1",
@@ -240,8 +316,8 @@ class TestProcessCommand:
             ALLOW_ALL,
         )
         assert result["status"] == "completed"
-        assert "processes" in result["result"]
-        assert result["result"]["count"] >= 0
+        assert result["result"]["count"] == 2
+        assert [process["pid"] for process in result["result"]["processes"]] == [2, 1]
 
     @patch("homepot.agent.utils.command_poller.psutil.net_connections")
     def test_list_connections_filters_by_state(self, net_connections):
@@ -318,8 +394,12 @@ class TestProcessCommand:
 
     @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_run_command_allowed_with_root_access(self, run):
-        """Command execution runs via non-interactive sudo once root is granted."""
+    def test_run_command_refused_on_posix(self, run, fake_elevation):
+        """Free-form run_command is not allowlisted on macOS/Linux.
+
+        Even with the elevation layer installed the '.' scope is fixed power
+        operations only; arbitrary root commands cannot run.
+        """
         run.return_value.returncode = 0
         run.return_value.stdout = "root\n"
         run.return_value.stderr = ""
@@ -331,8 +411,9 @@ class TestProcessCommand:
             },
             ALLOW_ALL,
         )
-        assert result["status"] == "completed"
-        assert run.call_args.args[0] == ["sudo", "-n", "--", "id", "-u"]
+        assert result["status"] == "failed"
+        assert "not allowlisted" in result["result"]["error"]
+        run.assert_not_called()
 
     def test_scan_filesystem_requires_root_access(self):
         """Filesystem scans are denied without the root_access grant."""
@@ -353,8 +434,8 @@ class TestProcessCommand:
 
     @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_script_runs_with_non_interactive_sudo(self, run):
-        """Scripts always run through non-interactive sudo once root is granted."""
+    def test_script_runs_refused_on_posix(self, run, fake_elevation):
+        """Free-form run_script is not allowlisted on macOS/Linux."""
         run.return_value.returncode = 0
         run.return_value.stdout = "root\n"
         run.return_value.stderr = ""
@@ -371,9 +452,9 @@ class TestProcessCommand:
             },
             ALLOW_ALL,
         )
-        assert result["status"] == "completed"
-        assert run.call_args.args[0] == ["sudo", "-n", "--", "/bin/sh", "-s"]
-        assert run.call_args.kwargs["input"] == "id -u"
+        assert result["status"] == "failed"
+        assert "not allowlisted" in result["result"]["error"]
+        run.assert_not_called()
 
     def test_script_with_embedded_sudo_requires_root_grant(self):
         """Embedded sudo in a script still requires the root_access grant."""

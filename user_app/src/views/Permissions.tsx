@@ -209,8 +209,28 @@ export default function Permissions() {
       setSavingGroup(group);
       const patch: Record<string, boolean> = {};
       for (const key of keys) patch[key] = enabled;
+      const isManage = group === "manage" || (keys.length === 1 && keys[0] === MANAGE_KEY);
+      // Emulated devices simulate everything in-process; never surface the OS
+      // admin prompt or sudo layer for them.
+      const isRealDevice =
+        (await credentialStorage.getMetadata("enrollment_method")) !== "emulated";
       try {
+        if (isManage && enabled && isRealDevice && window.electronAPI?.elevation) {
+          // Match the consent flow: OS elevation must exist before the grant is
+          // committed, so a cancelled/failed admin prompt aborts the toggle.
+          const res = await window.electronAPI.elevation.install();
+          if (!res.installed) {
+            throw new Error(res.reason || "Elevation setup failed — Manage access was not enabled");
+          }
+        }
         await updatePermissions(dId, aKey, patch);
+        if (isManage && !enabled && isRealDevice && window.electronAPI?.elevation) {
+          // Autonomously strip the OS elevation after the backend revoke lands.
+          const res = await window.electronAPI.elevation.deprovision();
+          if (res && res.deprovisioned === false) {
+            console.warn("Managed elevation deprovision on toggle-off failed:", res.reason);
+          }
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Sync failed";
         setError(msg);

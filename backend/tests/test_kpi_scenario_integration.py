@@ -30,6 +30,8 @@ from homepot.models import (
     User,
 )
 
+pytestmark = pytest.mark.slow
+
 EXPORT_URL = "/api/v1/kpi/export"
 ADMIN_EMAIL = "admin.scenario@test.local"
 WIDE_START = "2020-01-01T00:00:00Z"

@@ -1,0 +1,101 @@
+#!/bin/sh
+# homepot-ctl — the only elevated entry point on a Homepot device.
+#
+# The device agent never receives blanket sudo. Manage ("root_access")
+# elevation is scoped to this single root-owned helper, which can execute a
+# fixed, allowlisted set of host operations as root (restart/shutdown) and
+# refuses everything else. Nothing user-supplied is ever passed to a shell.
+#
+# The agent invokes commands via non-interactive sudo:
+#     sudo -n /usr/local/homepot/homepot-ctl run restart
+# Provisioning / teardown of the sudoers drop-in is done by the same helper:
+#     sudo -n /usr/local/homepot/homepot-ctl deprovision
+#
+# HOMEPOT_ELEVATION_ROOT redirects all paths (used by tests and packaging).
+set -eu
+
+if [ -n "${HOMEPOT_ELEVATION_ROOT:-}" ]; then
+  BASE="$HOMEPOT_ELEVATION_ROOT"
+  SUDOERS_DIR="$BASE/sudoers.d"
+  ALLOWLIST="$BASE/allowlist.json"
+else
+  BASE="/usr/local/homepot"
+  SUDOERS_DIR="/etc/sudoers.d"
+  ALLOWLIST="/etc/homepot/allowlist.json"
+fi
+
+CTL="$BASE/homepot-ctl"
+DROPIN="$SUDOERS_DIR/homepot"
+
+usage() {
+  echo "usage: $0 {status|ensure-allowlist|run <op>|deprovision}" >&2
+  exit 2
+}
+
+require_root() {
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "homepot-ctl: must run as root (elevated entry point)" >&2
+    exit 1
+  fi
+}
+
+cmd_status() {
+  installed=no
+  [ -f "$CTL" ] && installed=yes
+  dropin=no
+  [ -f "$DROPIN" ] && dropin=yes
+  allowlist=no
+  [ -f "$ALLOWLIST" ] && allowlist=yes
+  echo "{\"installed\":\"$installed\",\"provisioned\":\"$dropin\",\"allowlist\":\"$allowlist\"}"
+}
+
+cmd_run() {
+  require_root
+  [ "$#" -eq 1 ] || usage
+  op="$1"
+  case "$op" in
+    restart)
+      if [ -x /sbin/shutdown ]; then exec /sbin/shutdown -r now
+      elif [ -x /usr/sbin/shutdown ]; then exec /usr/sbin/shutdown -r now
+      else exec shutdown -r now
+      fi
+      ;;
+    shutdown)
+      if [ -x /sbin/shutdown ]; then exec /sbin/shutdown -h now
+      elif [ -x /usr/sbin/shutdown ]; then exec /usr/sbin/shutdown -h now
+      else exec shutdown -h now
+      fi
+      ;;
+    *)
+      echo "homepot-ctl: operation '$op' is not allowlisted" >&2
+      exit 2
+      ;;
+  esac
+}
+
+cmd_ensure_allowlist() {
+  require_root
+  case "$BASE" in
+    /etc/*) mkdir -p /etc/homepot ;;
+    *) mkdir -p "$(dirname "$ALLOWLIST")" ;;
+  esac
+  umask 077
+  printf '%s\n' "op:restart" "op:shutdown" > "$ALLOWLIST"
+  chmod 0600 "$ALLOWLIST"
+}
+
+cmd_deprovision() {
+  require_root
+  rm -f "$DROPIN" "$ALLOWLIST"
+}
+
+[ "$#" -ge 1 ] || usage
+verb="$1"
+shift
+case "$verb" in
+  status) cmd_status ;;
+  ensure-allowlist) cmd_ensure_allowlist ;;
+  run) cmd_run "$@" ;;
+  deprovision) cmd_deprovision ;;
+  *) usage ;;
+esac

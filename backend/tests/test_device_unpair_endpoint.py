@@ -36,6 +36,8 @@ from homepot.seed_factories import (
     create_tenant_sync,
 )
 
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture(autouse=True)
 def file_db(monkeypatch: Any) -> Generator[None, None, None]:

@@ -61,4 +61,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     status: () => ipcRenderer.invoke('agent:status'),
     stop: () => ipcRenderer.invoke('agent:stop'),
   },
+  elevation: {
+    supported: () => ipcRenderer.invoke('elevation:supported'),
+    status: () => ipcRenderer.invoke('elevation:status'),
+    install: () => ipcRenderer.invoke('elevation:install'),
+    deprovision: () => ipcRenderer.invoke('elevation:deprovision'),
+  },
 })
