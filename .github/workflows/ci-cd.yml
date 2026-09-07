@@ -313,9 +313,9 @@ jobs:
           # The in-process watchdog (conftest.py, env-gated) appends a heartbeat
           # naming the in-flight test every 5s and force-exits the process via
           # os._exit() at 300s -- immune to the MSYS/PowerShell kill failures.
-          # The shell polls kill -0 (never wait) and, as a last resort, kills
-          # python.exe by commandline via PowerShell. -v node ids name every
-          # completed test; the stuck test is the first id without PASSED.
+          # The shell only polls kill -0 (never wait) to bound the step; the
+          # -v node ids name every completed test; the stuck test is the first
+          # id without PASSED (or the last watchdog heartbeat).
           pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
             -o faulthandler_timeout=5 -o faulthandler_exit_on_timeout=true \
             --no-cov --tb=short --durations=0 --verbose \
@@ -324,35 +324,28 @@ jobs:
             -W ignore:".*Could not cleanup temp database.*":UserWarning \
             > pytest-output.log 2>&1 &
           PYTEST_PID=$!
+          # Bound the step with PURE bash builtins only (arithmetic + sleep +
+          # kill -0 polls). Any external command here (powershell/taskkill/cmd)
+          # can itself hang on the Windows runner and block the script before
+          # it reaches `exit`, keeping the step in_progress forever. If pytest
+          # is still alive at the cap, just print a marker and exit 1: the
+          # leaked python.exe holds only pytest-output.log (a file), NOT the
+          # step's console pipe, so GitHub still finalizes this step the instant
+          # the script exits, proceeds to the artifact-upload step (which
+          # captures the partial log + watchdog heartbeat naming the stuck
+          # test), and the leaked process dies at VM reclaim.
           START=$(date +%s)
           PYTEST_RC=""
           while kill -0 "$PYTEST_PID" 2>/dev/null; do
             sleep 20
             ELAPSED=$(( $(date +%s) - START ))
             if [[ "$ELAPSED" -ge 420 ]]; then
-              echo "=== WALL-CLOCK CAP: pytest exceeded 7 minutes; killing python.exe ==="
+              echo "=== WALL-CLOCK CAP: pytest exceeded 7 minutes; leaving it to VM reclaim. Watchdog heartbeat names the stuck test. ==="
+              PYTEST_RC=1
               break
             fi
           done
-          if kill -0 "$PYTEST_PID" 2>/dev/null; then
-            PYTEST_RC=1
-            powerpid=$(powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'python.exe' -and \$_.CommandLine -match 'pytest' } | Select-Object -First 1 -ExpandProperty ProcessId" | tr -d '\r')
-            if [[ -n "$powerpid" && "$powerpid" =~ ^[0-9]+$ ]]; then
-              powershell -NoProfile -Command "Stop-Process -Id $powerpid -Force" 2>/dev/null || true
-            fi
-            # Failsafe fallback: force-kill every python.exe (safe on a
-            # throwaway CI worker) if it is still alive after a few seconds.
-            for i in 1 2 3 4 5; do
-              kill -0 "$PYTEST_PID" 2>/dev/null || break
-              if [[ $i -eq 3 ]]; then
-                powershell -NoProfile -Command "Stop-Process -Name python -Force" 2>/dev/null || true
-              fi
-              if [[ $i -eq 5 ]]; then
-                cmd //c "taskkill /F /IM python.exe" 2>/dev/null || true
-              fi
-              sleep 2
-            done
-          else
+          if [[ -z "$PYTEST_RC" ]]; then
             wait "$PYTEST_PID" 2>/dev/null
             PYTEST_RC=$?
           fi
@@ -360,7 +353,6 @@ jobs:
           tail -n 60 pytest-output.log 2>/dev/null || echo "(no pytest-output.log)"
           echo "--- tail of pytest-watchdog.log ---"
           tail -n 40 pytest-watchdog.log 2>/dev/null || echo "(no pytest-watchdog.log)"
-          # Never `wait` on a still-alive pytest here: it would block forever.
           exit "$PYTEST_RC"
         fi
         # Windows: the already-sharded jobs run serially (no nested xdist).
