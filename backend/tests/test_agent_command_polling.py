@@ -276,8 +276,29 @@ class TestProcessCommand:
         assert results["memory"]["status"] == "pass"
         assert results["storage"]["status"] == "fail"
 
-    def test_list_processes_returns_snapshot(self):
+    @patch("homepot.agent.utils.command_poller.psutil.process_iter")
+    def test_list_processes_returns_snapshot(self, process_iter):
         """List processes returns a bounded, sorted snapshot."""
+        import types
+
+        process_iter.return_value = [
+            types.SimpleNamespace(
+                info={
+                    "pid": 1,
+                    "name": "low-memory",
+                    "cpu_percent": 10,
+                    "memory_percent": 1,
+                }
+            ),
+            types.SimpleNamespace(
+                info={
+                    "pid": 2,
+                    "name": "high-memory",
+                    "cpu_percent": 5,
+                    "memory_percent": 2,
+                }
+            ),
+        ]
         result = process_command(
             {
                 "command_id": "c1",
@@ -287,8 +308,8 @@ class TestProcessCommand:
             ALLOW_ALL,
         )
         assert result["status"] == "completed"
-        assert "processes" in result["result"]
-        assert result["result"]["count"] >= 0
+        assert result["result"]["count"] == 2
+        assert [process["pid"] for process in result["result"]["processes"]] == [2, 1]
 
     @patch("homepot.agent.utils.command_poller.psutil.net_connections")
     def test_list_connections_filters_by_state(self, net_connections):
