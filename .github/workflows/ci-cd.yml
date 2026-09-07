@@ -300,16 +300,21 @@ jobs:
         fi
         if [[ -n "$MANUAL_FILTER" && "${{ matrix.shard }}" == "1" ]]; then
           export PYTHONUNBUFFERED=1
+          export HOMEPOT_CI_WATCHDOG_SECS=300
+          export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
+          export HOMEPOT_WATCHDOG_HEARTBEAT_SECS=5
           # Diagnostic: run pytest -v in the BACKGROUND with output redirected
           # to pytest-output.log (NOT the step console). Backgrounding + a step
-          # exit WITHOUT `wait` guarantees the step always ends at <=6 min; if
-          # stdout went to the step console, a leaked python.exe would hold the
-          # step's pipe open and GitHub would never finalize the step/job log.
-          # Redirecting to a file closes that pipe the moment the script exits,
-          # so the step finalizes and the artifact step uploads the partial log.
-          # Poll (never wait) for natural completion; on the cap, kill python.exe
-          # by commandline via PowerShell (MSYS $! is the shim, not the real
-          # Windows PID), then print the tail. The -v node ids name every
+          # exit WITHOUT `wait` guarantees the step always ends. stdout to the
+          # step console was fatal: a leaked python.exe held the step's pipe
+          # open and GitHub never finalized the step/job log. Redirecting to a
+          # file closes that pipe the moment the script exits, so the step
+          # finalizes and the artifact step uploads the partial log.
+          # The in-process watchdog (conftest.py, env-gated) appends a heartbeat
+          # naming the in-flight test every 5s and force-exits the process via
+          # os._exit() at 300s -- immune to the MSYS/PowerShell kill failures.
+          # The shell polls kill -0 (never wait) and, as a last resort, kills
+          # python.exe by commandline via PowerShell. -v node ids name every
           # completed test; the stuck test is the first id without PASSED.
           pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
             -o faulthandler_timeout=5 -o faulthandler_exit_on_timeout=true \
@@ -324,8 +329,8 @@ jobs:
           while kill -0 "$PYTEST_PID" 2>/dev/null; do
             sleep 20
             ELAPSED=$(( $(date +%s) - START ))
-            if [[ "$ELAPSED" -ge 360 ]]; then
-              echo "=== WALL-CLOCK CAP: pytest exceeded 6 minutes; killing python.exe ==="
+            if [[ "$ELAPSED" -ge 420 ]]; then
+              echo "=== WALL-CLOCK CAP: pytest exceeded 7 minutes; killing python.exe ==="
               break
             fi
           done
@@ -353,6 +358,8 @@ jobs:
           fi
           echo "--- tail of pytest-output.log ---"
           tail -n 60 pytest-output.log 2>/dev/null || echo "(no pytest-output.log)"
+          echo "--- tail of pytest-watchdog.log ---"
+          tail -n 40 pytest-watchdog.log 2>/dev/null || echo "(no pytest-watchdog.log)"
           # Never `wait` on a still-alive pytest here: it would block forever.
           exit "$PYTEST_RC"
         fi
