@@ -300,39 +300,43 @@ jobs:
         fi
         if [[ -n "$MANUAL_FILTER" && "${{ matrix.shard }}" == "1" ]]; then
           export PYTHONUNBUFFERED=1
-          # Diagnostic: stream pytest -v to the STEP CONSOLE (do NOT redirect),
-          # background it, and bound the step to 360s WITHOUT `wait`. The step
-          # always exits in <=6 min, GitHub then solidifies the job log, and the
-          # -v output names every completed test. The stuck test is the first
-          # node id that never prints PASSED. Kill python.exe by commandline via
-          # PowerShell (MSYS $! is the shim, not the real Windows PID).
+          # Diagnostic: run pytest -v in the BACKGROUND with output redirected
+          # to pytest-output.log (NOT the step console). Backgrounding + a step
+          # exit WITHOUT `wait` guarantees the step always ends at <=6 min; if
+          # stdout went to the step console, a leaked python.exe would hold the
+          # step's pipe open and GitHub would never finalize the step/job log.
+          # Redirecting to a file closes that pipe the moment the script exits,
+          # so the step finalizes and the artifact step uploads the partial log.
+          # Poll (never wait) for natural completion; on the cap, kill python.exe
+          # by commandline via PowerShell (MSYS $! is the shim, not the real
+          # Windows PID), then print the tail. The -v node ids name every
+          # completed test; the stuck test is the first id without PASSED.
           pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
             -o faulthandler_timeout=5 -o faulthandler_exit_on_timeout=true \
             --no-cov --tb=short --durations=0 --verbose \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning \
-            &
+            > pytest-output.log 2>&1 &
           PYTEST_PID=$!
           START=$(date +%s)
-          killed=0
+          PYTEST_RC=""
           while kill -0 "$PYTEST_PID" 2>/dev/null; do
             sleep 20
             ELAPSED=$(( $(date +%s) - START ))
             if [[ "$ELAPSED" -ge 360 ]]; then
               echo "=== WALL-CLOCK CAP: pytest exceeded 6 minutes; killing python.exe ==="
-              killed=1
               break
             fi
           done
-          if [[ "$killed" -eq 1 ]]; then
-            # Match and kill python.exe by commandline (MSYS $! is the shim).
+          if kill -0 "$PYTEST_PID" 2>/dev/null; then
+            PYTEST_RC=1
             powerpid=$(powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.Name -eq 'python.exe' -and \$_.CommandLine -match 'pytest' } | Select-Object -First 1 -ExpandProperty ProcessId" | tr -d '\r')
             if [[ -n "$powerpid" && "$powerpid" =~ ^[0-9]+$ ]]; then
               powershell -NoProfile -Command "Stop-Process -Id $powerpid -Force" 2>/dev/null || true
             fi
-            # Failsafe fallback: if pytest is still alive 10s later, force-kill
-            # every python.exe (safe on a throwaway CI worker).
+            # Failsafe fallback: force-kill every python.exe (safe on a
+            # throwaway CI worker) if it is still alive after a few seconds.
             for i in 1 2 3 4 5; do
               kill -0 "$PYTEST_PID" 2>/dev/null || break
               if [[ $i -eq 3 ]]; then
@@ -343,11 +347,14 @@ jobs:
               fi
               sleep 2
             done
+          else
+            wait "$PYTEST_PID" 2>/dev/null
+            PYTEST_RC=$?
           fi
-          # Do NOT `wait $PYTEST_PID` here: if python.exe is stuck the wait
-          # blocks forever and the step -- and the job log -- never finalize.
-          echo "--- diagnostic step ended ---"
-          exit 0
+          echo "--- tail of pytest-output.log ---"
+          tail -n 60 pytest-output.log 2>/dev/null || echo "(no pytest-output.log)"
+          # Never `wait` on a still-alive pytest here: it would block forever.
+          exit "$PYTEST_RC"
         fi
         # Windows: the already-sharded jobs run serially (no nested xdist).
         # Nesting `-n auto` inside the sharded Windows jobs intermittently
