@@ -302,8 +302,11 @@ jobs:
           export HOMEPOT_CI_WATCHDOG_SECS=300
           export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
           export PYTHONUNBUFFERED=1
+          # 5s per-test faulthandler: the FIRST test that exceeds 5 seconds
+          # dumps its thread traceback and exits, identifying the slow test
+          # within the first minute instead of waiting for a suite-wide cap.
           pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
-            -o faulthandler_timeout=20 -o faulthandler_exit_on_timeout=true \
+            -o faulthandler_timeout=5 -o faulthandler_exit_on_timeout=true \
             --no-cov --tb=short --durations=0 --verbose \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
@@ -326,12 +329,18 @@ jobs:
             fi
             LAST_SIZE="$SIZE"
             ELAPSED=$(( $(date +%s) - START ))
-            if [[ "$ELAPSED" -ge 480 ]]; then
+            if [[ "$ELAPSED" -ge 360 ]]; then
               {
                 echo ""
-                echo "=== WALL-CLOCK CAP: pytest exceeded 8 minutes; killing ==="
+                echo "=== WALL-CLOCK CAP: pytest exceeded 6 minutes; killing ==="
               } >> pytest-output.log
-              kill -9 "$PYTEST_PID" 2>/dev/null
+              if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+                # $! is the MSYS shim; kill it AND its python.exe descendants.
+                taskkill //F //T //PID "$PYTEST_PID" 2>/dev/null || true
+              else
+                kill -9 "$PYTEST_PID" 2>/dev/null || true
+              fi
+              pkill -9 -f "pytest.*${MANUAL_FILTER}" 2>/dev/null || true
               break
             fi
             if [[ "$STALLS" -ge 10 ]]; then
@@ -339,15 +348,20 @@ jobs:
                 echo ""
                 echo "=== STALLED: pytest output unchanged for 5 minutes; killing ==="
               } >> pytest-output.log
-              kill -9 "$PYTEST_PID" 2>/dev/null
+              if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+                taskkill //F //T //PID "$PYTEST_PID" 2>/dev/null || true
+              else
+                kill -9 "$PYTEST_PID" 2>/dev/null || true
+              fi
+              pkill -9 -f "pytest.*${MANUAL_FILTER}" 2>/dev/null || true
               break
             fi
           done
           wait "$PYTEST_PID"
           PYTEST_RC=$?
           echo "--- tail of pytest-output.log ---"
-          tail -n 60 pytest-output.log
-          if [[ "$STALLS" -ge 10 || "$ELAPSED" -ge 480 ]]; then
+          tail -n 80 pytest-output.log
+          if [[ "$STALLS" -ge 10 || "$ELAPSED" -ge 360 ]]; then
             PYTEST_RC=1
           fi
           exit "$PYTEST_RC"
