@@ -269,7 +269,7 @@ jobs:
 
     - name: Run unit tests
       shell: bash
-      timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 15 }}
+      timeout-minutes: 20
       env:
         DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
       run: |
@@ -397,8 +397,12 @@ jobs:
             # Python) catches those by killing pytest when its log stalls.
             FAULT_ARGS=(-o faulthandler_timeout=300 -o faulthandler_exit_on_timeout=true)
             # Session-level dump for collection/import hangs (written to a
-            # file; exit=False so a legitimately slow run is never killed).
-            export HOMEPOT_CI_WATCHDOG_SECS=2400
+            # file; exit=True so a run stuck over the step timeout cannot
+            # zombie-stall into the ~48-minute runner reclaim). Fires 1 minute
+            # before the enclosing step's 20-minute timeout so the traceback
+            # is captured in the artifact-upload log even for a slow-but-
+            # progressing run.
+            export HOMEPOT_CI_WATCHDOG_SECS=1140
             export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
             # Print each test node id as it starts, so the last printed line
             # identifies the hanging test even without a traceback.
