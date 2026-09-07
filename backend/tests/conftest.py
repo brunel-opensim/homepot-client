@@ -23,34 +23,6 @@ os.environ.setdefault("DATABASE__URL", "sqlite+aiosqlite:///:memory:")
 pytest_plugins = ("pytest_asyncio",)
 
 
-def _arm_session_watchdog() -> None:
-    """Arm a process-wide watchdog that covers collection/import time.
-
-    pytest's own faulthandler only arms around each test's setup/call/teardown,
-    so a hang during module import or collection is invisible to it. When CI
-    sets HOMEPOT_CI_WATCHDOG_SECS, dump all thread tracebacks and exit after
-    the cap as a final backstop. (The primary guard against a hung test is the
-    shell-level file-growth watchdog in ci-cd.yml, which kills pytest outside
-    of Python when its log stops growing.)
-    """
-    timeout = os.environ.get("HOMEPOT_CI_WATCHDOG_SECS")
-    path = os.environ.get("HOMEPOT_CI_WATCHDOG_LOG", "pytest-watchdog.log")
-    if not timeout:
-        return
-    try:
-        # Keep the handle referenced (and open) until the timeout fires;
-        # dump_traceback_later writes to it asynchronously much later.
-        global _WATCHDOG_FILE
-        _WATCHDOG_FILE = open(path, "w", encoding="utf-8")
-        faulthandler.dump_traceback_later(
-            float(timeout), file=_WATCHDOG_FILE, exit=True
-        )
-    except (OSError, ValueError):
-        # Best-effort only; CI must not fail if the watchdog cannot be armed.
-        pass
-
-
-_WATCHDOG_FILE = None
 _CURRENT_TEST = "collect"  # set by pytest_runtest hook as tests execute
 
 
@@ -74,9 +46,7 @@ def _watchdog_thread(path: str, timeout: float) -> None:
     with f:
         while True:
             elapsed = int(time.monotonic() - start)
-            f.write(
-                f"[watchdog] t={elapsed:>6}s in-test={_CURRENT_TEST}\n"
-            )
+            f.write(f"[watchdog] t={elapsed:>6}s in-test={_CURRENT_TEST}\n")
             if elapsed >= int(timeout):
                 trace_path = path + ".traceback"
                 try:
