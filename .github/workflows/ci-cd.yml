@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      # Optional. Limit the Windows shard-split test selection to a single
+      # file (e.g. "tests/test_agent_command_polling.py") to isolate a slow
+      # test without running the full suite. Empty means the normal suite.
+      test_filter:
+        description: Optional single test path to run on Windows shards
+        required: false
+        default: ""
 
 # Default permissions for all jobs
 permissions:
@@ -275,6 +283,22 @@ jobs:
       run: |
         set -o pipefail
         cd backend
+        # Allow a manual workflow_dispatch to isolate a single test file on the
+        # Windows shards (fast loop for a known-slow file). Runs once per
+        # dispatched run, streaming live to the step log; the 20-minute step
+        # timeout bounds it, and a 60s per-test faulthandler dump identifies the
+        # exact slow/hung test (pytest 9 uses ini keys, hence -o).
+        MANUAL_FILTER="${{ inputs.test_filter }}"
+        if [[ -n "$MANUAL_FILTER" ]]; then
+          export PYTHONUNBUFFERED=1
+          pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
+            -o faulthandler_timeout=60 -o faulthandler_exit_on_timeout=true \
+            --no-cov --tb=short --durations=0 --verbose \
+            -W ignore::UserWarning:homepot \
+            -W ignore:".*Database cleanup.*":UserWarning \
+            -W ignore:".*Could not cleanup temp database.*":UserWarning
+          exit $?
+        fi
         # Windows: the already-sharded jobs run serially (no nested xdist).
         # Nesting `-n auto` inside the sharded Windows jobs intermittently
         # triggers a silent pytest-xdist worker-teardown that exits 1 despite
