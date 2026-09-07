@@ -284,20 +284,26 @@ jobs:
         set -o pipefail
         cd backend
         # Allow a manual workflow_dispatch to isolate a single test file on the
-        # Windows runners (fast loop for a known-slow file). It runs pytest in
-        # the background with output redirected exactly like the normal Windows
-        # shard path so the artifact-upload step preserves a partial log, and
-        # arms a 6-minute session watchdog (exit=True) so a GIL-held hang that
-        # faulthandler cannot dump still terminates the step and leaves a
-        # thread-level traceback behind within ~6-7 minutes instead of waiting
-        # out the ~45-minute runner reclaim.
+        # Windows runners (fast loop for a known-slow file). It runs only on
+        # matrix.shard 1 (once), pytest in the background with output
+        # redirected exactly like the normal Windows shard path so the
+        # artifact-upload step preserves a partial log, and a HARD 8-minute
+        # wall-clock cap in the shell that kills pytest even when the log is
+        # still growing (slow-but-progressing tests never trip the 5-minute
+        # file-growth stall detector, and GitHub's step/job timeouts are not
+        # reliably enforced). The partial -v output shows every completed test
+        # node id, exposing the first test that never prints.
         MANUAL_FILTER="${{ inputs.test_filter }}"
-        if [[ -n "$MANUAL_FILTER" ]]; then
-          export HOMEPOT_CI_WATCHDOG_SECS=360
+        if [[ -n "$MANUAL_FILTER" && "${{ matrix.shard }}" != "1" ]]; then
+          echo "Manual test_filter diagnostic runs only on matrix.shard 1; skipping."
+          exit 0
+        fi
+        if [[ -n "$MANUAL_FILTER" && "${{ matrix.shard }}" == "1" ]]; then
+          export HOMEPOT_CI_WATCHDOG_SECS=300
           export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
           export PYTHONUNBUFFERED=1
           pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
-            -o faulthandler_timeout=60 -o faulthandler_exit_on_timeout=true \
+            -o faulthandler_timeout=20 -o faulthandler_exit_on_timeout=true \
             --no-cov --tb=short --durations=0 --verbose \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
@@ -306,8 +312,9 @@ jobs:
           PYTEST_PID=$!
           LAST_SIZE=0
           STALLS=0
+          START=$(date +%s)
           while kill -0 "$PYTEST_PID" 2>/dev/null; do
-            sleep 60
+            sleep 30
             SIZE=0
             if [[ -f pytest-output.log ]]; then
               SIZE=$(wc -c < pytest-output.log)
@@ -318,7 +325,16 @@ jobs:
               STALLS=0
             fi
             LAST_SIZE="$SIZE"
-            if [[ "$STALLS" -ge 5 ]]; then
+            ELAPSED=$(( $(date +%s) - START ))
+            if [[ "$ELAPSED" -ge 480 ]]; then
+              {
+                echo ""
+                echo "=== WALL-CLOCK CAP: pytest exceeded 8 minutes; killing ==="
+              } >> pytest-output.log
+              kill -9 "$PYTEST_PID" 2>/dev/null
+              break
+            fi
+            if [[ "$STALLS" -ge 10 ]]; then
               {
                 echo ""
                 echo "=== STALLED: pytest output unchanged for 5 minutes; killing ==="
@@ -329,9 +345,9 @@ jobs:
           done
           wait "$PYTEST_PID"
           PYTEST_RC=$?
-          if [[ "$STALLS" -ge 5 ]]; then
-            echo "--- tail of pytest-output.log ---"
-            tail -n 40 pytest-output.log
+          echo "--- tail of pytest-output.log ---"
+          tail -n 60 pytest-output.log
+          if [[ "$STALLS" -ge 10 || "$ELAPSED" -ge 480 ]]; then
             PYTEST_RC=1
           fi
           exit "$PYTEST_RC"
