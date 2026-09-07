@@ -290,25 +290,77 @@ jobs:
         else
           # Coverage is produced only by Ubuntu 3.11; disable global pyproject coverage elsewhere.
           FAULT_ARGS=()
+          VERBOSE_ARGS=()
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             # Windows runners have repeatedly black-holed on a hung test and
             # waited out the full 60-minute job timeout with no diagnostics.
-            # Dump all thread tracebacks and exit instead of hanging forever.
             # NOTE: pytest 9.0 moved faulthandler timeout to ini keys, so they
-            # are injected via -o (not --faulthandler-* flags).
+            # are injected via -o (not --faulthandler-* flags). The per-test
+            # faulthandler alone is insufficient: a GIL-held C-level hang
+            # cannot be dumped by faulthandler, so it never fires. The
+            # external file-growth watchdog below (shell level, outside
+            # Python) catches those by killing pytest when its log stalls.
             FAULT_ARGS=(-o faulthandler_timeout=300 -o faulthandler_exit_on_timeout=true)
-            # Also arm a process-wide watchdog that covers collection/import
-            # (pytest's per-test faulthandler cannot), and tee all output to a
-            # file so a hard-exit hang still leaves a diagnosable log behind.
-            export HOMEPOT_CI_WATCHDOG_SECS=1800
+            # Session-level dump for collection/import hangs (written to a
+            # file; exit=False so a legitimately slow run is never killed).
+            export HOMEPOT_CI_WATCHDOG_SECS=2400
             export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
+            # Print each test node id as it starts, so the last printed line
+            # identifies the hanging test even without a traceback.
+            export PYTHONUNBUFFERED=1
+            VERBOSE_ARGS=(--verbose)
           fi
-          # shellcheck disable=SC2086
-          pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" "${FAULT_ARGS[@]}" --no-cov --tb=short --durations=10 \
-            -W ignore::UserWarning:homepot \
-            -W ignore:".*Database cleanup.*":UserWarning \
-            -W ignore:".*Could not cleanup temp database.*":UserWarning 2>&1 \
-            | tee pytest-output.log
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            # Run pytest in the background and watch its log: if it has not
+            # grown for 5 minutes, kill it. This terminates the step on its
+            # own (instead of black-holing to the job timeout, which cancels
+            # the job and loses subsequent steps), so the artifact-upload step
+            # always runs and leaves a diagnosable log behind.
+            pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" "${FAULT_ARGS[@]}" "${VERBOSE_ARGS[@]}" \
+              --no-cov --tb=short --durations=10 \
+              -W ignore::UserWarning:homepot \
+              -W ignore:".*Database cleanup.*":UserWarning \
+              -W ignore:".*Could not cleanup temp database.*":UserWarning \
+              > pytest-output.log 2>&1 &
+            PYTEST_PID=$!
+            LAST_SIZE=0
+            STALLS=0
+            while kill -0 "$PYTEST_PID" 2>/dev/null; do
+              sleep 60
+              SIZE=0
+              if [[ -f pytest-output.log ]]; then
+                SIZE=$(wc -c < pytest-output.log)
+              fi
+              if [[ "$SIZE" -eq "$LAST_SIZE" ]]; then
+                STALLS=$((STALLS + 1))
+              else
+                STALLS=0
+              fi
+              LAST_SIZE="$SIZE"
+              if [[ "$STALLS" -ge 5 ]]; then
+                {
+                  echo ""
+                  echo "=== STALLED: pytest output unchanged for 5 minutes; killing (rc set to failure) ==="
+                } >> pytest-output.log
+                kill -9 "$PYTEST_PID" 2>/dev/null
+                break
+              fi
+            done
+            wait "$PYTEST_PID"
+            PYTEST_RC=$?
+            if [[ "$STALLS" -ge 5 ]]; then
+              echo "--- tail of pytest-output.log ---"
+              tail -n 40 pytest-output.log
+              PYTEST_RC=1
+            fi
+            exit "$PYTEST_RC"
+          else
+            # shellcheck disable=SC2086
+            pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" "${FAULT_ARGS[@]}" --no-cov --tb=short --durations=10 \
+              -W ignore::UserWarning:homepot \
+              -W ignore:".*Database cleanup.*":UserWarning \
+              -W ignore:".*Could not cleanup temp database.*":UserWarning
+          fi
         fi
 
     - name: Upload Windows test logs

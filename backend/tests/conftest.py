@@ -27,9 +27,9 @@ def _arm_session_watchdog() -> None:
     pytest's own faulthandler only arms around each test's setup/call/teardown,
     so a hang during module import or collection is invisible to it. When CI
     sets HOMEPOT_CI_WATCHDOG_SECS, dump all thread tracebacks and exit after
-    the cap so a collection-time hang cannot black-hole to the job timeout.
-    The cap (30 min) is ~2.7x the longest legitimately-running Windows shard
-    observed (11 min), so progressing runs are never killed.
+    the cap as a final backstop. (The primary guard against a hung test is the
+    shell-level file-growth watchdog in ci-cd.yml, which kills pytest outside
+    of Python when its log stops growing.)
     """
     timeout = os.environ.get("HOMEPOT_CI_WATCHDOG_SECS")
     path = os.environ.get("HOMEPOT_CI_WATCHDOG_LOG", "pytest-watchdog.log")
