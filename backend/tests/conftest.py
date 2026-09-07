@@ -39,24 +39,36 @@ def _watchdog_thread(path: str, timeout: float) -> None:
     """
     start = time.monotonic()
     beat = float(os.environ.get("HOMEPOT_WATCHDOG_HEARTBEAT_SECS", "10"))
-    try:
-        f = open(path, "a", encoding="utf-8", buffering=1)
-    except OSError:
-        return
-    with f:
-        while True:
-            elapsed = int(time.monotonic() - start)
-            f.write(f"[watchdog] t={elapsed:>6}s in-test={_CURRENT_TEST}\n")
-            if elapsed >= int(timeout):
-                trace_path = path + ".traceback"
-                try:
-                    with open(trace_path, "w", encoding="utf-8") as tf:
-                        faulthandler.dump_traceback(file=tf)
-                except OSError:
-                    pass
-                f.write("[watchdog] HARD EXIT after %ss\n" % elapsed)
-                os._exit(1)
-            time.sleep(beat)
+    while True:
+        elapsed = int(time.monotonic() - start)
+        # Open/append/close each iteration and fsync so the line is durable
+        # even if this process is later killed by the runner reclaim, and so
+        # the file is never left locked for the artifact-upload step.
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"[watchdog] t={elapsed:>6}s in-test={_CURRENT_TEST}\n")
+                f.flush()
+                os.fsync(f.fileno())
+        except OSError:
+            return
+        if elapsed >= int(timeout):
+            trace_path = path + ".traceback"
+            try:
+                with open(trace_path, "w", encoding="utf-8") as tf:
+                    faulthandler.dump_traceback(file=tf)
+                    tf.flush()
+                    os.fsync(tf.fileno())
+            except OSError:
+                pass
+            try:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(f"[watchdog] HARD EXIT after {elapsed}s\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+            except OSError:
+                pass
+            os._exit(1)
+        time.sleep(beat)
 
 
 def _arm_session_watchdog() -> None:
