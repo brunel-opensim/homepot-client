@@ -302,69 +302,29 @@ jobs:
           export HOMEPOT_CI_WATCHDOG_SECS=300
           export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
           export PYTHONUNBUFFERED=1
-          # 5s per-test faulthandler: the FIRST test that exceeds 5 seconds
-          # dumps its thread traceback and exits, identifying the slow test
-          # within the first minute instead of waiting for a suite-wide cap.
-          pytest -n 0 ${MANUAL_FILTER} -m "not slow and not integration and not performance" \
+          # Foreground under GNU `timeout`: guaranteed termination. A 5s
+          # per-test faulthandler (pytest 9 ini keys) dumps+exits on the first
+          # test that exceeds 5s; if the GIL is held (C-level hang) so
+          # faulthandler cannot fire, --verbose still records every completed
+          # test, and `timeout` kills pytest at 6 min. Either way this step
+          # ends with a captured partial log (the stuck test is the one whose
+          # node id never printed).
+          timeout 360 python -m pytest -n 0 ${MANUAL_FILTER} \
+            -m "not slow and not integration and not performance" \
             -o faulthandler_timeout=5 -o faulthandler_exit_on_timeout=true \
             --no-cov --tb=short --durations=0 --verbose \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
             -W ignore:".*Could not cleanup temp database.*":UserWarning \
-            > pytest-output.log 2>&1 &
-          PYTEST_PID=$!
-          LAST_SIZE=0
-          STALLS=0
-          START=$(date +%s)
-          while kill -0 "$PYTEST_PID" 2>/dev/null; do
-            sleep 30
-            SIZE=0
-            if [[ -f pytest-output.log ]]; then
-              SIZE=$(wc -c < pytest-output.log)
-            fi
-            if [[ "$SIZE" -eq "$LAST_SIZE" ]]; then
-              STALLS=$((STALLS + 1))
-            else
-              STALLS=0
-            fi
-            LAST_SIZE="$SIZE"
-            ELAPSED=$(( $(date +%s) - START ))
-            if [[ "$ELAPSED" -ge 360 ]]; then
-              {
-                echo ""
-                echo "=== WALL-CLOCK CAP: pytest exceeded 6 minutes; killing ==="
-              } >> pytest-output.log
-              if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-                # $! is the MSYS shim; kill it AND its python.exe descendants.
-                taskkill //F //T //PID "$PYTEST_PID" 2>/dev/null || true
-              else
-                kill -9 "$PYTEST_PID" 2>/dev/null || true
-              fi
-              pkill -9 -f "pytest.*${MANUAL_FILTER}" 2>/dev/null || true
-              break
-            fi
-            if [[ "$STALLS" -ge 10 ]]; then
-              {
-                echo ""
-                echo "=== STALLED: pytest output unchanged for 5 minutes; killing ==="
-              } >> pytest-output.log
-              if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-                taskkill //F //T //PID "$PYTEST_PID" 2>/dev/null || true
-              else
-                kill -9 "$PYTEST_PID" 2>/dev/null || true
-              fi
-              pkill -9 -f "pytest.*${MANUAL_FILTER}" 2>/dev/null || true
-              break
-            fi
-          done
-          wait "$PYTEST_PID"
+            > pytest-output.log 2>&1
           PYTEST_RC=$?
           echo "--- tail of pytest-output.log ---"
           tail -n 80 pytest-output.log
-          if [[ "$STALLS" -ge 10 || "$ELAPSED" -ge 360 ]]; then
-            PYTEST_RC=1
+          if [[ -f pytest-watchdog.log ]]; then
+            echo "--- pytest-watchdog.log ---"
+            tail -n 80 pytest-watchdog.log
           fi
-          exit "$PYTEST_RC"
+          exit $PYTEST_RC
         fi
         # Windows: the already-sharded jobs run serially (no nested xdist).
         # Nesting `-n auto` inside the sharded Windows jobs intermittently
