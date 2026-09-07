@@ -144,16 +144,24 @@ class TestProcessCommand:
             "restart",
         ]
 
-    def test_restart_without_elevation_reports_actionable_failure(self):
+    @skip_if_windows
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_restart_without_elevation_reports_actionable_failure(self, run):
         """On macOS/Linux restart without the elevation layer fails clearly.
 
         A real device never falls back to guessing at a passwordless sudo rule;
         when ``homepot-ctl`` is absent the agent reports that the Manage
         elevation layer must be installed through the User App first.
+
+        ``subprocess.run`` is patched (and this test skipped on Windows,
+        where ``restart`` takes an entirely different, non-elevation code
+        path) so a misconfigured environment can never fall through to a
+        real ``shutdown``/reboot call.
         """
         result = process_command(
             {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
         )
+        run.assert_not_called()
         assert result["status"] == "failed"
         assert "Manage elevation layer" in result["result"]["error"]
 
