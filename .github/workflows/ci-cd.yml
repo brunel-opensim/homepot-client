@@ -242,6 +242,7 @@ jobs:
       env:
         DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
       run: |
+        set -o pipefail
         cd backend
         # Windows: the already-sharded jobs run serially (no nested xdist).
         # Nesting `-n auto` inside the sharded Windows jobs intermittently
@@ -296,12 +297,31 @@ jobs:
             # NOTE: pytest 9.0 moved faulthandler timeout to ini keys, so they
             # are injected via -o (not --faulthandler-* flags).
             FAULT_ARGS=(-o faulthandler_timeout=300 -o faulthandler_exit_on_timeout=true)
+            # Also arm a process-wide watchdog that covers collection/import
+            # (pytest's per-test faulthandler cannot), and tee all output to a
+            # file so a hard-exit hang still leaves a diagnosable log behind.
+            export HOMEPOT_CI_WATCHDOG_SECS=1800
+            export HOMEPOT_CI_WATCHDOG_LOG=pytest-watchdog.log
           fi
+          # shellcheck disable=SC2086
           pytest ${XDIST_ARGS} ${TEST_TARGETS} "${MARKER_ARGS[@]}" "${FAULT_ARGS[@]}" --no-cov --tb=short --durations=10 \
             -W ignore::UserWarning:homepot \
             -W ignore:".*Database cleanup.*":UserWarning \
-            -W ignore:".*Could not cleanup temp database.*":UserWarning
+            -W ignore:".*Could not cleanup temp database.*":UserWarning 2>&1 \
+            | tee pytest-output.log
         fi
+
+    - name: Upload Windows test logs
+      # Preserve the pytest output and any faulthandler/watchdog dumps on
+      # Windows, where a hard-exit hang otherwise loses the step log blob.
+      if: always() && matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-test-logs-shard-${{ matrix.shard }}
+        path: |
+          backend/pytest-output.log
+          backend/pytest-watchdog.log
+        if-no-files-found: ignore
 
     - name: Run UQ tests
       if: matrix.shard == 1

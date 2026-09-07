@@ -4,6 +4,7 @@ This module provides common test configuration, fixtures, and utilities
 used across the test suite.
 """
 
+import faulthandler
 import os
 from typing import Any, Dict, Generator
 
@@ -18,6 +19,39 @@ os.environ.setdefault("DATABASE__URL", "sqlite+aiosqlite:///:memory:")
 
 # Configure asyncio for testing
 pytest_plugins = ("pytest_asyncio",)
+
+
+def _arm_session_watchdog() -> None:
+    """Arm a process-wide watchdog that covers collection/import time.
+
+    pytest's own faulthandler only arms around each test's setup/call/teardown,
+    so a hang during module import or collection is invisible to it. When CI
+    sets HOMEPOT_CI_WATCHDOG_SECS, dump all thread tracebacks and exit after
+    the cap so a collection-time hang cannot black-hole to the job timeout.
+    The cap (30 min) is ~2.7x the longest legitimately-running Windows shard
+    observed (11 min), so progressing runs are never killed.
+    """
+    timeout = os.environ.get("HOMEPOT_CI_WATCHDOG_SECS")
+    path = os.environ.get("HOMEPOT_CI_WATCHDOG_LOG", "pytest-watchdog.log")
+    if not timeout:
+        return
+    try:
+        # Keep the handle referenced (and open) until the timeout fires;
+        # dump_traceback_later writes to it asynchronously much later.
+        global _WATCHDOG_FILE
+        _WATCHDOG_FILE = open(path, "w", encoding="utf-8")
+        faulthandler.dump_traceback_later(
+            float(timeout), file=_WATCHDOG_FILE, exit=True
+        )
+    except (OSError, ValueError):
+        # Best-effort only; CI must not fail if the watchdog cannot be armed.
+        pass
+
+
+_WATCHDOG_FILE = None
+
+
+_arm_session_watchdog()
 
 
 @pytest.fixture
