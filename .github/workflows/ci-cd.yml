@@ -87,32 +87,47 @@ jobs:
           - os: windows-latest
             python-version: '3.11'
             shard: 1
-            shard-count: 6
+            shard-count: 9
             timeout_minutes: 60
           - os: windows-latest
             python-version: '3.11'
             shard: 2
-            shard-count: 6
+            shard-count: 9
             timeout_minutes: 60
           - os: windows-latest
             python-version: '3.11'
             shard: 3
-            shard-count: 6
+            shard-count: 9
             timeout_minutes: 60
           - os: windows-latest
             python-version: '3.11'
             shard: 4
-            shard-count: 6
+            shard-count: 9
             timeout_minutes: 60
           - os: windows-latest
             python-version: '3.11'
             shard: 5
-            shard-count: 6
+            shard-count: 9
             timeout_minutes: 60
           - os: windows-latest
             python-version: '3.11'
             shard: 6
-            shard-count: 6
+            shard-count: 9
+            timeout_minutes: 60
+          - os: windows-latest
+            python-version: '3.11'
+            shard: 7
+            shard-count: 9
+            timeout_minutes: 60
+          - os: windows-latest
+            python-version: '3.11'
+            shard: 8
+            shard-count: 9
+            timeout_minutes: 60
+          - os: windows-latest
+            python-version: '3.11'
+            shard: 9
+            shard-count: 9
             timeout_minutes: 60
           - os: macos-latest
             python-version: '3.11'
@@ -254,6 +269,7 @@ jobs:
 
     - name: Run unit tests
       shell: bash
+      timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 15 }}
       env:
         DATABASE__URL: ${{ matrix.os == 'ubuntu-latest' && format('postgresql+asyncpg://{0}:{1}@localhost:5432/{2}', env.PG_TEST_USER, env.PG_TEST_PASSWORD, env.PG_TEST_DB) || 'sqlite+aiosqlite:///./test.db' }}
       run: |
@@ -265,6 +281,11 @@ jobs:
         # all tests passing. Ubuntu/macOS (single shard, one platform+forked)
         # keep `-n auto` for speed and are stable.
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          # Windows runners are serially sharded by test count (see the
+          # TEST_TARGETS split below) so each known-heavy file gets its own
+          # shard and no shard approaches the ~45-minute hosted-runner reclaim
+          # window. Run pytest serially (no nested xdist; the Windows
+          # faulthandler/watchdog diagnostics below rely on a single process).
           XDIST_ARGS="-n 0"
           # Performance/slow/integration tests make real network calls to a
           # localhost backend that is never running in CI, and can hang or
@@ -279,18 +300,77 @@ jobs:
         if [[ "${{ matrix.shard-count }}" -gt 1 ]]; then
           TEST_TARGETS=$(python - "${{ matrix.shard }}" "${{ matrix.shard-count }}" <<'PY'
         from pathlib import Path
+        import ast
         import sys
 
         shard = int(sys.argv[1]) - 1
         shard_count = int(sys.argv[2])
+
+        # Windows-hosted runners are reclaimed by the host after ~45 minutes of
+        # sustained load, killing the job with no logs regardless of the job
+        # timeout (this is actions/runner-images host behavior). The alphabetical
+        # stride split clusters every Windows-expensive test file into one shard,
+        # which exceeds that window. Instead assign deterministically by test
+        # count: pin the known-heavy files one per shard, then greedily fill the
+        # lightest shard, so no shard concentrates a long tail of slow tests.
+        HEAVY = {
+            "test_agent_command_polling",
+            "test_agent_elevation",
+            "test_agent_local_ipc",
+            "test_homepot_integration",
+            "test_local_ipc",
+            "test_mqtt_push",
+            "test_timescaledb",
+            "test_windows_resilience",
+            "test_wns_windows",
+        }
+
+        def count_tests(path):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+            except Exception:
+                raw = path.read_text(encoding="utf-8-sig", errors="replace")
+                return sum(
+                    1
+                    for line in raw.splitlines()
+                    if line.lstrip().startswith(("def test_", "async def test_"))
+                )
+            return sum(
+                1
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name.startswith("test_")
+            )
+
         test_files = sorted(
             set(Path("tests").rglob("test_*.py"))
             | set(Path("tests").rglob("*_test.py"))
         )
-        selected = test_files[shard::shard_count]
+        items = [
+            (path.name[:-3], count_tests(path), str(path)) for path in test_files
+        ]
+        items.sort(key=lambda x: (x[1], x[0]), reverse=True)
+
+        buckets = [[] for _ in range(shard_count)]
+        counts = [0] * shard_count
+        pinned = 0
+        for base, count, path in items:
+            if base in HEAVY:
+                slot = pinned % shard_count
+                buckets[slot].append(path)
+                counts[slot] += count
+                pinned += 1
+        for base, count, path in items:
+            if base in HEAVY:
+                continue
+            slot = min(range(shard_count), key=lambda i: counts[i])
+            buckets[slot].append(path)
+            counts[slot] += count
+
+        selected = buckets[shard]
         if not selected:
             raise SystemExit(f"No tests assigned to shard {shard + 1}/{shard_count}")
-        print(" ".join(str(path) for path in selected))
+        print(" ".join(selected))
         PY
           )
           echo "Running shard ${{ matrix.shard }}/${{ matrix.shard-count }}: ${TEST_TARGETS}"
