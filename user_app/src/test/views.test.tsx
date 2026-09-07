@@ -269,6 +269,65 @@ describe('Permissions', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  })
+
+  it('deprovisions elevation when switching monitor off also clears manage', async () => {
+    const install = vi.fn().mockResolvedValue({ installed: true, reason: null })
+    const deprovision = vi.fn().mockResolvedValue({ deprovisioned: true, reason: null })
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+      elevation: { install, deprovision, supported: vi.fn(), status: vi.fn() },
+    } as never
+
+    const allOn = {
+      data: {
+        permissions: {
+          command_execution: true,
+          filesystem_access: true,
+          process_monitoring: true,
+          network_monitoring: true,
+          root_access: true,
+        },
+        capabilities: {
+          command_execution: true,
+          filesystem_access: true,
+          process_monitoring: true,
+          network_monitoring: true,
+          root_access: true,
+        },
+      },
+    }
+    mockFetch.mockImplementation(() => ok(allOn))
+
+    const { container } = renderWithProviders(<Permissions />)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(await screen.findByText('Permissions & Access Control')).toBeInTheDocument()
+
+    // The two unnamed toggle buttons (monitor, then manage) are the only
+    // buttons without text (TabBar buttons all carry labels).
+    const toggles = Array.from(container.querySelectorAll('button')).filter(
+      (b) => !b.textContent || b.textContent.trim() === '',
+    )
+    expect(toggles).toHaveLength(2)
+    fireEvent.click(toggles[0]) // Monitor off -> cascades Manage off
+
+    await waitFor(() => expect(deprovision).toHaveBeenCalledTimes(1))
+    expect(install).not.toHaveBeenCalled()
+
+    const patch = mockFetch.mock.calls.find(
+      ([, init]) => init?.method === 'PATCH',
+    )
+    expect(patch).toBeDefined()
+    const body = JSON.parse(String(patch?.[1].body))
+    expect(body.permissions.root_access).toBe(false)
+    expect(body.permissions.command_execution).toBe(false)
+
+    // The backend revoke lands before the autonomous OS teardown.
+    const patchIndex = mockFetch.mock.calls.findIndex(
+      ([, init]) => init?.method === 'PATCH',
+    )
+    expect(deprovision).toBeDefined()
+    expect(patchIndex).toBeGreaterThan(-1)
   })
 
   it('shows override notice when server permissions change externally', async () => {

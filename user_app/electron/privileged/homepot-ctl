@@ -53,6 +53,14 @@ cmd_run() {
   require_root
   [ "$#" -eq 1 ] || usage
   op="$1"
+  # The allowlist is the source of truth (fail-closed): the drop-in scoped sudo
+  # to this helper, and the helper itself refuses any op the root-owned
+  # allowlist does not list. The agent runs ensure-allowlist on every reconcile
+  # while a Manage grant is present, so a missing file only ever fails closed.
+  if [ ! -f "$ALLOWLIST" ] || ! grep -q "^op:$op$" "$ALLOWLIST"; then
+    echo "homepot-ctl: operation '$op' is not allowed" >&2
+    exit 2
+  fi
   case "$op" in
     restart)
       if [ -x /sbin/shutdown ]; then exec /sbin/shutdown -r now

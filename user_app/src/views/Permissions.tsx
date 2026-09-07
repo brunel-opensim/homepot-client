@@ -210,6 +210,10 @@ export default function Permissions() {
       const patch: Record<string, boolean> = {};
       for (const key of keys) patch[key] = enabled;
       const isManage = group === "manage" || (keys.length === 1 && keys[0] === MANAGE_KEY);
+      // Manage is revoked not only by its own toggle but also when monitoring is
+      // switched off (manage depends on it), so strip elevation whenever the
+      // patch clears root_access.
+      const manageRevoked = !enabled && keys.includes(MANAGE_KEY);
       // Emulated devices simulate everything in-process; never surface the OS
       // admin prompt or sudo layer for them.
       const isRealDevice =
@@ -224,7 +228,7 @@ export default function Permissions() {
           }
         }
         await updatePermissions(dId, aKey, patch);
-        if (isManage && !enabled && isRealDevice && window.electronAPI?.elevation) {
+        if (manageRevoked && isRealDevice && window.electronAPI?.elevation) {
           // Autonomously strip the OS elevation after the backend revoke lands.
           const res = await window.electronAPI.elevation.deprovision();
           if (res && res.deprovisioned === false) {

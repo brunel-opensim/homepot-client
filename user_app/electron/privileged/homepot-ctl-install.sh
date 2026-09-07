@@ -56,4 +56,14 @@ if [ -n "$TARGET_USER" ]; then
   umask 077
   printf '%s\n' "$rule" > "$SUDOERS_DIR/homepot"
   chmod 0440 "$SUDOERS_DIR/homepot"
+  # Validate before it can affect the machine: a broken sudoers drop-in would
+  # break sudo itself. Only meaningful when this actually installs into real
+  # sudo (root-owned files); non-root staging/tests skip the check.
+  if [ "$(id -u)" -eq 0 ] && command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf "$SUDOERS_DIR/homepot" >/dev/null 2>&1; then
+      rm -f "$SUDOERS_DIR/homepot"
+      echo "homepot-ctl-install: sudoers validation failed; drop-in removed" >&2
+      exit 3
+    fi
+  fi
 fi
