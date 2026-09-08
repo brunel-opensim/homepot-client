@@ -240,10 +240,12 @@ class TestProcessCommand:
         assert set(result["result"]["applied_keys"]) == {"theme", "polling_rate"}
 
     @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.shutil.which")
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_update_config_brightness_applies_os_action(self, run, system):
+    def test_update_config_brightness_applies_os_action(self, run, which, system):
         """A known config key (brightness) runs the platform OS action."""
         system.return_value = "Darwin"
+        which.return_value = "/usr/local/bin/brightness"
         run.return_value.returncode = 0
         run.return_value.stdout = ""
         run.return_value.stderr = ""
@@ -256,8 +258,31 @@ class TestProcessCommand:
             ALLOW_ALL,
         )
         assert result["status"] == "completed"
-        assert run.call_args.args[0] == ["brightness", "75"]
+        assert run.call_args.args[0] == ["/usr/local/bin/brightness", "0.75"]
         assert result["result"]["results"]["brightness"]["status"] == "applied"
+
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.shutil.which")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_update_config_brightness_missing_helper_reported_cleanly(
+        self, run, which, system
+    ):
+        """A missing OS helper yields a clean failure, not a raw OSError."""
+        system.return_value = "Darwin"
+        which.return_value = None
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "update_config",
+                "payload": {"data": {"brightness": 75}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_count == 0
+        brightness = result["result"]["results"]["brightness"]
+        assert brightness["status"] == "failed"
+        assert "required OS helper is not installed" in brightness["message"]
 
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.subprocess.run")

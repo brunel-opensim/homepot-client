@@ -548,10 +548,28 @@ def _run_scan_filesystem(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _config_appliers(platform_name: str) -> Dict[str, Any]:
-    """Return key -> argv builder for host settings that have a real OS action."""
+    """Return key -> argv builder for host settings that have a real OS action.
+
+    A builder returns the exact argv to run, or ``None`` when the platform has
+    no usable way to apply the setting (e.g. a required helper binary is not
+    installed). ``None`` is surfaced as a clean per-key failure by
+    ``_apply_config`` instead of a raw ``OSError`` from subprocess.
+    """
     if platform_name == "darwin":
+
+        def _brightness(value: Any) -> Optional[List[str]]:
+            helper = shutil.which("brightness")
+            if helper is None:
+                logger.warning(
+                    "macOS 'brightness' helper not found; install via "
+                    "`brew install brightness`"
+                )
+                return None
+            # nriley/brightness takes a 0..1 float, not a 0..100 integer.
+            return [helper, f"{int(value) / 100:.2f}"]
+
         return {
-            "brightness": lambda value: ["brightness", str(int(value))],
+            "brightness": _brightness,
             "volume": lambda value: [
                 "osascript",
                 "-e",
@@ -579,7 +597,18 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             results[key] = {"status": "acknowledged", "message": "no OS action defined"}
             continue
         try:
-            outcome = _run_argv(applier(value))
+            argv = applier(value)
+            if argv is None:
+                applied_keys.append(key)
+                results[key] = {
+                    "status": "failed",
+                    "message": (
+                        f"{key} could not be applied: required OS helper is "
+                        "not installed on this device"
+                    ),
+                }
+                continue
+            outcome = _run_argv(argv)
             applied_keys.append(key)
             results[key] = {
                 "status": "applied" if outcome["ok"] else "failed",
