@@ -111,7 +111,7 @@ class TestProvisionElevation:
 
     def test_not_installed(self, monkeypatch, tmp_path):
         """A missing helper/drop-in cannot be repaired autonomously."""
-        _no_env(monkeypatch)
+        _missing_env(monkeypatch, tmp_path)
         _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"

@@ -5,10 +5,12 @@ import os
 import sys
 from unittest.mock import patch
 
+import psutil
 import pytest
 
 from homepot.agent.utils.command_poller import (
     COMMAND_TYPES,
+    _parse_lsof_connection,
     build_status_report,
     build_status_update_payload,
     parse_pending_commands,
@@ -146,7 +148,9 @@ class TestProcessCommand:
 
     @skip_if_windows
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_restart_without_elevation_reports_actionable_failure(self, run):
+    def test_restart_without_elevation_reports_actionable_failure(
+        self, run, fake_elevation
+    ):
         """On macOS/Linux restart without the elevation layer fails clearly.
 
         A real device never falls back to guessing at a passwordless sudo rule;
@@ -158,6 +162,7 @@ class TestProcessCommand:
         path) so a misconfigured environment can never fall through to a
         real ``shutdown``/reboot call.
         """
+        fake_elevation["ctl"].unlink()
         result = process_command(
             {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
         )
@@ -364,6 +369,71 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert result["result"]["count"] == 1
         assert result["result"]["connections"][0]["pid"] == 1
+
+    @patch("homepot.agent.utils.command_poller.psutil.net_connections")
+    def test_list_connections_falls_back_to_lsof_on_access_denied(
+        self, net_connections
+    ):
+        """An AccessDenied (macOS) error falls back to a lsof snapshot."""
+        import types
+
+        net_connections.side_effect = psutil.AccessDenied(pid=1)
+        lsof_lines = (
+            "COMMAND     PID  USER FD TYPE DEVICE SIZE/OFF NODE NAME\n"
+            "Python    1234 bob   12u IPv4  0x1    0t0  TCP "
+            "127.0.0.1:52083->10.0.0.1:443 (ESTABLISHED)\n"
+            "node      9999 bob   16u IPv4  0x2    0t0  TCP "
+            "[::1]:5175 (LISTEN)\n"
+        )
+        with patch(
+            "homepot.agent.utils.command_poller.subprocess.run",
+            return_value=types.SimpleNamespace(
+                returncode=0, stdout=lsof_lines, stderr=""
+            ),
+        ):
+            result = process_command(
+                {
+                    "command_id": "c2",
+                    "command_type": "list_connections",
+                    "payload": {"data": {"filter_state": "ESTABLISHED"}},
+                },
+                ALLOW_ALL,
+            )
+        assert result["status"] == "completed"
+        conns = result["result"]["connections"]
+        assert result["result"]["source"] == "lsof"
+        assert len(conns) == 1
+        assert conns[0]["pid"] == 1234
+        assert conns[0]["laddr"] == "127.0.0.1:52083"
+        assert conns[0]["raddr"] == "10.0.0.1:443"
+
+    def test_parse_lsof_connection_handles_states_and_ipv6(self):
+        """Lsof rows parse into pid/laddr/raddr/status for v4 and v6."""
+        row = (
+            "app_inkwe 12316 owner 17u IPv4 0xb04 0t0 TCP "
+            "127.0.0.1:52733->127.0.0.1:52734 (ESTABLISHED)"
+        )
+        parsed = _parse_lsof_connection(row, None)
+        assert parsed is not None
+        assert parsed["pid"] == 12316
+        assert parsed["status"] == "ESTABLISHED"
+        assert parsed["laddr"] == "127.0.0.1:52733"
+        assert parsed["raddr"] == "127.0.0.1:52734"
+
+        listen = _parse_lsof_connection(
+            "node 9999 owner 16u IPv4 0xb 0t0 TCP [::1]:5175 (LISTEN)", None
+        )
+        assert listen is not None
+        assert listen["status"] == "LISTEN"
+        assert listen["laddr"] == "[::1]:5175"
+        assert listen["raddr"] is None
+
+        assert (
+            _parse_lsof_connection(
+                "COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME", None
+            )
+            is None
+        )
 
     def test_scan_filesystem_walks_bounded_dirs(self, tmp_path):
         """Scan filesystem returns entries within the requested depth."""
