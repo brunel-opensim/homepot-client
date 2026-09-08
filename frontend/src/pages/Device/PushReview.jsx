@@ -26,8 +26,7 @@ const COMMAND_TEMPLATES = {
     action: 'run_command',
     permission: 'root_access',
     defaultData: { command: 'uname -a', timeout_seconds: 30 },
-    description:
-      'Run one executable with root (sudo) privileges. Shell operators are not interpreted.',
+    description: 'Run a shell command with root (sudo) privileges. Standard shell syntax is supported.',
   },
   RUN_SCRIPT: {
     label: 'Run Script',

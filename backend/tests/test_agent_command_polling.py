@@ -510,29 +510,6 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "root_access" in result["result"]["error"]
 
-    @skip_if_windows
-    @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_run_command_refused_on_posix(self, run, fake_elevation):
-        """Free-form run_command is not allowlisted on macOS/Linux.
-
-        Even with the elevation layer installed the '.' scope is fixed power
-        operations only; arbitrary root commands cannot run.
-        """
-        run.return_value.returncode = 0
-        run.return_value.stdout = "root\n"
-        run.return_value.stderr = ""
-        result = process_command(
-            {
-                "command_id": "c1",
-                "command_type": "run_command",
-                "payload": {"data": {"command": "id -u", "timeout_seconds": 10}},
-            },
-            ALLOW_ALL,
-        )
-        assert result["status"] == "failed"
-        assert "not allowlisted" in result["result"]["error"]
-        run.assert_not_called()
-
     def test_scan_filesystem_requires_root_access(self):
         """Filesystem scans are denied without the root_access grant."""
         result = process_command(
@@ -551,9 +528,40 @@ class TestProcessCommand:
         assert "command_execution" in result["result"]["error"]
 
     @skip_if_windows
+    @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_script_runs_refused_on_posix(self, run, fake_elevation):
-        """Free-form run_script is not allowlisted on macOS/Linux."""
+    def test_run_command_runs_via_scoped_helper_on_posix(
+        self, run, system, fake_elevation
+    ):
+        """Free-form run_command elevates through homepot-ctl exec, not blanket sudo."""
+        system.return_value = "Darwin"
+        run.return_value.returncode = 0
+        run.return_value.stdout = "root\n"
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command",
+                "payload": {"data": {"command": "id -u", "timeout_seconds": 10}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0] == [
+            "sudo",
+            "-n",
+            str(fake_elevation["ctl"]),
+            "run",
+            "exec",
+        ]
+        assert run.call_args.kwargs["input"] == "id -u"
+
+    @skip_if_windows
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_script_runs_via_scoped_helper_on_posix(self, run, system, fake_elevation):
+        """Free-form run_script elevates through homepot-ctl exec, not blanket sudo."""
+        system.return_value = "Darwin"
         run.return_value.returncode = 0
         run.return_value.stdout = "root\n"
         run.return_value.stderr = ""
@@ -570,8 +578,63 @@ class TestProcessCommand:
             },
             ALLOW_ALL,
         )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0] == [
+            "sudo",
+            "-n",
+            str(fake_elevation["ctl"]),
+            "run",
+            "exec",
+        ]
+        assert run.call_args.kwargs["input"] == "id -u"
+
+    @skip_if_windows
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_run_command_missing_elevation_fails_actionably(
+        self, run, system, monkeypatch, tmp_path
+    ):
+        """A device without the elevation layer reports an actionable failure."""
+        system.return_value = "Darwin"
+        monkeypatch.setenv("HOMEPOT_ELEVATION_ROOT", str(tmp_path / "missing-root"))
+        monkeypatch.setenv("HOMEPOT_CTL_PATH", str(tmp_path / "missing-ctl"))
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command",
+                "payload": {"data": {"command": "id -u"}},
+            },
+            ALLOW_ALL,
+        )
         assert result["status"] == "failed"
-        assert "not allowlisted" in result["result"]["error"]
+        assert "Manage elevation layer" in result["result"]["error"]
+        run.assert_not_called()
+
+    @skip_if_windows
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_run_script_missing_sudoers_rule_fails_actionably(
+        self, run, system, monkeypatch, tmp_path
+    ):
+        """A missing sudoers rule points the owner at re-provisioning."""
+        system.return_value = "Darwin"
+        root = tmp_path / "elevation"
+        root.mkdir()
+        ctl = root / "homepot-ctl"
+        ctl.write_text("#!/bin/sh\nexit 0\n")
+        ctl.chmod(0o755)
+        monkeypatch.setenv("HOMEPOT_ELEVATION_ROOT", str(root))
+        monkeypatch.setenv("HOMEPOT_CTL_PATH", str(ctl))
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_script",
+                "payload": {"data": {"script": "id -u"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        assert "sudoers rule is missing" in result["result"]["error"]
         run.assert_not_called()
 
     def test_script_with_embedded_sudo_requires_root_grant(self):

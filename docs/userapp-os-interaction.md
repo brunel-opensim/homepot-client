@@ -110,7 +110,8 @@ Rationale:
 4. The local dispatch service re-checks device_permissions
    - Monitor tier -> command_execution / process_monitoring / network_monitoring
    - Manage tier  -> root_access (commands/scripts, scan_filesystem,
-                     update_config, restart, shutdown) always via sudo
+                     update_config, restart, shutdown) via the scoped
+                     homepot-ctl helper / sudo
 5. The dispatch service executes against the host OS
    - renderer -> IPC -> main process -> OS call
 6. The app reports the terminal result
@@ -156,19 +157,20 @@ for every command type. Status as of writing:
 
 | Command type | Tier | Execution status |
 |---|---|---|
-| `run_command` | Manage | ✅ real (subprocess + `sudo`) |
-| `run_script` | Manage | ✅ real (subprocess + `sudo`) |
+| `run_command` | Manage | ✅ real (free-form, via scoped `homepot-ctl run exec` on POSIX / direct on Windows) |
+| `run_script` | Manage | ✅ real (free-form, via scoped `homepot-ctl run exec` on POSIX / PowerShell on Windows) |
 | `ping` / `status_request` | — | ✅ real |
-| `update_config` | Manage | ❌ stub — records `applied_keys`, no OS call |
-| `restart` / `shutdown` | Manage | ❌ stub — acknowledged, not executed |
-| `health_check` | Monitor | ❌ unhandled (`Unhandled command type`) |
-| `list_processes` | Monitor | ❌ unhandled |
-| `list_connections` | Monitor | ❌ unhandled |
-| `scan_filesystem` | Manage | ❌ unhandled |
+| `update_config` | Manage | ✅ real — volume/brightness OS actions; unbound keys acknowledged |
+| `restart` / `shutdown` | Manage | ✅ real — via scoped `homepot-ctl run restart\|shutdown` |
+| `health_check` | Monitor | ✅ real |
+| `list_processes` | Monitor | ✅ real |
+| `list_connections` | Monitor | ✅ real (incl. `lsof` fallback for macOS socket reads) |
+| `scan_filesystem` | Manage | ✅ real (gated on `root_access`) |
 
-The emulator (`pos_engine.py`) simulates all nine, but the real agent only
-executes `run_command`/`run_script` against the host today. Closing these gaps
-is the "local execution" work that makes a self-contained User App real.
+The emulator (`pos_engine.py`) simulates the same set; the real agent executes
+all nine against the host (`command_poller.process_command`), with free-form
+`run_command`/`run_script` and power ops elevated through the scoped
+`homepot-ctl` helper.
 
 ## MDM decision
 
@@ -191,9 +193,10 @@ first; add MDM when the fleet needs managed enrollment or kiosk-locked control.
 Backend:
 
 - [x] Permission tiers + command→permission mapping (Monitor / Manage).
-- [ ] Complete `process_command` execution: `health_check`, `list_processes`,
-      `list_connections`, `scan_filesystem`, and a real `update_config` OS
-      settings adapter; wire real `restart` / `shutdown`.
+- [x] Complete `process_command` execution for all nine command types, with
+      free-form `run_command`/`run_script` and `restart`/`shutdown` elevated
+      through the scoped `homepot-ctl` helper on POSIX (and handled natively on
+      Windows).
 - [x] Real `device_token` registration (store per-device token + channel on
       registration / status report).
 - [x] Wake-up sending: after queueing a `DeviceCommand`, the backend sends a
@@ -212,9 +215,9 @@ User App (Electron main):
       `agent:stop` IPC handlers.
 - [ ] Wake-up listener per platform (FCM/WNS/APNs) that triggers a
       `GET /devices/pending` pull; polling interval as fallback.
-- [ ] Map the nine command types to OS calls per tier (Monitor read-only;
-      Manage via `sudo`). — done in `command_poller.process_command`, reused by
-      the bundled agent.
+- [x] Map the nine command types to OS calls per tier (Monitor read-only;
+      Manage via the scoped `homepot-ctl` helper). — done in
+      `command_poller.process_command`, reused by the bundled agent.
 - [ ] **Packaging**: bundle the Python agent + its venv + `backend/src` inside the
       Electron app so the real device works from an installed app, not just a dev
       checkout. (Readiness gates in the [Testing Runbook](userapp-os-interaction-testing.md).)

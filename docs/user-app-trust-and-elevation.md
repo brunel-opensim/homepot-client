@@ -87,11 +87,12 @@ Only the **device owner** can grant or revoke these. The Dashboard can only
    "Request Access" button, not a Send.
 2. **Backend queue-time permission gate** — required permission missing ⇒ 403
    before the command is ever queued.
-3. **Agent allowlist/resolution layer** — commands that do pass still resolve
-   against the host OS: free-form `run_command`/`run_script` are refused even
-   when `root_access` is granted (only predefined operations —
-   `restart`/`shutdown` — can be elevated), and each command is re-checked
-   against the permission set fetched at execution time.
+3. **Agent resolution layer** — commands that do pass resolve against the host
+   OS through the scoped helper only: free-form `run_command`/`run_script` run
+   via `homepot-ctl run exec` (script piped on stdin, executed as root), power
+   ops via `homepot-ctl run restart|shutdown`. Every command is audited and
+   re-checked against the permission set fetched at execution time. The layer
+   fails closed when the helper or its sudoers rule is absent.
 
 ### Operational exit strategy (cancel)
 
@@ -123,11 +124,10 @@ Recorded evidence from a live run against `DEVICE-P9CQ-TTBX-NFPJ`:
 2. **Manage grant** → one-time admin prompt; drop-in and helper installed with
    the exact scoped permissions above; `sudo -n homepot-ctl status` →
    `{"installed":"yes","provisioned":"yes","allowlist":"yes"}`.
-3. **Allowlist refusal** → a free-form `run_command` was acked then refused
-   with *"free-form command execution is not allowlisted on this device's OS;
-   only predefined power operations (restart/shutdown) can be elevated"*, and
-   the command landed in the Dashboard as `failed` (status reported via PUT —
-   an earlier POST → 405 transport bug was fixed).
+3. **Scoped root execution** → a free-form `run_script` (`id`) ran as root via
+   `homepot-ctl run exec` and the terminal result (status + stdout + exit code)
+   landed in the Dashboard as `completed` (status reported via PUT — an earlier
+   POST → 405 transport bug was fixed).
 4. **Cancel** → the stuck `sent` command was cancelled end-to-end via the
    Dashboard dialog; history shows `cancelled` with operator + timestamp.
 5. **Manage revoke** → `/etc/sudoers.d/homepot` removed autonomously;
@@ -145,7 +145,7 @@ Recorded evidence from a live run against `DEVICE-P9CQ-TTBX-NFPJ`:
 |---|---|---|---|
 | 1 | ~~OS elevation not provisioned by the app~~ | **Closed** — User App provisions scoped `homepot-ctl` + `/etc/sudoers.d/homepot` NOPASSWD drop-in on Manage grant (one-time owner admin prompt) | — |
 | 2 | ~~Revoking Manage does not remove OS capability~~ | **Closed** — owner revoke triggers autonomous deprovision that removes the drop-in and allowlist (binary intentionally retained) | — |
-| 3 | No privileged-helper channel | Privileged commands run in-process via `sudo -n homepot-ctl` | Introduce a small root helper (LaunchDaemon / `SMJobBless`) exposed over IPC, keeping the agent itself unprivileged (preferred, audit-friendly) |
+| 3 | No privileged-helper channel | Privileged commands run in-process via `sudo -n homepot-ctl` (free-form `exec`, power ops) | Introduce a small root helper (LaunchDaemon / `SMJobBless`) exposed over IPC, keeping the agent itself unprivileged (preferred, audit-friendly) |
 | 4 | Mobile platforms cannot honour `root_access` | Capability table already marks `root_access` ✗ on iOS/Android | Keep elevation desktop/server-only; expose the Manage tier only where the OS supports it |
 
 ## Recommended elevation design
@@ -163,6 +163,12 @@ Recorded evidence from a live run against `DEVICE-P9CQ-TTBX-NFPJ`:
   owner-elevation prompt, and **tear it down when Manage is revoked**.
 - Keep the two tiers intact: Monitor = read-only diagnostics (no elevation
   needed), Manage = scoped elevation only.
+- **Consent is one-time, not per-command.** The owner's single `root_access`
+  grant authorises operators using the Manage tier to run power ops and
+  free-form shell commands until revoked. Fleet-scale management therefore
+  needs no per-device approval on every command; safety comes from the backend
+  permission/RBAC gate plus full command audit, and from the owner's
+  instant, autonomous revoke — not from a second human prompt on each box.
 
 ## Why this is MDM-aligned
 

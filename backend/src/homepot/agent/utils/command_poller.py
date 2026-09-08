@@ -178,12 +178,43 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
         }
 
     # Command/script execution is always elevated: it is gated on the
-    # root_access grant and runs through non-interactive sudo on POSIX
-    # (or directly when the process already runs elevated, e.g. Windows
-    # service).
-    elevation = _elevation_prefix()
-    if script:
-        argv = [*elevation, *_shell_for_scripts()]
+    # root_access grant and runs through the scoped homepot-ctl helper on
+    # POSIX (or directly when the process already runs elevated, e.g. a
+    # Windows service).
+    if not _is_windows_platform():
+        elevated_argv = elevation_util.elevated_exec_argv()
+        if elevated_argv is None:
+            return {
+                "status": "failed",
+                "result": {
+                    "error": (
+                        "run_command/run_script requires the Manage elevation "
+                        "layer, which is not installed on this device. "
+                        "Grant 'Manage device' access through the Homepot "
+                        "app on this device to enable command execution."
+                    )
+                },
+            }
+        if not elevation_util.is_provisioned():
+            return {
+                "status": "failed",
+                "result": {
+                    "error": (
+                        "run_command/run_script requires the Manage elevation "
+                        "layer, but its sudoers rule is missing on this "
+                        "device. Re-grant 'Manage device' access through "
+                        "the Homepot app to reinstall it."
+                    )
+                },
+            }
+        # The helper reads the command/script text from stdin and runs it via
+        # the shell as root; nothing is passed through argv.
+        argv = elevated_argv
+        script_text = source
+    elif script:
+        # PowerShell reads the script from stdin.
+        argv = _shell_for_scripts()
+        script_text = source
     else:
         try:
             argv = shlex.split(source)
@@ -194,12 +225,12 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
                 "status": "failed",
                 "result": {"error": "Command produced no executable arguments"},
             }
-        argv = [*elevation, *argv]
+        script_text = None
 
     try:
         completed = subprocess.run(  # noqa: S603 - no shell; argv is explicit
             argv,
-            input=source if script else None,
+            input=script_text,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -737,21 +768,6 @@ def process_command(
             "command_id": command_id,
             "status": "failed",
             "result": {"error": denial},
-        }
-
-    # Elevation layer: on macOS/Linux real devices free-form root execution is
-    # no longer reachable — only fixed allowlisted power operations are.
-    refusal = None
-    if not _is_windows_platform():
-        refusal = elevation_util.allowlist_refusal(command_type)
-    if refusal is not None:
-        logger.warning(
-            "Command refused id=%s type=%s reason=%s", command_id, command_type, refusal
-        )
-        return {
-            "command_id": command_id,
-            "status": "failed",
-            "result": {"error": refusal},
         }
 
     logger.info("Processing command id=%s type=%s", command_id, command_type)
