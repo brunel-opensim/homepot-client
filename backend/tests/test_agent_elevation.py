@@ -13,6 +13,12 @@ def _no_env(monkeypatch) -> None:
     monkeypatch.delenv("HOMEPOT_CTL_PATH", raising=False)
 
 
+def _missing_env(monkeypatch, tmp_path) -> None:
+    """Redirect elevation paths to entries that do not exist on disk."""
+    monkeypatch.setenv("HOMEPOT_ELEVATION_ROOT", str(tmp_path / "missing-root"))
+    monkeypatch.setenv("HOMEPOT_CTL_PATH", str(tmp_path / "missing-ctl"))
+
+
 def _posix_env(monkeypatch) -> None:
     """Ensure os.name is posix for tests that expect macOS/Linux elevation support."""
     monkeypatch.setattr(os, "name", "posix")
@@ -80,7 +86,7 @@ def test_redirected_paths(monkeypatch, tmp_path):
 
 def test_installed_and_provisioned_state(monkeypatch, tmp_path):
     """Installed/provisioned reflect the presence of the helper and drop-in."""
-    _no_env(monkeypatch)
+    _missing_env(monkeypatch, tmp_path)
     assert not elevation.is_elevation_installed()
     assert not elevation.is_provisioned()
 
@@ -199,7 +205,7 @@ class TestElevatedCommandArgv:
 
     def test_not_installed_returns_none(self, monkeypatch, tmp_path):
         """A missing layer produces no argv — dispatch fails actionably."""
-        _no_env(monkeypatch)
+        _missing_env(monkeypatch, tmp_path)
         _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
