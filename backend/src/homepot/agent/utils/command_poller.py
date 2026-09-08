@@ -5,6 +5,7 @@ import logging
 import os
 import platform
 import shlex
+import shutil
 import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 from typing import Any, Dict, List, Optional
@@ -345,6 +346,108 @@ def _run_list_processes(data: Dict[str, Any]) -> Dict[str, Any]:
 # --- list_connections -------------------------------------------------------
 
 
+def _parse_lsof_connection(
+    line: str, filter_state: Optional[str]
+) -> Optional[Dict[str, Any]]:
+    """Parse one ``lsof -nP -i`` row into a connection dict.
+
+    Columns (space-separated): COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE
+    NAME. A socket NAME looks like ``TCP 127.0.0.1:52083->10.0.0.1:443
+    (ESTABLISHED)``. Returns ``None`` when the row is a header, is not a
+    socket, or does not match ``filter_state``.
+    """
+    tokens = line.split()
+    if not tokens or tokens[0] == "COMMAND":
+        return None
+    proto = None
+    name = None
+    for idx, tok in enumerate(tokens):
+        if tok in ("TCP", "UDP"):
+            proto = tok
+            name = " ".join(tokens[idx + 1 :])
+            break
+    if proto is None or not name:
+        return None
+    state = None
+    if " (" in name:
+        addr, sep, state_token = name.rpartition(" (")
+        if sep:
+            state = state_token.rstrip(")")
+            name = addr
+    addresses = name.split("->")
+    local = addresses[0] if addresses else None
+    remote = addresses[1] if len(addresses) > 1 else None
+
+    def _socket_spec(spec: Optional[str]) -> Optional[str]:
+        if not spec or spec in ("*", "*:*"):  # type: ignore[comparison-overlap]
+            return None
+        return spec
+
+    laddr = _socket_spec(local)
+    raddr = _socket_spec(remote)
+    if filter_state and filter_state != "ALL" and (state or "NONE") != filter_state:
+        return None
+
+    pid = None
+    try:
+        pid = int(tokens[1])
+    except (TypeError, ValueError):
+        pid = None
+    return {
+        "pid": pid,
+        "status": state or "NONE",
+        "laddr": laddr,
+        "raddr": raddr,
+    }
+
+
+def _connections_via_lsof(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Unprivileged snapshot of the current user's connections via lsof.
+
+    ``psutil.net_connections`` maps sockets to PIDs and therefore requires
+    root on macOS; ``lsof -nP -i`` lists the same user's sockets without
+    elevation. Returns a status dict on success, ``None`` if lsof itself is
+    unavailable or errors out.
+    """
+    filter_state = data.get("filter_state")
+    lsof = shutil.which("lsof")
+    if lsof is None:
+        logger.warning("lsof fallback unavailable on this host")
+        return None
+    try:
+        completed = subprocess.run(  # noqa: S603 - explicit argv list, no shell
+            [lsof, "-nP", "-i"],
+            capture_output=True,
+            text=True,
+            timeout=MAX_COMMAND_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.warning("lsof fallback failed: %s", exc)
+        return None
+    if completed.returncode not in (0, 1):
+        logger.warning(
+            "lsof fallback errored (rc=%s): %s",
+            completed.returncode,
+            completed.stderr[-500:],
+        )
+        return None
+
+    connections = []
+    for line in completed.stdout.splitlines():
+        parsed = _parse_lsof_connection(line, filter_state)
+        if parsed is not None:
+            connections.append(parsed)
+    return {
+        "status": "completed",
+        "result": {
+            "count": len(connections),
+            "connections": connections,
+            "source": "lsof",
+        },
+    }
+
+
 def _run_list_connections(data: Dict[str, Any]) -> Dict[str, Any]:
     """Snapshot active network connections, optionally filtered by state."""
     filter_state = data.get("filter_state")
@@ -357,12 +460,18 @@ def _run_list_connections(data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         conns = psutil.net_connections(kind="inet")
     except (psutil.AccessDenied, OSError) as exc:
-        return {
-            "status": "failed",
-            "result": {
-                "error": f"connection listing requires elevated privileges: {exc}"
-            },
-        }
+        # On macOS enumerating sockets with their owning PIDs requires root;
+        # fall back to the current user's connections via lsof so the push
+        # returns real data instead of failing.
+        fallback = _connections_via_lsof(data)
+        if fallback is None:
+            return {
+                "status": "failed",
+                "result": {
+                    "error": f"connection listing requires elevated privileges: {exc}"
+                },
+            }
+        return fallback
 
     for conn in conns:
         if filter_state and filter_state != "ALL" and conn.status != filter_state:
