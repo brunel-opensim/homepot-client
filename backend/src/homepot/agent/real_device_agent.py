@@ -137,24 +137,31 @@ async def post_json(
     *,
     submission_log: Optional[SubmissionLog] = None,
     timeout: float = 10.0,
+    method: str = "POST",
 ) -> bool:
     """Send JSON payload to backend and return True on HTTP success.
 
-    When ``submission_log`` is provided, the attempt (endpoint, payload
-    sample timestamp, HTTP status, and acceptance) is appended to the
-    agent submission log so PF-01 ingestion success can be computed.
+    Defaults to ``POST``; pass ``method="PUT"`` for endpoints that require it
+    (e.g. ``PUT /api/v1/devices/{command_id}/status``).  When ``submission_log``
+    is provided, the attempt (endpoint, payload sample timestamp, HTTP status,
+    and acceptance) is appended to the agent submission log so PF-01 ingestion
+    success can be computed.
     """
     accepted = False
     status_code: Optional[int] = None
     try:
-        response = await client.post(
-            url, json=payload, headers=headers, timeout=timeout
+        response = await client.request(
+            method.upper(),
+            url,
+            json=payload,
+            headers=headers,
+            timeout=timeout,
         )
         response.raise_for_status()
         accepted = True
         status_code = response.status_code
     except Exception as e:
-        logger.warning("POST failed url=%s error=%s", url, e)
+        logger.warning("%s failed url=%s error=%s", method.upper(), url, e)
 
     if submission_log is not None:
         sample_timestamp = None
@@ -200,7 +207,7 @@ async def update_command_status(
     """
     url = f"{config['backend_url'].rstrip('/')}/api/v1/devices/{command_id}/status"
     payload = build_status_update_payload(command_id, status, result)
-    return await post_json(client, url, payload, get_auth_headers(config))
+    return await post_json(client, url, payload, get_auth_headers(config), method="PUT")
 
 
 async def ack_command_backend(
@@ -342,6 +349,7 @@ async def pending_commands_loop(
                                 "payload": build_status_update_payload(
                                     cid, result["status"], result.get("result")
                                 ),
+                                "method": "PUT",
                             }
                         )
                     continue
@@ -394,6 +402,7 @@ async def pending_commands_loop(
                                 "payload": build_status_update_payload(
                                     cid, result["status"], result.get("result")
                                 ),
+                                "method": "PUT",
                             }
                         )
                     if command.get("command_type") == "status_request" and result.get(
@@ -445,6 +454,7 @@ async def command_result_loop(
                                 "payload": build_status_update_payload(
                                     cid, result["status"], result.get("result")
                                 ),
+                                "method": "PUT",
                             }
                         )
         except Exception as e:
@@ -769,6 +779,7 @@ async def retry_flush_loop(
                     item["payload"],
                     get_auth_headers(config),
                     submission_log=submission_log,
+                    method=str(item.get("method", "POST")),
                 )
                 if not ok:
                     retry_queue.requeue(item)
