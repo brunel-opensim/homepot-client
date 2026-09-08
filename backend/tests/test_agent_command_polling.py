@@ -165,6 +165,27 @@ class TestProcessCommand:
         assert result["status"] == "failed"
         assert "Manage elevation layer" in result["result"]["error"]
 
+    @skip_if_windows
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_restart_missing_dropin_reports_reinstall_required(
+        self, run, fake_elevation
+    ):
+        """A missing sudoers rule points the owner at re-provisioning.
+
+        When ``homepot-ctl`` exists but the scoped drop-in was removed the
+        agent must not guess at a repair (there is no NOPASSWD rule to go
+        through ``sudo -n``) — it reports that re-granting Manage reinstalls
+        the rule.
+        """
+        fake_elevation["dropin"].unlink()
+        result = process_command(
+            {"command_id": "c1", "command_type": "restart"}, ALLOW_ALL
+        )
+        run.assert_not_called()
+        assert result["status"] == "failed"
+        assert "sudoers rule is missing" in result["result"]["error"]
+        assert "Re-grant 'Manage device'" in result["result"]["error"]
+
     def test_restart_denied_without_root_access(self):
         """Restart fails when root_access is denied."""
         result = process_command(

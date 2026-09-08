@@ -504,19 +504,38 @@ def _system_control(command_type: str) -> Dict[str, Any]:
         # the User App) fail with an actionable message instead of guessing
         # at a passwordless sudo rule that was never provisioned.
         elevated_argv = elevation_util.elevated_command_argv(command_type)
-        if elevated_argv is None and elevation_util.is_elevation_supported():
-            return {
-                "status": "failed",
-                "result": {
-                    "error": (
-                        f"{command_type} requires the Manage elevation layer, "
-                        "which is not installed on this device. Grant 'Manage "
-                        "device' access through the Homepot app on this device "
-                        "to enable power operations."
-                    )
-                },
-            }
-        if elevated_argv is None:
+        if elevation_util.is_elevation_supported():
+            # Distinguish a missing helper from a missing sudoers rule so the
+            # owner gets an actionable message: the helper is restored by the
+            # one-time installer, the rule by re-provisioning (or the same
+            # installer when a previous rule was removed).
+            if elevated_argv is None:
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            f"{command_type} requires the Manage elevation "
+                            "layer, which is not installed on this device. "
+                            "Grant 'Manage device' access through the "
+                            "Homepot app on this device to enable power "
+                            "operations."
+                        )
+                    },
+                }
+            if not elevation_util.is_provisioned():
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            f"{command_type} requires the Manage elevation "
+                            "layer, but its sudoers rule is missing on this "
+                            "device. Re-grant 'Manage device' access through "
+                            "the Homepot app to reinstall it."
+                        )
+                    },
+                }
+            outcome = _run_argv(elevated_argv)
+        else:
             outcome = _run_argv(
                 [
                     *_elevation_prefix(),
@@ -525,8 +544,6 @@ def _system_control(command_type: str) -> Dict[str, Any]:
                     "now",
                 ]
             )
-        else:
-            outcome = _run_argv(elevated_argv)
     if outcome["ok"]:
         return {
             "status": "completed",
