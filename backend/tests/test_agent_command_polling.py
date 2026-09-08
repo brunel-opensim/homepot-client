@@ -258,7 +258,7 @@ class TestProcessCommand:
             ALLOW_ALL,
         )
         assert result["status"] == "completed"
-        assert run.call_args.args[0] == ["/usr/local/bin/brightness", "75"]
+        assert run.call_args.args[0] == ["/usr/local/bin/brightness", "0.75"]
         assert result["result"]["results"]["brightness"]["status"] == "applied"
 
     @patch("homepot.agent.utils.command_poller.platform.system")

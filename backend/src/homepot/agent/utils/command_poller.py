@@ -562,10 +562,11 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
             if helper is None:
                 logger.warning(
                     "macOS 'brightness' helper not found; install via "
-                    "`brew install nriley/brightness/brightness`"
+                    "`brew install brightness`"
                 )
                 return None
-            return [helper, str(int(value))]
+            # nriley/brightness takes a 0..1 float, not a 0..100 integer.
+            return [helper, f"{int(value) / 100:.2f}"]
 
         return {
             "brightness": _brightness,
