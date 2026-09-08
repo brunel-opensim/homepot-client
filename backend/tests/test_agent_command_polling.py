@@ -371,12 +371,14 @@ class TestProcessCommand:
         assert result["result"]["connections"][0]["pid"] == 1
 
     @patch("homepot.agent.utils.command_poller.psutil.net_connections")
+    @patch("homepot.agent.utils.command_poller.shutil.which")
     def test_list_connections_falls_back_to_lsof_on_access_denied(
-        self, net_connections
+        self, which, net_connections
     ):
         """An AccessDenied (macOS) error falls back to a lsof snapshot."""
         import types
 
+        which.return_value = "/usr/bin/lsof"
         net_connections.side_effect = psutil.AccessDenied(pid=1)
         lsof_lines = (
             "COMMAND     PID  USER FD TYPE DEVICE SIZE/OFF NODE NAME\n"
