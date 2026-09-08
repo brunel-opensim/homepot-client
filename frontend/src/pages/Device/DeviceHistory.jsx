@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Eye,
   AlertCircle,
+  Ban,
 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/Toast';
+import CancelCommandDialog from '@/components/Devices/CancelCommandDialog';
 import {
   lifecycleStages,
   formatCommandType,
@@ -60,6 +62,9 @@ export default function DeviceHistory() {
   const [selectedCommand, setSelectedCommand] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelError, setCancelError] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -100,6 +105,32 @@ export default function DeviceHistory() {
         initialData: reuseData,
       },
     });
+  };
+
+  const openCancelDialog = (cmd) => {
+    setCancelError(null);
+    setCancelTarget(cmd);
+  };
+
+  const closeCancelDialog = () => {
+    if (cancellingId) return;
+    setCancelTarget(null);
+    setCancelError(null);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCancellingId(cancelTarget.command_id);
+    try {
+      await api.devices.cancelCommand(id, cancelTarget.command_id);
+      setCancelTarget(null);
+      setToast({ title: 'Cancelled', message: 'Command cancelled', type: 'success' });
+      fetchData();
+    } catch (err) {
+      setCancelError(err?.message || 'Unknown error');
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   if (loading) {
@@ -154,7 +185,10 @@ export default function DeviceHistory() {
             history.map((cmd) => {
               const { meta } = lifecycleStages(cmd);
               const done =
-                cmd.status === 'completed' || cmd.status === 'failed' || cmd.status === 'expired';
+                cmd.status === 'completed' ||
+                cmd.status === 'failed' ||
+                cmd.status === 'expired' ||
+                cmd.status === 'cancelled';
               const message = resultMessage(cmd.result);
               return (
                 <Card
@@ -167,6 +201,8 @@ export default function DeviceHistory() {
                         {done ? (
                           cmd.status === 'completed' ? (
                             <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : cmd.status === 'cancelled' ? (
+                            <Ban className="h-4 w-4 text-orange-400" />
                           ) : (
                             <XCircle className="h-4 w-4 text-red-500" />
                           )
@@ -207,6 +243,18 @@ export default function DeviceHistory() {
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {(cmd.status === 'pending' || cmd.status === 'sent') && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openCancelDialog(cmd)}
+                          className="h-7 px-2 border-red-800/60 bg-transparent text-red-300 hover:text-white hover:bg-red-900/30 text-xs"
+                          title="Cancel this in-flight command"
+                        >
+                          <Ban className="h-3 w-3 mr-1" />
+                          Cancel
+                        </Button>
+                      )}
                       {cmd.payload && (
                         <Button
                           variant="outline"
@@ -294,7 +342,7 @@ export default function DeviceHistory() {
                   <div>
                     <span className="text-gray-500 block mb-2 text-sm">Payload</span>
                     <div className="bg-black/50 rounded-md p-4 overflow-auto max-h-[200px]">
-                      <pre className="text-xs font-mono text-green-400">
+                      <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap break-words">
                         {JSON.stringify(selectedCommand.payload, null, 2)}
                       </pre>
                     </div>
@@ -305,7 +353,7 @@ export default function DeviceHistory() {
                   <div>
                     <span className="text-gray-500 block mb-2 text-sm">Result</span>
                     <div className="bg-black/50 rounded-md p-4 overflow-auto max-h-[200px]">
-                      <pre className="text-xs font-mono text-blue-300">
+                      <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                         {JSON.stringify(selectedCommand.result, null, 2)}
                       </pre>
                     </div>
@@ -313,7 +361,9 @@ export default function DeviceHistory() {
                 )}
 
                 {!selectedCommand.result &&
-                  !['completed', 'failed', 'expired'].includes(selectedCommand.status) && (
+                  !['completed', 'failed', 'expired', 'cancelled'].includes(
+                    selectedCommand.status
+                  ) && (
                     <div className="flex items-center gap-2 text-xs text-amber-400">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       {getStatusMeta(selectedCommand.status).description}
@@ -323,6 +373,15 @@ export default function DeviceHistory() {
             )}
           </DialogContent>
         </Dialog>
+
+        <CancelCommandDialog
+          command={cancelTarget}
+          isOpen={!!cancelTarget}
+          onClose={closeCancelDialog}
+          onConfirm={confirmCancel}
+          isCancelling={!!cancellingId}
+          error={cancelError}
+        />
       </div>
     </div>
   );

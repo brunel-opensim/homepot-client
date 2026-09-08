@@ -13,9 +13,12 @@ import {
   Power,
   RefreshCcw,
   Settings,
+  Ban,
 } from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
 import OsIcon from '@/components/common/OsIcon';
+import api from '@/services/api';
+import CancelCommandDialog from '@/components/Devices/CancelCommandDialog';
 
 /* === Reusable UI Components === */
 export function Card({ children, className = '' }) {
@@ -722,9 +725,12 @@ const CapabilitiesMatrix = ({ device }) => {
   );
 };
 
-export const CommandHistoryWidget = ({ device, history = [] }) => {
+export const CommandHistoryWidget = ({ device, history = [], onCancelCommand, onCancelled }) => {
   const navigate = useNavigate();
   const deviceId = device?.device_id;
+  const [cancellingId, setCancellingId] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelError, setCancelError] = useState(null);
 
   const statusMeta = (status) =>
     ({
@@ -733,7 +739,37 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
       completed: { label: 'Completed', color: 'text-emerald-400' },
       failed: { label: 'Failed', color: 'text-red-400' },
       expired: { label: 'Expired', color: 'text-slate-400' },
+      cancelled: { label: 'Cancelled', color: 'text-orange-400' },
     })[status] || { label: status || 'Unknown', color: 'text-slate-400' };
+
+  const openCancelDialog = (e, item) => {
+    e.stopPropagation();
+    if (!item?.command_id) return;
+    setCancelError(null);
+    setCancelTarget(item);
+  };
+
+  const closeCancelDialog = () => {
+    if (cancellingId) return;
+    setCancelTarget(null);
+    setCancelError(null);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCancellingId(cancelTarget.command_id);
+    try {
+      await (onCancelCommand
+        ? onCancelCommand(deviceId, cancelTarget.command_id)
+        : api.devices.cancelCommand(deviceId, cancelTarget.command_id));
+      setCancelTarget(null);
+      if (onCancelled) onCancelled();
+    } catch (err) {
+      setCancelError(err?.message || 'Unknown error');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -763,6 +799,9 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
               if (item.status === 'failed' || item.status === 'expired') {
                 StatusIcon = XCircle;
                 statusColor = 'text-red-400';
+              } else if (item.status === 'cancelled') {
+                StatusIcon = Ban;
+                statusColor = 'text-orange-400';
               } else if (item.status === 'pending' || item.status === 'sent') {
                 StatusIcon = Loader2;
                 statusColor = 'text-blue-400';
@@ -770,6 +809,7 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
               const title =
                 item.command_type || item.payload?.title || item.action_type || 'Push Command';
               const label = statusMeta(item.status).label;
+              const cancellable = item.status === 'pending' || item.status === 'sent';
 
               return (
                 <div
@@ -788,15 +828,36 @@ export const CommandHistoryWidget = ({ device, history = [] }) => {
                       {label.toUpperCase()}
                     </span>
                   </div>
-                  <span className="text-slate-500 shrink-0 ml-2">
-                    {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {cancellable && (
+                      <button
+                        onClick={(e) => openCancelDialog(e, item)}
+                        className="flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded bg-[#3a1717]/70 border border-red-500/30 text-red-300 hover:bg-[#4a1a1a]/80 hover:border-red-400/50 transition-colors"
+                        title="Cancel this in-flight command"
+                      >
+                        <Ban className="h-3 w-3" />
+                        Cancel
+                      </button>
+                    )}
+                    <span className="text-slate-500">
+                      {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+                    </span>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </Card>
+
+      <CancelCommandDialog
+        command={cancelTarget}
+        isOpen={!!cancelTarget}
+        onClose={closeCancelDialog}
+        onConfirm={confirmCancel}
+        isCancelling={!!cancellingId}
+        error={cancelError}
+      />
     </div>
   );
 };

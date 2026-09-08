@@ -196,6 +196,7 @@ class CommandStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     EXPIRED = "expired"
+    CANCELLED = "cancelled"
 
 
 class Tenant(Base):

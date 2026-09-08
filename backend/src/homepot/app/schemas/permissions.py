@@ -41,7 +41,7 @@ def os_family(os_details: Optional[str]) -> Optional[str]:
         for kw in ("linux", "ubuntu", "debian", "fedora", "centos", "raspberry pi")
     ):
         return "linux"
-    if any(kw in os_lower for kw in ("macos", "mac os", "darwin", "os x")):
+    if any(kw in os_lower for kw in ("macos", "mac os", "darwin", "os x", "mac")):
         return "macos"
     return None
 

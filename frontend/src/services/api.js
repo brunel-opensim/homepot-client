@@ -392,6 +392,15 @@ const api = {
     },
 
     /**
+     * Cancel a command that is still in flight (PENDING/SENT).
+     * The technical exit strategy for a hung command or push.
+     */
+    cancelCommand: async (deviceId, commandId) => {
+      const response = await apiClient.post(`/devices/${deviceId}/commands/${commandId}/cancel`);
+      return response.data;
+    },
+
+    /**
      * Restart device
      */
     restart: async (deviceId) => {

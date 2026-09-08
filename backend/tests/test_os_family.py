@@ -35,6 +35,7 @@ from homepot.models import Base, Device, DeviceStatus, Site, User
         ("ubuntu 22.04", "linux"),
         ("debian 12", "linux"),
         ("macos", "macos"),
+        ("mac", "macos"),
         ("macOS 14", "macos"),
         ("darwin", "macos"),
         ("ios", "ios"),
@@ -69,10 +70,12 @@ def test_derive_capabilities_still_consistent():
     """Capability derivation is preserved via os_family."""
     caps_linux = derive_capabilities("Linux 6.8.0 (Debian 12)")
     caps_macos = derive_capabilities("macOS 14")
+    caps_mac = derive_capabilities("mac")
     caps_ios = derive_capabilities("iOS 17")
     caps_android = derive_capabilities("Android 14")
     assert caps_linux["command_execution"] is True
     assert caps_macos["root_access"] is True
+    assert caps_mac["root_access"] is True
     assert caps_ios["network_monitoring"] is True
     assert caps_ios["command_execution"] is False
     assert caps_android["command_execution"] is True
