@@ -250,7 +250,90 @@ async def ack_command(
     )
 
 
-# 4. Update Command Status (Device only)
+# 4. Cancel Command (Operator exit strategy)
+@router.post(
+    "/{device_id}/commands/{command_id}/cancel",
+    response_model=CommandResponse,
+)
+async def cancel_command(
+    device_id: str,
+    command_id: str,
+    sync_db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> CommandResponse:
+    """Terminate a command that is still in flight (PENDING or SENT).
+
+    Lets an operator force a hung command to a terminal ``cancelled`` state so
+    it stops blocking the command-queue view and releases the push channel,
+    without waiting for the device to report or for the 5-minute expiry sweep.
+    Idempotent: commands already in a terminal state are returned unchanged.
+    """
+    db_user = cast(
+        User, sync_db.query(User).filter(User.email == current_user["email"]).first()
+    )
+    db = await get_database_service()
+    device = await db.get_device_by_device_id(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
+
+    commands = await db.get_commands_for_device(cast(int, device.id))
+    command = next((c for c in commands if c.command_id == command_id), None)
+    if command is None:
+        raise HTTPException(status_code=404, detail="Command not found")
+
+    was_in_flight = command.status in (CommandStatus.PENDING, CommandStatus.SENT)
+    if was_in_flight:
+        updated = await db.update_command_status(
+            command_id=command_id,
+            status=CommandStatus.CANCELLED,
+            result={
+                "note": "Cancelled by operator",
+                "cancelled_by": current_user.get("email"),
+                "cancelled_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Command not found")
+    else:
+        updated = command
+
+    raw_status: Any = updated.status
+    if isinstance(raw_status, CommandStatus):
+        raw_status = raw_status.value
+    final_status = str(raw_status)
+
+    audit_logger = get_audit_logger()
+    await audit_logger.log_event(
+        (
+            AuditEventType.COMMAND_FAILED
+            if final_status == CommandStatus.CANCELLED.value
+            else AuditEventType.COMMAND_QUEUED
+        ),
+        (
+            f"User '{current_user['email']}' cancelled command '{command_id}' "
+            f"for device '{device_id}'"
+            if final_status == CommandStatus.CANCELLED.value
+            else f"Command '{command_id}' already terminal ({final_status}); "
+            f"no change by '{current_user['email']}'"
+        ),
+        user_id=db_user.id,  # type: ignore
+        device_id=device.id,  # type: ignore
+        site_id=device.site_id,  # type: ignore
+        new_values={"command_id": command_id, "status": final_status},
+    )
+
+    return CommandResponse(
+        command_id=updated.command_id,  # type: ignore
+        command_type=updated.command_type,  # type: ignore
+        payload=updated.payload,  # type: ignore
+        status=CommandStatus(final_status),  # type: ignore
+        created_at=updated.created_at.isoformat(),  # type: ignore
+    )
+
+
+# 5. Update Command Status (Device only)
 @router.put("/{command_id}/status", response_model=CommandResponse)
 async def update_command_status(
     command_id: str,

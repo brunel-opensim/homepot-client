@@ -761,3 +761,105 @@ def test_command_expiry_records_executed_at(client: TestClient) -> None:
         assert cmd.executed_at is not None
     finally:
         db.close()
+
+
+def test_cancel_pending_command(client: TestClient) -> None:
+    """An operator can cancel a command that is still PENDING."""
+    ctx = _setup_site_and_device(client)
+    h = ctx["auth_headers"]
+    device_id = ctx["device_id"]
+
+    cmd_id = _queue_command(client, device_id, h, "ping")
+
+    resp = client.post(
+        f"/api/v1/devices/{device_id}/commands/{cmd_id}/cancel", headers=h
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "cancelled"
+    assert resp.json()["command_id"] == cmd_id
+
+    db = homepot.database.SessionLocal()
+    try:
+        cmd = db.query(DeviceCommand).filter(DeviceCommand.command_id == cmd_id).first()
+        assert cmd is not None
+        assert cmd.status == CommandStatus.CANCELLED
+    finally:
+        db.close()
+
+
+def test_cancel_after_ack(client: TestClient) -> None:
+    """An operator can cancel a SENT (acknowledged) command that is hung."""
+    ctx = _setup_site_and_device(client)
+    h = ctx["auth_headers"]
+    device_id = ctx["device_id"]
+    api_key = ctx["api_key"]
+    device_headers = {"X-Device-ID": device_id, "X-API-Key": api_key}
+
+    cmd_id = _queue_command(client, device_id, h, "ping")
+
+    # Device acks -> SENT
+    resp = client.post(
+        f"/api/v1/devices/{device_id}/commands/{cmd_id}/ack", headers=device_headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "sent"
+
+    # Operator cancels the hung SENT command
+    resp = client.post(
+        f"/api/v1/devices/{device_id}/commands/{cmd_id}/cancel", headers=h
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "cancelled"
+
+    db = homepot.database.SessionLocal()
+    try:
+        cmd = db.query(DeviceCommand).filter(DeviceCommand.command_id == cmd_id).first()
+        assert cmd is not None
+        assert cmd.status == CommandStatus.CANCELLED
+    finally:
+        db.close()
+
+
+def test_cancel_idempotent_on_terminal(client: TestClient) -> None:
+    """Cancelling an already-terminal command is a no-op, not an error."""
+    ctx = _setup_site_and_device(client)
+    h = ctx["auth_headers"]
+    device_id = ctx["device_id"]
+    api_key = ctx["api_key"]
+    device_headers = {"X-Device-ID": device_id, "X-API-Key": api_key}
+
+    cmd_id = _queue_command(client, device_id, h, "ping")
+
+    # Complete it via device status update
+    resp = client.put(
+        f"/api/v1/devices/{cmd_id}/status",
+        json={"status": "completed", "result": {"ok": True}},
+        headers=device_headers,
+    )
+    assert resp.status_code == 200
+
+    # Cancelling an already-completed command returns it unchanged
+    resp = client.post(
+        f"/api/v1/devices/{device_id}/commands/{cmd_id}/cancel", headers=h
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "completed"
+
+    db = homepot.database.SessionLocal()
+    try:
+        cmd = db.query(DeviceCommand).filter(DeviceCommand.command_id == cmd_id).first()
+        assert cmd is not None
+        assert cmd.status == CommandStatus.COMPLETED
+    finally:
+        db.close()
+
+
+def test_cancel_requires_operator_auth(client: TestClient) -> None:
+    """Cancelling a command without operator authorisation is forbidden."""
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+    cmd_id = _queue_command(client, device_id, ctx["auth_headers"], "ping")
+
+    # No auth at all
+    resp = client.post(f"/api/v1/devices/{device_id}/commands/{cmd_id}/cancel")
+    assert resp.status_code == 401

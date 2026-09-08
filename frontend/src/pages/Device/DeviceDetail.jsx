@@ -99,6 +99,42 @@ const DEVICE_ACTIONS = {
     { key: 'suspend', label: 'Suspend Device' },
     { key: 'resume', label: 'Resume Device' },
   ],
+  desktop: [
+    { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
+  ],
+  laptop: [
+    { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
+  ],
+  virtual_terminal: [
+    { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
+  ],
+  kiosk: [
+    { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
+  ],
+  tablet: [
+    { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
+  ],
+  mobile_scanner: [
+    { key: 'status_request', label: 'Request Status' },
+    { key: 'update_settings', label: 'Compose Command' },
+    { key: 'suspend', label: 'Suspend Device' },
+    { key: 'resume', label: 'Resume Device' },
+  ],
 };
 
 /* === Helpers === */
@@ -989,7 +1025,18 @@ export default function Device() {
                   {activeTab === 'jobs' && <JobHistoryWidget jobs={jobHistory} />}
                   {activeTab === 'alerts' && <AlertsWidget alerts={alerts} />}
                   {activeTab === 'commands' && (
-                    <CommandHistoryWidget device={device} history={pushHistory} />
+                    <CommandHistoryWidget
+                      device={device}
+                      history={pushHistory}
+                      onCancelled={async () => {
+                        try {
+                          const historyData = await api.devices.getCommands(id, 10);
+                          setPushHistory(historyData || []);
+                        } catch (err) {
+                          console.debug('History refresh skipped', err);
+                        }
+                      }}
+                    />
                   )}
                 </div>
               </div>

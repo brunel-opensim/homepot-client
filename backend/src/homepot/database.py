@@ -923,8 +923,9 @@ class DatabaseService:
                     command.sent_at = now  # type: ignore
                 if status in (CommandStatus.COMPLETED, CommandStatus.FAILED):
                     command.executed_at = executed_at or now  # type: ignore
-                if status == CommandStatus.EXPIRED and command.executed_at is None:
-                    command.executed_at = now  # type: ignore
+                if status in (CommandStatus.EXPIRED, CommandStatus.CANCELLED):
+                    if command.executed_at is None:
+                        command.executed_at = now  # type: ignore
                 command.status = status  # type: ignore
                 if result:
                     command.result = result  # type: ignore

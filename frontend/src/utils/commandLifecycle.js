@@ -34,6 +34,13 @@ export const COMMAND_STATUS_META = {
     bg: 'bg-slate-500/10',
     border: 'border-slate-500/30',
   },
+  cancelled: {
+    label: 'Cancelled',
+    description: 'Terminated by an operator',
+    color: 'text-orange-400',
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/30',
+  },
 };
 
 export function getStatusMeta(status) {
@@ -62,9 +69,20 @@ export function lifecycleStages(command) {
     key: 'result',
     label: meta.label,
     time: command?.executed_at || command?.created_at,
-    done: status === 'completed' || status === 'failed' || status === 'expired',
+    done: isTerminalStatus(status),
   };
   return { status, meta, stages, finalStage };
+}
+
+export function isTerminalStatus(status) {
+  return (
+    status === 'completed' || status === 'failed' || status === 'expired' || status === 'cancelled'
+  );
+}
+
+export function canCancelCommand(command) {
+  if (!command) return false;
+  return command.status === 'pending' || command.status === 'sent';
 }
 
 export function formatCommandType(commandType) {
