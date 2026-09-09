@@ -389,12 +389,17 @@ export default function DeviceInfo() {
               </button>
             </div>
           ) : updateState.kind === 'not-available' ? (
-            <button
-              onClick={handleCheckUpdate}
-              className="w-full py-2.5 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 text-emerald-300 text-sm font-medium transition-colors"
-            >
-              ✓  Up to date — v{appVersion}
-            </button>
+            <div className="flex flex-col gap-2">
+              {updateState.detail && (
+                <p className="text-slate-400 text-xs text-center break-words">{updateState.detail}</p>
+              )}
+              <button
+                onClick={handleCheckUpdate}
+                className="w-full py-2.5 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 text-emerald-300 text-sm font-medium transition-colors"
+              >
+                ✓  Up to date — v{appVersion} · Check again
+              </button>
+            </div>
           ) : (
             <button
               onClick={handleCheckUpdate}
