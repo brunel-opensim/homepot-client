@@ -40,7 +40,12 @@ declare global {
           message: string
         }>>
         checkForUpdates(): Promise<UpdateCheckResult>
-        downloadUpdate(): Promise<{ status: 'downloading' } | { status: 'disabled' } | { status: 'error'; message: string }>
+        downloadUpdate(): Promise<{
+          status: 'downloading' | 'updating' | 'downloaded' | 'disabled' | 'error'
+          message?: string
+          version?: string
+          detail?: string
+        }>
         restartToInstall(): Promise<{ status: 'installing' } | { status: 'disabled' }>
         getUpdateState(): Promise<UpdateStatePayload>
       }
@@ -86,23 +91,47 @@ declare global {
 // Types
 // ---------------------------------------------------------------------------
 
+export type BuildMode = 'packaged' | 'source' | 'none'
+
+export interface SourceUpdateInfo {
+  mode: 'source'
+  root: string
+  branch: string
+  headSha: string
+  behindCount: number
+  aheadCount: number
+  dirty: boolean
+  fetchSucceeded: boolean
+  latestTag: string | null
+  currentTag: string | null
+  error: string | null
+}
+
+export type UpdateState =
+  | { kind: 'idle'; channel?: BuildMode }
+  | { kind: 'checking'; channel?: BuildMode }
+  | { kind: 'available'; version: string; detail?: string; channel?: 'packaged' | 'source' }
+  | { kind: 'not-available'; detail?: string }
+  | { kind: 'downloading'; percent: number }
+  | { kind: 'updating'; detail?: string }
+  | { kind: 'downloaded'; version: string; detail?: string }
+  | { kind: 'error'; message: string }
+  | { kind: 'disabled'; reason?: string }
+
 export interface UpdateCheckResult {
-  status: 'checking' | 'disabled' | 'error'
+  mode: BuildMode
+  status: 'checking' | 'available' | 'not-available' | 'disabled' | 'error'
   currentVersion?: string
+  version?: string
+  detail?: string
   message?: string
+  info?: SourceUpdateInfo
 }
 
 export interface UpdateStatePayload {
-  state:
-    | { kind: 'idle' }
-    | { kind: 'checking' }
-    | { kind: 'available'; version: string }
-    | { kind: 'not-available' }
-    | { kind: 'downloading'; percent: number }
-    | { kind: 'downloaded'; version: string }
-    | { kind: 'error'; message: string }
-    | { kind: 'disabled' }
+  state: UpdateState
   currentVersion: string
+  mode: BuildMode
 }
 
 export interface DeviceCredentials {
