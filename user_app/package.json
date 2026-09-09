@@ -45,7 +45,7 @@
       "provider": "github",
       "owner": "brunel-opensim",
       "repo": "homepot-client",
-      "releaseType": "draft"
+      "releaseType": "release"
     },
     "linux": {
       "target": [

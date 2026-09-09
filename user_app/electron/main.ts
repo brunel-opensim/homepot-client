@@ -30,18 +30,45 @@ let agentProcess: ChildProcess | null = null
 // when the emulator fails to start (e.g. missing python/httpx).
 let emulatorStderr: string[] = []
 
-// --- Auto-update state (electron-updater) -----------------------------------
+// --- Auto-update state (electron-updater packaged / git source) -------------
+type BuildMode = 'packaged' | 'source' | 'none'
+
 type UpdateState =
-  | { kind: 'idle' }
-  | { kind: 'checking' }
-  | { kind: 'available'; version: string }
-  | { kind: 'not-available' }
+  | { kind: 'idle'; channel?: BuildMode }
+  | { kind: 'checking'; channel?: BuildMode }
+  | { kind: 'available'; version: string; detail?: string; channel: 'packaged' | 'source' }
+  | { kind: 'not-available'; detail?: string }
   | { kind: 'downloading'; percent: number }
-  | { kind: 'downloaded'; version: string }
+  | { kind: 'updating'; detail?: string }
+  | { kind: 'downloaded'; version: string; detail?: string }
   | { kind: 'error'; message: string }
-  | { kind: 'disabled' }
+  | { kind: 'disabled'; reason?: string }
+
+type SourceUpdateInfo = {
+  mode: 'source'
+  root: string
+  branch: string
+  headSha: string
+  behindCount: number
+  aheadCount: number
+  dirty: boolean
+  fetchSucceeded: boolean
+  latestTag: string | null
+  currentTag: string | null
+  error: string | null
+}
 
 let updateState: UpdateState = { kind: 'idle' }
+
+// The app updates through electron-updater when packaged; when run from a git
+// checkout (the rollout model for managed machines) updates come from the repo
+// itself. 'none' means neither channel is usable, so the UI reports disabled.
+function updateMode(): BuildMode {
+  if (app.isPackaged) return 'packaged'
+  const root = getProjectRoot()
+  if (root && fs.existsSync(path.join(root, '.git'))) return 'source'
+  return 'none'
+}
 
 function updaterConfigured(): boolean {
   // electron-updater is only usable in a packaged app that ships app-update.yml.
@@ -52,6 +79,7 @@ function sendUpdateStatus(): void {
   const payload: Record<string, unknown> = {
     state: updateState,
     currentVersion: app.getVersion(),
+    mode: updateMode(),
   }
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('app:update:status', payload)
@@ -67,12 +95,12 @@ function setupAutoUpdater(): void {
   autoUpdater.autoDownload = false
 
   autoUpdater.on('checking-for-update', () => {
-    updateState = { kind: 'checking' }
+    updateState = { kind: 'checking', channel: 'packaged' }
     sendUpdateStatus()
   })
 
   autoUpdater.on('update-available', (info) => {
-    updateState = { kind: 'available', version: info.version }
+    updateState = { kind: 'available', version: info.version, channel: 'packaged' }
     sendUpdateStatus()
     recordAppEvent('info', 'updater', `Update available v${info.version}`)
   })
@@ -95,19 +123,173 @@ function setupAutoUpdater(): void {
   })
 
   autoUpdater.on('error', (err) => {
-    updateState = { kind: recoverFromDownloadError() }
+    const message = String(err instanceof Error ? err.message : err)
+    updateState = recoverFromDownloadError(message)
     sendUpdateStatus()
-    recordAppEvent('error', 'updater', `Update error: ${String(err)}`)
+    recordAppEvent('error', 'updater', `Update error: ${message}`)
   })
 }
 
 // If a download error aborts an in-progress download, settle back to idle so
 // the UI can start a fresh check; otherwise surface a terminal error state.
-function recoverFromDownloadError(): UpdateState['kind'] {
+function recoverFromDownloadError(message: string): UpdateState {
   if (updateState.kind === 'downloading') {
-    return 'idle'
+    return { kind: 'idle' }
   }
-  return 'error'
+  return { kind: 'error', message }
+}
+
+// --- Source (git) update helpers -------------------------------------------
+
+async function runGit(args: string[], opts: { cwd: string; timeout?: number }): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, {
+    cwd: opts.cwd,
+    timeout: opts.timeout ?? 30000,
+    maxBuffer: 16 * 1024 * 1024,
+  })
+  return String(stdout ?? '').trim()
+}
+
+/** Run a git command tolerantly; returns ``null`` when it fails. */
+async function tryGit(args: string[], cwd: string): Promise<string | null> {
+  try {
+    return await runGit(args, { cwd })
+  } catch {
+    return null
+  }
+}
+
+function gitErrorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err)
+  return message.split('\n').filter(Boolean).join(' ').slice(0, 600)
+}
+
+function sourceRepoRoot(): string {
+  const root = getProjectRoot()
+  if (!root) throw new Error('Could not resolve the source checkout')
+  return root
+}
+
+function sourceAppDir(): string {
+  return path.join(sourceRepoRoot(), 'user_app')
+}
+
+async function sourceUpdateInfo(): Promise<SourceUpdateInfo> {
+  const root = sourceRepoRoot()
+  const result: SourceUpdateInfo = {
+    mode: 'source',
+    root,
+    branch: '?',
+    headSha: '?',
+    behindCount: 0,
+    aheadCount: 0,
+    dirty: false,
+    fetchSucceeded: false,
+    latestTag: null,
+    currentTag: null,
+    error: null,
+  }
+
+  let fetchSucceeded = false
+  let fetchError: string | null = null
+  try {
+    await runGit(['fetch', '--tags', 'origin'], { cwd: root, timeout: 60000 })
+    fetchSucceeded = true
+  } catch (err) {
+    fetchError = `Could not reach the origin to check for updates (${gitErrorMessage(err)})`
+  }
+  result.fetchSucceeded = fetchSucceeded
+  result.branch = (await tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], root)) ?? '?'
+  result.headSha = (await tryGit(['rev-parse', '--short', 'HEAD'], root)) ?? '?'
+  result.currentTag = await tryGit(['describe', '--tags', '--exact-match', 'HEAD'], root)
+  const tags = await tryGit(['tag', '--list', '--sort=-version:refname'], root)
+  result.latestTag = tags ? tags.split('\n')[0] || null : null
+  result.dirty = Boolean(await tryGit(['status', '--porcelain'], root))
+
+  const upstream = await tryGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], root)
+  const base = upstream ?? 'origin/HEAD'
+  const ahead = await tryGit(['rev-list', '--count', `${base}..HEAD`], root)
+  const behind = await tryGit(['rev-list', '--count', `HEAD..${base}`], root)
+  result.aheadCount = Number.parseInt(ahead ?? '0', 10)
+  result.behindCount = Number.parseInt(behind ?? '0', 10)
+
+  if (!fetchSucceeded) result.error = fetchError
+  return result
+}
+
+function sourceDetail(info: SourceUpdateInfo): string {
+  const parts: string[] = [
+    `${info.behindCount} commit${info.behindCount === 1 ? '' : 's'} behind origin/${info.branch}`,
+  ]
+  if (info.aheadCount > 0) parts.push(`${info.aheadCount} local commit(s) ahead`)
+  if (info.dirty) parts.push('working tree has uncommitted changes')
+  return parts.join(' · ')
+}
+
+async function applySourceUpdate(): Promise<
+  { status: 'downloaded'; version: string; detail: string } | { status: 'error'; message: string }
+> {
+  const root = sourceRepoRoot()
+  const appDir = sourceAppDir()
+  const branch = (await tryGit(['rev-parse', '--abbrev-ref', 'HEAD'], root)) ?? 'main'
+  const stage = (detail: string) => {
+    updateState = { kind: 'updating', detail }
+    sendUpdateStatus()
+  }
+  try {
+    stage('Stopping device processes…')
+    killEmulator()
+    killAgent()
+
+    stage(`Pulling origin/${branch}…`)
+    await runGit(['pull', '--ff-only', 'origin', branch], { cwd: root, timeout: 180000 })
+
+    // Keep dependencies current when the pulled revision changed them.
+    if (fs.existsSync(path.join(appDir, 'package-lock.json'))) {
+      stage('Installing dependencies…')
+      await execFileAsync('npm', ['install', '--no-audit', '--no-fund', '--prefer-offline'], {
+        cwd: appDir,
+        timeout: 300000,
+        maxBuffer: 16 * 1024 * 1024,
+      })
+    }
+
+    stage('Rebuilding the app…')
+    const viteBin = path.join(
+      appDir,
+      'node_modules',
+      '.bin',
+      process.platform === 'win32' ? 'vite.cmd' : 'vite',
+    )
+    await execFileAsync(viteBin, ['build'], {
+      cwd: appDir,
+      timeout: 600000,
+      maxBuffer: 16 * 1024 * 1024,
+      env: { ...process.env, VITE_ELECTRON: 'true' },
+    })
+
+    const info = await sourceUpdateInfo()
+    const version = info.latestTag ?? `source @ ${info.headSha}`
+    const detail = 'Source updated — restart to apply'
+    updateState = { kind: 'downloaded', version, detail }
+    sendUpdateStatus()
+    return { status: 'downloaded', version, detail }
+  } catch (err) {
+    const message = `Source update failed: ${gitErrorMessage(err)}`
+    recordAppEvent('error', 'updater', message)
+    updateState = { kind: 'error', message }
+    sendUpdateStatus()
+    return { status: 'error', message }
+  }
+}
+
+function restartToApplySourceUpdate(): { status: 'installing' } {
+  recordAppEvent('info', 'updater', 'Restarting to apply the source update')
+  killEmulator()
+  killAgent()
+  app.relaunch()
+  app.exit(0)
+  return { status: 'installing' }
 }
 
 interface EmulatorFileConfig {
@@ -440,42 +622,85 @@ function registerIpcHandlers() {
   })
 
   // --- Update checks ---------------------------------------------------------
-  // electron-updater requires a packaged build (app-update.yml + a publish
-  // provider). In dev / unpackaged runs the updater errors at startup, so we
-  // guard every call so the app still shows its version and reports "disabled".
+  // Packaged builds update through electron-updater (requires app-update.yml +
+  // a publish provider). Source checkouts update from their own git repo.
+  // 'none' reports disabled with a reason instead of a silent dead end.
 
   ipcMain.handle('app:checkForUpdates', async () => {
+    const mode = updateMode()
+    const currentVersion = app.getVersion()
+
+    if (mode === 'source') {
+      updateState = { kind: 'checking', channel: 'source' }
+      sendUpdateStatus()
+      const info = await sourceUpdateInfo()
+      if (info.behindCount > 0) {
+        const version = info.latestTag ?? `+${info.behindCount} commit${info.behindCount === 1 ? '' : 's'}`
+        const detail = sourceDetail(info)
+        updateState = { kind: 'available', version, detail, channel: 'source' }
+        sendUpdateStatus()
+        recordAppEvent('info', 'updater', `Source update available (${detail})`)
+        return { mode, status: 'available', currentVersion, version, detail, info }
+      }
+      if (!info.fetchSucceeded) {
+        const message = info.error ?? 'Could not reach the update source'
+        updateState = { kind: 'error', message }
+        sendUpdateStatus()
+        return { mode, status: 'error', currentVersion, message, info }
+      }
+      const detail = `Up to date with origin/${info.branch}${info.dirty ? ' · working tree has uncommitted changes' : ''}`
+      updateState = { kind: 'not-available', detail }
+      sendUpdateStatus()
+      return { mode, status: 'not-available', currentVersion, detail, info }
+    }
+
     setupAutoUpdater()
     const usable = updaterConfigured()
-    if (!usable) return { status: 'disabled', currentVersion: app.getVersion() }
+    if (!usable) {
+      const reason =
+        mode === 'none'
+          ? 'This build was neither installed from a package nor run from a source checkout'
+          : 'Automatic updates are not enabled for this build'
+      updateState = { kind: 'disabled', reason }
+      sendUpdateStatus()
+      return { mode, status: 'disabled', currentVersion, message: reason }
+    }
     try {
+      updateState = { kind: 'checking', channel: 'packaged' }
+      sendUpdateStatus()
       await autoUpdater.checkForUpdates()
-      return { status: 'checking', currentVersion: app.getVersion() }
+      return { mode, status: 'checking', currentVersion }
     } catch (err) {
-      recordAppEvent('error', 'updater', `Update check failed: ${String(err)}`)
-      return { status: 'error', message: String(err), currentVersion: app.getVersion() }
+      const message = String(err instanceof Error ? err.message : err)
+      recordAppEvent('error', 'updater', `Update check failed: ${message}`)
+      updateState = { kind: 'error', message }
+      sendUpdateStatus()
+      return { mode, status: 'error', currentVersion, message }
     }
   })
 
   ipcMain.handle('app:downloadUpdate', async () => {
+    if (updateMode() === 'source') return applySourceUpdate()
     if (!updaterConfigured()) return { status: 'disabled' }
     try {
       autoUpdater.downloadUpdate()
       return { status: 'downloading' }
     } catch (err) {
-      recordAppEvent('error', 'updater', `Update download failed: ${String(err)}`)
-      return { status: 'error', message: String(err) }
+      const message = String(err instanceof Error ? err.message : err)
+      recordAppEvent('error', 'updater', `Update download failed: ${message}`)
+      return { status: 'error', message }
     }
   })
 
   ipcMain.handle('app:restartToInstall', () => {
+    if (updateMode() === 'source') return restartToApplySourceUpdate()
     if (!updaterConfigured()) return { status: 'disabled' }
     autoUpdater.quitAndInstall()
     return { status: 'installing' }
   })
 
   ipcMain.handle('app:getUpdateState', () => {
-    return { state: updateState, currentVersion: app.getVersion() }
+    return { state: updateState, currentVersion: app.getVersion(), mode: updateMode() }
   })
 
   ipcMain.handle('app:getRecentLogs', (_event, requestedLimit = MAX_APP_LOG_ENTRIES) => {
