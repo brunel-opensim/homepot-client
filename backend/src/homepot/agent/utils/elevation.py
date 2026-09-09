@@ -1,8 +1,10 @@
 """OS elevation layer for the real device agent.
 
 The agent never receives blanket sudo. Managed ("root_access") elevation is
-scoped to a single root-owned helper, ``homepot-ctl``, which can execute a
-fixed allowlisted set of host operations as root and refuses anything else.
+scoped to a single root-owned helper, ``homepot-ctl``, which executes a fixed
+allowlisted set of host operations as root (``restart``/``shutdown``) plus the
+owner-authorized free-form ``exec`` op (a script read from stdin and run via
+the shell). Everything else is refused.
 
 Lifecycle
 ---------
@@ -18,8 +20,12 @@ Lifecycle
   ``sudo -n homepot-ctl deprovision``, removing the drop-in and allowlist
   without any admin prompt. No lingering NOPASSWD rule survives a revoke.
 
-All paths are redirected via ``HOMEPOT_ELEVATION_ROOT`` in tests so nothing
-touches ``/etc`` on developer machines.
+Consent model: the owner's ``root_access`` grant is the one authorization —
+operators who reach this layer through the backend permission gate may run
+power ops and free-form shell commands, and every command is audited. Revoking
+the grant tears the layer down. All paths are redirected via
+``HOMEPOT_ELEVATION_ROOT`` in tests so nothing touches ``/etc`` on developer
+machines.
 """
 
 import json
@@ -37,14 +43,13 @@ ELEVATION_ROOT_ENV = "HOMEPOT_ELEVATION_ROOT"
 SUPPORTED_PLATFORMS = ("darwin", "linux")
 
 # The only host operations the elevation helper may perform as root.
-ALLOWED_OPS: tuple[str, ...] = ("restart", "shutdown")
+ALLOWED_OPS: tuple[str, ...] = ("restart", "shutdown", "exec")
 
+# Helper op that carries free-form shell execution (script read from stdin).
+EXEC_OP = "exec"
+
+# Dispatch command types served by the free-form ``exec`` op.
 FREE_FORM_COMMANDS = ("run_command", "run_script")
-
-REFUSAL_MESSAGE = (
-    "free-form command execution is not allowlisted on this device's OS; "
-    "only predefined power operations (restart/shutdown) can be elevated"
-)
 
 
 def elevation_root() -> str:
@@ -213,19 +218,20 @@ def elevated_command_argv(command_type: str) -> Optional[list[str]]:
     return ["sudo", "-n", ctl_path(), "run", command_type]
 
 
-def allowlist_refusal(command_type: str) -> Optional[str]:
-    """Return an error message when a command must be refused on this OS.
+def elevated_exec_argv() -> Optional[list[str]]:
+    """Return the argv used to elevate a free-form shell command.
 
-    Free-form ``run_command`` / ``run_script`` can no longer run arbitrary
-    root commands on macOS/Linux real devices; the elevation helper only
-    covers the fixed power operations. Returns ``None`` when the command is
-    allowed to proceed.
+    Free-form ``run_command`` / ``run_script`` on macOS/Linux real devices run
+    through the same scoped helper (``homepot-ctl run exec``); the command or
+    script text is piped on stdin and the helper runs it via the shell as
+    root. Returns ``None`` when elevation is not available on this platform or
+    the helper is not installed.
     """
-    if command_type not in FREE_FORM_COMMANDS:
-        return None
     if not is_elevation_supported():
         return None
-    return REFUSAL_MESSAGE
+    if not is_elevation_installed():
+        return None
+    return ["sudo", "-n", ctl_path(), "run", EXEC_OP]
 
 
 def parse_ctl_status(output: str) -> Dict[str, Any]:

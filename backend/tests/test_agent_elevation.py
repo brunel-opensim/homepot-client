@@ -245,38 +245,44 @@ class TestElevatedCommandArgv:
             assert elevation.elevated_command_argv("run_command") is None
 
 
-class TestAllowlistRefusal:
-    """Free-form commands are refused on macOS/Linux, allowed on Windows."""
+class TestElevatedExecArgv:
+    """Free-form shell execution reuses the scoped helper (`exec` op)."""
 
-    def test_windows_allows_free_form(self, monkeypatch):
-        """Windows keeps the legacy behavior — no refusal message."""
+    def test_windows_has_no_exec_argv(self, monkeypatch):
+        """Windows does not use the POSIX elevation helper."""
         _no_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Windows"
         ):
-            assert elevation.allowlist_refusal("run_command") is None
-            assert elevation.allowlist_refusal("run_script") is None
+            assert elevation.elevated_exec_argv() is None
 
-    def test_free_form_refused_on_macos_linux(self, monkeypatch):
-        """Free-form ops are refused on macOS/Linux with a clear message."""
-        _no_env(monkeypatch)
+    def test_missing_layer_returns_none(self, monkeypatch, tmp_path):
+        """A missing helper produces no exec argv — dispatch fails actionably."""
+        _missing_env(monkeypatch, tmp_path)
         _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
-            assert "not allowlisted" in elevation.allowlist_refusal("run_command")
-            assert "not allowlisted" in elevation.allowlist_refusal("run_script")
+            assert elevation.elevated_exec_argv() is None
 
-    def test_fixed_ops_allowed(self, monkeypatch):
-        """Allowlisted power ops and non-privileged ops are not refused."""
-        _no_env(monkeypatch)
+    def test_installed_layer_builds_exec_argv(self, monkeypatch, tmp_path):
+        """Free-form commands run via ``sudo -n <ctl> run exec``."""
+        env = _provisioned_env(monkeypatch, tmp_path)
         _posix_env(monkeypatch)
         with patch(
             "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
         ):
-            assert elevation.allowlist_refusal("restart") is None
-            assert elevation.allowlist_refusal("shutdown") is None
-            assert elevation.allowlist_refusal("health_check") is None
+            assert elevation.elevated_exec_argv() == [
+                "sudo",
+                "-n",
+                str(env["ctl"]),
+                "run",
+                "exec",
+            ]
+
+    def test_exec_op_allowlisted(self):
+        """The free-form exec op is part of the helper's allowlist."""
+        assert "exec" in elevation.ALLOWED_OPS
 
 
 class TestSyncOsElevation:

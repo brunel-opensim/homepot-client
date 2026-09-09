@@ -4,7 +4,8 @@
 # Run through an OS admin prompt (osascript "with administrator privileges" on
 # macOS, pkexec on Linux) so it executes as root. It installs the scoped
 # `homepot-ctl` helper and grants the app user a NOPASSWD rule for that single
-# helper — never `ALL`, never a raw shell.
+# helper — never `ALL`, never a raw shell in the sudoers rule. Root execution
+# (power ops and the free-form `exec` op) stays inside the helper.
 #
 # Usage:
 #   homepot-ctl-install.sh --ctl <source-homepot-ctl> [--uid <user>] [--root <target>]

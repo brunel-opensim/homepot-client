@@ -2,12 +2,14 @@
 # homepot-ctl — the only elevated entry point on a Homepot device.
 #
 # The device agent never receives blanket sudo. Manage ("root_access")
-# elevation is scoped to this single root-owned helper, which can execute a
-# fixed, allowlisted set of host operations as root (restart/shutdown) and
-# refuses everything else. Nothing user-supplied is ever passed to a shell.
+# elevation is scoped to this single root-owned helper, which executes a
+# fixed, allowlisted set of host operations as root (restart/shutdown) and the
+# owner-authorized free-form `exec` op (script read from stdin, run via the
+# shell). Everything else is refused. Nothing is ever executed from argv.
 #
-# The agent invokes commands via non-interactive sudo:
+# The agent invokes operations via non-interactive sudo:
 #     sudo -n /usr/local/homepot/homepot-ctl run restart
+#     sudo -n /usr/local/homepot/homepot-ctl run exec < script.sh
 # Provisioning / teardown of the sudoers drop-in is done by the same helper:
 #     sudo -n /usr/local/homepot/homepot-ctl deprovision
 #
@@ -74,6 +76,13 @@ cmd_run() {
       else exec shutdown -h now
       fi
       ;;
+    exec)
+      # Owner-authorized free-form execution: the script is read from stdin
+      # and run through the shell as root. Nothing is taken from argv. The
+      # script becomes the process, so stdout/stderr and the exit status flow
+      # straight back to the caller.
+      exec /bin/sh -s
+      ;;
     *)
       echo "homepot-ctl: operation '$op' is not allowlisted" >&2
       exit 2
@@ -88,7 +97,7 @@ cmd_ensure_allowlist() {
     *) mkdir -p "$(dirname "$ALLOWLIST")" ;;
   esac
   umask 077
-  printf '%s\n' "op:restart" "op:shutdown" > "$ALLOWLIST"
+  printf '%s\n' "op:restart" "op:shutdown" "op:exec" > "$ALLOWLIST"
   chmod 0600 "$ALLOWLIST"
 }
 
