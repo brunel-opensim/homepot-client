@@ -24,12 +24,21 @@ block_cipher = None
 SPEC_DIR = Path(SPECPATH).resolve()
 REPO_ROOT = SPEC_DIR.parent
 EMULATORS_DIR = REPO_ROOT / "emulators"
+# Canonical OS capability/push-channel logic lives in the backend package but
+# must stay importable from the frozen emulator, which only bundles the
+# ``emulators/`` tree. We add the backend's stdlib-only ``os_capabilities.py``
+# module alongside it; ``pos_engine.py`` falls back to ``import os_capabilities``
+# when the backend is not importable.
+PACKAGED_SCHEMAS = REPO_ROOT / "backend" / "src" / "homepot" / "app" / "schemas"
 
 a = Analysis(
     [str(SPEC_DIR / "emulator_entry.py")],
-    pathex=[str(EMULATORS_DIR)],
+    pathex=[str(EMULATORS_DIR), str(PACKAGED_SCHEMAS)],
     binaries=[],
-    datas=[(str(EMULATORS_DIR), "emulators")],
+    datas=[
+        (str(EMULATORS_DIR), "emulators"),
+        (str(PACKAGED_SCHEMAS / "os_capabilities.py"), "emulators"),
+    ],
     hiddenimports=[
         "pos_engine",
         "linux_pos_emulator",
@@ -37,6 +46,7 @@ a = Analysis(
         "windows_pos_emulator",
         "macos_pos_emulator",
         "ios_pos_emulator",
+        "os_capabilities",
     ],
     hookspath=[],
     hooksconfig={},

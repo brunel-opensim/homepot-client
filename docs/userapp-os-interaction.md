@@ -31,8 +31,9 @@ How a command gets from the server to the installed app. Three mechanisms:
 | **MDM** | Device is enrolled in a device-management server; the server sends OS-level commands over the platform's MDM channel | Zero-touch enrollment and OS-level control (restart/shutdown/lock/erase) on managed fleets |
 
 The backend already models the per-OS push channel
-(`derive_push_channel` in `emulators/pos_engine.py`, mirrored by the backend's
-`derive_capabilities` in `schemas/permissions.py`) and ships working providers
+(`derive_push_channel` / `derive_capabilities` in
+`homepot/app/schemas/os_capabilities.py` — the single source of truth that
+`emulators/pos_engine.py` also imports) and ships working providers
 (`fcm_linux.py`, `wns_windows.py`, `apns_apple.py`, `mqtt_push.py`,
 `simulation.py`).
 

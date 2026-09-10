@@ -84,7 +84,9 @@ server can push (not poll) for commands:
 
 In the real agent this is what `send_registration` forwards as `device_token`
 for push delivery (e.g. a WNS channel URI). The emulators derive a synthetic
-token from `derive_push_channel(os_details)` (`emulators/pos_engine.py`).
+token from `derive_push_channel(os_details)` (imported by
+`emulators/pos_engine.py` from the canonical
+`homepot/app/schemas/os_capabilities.py` module).
 
 > ⚠️ **Discrepancy:** The emulator currently sends this push token in
 > `device-dna` registration, but the `AgentRegisterRequest` schema does **not**
@@ -98,7 +100,9 @@ token from `derive_push_channel(os_details)` (`emulators/pos_engine.py`).
 ## `push_channel` — the platform's push transport
 
 - What push transport the device's OS uses. Derived from `os_details` by
-  `derive_push_channel()` (`emulators/pos_engine.py`).
+  `derive_push_channel()` (canonical logic in
+  `homepot/app/schemas/os_capabilities.py`, imported by
+  `emulators/pos_engine.py`).
 - Not itself a secret — it is metadata that `device_token` (meaning 2) belongs
   to.
 

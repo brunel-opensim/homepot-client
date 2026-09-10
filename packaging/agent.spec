@@ -39,7 +39,13 @@ a = Analysis(
     pathex=[str(REPO_ROOT / "backend" / "src")],
     binaries=[],
     datas=[
-        (str(AGENT_PKG / "agent-config.json"), "homepot/agent"),
+        # Bundled at the distribution root so ``load_agent_config()``'s
+        # ``Path(__file__).parent / "agent-config.json"`` resolves in the frozen
+        # bundle exactly as it does from source (the config sits beside the
+        # entry script). Dest subdirs would silently drop it to
+        # ``_MEIPASS/homepot/agent/`` and crash the binary at boot with
+        # FileNotFoundError when no $HOMEPOT_AGENT_CONFIG is provided.
+        (str(AGENT_PKG / "agent-config.json"), "."),
     ],
     hiddenimports=[
         "passlib.handlers.bcrypt",
