@@ -75,7 +75,8 @@ class TestAINLPIntegration(unittest.IsolatedAsyncioTestCase):
 
     @patch("ai.api.llm_service")
     @patch("ai.api.failure_predictor")
-    async def test_query_without_device_id(self, mock_predictor, mock_llm):
+    @patch("ai.api.memory_service")
+    async def test_query_without_device_id(self, mock_memory, mock_predictor, mock_llm):
         """Test that live context is NOT injected when device_id is missing."""
         # Configure AsyncMock
         mock_predictor.predict_device_failure = AsyncMock()
