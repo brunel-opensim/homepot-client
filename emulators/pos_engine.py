@@ -72,13 +72,18 @@ API_BASE_PATH = "/api/v1"
 # Device permissions
 # ---------------------------------------------------------------------------
 
-ALL_PERMISSION_KEYS = [
-    "root_access",
-    "command_execution",
-    "process_monitoring",
-    "filesystem_access",
-    "network_monitoring",
-]
+try:
+    from homepot.app.schemas.os_capabilities import (  # backend editable install
+        ALL_PERMISSION_KEYS,
+        derive_capabilities as derive_os_capabilities,
+        derive_push_channel,
+    )
+except ImportError:  # frozen emulator: canonical module bundled via emulator.spec
+    from os_capabilities import (  # type: ignore[no-redef]
+        ALL_PERMISSION_KEYS,
+        derive_capabilities as derive_os_capabilities,
+        derive_push_channel,
+    )
 
 PERMISSION_CONSENT_MODES = ("auto", "fixed", "deny", "external")
 
@@ -93,77 +98,6 @@ COMMAND_PERMISSIONS = {
     "list_connections": "network_monitoring",
     "scan_filesystem": "root_access",
 }
-
-
-def derive_os_capabilities(os_details: str) -> dict[str, bool]:
-    """Mirror the backend's OS→capability mapping (``schemas.permissions``).
-
-    Determines which permission keys the simulated OS can support, so the
-    emulator only grants permissions the backend would accept.
-    """
-    keys = ALL_PERMISSION_KEYS
-    if not os_details:
-        return {k: False for k in keys}
-
-    os_lower = os_details.lower()
-    if any(
-        kw in os_lower
-        for kw in (
-            "linux",
-            "ubuntu",
-            "debian",
-            "fedora",
-            "centos",
-            "raspberry pi",
-            "macos",
-            "mac os",
-            "darwin",
-            "os x",
-        )
-    ):
-        return {k: True for k in keys}
-    if "android" in os_lower:
-        return {
-            "root_access": False,
-            "process_monitoring": True,
-            "filesystem_access": True,
-            "network_monitoring": True,
-        }
-    if any(kw in os_lower for kw in ("windows", "win32", "win64")):
-        return {
-            "root_access": False,
-            "process_monitoring": True,
-            "filesystem_access": True,
-            "network_monitoring": True,
-        }
-    if any(kw in os_lower for kw in ("ios", "ipados", "iphone os", "ipad")):
-        return {
-            "root_access": False,
-            "process_monitoring": False,
-            "filesystem_access": False,
-            "network_monitoring": True,
-        }
-    return {k: False for k in keys}
-
-
-def derive_push_channel(os_details: str) -> str | None:
-    """Derive the push-notification channel the simulated OS would use.
-
-    Mobile and push-capable OSes receive commands over a push transport
-    (FCM on Android, WNS on Windows, APNs on iOS); desktop / POS runtimes
-    fall back to plain HTTP polling (``None``). Mirrors how the real agent
-    registers a ``device_token`` with the backend.
-    """
-    if not os_details:
-        return None
-    os_lower = os_details.lower()
-    if "android" in os_lower:
-        return "fcm"
-    if any(kw in os_lower for kw in ("windows", "win32", "win64")):
-        return "wns"
-    if any(kw in os_lower for kw in ("ios", "ipados", "iphone os", "ipad")):
-        return "apns"
-    return None
 
 
 # ---------------------------------------------------------------------------

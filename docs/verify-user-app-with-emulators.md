@@ -111,8 +111,10 @@ On startup the engine, in order:
 Capabilities (`root_access`, `command_execution`, `process_monitoring`,
 `filesystem_access`, `network_monitoring`) and the **push channel** (FCM/WNS/
 APNs or `None` for polling) are derived from `os_details` by
-`derive_os_capabilities()` / `derive_push_channel()` — mirroring the backend's
-mapping, so selecting an OS identity automatically selects the right profile.
+`derive_os_capabilities()` / `derive_push_channel()` — which now import the
+backend's canonical mapping from `homepot/app/schemas/os_capabilities.py`
+(single source of truth, also bundled into the frozen emulator), so selecting
+an OS identity automatically selects the right profile.
 
 See [Device emulators](device-emulators.md) for the full config reference
 (config fields, CLI flags, failure-rate / consent-mode simulation, push

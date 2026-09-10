@@ -230,11 +230,12 @@ Composed push commands (`update_config`, `restart`, `health_check`, custom) have
 ### Permission simulation
 
 The emulator models the **device-side consent** half of the platform permission
-model (see `backend/src/homepot/app/schemas/permissions.py`). The four
-permission keys are `root_access`, `command_execution`, `process_monitoring`,
-`filesystem_access`, `network_monitoring`; which keys a device can support are derived from its
-`os_details` (mirrored from the backend's `derive_capabilities`), so changing
-the emulated OS changes the capabilities the Dashboard shows.
+model (see `backend/src/homepot/app/schemas/os_capabilities.py` — the single
+source of truth that the backend and `emulators/pos_engine.py` share). The
+five permission keys are `root_access`, `command_execution`,
+`process_monitoring`, `filesystem_access`, `network_monitoring`; which keys a
+device can support are derived from its `os_details`, so changing the emulated
+OS changes the capabilities the Dashboard shows.
 
 On the emulator:
 
