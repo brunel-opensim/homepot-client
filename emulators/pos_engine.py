@@ -48,6 +48,7 @@ import argparse
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import importlib
 import json
 import os
 from pathlib import Path
@@ -72,18 +73,18 @@ API_BASE_PATH = "/api/v1"
 # Device permissions
 # ---------------------------------------------------------------------------
 
+# Canonical OS-capability logic. Imported from the backend editable install;
+# the frozen emulator bundles a copy (emulator.spec datas) that resolves as the
+# top-level ``os_capabilities`` module when the backend is not on sys.path.
+
 try:
-    from homepot.app.schemas.os_capabilities import (  # backend editable install
-        ALL_PERMISSION_KEYS,
-        derive_capabilities as derive_os_capabilities,
-        derive_push_channel,
-    )
-except ImportError:  # frozen emulator: canonical module bundled via emulator.spec
-    from os_capabilities import (  # type: ignore[no-redef]
-        ALL_PERMISSION_KEYS,
-        derive_capabilities as derive_os_capabilities,
-        derive_push_channel,
-    )
+    _os_capabilities = importlib.import_module("homepot.app.schemas.os_capabilities")
+except ModuleNotFoundError:  # frozen emulator: canonical module bundled via spec
+    _os_capabilities = importlib.import_module("os_capabilities")
+
+ALL_PERMISSION_KEYS = _os_capabilities.ALL_PERMISSION_KEYS
+derive_os_capabilities = _os_capabilities.derive_capabilities
+derive_push_channel = _os_capabilities.derive_push_channel
 
 PERMISSION_CONSENT_MODES = ("auto", "fixed", "deny", "external")
 

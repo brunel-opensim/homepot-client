@@ -9,8 +9,8 @@ the frozen binary without ``$HOMEPOT_AGENT_CONFIG``; the Electron shell always
 sets it, which is why the bug shipped for months undetected.)
 """
 
-import re
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_SPEC = ROOT / "packaging" / "agent.spec"

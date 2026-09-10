@@ -15,9 +15,9 @@ These tests pin the two halves together:
   the bundled layout must reproduce the backend's results for the same corpus.
 """
 
+from pathlib import Path
 import subprocess  # noqa: S404  (only checks frozen-bundle parity)
 import sys
-from pathlib import Path
 
 BACKEND_CANONICAL = (
     Path(__file__).resolve().parents[1]
@@ -36,6 +36,8 @@ sys.path.insert(0, str(EMULATORS_DIR))
 
 from pos_engine import (  # noqa: E402,F401  (needs emulators dir on sys.path)
     derive_os_capabilities,
+)
+from pos_engine import (  # noqa: E402,F401  (needs emulators dir on sys.path)
     derive_push_channel as emu_push_channel,
 )
 
@@ -153,7 +155,9 @@ print("OK")
 
 def test_bundled_os_capabilities_is_the_canonical_file():
     """The exact file bundled by the emulator spec is the backend's module."""
-    spec = (Path(__file__).resolve().parents[2] / "packaging" / "emulator.spec").resolve()
+    spec = (
+        Path(__file__).resolve().parents[2] / "packaging" / "emulator.spec"
+    ).resolve()
     text = spec.read_text(encoding="utf-8")
     assert "os_capabilities.py" in text
     assert '"emulators"' in text
