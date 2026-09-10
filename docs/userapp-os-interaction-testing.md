@@ -100,11 +100,17 @@ gates before the emulator stops being the primary validation target:
 1. **Real-agent path proven on the Mac.** Run Path 2 above end-to-end once on the
    target Mac and confirm every link in the verify table — registration, heartbeat,
    permission sync, a Monitor-tier command, and a Manage-tier command.
-2. **Electron packaging.** Today `main.ts` spawns the agent using the **repo's**
-   `.venv` and walks up to find `emulators/` (`getProjectRoot()`). A self-contained
-   installed app must **bundle the Python agent + its venv + `backend/src`** inside
-   the app (e.g. `resources/`). Until that is done, the real device only works from a
-   dev checkout, not as an installed app.
+2. **Electron packaging.** Closed — the packaged app ships frozen
+   `homepot-agent` / `homepot-emulator` binaries (PyInstaller via
+   `packaging/agent.spec` / `packaging/emulator.spec`) bundled as
+   `resources/bin/<name>/<name>` and resolved by `packagedBinary()` in
+   `user_app/electron/main.ts`; `main.ts` falls back to the repo's `.venv`
+   only in dev / unpackaged runs. CI build-checks the binaries (boot smoke on
+   `user-app-build.yml`) and asserts they are present in the packaged `.app` /
+   unpacked build. Remaining packaging caveats: macOS builds are currently
+   unsigned (ad-hoc) and **not notarized**, so Gatekeeper may require a manual
+   "Right-click → Open" on first launch; CI also builds **only the runner arch**
+   (`macos-latest` = arm64), not a universal binary.
 3. **Host setup on the target Mac.** Manage-tier execution needs **passwordless sudo**
    for the agent user (`sudo -n`), and `brightness`/`volume` config needs its CLI
    tools installed. These are ops notes, not code.

@@ -218,9 +218,11 @@ User App (Electron main):
 - [x] Map the nine command types to OS calls per tier (Monitor read-only;
       Manage via the scoped `homepot-ctl` helper). — done in
       `command_poller.process_command`, reused by the bundled agent.
-- [ ] **Packaging**: bundle the Python agent + its venv + `backend/src` inside the
-      Electron app so the real device works from an installed app, not just a dev
-      checkout. (Readiness gates in the [Testing Runbook](userapp-os-interaction-testing.md).)
+- [x] **Packaging**: the Electron app bundles frozen `homepot-agent` /
+      `homepot-emulator` binaries (PyInstaller -> `resources/bin` via
+      `extraResources`), so the real device works from an installed app, not just
+      a dev checkout. macOS binaries are unsigned + un-notarized and arm64-only for
+      now (runner arch). (Gates in the [Testing Runbook](userapp-os-interaction-testing.md).)
 
 Docs:
 
