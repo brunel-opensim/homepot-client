@@ -5,12 +5,18 @@ on:
     branches: [ main ]
     paths:
       - 'user_app/**'
+      - 'packaging/**'
+      - 'backend/**'
       - '.github/workflows/user-app-build.yml'
+      - '.github/workflows/scripts/frozen-smoke.sh'
   pull_request:
     branches: [ main ]
     paths:
       - 'user_app/**'
+      - 'packaging/**'
+      - 'backend/**'
       - '.github/workflows/user-app-build.yml'
+      - '.github/workflows/scripts/frozen-smoke.sh'
   workflow_dispatch:
     inputs:
       publish:
@@ -52,6 +58,52 @@ jobs:
 
       - name: Build production bundle
         run: npm run build
+
+  smoke:
+    name: Smoke frozen binaries (${{ matrix.os }})
+    needs: [quality]
+    runs-on: ${{ matrix.os }}
+    # Build the frozen agent + emulator and prove they boot on the build OS
+    # on EVERY PR, not just on the post-merge `main` push. The expensive
+    # electron-builder packaging stays behind the main-only `package` job,
+    # but this cheap PyInstaller + boot smoke is the gate that catches
+    # "green on PR, red on merge" regressions like PR #439.
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+          - os: windows-latest
+          - os: ubuntu-latest
+    defaults:
+      run:
+        working-directory: user_app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller deps
+        run: |
+          pip install pyinstaller fastapi uvicorn httpx==0.27.0 psutil platformdirs
+
+      - name: Build frozen agent + emulator (PyInstaller)
+        shell: bash
+        run: |
+          python -m PyInstaller ../packaging/agent.spec \
+            --distpath pyinstaller-dist --workpath /tmp/pyinstaller-agent
+          python -m PyInstaller ../packaging/emulator.spec \
+            --distpath pyinstaller-dist --workpath /tmp/pyinstaller-emulator
+
+      - name: Smoke-test frozen binaries (must boot on the build OS)
+        shell: bash
+        run: bash ../.github/workflows/scripts/frozen-smoke.sh "${{ matrix.os }}"
 
   package:
     name: Package (${{ matrix.os }})
@@ -107,38 +159,7 @@ jobs:
 
       - name: Smoke-test frozen binaries (must boot on the build OS)
         shell: bash
-        run: |
-          set -euo pipefail
-          case "${{ matrix.os }}" in
-            windows-latest)
-              agent=pyinstaller-dist/homepot-agent/homepot-agent.exe
-              emulator=pyinstaller-dist/homepot-emulator/homepot-emulator.exe
-              ;;
-            *)
-              agent=pyinstaller-dist/homepot-agent/homepot-agent
-              emulator=pyinstaller-dist/homepot-emulator/homepot-emulator
-              ;;
-          esac
-          # The frozen agent's entry point runs the whole runtime loop, so
-          # "boots and stays alive" proves the PyInstaller bundle imports the
-          # full module graph (agent_api router -> SQLAlchemy etc.) without
-          # crashing, not just that a file exists. Killed after the probe.
-          "$agent" >/dev/null 2>&1 &
-          agent_pid=$!
-          sleep 8
-          if kill -0 "$agent_pid" 2>/dev/null; then
-            kill "$agent_pid" 2>/dev/null || true
-            wait "$agent_pid" 2>/dev/null || true
-            echo "frozen homepot-agent smoke OK"
-          else
-            wait "$agent_pid" || true
-            echo "homepot-agent exited before the smoke probe finished" >&2
-            exit 1
-          fi
-          # The emulator entry uses argparse, so --help forces the bundled
-          # emulator modules to load and exits cleanly.
-          "$emulator" --help >/dev/null
-          echo "frozen homepot-emulator smoke OK"
+        run: bash ../.github/workflows/scripts/frozen-smoke.sh "${{ matrix.os }}"
 
       - name: Build renderer + Electron main bundles
         run: npm run build
