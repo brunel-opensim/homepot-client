@@ -118,6 +118,8 @@ package() {
     require_command npm
     [[ -d "$DIST_DIR/homepot-agent" && -d "$DIST_DIR/homepot-emulator" ]] || die "Frozen binaries are missing; run '$0 prepare'."
     [[ -d "$USER_APP_DIR/node_modules" ]] || die "Dependencies are missing; run '$0 bootstrap'."
+    info "Building renderer and Electron main bundles"
+    (cd "$USER_APP_DIR" && VITE_ELECTRON=true npm run build)
     info "Packaging User App for Linux"
     (cd "$USER_APP_DIR" && npx electron-builder --linux --publish never)
 }
