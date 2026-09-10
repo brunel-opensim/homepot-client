@@ -68,6 +68,11 @@ export default function ClaimDevice() {
         enrollmentMethod: 'pre-provisioned',
       });
 
+      const agentResult = await window.electronAPI?.agent.start();
+      if (agentResult && !agentResult.started) {
+        throw new Error('Device claimed, but the local agent could not start. Restart the app to connect.');
+      }
+
       setDeviceInfo({
         deviceId: result.device_id,
         siteId: result.site_id,

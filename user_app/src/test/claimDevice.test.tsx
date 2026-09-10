@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AppContext } from '../context/AppContext'
@@ -58,6 +58,10 @@ beforeEach(() => {
   mocks.save.mockClear()
   mocks.setDeviceInfo.mockClear()
   mocks.setIsProvisioned.mockClear()
+})
+
+afterEach(() => {
+  delete (window as { electronAPI?: unknown }).electronAPI
 })
 
 describe('ClaimDevice', () => {
@@ -144,5 +148,44 @@ describe('ClaimDevice', () => {
   it('navigates back to setup options', () => {
     renderClaim()
     expect(screen.getByRole('button', { name: /back to setup options/i })).toBeInTheDocument()
+  })
+
+  it('starts the device agent after a successful claim', async () => {
+    const agentStart = vi.fn().mockResolvedValue({ started: true })
+    ;(window as { electronAPI?: unknown }).electronAPI = { agent: { start: agentStart } }
+    mocks.fetchImpl.mockResolvedValue(
+      new Response(
+        JSON.stringify({ device_id: 'dev-9', api_key: 'key-123', site_id: 'site-7' }),
+        { status: 200 },
+      ),
+    )
+    renderClaim()
+    fillForm()
+    fireEvent.click(screen.getByRole('button', { name: /claim device/i }))
+
+    await waitFor(() => {
+      expect(mocks.save).toHaveBeenCalled()
+    })
+    expect(agentStart).toHaveBeenCalledTimes(1)
+    expect(mocks.setIsProvisioned).toHaveBeenCalledWith(true)
+  })
+
+  it('shows an error when the agent cannot start after claiming', async () => {
+    const agentStart = vi.fn().mockResolvedValue({ started: false })
+    ;(window as { electronAPI?: unknown }).electronAPI = { agent: { start: agentStart } }
+    mocks.fetchImpl.mockResolvedValue(
+      new Response(
+        JSON.stringify({ device_id: 'dev-9', api_key: 'key-123', site_id: 'site-7' }),
+        { status: 200 },
+      ),
+    )
+    renderClaim()
+    fillForm()
+    fireEvent.click(screen.getByRole('button', { name: /claim device/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/local agent could not start/i)).toBeInTheDocument()
+    })
+    expect(mocks.setIsProvisioned).not.toHaveBeenCalled()
   })
 })
