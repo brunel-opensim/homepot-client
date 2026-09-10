@@ -105,6 +105,41 @@ jobs:
           python -m PyInstaller ../packaging/emulator.spec \
             --distpath pyinstaller-dist --workpath /tmp/pyinstaller-emulator
 
+      - name: Smoke-test frozen binaries (must boot on the build OS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.os }}" in
+            windows-latest)
+              agent=pyinstaller-dist/homepot-agent/homepot-agent.exe
+              emulator=pyinstaller-dist/homepot-emulator/homepot-emulator.exe
+              ;;
+            *)
+              agent=pyinstaller-dist/homepot-agent/homepot-agent
+              emulator=pyinstaller-dist/homepot-emulator/homepot-emulator
+              ;;
+          esac
+          # The frozen agent's entry point runs the whole runtime loop, so
+          # "boots and stays alive" proves the PyInstaller bundle imports the
+          # full module graph (agent_api router -> SQLAlchemy etc.) without
+          # crashing, not just that a file exists. Killed after the probe.
+          "$agent" >/dev/null 2>&1 &
+          agent_pid=$!
+          sleep 8
+          if kill -0 "$agent_pid" 2>/dev/null; then
+            kill "$agent_pid" 2>/dev/null || true
+            wait "$agent_pid" 2>/dev/null || true
+            echo "frozen homepot-agent smoke OK"
+          else
+            wait "$agent_pid" || true
+            echo "homepot-agent exited before the smoke probe finished" >&2
+            exit 1
+          fi
+          # The emulator entry uses argparse, so --help forces the bundled
+          # emulator modules to load and exits cleanly.
+          "$emulator" --help >/dev/null
+          echo "frozen homepot-emulator smoke OK"
+
       - name: Build renderer + Electron main bundles
         run: npm run build
         env:
@@ -112,6 +147,26 @@ jobs:
 
       - name: Package with electron-builder
         run: npx electron-builder ${{ matrix.targets }} --publish never
+
+      - name: Assert packaged app ships the frozen binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.os }}" in
+            macos-latest)
+              app_dir="$(find release -maxdepth 3 -name 'HOMEPOT Agent.app' -type d | head -1)"
+              test -n "$app_dir"
+              res_dir="$app_dir/Contents/Resources/bin"
+              ;;
+            windows-latest)
+              res_dir="release/win-unpacked/resources/bin"
+              ;;
+            ubuntu-latest)
+              res_dir="release/linux-unpacked/resources/bin"
+              ;;
+          esac
+          test -d "$res_dir/homepot-agent" -a -d "$res_dir/homepot-emulator"
+          find "$res_dir" -maxdepth 2 -type f \( -name 'homepot-agent*' -o -name 'homepot-emulator*' \)
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
