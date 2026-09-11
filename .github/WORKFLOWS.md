@@ -125,7 +125,7 @@ This document describes the automated workflows
 **What it does:**
 - **Code quality validation** (ESLint)
 - **Production build verification** (Vite)
-- **Multi-version Node.js testing** (20.x, 22.x)
+- **Node.js testing** (24.x)
 - **Security vulnerability scanning** (npm audit)
 - **Bundle size reporting**
 - **Automated testing** (Vitest, when tests are implemented)
