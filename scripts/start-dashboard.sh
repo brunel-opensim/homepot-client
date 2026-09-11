@@ -260,7 +260,10 @@ else
 fi
 # Also persist the backend URL so devices know where to connect.
 if [ -f "$ENV_FILE" ] && grep -q '^BACKEND_URL=' "$ENV_FILE"; then
-    sed -i.bak "s/^BACKEND_URL=.*/BACKEND_URL=$BACKEND_URL/" "$ENV_FILE"
+    # Escape sed replacement characters so URLs with schemes or query strings
+    # are written literally.
+    BACKEND_URL_SED=$(printf '%s' "$BACKEND_URL" | sed 's/[\\&|]/\\&/g')
+    sed -i.bak "s|^BACKEND_URL=.*|BACKEND_URL=$BACKEND_URL_SED|" "$ENV_FILE"
     rm -f "$ENV_FILE.bak"
 else
     echo "BACKEND_URL=$BACKEND_URL" >> "$ENV_FILE"
