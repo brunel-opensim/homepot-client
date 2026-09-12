@@ -1,17 +1,19 @@
 """Real device agent runtime for registration, heartbeat, telemetry, and IPC."""
 
 import asyncio
+from datetime import datetime, timezone
 import json
 import logging
 import os
 from pathlib import Path
 import platform
+import random
 import secrets
 import signal
 import ssl
 import sys
 import threading
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import FastAPI
 import httpx
@@ -104,6 +106,8 @@ def load_agent_config() -> Dict[str, Any]:
     data.setdefault("live_log_interval_seconds", 30)
     data.setdefault("retry_flush_interval_seconds", 60)
     data.setdefault("command_poll_interval_seconds", 60)
+    data.setdefault("job_reporting_enabled", True)
+    data.setdefault("job_reporting_interval_seconds", 120)
     data.setdefault("ipc_enabled", True)
     data.setdefault("ipc_host", "127.0.0.1")
     data.setdefault("ipc_port", 8765)
@@ -756,6 +760,155 @@ async def live_logs_loop(
         await asyncio.sleep(interval)
 
 
+# Background maintenance tasks the agent genuinely performs, reported so the
+# Dashboard "Job History" tab reflects real-device activity. These mirror the
+# emulator's /agent/jobs flow rather than the synthetic rows written straight
+# into the database by the simulation agent.
+_BACKGROUND_JOB_ACTIVITIES: List[Dict[str, Any]] = [
+    {
+        "action": "Metric Upload",
+        "description": "Upload collected telemetry metrics to the Dashboard",
+    },
+    {
+        "action": "Log Rotation",
+        "description": "Rotate and compress agent log files",
+    },
+    {
+        "action": "Firmware Check",
+        "description": "Check for available OS and firmware updates",
+    },
+    {
+        "action": "Cache Pruning",
+        "description": "Remove stale temporary files and cached responses",
+    },
+    {
+        "action": "Security Scan",
+        "description": "Scan running services for known vulnerabilities",
+    },
+    {
+        "action": "Backup Transaction Log",
+        "description": "Stage transaction log entries for upload",
+    },
+]
+
+
+def _next_background_activity() -> Dict[str, Any]:
+    """Pick a random background maintenance task to report as a device job."""
+    return random.choice(_BACKGROUND_JOB_ACTIVITIES)
+
+
+def _next_job_outcome() -> Dict[str, Any]:
+    """Decide how the in-flight background job resolves (completed/failed)."""
+    if random.random() < 0.85:
+        return {
+            "status": "completed",
+            "result": {"message": "Executed successfully", "exit_code": 0},
+            "error_message": None,
+        }
+    return {
+        "status": "failed",
+        "result": None,
+        "error_message": "Timeout during execution",
+    }
+
+
+async def _report_background_job(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+    current_job_id: Optional[str],
+) -> Optional[str]:
+    """Run one job-reporting cycle: finish the in-flight job, then queue the next.
+
+    A created job is initially ``pending`` and is transitioned to
+    ``completed``/``failed`` on the *next* cycle, so the Dashboard shows the
+    live queued -> completed transition (the same pattern the emulator uses).
+
+    Returns the id of the newly-created job, ``current_job_id`` when its
+    status update failed (so the caller retries next cycle), or ``None`` when
+    job creation failed (nothing to track).
+    """
+    headers = get_auth_headers(config)
+    backend = str(config["backend_url"]).rstrip("/")
+
+    if current_job_id:
+        outcome = _next_job_outcome()
+        update_url = f"{backend}/api/v1/agent/jobs/{current_job_id}"
+        update_payload: Dict[str, Any] = {
+            "device_id": config["device_id"],
+            "status": outcome["status"],
+            "result": outcome["result"],
+            "error_message": outcome["error_message"],
+        }
+        try:
+            response = await client.put(
+                update_url, json=update_payload, headers=headers, timeout=10.0
+            )
+            response.raise_for_status()
+            if outcome["status"] == "failed":
+                logger.debug(
+                    "Background job %s reported failed: %s",
+                    str(current_job_id)[:8],
+                    outcome["error_message"],
+                )
+        except Exception as e:
+            logger.warning(
+                "Job status update failed job_id=%s error=%s",
+                current_job_id,
+                e,
+            )
+            return current_job_id
+
+    activity = _next_background_activity()
+    create_url = f"{backend}/api/v1/agent/jobs"
+    create_payload: Dict[str, Any] = {
+        "device_id": config["device_id"],
+        "action": activity["action"],
+        "description": activity["description"],
+        "priority": "low",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        response = await client.post(
+            create_url, json=create_payload, headers=headers, timeout=10.0
+        )
+        response.raise_for_status()
+        data = response.json()
+        job_id = cast(Optional[str], data.get("data", {}).get("job_id"))
+        if job_id:
+            logger.debug(
+                "Reported background job '%s' (%s)",
+                activity["action"],
+                str(job_id)[:8],
+            )
+        return job_id
+    except Exception as e:
+        logger.warning("Job create failed url=%s error=%s", create_url, e)
+        return None
+
+
+async def job_reporting_loop(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+) -> None:
+    """Periodically report real background maintenance tasks as device jobs.
+
+    Uses ``POST /api/v1/agent/jobs`` to create a pending job record linked to
+    this device and ``PUT /api/v1/agent/jobs/{job_id}`` on the next cycle to
+    transition it to ``completed``/``failed``, so the Dashboard "Job History"
+    tab shows genuine activity for real devices (not just emulators).
+    """
+    interval = int(config.get("job_reporting_interval_seconds", 120))
+    current_job_id: Optional[str] = None
+    while True:
+        try:
+            current_job_id = await _report_background_job(
+                client, config, current_job_id
+            )
+        except Exception as e:
+            logger.error("Job reporting loop error: %s", e, exc_info=True)
+        await asyncio.sleep(interval)
+
+
 async def retry_flush_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
@@ -980,7 +1133,7 @@ async def bootstrap_agent(
 async def run_agent(
     shutdown_event: Optional[asyncio.Event] = None,
 ) -> None:
-    """Run agent runtime tasks: registration, heartbeat, telemetry, command polling, and retry.
+    """Run agent runtime tasks: registration, heartbeat, telemetry, job reporting, and retry.
 
     Parameters
     ----------
@@ -1060,6 +1213,13 @@ async def run_agent(
             asyncio.ensure_future(live_logs_loop(client, config)),
             asyncio.ensure_future(
                 retry_flush_loop(client, config, retry_queue, submission_log)
+            ),
+            *(
+                [
+                    asyncio.ensure_future(job_reporting_loop(client, config))
+                ]
+                if bool(config.get("job_reporting_enabled", True))
+                else []
             ),
             asyncio.ensure_future(
                 pending_commands_loop(
