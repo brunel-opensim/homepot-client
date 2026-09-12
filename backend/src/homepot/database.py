@@ -841,21 +841,24 @@ class DatabaseService:
         error_message: Optional[str] = None,
     ) -> bool:
         """Update job status and result."""
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         from sqlalchemy import update
 
         async with self.get_session() as session:
-            update_data = {"status": status, "updated_at": datetime.utcnow()}
+            update_data = {
+                "status": status,
+                "updated_at": datetime.now(timezone.utc),
+            }
 
             if status == JobStatus.COMPLETED and result is not None:
                 update_data["result"] = result
-                update_data["completed_at"] = datetime.utcnow()
+                update_data["completed_at"] = datetime.now(timezone.utc)
             elif status == JobStatus.FAILED and error_message is not None:
                 update_data["error_message"] = error_message
-                update_data["completed_at"] = datetime.utcnow()
+                update_data["completed_at"] = datetime.now(timezone.utc)
             elif status == JobStatus.SENT:
-                update_data["started_at"] = datetime.utcnow()
+                update_data["started_at"] = datetime.now(timezone.utc)
 
             exec_result: Result[Any] = await session.execute(
                 update(Job).where(Job.job_id == job_id).values(**update_data)

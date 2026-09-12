@@ -4,9 +4,12 @@ This module provides basic tests for database connectivity,
 model creation, and basic operations.
 """
 
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 import tempfile
+from typing import Any, Dict
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -370,3 +373,54 @@ async def test_initialize_does_not_retry_non_race_errors(tmp_path, monkeypatch):
         await service.initialize()
 
     assert service._initialized is False
+
+
+class _FakeJobResult:
+    """Minimal stand-in for ``Result`` with a rowcount attribute."""
+
+    rowcount: int = 1
+
+
+async def test_update_job_status_writes_tz_aware_timestamps(
+    monkeypatch,
+) -> None:
+    """Assert job timing columns are sent to SQL as tz-aware UTC, not naive.
+
+    Postgres round-trips tzinfo but SQLite strips it during storage, so the
+    value bound to the generated ``UPDATE`` statement is asserted here rather
+    than the DB round-trip — this is what fixes the hour-shifted agnostic
+    ``completed_at`` rendered by the Dashboard.
+    """
+    captured: Dict[str, Any] = {}
+
+    class _FakeSession:
+        async def execute(self, stmt, *args, **kwargs):  # noqa: ANN001
+            captured["stmt"] = stmt
+            return _FakeJobResult()
+
+    @asynccontextmanager
+    async def fake_get_session(self_):  # noqa: ANN001
+        yield _FakeSession()
+
+    monkeypatch.setattr(DatabaseService, "get_session", fake_get_session)
+    service = DatabaseService.__new__(DatabaseService)
+
+    now = datetime.now(timezone.utc)
+    assert (
+        await service.update_job_status(
+            "j-1", JobStatus.COMPLETED, result={"exit_code": 0}
+        )
+        is True
+    )
+
+    values = {k.name: v for k, v in captured["stmt"]._values.items()}
+    assert values["completed_at"].value.tzinfo is not None
+    assert values["updated_at"].value.tzinfo is not None
+    assert abs((values["completed_at"].value - now).total_seconds()) < 5
+
+    assert (
+        await service.update_job_status("j-2", JobStatus.FAILED, error_message="boom")
+        is True
+    )
+    values = {k.name: v for k, v in captured["stmt"]._values.items()}
+    assert values["completed_at"].value.tzinfo is not None
