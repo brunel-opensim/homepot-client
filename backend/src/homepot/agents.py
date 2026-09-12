@@ -905,11 +905,11 @@ class DeviceAgentSimulator:
                         device_id=db_id,
                         site_id=device.site_id,
                         created_by=1,  # Assume system user ID 1
-                        created_at=datetime.utcnow()
+                        created_at=datetime.now(timezone.utc)
                         - timedelta(seconds=random.randint(2, 30)),
-                        started_at=datetime.utcnow()
+                        started_at=datetime.now(timezone.utc)
                         - timedelta(seconds=random.randint(1, 10)),
-                        completed_at=datetime.utcnow(),
+                        completed_at=datetime.now(timezone.utc),
                         error_message=error_msg,
                         result={"trigger": "simulation"},
                     )
