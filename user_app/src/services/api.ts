@@ -98,6 +98,21 @@ export interface AlertEvent {
   resolved_by: string | null
 }
 
+export interface JobHistoryEntry {
+  job_id: string
+  action: string
+  description: string | null
+  status: string
+  priority: string
+  payload: Record<string, unknown> | null
+  result: Record<string, unknown> | null
+  error_message: string | null
+  created_at: string | null
+  started_at: string | null
+  completed_at: string | null
+  updated_at: string | null
+}
+
 interface Headers {
   [key: string]: string
 }
@@ -492,4 +507,20 @@ export async function fetchDeviceAlerts(
   }
   const json = await res.json()
   return json.data as AlertEvent[]
+}
+
+export async function fetchDeviceJobHistory(
+  deviceId: string,
+  apiKey: string,
+  limit = 50,
+): Promise<JobHistoryEntry[]> {
+  const res = await fetch(`${apiBaseUrl}/agent/${deviceId}/jobs?limit=${limit}`, {
+    headers: deviceAuthHeaders(deviceId, apiKey),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw asApiError(body.detail || `Failed to fetch job history (${res.status})`, res.status)
+  }
+  const json = await res.json()
+  return json.data as JobHistoryEntry[]
 }
