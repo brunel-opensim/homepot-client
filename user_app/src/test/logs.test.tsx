@@ -9,6 +9,7 @@ const fetchDeviceLogs = vi.fn()
 const fetchDeviceAuditEvents = vi.fn()
 const fetchDeviceCommandHistory = vi.fn()
 const fetchDeviceAlerts = vi.fn()
+const fetchDeviceJobHistory = vi.fn()
 
 vi.mock('../services/credentialStorage', () => ({
   credentialStorage: {
@@ -34,6 +35,9 @@ vi.mock('../services/api', async (importOriginal) => {
     ) => fetchDeviceCommandHistory(...args),
     fetchDeviceAlerts: (...args: Parameters<typeof actual.fetchDeviceAlerts>) =>
       fetchDeviceAlerts(...args),
+    fetchDeviceJobHistory: (
+      ...args: Parameters<typeof actual.fetchDeviceJobHistory>
+    ) => fetchDeviceJobHistory(...args),
   }
 })
 
@@ -69,6 +73,8 @@ describe('Logs', () => {
     fetchDeviceCommandHistory.mockResolvedValue([])
     fetchDeviceAlerts.mockReset()
     fetchDeviceAlerts.mockResolvedValue([])
+    fetchDeviceJobHistory.mockReset()
+    fetchDeviceJobHistory.mockResolvedValue([])
     window.electronAPI = {
       app: { getRecentLogs },
     } as unknown as NonNullable<Window['electronAPI']>
@@ -153,6 +159,29 @@ describe('Logs', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders job history for the device', async () => {
+    fetchDeviceJobHistory.mockResolvedValue([
+      {
+        job_id: 'job-1',
+        action: 'Log Rotation',
+        description: null,
+        status: 'completed',
+        priority: 'low',
+        payload: null,
+        result: { ok: true },
+        error_message: null,
+        created_at: '2026-08-03T10:07:00.000Z',
+        started_at: '2026-08-03T10:07:01.000Z',
+        completed_at: '2026-08-03T10:07:05.000Z',
+        updated_at: '2026-08-03T10:07:05.000Z',
+      },
+    ])
+    renderWithProviders(<Logs />)
+    expect(await screen.findByText('Job History')).toBeInTheDocument()
+    expect(await screen.findByText('Log Rotation')).toBeInTheDocument()
+    expect(fetchDeviceJobHistory).toHaveBeenCalledWith('test-device', 'test-key', 50)
+  })
+
   it('renders alerts for the device', async () => {
     fetchDeviceAlerts.mockResolvedValue([
       {
@@ -175,6 +204,16 @@ describe('Logs', () => {
 
   it('hints that diagnostics require the Monitor permission when gated', async () => {
     fetchDeviceAlerts.mockRejectedValue(
+      new (await import('../services/api')).ApiError('Monitor required', 403),
+    )
+    renderWithProviders(<Logs />)
+    expect(
+      await screen.findByText(/grant Monitor access to this device/i),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the Monitor permission hint when job history is gated', async () => {
+    fetchDeviceJobHistory.mockRejectedValue(
       new (await import('../services/api')).ApiError('Monitor required', 403),
     )
     renderWithProviders(<Logs />)

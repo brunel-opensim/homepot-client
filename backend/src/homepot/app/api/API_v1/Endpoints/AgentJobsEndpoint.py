@@ -5,11 +5,13 @@ Dashboard's "Job History" tab can display real-time device activity.
 """
 
 import logging
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import desc, select
 
+from homepot.app.api.API_v1.Endpoints.agent_permission_gate import require_monitor
 from homepot.app.auth_utils import get_current_device
 from homepot.app.schemas.agent import AgentJobRequest, AgentJobUpdateRequest
 from homepot.database import get_database_service
@@ -20,6 +22,13 @@ router = APIRouter()
 
 # System user used for device-generated jobs (seed admin, id=1)
 SYSTEM_USER_ID = 1
+
+DEFAULT_JOB_LIMIT = 50
+MAX_JOB_LIMIT = 200
+
+
+def _envelope(data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {"status": "success", "message": "Device jobs fetched", "data": data}
 
 
 def _valid_update_status(status: str) -> Optional[JobStatus]:
@@ -119,3 +128,70 @@ async def update_job(
     except Exception as e:
         logger.error("Failed to update device job: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{device_id}/jobs", tags=["Agent"])
+async def get_device_jobs(
+    device_id: str,
+    limit: int = DEFAULT_JOB_LIMIT,
+    current_device: Device = Depends(get_current_device),
+) -> Dict[str, Any]:
+    """Return the latest jobs for the authenticated device.
+
+    Requires the device owner to have granted the Monitor tier. The device
+    authenticates via ``X-Device-ID`` and ``X-API-Key`` headers and can only
+    read its own job history.
+    """
+    if current_device.device_id != device_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Authenticated device can only read its own jobs",
+        )
+    require_monitor(current_device)
+
+    capped_limit = max(1, min(int(limit), MAX_JOB_LIMIT))
+    try:
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(Job)
+                .where(Job.device_id == int(current_device.id))
+                .order_by(desc(Job.created_at))
+                .limit(capped_limit)
+            )
+            jobs = result.scalars().all()
+
+        return _envelope(
+            [
+                {
+                    "job_id": job.job_id,
+                    "action": job.action,
+                    "description": job.description,
+                    "status": job.status,
+                    "priority": job.priority,
+                    "payload": job.payload,
+                    "result": job.result,
+                    "error_message": job.error_message,
+                    "created_at": (
+                        job.created_at.isoformat() if job.created_at else None
+                    ),
+                    "started_at": (
+                        job.started_at.isoformat() if job.started_at else None
+                    ),
+                    "completed_at": (
+                        job.completed_at.isoformat() if job.completed_at else None
+                    ),
+                    "updated_at": (
+                        job.updated_at.isoformat() if job.updated_at else None
+                    ),
+                }
+                for job in jobs
+            ]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Failed to fetch jobs for %s: %s", device_id, e, exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Failed to fetch device jobs")

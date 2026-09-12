@@ -17,6 +17,7 @@ import {
   fetchDeviceLogs,
   fetchDeviceMetricsHistory,
   fetchDeviceAuditEvents,
+  fetchDeviceJobHistory,
 } from '../services/api'
 
 const mockFetch = vi.fn()
@@ -256,6 +257,43 @@ describe('fetchDeviceAuditEvents', () => {
   it('throws on error', async () => {
     mockFetch.mockResolvedValueOnce(serverError('Server error'))
     await expect(fetchDeviceAuditEvents(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
+  })
+})
+
+describe('fetchDeviceJobHistory', () => {
+  it('returns job history from nested data field with limit param', async () => {
+    const jobs = [
+      {
+        job_id: 'job-1',
+        action: 'Log Rotation',
+        description: null,
+        status: 'completed',
+        priority: 'low',
+        payload: null,
+        result: { ok: true },
+        error_message: null,
+        created_at: '2026-08-03T10:07:00.000Z',
+        started_at: null,
+        completed_at: '2026-08-03T10:07:05.000Z',
+        updated_at: '2026-08-03T10:07:05.000Z',
+      },
+    ]
+    mockFetch.mockResolvedValueOnce(ok({ data: jobs }))
+    const result = await fetchDeviceJobHistory(DEVICE_ID, API_KEY, 50)
+    expect(result).toHaveLength(1)
+    expect(result[0].action).toBe('Log Rotation')
+    expect(result[0].status).toBe('completed')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/agent/${DEVICE_ID}/jobs?limit=50`),
+      expect.objectContaining({
+        headers: { 'X-Device-ID': DEVICE_ID, 'X-API-Key': API_KEY },
+      }),
+    )
+  })
+
+  it('throws on error', async () => {
+    mockFetch.mockResolvedValueOnce(serverError('Server error'))
+    await expect(fetchDeviceJobHistory(DEVICE_ID, API_KEY)).rejects.toThrow('Server error')
   })
 })
 
