@@ -1215,9 +1215,7 @@ async def run_agent(
                 retry_flush_loop(client, config, retry_queue, submission_log)
             ),
             *(
-                [
-                    asyncio.ensure_future(job_reporting_loop(client, config))
-                ]
+                [asyncio.ensure_future(job_reporting_loop(client, config))]
                 if bool(config.get("job_reporting_enabled", True))
                 else []
             ),
