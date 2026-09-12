@@ -4,6 +4,7 @@ This module provides async database operations and session management
 for the HOMEPOT system.
 """
 
+import asyncio
 from collections import defaultdict
 from contextlib import asynccontextmanager
 import datetime
@@ -14,6 +15,7 @@ import uuid
 
 from fastapi import HTTPException
 from sqlalchemy import Result, create_engine, func, inspect, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -41,6 +43,22 @@ from homepot.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# SQLite `create_all(checkfirst=True)` is TOCTOU: two concurrent callers (e.g.
+# pytest-xdist workers sharing one file) can both see a table as missing and
+# both attempt CREATE TABLE, and the loser raises "table ... already exists"
+# (or "database is locked" under write contention). Retry a few times with a
+# small backoff so schema initialization is robust to concurrent startups.
+_MAX_SCHEMA_INIT_ATTEMPTS = 3
+_SCHEMA_INIT_RETRY_DELAY = 0.2
+
+
+def _is_concurrent_schema_race(error: OperationalError) -> bool:
+    """Return True when a CREATE/ALTER collided with a concurrent writer."""
+    original = getattr(error, "orig", None)
+    message = str(original if original is not None else error).lower()
+    return "already exists" in message or "database is locked" in message
+
 
 # Import additional models to ensure they are registered with Base.metadata
 # This is crucial for create_all to create tables for these models
@@ -238,10 +256,29 @@ class DatabaseService:
                 db_file.parent.mkdir(parents=True, exist_ok=True)
                 logger.info(f"Ensured database directory exists: {db_file.parent}")
 
-            async with self.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-                await conn.run_sync(_ensure_device_dna_columns)
-                await conn.run_sync(_ensure_push_log_columns)
+            schema_attempts = _MAX_SCHEMA_INIT_ATTEMPTS
+            while True:
+                try:
+                    async with self.engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.create_all)
+                        await conn.run_sync(_ensure_device_dna_columns)
+                        await conn.run_sync(_ensure_push_log_columns)
+                    break
+                except OperationalError as schema_error:
+                    if (
+                        not _is_concurrent_schema_race(schema_error)
+                        or schema_attempts <= 1
+                    ):
+                        raise
+                    schema_attempts -= 1
+                    logger.warning(
+                        "Concurrent schema initialization detected (%s); "
+                        "retrying (%s attempt%s left)",
+                        str(getattr(schema_error, "orig", schema_error)),
+                        schema_attempts,
+                        "s" if schema_attempts != 1 else "",
+                    )
+                    await asyncio.sleep(_SCHEMA_INIT_RETRY_DELAY)
 
             logger.info("Database initialized successfully")
 

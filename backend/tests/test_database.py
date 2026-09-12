@@ -5,13 +5,16 @@ model creation, and basic operations.
 """
 
 from pathlib import Path
+import sqlite3
 import tempfile
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from homepot.config import get_settings
+from homepot.database import DatabaseService
 from homepot.models import Base, Device, DeviceType, Job, JobStatus, Site, User
 
 
@@ -306,3 +309,64 @@ def test_demo_data_exists(temp_db):
     test_device = db.query(Device).filter_by(device_id="demo-device-001").first()
     assert test_device is not None, "Test device not found"
     assert test_device.site_id == site.id, "Device not properly linked to site"
+
+
+class _FakeSettings:
+    """Minimal settings stand-in exposing only ``database.url/echo_sql``."""
+
+    class _DB:
+        def __init__(self, url: str) -> None:
+            self.url = url
+            self.echo_sql = False
+
+    def __init__(self, url: str) -> None:
+        self.database = self._DB(url)
+
+
+def _concurrent_schema_race_error() -> OperationalError:
+    """Build an OperationalError matching a SQLite create_all collision."""
+    return OperationalError(
+        "CREATE TABLE users ...",
+        {},
+        sqlite3.OperationalError("table users already exists"),
+    )
+
+
+async def test_initialize_retries_on_concurrent_create_race(tmp_path, monkeypatch):
+    """Retry schema init once when a parallel worker creates the tables first."""
+    url = f"sqlite:///{tmp_path}/race.db"
+    monkeypatch.setattr("homepot.database.get_settings", lambda: _FakeSettings(url))
+
+    real_create_all = Base.metadata.create_all
+    calls = {"n": 0}
+
+    def flaky_create_all(bind, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _concurrent_schema_race_error()
+        return real_create_all(bind, *args, **kwargs)
+
+    monkeypatch.setattr(Base.metadata, "create_all", flaky_create_all)
+
+    service = DatabaseService()
+    await service.initialize()
+
+    assert service._initialized is True
+    assert calls["n"] == 2
+
+
+async def test_initialize_does_not_retry_non_race_errors(tmp_path, monkeypatch):
+    """Do not swallow genuine schema errors — raise immediately."""
+    url = f"sqlite:///{tmp_path}/real.db"
+    monkeypatch.setattr("homepot.database.get_settings", lambda: _FakeSettings(url))
+
+    def failing_create_all(bind, *args, **kwargs):
+        raise OperationalError("CREATE TABLE users ...", {}, Exception("syntax error"))
+
+    monkeypatch.setattr(Base.metadata, "create_all", failing_create_all)
+
+    service = DatabaseService()
+    with pytest.raises(OperationalError):
+        await service.initialize()
+
+    assert service._initialized is False
