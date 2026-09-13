@@ -234,6 +234,42 @@ class TestCollectSystemTelemetry:
         metrics = collect_system_telemetry()
         assert metrics["disk_io_bytes_s"] == 0.0
 
+    def test_disk_io_sample_cap_trims_oldest_only(self, monkeypatch):
+        """When history exceeds the cap, only the oldest samples are discarded."""
+        import homepot.agent.utils.telemetry as telemetry
+
+        now = 1_000.0
+        max_samples = telemetry._DISK_IO_MAX_SAMPLES
+        seeded = deque(
+            [
+                (
+                    now - 10.0 + (10.0 * i / (max_samples + 1)),
+                    (float(i), float(i)),
+                )
+                for i in range(max_samples + 1)
+            ]
+        )
+        telemetry._disk_io_samples = seeded
+
+        class FakeIO:
+            def __init__(self, read_bytes, write_bytes):
+                self.read_bytes = read_bytes
+                self.write_bytes = write_bytes
+
+        current = FakeIO(float(max_samples + 500), float(max_samples + 500))
+        monkeypatch.setattr(telemetry.time, "time", lambda: now)
+        monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
+
+        rate = telemetry._disk_io_bytes_per_second()
+
+        assert len(telemetry._disk_io_samples) == max_samples
+        anchor_ts, anchor_io = telemetry._disk_io_samples[0]
+        assert anchor_io == (2.0, 2.0)
+        expected = (
+            (current.read_bytes - anchor_io[0]) + (current.write_bytes - anchor_io[1])
+        ) / (now - anchor_ts)
+        assert rate == pytest.approx(expected, rel=1e-6)
+
     def test_memory_usage_in_range(self):
         """Memory usage is between 0 and 100."""
         metrics = collect_system_telemetry()
