@@ -201,7 +201,11 @@ class TestCollectSystemTelemetry:
         # A real-looking sampling history spanning a full telemetry window.
         base = time.time() - 30.0
         telemetry._disk_io_samples = deque(
-            [(base, (0, 0)), (base + 15.0, (6_000_000, 0)), (base + 29.999, (9_000_000, 3_000_000))]
+            [
+                (base, (0, 0)),
+                (base + 15.0, (6_000_000, 0)),
+                (base + 29.999, (9_000_000, 3_000_000)),
+            ]
         )
 
         class FakeIO:

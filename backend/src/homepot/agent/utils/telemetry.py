@@ -42,7 +42,9 @@ _disk_io_samples: Deque[DiskIoSample] = deque()
 try:
     counters = psutil.disk_io_counters()
     if counters is not None:
-        _disk_io_samples.append((time.time(), (counters.read_bytes, counters.write_bytes)))
+        _disk_io_samples.append(
+            (time.time(), (counters.read_bytes, counters.write_bytes))
+        )
 except Exception:  # noqa: BLE001 - unreadable counters degrade to zero rate
     pass
 
