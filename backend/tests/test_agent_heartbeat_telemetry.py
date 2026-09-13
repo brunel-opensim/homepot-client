@@ -1,6 +1,7 @@
 """Tests for heartbeat and telemetry payload utilities."""
 
 import asyncio
+from collections import deque
 from datetime import datetime, timezone
 import json
 import time
@@ -155,16 +156,17 @@ class TestCollectSystemTelemetry:
         """disk_io_bytes_s reports combined read/write bytes per second."""
         import homepot.agent.utils.telemetry as telemetry
 
+        # Seed one anchor snapshot ~10s in the past so the window has a baseline.
+        baseline_ts = time.time() - 10.0
+        telemetry._disk_io_samples = deque([(baseline_ts, (0, 0))])
+
         class FakeIO:
             def __init__(self, read_bytes, write_bytes):
                 self.read_bytes = read_bytes
                 self.write_bytes = write_bytes
 
-        baseline = FakeIO(0, 0)
         current = FakeIO(10_000_000, 2_000_000)
         monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
-        monkeypatch.setattr(telemetry, "_last_disk_io", baseline)
-        monkeypatch.setattr(telemetry, "_last_disk_io_ts", time.time() - 10.0)
 
         metrics = collect_system_telemetry()
         assert metrics["disk_io_bytes_s"] == pytest.approx(1_200_000.0, rel=1e-3)
@@ -173,30 +175,100 @@ class TestCollectSystemTelemetry:
         """disk_io_bytes_s remains 0.0 before the minimum sample interval elapses."""
         import homepot.agent.utils.telemetry as telemetry
 
+        # Anchor is *now*, so no meaningful window has elapsed yet.
+        telemetry._disk_io_samples = deque([(time.time(), (0, 0))])
+
         class FakeIO:
             def __init__(self, read_bytes, write_bytes):
                 self.read_bytes = read_bytes
                 self.write_bytes = write_bytes
 
-        baseline = FakeIO(0, 0)
         current = FakeIO(10_000_000, 2_000_000)
         monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
-        monkeypatch.setattr(telemetry, "_last_disk_io", baseline)
-        monkeypatch.setattr(telemetry, "_last_disk_io_ts", time.time())
 
         metrics = collect_system_telemetry()
         assert metrics["disk_io_bytes_s"] == 0.0
+
+    def test_disk_io_rate_is_cadence_independent(self, monkeypatch):
+        """A burst of samples right after another caller still reports the rate.
+
+        Regression: telemetry posts previously landed a few milliseconds after
+        the live-logs loop sampled the same module, so the per-read window was
+        effectively empty and disk I/O rounded to ``0.0`` on every post.
+        """
+        import homepot.agent.utils.telemetry as telemetry
+
+        # A real-looking sampling history spanning a full telemetry window.
+        base = time.time() - 30.0
+        telemetry._disk_io_samples = deque(
+            [
+                (base, (0, 0)),
+                (base + 15.0, (6_000_000, 0)),
+                (base + 29.999, (9_000_000, 3_000_000)),
+            ]
+        )
+
+        class FakeIO:
+            def __init__(self, read_bytes, write_bytes):
+                self.read_bytes = read_bytes
+                self.write_bytes = write_bytes
+
+        current = FakeIO(9_000_000, 3_000_000)
+        monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
+
+        # Two rapid samples (telemetry right after a live-logs read).
+        first = collect_system_telemetry()["disk_io_bytes_s"]
+        second = collect_system_telemetry()["disk_io_bytes_s"]
+
+        # Both must reflect ~30s of real I/O, not a sub-second zeroed window.
+        expected = (9_000_000 + 3_000_000) / 30.0
+        assert first == pytest.approx(expected, rel=1e-1)
+        assert second == pytest.approx(expected, rel=1e-1)
 
     def test_disk_io_zero_when_no_baseline(self, monkeypatch):
         """disk_io_bytes_s falls back to 0.0 when counters are unavailable."""
         import homepot.agent.utils.telemetry as telemetry
 
         monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: None)
-        monkeypatch.setattr(telemetry, "_last_disk_io", None)
-        monkeypatch.setattr(telemetry, "_last_disk_io_ts", None)
 
         metrics = collect_system_telemetry()
         assert metrics["disk_io_bytes_s"] == 0.0
+
+    def test_disk_io_sample_cap_trims_oldest_only(self, monkeypatch):
+        """When history exceeds the cap, only the oldest samples are discarded."""
+        import homepot.agent.utils.telemetry as telemetry
+
+        now = 1_000.0
+        max_samples = telemetry._DISK_IO_MAX_SAMPLES
+        seeded = deque(
+            [
+                (
+                    now - 10.0 + (10.0 * i / (max_samples + 1)),
+                    (float(i), float(i)),
+                )
+                for i in range(max_samples + 1)
+            ]
+        )
+        telemetry._disk_io_samples = seeded
+
+        class FakeIO:
+            def __init__(self, read_bytes, write_bytes):
+                self.read_bytes = read_bytes
+                self.write_bytes = write_bytes
+
+        current = FakeIO(float(max_samples + 500), float(max_samples + 500))
+        monkeypatch.setattr(telemetry.time, "time", lambda: now)
+        monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
+
+        rate = telemetry._disk_io_bytes_per_second()
+
+        assert len(telemetry._disk_io_samples) == max_samples
+        anchor_ts, anchor_io = telemetry._disk_io_samples[0]
+        assert anchor_io == (0.0, 0.0)
+        expected = (
+            (current.read_bytes - anchor_io[0]) + (current.write_bytes - anchor_io[1])
+        ) / (now - anchor_ts)
+        assert rate == pytest.approx(expected, rel=1e-6)
 
     def test_memory_usage_in_range(self):
         """Memory usage is between 0 and 100."""

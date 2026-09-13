@@ -9,33 +9,44 @@ until a data-source agreement and side-by-side source validation exist;
 ``collect_pos_signals`` is inert unless a source path is configured.
 """
 
+from collections import deque
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 from threading import Lock
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Deque, Dict, Optional, Tuple
 
 import psutil
 
 # A minimum elapsed time before a disk I/O delta is treated as a rate.
 _DISK_IO_MIN_INTERVAL_SECONDS = 1.0
 
+# Disk throughput is reported over a sliding window the size of the telemetry
+# cadence, so the rate is stable regardless of how often this module is
+# sampled between telemetry posts (other loops also collect host metrics).
+_DISK_IO_WINDOW_SECONDS = 30.0
+_DISK_IO_MAX_SAMPLES = 10_000
+
 # Seed psutil's blocked-CPU baseline at import so the first interval-average
 # sample reflects utilization since process start instead of returning 0.0.
 psutil.cpu_percent(interval=None)
 
-# Seed the disk I/O baseline at import so each read reports the genuine
-# throughput since the previous read (bytes per second).
+# Sliding history of (wall-clock, (read_bytes, write_bytes)) snapshots. The
+# stored baseline behind a window-sized ``dt`` is used to report throughput
+# that is independent of how frequently a caller samples this module.
 _disk_io_baseline_lock = Lock()
-_last_disk_io_ts: Optional[float]
+DiskIoSample = Tuple[float, Tuple[float, float]]
+_disk_io_samples: Deque[DiskIoSample] = deque()
 
 try:
-    _last_disk_io = psutil.disk_io_counters()
-    _last_disk_io_ts = time.time()
+    counters = psutil.disk_io_counters()
+    if counters is not None:
+        _disk_io_samples.append(
+            (time.time(), (counters.read_bytes, counters.write_bytes))
+        )
 except Exception:  # noqa: BLE001 - unreadable counters degrade to zero rate
-    _last_disk_io = None
-    _last_disk_io_ts = None
+    pass
 
 
 def utc_now_iso() -> str:
@@ -56,29 +67,55 @@ def collect_uptime_seconds() -> int:
 
 
 def _disk_io_bytes_per_second() -> float:
-    """Return combined disk read/write throughput (bytes/s) since the last read.
+    """Return combined disk read/write throughput (bytes/s) over a sliding window.
 
-    Returns ``0.0`` when the OS exposes no per-disk counters or too little
-    time has elapsed since the previous sample to form a meaningful rate.
+    The rate is computed between the most recent counter snapshot and an
+    anchor snapshot roughly ``_DISK_IO_WINDOW_SECONDS`` in the past.  Because
+    the anchor is retained across rapid successive calls, the reported rate
+    reflects genuine disk activity since the last meaningful interval rather
+    than a sub-second sliver (which would round to ``0.0`` for callers that
+    sample immediately after another loop).
+
+    Returns ``0.0`` when the OS exposes no per-disk counters, too little time
+    has elapsed since the anchor, or the counters are unavailable.
     """
-    global _last_disk_io, _last_disk_io_ts
+    global _disk_io_samples
     with _disk_io_baseline_lock:
         now_ts = time.time()
         now_io = psutil.disk_io_counters()
-        rate = 0.0
-        if (
-            now_io is not None
-            and _last_disk_io is not None
-            and _last_disk_io_ts is not None
+        if now_io is None:
+            return 0.0
+        now_sample: DiskIoSample = (
+            now_ts,
+            (now_io.read_bytes, now_io.write_bytes),
+        )
+        _disk_io_samples.append(now_sample)
+
+        # Drop front samples until the front is at least a window behind now,
+        # but never empty the history: the retained front acts as the anchor.
+        while (
+            len(_disk_io_samples) >= 2
+            and now_ts - _disk_io_samples[1][0] >= _DISK_IO_WINDOW_SECONDS
         ):
-            dt = now_ts - _last_disk_io_ts
-            if dt >= _DISK_IO_MIN_INTERVAL_SECONDS:
-                read_bytes = max(0.0, now_io.read_bytes - _last_disk_io.read_bytes)
-                write_bytes = max(0.0, now_io.write_bytes - _last_disk_io.write_bytes)
-                rate = (read_bytes + write_bytes) / dt
-        _last_disk_io = now_io
-        _last_disk_io_ts = now_ts
-        return rate
+            _disk_io_samples.popleft()
+        if len(_disk_io_samples) > _DISK_IO_MAX_SAMPLES:
+            # Preserve the current anchor sample at index 0 and keep the
+            # newest non-anchor samples up to the configured cap.
+            anchor = _disk_io_samples[0]
+            tail_count = _DISK_IO_MAX_SAMPLES - 1
+            samples_after_anchor = iter(_disk_io_samples)
+            next(samples_after_anchor, None)
+            tail = deque(samples_after_anchor, maxlen=tail_count)
+            _disk_io_samples = deque((anchor,))
+            _disk_io_samples.extend(tail)
+
+        anchor_ts, anchor_io = _disk_io_samples[0]
+        dt = now_ts - anchor_ts
+        if dt < _DISK_IO_MIN_INTERVAL_SECONDS:
+            return 0.0
+        read_bytes = max(0.0, now_io.read_bytes - anchor_io[0])
+        write_bytes = max(0.0, now_io.write_bytes - anchor_io[1])
+        return (read_bytes + write_bytes) / dt
 
 
 def collect_system_telemetry() -> Dict[str, float]:
@@ -88,7 +125,8 @@ def collect_system_telemetry() -> Dict[str, float]:
     same process (honest per-read sample over the collection interval) rather
     than a short blocking snapshot; the baseline is seeded at import.
     ``disk_io_bytes_s`` is the combined read/write throughput (bytes per
-    second) measured since the previous read.
+    second) over a sliding window matching the telemetry cadence, so it
+    stays meaningful even when other loops sample metrics in between.
     """
     return {
         "cpu_usage": float(round(max(0.0, psutil.cpu_percent(interval=None)), 1)),
