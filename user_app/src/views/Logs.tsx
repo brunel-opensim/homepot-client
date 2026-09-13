@@ -6,12 +6,14 @@ import {
   fetchDeviceAuditEvents,
   fetchDeviceCommandHistory,
   fetchDeviceAlerts,
+  fetchDeviceJobHistory,
 } from '../services/api'
 import type {
   DeviceLog,
   AuditEvent,
   CommandHistoryEntry,
   AlertEvent,
+  JobHistoryEntry,
 } from '../services/api'
 import { ApiError } from '../services/api'
 
@@ -65,6 +67,26 @@ function commandStatusMeta(status: string): { label: string; dot: string } {
   )
 }
 
+const JOB_STATUS_META: Record<string, { label: string; dot: string }> = {
+  pending: { label: 'Queued', dot: 'bg-amber-400' },
+  queued: { label: 'Queued', dot: 'bg-amber-400' },
+  sent: { label: 'Acknowledged', dot: 'bg-blue-500' },
+  acknowledged: { label: 'Acknowledged', dot: 'bg-blue-500' },
+  completed: { label: 'Completed', dot: 'bg-emerald-500' },
+  failed: { label: 'Failed', dot: 'bg-red-500' },
+  cancelled: { label: 'Cancelled', dot: 'bg-slate-500' },
+}
+
+function jobStatusMeta(status: string): { label: string; dot: string } {
+  const normalized = (status || '').toLowerCase()
+  return (
+    JOB_STATUS_META[normalized] ?? {
+      label: status || 'Unknown',
+      dot: 'bg-slate-400',
+    }
+  )
+}
+
 const ALERT_SEVERITY_DOT: Record<string, string> = {
   critical: 'bg-red-600',
   high: 'bg-red-500',
@@ -106,8 +128,10 @@ export default function Logs() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [alerts, setAlerts] = useState<AlertEvent[]>([])
   const [commandHistory, setCommandHistory] = useState<CommandHistoryEntry[]>([])
+  const [jobHistory, setJobHistory] = useState<JobHistoryEntry[]>([])
   const [diagnosticsGated, setDiagnosticsGated] = useState(false)
   const [commandHistoryGated, setCommandHistoryGated] = useState(false)
+  const [jobHistoryGated, setJobHistoryGated] = useState(false)
   const [error, setError] = useState('')
 
   const refresh = useCallback(async () => {
@@ -179,6 +203,21 @@ export default function Logs() {
     }
   }, [])
 
+  const refreshJobHistory = useCallback(async () => {
+    const [deviceId, apiKey] = await Promise.all([
+      credentialStorage.getDeviceId(),
+      credentialStorage.getApiKey(),
+    ])
+    if (!deviceId || !apiKey) return
+    try {
+      setJobHistory(await fetchDeviceJobHistory(deviceId, apiKey, 50))
+      setJobHistoryGated(false)
+    } catch (err) {
+      // A 403 means the Monitor tier has not been granted for this device.
+      setJobHistoryGated(err instanceof ApiError && err.status === 403)
+    }
+  }, [])
+
   useEffect(() => {
     const initialRefresh = setTimeout(refresh, 0)
     const poll = setInterval(refresh, 15000)
@@ -193,7 +232,8 @@ export default function Logs() {
     refreshAuditEvents()
     refreshAlerts()
     refreshCommandHistory()
-  }, [refreshDeviceLogs, refreshAuditEvents, refreshAlerts, refreshCommandHistory])
+    refreshJobHistory()
+  }, [refreshDeviceLogs, refreshAuditEvents, refreshAlerts, refreshCommandHistory, refreshJobHistory])
 
   useEffect(() => {
     const initialRefresh = setTimeout(devicePoller, 0)
@@ -229,10 +269,10 @@ export default function Logs() {
 
         {/* Content — scrollable logs, header + tab bar stay fixed */}
         <div className="px-5 py-2 flex-1 overflow-y-auto min-h-0 logs-scroll">
-          {diagnosticsGated && (
+          {(diagnosticsGated || jobHistoryGated) && (
             <p className="text-slate-500 text-xs italic pb-2 pt-2">
               Device diagnostics are hidden — grant Monitor access to this device to view
-              alerts, logs, and audit activity.
+              alerts, logs, audit activity, and job history.
             </p>
           )}
           {alerts.length > 0 && (
@@ -292,6 +332,30 @@ export default function Logs() {
                 meta=""
                 dot="bg-slate-500"
               />
+              <div className="border-t border-slate-700 my-2" />
+            </>
+          )}
+          {jobHistory.length > 0 && (
+            <>
+              <p className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-widest pt-2">
+                Job History
+              </p>
+              {jobHistory.map(job => {
+                const statusMeta = jobStatusMeta(job.status)
+                return (
+                  <Row
+                    key={`job-${job.job_id}`}
+                    title={formatEventType(job.action)}
+                    subtitle={
+                      job.description
+                        ? `${statusMeta.label} · ${job.description}`
+                        : `${job.priority} priority · ${statusMeta.label}`
+                    }
+                    meta={formatTime(job.completed_at ?? job.created_at)}
+                    dot={statusMeta.dot}
+                  />
+                )
+              })}
               <div className="border-t border-slate-700 my-2" />
             </>
           )}
