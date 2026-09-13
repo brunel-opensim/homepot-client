@@ -264,7 +264,7 @@ class TestCollectSystemTelemetry:
 
         assert len(telemetry._disk_io_samples) == max_samples
         anchor_ts, anchor_io = telemetry._disk_io_samples[0]
-        assert anchor_io == (2.0, 2.0)
+        assert anchor_io == (0.0, 0.0)
         expected = (
             (current.read_bytes - anchor_io[0]) + (current.write_bytes - anchor_io[1])
         ) / (now - anchor_ts)

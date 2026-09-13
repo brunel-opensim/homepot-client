@@ -98,8 +98,11 @@ def _disk_io_bytes_per_second() -> float:
             and now_ts - _disk_io_samples[1][0] >= _DISK_IO_WINDOW_SECONDS
         ):
             _disk_io_samples.popleft()
-        while len(_disk_io_samples) > _DISK_IO_MAX_SAMPLES:
-            _disk_io_samples.popleft()
+        if len(_disk_io_samples) > _DISK_IO_MAX_SAMPLES:
+            anchor = _disk_io_samples[0]
+            tail_count = _DISK_IO_MAX_SAMPLES - 1
+            tail = list(_disk_io_samples)[-tail_count:]
+            _disk_io_samples = deque([anchor, *tail])
 
         anchor_ts, anchor_io = _disk_io_samples[0]
         dt = now_ts - anchor_ts
