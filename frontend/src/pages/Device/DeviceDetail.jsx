@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/Toast';
 import api from '@/services/api';
 import { trackActivity } from '@/utils/analytics';
+import { buildStatsFromMetrics } from './deviceStats';
 import {
   ArrowLeft,
   Loader2,
@@ -138,61 +139,6 @@ const DEVICE_ACTIONS = {
 };
 
 /* === Helpers === */
-function formatUptime(seconds) {
-  if (!seconds) return '0s';
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  if (days > 0) return `${days}d ${hours}h`;
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
-}
-
-function buildStatsFromMetrics(metricsData) {
-  if (!metricsData || metricsData.length === 0) return null;
-
-  const latest = metricsData[0];
-  const cpuTrend = metricsData.map((m) => m.cpu_percent).reverse();
-  const memTrend = metricsData.map((m) => m.memory_percent).reverse();
-  const diskTrend = metricsData.map((m) => m.disk_percent).reverse();
-  const netTrend = metricsData.map((m) => m.network_latency_ms).reverse();
-
-  // Extract uptime from extra_metrics if available
-  const currentUptime = latest.extra_metrics?.uptime_seconds || 0;
-  const uptimeTrend = metricsData.map((m) => m.extra_metrics?.uptime_seconds || 0).reverse();
-
-  return {
-    cpu: {
-      label: 'CPU',
-      value: `${latest.cpu_percent?.toFixed(1) || 0}%`,
-      subtitle: 'current load',
-      data: cpuTrend,
-    },
-    memory: {
-      label: 'Memory',
-      value: `${latest.memory_percent?.toFixed(1) || 0}%`,
-      subtitle: 'utilization',
-      data: memTrend,
-    },
-    disk: {
-      label: 'Disk',
-      value: `${latest.disk_percent?.toFixed(1) || 0}%`,
-      subtitle: 'usage',
-      data: diskTrend,
-    },
-    network: {
-      label: 'Network',
-      value: `${latest.network_latency_ms?.toFixed(0) || 0}ms`,
-      subtitle: 'latency',
-      data: netTrend,
-    },
-    uptime: {
-      label: 'Uptime',
-      value: formatUptime(currentUptime),
-      subtitle: 'system up',
-      data: uptimeTrend,
-    },
-  };
-}
 
 function mergeDeviceAlerts(alertsData, anomalyData, deviceId) {
   let combinedAlerts = [];
