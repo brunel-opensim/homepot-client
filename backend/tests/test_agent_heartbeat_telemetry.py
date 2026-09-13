@@ -163,19 +163,37 @@ class TestCollectSystemTelemetry:
         baseline = FakeIO(0, 0)
         current = FakeIO(10_000_000, 2_000_000)
         monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
-        telemetry._last_disk_io = baseline
-        telemetry._last_disk_io_ts = time.time() - 10.0
+        monkeypatch.setattr(telemetry, "_last_disk_io", baseline)
+        monkeypatch.setattr(telemetry, "_last_disk_io_ts", time.time() - 10.0)
 
         metrics = collect_system_telemetry()
         assert metrics["disk_io_bytes_s"] == pytest.approx(1_200_000.0, rel=1e-3)
+
+    def test_disk_io_zero_when_sampled_too_quickly(self, monkeypatch):
+        """disk_io_bytes_s remains 0.0 before the minimum sample interval elapses."""
+        import homepot.agent.utils.telemetry as telemetry
+
+        class FakeIO:
+            def __init__(self, read_bytes, write_bytes):
+                self.read_bytes = read_bytes
+                self.write_bytes = write_bytes
+
+        baseline = FakeIO(0, 0)
+        current = FakeIO(10_000_000, 2_000_000)
+        monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
+        monkeypatch.setattr(telemetry, "_last_disk_io", baseline)
+        monkeypatch.setattr(telemetry, "_last_disk_io_ts", time.time())
+
+        metrics = collect_system_telemetry()
+        assert metrics["disk_io_bytes_s"] == 0.0
 
     def test_disk_io_zero_when_no_baseline(self, monkeypatch):
         """disk_io_bytes_s falls back to 0.0 when counters are unavailable."""
         import homepot.agent.utils.telemetry as telemetry
 
         monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: None)
-        telemetry._last_disk_io = None
-        telemetry._last_disk_io_ts = None
+        monkeypatch.setattr(telemetry, "_last_disk_io", None)
+        monkeypatch.setattr(telemetry, "_last_disk_io_ts", None)
 
         metrics = collect_system_telemetry()
         assert metrics["disk_io_bytes_s"] == 0.0

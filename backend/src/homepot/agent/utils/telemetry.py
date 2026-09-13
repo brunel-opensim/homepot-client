@@ -12,6 +12,7 @@ until a data-source agreement and side-by-side source validation exist;
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from threading import Lock
 import time
 from typing import Any, Dict, Optional
 
@@ -26,6 +27,7 @@ psutil.cpu_percent(interval=None)
 
 # Seed the disk I/O baseline at import so each read reports the genuine
 # throughput since the previous read (bytes per second).
+_disk_io_baseline_lock = Lock()
 _last_disk_io_ts: Optional[float]
 
 try:
@@ -60,22 +62,23 @@ def _disk_io_bytes_per_second() -> float:
     time has elapsed since the previous sample to form a meaningful rate.
     """
     global _last_disk_io, _last_disk_io_ts
-    now_ts = time.time()
-    now_io = psutil.disk_io_counters()
-    rate = 0.0
-    if (
-        now_io is not None
-        and _last_disk_io is not None
-        and _last_disk_io_ts is not None
-    ):
-        dt = now_ts - _last_disk_io_ts
-        if dt >= _DISK_IO_MIN_INTERVAL_SECONDS:
-            read_bytes = max(0.0, now_io.read_bytes - _last_disk_io.read_bytes)
-            write_bytes = max(0.0, now_io.write_bytes - _last_disk_io.write_bytes)
-            rate = (read_bytes + write_bytes) / dt
-    _last_disk_io = now_io
-    _last_disk_io_ts = now_ts
-    return rate
+    with _disk_io_baseline_lock:
+        now_ts = time.time()
+        now_io = psutil.disk_io_counters()
+        rate = 0.0
+        if (
+            now_io is not None
+            and _last_disk_io is not None
+            and _last_disk_io_ts is not None
+        ):
+            dt = now_ts - _last_disk_io_ts
+            if dt >= _DISK_IO_MIN_INTERVAL_SECONDS:
+                read_bytes = max(0.0, now_io.read_bytes - _last_disk_io.read_bytes)
+                write_bytes = max(0.0, now_io.write_bytes - _last_disk_io.write_bytes)
+                rate = (read_bytes + write_bytes) / dt
+        _last_disk_io = now_io
+        _last_disk_io_ts = now_ts
+        return rate
 
 
 def collect_system_telemetry() -> Dict[str, float]:
