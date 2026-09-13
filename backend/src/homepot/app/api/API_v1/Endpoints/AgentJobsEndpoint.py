@@ -191,7 +191,5 @@ async def get_device_jobs(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "Failed to fetch jobs for %s: %s", device_id, e, exc_info=True
-        )
+        logger.error("Failed to fetch jobs for %s: %s", device_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch device jobs")

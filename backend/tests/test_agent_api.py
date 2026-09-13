@@ -69,9 +69,7 @@ def _device_headers(device_id: str, api_key: str) -> dict[str, str]:
     return {"X-Device-ID": device_id, "X-API-Key": api_key}
 
 
-def _create_device(
-    device_id: str, site_pk: int, api_key: str = "test-api-key"
-) -> str:
+def _create_device(device_id: str, site_pk: int, api_key: str = "test-api-key") -> str:
     """Create a device row linked to a site primary key."""
     db = homepot.database.SessionLocal()
     try:
@@ -92,9 +90,7 @@ def _create_device(
     return api_key
 
 
-def _set_device_permissions(
-    device_id: str, permissions: dict[str, bool]
-) -> None:
+def _set_device_permissions(device_id: str, permissions: dict[str, bool]) -> None:
     """Set the device_permissions JSON column for a device row."""
     db = homepot.database.SessionLocal()
     try:
