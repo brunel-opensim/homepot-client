@@ -26,6 +26,8 @@ psutil.cpu_percent(interval=None)
 
 # Seed the disk I/O baseline at import so each read reports the genuine
 # throughput since the previous read (bytes per second).
+_last_disk_io_ts: Optional[float]
+
 try:
     _last_disk_io = psutil.disk_io_counters()
     _last_disk_io_ts = time.time()
