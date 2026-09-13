@@ -91,6 +91,7 @@ export function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40, animated 
     .join(' ');
 
   const pathD = `M${points.split(' ').join(' L ')}`;
+  const areaD = `${pathD} L ${width},${height} L 0,${height} Z`;
 
   return (
     <svg
@@ -103,8 +104,13 @@ export function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40, animated 
           <stop offset="0%" stopColor="#34d399" />
           <stop offset="100%" stopColor="#06b6d4" />
         </linearGradient>
+        <linearGradient id="gFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.02" />
+        </linearGradient>
       </defs>
 
+      <path d={areaD} fill="url(#gFill)" />
       <path
         d={pathD}
         fill="none"
