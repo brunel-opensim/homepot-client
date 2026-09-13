@@ -10,7 +10,9 @@ function pathOf(container) {
 }
 
 function areaDOf(container) {
-  const area = container.querySelector('path[fill]');
+  const area = Array.from(container.querySelectorAll('path')).find(
+    (p) => p.getAttribute('fill') !== 'none'
+  );
   if (!area) return null;
   return area.getAttribute('d');
 }
@@ -21,14 +23,15 @@ describe('Sparkline', () => {
     expect(pathOf(container)).toBe('M0,20 L 48,20 L 96,20 L 144,20');
   });
 
-  it('fills an area under the line so a flat series reads as a graph', () => {
+  it('draws a constant series as a clean line, not a solid bar', () => {
     const { container } = render(<Sparkline data={[4.6, 4.6, 4.6, 4.6]} height={40} />);
-    expect(areaDOf(container)).toBe('M0,20 L 48,20 L 96,20 L 144,20 L 144,40 L 0,40 Z');
+    expect(areaDOf(container)).toBeNull();
   });
 
-  it('spans the full height for a varying series', () => {
+  it('spans the full height and fills an area for a varying series', () => {
     const { container } = render(<Sparkline data={[10, 20]} height={40} />);
     expect(pathOf(container)).toBe('M0,40 L 144,0');
+    expect(areaDOf(container)).toBe('M0,40 L 144,0 L 144,40 L 0,40 Z');
   });
 
   it('ignores non-numeric samples', () => {
