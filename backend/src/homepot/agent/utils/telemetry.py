@@ -103,7 +103,9 @@ def _disk_io_bytes_per_second() -> float:
             # newest non-anchor samples up to the configured cap.
             anchor = _disk_io_samples[0]
             tail_count = _DISK_IO_MAX_SAMPLES - 1
-            tail = deque(_disk_io_samples, maxlen=tail_count)
+            samples_after_anchor = iter(_disk_io_samples)
+            next(samples_after_anchor, None)
+            tail = deque(samples_after_anchor, maxlen=tail_count)
             _disk_io_samples = deque((anchor,))
             _disk_io_samples.extend(tail)
 
