@@ -69,12 +69,23 @@ export function StatBlock({ title, value, subtitle, data = [] }) {
 
 export function Sparkline({ data = [4, 6, 5, 7, 6, 8, 9], height = 40, animated = false }) {
   const width = 144;
-  const max = Math.max(...data) || 1;
-  const min = Math.min(...data) || 0;
-  const points = data
+  const samples = data.filter((d) => typeof d === 'number' && Number.isFinite(d));
+  if (samples.length === 0) {
+    return (
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className={`w-full h-full ${animated ? 'animate-pulse' : ''}`}
+        preserveAspectRatio="none"
+      />
+    );
+  }
+  const max = Math.max(...samples);
+  const min = Math.min(...samples);
+  const span = max - min;
+  const points = samples
     .map((d, i) => {
-      const x = (i / (data.length - 1 || 1)) * width;
-      const y = height - ((d - min) / (max - min || 1)) * height;
+      const x = (i / (samples.length - 1 || 1)) * width;
+      const y = span === 0 ? height / 2 : height - ((d - min) / span) * height;
       return `${x},${y}`;
     })
     .join(' ');
