@@ -17,6 +17,22 @@ from typing import Any, Dict, Optional
 
 import psutil
 
+# A minimum elapsed time before a disk I/O delta is treated as a rate.
+_DISK_IO_MIN_INTERVAL_SECONDS = 1.0
+
+# Seed psutil's blocked-CPU baseline at import so the first interval-average
+# sample reflects utilization since process start instead of returning 0.0.
+psutil.cpu_percent(interval=None)
+
+# Seed the disk I/O baseline at import so each read reports the genuine
+# throughput since the previous read (bytes per second).
+try:
+    _last_disk_io = psutil.disk_io_counters()
+    _last_disk_io_ts = time.time()
+except Exception:  # noqa: BLE001 - unreadable counters degrade to zero rate
+    _last_disk_io = None
+    _last_disk_io_ts = None
+
 
 def utc_now_iso() -> str:
     """Return current UTC time as an ISO-8601 string."""
@@ -35,12 +51,45 @@ def collect_uptime_seconds() -> int:
         return 0
 
 
+def _disk_io_bytes_per_second() -> float:
+    """Return combined disk read/write throughput (bytes/s) since the last read.
+
+    Returns ``0.0`` when the OS exposes no per-disk counters or too little
+    time has elapsed since the previous sample to form a meaningful rate.
+    """
+    global _last_disk_io, _last_disk_io_ts
+    now_ts = time.time()
+    now_io = psutil.disk_io_counters()
+    rate = 0.0
+    if (
+        now_io is not None
+        and _last_disk_io is not None
+        and _last_disk_io_ts is not None
+    ):
+        dt = now_ts - _last_disk_io_ts
+        if dt >= _DISK_IO_MIN_INTERVAL_SECONDS:
+            read_bytes = max(0.0, now_io.read_bytes - _last_disk_io.read_bytes)
+            write_bytes = max(0.0, now_io.write_bytes - _last_disk_io.write_bytes)
+            rate = (read_bytes + write_bytes) / dt
+    _last_disk_io = now_io
+    _last_disk_io_ts = now_ts
+    return rate
+
+
 def collect_system_telemetry() -> Dict[str, float]:
-    """Collect basic CPU, memory, disk, and uptime metrics from the host."""
+    """Collect basic CPU, memory, disk, and uptime metrics from the host.
+
+    ``cpu_usage`` is the average utilization since the previous call in the
+    same process (honest per-read sample over the collection interval) rather
+    than a short blocking snapshot; the baseline is seeded at import.
+    ``disk_io_bytes_s`` is the combined read/write throughput (bytes per
+    second) measured since the previous read.
+    """
     return {
-        "cpu_usage": float(psutil.cpu_percent(interval=0.1)),
+        "cpu_usage": float(round(max(0.0, psutil.cpu_percent(interval=None)), 1)),
         "memory_usage": float(psutil.virtual_memory().percent),
         "disk_usage": float(psutil.disk_usage("/").percent),
+        "disk_io_bytes_s": float(round(_disk_io_bytes_per_second(), 1)),
         "uptime_seconds": collect_uptime_seconds(),
     }
 

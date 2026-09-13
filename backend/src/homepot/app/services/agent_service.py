@@ -205,6 +205,7 @@ class AgentService:
                     cpu_usage=payload.cpu_usage,
                     memory_usage=payload.memory_usage,
                     disk_usage=payload.disk_usage,
+                    disk_io_bytes_s=payload.disk_io_bytes_s,
                     uptime_seconds=payload.uptime_seconds,
                     network_latency_ms=payload.network_latency_ms,
                     provenance=provenance.value if provenance else None,
@@ -233,6 +234,7 @@ class AgentService:
                     "cpu_usage": item.cpu_usage,
                     "memory_usage": item.memory_usage,
                     "disk_usage": item.disk_usage,
+                    "disk_io_bytes_s": item.disk_io_bytes_s,
                     "uptime_seconds": item.uptime_seconds,
                     "network_latency_ms": item.network_latency_ms,
                     "timestamp": item.timestamp,
@@ -560,6 +562,7 @@ class AgentService:
                 "disk_percent": metric.disk_percent,
                 "network_latency_ms": metric.network_latency_ms,
                 "uptime_seconds": extra.get("uptime_seconds"),
+                "disk_io_bytes_s": extra.get("disk_io_bytes_s"),
                 "timestamp": metric.timestamp.isoformat(),
             }
 
@@ -598,6 +601,7 @@ class AgentService:
                         "disk_percent": metric.disk_percent,
                         "network_latency_ms": metric.network_latency_ms,
                         "uptime_seconds": extra.get("uptime_seconds"),
+                        "disk_io_bytes_s": extra.get("disk_io_bytes_s"),
                         "timestamp": metric.timestamp.isoformat(),
                     }
                 )

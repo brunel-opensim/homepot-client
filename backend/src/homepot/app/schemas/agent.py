@@ -103,6 +103,14 @@ class AgentTelemetryRequest(BaseModel):
         ..., ge=0, le=100, description="Memory usage percentage"
     )
     disk_usage: float = Field(..., ge=0, le=100, description="Disk usage percentage")
+    disk_io_bytes_s: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Combined disk read/write throughput in bytes per second since "
+            "the previous telemetry read"
+        ),
+    )
     network_latency_ms: Optional[float] = Field(
         default=None, ge=0, description="Network latency in milliseconds"
     )

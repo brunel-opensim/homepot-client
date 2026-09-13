@@ -188,10 +188,16 @@ class AgentRepository:
         timestamp: datetime,
         uptime_seconds: int | None = None,
         network_latency_ms: float | None = None,
+        disk_io_bytes_s: float | None = None,
         provenance: str | None = None,
         collection_interval_seconds: int | None = None,
     ) -> DeviceMetrics:
         """Persist a single telemetry entry for a device."""
+        extra: dict = {}
+        if uptime_seconds is not None:
+            extra["uptime_seconds"] = uptime_seconds
+        if disk_io_bytes_s is not None:
+            extra["disk_io_bytes_s"] = disk_io_bytes_s
         metric = DeviceMetrics(
             device_id=device_pk,
             cpu_percent=cpu_usage,
@@ -201,11 +207,7 @@ class AgentRepository:
             network_latency_ms=network_latency_ms,
             provenance=provenance,
             collection_interval_seconds=collection_interval_seconds,
-            extra_metrics=(
-                {"uptime_seconds": uptime_seconds}
-                if uptime_seconds is not None
-                else None
-            ),
+            extra_metrics=extra or None,
         )
         self.db.add(metric)
         self.db.commit()
@@ -223,6 +225,13 @@ class AgentRepository:
         """Persist multiple telemetry entries for a device."""
         metrics: list[DeviceMetrics] = []
         for entry in entries:
+            extra: dict = {}
+            uptime = entry.get("uptime_seconds")
+            if uptime is not None:
+                extra["uptime_seconds"] = uptime
+            disk_io = entry.get("disk_io_bytes_s")
+            if disk_io is not None:
+                extra["disk_io_bytes_s"] = disk_io
             metric = DeviceMetrics(
                 device_id=device_pk,
                 cpu_percent=entry["cpu_usage"],
@@ -232,11 +241,7 @@ class AgentRepository:
                 network_latency_ms=entry.get("network_latency_ms"),
                 provenance=provenance,
                 collection_interval_seconds=collection_interval_seconds,
-                extra_metrics=(
-                    {"uptime_seconds": entry["uptime_seconds"]}
-                    if entry.get("uptime_seconds") is not None
-                    else None
-                ),
+                extra_metrics=extra or None,
             )
             metrics.append(metric)
 

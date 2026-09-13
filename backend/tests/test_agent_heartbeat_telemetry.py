@@ -3,8 +3,10 @@
 import asyncio
 from datetime import datetime, timezone
 import json
+import time
 
 import httpx
+import pytest
 
 from homepot.agent.real_device_agent import live_logs_loop
 from homepot.agent.utils.command_poller import build_status_report
@@ -124,6 +126,59 @@ class TestCollectSystemTelemetry:
         """CPU usage is between 0 and 100."""
         metrics = collect_system_telemetry()
         assert 0 <= metrics["cpu_usage"] <= 100
+
+    def test_cpu_is_interval_average_since_last_sample(self, monkeypatch):
+        """cpu_usage samples the non-blocking average since the last call."""
+        calls: list = []
+
+        def fake_cpu_percent(interval=None):
+            calls.append(interval)
+            return 12.34
+
+        monkeypatch.setattr(
+            "homepot.agent.utils.telemetry.psutil.cpu_percent", fake_cpu_percent
+        )
+        metrics = collect_system_telemetry()
+        assert calls == [None]
+        assert metrics["cpu_usage"] == 12.3
+
+    def test_cpu_usage_clamps_negative_delta(self, monkeypatch):
+        """A backwards time delta never yields a negative CPU value."""
+        monkeypatch.setattr(
+            "homepot.agent.utils.telemetry.psutil.cpu_percent",
+            lambda interval=None: -4.2,
+        )
+        metrics = collect_system_telemetry()
+        assert metrics["cpu_usage"] == 0.0
+
+    def test_disk_io_is_throughput_since_last_read(self, monkeypatch):
+        """disk_io_bytes_s reports combined read/write bytes per second."""
+        import homepot.agent.utils.telemetry as telemetry
+
+        class FakeIO:
+            def __init__(self, read_bytes, write_bytes):
+                self.read_bytes = read_bytes
+                self.write_bytes = write_bytes
+
+        baseline = FakeIO(0, 0)
+        current = FakeIO(10_000_000, 2_000_000)
+        monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: current)
+        telemetry._last_disk_io = baseline
+        telemetry._last_disk_io_ts = time.time() - 10.0
+
+        metrics = collect_system_telemetry()
+        assert metrics["disk_io_bytes_s"] == pytest.approx(1_200_000.0, rel=1e-3)
+
+    def test_disk_io_zero_when_no_baseline(self, monkeypatch):
+        """disk_io_bytes_s falls back to 0.0 when counters are unavailable."""
+        import homepot.agent.utils.telemetry as telemetry
+
+        monkeypatch.setattr(telemetry.psutil, "disk_io_counters", lambda: None)
+        telemetry._last_disk_io = None
+        telemetry._last_disk_io_ts = None
+
+        metrics = collect_system_telemetry()
+        assert metrics["disk_io_bytes_s"] == 0.0
 
     def test_memory_usage_in_range(self):
         """Memory usage is between 0 and 100."""
