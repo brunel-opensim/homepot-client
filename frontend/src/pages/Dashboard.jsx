@@ -8,6 +8,7 @@ import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
 import WorldMapImage from '@/assets/images/world-map.png';
+import { MAX_AUTO_MONITORED_CARDS, buildMonitoredBoard } from '@/utils/dashboardBoard';
 
 // Collapse an alert reason to a stable "kind" by stripping the numeric metric
 // value and units, e.g. 'High Latency: 825ms' -> 'high latency'. This lets
@@ -25,6 +26,12 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
   const [summary, setSummary] = useState(null);
+  const [extraMonitored, setExtraMonitored] = useState(0);
+  const [monitoredItems, setMonitoredItems] = useState([]);
+  const clearMonitoredBoard = () => {
+    setMonitoredItems([]);
+    setExtraMonitored(0);
+  };
 
   useEffect(() => {
     // Poll system pulse every 1 second
@@ -45,7 +52,6 @@ export default function Dashboard() {
     };
   }, []); // Run once on mount
 
-  const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -59,15 +65,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
+      // 1. Fetch Dashboard Summary
       try {
-        // 1. Fetch Dashboard Summary
-        try {
-          const summaryData = await api.dashboard.summary();
-          setSummary(summaryData);
-        } catch (e) {
-          console.error('Failed to fetch dashboard summary', e);
-        }
+        const summaryData = await api.dashboard.summary();
+        setSummary(summaryData);
+      } catch (e) {
+        console.error('Failed to fetch dashboard summary', e);
+      }
 
+      try {
         // 2. Fetch Sites
         const sitesData = await api.sites.list();
         const fetchedSites = sitesData?.sites || [];
@@ -132,6 +138,18 @@ export default function Dashboard() {
             ...monitoredDevices.map((d) => ({ ...d, _type: 'device' })),
           ];
         }
+
+        // Bound the auto-monitored board: sort by urgency (critical first,
+        // then most recent) and cap the card count so a fleet-wide alert
+        // storm cannot flood the technician's view.
+        const board = buildMonitoredBoard({
+          items: itemsToDisplay,
+          anomalies,
+          sites: fetchedSites,
+          devices: fetchedDevices,
+        });
+        itemsToDisplay = board.items;
+        setExtraMonitored(board.hidden);
 
         // Helper to format time ago
         const formatTimeAgo = (isoString) => {
@@ -230,13 +248,14 @@ export default function Dashboard() {
           };
         });
 
-        setSites(sitesWithDefaults);
+        setMonitoredItems(sitesWithDefaults);
         setAlerts(finalAlerts);
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-      } finally {
-        setLoading(false);
+        console.error('Failed to fetch monitored dashboard data:', err);
+        clearMonitoredBoard();
       }
+
+      setLoading(false);
     };
 
     fetchData();
@@ -300,8 +319,15 @@ export default function Dashboard() {
           <CardContent className="p-3 relative z-10 flex flex-col h-full overflow-hidden">
             <h2 className="text-lg font-semibold text-white mb-2 shrink-0">Monitored Resources</h2>
 
+            {extraMonitored > 0 && (
+              <p className="text-xs text-amber-400 font-mono mb-1 shrink-0">
+                +{extraMonitored} more item{extraMonitored > 1 ? 's' : ''} hidden — showing top{' '}
+                {MAX_AUTO_MONITORED_CARDS}
+              </p>
+            )}
+
             <div className="flex-1 overflow-y-auto min-h-0">
-              {sites.length === 0 ? (
+              {monitoredItems.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
                   <p>No items monitored.</p>
                   <p className="text-sm mt-2">
@@ -309,7 +335,7 @@ export default function Dashboard() {
                   </p>
                 </div>
               ) : (
-                <MetricCard sites={sites} onItemClick={handleItemClick} />
+                <MetricCard sites={monitoredItems} onItemClick={handleItemClick} />
               )}
             </div>
 
@@ -356,7 +382,7 @@ export default function Dashboard() {
 
           {/* Glowing Site Dots */}
           <div className="absolute inset-0 pointer-events-none z-10">
-            {sites.map((site, index) => (
+            {monitoredItems.map((site, index) => (
               <span
                 key={index}
                 className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
