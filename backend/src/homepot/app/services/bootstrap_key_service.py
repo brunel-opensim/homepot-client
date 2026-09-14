@@ -10,7 +10,7 @@ also compromising the server key.
 
 import base64
 import hashlib
-from typing import Optional
+from typing import Optional, cast
 
 from cryptography.fernet import Fernet, InvalidToken
 from passlib.context import CryptContext
@@ -59,6 +59,7 @@ def clear_bootstrap_key(site: Site) -> None:
 
 def reveal_bootstrap_key(site: Site) -> Optional[str]:
     """Return the stored plaintext key, or ``None`` when unset/unreadable."""
-    if not site.bootstrap_key_enc:
+    ciphertext = cast(Optional[str], site.bootstrap_key_enc)
+    if not ciphertext:
         return None
-    return decrypt_ciphertext_key(site.bootstrap_key_enc)
+    return decrypt_ciphertext_key(ciphertext)
