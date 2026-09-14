@@ -582,3 +582,70 @@ class TestDevEmulatorBootstrapKey:
         )
         assert resp.status_code == 200, resp.text
         assert resp.json()["data"]["available"] is True
+
+
+class TestBootstrapKeyRetrieval:
+    """Site bootstrap keys are stored encrypted and can be re-displayed."""
+
+    def test_generate_then_retrieve_bootstrap_key(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """GET returns the same plaintext key that POST generated."""
+        key = _generate_bootstrap_key(client)
+        headers = _auth_header("admin@smoke.test")
+
+        resp = client.get("/api/v1/sites/smoke-site-001/bootstrap-key", headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["bootstrap_key"] == key
+
+    def test_retrieve_missing_bootstrap_key_returns_404(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """A site with no configured key returns 404."""
+        headers = _auth_header("admin@smoke.test")
+        resp = client.get("/api/v1/sites/smoke-site-001/bootstrap-key", headers=headers)
+        assert resp.status_code == 404, resp.text
+        assert "No bootstrap key" in resp.json()["detail"]
+
+    def test_revoke_clears_stored_bootstrap_key(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """After DELETE the site has no stored key and the old key no longer verifies."""
+        headers = _auth_header("admin@smoke.test")
+        key = _generate_bootstrap_key(client)
+
+        resp = client.delete(
+            "/api/v1/sites/smoke-site-001/bootstrap-key", headers=headers
+        )
+        assert resp.status_code == 200, resp.text
+
+        resp = client.get("/api/v1/sites/smoke-site-001/bootstrap-key", headers=headers)
+        assert resp.status_code == 404, resp.text
+
+        resp = client.post(
+            "/api/v1/devices/verify-bootstrap",
+            json={"site_id": "smoke-site-001", "bootstrap_key": key},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["verified"] is False
+
+    def test_regenerate_replaces_stored_key(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """Regenerating stores the new key and invalidates the previous one."""
+        headers = _auth_header("admin@smoke.test")
+        key1 = _generate_bootstrap_key(client)
+        key2 = _generate_bootstrap_key(client)
+        assert key1 != key2
+
+        resp = client.get("/api/v1/sites/smoke-site-001/bootstrap-key", headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["bootstrap_key"] == key2
+
+        for old_key, expected in ((key1, False), (key2, True)):
+            resp = client.post(
+                "/api/v1/devices/verify-bootstrap",
+                json={"site_id": "smoke-site-001", "bootstrap_key": old_key},
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["data"]["verified"] is expected

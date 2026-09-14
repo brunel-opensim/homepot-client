@@ -307,6 +307,7 @@ class Site(Base):
         String(20), default=SiteLifecycleState.ACTIVE, nullable=False
     )
     bootstrap_key_hash = Column(String(255), nullable=True)
+    bootstrap_key_enc = Column(String(1024), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 

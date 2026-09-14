@@ -234,10 +234,19 @@ const api = {
 
     /**
      * Generate (or regenerate) a bootstrap key for a site.
-     * The plaintext key is returned only once in the response.
+     * The plaintext key is returned and stored encrypted for re-display.
      */
     generateBootstrapKey: async (siteId) => {
       const response = await apiClient.post(`/sites/${siteId}/bootstrap-key`);
+      return response.data;
+    },
+
+    /**
+     * Retrieve the stored bootstrap key for a site so it can be reused.
+     * Returns 404 when no key is configured.
+     */
+    getBootstrapKey: async (siteId) => {
+      const response = await apiClient.get(`/sites/${siteId}/bootstrap-key`);
       return response.data;
     },
 
