@@ -27,8 +27,9 @@ export default function Dashboard() {
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
   const [summary, setSummary] = useState(null);
   const [extraMonitored, setExtraMonitored] = useState(0);
+  const [monitoredItems, setMonitoredItems] = useState([]);
   const clearMonitoredBoard = () => {
-    setSites([]);
+    setMonitoredItems([]);
     setAlerts([]);
     setExtraMonitored(0);
   };
@@ -52,7 +53,6 @@ export default function Dashboard() {
     };
   }, []); // Run once on mount
 
-  const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -249,7 +249,7 @@ export default function Dashboard() {
           };
         });
 
-        setSites(sitesWithDefaults);
+        setMonitoredItems(sitesWithDefaults);
         setAlerts(finalAlerts);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
@@ -328,7 +328,7 @@ export default function Dashboard() {
             )}
 
             <div className="flex-1 overflow-y-auto min-h-0">
-              {sites.length === 0 ? (
+              {monitoredItems.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
                   <p>No items monitored.</p>
                   <p className="text-sm mt-2">
@@ -336,7 +336,7 @@ export default function Dashboard() {
                   </p>
                 </div>
               ) : (
-                <MetricCard sites={sites} onItemClick={handleItemClick} />
+                <MetricCard sites={monitoredItems} onItemClick={handleItemClick} />
               )}
             </div>
 
@@ -383,7 +383,7 @@ export default function Dashboard() {
 
           {/* Glowing Site Dots */}
           <div className="absolute inset-0 pointer-events-none z-10">
-            {sites.map((site, index) => (
+            {monitoredItems.map((site, index) => (
               <span
                 key={index}
                 className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
