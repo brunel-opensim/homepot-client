@@ -93,18 +93,8 @@ def test_post_json_defaults_to_post() -> None:
     assert recorded == ["POST"]
 
 
-def _completed_outcome() -> Dict[str, Any]:
-    """Deterministic "completed" outcome for job-reporting tests."""
-    return {
-        "status": "completed",
-        "result": {"message": "Executed successfully", "exit_code": 0},
-        "error_message": None,
-    }
-
-
 async def test_report_background_job_queues_then_completes(monkeypatch: Any) -> None:
     """Cycle 1 queues a job; cycle 2 completes it and queues the next."""
-    monkeypatch.setattr(rda, "_next_job_outcome", _completed_outcome)
     monkeypatch.setattr(
         rda,
         "_next_background_activity",
@@ -149,7 +139,6 @@ async def test_report_background_job_queues_then_completes(monkeypatch: Any) -> 
 
 async def test_report_background_job_retries_failed_update(monkeypatch: Any) -> None:
     """A failed job-status update keeps the job id so the next cycle retries."""
-    monkeypatch.setattr(rda, "_next_job_outcome", _completed_outcome)
     posts: List[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -169,7 +158,6 @@ async def test_report_background_job_returns_none_on_create_failure(
     monkeypatch: Any,
 ) -> None:
     """A failed job create returns ``None`` and does not raise."""
-    monkeypatch.setattr(rda, "_next_job_outcome", _completed_outcome)
     monkeypatch.setattr(
         rda,
         "_next_background_activity",
@@ -184,3 +172,11 @@ async def test_report_background_job_returns_none_on_create_failure(
         job_id = await rda._report_background_job(client, CONFIG, None)
 
     assert job_id is None
+
+
+def test_next_job_outcome_always_completes() -> None:
+    """Simulated background jobs never fabricate a failure."""
+    for _ in range(100):
+        outcome = rda._next_job_outcome()
+        assert outcome["status"] == "completed"
+        assert outcome["error_message"] is None

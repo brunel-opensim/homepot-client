@@ -938,17 +938,16 @@ def _next_background_activity() -> Dict[str, Any]:
 
 
 def _next_job_outcome() -> Dict[str, Any]:
-    """Decide how the in-flight background job resolves (completed/failed)."""
-    if random.random() < 0.85:
-        return {
-            "status": "completed",
-            "result": {"message": "Executed successfully", "exit_code": 0},
-            "error_message": None,
-        }
+    """Report simulated background jobs as always completed.
+
+    A real-device agent must not fabricate failures; only telemetry that is
+    actually measured may drive alerting (see alerts.py). The job reporting
+    loop still reports the queued -> completed lifecycle for demo visibility.
+    """
     return {
-        "status": "failed",
-        "result": None,
-        "error_message": "Timeout during execution",
+        "status": "completed",
+        "result": {"message": "Executed successfully", "exit_code": 0},
+        "error_message": None,
     }
 
 
