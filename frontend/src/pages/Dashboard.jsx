@@ -65,15 +65,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
+      // 1. Fetch Dashboard Summary
       try {
-        // 1. Fetch Dashboard Summary
-        try {
-          const summaryData = await api.dashboard.summary();
-          setSummary(summaryData);
-        } catch (e) {
-          console.error('Failed to fetch dashboard summary', e);
-        }
+        const summaryData = await api.dashboard.summary();
+        setSummary(summaryData);
+      } catch (e) {
+        console.error('Failed to fetch dashboard summary', e);
+      }
 
+      try {
         // 2. Fetch Sites
         const sitesData = await api.sites.list();
         const fetchedSites = sitesData?.sites || [];
@@ -251,11 +251,11 @@ export default function Dashboard() {
         setMonitoredItems(sitesWithDefaults);
         setAlerts(finalAlerts);
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
+        console.error('Failed to fetch monitored dashboard data:', err);
         clearMonitoredBoard();
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
     fetchData();
