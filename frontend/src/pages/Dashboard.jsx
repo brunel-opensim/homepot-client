@@ -27,6 +27,11 @@ export default function Dashboard() {
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
   const [summary, setSummary] = useState(null);
   const [extraMonitored, setExtraMonitored] = useState(0);
+  const clearMonitoredBoard = () => {
+    setSites([]);
+    setAlerts([]);
+    setExtraMonitored(0);
+  };
 
   useEffect(() => {
     // Poll system pulse every 1 second
@@ -248,9 +253,7 @@ export default function Dashboard() {
         setAlerts(finalAlerts);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
-        setSites([]);
-        setAlerts([]);
-        setExtraMonitored(0);
+        clearMonitoredBoard();
       } finally {
         setLoading(false);
       }

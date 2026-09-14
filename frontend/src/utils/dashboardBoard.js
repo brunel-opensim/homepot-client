@@ -36,25 +36,37 @@ export const buildMonitoredBoard = ({
   devices,
   maxCards = MAX_AUTO_MONITORED_CARDS,
 }) => {
-  const siteDeviceIds = new Map(
-    sites.map((s) => [
-      s.site_id,
-      new Set(devices.filter((d) => d.site_id === s.site_id).map((d) => d.device_id)),
-    ])
-  );
+  const siteDeviceIds = new Map(sites.map((s) => [s.site_id, new Set()]));
+  for (const device of devices) {
+    if (!siteDeviceIds.has(device.site_id)) siteDeviceIds.set(device.site_id, new Set());
+    siteDeviceIds.get(device.site_id).add(device.device_id);
+  }
+
+  const anomalySummaryByDevice = new Map();
+  for (const anomaly of anomalies) {
+    const summary = anomalySummaryByDevice.get(anomaly.device_id) || { rank: 4, latest: '' };
+    const rank = severityRank(anomaly.severity);
+    anomalySummaryByDevice.set(anomaly.device_id, {
+      rank: Math.min(summary.rank, rank),
+      latest:
+        anomaly.timestamp && anomaly.timestamp > summary.latest
+          ? anomaly.timestamp
+          : summary.latest,
+    });
+  }
 
   const keyOf = (item) => {
-    const matching = anomalies.filter((a) =>
-      item._type === 'site'
-        ? (siteDeviceIds.get(item.site_id) || new Set()).has(a.device_id)
-        : a.device_id === item.device_id
-    );
+    if (item._type !== 'site') {
+      return anomalySummaryByDevice.get(item.device_id) || { rank: 4, latest: '' };
+    }
+
     let rank = 4;
     let latest = '';
-    for (const a of matching) {
-      const r = severityRank(a.severity);
-      if (r < rank) rank = r;
-      if (a.timestamp && a.timestamp > latest) latest = a.timestamp;
+    for (const deviceId of siteDeviceIds.get(item.site_id) || []) {
+      const summary = anomalySummaryByDevice.get(deviceId);
+      if (!summary) continue;
+      if (summary.rank < rank) rank = summary.rank;
+      if (summary.latest > latest) latest = summary.latest;
     }
     return { rank, latest };
   };
