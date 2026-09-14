@@ -8,6 +8,10 @@ import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
 import WorldMapImage from '@/assets/images/world-map.png';
+import {
+  MAX_AUTO_MONITORED_CARDS,
+  buildMonitoredBoard,
+} from '@/utils/dashboardBoard';
 
 // Collapse an alert reason to a stable "kind" by stripping the numeric metric
 // value and units, e.g. 'High Latency: 825ms' -> 'high latency'. This lets
@@ -25,6 +29,7 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
   const [summary, setSummary] = useState(null);
+  const [extraMonitored, setExtraMonitored] = useState(0);
 
   useEffect(() => {
     // Poll system pulse every 1 second
@@ -132,6 +137,18 @@ export default function Dashboard() {
             ...monitoredDevices.map((d) => ({ ...d, _type: 'device' })),
           ];
         }
+
+        // Bound the auto-monitored board: sort by urgency (critical first,
+        // then most recent) and cap the card count so a fleet-wide alert
+        // storm cannot flood the technician's view.
+        const board = buildMonitoredBoard({
+          items: itemsToDisplay,
+          anomalies,
+          sites: fetchedSites,
+          devices: fetchedDevices,
+        });
+        itemsToDisplay = board.items;
+        setExtraMonitored(board.hidden);
 
         // Helper to format time ago
         const formatTimeAgo = (isoString) => {
@@ -299,6 +316,13 @@ export default function Dashboard() {
 
           <CardContent className="p-3 relative z-10 flex flex-col h-full overflow-hidden">
             <h2 className="text-lg font-semibold text-white mb-2 shrink-0">Monitored Resources</h2>
+
+            {extraMonitored > 0 && (
+              <p className="text-xs text-amber-400 font-mono mb-1 shrink-0">
+                +{extraMonitored} more item{extraMonitored > 1 ? 's' : ''} hidden —
+                showing top {MAX_AUTO_MONITORED_CARDS}
+              </p>
+            )}
 
             <div className="flex-1 overflow-y-auto min-h-0">
               {sites.length === 0 ? (
