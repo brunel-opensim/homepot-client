@@ -30,7 +30,6 @@ export default function Dashboard() {
   const [monitoredItems, setMonitoredItems] = useState([]);
   const clearMonitoredBoard = () => {
     setMonitoredItems([]);
-    setAlerts([]);
     setExtraMonitored(0);
   };
 
