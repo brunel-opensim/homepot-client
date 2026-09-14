@@ -266,6 +266,11 @@ export default function DeviceInfo() {
     } catch {
       /* best-effort */
     }
+    try {
+      await window.electronAPI?.agent?.cleanup()
+    } catch {
+      /* best-effort */
+    }
     await credentialStorage.clear()
     setIsEmulatorRunning(false)
     setIsProvisioned(false)

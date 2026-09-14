@@ -71,6 +71,7 @@ declare global {
         start(): Promise<{ started: boolean }>
         status(): Promise<{ running: boolean; pid: number | null }>
         stop(): Promise<boolean>
+        cleanup(): Promise<number>
       }
       elevation: {
         supported(): Promise<boolean>
