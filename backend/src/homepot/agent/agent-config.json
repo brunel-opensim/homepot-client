@@ -8,6 +8,15 @@
   "os_details": "Android 13",
   "heartbeat_interval_seconds": 30,
   "telemetry_interval_seconds": 30,
+  "alerts_enabled": true,
+  "alerts_interval_seconds": 30,
+  "alert_thresholds": {
+    "cpu": 90,
+    "memory": 90,
+    "disk": 90,
+    "latency_warning": 200,
+    "latency_critical": 500
+  },
   "live_log_interval_seconds": 30,
   "retry_flush_interval_seconds": 60,
   "command_poll_interval_seconds": 60,

@@ -23,6 +23,7 @@ from homepot.agent.credential_storage import (
     CredentialStorage,
     create_credential_storage,
 )
+from homepot.agent.utils.alerts import AlertEvaluator
 from homepot.agent.utils.command_poller import (
     build_status_report,
     build_status_update_payload,
@@ -31,7 +32,7 @@ from homepot.agent.utils.command_poller import (
     process_command,
 )
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
-from homepot.agent.utils.heartbeat import build_heartbeat_payload
+from homepot.agent.utils.heartbeat import build_heartbeat_payload, utc_now_iso
 from homepot.agent.utils.hostname_encoding import idna_encode_url
 from homepot.agent.utils.local_ipc import (
     LocalAgentState,
@@ -103,6 +104,9 @@ def load_agent_config() -> Dict[str, Any]:
 
     data.setdefault("heartbeat_interval_seconds", 30)
     data.setdefault("telemetry_interval_seconds", 30)
+    data.setdefault("alerts_enabled", True)
+    data.setdefault("alerts_interval_seconds", 30)
+    data.setdefault("alert_thresholds", None)
     data.setdefault("live_log_interval_seconds", 30)
     data.setdefault("retry_flush_interval_seconds", 60)
     data.setdefault("command_poll_interval_seconds", 60)
@@ -672,6 +676,7 @@ async def telemetry_loop(
     retry_queue: RetryQueue,
     ipc_server: Server | None,
     submission_log: Optional[SubmissionLog] = None,
+    agent_state: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Continuously send telemetry metrics and update local IPC state."""
     url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/telemetry"
@@ -701,6 +706,8 @@ async def telemetry_loop(
             pos = collect_pos_signals(config.get("pos_signals_source"))
             if pos is not None:
                 payload["pos"] = pos
+            if agent_state is not None:
+                agent_state["metrics"] = payload
             ok = await post_json(
                 client,
                 url,
@@ -717,6 +724,61 @@ async def telemetry_loop(
                 retry_queue.enqueue({"url": url, "payload": payload})
         except Exception as e:
             logger.error("Telemetry loop error: %s", e, exc_info=True)
+        await asyncio.sleep(interval)
+
+
+async def alerts_loop(
+    client: httpx.AsyncClient,
+    config: Dict[str, Any],
+    agent_state: Dict[str, Any],
+    retry_queue: RetryQueue,
+    submission_log: Optional[SubmissionLog] = None,
+) -> None:
+    """Evaluate measured telemetry for alert conditions and report them.
+
+    Reads the latest telemetry snapshot captured by ``telemetry_loop`` and
+    the latest background-job outcome shared through ``agent_state``, so
+    alerting is driven by genuinely measured values without adding extra host
+    sampling (which would disturb the CPU/disk baseline statistics that other
+    loops rely on).
+
+    Conditions are edge-triggered and deduplicated by ``AlertEvaluator``: a
+    condition must persist for two consecutive evaluations before an alert is
+    sent, and an already-reported condition is not re-reported until it
+    clears and recurs.  Payloads are posted to ``POST /api/v1/agent/alert``
+    (``AgentAlertRequest``), the same ingestion the emulator uses.
+    """
+    if not bool(config.get("alerts_enabled", True)):
+        return
+    interval = int(config.get("alerts_interval_seconds", 30))
+    url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/alert"
+    evaluator = AlertEvaluator(thresholds=config.get("alert_thresholds"))
+    while True:
+        try:
+            candidates = evaluator.alert_candidates(
+                agent_state.get("metrics", {}),
+                agent_state.get("last_job"),
+            )
+            for payload in candidates:
+                payload["device_id"] = config["device_id"]
+                payload["timestamp"] = utc_now_iso()
+                ok = await post_json(
+                    client,
+                    url,
+                    payload,
+                    get_auth_headers(config),
+                    submission_log=submission_log,
+                )
+                if ok:
+                    logger.info(
+                        "Reported alert '%s' (severity=%s)",
+                        payload["title"],
+                        payload["severity"],
+                    )
+                else:
+                    logger.warning("Alert report failed: %s", payload["title"])
+        except Exception as e:
+            logger.error("Alert loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
 
 
@@ -816,12 +878,18 @@ async def _report_background_job(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
     current_job_id: Optional[str],
+    agent_state: Optional[Dict[str, Any]] = None,
 ) -> Optional[str]:
     """Run one job-reporting cycle: finish the in-flight job, then queue the next.
 
     A created job is initially ``pending`` and is transitioned to
     ``completed``/``failed`` on the *next* cycle, so the Dashboard shows the
     live queued -> completed transition (the same pattern the emulator uses).
+
+    When ``agent_state`` is provided the outcome of a successfully updated
+    job is recorded on it (``last_job``) together with the action of the
+    in-flight job, so ``alerts_loop`` can raise a deduplicated alert for
+    failed maintenance jobs.
 
     Returns the id of the newly-created job, ``current_job_id`` when its
     status update failed (so the caller retries next cycle), or ``None`` when
@@ -850,6 +918,20 @@ async def _report_background_job(
                     str(current_job_id)[:8],
                     outcome["error_message"],
                 )
+            if agent_state is not None:
+                pending = agent_state.get("pending_job") or {}
+                action = (
+                    pending.get("action")
+                    if pending.get("job_id") == current_job_id
+                    else "background task"
+                )
+                agent_state["last_job"] = {
+                    "job_id": current_job_id,
+                    "status": outcome["status"],
+                    "action": action,
+                }
+                if pending.get("job_id") == current_job_id:
+                    agent_state.pop("pending_job", None)
         except Exception as e:
             logger.warning(
                 "Job status update failed job_id=%s error=%s",
@@ -880,6 +962,11 @@ async def _report_background_job(
                 activity["action"],
                 str(job_id)[:8],
             )
+            if agent_state is not None:
+                agent_state["pending_job"] = {
+                    "job_id": job_id,
+                    "action": activity["action"],
+                }
         return job_id
     except Exception as e:
         logger.warning("Job create failed url=%s error=%s", create_url, e)
@@ -889,20 +976,22 @@ async def _report_background_job(
 async def job_reporting_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
+    agent_state: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Periodically report real background maintenance tasks as device jobs.
 
     Uses ``POST /api/v1/agent/jobs`` to create a pending job record linked to
     this device and ``PUT /api/v1/agent/jobs/{job_id}`` on the next cycle to
     transition it to ``completed``/``failed``, so the Dashboard "Job History"
-    tab shows genuine activity for real devices (not just emulators).
+    tab shows genuine activity for real devices (not just emulators).  Job
+    outcomes are mirrored onto ``agent_state`` for ``alerts_loop``.
     """
     interval = int(config.get("job_reporting_interval_seconds", 120))
     current_job_id: Optional[str] = None
     while True:
         try:
             current_job_id = await _report_background_job(
-                client, config, current_job_id
+                client, config, current_job_id, agent_state
             )
         except Exception as e:
             logger.error("Job reporting loop error: %s", e, exc_info=True)
@@ -1203,21 +1292,40 @@ async def run_agent(
             client, config, retry_queue, push_channel_uri=push_channel_uri
         )
 
+        # Shared runtime state: telemetry_loop drops its latest snapshot here
+        # and job_reporting_loop mirrors job outcomes, so alerts_loop can
+        # evaluate genuine values without sampling the host itself.
+        agent_state: Dict[str, Any] = {
+            "metrics": {},
+            "last_job": None,
+            "pending_job": None,
+        }
+
         tasks = [
             asyncio.ensure_future(
                 heartbeat_loop(client, config, retry_queue, ipc_server, submission_log)
             ),
             asyncio.ensure_future(
-                telemetry_loop(client, config, retry_queue, ipc_server, submission_log)
+                telemetry_loop(
+                    client,
+                    config,
+                    retry_queue,
+                    ipc_server,
+                    submission_log,
+                    agent_state,
+                )
             ),
             asyncio.ensure_future(live_logs_loop(client, config)),
             asyncio.ensure_future(
                 retry_flush_loop(client, config, retry_queue, submission_log)
             ),
             *(
-                [asyncio.ensure_future(job_reporting_loop(client, config))]
+                [asyncio.ensure_future(job_reporting_loop(client, config, agent_state))]
                 if bool(config.get("job_reporting_enabled", True))
                 else []
+            ),
+            asyncio.ensure_future(
+                alerts_loop(client, config, agent_state, retry_queue, submission_log)
             ),
             asyncio.ensure_future(
                 pending_commands_loop(
