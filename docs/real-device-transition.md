@@ -82,6 +82,48 @@ The device agent should run a loop (e.g., every 60 seconds):
     *   `X-Device-ID`: `pos-terminal-001`
     *   `X-API-Key`: `your_secret_api_key`
 3.  **Action:** If a command is received, execute it and report status.
+
+### Device Recovery After a Host Restart (Start at Login)
+
+A disconnected device is only as reliable as its ability to come back. Whether a
+host is rebooted manually, loses power, or is restarted by a command issued from
+the Dashboard (e.g. `restart`), the machine will not re-register on its own at
+boot — the agent is launched and supervised by the HOMEPOT User App. If the app
+is not running, the device stays `OFFLINE` on the Dashboard until an operator
+opens it.
+
+To close that gap, packaged builds of the User App register a **macOS login item**
+(`app.setLoginItemSettings` in `user_app/electron/main.ts`):
+
+*   **Auto-enabled on first launch.** A new packaged install calls it once during
+    `app.whenReady` (`main.ts`), so the agent resumes after every reboot without
+    operator action.
+*   **Starts hidden in the tray.** `openAsHidden: true` keeps the login experience
+    clean; the agent runs headless and the window is opened only if needed.
+*   **Source/dev checkouts are exempt.** Login items are only registered when
+    `app.isPackaged` is true, so a development run never binds the raw `electron`
+    binary as a login item.
+*   **Operator control.** Device Info → **Launch Settings → Start at login** shows
+    a toggle backed by the real OS login-item state (`app.getLoginItemSettings`)
+    rather than a locally-cached flag. Turning it off removes the item and the
+    device returns to requiring a manual app launch after reboot.
+
+**Recovery sequence after a reboot:**
+
+1. macOS runs the login item → the User App starts hidden in the tray.
+2. `startDeviceAgentIfProvisioned` (`main.ts`) finds the stored device credentials
+   under the user home directory and starts the agent.
+3. The agent re-registers / authenticates with the stored API key and resumes its
+   heartbeat loop.
+4. Within one heartbeat interval (≤30 s) the Dashboard flips the device back to
+   `ONLINE`.
+
+**What the Dashboard shows meanwhile:** connectivity is computed from
+`last_heartbeat_at` vs. a 300-second threshold, so after a reboot the device only
+reports `OFFLINE` after about 5 minutes of silence — and returns `ONLINE` within
+one heartbeat of the app relaunching. Any in-flight command whose result PUT lost
+the race against the shutdown is auto-expired by the backend after 5 minutes
+(`expire_stale_commands`).
 *   **Secure Registration:** Devices now register once and receive a unique, high-entropy API Key.
 *   **Token Storage:** The agent securely stores the key locally (e.g., `.device_api_key`).
 *   **Authenticated Requests:** All telemetry and heartbeat requests must include `X-API-Key` and `X-Device-ID` headers.

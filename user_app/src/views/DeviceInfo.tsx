@@ -50,6 +50,38 @@ export default function DeviceInfo() {
   const [unpairStatus, setUnpairStatus] = useState<'idle' | 'disconnecting' | 'disconnected' | 'pending-revocation' | 'error'>('idle')
   const [unpairError, setUnpairError] = useState('')
   const [dnaRows, setDnaRows] = useState<DnaRow[]>([])
+  const [loginItemEnabled, setLoginItemEnabled] = useState(false)
+  const [loginItemSupported, setLoginItemSupported] = useState(false)
+
+  // Best-effort read of the macOS login item so the Launch Settings toggle
+  // reflects the OS state (source of truth) rather than a local copy.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!window.electronAPI) return
+      try {
+        const settings = await window.electronAPI.app.getLoginItemSettings()
+        if (!cancelled) {
+          setLoginItemEnabled(settings.enabled)
+          setLoginItemSupported(true)
+        }
+      } catch {
+        if (!cancelled) setLoginItemSupported(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  async function handleToggleLaunchAtLogin(enabled: boolean) {
+    if (!window.electronAPI) return
+    setLoginItemEnabled(enabled)
+    try {
+      const result = await window.electronAPI.app.setLoginItemSettings(enabled)
+      setLoginItemEnabled(result.enabled && result.ok)
+    } catch {
+      setLoginItemEnabled(!enabled)
+    }
+  }
 
   useEffect(() => {
     async function loadDna() {
@@ -314,6 +346,39 @@ export default function DeviceInfo() {
             ))}
           </div>
         </div>
+
+        {/* Launch Settings */}
+        {loginItemSupported && (
+          <div className="px-5 pt-4">
+            <p className="text-slate-500 text-xs font-medium uppercase tracking-widest mb-2">Launch Settings</p>
+            <div className="bg-slate-700 rounded-xl border border-slate-600 p-4 flex items-center justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-slate-200 text-xs font-medium">Start at login</p>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  {loginItemEnabled
+                    ? 'The agent resumes automatically after this Mac restarts'
+                    : 'Opened manually — a reboot leaves the device offline until launched'}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-label="Start at login"
+                aria-checked={loginItemEnabled}
+                onClick={() => handleToggleLaunchAtLogin(!loginItemEnabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                  loginItemEnabled ? 'bg-teal-600' : 'bg-slate-500'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                    loginItemEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* App Update */}
         <div className="px-5 pt-4">

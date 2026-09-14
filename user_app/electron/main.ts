@@ -399,6 +399,30 @@ function recordAppEvent(level: AppLogEntry['level'], category: string, message: 
   }
 }
 
+/**
+ * Enable/disable the macOS login item so the OS launches the app after
+ * sign-in. Packaged builds register the installed app bundle; a dev checkout
+ * would otherwise register the raw electron binary with no project to open,
+ * so it is forced through the running executable with the project as an arg.
+ */
+function setLaunchAtLogin(openAtLogin: boolean): boolean {
+  try {
+    const settings: Electron.Settings = { openAtLogin: Boolean(openAtLogin) }
+    if (process.platform === 'darwin') {
+      settings.openAsHidden = true
+      settings.path = process.execPath
+      if (!app.isPackaged) {
+        settings.args = [app.getAppPath()]
+      }
+    }
+    app.setLoginItemSettings(settings)
+    return true
+  } catch (error) {
+    recordAppEvent('error', 'settings', `Failed to update launch-at-login setting: ${String(error)}`)
+    return false
+  }
+}
+
 if (!hasSingleInstanceLock) {
   app.quit()
 }
@@ -650,6 +674,26 @@ function registerIpcHandlers() {
 
   ipcMain.handle('app:getVersion', () => {
     return app.getVersion()
+  })
+
+  // --- Launch at login ------------------------------------------------------
+  // Registers a macOS login item so the OS launches the app after sign-in,
+  // letting the agent resume without the operator opening it manually.
+
+  ipcMain.handle('app:getLoginItemSettings', () => {
+    try {
+      const settings = app.getLoginItemSettings()
+      return { enabled: Boolean(settings.openAtLogin), openAsHidden: Boolean(settings.openAsHidden) }
+    } catch (error) {
+      recordAppEvent('error', 'settings', `Failed to read launch-at-login setting: ${String(error)}`)
+      return { enabled: false, openAsHidden: false }
+    }
+  })
+
+  ipcMain.handle('app:setLoginItemSettings', (_event, openAtLogin: boolean) => {
+    const ok = setLaunchAtLogin(Boolean(openAtLogin))
+    recordAppEvent('info', 'settings', `Launch at login ${openAtLogin ? 'enabled' : 'disabled'}`)
+    return { enabled: Boolean(openAtLogin), ok }
   })
 
   // --- Update checks ---------------------------------------------------------
@@ -1416,6 +1460,14 @@ app.whenReady().then(() => {
   const isFirstLaunch = !fs.existsSync(getAppLogFile())
   if (isFirstLaunch) {
     recordAppEvent('info', 'installation', 'Installation completed; HOMEPOT Agent launched for the first time')
+    // New packaged installs resume automatically after a reboot — a host
+    // restart must not leave the device offline until the app is reopened.
+    // Source/dev checkouts are left untouched so the raw electron binary is
+    // never registered as a login item.
+    if (app.isPackaged) {
+      setLaunchAtLogin(true)
+      recordAppEvent('info', 'settings', 'Launch at login enabled automatically for the packaged install')
+    }
   }
   recordAppEvent('info', 'application', `HOMEPOT Agent ${app.getVersion()} started`)
   registerIpcHandlers()
