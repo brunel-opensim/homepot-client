@@ -248,6 +248,9 @@ export default function Dashboard() {
         setAlerts(finalAlerts);
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
+        setSites([]);
+        setAlerts([]);
+        setExtraMonitored(0);
       } finally {
         setLoading(false);
       }
