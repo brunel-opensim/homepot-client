@@ -824,19 +824,22 @@ function registerIpcHandlers() {
   ipcMain.handle('emulator:cleanup', async () => {
     // Delete persisted emulator stash files (~/.homepot/emulators/<device>.json
     // and <device>-config.json) so an unpaired device is not re-adopted on the
-    // next launch (see adoptExistingEmulatorDevice).
+    // next launch (see adoptExistingEmulatorDevice). Also drop that device's
+    // stdout/stderr log files.
     ensureCredentialsDir()
-    if (!fs.existsSync(EMULATOR_DIR)) return 0
     let removed = 0
-    for (const entry of fs.readdirSync(EMULATOR_DIR)) {
-      if (!entry.endsWith('.json')) continue
-      try {
-        fs.unlinkSync(path.join(EMULATOR_DIR, entry))
-        removed += 1
-      } catch {
-        // Best-effort cleanup; ignore files that cannot be removed.
+    if (fs.existsSync(EMULATOR_DIR)) {
+      for (const entry of fs.readdirSync(EMULATOR_DIR)) {
+        if (!entry.endsWith('.json')) continue
+        try {
+          fs.unlinkSync(path.join(EMULATOR_DIR, entry))
+          removed += 1
+        } catch {
+          // Best-effort cleanup; ignore files that cannot be removed.
+        }
       }
     }
+    removed += removeDeviceLogs('emulator')
     if (removed > 0) {
       recordAppEvent('info', 'emulator', `Cleaned up ${removed} emulator stash file(s) after unpair`)
     }
@@ -867,6 +870,28 @@ function registerIpcHandlers() {
   ipcMain.handle('agent:stop', async () => {
     killAgent()
     return true
+  })
+
+  ipcMain.handle('agent:cleanup', async () => {
+    // Delete persisted on-device agent files so an unpaired real device is not
+    // re-adopted from a stale config. The config is regenerated from the stored
+    // credentials on the next agent start (writeAgentConfig), so removing it is
+    // safe. Also drop that device's stdout/stderr log files.
+    let removed = 0
+    if (fs.existsSync(AGENT_DIR)) {
+      try {
+        // ~/.homepot/agent holds only agent-config.json; remove the whole dir.
+        fs.rmSync(AGENT_DIR, { recursive: true, force: true })
+        removed += 1
+      } catch {
+        // Best-effort cleanup; ignore files that cannot be removed.
+      }
+    }
+    removed += removeDeviceLogs('agent')
+    if (removed > 0) {
+      recordAppEvent('info', 'agent', 'Cleaned up persisted agent files after unpair')
+    }
+    return removed
   })
 
   ipcMain.handle('elevation:supported', () => elevationSupported())
@@ -1180,6 +1205,26 @@ function deviceLogFile(slug: string, kind: 'emulator' | 'agent'): string {
     // Log file is best-effort; never break the app because of it.
   }
   return logFile
+}
+
+/**
+ * Delete per-device stdout/stderr log files (logs/agent-*.log, emulator-*.log)
+ * written by deviceLogFile. Best-effort; returns the number removed.
+ */
+function removeDeviceLogs(kind: 'agent' | 'emulator'): number {
+  const logsDir = path.join(getProjectRoot(), 'logs')
+  if (!fs.existsSync(logsDir)) return 0
+  let removed = 0
+  for (const entry of fs.readdirSync(logsDir)) {
+    if (!entry.startsWith(`${kind}-`) || !entry.endsWith('.log')) continue
+    try {
+      fs.unlinkSync(path.join(logsDir, entry))
+      removed += 1
+    } catch {
+      // Best-effort cleanup; ignore files that cannot be removed.
+    }
+  }
+  return removed
 }
 
 /**

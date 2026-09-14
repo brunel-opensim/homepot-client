@@ -269,6 +269,7 @@ describe('DeviceInfo', () => {
     const emulatorStop = vi.fn().mockResolvedValue(true)
     const agentStop = vi.fn().mockResolvedValue(true)
     const emulatorCleanup = vi.fn().mockResolvedValue(0)
+    const agentCleanup = vi.fn().mockResolvedValue(0)
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
       device: {
         identity: vi.fn().mockResolvedValue({ deviceId: 'test-device', machineId: 'mac-1' }),
@@ -279,7 +280,7 @@ describe('DeviceInfo', () => {
         getRecentLogs: vi.fn().mockResolvedValue([]),
       },
       emulator: { stop: emulatorStop, cleanup: emulatorCleanup },
-      agent: { stop: agentStop },
+      agent: { stop: agentStop, cleanup: agentCleanup },
     } as never
 
     routeDeviceApi({
@@ -297,6 +298,7 @@ describe('DeviceInfo', () => {
     await waitFor(() => expect(emulatorStop).toHaveBeenCalled())
     expect(agentStop).toHaveBeenCalled()
     await waitFor(() => expect(emulatorCleanup).toHaveBeenCalled())
+    expect(agentCleanup).toHaveBeenCalled()
     expect(await screen.findByText(/Disconnected/)).toBeInTheDocument()
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
   })
