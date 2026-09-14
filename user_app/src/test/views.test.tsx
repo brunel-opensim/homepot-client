@@ -309,6 +309,33 @@ describe('DeviceInfo', () => {
     expect(await screen.findByRole('button', { name: /Check for Updates/ })).toBeInTheDocument()
   })
 
+  it('reads and toggles the start-at-login switch', async () => {
+    const getLoginItemSettings = vi.fn().mockResolvedValue({ enabled: true, openAsHidden: true })
+    const setLoginItemSettings = vi.fn().mockResolvedValue({ enabled: false, ok: true })
+    ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
+      device: {
+        identity: vi.fn().mockResolvedValue({ deviceId: 'test-device', machineId: 'mac-1' }),
+        dna: vi.fn().mockResolvedValue({ hostname: 'test-mac', platform: 'darwin', release: 'x', mac: '00:00', ip: '127.0.0.1' }),
+      },
+      app: {
+        getVersion: vi.fn().mockResolvedValue('0.1.0'),
+        getRecentLogs: vi.fn().mockResolvedValue([]),
+        getLoginItemSettings,
+        setLoginItemSettings,
+      },
+      updates: { onStatus: vi.fn().mockReturnValue(() => {}) },
+    } as never
+
+    routeDeviceApi({ device_id: 'test-device', name: 'Test Device', device_type: 'pos_terminal', os_details: 'linux', lifecycle_state: 'active' })
+    renderWithProviders(<DeviceInfo />)
+    const toggle = await screen.findByRole('switch', { name: /Start at login/ })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(getLoginItemSettings).toHaveBeenCalled()
+    fireEvent.click(toggle)
+    await waitFor(() => expect(setLoginItemSettings).toHaveBeenCalledWith(false))
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
+  })
+
   it('shows a disabled reason and offers a Check again retry', async () => {
     const { checkForUpdates } = installUpdateApi({
       seed: { state: { kind: 'idle' }, currentVersion: '0.1.0', mode: 'none' },

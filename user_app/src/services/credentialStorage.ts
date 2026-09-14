@@ -48,6 +48,8 @@ declare global {
         }>
         restartToInstall(): Promise<{ status: 'installing' } | { status: 'disabled' }>
         getUpdateState(): Promise<UpdateStatePayload>
+        getLoginItemSettings(): Promise<{ enabled: boolean; openAsHidden: boolean }>
+        setLoginItemSettings(openAtLogin: boolean): Promise<{ enabled: boolean; ok: boolean }>
       }
       updates: {
         onStatus(callback: (payload: UpdateStatePayload) => void): () => void

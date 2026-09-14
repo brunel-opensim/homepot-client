@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     downloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
     restartToInstall: () => ipcRenderer.invoke('app:restartToInstall'),
     getUpdateState: () => ipcRenderer.invoke('app:getUpdateState'),
+    getLoginItemSettings: () => ipcRenderer.invoke('app:getLoginItemSettings'),
+    setLoginItemSettings: (openAtLogin: boolean) => ipcRenderer.invoke('app:setLoginItemSettings', openAtLogin),
     prefill,
   },
   updates: {
