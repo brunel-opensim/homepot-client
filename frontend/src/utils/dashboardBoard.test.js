@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  MAX_AUTO_MONITORED_CARDS,
-  severityRank,
-  buildMonitoredBoard,
-} from './dashboardBoard';
+import { MAX_AUTO_MONITORED_CARDS, severityRank, buildMonitoredBoard } from './dashboardBoard';
 
 const device = (device_id, site_id = 'SITE-1', extra = {}) => ({
   _type: 'device',
@@ -70,12 +66,7 @@ describe('buildMonitoredBoard', () => {
       devices,
       maxCards: 20,
     });
-    expect(items.map((d) => d.device_id)).toEqual([
-      'D-CRIT',
-      'D-CRIT-OLD',
-      'D-WARN',
-      'D-SILENT',
-    ]);
+    expect(items.map((d) => d.device_id)).toEqual(['D-CRIT', 'D-CRIT-OLD', 'D-WARN', 'D-SILENT']);
   });
 
   it('orders same-severity items by most recent anomaly first', () => {
@@ -105,11 +96,7 @@ describe('buildMonitoredBoard', () => {
 
   it('caps the board and reports the hidden overflow', () => {
     const manyDevices = Array.from({ length: 25 }, (_, i) =>
-      device(
-        `D-${i}`,
-        'SITE-A',
-        i < 3 ? { _alerted: true } : {}
-      )
+      device(`D-${i}`, 'SITE-A', i < 3 ? { _alerted: true } : {})
     );
     const { items, hidden } = buildMonitoredBoard({
       items: manyDevices,

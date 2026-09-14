@@ -39,11 +39,7 @@ export const buildMonitoredBoard = ({
   const siteDeviceIds = new Map(
     sites.map((s) => [
       s.site_id,
-      new Set(
-        devices
-          .filter((d) => d.site_id === s.site_id)
-          .map((d) => d.device_id)
-      ),
+      new Set(devices.filter((d) => d.site_id === s.site_id).map((d) => d.device_id)),
     ])
   );
 

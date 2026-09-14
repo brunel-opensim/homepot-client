@@ -8,10 +8,7 @@ import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
 import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
 import WorldMapImage from '@/assets/images/world-map.png';
-import {
-  MAX_AUTO_MONITORED_CARDS,
-  buildMonitoredBoard,
-} from '@/utils/dashboardBoard';
+import { MAX_AUTO_MONITORED_CARDS, buildMonitoredBoard } from '@/utils/dashboardBoard';
 
 // Collapse an alert reason to a stable "kind" by stripping the numeric metric
 // value and units, e.g. 'High Latency: 825ms' -> 'high latency'. This lets
@@ -319,8 +316,8 @@ export default function Dashboard() {
 
             {extraMonitored > 0 && (
               <p className="text-xs text-amber-400 font-mono mb-1 shrink-0">
-                +{extraMonitored} more item{extraMonitored > 1 ? 's' : ''} hidden —
-                showing top {MAX_AUTO_MONITORED_CARDS}
+                +{extraMonitored} more item{extraMonitored > 1 ? 's' : ''} hidden — showing top{' '}
+                {MAX_AUTO_MONITORED_CARDS}
               </p>
             )}
 
