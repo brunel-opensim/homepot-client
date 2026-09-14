@@ -745,6 +745,80 @@ def test_alerts_rejects_other_devices_and_missing_credentials(client: TestClient
     assert missing.status_code == 401
 
 
+def test_alert_post_returns_id_and_agent_can_resolve_own_alert(client: TestClient):
+    """POST stores an alert and returns its id; PUT resolves the owner's alert."""
+    site = _create_site("site-alert-resolve")
+    api_key = _create_device("alert-resolve-1", int(site.id))
+    _grant_monitor("alert-resolve-1")
+    headers = _device_headers("alert-resolve-1", api_key)
+
+    posted = client.post(
+        "/api/v1/agent/alert",
+        json={
+            "device_id": "alert-resolve-1",
+            "title": "High Network Latency: 240ms",
+            "description": "Latency exceeded 200ms: 240ms observed",
+            "severity": "warning",
+            "category": "network",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=headers,
+    )
+    assert posted.status_code == 200
+    alert_id = posted.json()["id"]
+    assert isinstance(alert_id, int)
+
+    resolved = client.put(
+        f"/api/v1/agent/alerts/{alert_id}/resolve",
+        headers=headers,
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["alert"]["status"] == "resolved"
+
+    listed = client.get(
+        "/api/v1/agent/alert-resolve-1/alerts",
+        headers=headers,
+    )
+    row = [a for a in listed.json()["data"] if a["id"] == alert_id][0]
+    assert row["status"] == "resolved"
+    assert row["resolved_by"] == "agent"
+    assert row["resolved_at"] is not None
+
+
+def test_agent_cannot_resolve_another_devices_alert(client: TestClient):
+    """Resolving an alert owned by another device is forbidden."""
+    site = _create_site("site-alert-resolve-auth")
+    owner_key = _create_device("alert-resolve-owner", int(site.id))
+    _create_device("alert-resolve-intruder", int(site.id), api_key="intruder-key")
+    _grant_monitor("alert-resolve-owner")
+
+    posted = client.post(
+        "/api/v1/agent/alert",
+        json={
+            "device_id": "alert-resolve-owner",
+            "title": "High CPU: 99.0%",
+            "description": "CPU usage exceeded 90% threshold",
+            "severity": "warning",
+            "category": "hardware",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+        headers=_device_headers("alert-resolve-owner", owner_key),
+    )
+    alert_id = posted.json()["id"]
+
+    intruder = client.put(
+        f"/api/v1/agent/alerts/{alert_id}/resolve",
+        headers=_device_headers("alert-resolve-intruder", "intruder-key"),
+    )
+    assert intruder.status_code == 403
+
+    missing = client.put(
+        "/api/v1/agent/alerts/999999/resolve",
+        headers=_device_headers("alert-resolve-owner", owner_key),
+    )
+    assert missing.status_code == 404
+
+
 def test_diagnostics_require_monitor_permission(client: TestClient):
     """Metrics, logs, and audit reads require the Monitor tier."""
     site = _create_site("site-diagnostics-monitor")

@@ -12,10 +12,14 @@
   "alerts_interval_seconds": 30,
   "alert_thresholds": {
     "cpu": 90,
+    "cpu_clear": 80,
     "memory": 90,
+    "memory_clear": 80,
     "disk": 90,
+    "disk_clear": 80,
     "latency_warning": 200,
-    "latency_critical": 500
+    "latency_critical": 500,
+    "latency_clear": 160
   },
   "live_log_interval_seconds": 30,
   "retry_flush_interval_seconds": 60,
