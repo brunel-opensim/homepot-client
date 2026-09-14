@@ -6,6 +6,7 @@ their own alerts (via ``X-Device-ID`` + ``X-API-Key``) so the User App can show
 them, gated behind the Monitor tier (read-only diagnostics).
 """
 
+from datetime import datetime
 import logging
 from typing import Any, Dict, List, cast
 
@@ -44,7 +45,7 @@ async def report_alert(
         )
     try:
         db_service = await get_database_service()
-        await db_service.create_alert(
+        alert = await db_service.create_alert(
             device_id=cast(str, current_device.device_id),
             site_id=cast(Any, current_device.site_id),
             title=payload.title,
@@ -53,12 +54,75 @@ async def report_alert(
             category=payload.category,
             timestamp=payload.timestamp,
         )
-        return {"status": "success", "message": "Alert stored"}
+        return {
+            "status": "success",
+            "message": "Alert stored",
+            "id": alert.id,
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Failed to store device alert: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/alerts/{alert_id}/resolve", tags=["Agent"])
+async def resolve_alert(
+    alert_id: int,
+    current_device: Device = Depends(get_current_device),
+) -> Dict[str, Any]:
+    """Auto-resolve a device alert once its condition has cleared.
+
+    The authenticated agent may only resolve alerts belonging to its own
+    device.  ``resolved_by`` is recorded as ``"agent"`` so manual (Dashboard)
+    and automatic resolutions stay distinguishable.
+    """
+    try:
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            result = await session.execute(select(Alert).where(Alert.id == alert_id))
+            alert = result.scalars().first()
+
+            if not alert:
+                raise HTTPException(status_code=404, detail="Alert not found")
+            if alert.device_id != current_device.device_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Authenticated device cannot resolve another device's alert",
+                )
+            if alert.status == "resolved":
+                return {
+                    "status": "success",
+                    "message": "Alert already resolved",
+                    "alert": {
+                        "id": alert.id,
+                        "status": alert.status,
+                        "resolved_at": _iso(alert.resolved_at),
+                    },
+                }
+
+            alert.status = "resolved"  # type: ignore[assignment]
+            alert.resolved_at = datetime.utcnow()  # type: ignore[assignment]
+            alert.resolved_by = "agent"  # type: ignore[assignment]
+            await session.commit()
+            await session.refresh(alert)
+
+        return {
+            "status": "success",
+            "message": f"Alert {alert_id} resolved",
+            "alert": {
+                "id": alert.id,
+                "status": alert.status,
+                "resolved_at": _iso(alert.resolved_at),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Failed to resolve device alert %s: %s", alert_id, e, exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Failed to resolve device alert")
 
 
 def _envelope(data: List[Dict[str, Any]]) -> Dict[str, Any]:

@@ -186,6 +186,57 @@ async def post_json(
     return accepted
 
 
+async def post_json_parsed(
+    client: httpx.AsyncClient,
+    url: str,
+    payload: Dict[str, Any],
+    headers: Dict[str, str],
+    *,
+    submission_log: Optional[SubmissionLog] = None,
+    timeout: float = 10.0,
+    method: str = "POST",
+) -> Optional[Dict[str, Any]]:
+    """POST JSON and return the parsed response body on HTTP success.
+
+    Like ``post_json`` but returns the decoded JSON dict (e.g. so the caller
+    can read a backend-issued id) instead of a boolean; ``None`` signals a
+    failed request or an unparseable response.  ``submission_log`` recording
+    behaves identically to ``post_json``.
+    """
+    accepted = False
+    status_code: Optional[int] = None
+    body: Optional[Dict[str, Any]] = None
+    try:
+        response = await client.request(
+            method.upper(),
+            url,
+            json=payload,
+            headers=headers,
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        accepted = True
+        status_code = response.status_code
+        parsed = response.json()
+        body = parsed if isinstance(parsed, dict) else None
+    except Exception as e:
+        logger.warning("%s failed url=%s error=%s", method.upper(), url, e)
+
+    if submission_log is not None:
+        sample_timestamp = None
+        if isinstance(payload, dict):
+            sample_timestamp = payload.get("timestamp")
+        submission_log.append(
+            endpoint=url,
+            status_code=status_code,
+            payload_timestamp=(
+                str(sample_timestamp) if sample_timestamp is not None else None
+            ),
+            accepted=accepted,
+        )
+    return body
+
+
 async def get_json(
     client: httpx.AsyncClient,
     url: str,
@@ -731,49 +782,76 @@ async def alerts_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
     agent_state: Dict[str, Any],
-    retry_queue: RetryQueue,
     submission_log: Optional[SubmissionLog] = None,
 ) -> None:
     """Evaluate measured telemetry for alert conditions and report them.
 
     Reads the latest telemetry snapshot captured by ``telemetry_loop`` and
-    the latest background-job outcome shared through ``agent_state``, so
-    alerting is driven by genuinely measured values without adding extra host
-    sampling (which would disturb the CPU/disk baseline statistics that other
-    loops rely on).
+    publishes through ``agent_state["metrics"]``, so alerting is driven by
+    genuinely measured values without adding extra host sampling (which would
+    disturb the CPU/disk baseline statistics that other loops rely on).
 
     Conditions are edge-triggered and deduplicated by ``AlertEvaluator``: a
     condition must persist for two consecutive evaluations before an alert is
-    sent, and an already-reported condition is not re-reported until it
-    clears and recurs.  Payloads are posted to ``POST /api/v1/agent/alert``
+    sent, an already-reported condition is not re-reported until its
+    measurement drops below the clear threshold (hysteresis), and a condition
+    that clears is auto-resolved via ``PUT /api/v1/agent/alerts/{id}/resolve``.
+    New alert payloads are pushed to ``POST /api/v1/agent/alert``
     (``AgentAlertRequest``), the same ingestion the emulator uses.
     """
     if not bool(config.get("alerts_enabled", True)):
         return
     interval = int(config.get("alerts_interval_seconds", 30))
-    url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/alert"
+    backend = str(config["backend_url"]).rstrip("/")
+    alert_url = f"{backend}/api/v1/agent/alert"
     evaluator = AlertEvaluator(thresholds=config.get("alert_thresholds"))
+    # condition key -> backend alert row id (for auto-resolve on clear)
+    active_alert_ids: Dict[str, int] = {}
     while True:
         try:
-            candidates = evaluator.alert_candidates(
-                agent_state.get("metrics", {}),
-                agent_state.get("last_job"),
-            )
-            for payload in candidates:
-                payload["device_id"] = config["device_id"]
-                payload["timestamp"] = utc_now_iso()
+            headers = get_auth_headers(config)
+            cycle = evaluator.alert_candidates(agent_state.get("metrics", {}))
+
+            for condition in cycle.cleared_conditions:
+                alert_id = active_alert_ids.pop(condition, None)
+                if alert_id is None:
+                    continue
+                resolve_url = f"{backend}/api/v1/agent/alerts/{alert_id}/resolve"
                 ok = await post_json(
                     client,
-                    url,
-                    payload,
-                    get_auth_headers(config),
+                    resolve_url,
+                    {},
+                    headers,
                     submission_log=submission_log,
+                    method="PUT",
                 )
                 if ok:
                     logger.info(
-                        "Reported alert '%s' (severity=%s)",
+                        "Auto-resolved alert id=%s condition=%s", alert_id, condition
+                    )
+                else:
+                    logger.warning(
+                        "Alert resolve failed id=%s condition=%s", alert_id, condition
+                    )
+
+            for condition, payload in cycle.new_alerts:
+                payload["device_id"] = config["device_id"]
+                payload["timestamp"] = utc_now_iso()
+                body = await post_json_parsed(
+                    client,
+                    alert_url,
+                    payload,
+                    headers,
+                    submission_log=submission_log,
+                )
+                alert_id = body.get("id") if body is not None else None
+                if isinstance(alert_id, int):
+                    active_alert_ids[condition] = alert_id
+                    logger.info(
+                        "Reported alert '%s' (severity=%s, id=%s)",
                         payload["title"],
                         payload["severity"],
+                        alert_id,
                     )
                 else:
                     logger.warning("Alert report failed: %s", payload["title"])
@@ -878,18 +956,12 @@ async def _report_background_job(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
     current_job_id: Optional[str],
-    agent_state: Optional[Dict[str, Any]] = None,
 ) -> Optional[str]:
     """Run one job-reporting cycle: finish the in-flight job, then queue the next.
 
     A created job is initially ``pending`` and is transitioned to
     ``completed``/``failed`` on the *next* cycle, so the Dashboard shows the
     live queued -> completed transition (the same pattern the emulator uses).
-
-    When ``agent_state`` is provided the outcome of a successfully updated
-    job is recorded on it (``last_job``) together with the action of the
-    in-flight job, so ``alerts_loop`` can raise a deduplicated alert for
-    failed maintenance jobs.
 
     Returns the id of the newly-created job, ``current_job_id`` when its
     status update failed (so the caller retries next cycle), or ``None`` when
@@ -918,20 +990,6 @@ async def _report_background_job(
                     str(current_job_id)[:8],
                     outcome["error_message"],
                 )
-            if agent_state is not None:
-                pending = agent_state.get("pending_job") or {}
-                action = (
-                    pending.get("action")
-                    if pending.get("job_id") == current_job_id
-                    else "background task"
-                )
-                agent_state["last_job"] = {
-                    "job_id": current_job_id,
-                    "status": outcome["status"],
-                    "action": action,
-                }
-                if pending.get("job_id") == current_job_id:
-                    agent_state.pop("pending_job", None)
         except Exception as e:
             logger.warning(
                 "Job status update failed job_id=%s error=%s",
@@ -962,11 +1020,6 @@ async def _report_background_job(
                 activity["action"],
                 str(job_id)[:8],
             )
-            if agent_state is not None:
-                agent_state["pending_job"] = {
-                    "job_id": job_id,
-                    "action": activity["action"],
-                }
         return job_id
     except Exception as e:
         logger.warning("Job create failed url=%s error=%s", create_url, e)
@@ -976,22 +1029,20 @@ async def _report_background_job(
 async def job_reporting_loop(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
-    agent_state: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Periodically report real background maintenance tasks as device jobs.
 
     Uses ``POST /api/v1/agent/jobs`` to create a pending job record linked to
     this device and ``PUT /api/v1/agent/jobs/{job_id}`` on the next cycle to
     transition it to ``completed``/``failed``, so the Dashboard "Job History"
-    tab shows genuine activity for real devices (not just emulators).  Job
-    outcomes are mirrored onto ``agent_state`` for ``alerts_loop``.
+    tab shows genuine activity for real devices (not just emulators).
     """
     interval = int(config.get("job_reporting_interval_seconds", 120))
     current_job_id: Optional[str] = None
     while True:
         try:
             current_job_id = await _report_background_job(
-                client, config, current_job_id, agent_state
+                client, config, current_job_id
             )
         except Exception as e:
             logger.error("Job reporting loop error: %s", e, exc_info=True)
@@ -1293,13 +1344,9 @@ async def run_agent(
         )
 
         # Shared runtime state: telemetry_loop drops its latest snapshot here
-        # and job_reporting_loop mirrors job outcomes, so alerts_loop can
-        # evaluate genuine values without sampling the host itself.
-        agent_state: Dict[str, Any] = {
-            "metrics": {},
-            "last_job": None,
-            "pending_job": None,
-        }
+        # so alerts_loop can evaluate genuine values without sampling the host
+        # itself.
+        agent_state: Dict[str, Any] = {"metrics": {}}
 
         tasks = [
             asyncio.ensure_future(
@@ -1320,12 +1367,12 @@ async def run_agent(
                 retry_flush_loop(client, config, retry_queue, submission_log)
             ),
             *(
-                [asyncio.ensure_future(job_reporting_loop(client, config, agent_state))]
+                [asyncio.ensure_future(job_reporting_loop(client, config))]
                 if bool(config.get("job_reporting_enabled", True))
                 else []
             ),
             asyncio.ensure_future(
-                alerts_loop(client, config, agent_state, retry_queue, submission_log)
+                alerts_loop(client, config, agent_state, submission_log)
             ),
             asyncio.ensure_future(
                 pending_commands_loop(
