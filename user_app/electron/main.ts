@@ -18,6 +18,37 @@ const AGENT_CONFIG_FILE = path.join(AGENT_DIR, 'agent-config.json')
 const MAX_APP_LOG_ENTRIES = 15
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
+// stdout/stderr may be a pipe (or socket) whose reader has already gone away
+// when the app is launched with output redirected — e.g. previewing from a
+// terminal that has exited. Node reports a write to the closed end with
+// EPIPE/EIO, and unless the stream carries an 'error' listener that becomes an
+// uncaught exception killing the whole app. It crashed device setup via the
+// agent/emulator log forwarders (write EIO inside console.error).
+process.stdout.on('error', () => {})
+process.stderr.on('error', () => {})
+
+/**
+ * console.log/error while guarding for a broken pipe. The 'error' listener
+ * above catches async stream errors; a failed write can also throw
+ * synchronously inside console itself, so a try/catch makes it impossible for
+ * output plumbing to take the app down. Best-effort only.
+ */
+function safeLog(message: string): void {
+  try {
+    console.log(message)
+  } catch {
+    // Broken/closed console; never crash the app because of it.
+  }
+}
+
+function safeError(message: string): void {
+  try {
+    console.error(message)
+  } catch {
+    // Broken/closed console; never crash the app because of it.
+  }
+}
+
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 // Set once a genuine quit (Cmd+Q / app.quit) is in progress so the window
@@ -364,7 +395,7 @@ function recordAppEvent(level: AppLogEntry['level'], category: string, message: 
     fs.writeFileSync(logFile, JSON.stringify(entries, null, 2), { mode: 0o600 })
     fs.chmodSync(logFile, 0o600)
   } catch (error) {
-    console.error('[app-log] Failed to write event:', error)
+    safeError(`[app-log] Failed to write event: ${String(error)}`)
   }
 }
 
@@ -531,10 +562,10 @@ function adoptExistingEmulatorDevice(): void {
       site_id: emulatorCreds.site_id ?? '',
       enrollment_method: 'emulated',
     })
-    console.log(`[emulator] Adopted persisted device ${emulatorCreds.device_name ?? emulatorCreds.device_id}`)
+    safeLog(`[emulator] Adopted persisted device ${emulatorCreds.device_name ?? emulatorCreds.device_id}`)
     recordAppEvent('info', 'setup', `Adopted existing emulated device (${emulatorCreds.device_name ?? emulatorCreds.device_id})`)
   } catch (error) {
-    console.error('[emulator] Failed to adopt persisted device:', error)
+    safeError(`[emulator] Failed to adopt persisted device: ${String(error)}`)
   }
 }
 
@@ -939,13 +970,13 @@ function startAgentProcess(): boolean {
 
   child.stdout?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
-      console.log(`[agent] ${line}`)
+      safeLog(`[agent] ${line}`)
       appendDeviceLog(logFile, 'agent', line)
     }
   })
   child.stderr?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
-      console.error(`[agent:err] ${line}`)
+      safeError(`[agent:err] ${line}`)
       appendDeviceLog(logFile, 'agent:err', line)
     }
   })
@@ -953,7 +984,7 @@ function startAgentProcess(): boolean {
     recordAppEvent('error', 'agent', `Device agent process error: ${error.message}`)
   })
   child.on('exit', (code) => {
-    console.log(`[agent] exited with code ${code}`)
+    safeLog(`[agent] exited with code ${code}`)
     recordAppEvent(code === 0 ? 'info' : 'error', 'agent', `Device agent exited with code ${code ?? 'unknown'}`)
     if (agentProcess === child) {
       agentProcess = null
@@ -1200,7 +1231,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
   child.stdout?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n').filter(Boolean)
     for (const line of lines) {
-      console.log(`[emulator] ${line}`)
+      safeLog(`[emulator] ${line}`)
       appendDeviceLog(logFile, 'emulator', line)
     }
   })
@@ -1208,7 +1239,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
   child.stderr?.on('data', (data: Buffer) => {
     const lines = data.toString().split('\n').filter(Boolean)
     for (const line of lines) {
-      console.error(`[emulator:err] ${line}`)
+      safeError(`[emulator:err] ${line}`)
       appendDeviceLog(logFile, 'emulator:err', line)
     }
     emulatorStderr = [...emulatorStderr, ...lines].slice(-15)
@@ -1219,7 +1250,7 @@ function startEmulatorProcess(emulatorType: string, configPath: string): void {
   })
 
   child.on('exit', (code) => {
-    console.log(`[emulator] exited with code ${code}`)
+    safeLog(`[emulator] exited with code ${code}`)
     recordAppEvent(code === 0 ? 'info' : 'error', 'emulator', `Device emulator exited with code ${code ?? 'unknown'}`)
     if (emulatorProcess === child) {
       emulatorProcess = null
@@ -1248,10 +1279,10 @@ function resumePersistedEmulator(): void {
     const emulatorType = config.emulator_type ?? inferEmulatorType(config.os_details)
     startEmulatorProcess(emulatorType, configPath)
     emulatorDeviceId = credentials.device_id
-    console.log(`[emulator] Resumed ${deviceName} (${emulatorDeviceId})`)
+    safeLog(`[emulator] Resumed ${deviceName} (${emulatorDeviceId})`)
     recordAppEvent('info', 'emulator', 'Saved device emulator resumed successfully')
   } catch (error) {
-    console.error(`[emulator] Failed to resume ${deviceName}:`, error)
+    safeError(`[emulator] Failed to resume ${deviceName}: ${String(error)}`)
     recordAppEvent('error', 'emulator', `Saved device emulator failed to resume: ${error instanceof Error ? error.message : 'unknown error'}`)
   }
 }
