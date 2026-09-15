@@ -63,7 +63,7 @@ export default function DeviceInfo() {
         const settings = await window.electronAPI.app.getLoginItemSettings()
         if (!cancelled) {
           setLoginItemEnabled(settings.enabled)
-          setLoginItemSupported(true)
+          setLoginItemSupported(settings.supported)
         }
       } catch {
         if (!cancelled) setLoginItemSupported(false)

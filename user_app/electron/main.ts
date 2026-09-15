@@ -400,20 +400,22 @@ function recordAppEvent(level: AppLogEntry['level'], category: string, message: 
 }
 
 /**
- * Enable/disable the macOS login item so the OS launches the app after
- * sign-in. Packaged builds register the installed app bundle; a dev checkout
- * would otherwise register the raw electron binary with no project to open,
- * so it is forced through the running executable with the project as an arg.
+ * Enable/disable the login item so the OS launches the app after sign-in.
+ * Packaged builds register the installed app bundle. A dev checkout would
+ * otherwise register the raw electron binary with no project to open, so the
+ * running executable is registered with the project as an arg (Windows only —
+ * macOS login items always launch the app bundle and ignore path/args).
+ *
+ * macOS does NOT support the deprecated openAsHidden flag on macOS 13+ (and
+ * Electron 44 removes it), so hiding the window at login is implemented by the
+ * app itself — see createWindow() and wasOpenedAsHidden → wasOpenedAtLogin.
  */
 function setLaunchAtLogin(openAtLogin: boolean): boolean {
   try {
     const settings: Electron.Settings = { openAtLogin: Boolean(openAtLogin) }
-    if (process.platform === 'darwin') {
-      settings.openAsHidden = true
+    if (!app.isPackaged) {
       settings.path = process.execPath
-      if (!app.isPackaged) {
-        settings.args = [app.getAppPath()]
-      }
+      settings.args = [app.getAppPath()]
     }
     app.setLoginItemSettings(settings)
     return true
@@ -441,6 +443,8 @@ function getAssetPath(...segments: string[]): string {
   return path.join(dir, ...segments)
 }
 
+let hiddenLoginLaunch = false
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 420,
@@ -448,6 +452,11 @@ function createWindow() {
     resizable: false,
     fullscreenable: false,
     title: 'HOMEPOT Agent',
+    // The window is created hidden and revealed in ready-to-show. When the app
+    // was launched by the login item (wasOpenedAtLogin) it is left in the tray
+    // until the operator opens it — macOS 13+ ignores the deprecated
+    // openAsHidden login-item flag, so the app owns the hide-at-login behaviour.
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -462,6 +471,12 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  mainWindow.once('ready-to-show', () => {
+    if (!hiddenLoginLaunch) {
+      mainWindow?.show()
+    }
+  })
 
   mainWindow.webContents.on('did-finish-load', () => {
     recordAppEvent('info', 'application', 'User interface ready')
@@ -677,16 +692,18 @@ function registerIpcHandlers() {
   })
 
   // --- Launch at login ------------------------------------------------------
-  // Registers a macOS login item so the OS launches the app after sign-in,
-  // letting the agent resume without the operator opening it manually.
+  // Registers a login item so the OS launches the app after sign-in, letting
+  // the agent resume without the operator opening it manually. Only packaged
+  // builds can register meaningfully (dev runs would bind the raw electron
+  // binary), so the toggle is only surfaced when `supported` is true.
 
   ipcMain.handle('app:getLoginItemSettings', () => {
     try {
       const settings = app.getLoginItemSettings()
-      return { enabled: Boolean(settings.openAtLogin), openAsHidden: Boolean(settings.openAsHidden) }
+      return { enabled: Boolean(settings.openAtLogin), supported: app.isPackaged }
     } catch (error) {
       recordAppEvent('error', 'settings', `Failed to read launch-at-login setting: ${String(error)}`)
-      return { enabled: false, openAsHidden: false }
+      return { enabled: false, supported: false }
     }
   })
 
@@ -1470,6 +1487,10 @@ app.whenReady().then(() => {
     }
   }
   recordAppEvent('info', 'application', `HOMEPOT Agent ${app.getVersion()} started`)
+  // macOS launches the app already in its hidden state when it is a hidden
+  // login item — the window is created hidden and only revealed on a manual
+  // launch, keeping the agent in the tray until the operator opens it.
+  hiddenLoginLaunch = process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin
   registerIpcHandlers()
   adoptExistingEmulatorDevice()
   resumePersistedEmulator()
@@ -1480,6 +1501,11 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
+    } else if (mainWindow) {
+      // The window can exist but stay hidden after a login-item or tray launch;
+      // a dock click is the operator asking for it back on screen.
+      mainWindow.show()
+      mainWindow.focus()
     }
   })
 })
