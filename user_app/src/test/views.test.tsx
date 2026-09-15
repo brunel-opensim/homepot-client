@@ -310,7 +310,7 @@ describe('DeviceInfo', () => {
   })
 
   it('reads and toggles the start-at-login switch', async () => {
-    const getLoginItemSettings = vi.fn().mockResolvedValue({ enabled: true, openAsHidden: true })
+    const getLoginItemSettings = vi.fn().mockResolvedValue({ enabled: true, supported: true })
     const setLoginItemSettings = vi.fn().mockResolvedValue({ enabled: false, ok: true })
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
       device: {

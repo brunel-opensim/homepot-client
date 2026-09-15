@@ -48,7 +48,7 @@ declare global {
         }>
         restartToInstall(): Promise<{ status: 'installing' } | { status: 'disabled' }>
         getUpdateState(): Promise<UpdateStatePayload>
-        getLoginItemSettings(): Promise<{ enabled: boolean; openAsHidden: boolean }>
+        getLoginItemSettings(): Promise<{ enabled: boolean; supported: boolean }>
         setLoginItemSettings(openAtLogin: boolean): Promise<{ enabled: boolean; ok: boolean }>
       }
       updates: {

@@ -98,8 +98,12 @@ To close that gap, packaged builds of the User App register a **macOS login item
 *   **Auto-enabled on first launch.** A new packaged install calls it once during
     `app.whenReady` (`main.ts`), so the agent resumes after every reboot without
     operator action.
-*   **Starts hidden in the tray.** `openAsHidden: true` keeps the login experience
-    clean; the agent runs headless and the window is opened only if needed.
+*   **Starts hidden in the tray.** macOS ignores the deprecated `openAsHidden`
+    login-item flag on macOS 13+ (removed entirely in Electron 44), so the app
+    owns the behaviour: the window is created hidden (`show: false`) and only
+    revealed on a manual launch. When launched by the login item
+    (`wasOpenedAtLogin`), the agent runs headless in the tray and the window is
+    opened from the tray menu when needed.
 *   **Source/dev checkouts are exempt.** Login items are only registered when
     `app.isPackaged` is true, so a development run never binds the raw `electron`
     binary as a login item.
