@@ -38,6 +38,7 @@ from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.gates import (  # noqa: E402
     MODE_CAUTIONARY,
+    MODE_STATUS_ONLY,
     GateContext,
     GateStatus,
     build_envelope_from_config,
@@ -636,8 +637,31 @@ async def query_ai(
                 assembled_context=full_context,
                 known_alert_ids=known_alert_ids,
             )
-            envelope = build_envelope_from_config()
-            trust = await envelope.run(gate_context)
+            # ------------------------------------------------------------------
+            # ZERO-FLEET REFUSAL (Mode 1 boundary, live). When the fleet is
+            # empty, the validation gates have NO fleet data to validate:
+            # Gate A (schema/DB) and Gate B (data integrity) are
+            # infrastructure checks that PASS on an empty DB, so running the
+            # envelope here would produce a confident-looking ~0.24 'trust'
+            # with zero real devices behind it -- a fabricated grounding
+            # signal. So on zero_fleet we create NO trust at all (no gates
+            # activated, status-only, trust_score 0.0, not actionable) and
+            # inject a refusal mandate into the context so the LLM states
+            # plainly that there are 0 devices and that it will NOT provide a
+            # suggestion -- while still reporting non-fleet system facts
+            # (sites, alerts, push stats, memory) as observable status, never
+            # as a recommendation.
+            zero_fleet = not all_active_devices
+            if zero_fleet:
+                trust = EnvelopeResult(
+                    gate_results=[],
+                    trust_mode=MODE_STATUS_ONLY,
+                    trust_score=0.0,
+                    failed_gate_id=None,
+                )
+            else:
+                envelope = build_envelope_from_config()
+                trust = await envelope.run(gate_context)
 
             # 6. AI Insights: surface the SAME anomaly/failure signals a
             # technician would see elsewhere in the product, so the LLM's
@@ -755,6 +779,17 @@ async def query_ai(
             f"Trust score: {trust.trust_score:.2f} (0.0 = no trust, 1.0 = fully grounded)\n"
             f"Actionable: {'yes' if trust.is_actionable else 'no'}\n"
         )
+        if zero_fleet:
+            full_context += (
+                "\n[REFUSAL MANDATE]\n"
+                "The fleet is EMPTY (0 active devices). State plainly in your "
+                "answer that no devices are currently connected and that no "
+                "AI validation gates were activated. Do NOT provide a "
+                "suggestion, recommendation, or any troubleshooting "
+                "directive. You MAY still report non-fleet system facts "
+                "(sites, alerts, push statistics, memory) strictly as "
+                "observable status -- never as a recommendation.\n"
+            )
         if not trust.is_actionable:
             full_context += (
                 f"Failed gate: {trust.failed_gate_id} "
