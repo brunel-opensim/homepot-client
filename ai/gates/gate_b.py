@@ -143,7 +143,6 @@ class DataIntegrityGate(Gate):
                         "freshness_age_seconds": age_seconds,
                     },
                     threshold=self.completeness_max_null_ratio,
-                    passed=passed,
                     query_id="B.device_digest",
                     extra={"digest_passed": passed},
                 )
@@ -201,7 +200,7 @@ class DataIntegrityGate(Gate):
             )
         )
         checks.append(
-            await self._as_digest_check(
+            self._as_digest_check(
                 await self.collect_device_digest(context, active_pks)
             )
         )
