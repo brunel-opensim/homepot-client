@@ -96,9 +96,7 @@ class DataIntegrityGate(Gate):
 
         from homepot.app.models.AnalyticsModel import DeviceMetrics
 
-        window_start = (
-            datetime.utcnow() - timedelta(seconds=context.window_seconds)
-        )
+        window_start = datetime.utcnow() - timedelta(seconds=context.window_seconds)
         device_int_id = context.device_int_id
 
         stmt = (
