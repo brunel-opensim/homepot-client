@@ -200,9 +200,7 @@ class DataIntegrityGate(Gate):
             )
         )
         checks.append(
-            self._as_digest_check(
-                await self.collect_device_digest(context, active_pks)
-            )
+            self._as_digest_check(await self.collect_device_digest(context, active_pks))
         )
 
         status = GateStatus.PASS if all(c.passed for c in checks) else GateStatus.FAIL
