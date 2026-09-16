@@ -89,7 +89,6 @@ class DataIntegrityGate(Gate):
         Returns one ``EvidenceRef`` per active device (``device_id`` set) so
         the digest stays traceable to the source table (Sec. 2.5 evidence).
         """
-
         session = context.session
         if session is None:
             return []
@@ -464,8 +463,9 @@ class DataIntegrityGate(Gate):
         )
 
     def _as_digest_check(self, evidence: List[EvidenceRef]) -> CheckResult:
-        """Render the per-device digest evidence as an always-PASS informational
-        check. Informational by design: it carries the digest EvidenceRef rows
+        """Render the per-device digest evidence as an always-PASS informational check.
+
+        Informational by design: it carries the digest EvidenceRef rows
         into the envelope's trace (and therefore into the LLM prompt) WITHOUT
         ever changing Gate B's pass/fail semantics or the trust score -- the
         digest is a per-device breakdown of the SAME fleet-wide evidence, it is
