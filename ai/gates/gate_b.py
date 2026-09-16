@@ -70,6 +70,85 @@ class DataIntegrityGate(Gate):
         self.sustained_gap_seconds = sustained_gap_seconds
         self.completeness_max_null_ratio = completeness_max_null_ratio
 
+    async def collect_device_digest(
+        self, context: GateContext, active_pks: list
+    ) -> List[EvidenceRef]:
+        """Per-device integrity digest for the AI endpoint (PR #464).
+
+        One GROUP BY query over ``device_metrics`` (same active fleet and
+        evaluation window Gate B itself uses) that reports, PER DEVICE, the
+        completeness null-ratio and freshness age. This is purely
+        informational -- it NEVER changes the envelope's trust mode/score or
+        Gate B's pass/fail semantics (the paper's fleet-grained envelope in
+        Fig. 2 is untouched). It only lets the answering LLM ground each
+        statement to the SPECIFIC device whose telemetry actually passed, so a
+        healthy sibling keeps its own passing digest even when another device
+        fails Gate B (fleet envelope then simply caps the overall trust in
+        exactly the same way it always did).
+
+        Returns one ``EvidenceRef`` per active device (``device_id`` set) so
+        the digest stays traceable to the source table (Sec. 2.5 evidence).
+        """
+        session = context.session
+        if session is None:
+            return []
+
+        from homepot.app.models.AnalyticsModel import DeviceMetrics
+
+        window_start = datetime.utcnow() - timedelta(seconds=context.window_seconds)
+        device_int_id = context.device_int_id
+
+        stmt = (
+            select(
+                DeviceMetrics.device_id,
+                func.count(),
+                func.count(DeviceMetrics.cpu_percent),
+                func.count(DeviceMetrics.memory_percent),
+                func.count(DeviceMetrics.disk_percent),
+                func.count(DeviceMetrics.network_latency_ms),
+                func.max(DeviceMetrics.timestamp),
+            )
+            .where(
+                DeviceMetrics.timestamp >= window_start,
+                DeviceMetrics.device_id.in_(active_pks),
+            )
+            .group_by(DeviceMetrics.device_id)
+        )
+        if device_int_id:
+            stmt = stmt.where(DeviceMetrics.device_id == device_int_id)
+
+        rows = (await session.execute(stmt)).all()
+
+        digest: List[EvidenceRef] = []
+        for device_pk, total, cpu_n, mem_n, disk_n, lat_n, last_ts in rows:
+            null_counts = {
+                "cpu_percent": total - cpu_n,
+                "memory_percent": total - mem_n,
+                "disk_percent": total - disk_n,
+                "network_latency_ms": total - lat_n,
+            }
+            null_ratio = sum(null_counts.values()) / (total * 4) if total else 0.0
+            passed = null_ratio <= self.completeness_max_null_ratio
+            age_seconds = (
+                (datetime.utcnow() - last_ts).total_seconds() if last_ts else None
+            )
+            digest.append(
+                EvidenceRef(
+                    table="device_metrics",
+                    field="device_id",
+                    device_id=device_pk,
+                    observed={
+                        "rows": total,
+                        "null_ratio": round(null_ratio, 4),
+                        "freshness_age_seconds": age_seconds,
+                    },
+                    threshold=self.completeness_max_null_ratio,
+                    query_id="B.device_digest",
+                    extra={"digest_passed": passed},
+                )
+            )
+        return digest
+
     async def evaluate(self, context: GateContext) -> GateResult:
         """Check completeness, freshness, continuity, gaps, and value validity."""
         session = context.session
@@ -119,6 +198,9 @@ class DataIntegrityGate(Gate):
             await self._check_validity(
                 session, DeviceMetrics, window_start, device_int_id, active_pks
             )
+        )
+        checks.append(
+            self._as_digest_check(await self.collect_device_digest(context, active_pks))
         )
 
         status = GateStatus.PASS if all(c.passed for c in checks) else GateStatus.FAIL
@@ -375,4 +457,21 @@ class DataIntegrityGate(Gate):
                     query_id="B.validity",
                 )
             ],
+        )
+
+    def _as_digest_check(self, evidence: List[EvidenceRef]) -> CheckResult:
+        """Render the per-device digest evidence as an always-PASS informational check.
+
+        Informational by design: it carries the digest EvidenceRef rows
+        into the envelope's trace (and therefore into the LLM prompt) WITHOUT
+        ever changing Gate B's pass/fail semantics or the trust score -- the
+        digest is a per-device breakdown of the SAME fleet-wide evidence, it is
+        not a new gate decision. (PR #464)
+        """
+        return CheckResult(
+            check_id="B.device_digest",
+            name="Per-device digest",
+            passed=True,
+            message="Per-device integrity digest attached (informational).",
+            evidence=evidence,
         )
