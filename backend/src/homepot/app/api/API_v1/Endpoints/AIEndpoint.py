@@ -812,6 +812,40 @@ async def query_ai(
             if failing_reasons:
                 full_context += f"Reason: {' '.join(failing_reasons[:2])}\n"
 
+        # 5b. Per-device trust digest (surfaces merged #464's Gate B digest so
+        # statements can be grounded PER DEVICE rather than fleet-wide-only).
+        # The fleet envelope's trust mode/score/actionability and the #463
+        # zero-fleet refusal are decided ABOVE and are untouched here -- this
+        # block only walks the SAME per-device EvidenceRefs Gate B already
+        # emitted (info-only; device_id keyed) so the LLM grounds statements
+        # on the SPECIFIC device the evidence covers:
+        #   * a digest PASS for device H  => H-only statements allowed;
+        #   * a digest FAIL for device X  => no statements from/about X, and
+        #     no cross-device statement involving X is ever permitted;
+        #   * fleet semantics, trust mode, envelope actionability are NEVER
+        #     changed by this render (it is purely informational evidence).
+        digest_rows = [
+            (ev.device_id, c.check_id, c.passed)
+            for gate_result in (trust.gate_results or [])
+            for c in (gate_result.checks or [])
+            for ev in (c.evidence or [])
+            if getattr(ev, "device_id", None)
+        ]
+        if digest_rows:
+            digest_lines = [
+                f"- device {device_id}: {check_id} " f"{'PASS' if passed else 'FAIL'}"
+                for device_id, check_id, passed in digest_rows
+            ]
+            full_context += (
+                "\n[PER-DEVICE TRUST DIGEST]\n"
+                + "\n".join(digest_lines)
+                + "\nStatements may be grounded ONLY on the device whose "
+                "digest passes; a FAILed digest forbids conclusions from or "
+                "about that device and any cross-device statement involving "
+                "it. Never borrow one device's grounding for another.\n"
+                "[END PER-DEVICE TRUST DIGEST]\n"
+            )
+
         # Get static system knowledge (no DB access needed beyond this point)
         system_knowledge = knowledge.get_full_system_context()
 
