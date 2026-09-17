@@ -89,16 +89,13 @@ class DataIntegrityGate(Gate):
         Returns one ``EvidenceRef`` per active device (``device_id`` set) so
         the digest stays traceable to the source table (Sec. 2.5 evidence).
         """
-
         session = context.session
         if session is None:
             return []
 
         from homepot.app.models.AnalyticsModel import DeviceMetrics
 
-        window_start = (
-            datetime.utcnow() - timedelta(seconds=context.window_seconds)
-        )
+        window_start = datetime.utcnow() - timedelta(seconds=context.window_seconds)
         device_int_id = context.device_int_id
 
         stmt = (
@@ -146,7 +143,6 @@ class DataIntegrityGate(Gate):
                         "freshness_age_seconds": age_seconds,
                     },
                     threshold=self.completeness_max_null_ratio,
-                    passed=passed,
                     query_id="B.device_digest",
                     extra={"digest_passed": passed},
                 )
@@ -204,9 +200,7 @@ class DataIntegrityGate(Gate):
             )
         )
         checks.append(
-            await self._as_digest_check(
-                await self.collect_device_digest(context, active_pks)
-            )
+            self._as_digest_check(await self.collect_device_digest(context, active_pks))
         )
 
         status = GateStatus.PASS if all(c.passed for c in checks) else GateStatus.FAIL
@@ -466,8 +460,9 @@ class DataIntegrityGate(Gate):
         )
 
     def _as_digest_check(self, evidence: List[EvidenceRef]) -> CheckResult:
-        """Render the per-device digest evidence as an always-PASS informational
-        check. Informational by design: it carries the digest EvidenceRef rows
+        """Render the per-device digest evidence as an always-PASS informational check.
+
+        Informational by design: it carries the digest EvidenceRef rows
         into the envelope's trace (and therefore into the LLM prompt) WITHOUT
         ever changing Gate B's pass/fail semantics or the trust score -- the
         digest is a per-device breakdown of the SAME fleet-wide evidence, it is
