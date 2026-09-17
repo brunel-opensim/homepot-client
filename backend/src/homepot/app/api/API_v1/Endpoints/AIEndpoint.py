@@ -833,8 +833,7 @@ async def query_ai(
         ]
         if digest_rows:
             digest_lines = [
-                f"- device {device_id}: {check_id} "
-                f"{'PASS' if passed else 'FAIL'}"
+                f"- device {device_id}: {check_id} " f"{'PASS' if passed else 'FAIL'}"
                 for device_id, check_id, passed in digest_rows
             ]
             full_context += (
