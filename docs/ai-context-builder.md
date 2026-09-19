@@ -115,8 +115,11 @@ The `ContextBuilder` is used within the `query_ai` endpoint in `AIEndpoint.py`.
 
 ### Enriched Context (Batch)
 
-The primary entry point for the live endpoint is `build_enriched_context()`,
-which calls all 19 data-source methods in parallel via `asyncio.gather`:
+The primary entry point for the live endpoint is `build_enriched_context()`.
+When it opens its own database sessions, it calls all 19 data-source methods
+in parallel via `asyncio.gather`; when a shared `AsyncSession` is passed in,
+it reuses that session and awaits the data-source methods sequentially to avoid
+overlapping operations on the same session:
 
 ```python
 context_builder = ContextBuilder()
@@ -153,4 +156,3 @@ All planned data sources have been integrated. Future work will focus on:
 *   **Relevance Filtering:** Using vector search to only include *relevant* logs instead of just *recent* ones.
 
 By providing comprehensive situational awareness, the Context Builder empowers the LLM to deliver accurate, context-rich responses for device diagnostics and troubleshooting.
-

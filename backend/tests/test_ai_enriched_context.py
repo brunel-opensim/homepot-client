@@ -4,6 +4,7 @@ Verifies that ContextBuilder's data sources are surfaced in the live
 AIEndpoint.query_ai() prompt and that documentation ingestion works.
 """
 
+import asyncio
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -71,6 +72,15 @@ async def test_build_enriched_context_with_session():
             context = await ContextBuilder.build_enriched_context(session=session)
         assert isinstance(context, str)
         gather.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_build_enriched_context_without_session_uses_gather():
+    """build_enriched_context should use asyncio.gather without a shared session."""
+    with patch("ai.context_builder.asyncio.gather", wraps=asyncio.gather) as gather:
+        context = await ContextBuilder.build_enriched_context()
+    assert isinstance(context, str)
+    gather.assert_called_once()
 
 
 # ── SystemKnowledge documentation context ───────────────────────────────────
