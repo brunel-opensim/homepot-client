@@ -325,6 +325,64 @@ async def test_gate_b_passes_with_fresh_complete_data():
     assert result.status == GateStatus.PASS, [c.to_dict() for c in result.checks]
 
 
+async def _seed_active_fleet():
+    """#466 fixture: seed one active site + device with fresh telemetry.
+
+    Uses the same data shapes as seed_data.py (DeviceMetrics fields,
+    HealthCheck fields) but scoped to the test database via
+    get_database_service(). Ensures the endpoint sees a non-empty active
+    fleet and proceeds through the envelope path instead of the zero-fleet
+    refusal. The stub envelope in each test is then actually consulted.
+    """
+    from homepot.app.models.AnalyticsModel import DeviceMetrics
+    from homepot.database import get_database_service
+    from homepot.models import HealthCheck
+
+    db_service = await get_database_service()
+    seed_suffix = secrets.token_hex(4)
+    health_check_id = int(seed_suffix, 16)
+
+    site = await db_service.create_site(
+        site_id=f"validation-gate-seed-{seed_suffix}",
+        name=f"Validation Gate Seed Site {seed_suffix}",
+        description="Minimal seed for validation gate tests",
+        location="Test Location",
+        latitude=0.0,
+        longitude=0.0,
+    )
+
+    device = await db_service.create_device(
+        device_id=f"validation-gate-seed-device-{seed_suffix}",
+        name=f"Validation Gate Seed Device {seed_suffix}",
+        device_type="POS",
+        site_id=site.id,
+        ip_address="10.0.99.1",
+        api_key_hash=secrets.token_urlsafe(16),
+    )
+
+    now = datetime.utcnow()
+    async with db_service.get_session() as session:
+        session.add(
+            DeviceMetrics(
+                timestamp=now,
+                device_id=device.id,
+                cpu_percent=42.0,
+                memory_percent=61.0,
+                disk_percent=33.0,
+                network_latency_ms=12.0,
+            )
+        )
+        session.add(
+            HealthCheck(
+                id=health_check_id,
+                timestamp=now,
+                device_id=device.id,
+                is_healthy=True,
+            )
+        )
+        await session.commit()
+
+
 @pytest.mark.asyncio
 async def test_query_ai_always_calls_llm_even_when_not_actionable():
     """The /query endpoint must always call the LLM and return a trust envelope.
@@ -372,6 +430,7 @@ async def test_query_ai_always_calls_llm_even_when_not_actionable():
             AIEndpoint, "build_envelope_from_config", return_value=_StubEnvelope()
         ),
     ):
+        await _seed_active_fleet()
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
         current_user = {"email": "admin@test", "role": "Admin", "user_id": 1}
         response = await AIEndpoint.query_ai(request, current_user)
@@ -452,6 +511,7 @@ async def test_query_ai_includes_insights_when_gate_b_passes():
             new=AsyncMock(return_value={"anomalies": []}),
         ),
     ):
+        await _seed_active_fleet()
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
         current_user = {"email": "admin@test", "role": "Admin", "user_id": 1}
         response = await AIEndpoint.query_ai(request, current_user)
@@ -531,6 +591,7 @@ async def test_query_ai_downgrades_trust_when_post_insight_gate_c_fails():
             new=AsyncMock(return_value={"anomalies": []}),
         ),
     ):
+        await _seed_active_fleet()
         request = AIEndpoint.AIQueryRequest(query="What is the status?")
         current_user = {"email": "admin@test", "role": "Admin", "user_id": 1}
         response = await AIEndpoint.query_ai(request, current_user)
