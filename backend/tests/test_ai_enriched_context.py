@@ -5,9 +5,10 @@ AIEndpoint.query_ai() prompt and that documentation ingestion works.
 """
 
 import asyncio
+from contextlib import ExitStack
 import os
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -27,6 +28,41 @@ def _authorize_ai_query(app) -> None:
         return
 
     raise AssertionError("AI query route not found")
+
+
+CONTEXT_METHOD_NAMES = (
+    "get_job_context",
+    "get_error_context",
+    "get_config_context",
+    "get_audit_context",
+    "get_api_context",
+    "get_state_context",
+    "get_push_context",
+    "get_site_context",
+    "get_metadata_context",
+    "get_metrics_context",
+    "get_user_context",
+    "get_tenant_context",
+    "get_tenant_membership_context",
+    "get_site_membership_context",
+    "get_enrolment_intent_context",
+    "get_lifecycle_epoch_context",
+    "get_device_credential_context",
+    "get_device_command_context",
+    "get_device_assignment_context",
+    "get_device_lifecycle_event_context",
+    "get_jobs_context",
+)
+
+
+def _build_context_stub(calls: list[str], name: str) -> AsyncMock:
+    """Create an async stub for a context method."""
+
+    async def _stub(*args, **kwargs) -> str:
+        calls.append(name)
+        return f"[{name}]"
+
+    return AsyncMock(side_effect=_stub)
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,23 +99,48 @@ async def test_build_enriched_context_filters_empty_messages():
 
 @pytest.mark.asyncio
 async def test_build_enriched_context_with_session():
-    """build_enriched_context should accept and reuse an external session."""
-    from homepot.database import get_database_service
+    """build_enriched_context should await shared-session calls sequentially."""
+    calls: list[str] = []
 
-    db_service = await get_database_service()
-    async with db_service.get_session() as session:
+    with ExitStack() as stack:
+        for name in CONTEXT_METHOD_NAMES:
+            stack.enter_context(
+                patch.object(
+                    ContextBuilder,
+                    name,
+                    _build_context_stub(calls, name),
+                )
+            )
         with patch("ai.context_builder.asyncio.gather") as gather:
-            context = await ContextBuilder.build_enriched_context(session=session)
-        assert isinstance(context, str)
-        gather.assert_not_called()
+            context = await ContextBuilder.build_enriched_context(
+                session=object(), user_id="user-1"
+            )
+
+    assert context == "\n\n".join(f"[{name}]" for name in CONTEXT_METHOD_NAMES)
+    assert calls == list(CONTEXT_METHOD_NAMES)
+    gather.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_build_enriched_context_without_session_uses_gather():
     """build_enriched_context should use asyncio.gather without a shared session."""
-    with patch("ai.context_builder.asyncio.gather", wraps=asyncio.gather) as gather:
-        context = await ContextBuilder.build_enriched_context()
+    calls: list[str] = []
+
+    with ExitStack() as stack:
+        for name in CONTEXT_METHOD_NAMES:
+            stack.enter_context(
+                patch.object(
+                    ContextBuilder,
+                    name,
+                    _build_context_stub(calls, name),
+                )
+            )
+        with patch("ai.context_builder.asyncio.gather", wraps=asyncio.gather) as gather:
+            context = await ContextBuilder.build_enriched_context(user_id="user-1")
+
     assert isinstance(context, str)
+    assert context == "\n\n".join(f"[{name}]" for name in CONTEXT_METHOD_NAMES)
+    assert sorted(calls) == sorted(CONTEXT_METHOD_NAMES)
     gather.assert_called_once()
 
 
@@ -138,6 +199,11 @@ async def test_query_ai_includes_enriched_context_blocks():
 
     with (
         patch.object(
+            ContextBuilder,
+            "build_enriched_context",
+            AsyncMock(return_value="[ENRICHED TEST BLOCK]\nSentinel"),
+        ),
+        patch.object(
             AIEndpoint,
             "get_ai_services",
             return_value=(mock_llm, mock_knowledge, mock_memory),
@@ -173,9 +239,8 @@ async def test_query_ai_includes_enriched_context_blocks():
         # If we got a context, verify it contains enriched sections
         if captured_contexts:
             ctx = captured_contexts[0]
-            # The enriched context should be present (even if sections are
-            # empty on a fresh DB, the gather should not crash)
-            assert isinstance(ctx, str)
+            assert "[ENRICHED TEST BLOCK]" in ctx
+            assert "Sentinel" in ctx
 
 
 # ── Documentation context in system prompt ───────────────────────────────────
