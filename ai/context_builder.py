@@ -1425,12 +1425,8 @@ class ContextBuilder:
                     device_id=device_id, session=session, device_int_id=device_int_id
                 ),
                 ContextBuilder.get_api_context(session=session),
-                ContextBuilder.get_state_context(
-                    device_id=device_id, session=session
-                ),
-                ContextBuilder.get_push_context(
-                    device_id=device_id, session=session
-                ),
+                ContextBuilder.get_state_context(device_id=device_id, session=session),
+                ContextBuilder.get_push_context(device_id=device_id, session=session),
                 ContextBuilder.get_site_context(
                     device_id=device_id, session=session, device_int_id=device_int_id
                 ),
@@ -1464,14 +1460,16 @@ class ContextBuilder:
                 ContextBuilder.get_device_lifecycle_event_context(
                     device_id=device_id, session=session
                 ),
-                ContextBuilder.get_jobs_context(
-                    device_id=device_id, session=session
-                ),
+                ContextBuilder.get_jobs_context(device_id=device_id, session=session),
             )
 
-            _SKIP_PREFIXES = ("No ", "Error ", "Site context unavailable",
-                              "Push notification history not available",
-                              "Metrics context unavailable")
+            _SKIP_PREFIXES = (
+                "No ",
+                "Error ",
+                "Site context unavailable",
+                "Push notification history not available",
+                "Metrics context unavailable",
+            )
 
             parts = []
             for result in results:

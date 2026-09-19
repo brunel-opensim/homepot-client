@@ -3,7 +3,6 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
-import asyncio
 from datetime import datetime, timezone
 import logging
 import os
@@ -49,8 +48,8 @@ from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
-from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
+from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
 from homepot.database import get_database_service, get_db  # noqa: E402
 from homepot.models import Device, HealthCheck, Site, User  # noqa: E402

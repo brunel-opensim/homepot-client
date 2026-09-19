@@ -4,11 +4,9 @@ Verifies that ContextBuilder's data sources are surfaced in the live
 AIEndpoint.query_ai() prompt and that documentation ingestion works.
 """
 
-from datetime import datetime
 import os
-import secrets
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,7 +17,6 @@ if workspace_root not in sys.path:
 
 from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
-
 
 # ── build_enriched_context unit tests ──────────────────────────────────────
 
@@ -40,9 +37,9 @@ async def test_build_enriched_context_filters_empty_messages():
     # sections.
     for block in context.split("\n\n"):
         if block.strip():
-            assert not block.startswith("No "), (
-                f"Empty-data message leaked into enriched context: {block[:80]}"
-            )
+            assert not block.startswith(
+                "No "
+            ), f"Empty-data message leaked into enriched context: {block[:80]}"
 
 
 @pytest.mark.asyncio
@@ -82,9 +79,9 @@ def test_get_documentation_context_respects_max_chars():
             # Content starts after the first newline
             content = section.split("\n", 1)[1] if "\n" in section else section
             # Allow some overhead for the last truncated line
-            assert len(content) <= 250, (
-                f"Doc section exceeds max_chars: {len(content)} chars"
-            )
+            assert (
+                len(content) <= 250
+            ), f"Doc section exceeds max_chars: {len(content)} chars"
 
 
 # ── Live endpoint integration: enriched context in prompt ───────────────────
@@ -110,8 +107,14 @@ async def test_query_ai_includes_enriched_context_blocks():
     mock_memory.query_similar.return_value = []
 
     with (
-        patch.object(AIEndpoint, "get_ai_services", return_value=(mock_llm, mock_knowledge, mock_memory)),
-        patch.object(AIEndpoint, "_sanitize_ai_input", side_effect=lambda t, **kw: t or ""),
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint, "_sanitize_ai_input", side_effect=lambda t, **kw: t or ""
+        ),
     ):
         # Capture the context passed to the LLM
         captured_contexts = []
@@ -132,6 +135,7 @@ async def test_query_ai_includes_enriched_context_blocks():
                 json={"query": "What is the system status?"},
                 headers={"Authorization": "Bearer test-token"},
             )
+        assert response.status_code in {200, 401}
 
         # If we got a context, verify it contains enriched sections
         if captured_contexts:
@@ -161,8 +165,14 @@ async def test_query_ai_includes_documentation_in_system_prompt():
     mock_memory.query_similar.return_value = []
 
     with (
-        patch.object(AIEndpoint, "get_ai_services", return_value=(mock_llm, mock_knowledge, mock_memory)),
-        patch.object(AIEndpoint, "_sanitize_ai_input", side_effect=lambda t, **kw: t or ""),
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint, "_sanitize_ai_input", side_effect=lambda t, **kw: t or ""
+        ),
     ):
         captured_prompts = []
 
@@ -182,6 +192,7 @@ async def test_query_ai_includes_documentation_in_system_prompt():
                 json={"query": "How do validation gates work?"},
                 headers={"Authorization": "Bearer test-token"},
             )
+        assert response.status_code in {200, 401}
 
         if captured_prompts:
             sys_prompt = captured_prompts[0]
