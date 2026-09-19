@@ -3,7 +3,8 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
-from datetime import datetime, timedelta, timezone
+import asyncio
+from datetime import datetime, timezone
 import logging
 import os
 import sys
@@ -11,7 +12,7 @@ from typing import Any, Dict, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as SASession
 
 from homepot.app.auth_utils import (  # noqa: E402
@@ -48,10 +49,7 @@ from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
-from homepot.app.models.AnalyticsModel import (  # noqa: E402
-    DeviceMetrics,
-    PushNotificationLog,
-)
+from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
 from homepot.database import get_database_service, get_db  # noqa: E402
@@ -537,26 +535,12 @@ async def query_ai(
                             f"      IP: {d.ip_address or 'N/A'}\n"
                         )
 
-            # Get Push Notification Stats (Last 24 hours)
-            one_day_ago = datetime.utcnow() - timedelta(days=1)
-            push_result = await session.execute(
-                select(
-                    func.count(PushNotificationLog.id),
-                    func.sum(
-                        case((PushNotificationLog.status == "delivered", 1), else_=0)
-                    ),
-                    func.avg(PushNotificationLog.latency_ms),
-                ).where(PushNotificationLog.sent_at >= one_day_ago)
-            )
-            total_push, delivered_push, avg_latency = push_result.one()
-
-            site_context += "\n[PUSH NOTIFICATION STATS (24h)]\n"
-            site_context += f"- Total Sent: {total_push or 0}\n"
-            site_context += f"- Delivered: {delivered_push or 0}\n"
-            if avg_latency:
-                site_context += f"- Avg Latency: {round(avg_latency, 2)}ms\n"
+            # Get Push Notification Stats via ContextBuilder
+            push_context = await context_builder.get_push_context(session=session)
+            site_context += f"\n{push_context}\n"
 
             # Get Active Alerts for AI Context (only for active devices)
+            # Keep inline: active_alerts is reused below for known_alert_ids.
             active_device_ids = select(Device.device_id).where(
                 Device.is_active.is_(True)
             )
@@ -615,6 +599,27 @@ async def query_ai(
                 "a valid role).\n"
             )
 
+            # Resolve device integer ID early so enriched context and gates
+            # can both use it.
+            device_int_id = None
+            if request.device_id:
+                device_int_id = await DeviceResolver(session).resolve(request.device_id)
+
+            # Enriched diagnostic context: gather all ContextBuilder sources
+            # in parallel so total latency = slowest single query, not the sum.
+            # The fleet summary (above) stays inline because it includes the
+            # site/device listing that ContextBuilder doesn't replicate.
+            try:
+                enriched = await ContextBuilder.build_enriched_context(
+                    device_id=request.device_id,
+                    device_int_id=device_int_id,
+                    session=session,
+                )
+                if enriched:
+                    full_context += f"\n{enriched}"
+            except Exception as e:
+                logger.warning("Failed to build enriched context: %s", e)
+
             # 5. Validation-First Gates: Gate A -> B -> C (see ai/gates)
             # AI inference is a downstream consumer of the operational data
             # (paper Sec. 4). Gates no longer block inference outright --
@@ -625,10 +630,6 @@ async def query_ai(
             # place in it. Gates run BEFORE the AI Insights below because
             # Gate B's result gates whether those insights are computed at
             # all (see next step).
-            device_int_id = None
-            if request.device_id:
-                device_int_id = await DeviceResolver(session).resolve(request.device_id)
-
             known_alert_ids = [alert.id for alert in active_alerts]
             gate_context = GateContext(
                 session=session,
@@ -848,6 +849,9 @@ async def query_ai(
 
         # Get static system knowledge (no DB access needed beyond this point)
         system_knowledge = knowledge.get_full_system_context()
+        doc_context = knowledge.get_documentation_context()
+        if doc_context:
+            system_knowledge += f"\n\n{doc_context}"
 
         response = llm.generate_response(
             prompt=request.query,

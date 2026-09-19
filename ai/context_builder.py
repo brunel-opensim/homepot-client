@@ -1,5 +1,6 @@
 """Module for building rich context for the AI from various data sources."""
 
+import asyncio
 from datetime import datetime, timedelta
 import logging
 from typing import Any, Optional
@@ -1393,3 +1394,93 @@ class ContextBuilder:
                 context_parts.append("\n".join(lines))
 
         return "\n\n".join(context_parts)
+
+    @staticmethod
+    async def build_enriched_context(
+        device_id: Optional[str] = None,
+        device_int_id: Optional[int] = None,
+        user_id: Optional[str] = None,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Build enriched diagnostic context from all data sources in parallel.
+
+        Calls all ContextBuilder methods via ``asyncio.gather`` so total
+        latency equals the slowest single query rather than the sum.  When a
+        ``session`` is provided it is reused across all calls; otherwise each
+        method opens its own session (more expensive).
+
+        Returns a single string containing all available context blocks,
+        suitable for injection into the LLM prompt.
+        """
+        try:
+            results = await asyncio.gather(
+                ContextBuilder.get_job_context(session=session),
+                ContextBuilder.get_error_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_config_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_audit_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_api_context(session=session),
+                ContextBuilder.get_state_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_push_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_site_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_metadata_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_metrics_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                (
+                    ContextBuilder.get_user_context(user_id=user_id, session=session)
+                    if user_id
+                    else asyncio.sleep(0, result="")
+                ),
+                ContextBuilder.get_tenant_context(session=session),
+                ContextBuilder.get_tenant_membership_context(session=session),
+                ContextBuilder.get_site_membership_context(session=session),
+                ContextBuilder.get_enrolment_intent_context(session=session),
+                ContextBuilder.get_lifecycle_epoch_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_credential_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_command_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_assignment_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_lifecycle_event_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_jobs_context(
+                    device_id=device_id, session=session
+                ),
+            )
+
+            _SKIP_PREFIXES = ("No ", "Error ", "Site context unavailable",
+                              "Push notification history not available",
+                              "Metrics context unavailable")
+
+            parts = []
+            for result in results:
+                text = result if isinstance(result, str) else ""
+                if text and not text.startswith(_SKIP_PREFIXES):
+                    parts.append(text)
+
+            return "\n\n".join(parts)
+
+        except Exception as e:
+            logger.error("Failed to build enriched context: %s", e)
+            return "Error building enriched context."
