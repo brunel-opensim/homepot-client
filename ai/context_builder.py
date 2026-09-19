@@ -1,5 +1,6 @@
 """Module for building rich context for the AI from various data sources."""
 
+import asyncio
 from datetime import datetime, timedelta
 import logging
 from typing import Any, Optional
@@ -879,6 +880,85 @@ class ContextBuilder:
         return "\n".join(context_lines)
 
     @staticmethod
+    async def get_command_context(
+        device_id: Optional[str] = None,
+        limit: int = 5,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve recent commands with their payloads and results.
+
+        Unlike ``get_device_command_context`` (which shows only metadata),
+        this method includes the ``payload`` and ``result`` JSON fields so
+        the LLM can see real command patterns and adapt them for new
+        payloads a technician requests.
+
+        Args:
+            device_id: Optional device ID (UUID) to filter by.
+            limit: Number of recent commands to fetch.
+            session: Optional database session to reuse.
+        """
+        try:
+            if session:
+                return await ContextBuilder._get_command_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_command_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error("Failed to build command context: %s", e)
+            return "Error retrieving command context."
+
+    @staticmethod
+    async def _get_command_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(DeviceCommand).order_by(DeviceCommand.created_at.desc())
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(DeviceCommand.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        commands = result.scalars().all()
+
+        if not commands:
+            return "No recent commands."
+
+        context_lines = ["[RECENT COMMANDS WITH PAYLOADS]"]
+        for cmd in commands:
+            payload_summary = ""
+            if cmd.payload:
+                import json as _json
+                payload_str = _json.dumps(cmd.payload, default=str)
+                if len(payload_str) > 200:
+                    payload_str = payload_str[:200] + "..."
+                payload_summary = f" payload={payload_str}"
+            result_summary = ""
+            if cmd.result:
+                import json as _json
+                result_str = _json.dumps(cmd.result, default=str)
+                if len(result_str) > 150:
+                    result_str = result_str[:150] + "..."
+                result_summary = f" result={result_str}"
+            context_lines.append(
+                f"- type={cmd.command_type} status={cmd.status}"
+                f"{payload_summary}{result_summary}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
     async def get_device_assignment_context(
         device_id: Optional[str] = None,
         limit: int = 10,
@@ -1393,3 +1473,96 @@ class ContextBuilder:
                 context_parts.append("\n".join(lines))
 
         return "\n\n".join(context_parts)
+
+    @staticmethod
+    async def build_enriched_context(
+        device_id: Optional[str] = None,
+        device_int_id: Optional[int] = None,
+        user_id: Optional[str] = None,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Build enriched diagnostic context from all data sources in parallel.
+
+        Calls all ContextBuilder methods via ``asyncio.gather`` so total
+        latency equals the slowest single query rather than the sum.  When a
+        ``session`` is provided it is reused across all calls; otherwise each
+        method opens its own session (more expensive).
+
+        Returns a single string containing all available context blocks,
+        suitable for injection into the LLM prompt.
+        """
+        try:
+            results = await asyncio.gather(
+                ContextBuilder.get_job_context(session=session),
+                ContextBuilder.get_error_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_config_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_audit_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_api_context(session=session),
+                ContextBuilder.get_state_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_push_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_site_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_metadata_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                ContextBuilder.get_metrics_context(
+                    device_id=device_id, session=session, device_int_id=device_int_id
+                ),
+                (
+                    ContextBuilder.get_user_context(user_id=user_id, session=session)
+                    if user_id
+                    else asyncio.sleep(0, result="")
+                ),
+                ContextBuilder.get_tenant_context(session=session),
+                ContextBuilder.get_tenant_membership_context(session=session),
+                ContextBuilder.get_site_membership_context(session=session),
+                ContextBuilder.get_enrolment_intent_context(session=session),
+                ContextBuilder.get_lifecycle_epoch_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_credential_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_command_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_command_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_assignment_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_device_lifecycle_event_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_jobs_context(
+                    device_id=device_id, session=session
+                ),
+            )
+
+            _SKIP_PREFIXES = ("No ", "Error ", "Site context unavailable",
+                              "Push notification history not available",
+                              "Metrics context unavailable")
+
+            parts = []
+            for result in results:
+                text = result if isinstance(result, str) else ""
+                if text and not text.startswith(_SKIP_PREFIXES):
+                    parts.append(text)
+
+            return "\n\n".join(parts)
+
+        except Exception as e:
+            logger.error("Failed to build enriched context: %s", e)
+            return "Error building enriched context."

@@ -103,15 +103,49 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Past analysis, resolutions, error patterns.
 *   **Goal:** Provides historical wisdom (e.g., "This looks like the issue we solved last week by restarting the service").
 
+### 13. Documentation Ingestion
+*   **Trigger:** Always fetched (via `SystemKnowledge.get_documentation_context()`).
+*   **Content:** Token-efficient summaries of key project documentation.
+*   **Fields:** Validation gates thresholds, device metrics collection specs, AI implementation details, anomaly detection rules.
+*   **Goal:** Gives the LLM procedural knowledge so it can reference documented behaviors and thresholds in diagnostics answers.
+
+### 14. Command Payload Reference (Static)
+*   **Trigger:** Always fetched (via `SystemKnowledge.get_command_payload_reference()`).
+*   **Content:** Structured reference of all 12 command types with their JSON payloads, permission requirements, and platform-specific wire formats (MQTT, Web Push, FCM).
+*   **Fields:** Command type names, example payloads, required permissions, push notification wrapper format, device permission keys.
+*   **Goal:** Enables the LLM to generate valid push notification payloads and device command JSON when technicians ask for help creating them.
+
+### 15. Recent Commands with Payloads (Dynamic)
+*   **Trigger:** Fetched when a device is specified (via `ContextBuilder.get_command_context()`).
+*   **Content:** Last 5 commands with their full `payload` and `result` JSON fields.
+*   **Fields:** Command type, status, payload JSON, result JSON.
+*   **Goal:** Shows the LLM real command patterns that have been executed, so it can adapt them when generating new payloads for technicians.
+
 ## Usage
 
-The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.
+The `ContextBuilder` is used within the `query_ai` endpoint in `AIEndpoint.py`.
+
+### Enriched Context (Batch)
+
+The primary entry point for the live endpoint is `build_enriched_context()`,
+which calls all 19 data-source methods in parallel via `asyncio.gather`:
 
 ```python
-# Example Usage
 context_builder = ContextBuilder()
+enriched = await context_builder.build_enriched_context(
+    device_id="device-123",
+    device_int_id=42,       # optional, speeds up FK lookups
+    user_id="1",            # optional, fetches user profile + activity
+    session=session,        # optional, reuses the endpoint's DB session
+)
+# enriched is a single string with all available [SECTION] blocks
+```
 
-# Get context for a specific device
+This replaces the per-method pattern previously used in the legacy `ai/api.py`
+endpoint:
+
+```python
+# Legacy pattern (ai/api.py) — still valid for custom partial contexts:
 job_context = await context_builder.get_job_context()
 error_context = await context_builder.get_error_context(device_id="device-123")
 config_context = await context_builder.get_config_context(device_id="device-123")
