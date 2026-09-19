@@ -10,6 +10,24 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
+def _authorize_ai_query(app) -> None:
+    """Override auth dependencies so query tests reach the prompt-building path."""
+
+    def fake_user() -> dict[str, object]:
+        return {"email": "ai-context@test.local", "role": "Admin", "user_id": 1}
+
+    for route in app.routes:
+        if getattr(route, "path", None) != "/api/v1/ai/query":
+            continue
+        for dependency in route.dependant.dependencies:
+            if getattr(dependency.call, "__name__", "") == "user_checker":
+                app.dependency_overrides[dependency.call] = fake_user
+        return
+
+    raise AssertionError("AI query route not found")
+
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
@@ -49,8 +67,10 @@ async def test_build_enriched_context_with_session():
 
     db_service = await get_database_service()
     async with db_service.get_session() as session:
-        context = await ContextBuilder.build_enriched_context(session=session)
+        with patch("ai.context_builder.asyncio.gather") as gather:
+            context = await ContextBuilder.build_enriched_context(session=session)
         assert isinstance(context, str)
+        gather.assert_not_called()
 
 
 # ── SystemKnowledge documentation context ───────────────────────────────────
@@ -129,13 +149,16 @@ async def test_query_ai_includes_enriched_context_blocks():
 
         from homepot.app.main import app
 
-        with TestClient(app) as client:
-            response = client.post(
-                "/api/v1/ai/query",
-                json={"query": "What is the system status?"},
-                headers={"Authorization": "Bearer test-token"},
-            )
-        assert response.status_code in {200, 401}
+        _authorize_ai_query(app)
+        try:
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/v1/ai/query",
+                    json={"query": "What is the system status?"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+        assert response.status_code == 200
 
         # If we got a context, verify it contains enriched sections
         if captured_contexts:
@@ -186,13 +209,16 @@ async def test_query_ai_includes_documentation_in_system_prompt():
 
         from homepot.app.main import app
 
-        with TestClient(app) as client:
-            response = client.post(
-                "/api/v1/ai/query",
-                json={"query": "How do validation gates work?"},
-                headers={"Authorization": "Bearer test-token"},
-            )
-        assert response.status_code in {200, 401}
+        _authorize_ai_query(app)
+        try:
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/v1/ai/query",
+                    json={"query": "How do validation gates work?"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+        assert response.status_code == 200
 
         if captured_prompts:
             sys_prompt = captured_prompts[0]

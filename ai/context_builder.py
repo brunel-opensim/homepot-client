@@ -1402,18 +1402,19 @@ class ContextBuilder:
         user_id: Optional[str] = None,
         session: Optional[AsyncSession] = None,
     ) -> str:
-        """Build enriched diagnostic context from all data sources in parallel.
+        """Build enriched diagnostic context from all data sources.
 
-        Calls all ContextBuilder methods via ``asyncio.gather`` so total
-        latency equals the slowest single query rather than the sum.  When a
-        ``session`` is provided it is reused across all calls; otherwise each
-        method opens its own session (more expensive).
+        When ``session`` is not provided, calls independent ContextBuilder
+        methods via ``asyncio.gather`` so total latency equals the slowest
+        single query rather than the sum. When a shared ``session`` is
+        provided, the calls are awaited sequentially to avoid overlapping
+        operations on the same ``AsyncSession``.
 
         Returns a single string containing all available context blocks,
         suitable for injection into the LLM prompt.
         """
         try:
-            results = await asyncio.gather(
+            context_calls = [
                 ContextBuilder.get_job_context(session=session),
                 ContextBuilder.get_error_context(
                     device_id=device_id, session=session, device_int_id=device_int_id
@@ -1461,7 +1462,13 @@ class ContextBuilder:
                     device_id=device_id, session=session
                 ),
                 ContextBuilder.get_jobs_context(device_id=device_id, session=session),
-            )
+            ]
+            if session is None:
+                results = await asyncio.gather(*context_calls)
+            else:
+                results = []
+                for context_call in context_calls:
+                    results.append(await context_call)
 
             _SKIP_PREFIXES = (
                 "No ",
