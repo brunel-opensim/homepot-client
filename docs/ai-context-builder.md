@@ -103,15 +103,40 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Past analysis, resolutions, error patterns.
 *   **Goal:** Provides historical wisdom (e.g., "This looks like the issue we solved last week by restarting the service").
 
+### 13. Documentation Ingestion
+*   **Trigger:** Always fetched (via `SystemKnowledge.get_documentation_context()`).
+*   **Content:** Token-efficient summaries of key project documentation.
+*   **Fields:** Validation gates thresholds, device metrics collection specs, AI implementation details, anomaly detection rules.
+*   **Goal:** Gives the LLM procedural knowledge so it can reference documented behaviors and thresholds in diagnostics answers.
+
 ## Usage
 
-The `ContextBuilder` is used within the `query_ai` endpoint in `ai/api.py`.
+The `ContextBuilder` is used within the `query_ai` endpoint in `AIEndpoint.py`.
+
+### Enriched Context (Batch)
+
+The primary entry point for the live endpoint is `build_enriched_context()`.
+When it opens its own database sessions, it calls all 19 data-source methods
+in parallel via `asyncio.gather`; when a shared `AsyncSession` is passed in,
+it reuses that session and awaits the data-source methods sequentially to avoid
+overlapping operations on the same session:
 
 ```python
-# Example Usage
 context_builder = ContextBuilder()
+enriched = await context_builder.build_enriched_context(
+    device_id="device-123",
+    device_int_id=42,       # optional, speeds up FK lookups
+    user_id="1",            # optional, fetches user profile + activity
+    session=session,        # optional, reuses the endpoint's DB session
+)
+# enriched is a single string with all available [SECTION] blocks
+```
 
-# Get context for a specific device
+This replaces the per-method pattern previously used in the legacy `ai/api.py`
+endpoint:
+
+```python
+# Legacy pattern (ai/api.py) — still valid for custom partial contexts:
 job_context = await context_builder.get_job_context()
 error_context = await context_builder.get_error_context(device_id="device-123")
 config_context = await context_builder.get_config_context(device_id="device-123")
@@ -131,4 +156,3 @@ All planned data sources have been integrated. Future work will focus on:
 *   **Relevance Filtering:** Using vector search to only include *relevant* logs instead of just *recent* ones.
 
 By providing comprehensive situational awareness, the Context Builder empowers the LLM to deliver accurate, context-rich responses for device diagnostics and troubleshooting.
-

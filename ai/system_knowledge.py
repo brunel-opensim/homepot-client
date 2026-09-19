@@ -114,3 +114,40 @@ class SystemKnowledge:
             f"{self.get_database_schema_info()}\n\n"
             f"{self.get_project_structure()}"
         )
+
+    def get_documentation_context(self, max_chars_per_doc: int = 500) -> str:
+        """Read key documentation files and return token-efficient summaries.
+
+        Provides the LLM with procedural knowledge from the project's docs
+        so it can reference documented behaviors, thresholds, and workflows
+        when answering diagnostics questions.
+
+        Args:
+            max_chars_per_doc: Maximum characters to extract from each doc.
+        """
+        doc_files = [
+            "docs/ai-validation-gates.md",
+            "docs/device-metrics-collection.md",
+            "docs/ai-implementation.md",
+            "docs/device-credentials-and-tokens.md",
+            "docs/anomaly-detection.md",
+        ]
+
+        parts = ["[DOCUMENTATION]"]
+        for rel_path in doc_files:
+            full_path = os.path.join(self.root_path, rel_path)
+            try:
+                if os.path.exists(full_path):
+                    with open(full_path, "r", encoding="utf-8") as f:
+                        content = f.read(max_chars_per_doc)
+                    # Trim to last complete line within the limit
+                    truncated = content.rfind("\n")
+                    if truncated > 0:
+                        content = content[:truncated]
+                    parts.append(f"--- {rel_path} ---\n{content}")
+            except Exception as e:
+                logger.warning("Failed to read doc %s: %s", rel_path, e)
+
+        if len(parts) == 1:
+            return ""
+        return "\n\n".join(parts)
