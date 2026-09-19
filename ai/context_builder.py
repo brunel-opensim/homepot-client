@@ -880,6 +880,85 @@ class ContextBuilder:
         return "\n".join(context_lines)
 
     @staticmethod
+    async def get_command_context(
+        device_id: Optional[str] = None,
+        limit: int = 5,
+        session: Optional[AsyncSession] = None,
+    ) -> str:
+        """Retrieve recent commands with their payloads and results.
+
+        Unlike ``get_device_command_context`` (which shows only metadata),
+        this method includes the ``payload`` and ``result`` JSON fields so
+        the LLM can see real command patterns and adapt them for new
+        payloads a technician requests.
+
+        Args:
+            device_id: Optional device ID (UUID) to filter by.
+            limit: Number of recent commands to fetch.
+            session: Optional database session to reuse.
+        """
+        try:
+            if session:
+                return await ContextBuilder._get_command_context_impl(
+                    session, device_id, limit
+                )
+
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                return await ContextBuilder._get_command_context_impl(
+                    session, device_id, limit
+                )
+
+        except Exception as e:
+            logger.error("Failed to build command context: %s", e)
+            return "Error retrieving command context."
+
+    @staticmethod
+    async def _get_command_context_impl(
+        session: AsyncSession,
+        device_id: Optional[str],
+        limit: int,
+    ) -> str:
+        stmt = select(DeviceCommand).order_by(DeviceCommand.created_at.desc())
+
+        if device_id:
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(DeviceCommand.device_id == dev_pk)
+
+        stmt = stmt.limit(limit)
+
+        result = await session.execute(stmt)
+        commands = result.scalars().all()
+
+        if not commands:
+            return "No recent commands."
+
+        context_lines = ["[RECENT COMMANDS WITH PAYLOADS]"]
+        for cmd in commands:
+            payload_summary = ""
+            if cmd.payload:
+                import json as _json
+                payload_str = _json.dumps(cmd.payload, default=str)
+                if len(payload_str) > 200:
+                    payload_str = payload_str[:200] + "..."
+                payload_summary = f" payload={payload_str}"
+            result_summary = ""
+            if cmd.result:
+                import json as _json
+                result_str = _json.dumps(cmd.result, default=str)
+                if len(result_str) > 150:
+                    result_str = result_str[:150] + "..."
+                result_summary = f" result={result_str}"
+            context_lines.append(
+                f"- type={cmd.command_type} status={cmd.status}"
+                f"{payload_summary}{result_summary}"
+            )
+        return "\n".join(context_lines)
+
+    @staticmethod
     async def get_device_assignment_context(
         device_id: Optional[str] = None,
         limit: int = 10,
@@ -1456,6 +1535,9 @@ class ContextBuilder:
                     device_id=device_id, session=session
                 ),
                 ContextBuilder.get_device_command_context(
+                    device_id=device_id, session=session
+                ),
+                ContextBuilder.get_command_context(
                     device_id=device_id, session=session
                 ),
                 ContextBuilder.get_device_assignment_context(

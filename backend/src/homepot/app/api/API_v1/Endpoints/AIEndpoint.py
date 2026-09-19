@@ -852,6 +852,9 @@ async def query_ai(
         doc_context = knowledge.get_documentation_context()
         if doc_context:
             system_knowledge += f"\n\n{doc_context}"
+        cmd_ref = knowledge.get_command_payload_reference()
+        if cmd_ref:
+            system_knowledge += f"\n\n{cmd_ref}"
 
         response = llm.generate_response(
             prompt=request.query,
