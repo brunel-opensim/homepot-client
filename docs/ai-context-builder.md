@@ -109,6 +109,18 @@ Currently, the Context Builder integrates the following data sources:
 *   **Fields:** Validation gates thresholds, device metrics collection specs, AI implementation details, anomaly detection rules.
 *   **Goal:** Gives the LLM procedural knowledge so it can reference documented behaviors and thresholds in diagnostics answers.
 
+### 14. Command Payload Reference (Static)
+*   **Trigger:** Always fetched (via `SystemKnowledge.get_command_payload_reference()`).
+*   **Content:** Structured reference of all 12 command types with their JSON payloads, permission requirements, and platform-specific wire formats (MQTT, Web Push, FCM).
+*   **Fields:** Command type names, example payloads, required permissions, push notification wrapper format, device permission keys.
+*   **Goal:** Enables the LLM to generate valid push notification payloads and device command JSON when technicians ask for help creating them.
+
+### 15. Recent Commands with Payloads (Dynamic)
+*   **Trigger:** Fetched when a device is specified (via `ContextBuilder.get_command_context()`).
+*   **Content:** Last 5 commands with their full `payload` and `result` JSON fields.
+*   **Fields:** Command type, status, payload JSON, result JSON.
+*   **Goal:** Shows the LLM real command patterns that have been executed, so it can adapt them when generating new payloads for technicians.
+
 ## Usage
 
 The `ContextBuilder` is used within the `query_ai` endpoint in `AIEndpoint.py`.
