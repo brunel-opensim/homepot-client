@@ -339,10 +339,12 @@ async def _seed_active_fleet():
     from homepot.models import HealthCheck
 
     db_service = await get_database_service()
+    seed_suffix = secrets.token_hex(4)
+    health_check_id = int(seed_suffix, 16)
 
     site = await db_service.create_site(
-        site_id="validation-gate-seed",
-        name="Validation Gate Seed Site",
+        site_id=f"validation-gate-seed-{seed_suffix}",
+        name=f"Validation Gate Seed Site {seed_suffix}",
         description="Minimal seed for validation gate tests",
         location="Test Location",
         latitude=0.0,
@@ -350,8 +352,8 @@ async def _seed_active_fleet():
     )
 
     device = await db_service.create_device(
-        device_id="validation-gate-seed-device",
-        name="Validation Gate Seed Device",
+        device_id=f"validation-gate-seed-device-{seed_suffix}",
+        name=f"Validation Gate Seed Device {seed_suffix}",
         device_type="POS",
         site_id=site.id,
         ip_address="10.0.99.1",
@@ -372,7 +374,7 @@ async def _seed_active_fleet():
         )
         session.add(
             HealthCheck(
-                id=99999,
+                id=health_check_id,
                 timestamp=now,
                 device_id=device.id,
                 is_healthy=True,
