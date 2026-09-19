@@ -612,6 +612,11 @@ async def query_ai(
                 enriched = await ContextBuilder.build_enriched_context(
                     device_id=request.device_id,
                     device_int_id=device_int_id,
+                    user_id=(
+                        str(current_user.get("user_id"))
+                        if current_user.get("user_id") is not None
+                        else None
+                    ),
                     session=session,
                 )
                 if enriched:

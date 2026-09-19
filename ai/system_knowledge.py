@@ -138,7 +138,7 @@ class SystemKnowledge:
             full_path = os.path.join(self.root_path, rel_path)
             try:
                 if os.path.exists(full_path):
-                    with open(full_path, "r") as f:
+                    with open(full_path, "r", encoding="utf-8") as f:
                         content = f.read(max_chars_per_doc)
                     # Trim to last complete line within the limit
                     truncated = content.rfind("\n")

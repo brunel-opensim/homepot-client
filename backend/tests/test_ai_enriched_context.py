@@ -196,12 +196,13 @@ async def test_query_ai_includes_enriched_context_blocks():
     mock_memory = MagicMock()
     mock_memory.get_memory_stats.return_value = {"total_memories": 0}
     mock_memory.query_similar.return_value = []
+    enriched_context = AsyncMock(return_value="[ENRICHED TEST BLOCK]\nSentinel")
 
     with (
         patch.object(
             ContextBuilder,
             "build_enriched_context",
-            AsyncMock(return_value="[ENRICHED TEST BLOCK]\nSentinel"),
+            enriched_context,
         ),
         patch.object(
             AIEndpoint,
@@ -241,6 +242,8 @@ async def test_query_ai_includes_enriched_context_blocks():
             ctx = captured_contexts[0]
             assert "[ENRICHED TEST BLOCK]" in ctx
             assert "Sentinel" in ctx
+        enriched_context.assert_awaited_once()
+        assert enriched_context.await_args.kwargs["user_id"] == "1"
 
 
 # ── Documentation context in system prompt ───────────────────────────────────
