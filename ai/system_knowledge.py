@@ -151,6 +151,7 @@ class SystemKnowledge:
         if len(parts) == 1:
             return ""
         return "\n\n".join(parts)
+
     def get_command_payload_reference(self) -> str:
         """Return a structured reference of all command types and their payloads.
 
@@ -177,7 +178,8 @@ COMMAND TYPES AND PAYLOADS:
    Permission: command_execution
 
 3. update_config — Push new configuration to the device.
-   {"command_type": "update_config", "payload": {"data": {"config_url": "https://...", "config_version": "v2.1.0", "brightness": 75, "volume": 50}}}
+   {"command_type": "update_config", "payload":
+   {"data": {"config_url": "https://...", "config_version": "v2.1.0", "brightness": 75, "volume": 50}}}
    Permission: root_access
 
 4. restart — Restart the device agent. No payload needed.
@@ -189,11 +191,15 @@ COMMAND TYPES AND PAYLOADS:
    Permission: root_access
 
 6. run_command — Execute a shell command on the device.
-   {"command_type": "run_command", "payload": {"data": {"command": "ls -la /tmp", "timeout_seconds": 30}}}
+   {"command_type": "run_command", "payload":
+   {"data": {"command": "ls -la /tmp", "timeout_seconds": 30}}}
    Permission: root_access
 
 7. run_script — Execute a script on the device.
-   {"command_type": "run_script", "payload": {"data": {"script": "#!/bin/bash\\necho hello", "timeout_seconds": 30}}}
+   {"command_type": "run_script", "payload":
+    {"data": {"script": "#!/bin/bash\\necho hello", "timeout_seconds": 30}
+    }
+   }
    Permission: root_access
 
 8. status_request — Request current device status. No payload needed.
@@ -201,7 +207,8 @@ COMMAND TYPES AND PAYLOADS:
    Permission: none
 
 9. list_processes — List running processes.
-   {"command_type": "list_processes", "payload": {"data": {"sort_by": "cpu", "max_results": 50, "include_memory": true}}}
+   {"command_type": "list_processes", "payload":
+   {"data": {"sort_by": "cpu", "max_results": 50, "include_memory": true}}}
    Permission: process_monitoring
 
 10. list_connections — List network connections.
@@ -209,7 +216,8 @@ COMMAND TYPES AND PAYLOADS:
     Permission: network_monitoring
 
 11. scan_filesystem — Scan filesystem for files.
-    {"command_type": "scan_filesystem", "payload": {"data": {"path": "/tmp", "max_depth": 2, "include_sizes": true}}}
+    {"command_type": "scan_filesystem", "payload":
+    {"data": {"path": "/tmp", "max_depth": 2, "include_sizes": true}}}
     Permission: root_access
 
 12. request_permission — Agent requests a permission grant. No payload needed.
@@ -233,12 +241,7 @@ The "data" field carries the command-specific payload. The agent reads
 PLATFORM-SPECIFIC WIRE FORMATS:
 
 MQTT: {"title": "...", "body": "...", "data": {...}, "priority": "high", "ttl": 300, "message_id": "uuid"}
-Web Push: {"notification": {"title": "...", "body": "...", "data": {...}, "requireInteraction": true, "tag": "..."}}
-FCM: Uses the standard PushNotificationPayload fields directly.
-
-DEVICE PERMISSIONS (device_permissions JSON on Device model):
-Keys match the REQUIRED_PERMISSION map above. A device must have the
-matching permission key set to true for the command to execute.
+Web Push: {"notification":
 Example: {"root_access": true, "command_execution": true, "process_monitoring": false}
 
 COMMAND STATUS LIFECYCLE:

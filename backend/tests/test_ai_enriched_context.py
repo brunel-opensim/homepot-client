@@ -311,9 +311,18 @@ def test_command_payload_reference_contains_all_types():
 
     assert "[COMMAND PAYLOAD REFERENCE]" in ref
     for cmd_type in [
-        "ping", "health_check", "update_config", "restart", "shutdown",
-        "run_command", "run_script", "status_request", "list_processes",
-        "list_connections", "scan_filesystem", "request_permission",
+        "ping",
+        "health_check",
+        "update_config",
+        "restart",
+        "shutdown",
+        "run_command",
+        "run_script",
+        "status_request",
+        "list_processes",
+        "list_connections",
+        "scan_filesystem",
+        "request_permission",
     ]:
         assert cmd_type in ref, f"Command type '{cmd_type}' missing from reference"
 
@@ -381,8 +390,14 @@ async def test_command_payload_reference_in_system_prompt():
     mock_memory.query_similar.return_value = []
 
     with (
-        patch.object(AIEndpoint, "get_ai_services", return_value=(mock_llm, mock_knowledge, mock_memory)),
-        patch.object(AIEndpoint, "_sanitize_ai_input", side_effect=lambda t, **kw: t or ""),
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint, "_sanitize_ai_input", side_effect=lambda t, **kw: t or ""
+        ),
     ):
         captured_prompts = []
 
@@ -393,6 +408,7 @@ async def test_command_payload_reference_in_system_prompt():
         mock_llm.generate_response.side_effect = capture_generate
 
         from fastapi.testclient import TestClient
+
         from homepot.app.main import app
 
         with TestClient(app) as client:
@@ -401,6 +417,7 @@ async def test_command_payload_reference_in_system_prompt():
                 json={"query": "Write me a config update payload for device POS-001"},
                 headers={"Authorization": "Bearer test-token"},
             )
+        assert response.status_code == 200
 
         if captured_prompts:
             sys_prompt = captured_prompts[0]
