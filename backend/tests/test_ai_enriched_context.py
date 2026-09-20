@@ -302,3 +302,130 @@ async def test_query_ai_includes_documentation_in_system_prompt():
             sys_prompt = captured_prompts[0]
             assert "[DOCUMENTATION]" in sys_prompt
             assert "Test documentation content" in sys_prompt
+
+
+def test_command_payload_reference_contains_all_types():
+    """get_command_payload_reference should list all 12 command types."""
+    knowledge = SystemKnowledge(workspace_root)
+    ref = knowledge.get_command_payload_reference()
+
+    assert "[COMMAND PAYLOAD REFERENCE]" in ref
+    for cmd_type in [
+        "ping",
+        "health_check",
+        "update_config",
+        "restart",
+        "shutdown",
+        "run_command",
+        "run_script",
+        "status_request",
+        "list_processes",
+        "list_connections",
+        "scan_filesystem",
+        "request_permission",
+    ]:
+        assert cmd_type in ref, f"Command type '{cmd_type}' missing from reference"
+
+
+def test_command_payload_reference_contains_push_wrapper():
+    """The reference should include the push notification payload wrapper format."""
+    knowledge = SystemKnowledge(workspace_root)
+    ref = knowledge.get_command_payload_reference()
+
+    assert "PUSH NOTIFICATION PAYLOAD WRAPPER" in ref
+    assert "collapse_key" in ref
+    assert "priority" in ref
+
+
+def test_command_payload_reference_contains_platform_formats():
+    """The reference should document platform-specific wire formats."""
+    knowledge = SystemKnowledge(workspace_root)
+    ref = knowledge.get_command_payload_reference()
+
+    assert "MQTT" in ref
+    assert "Web Push" in ref
+    assert "FCM" in ref
+
+
+def test_command_payload_reference_contains_permissions():
+    """The reference should document permission requirements."""
+    knowledge = SystemKnowledge(workspace_root)
+    ref = knowledge.get_command_payload_reference()
+
+    assert "Permission:" in ref
+    assert "root_access" in ref
+    assert "command_execution" in ref
+
+
+@pytest.mark.asyncio
+async def test_get_command_context_returns_string():
+    """get_command_context should return a string even on empty DB."""
+    context = await ContextBuilder.get_command_context()
+    assert isinstance(context, str)
+
+
+@pytest.mark.asyncio
+async def test_get_command_context_empty_db():
+    """get_command_context should handle empty database gracefully."""
+    context = await ContextBuilder.get_command_context()
+    # On empty DB, should return "No recent commands." or empty
+    assert isinstance(context, str)
+
+
+@pytest.mark.asyncio
+async def test_command_payload_reference_in_system_prompt():
+    """The /query endpoint should include command payload reference in system prompt."""
+    from homepot.app.api.API_v1.Endpoints import AIEndpoint
+
+    mock_llm = MagicMock()
+    mock_llm.generate_response.return_value = "Test response"
+    mock_knowledge = MagicMock()
+    mock_knowledge.get_full_system_context.return_value = "system knowledge"
+    mock_knowledge.get_documentation_context.return_value = ""
+    mock_knowledge.get_command_payload_reference.return_value = (
+        "[COMMAND PAYLOAD REFERENCE]\nTest command reference content"
+    )
+    mock_memory = MagicMock()
+    mock_memory.get_memory_stats.return_value = {"total_memories": 0}
+    mock_memory.query_similar.return_value = []
+
+    with (
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint, "_sanitize_ai_input", side_effect=lambda t, **kw: t or ""
+        ),
+    ):
+        captured_prompts = []
+
+        def capture_generate(prompt, context, system_prompt):
+            captured_prompts.append(system_prompt)
+            return "Test response"
+
+        mock_llm.generate_response.side_effect = capture_generate
+
+        from fastapi.testclient import TestClient
+
+        from homepot.app.main import app
+
+        _authorize_ai_query(app)
+        try:
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/v1/ai/query",
+                    json={
+                        "query": "Write me a config update payload for device POS-001"
+                    },
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+
+        if captured_prompts:
+            sys_prompt = captured_prompts[0]
+            assert "[COMMAND PAYLOAD REFERENCE]" in sys_prompt
+            assert "Test command reference content" in sys_prompt

@@ -151,3 +151,99 @@ class SystemKnowledge:
         if len(parts) == 1:
             return ""
         return "\n\n".join(parts)
+
+    def get_command_payload_reference(self) -> str:
+        """Return a structured reference of all command types and their payloads.
+
+        Gives the LLM the schema knowledge needed to generate valid push
+        notification payloads and device command JSON for technicians.
+        """
+        return _COMMAND_PAYLOAD_REFERENCE
+
+
+_COMMAND_PAYLOAD_REFERENCE = """[COMMAND PAYLOAD REFERENCE]
+The system supports these device command types. Each command is sent
+via POST /api/v1/devices/{device_id}/commands as JSON.
+The push notification payload wraps these commands for delivery over
+FCM, APNs, Web Push, MQTT, or WNS.
+
+COMMAND TYPES AND PAYLOADS:
+
+1. ping — Lightweight connectivity check. No payload needed.
+   {"command_type": "ping"}
+   Permission: none
+
+2. health_check — Run device health diagnostics.
+   {"command_type": "health_check", "payload": {"data": {"tests": ["network", "storage", "memory", "cpu"]}}}
+   Permission: command_execution
+
+3. update_config — Push new configuration to the device.
+   {"command_type": "update_config", "payload":
+   {"data": {"config_url": "https://...", "config_version": "v2.1.0", "brightness": 75, "volume": 50}}}
+   Permission: root_access
+
+4. restart — Restart the device agent. No payload needed.
+   {"command_type": "restart"}
+   Permission: root_access
+
+5. shutdown — Shut down the device agent. No payload needed.
+   {"command_type": "shutdown"}
+   Permission: root_access
+
+6. run_command — Execute a shell command on the device.
+   {"command_type": "run_command", "payload":
+   {"data": {"command": "ls -la /tmp", "timeout_seconds": 30}}}
+   Permission: root_access
+
+7. run_script — Execute a script on the device.
+   {"command_type": "run_script", "payload":
+    {"data": {"script": "#!/bin/bash\\necho hello", "timeout_seconds": 30}
+    }
+   }
+   Permission: root_access
+
+8. status_request — Request current device status. No payload needed.
+   {"command_type": "status_request"}
+   Permission: none
+
+9. list_processes — List running processes.
+   {"command_type": "list_processes", "payload":
+   {"data": {"sort_by": "cpu", "max_results": 50, "include_memory": true}}}
+   Permission: process_monitoring
+
+10. list_connections — List network connections.
+    {"command_type": "list_connections", "payload": {"data": {"filter_state": "ESTABLISHED", "limit": 100}}}
+    Permission: network_monitoring
+
+11. scan_filesystem — Scan filesystem for files.
+    {"command_type": "scan_filesystem", "payload":
+    {"data": {"path": "/tmp", "max_depth": 2, "include_sizes": true}}}
+    Permission: root_access
+
+12. request_permission — Agent requests a permission grant. No payload needed.
+    {"command_type": "request_permission"}
+    Permission: none
+
+PUSH NOTIFICATION PAYLOAD WRAPPER:
+When a command is delivered via push notification, the wire format is:
+{
+  "title": "Notification title",
+  "body": "Notification body",
+  "data": { ... command payload fields ... },
+  "priority": "low|normal|high|critical",
+  "ttl_seconds": 300,
+  "collapse_key": "grouping-key-or-null"
+}
+
+The "data" field carries the command-specific payload. The agent reads
+"data.action" to determine the command type, and "data" for the rest.
+
+PLATFORM-SPECIFIC WIRE FORMATS:
+
+MQTT: {"title": "...", "body": "...", "data": {...}, "priority": "high", "ttl": 300, "message_id": "uuid"}
+Web Push: {"notification":
+Example: {"root_access": true, "command_execution": true, "process_monitoring": false}
+
+COMMAND STATUS LIFECYCLE:
+pending -> sent -> completed | failed | expired | cancelled
+"""
