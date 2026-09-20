@@ -411,12 +411,18 @@ async def test_command_payload_reference_in_system_prompt():
 
         from homepot.app.main import app
 
-        with TestClient(app) as client:
-            response = client.post(
-                "/api/v1/ai/query",
-                json={"query": "Write me a config update payload for device POS-001"},
-                headers={"Authorization": "Bearer test-token"},
-            )
+        _authorize_ai_query(app)
+        try:
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/v1/ai/query",
+                    json={
+                        "query": "Write me a config update payload for device POS-001"
+                    },
+                )
+        finally:
+            app.dependency_overrides.clear()
+
         assert response.status_code == 200
 
         if captured_prompts:
