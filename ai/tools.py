@@ -11,11 +11,10 @@ import json
 import logging
 from typing import Optional
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +91,10 @@ async def get_device_metrics(device_id: str, metric: Optional[str] = None) -> st
                     filtered.append(line)
             if len(filtered) > 1:
                 return "\n".join(filtered)
-            return f"Metric '{metric}' not found in recent data for {device_id}. Available metrics:\n{context}"
+            return (
+                f"Metric '{metric}' not found in recent data for {device_id}."
+                f" Available metrics:\n{context}"
+            )
 
         return context
     except Exception as e:

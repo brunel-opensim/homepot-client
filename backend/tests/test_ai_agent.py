@@ -4,7 +4,6 @@ Verifies that the ReAct agent loop, tool registry, tool execution,
 and integration with AIEndpoint work correctly.
 """
 
-import asyncio
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,17 +16,15 @@ workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
-from ai.agent import AgentResult, ToolCallRecord, _execute_tool, run_agent
-from ai.tools import (
+from ai.agent import AgentResult, ToolCallRecord, _execute_tool, run_agent  # noqa: E402
+from ai.tools import (  # noqa: E402
     TOOL_FUNCTIONS,
     TOOL_REGISTRY,
-    get_alerts,
     get_command_history,
     get_config_history,
     get_device_metrics,
     get_device_status,
     get_error_logs,
-    get_fleet_summary,
     search_similar_incidents,
 )
 
@@ -206,7 +203,7 @@ def test_search_similar_incidents_with_results():
 
 
 def test_agent_result_dataclass():
-    """AgentResult should store all metadata fields."""
+    """Verify AgentResult stores all metadata fields."""
     result = AgentResult(
         response="Test answer",
         iterations=2,
@@ -341,7 +338,7 @@ async def test_run_agent_llm_failure():
 
 
 def test_agentic_flag_in_request_model():
-    """AIQueryRequest should have an agentic field."""
+    """Verify AIQueryRequest has an agentic field."""
     with open(
         os.path.join(
             workspace_root,
