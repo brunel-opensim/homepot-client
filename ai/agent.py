@@ -92,9 +92,9 @@ async def _execute_tool(tool_name: str, arguments: Dict[str, Any]) -> str:
 
     try:
         if is_async:
-            result = await func(**arguments)
+            result = await func(**arguments)  # type: ignore[operator]
         else:
-            result = func(**arguments)
+            result = func(**arguments)  # type: ignore[operator]
     except TypeError as e:
         # Wrong arguments — tool signature mismatch
         return f"Invalid arguments for {tool_name}: {e}"
@@ -172,7 +172,13 @@ async def run_agent(
             break
 
         # Append assistant message to history
-        messages.append(response.message)
+        assistant_msg: Dict[str, Any] = {
+            "role": response.message.role,
+            "content": response.message.content or "",
+        }
+        if response.message.tool_calls:
+            assistant_msg["tool_calls"] = response.message.tool_calls
+        messages.append(assistant_msg)
 
         # Check if model produced a final answer (no tool calls)
         if not response.message.tool_calls:
@@ -182,7 +188,7 @@ async def run_agent(
         # Execute each tool call
         for call in response.message.tool_calls:
             tool_name = call.function.name
-            arguments = call.function.arguments
+            arguments = dict(call.function.arguments)
 
             # Record the call
             record = ToolCallRecord(

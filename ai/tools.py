@@ -11,10 +11,11 @@ import json
 import logging
 from typing import Optional
 
-from ai.context_builder import ContextBuilder
-from ai.device_memory import DeviceMemory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ai.context_builder import ContextBuilder
+from ai.device_memory import DeviceMemory
 
 logger = logging.getLogger(__name__)
 
@@ -241,25 +242,21 @@ async def get_fleet_summary() -> str:
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             # Site count
-            site_stmt = select(Site).where(Site.is_archived.is_(False))
+            site_stmt = select(Site).where(Site.is_active.is_(True))
             site_result = await session.execute(site_stmt)
             sites = site_result.scalars().all()
             total_sites = len(sites)
 
             # Device count
-            dev_stmt = select(Device).where(Device.is_archived.is_(False))
+            dev_stmt = select(Device).where(Device.is_active.is_(True))
             dev_result = await session.execute(dev_stmt)
             devices = dev_result.scalars().all()
             total_devices = len(devices)
 
-            online = sum(
-                1
-                for d in devices
-                if d.last_heartbeat and hasattr(d.last_heartbeat, "timestamp")
-            )
+            online = sum(1 for d in devices if d.last_heartbeat_at is not None)
             healthy = sum(1 for d in devices if d.health_state == "healthy")
 
-            modes = {}
+            modes: dict[str, int] = {}
             for d in devices:
                 mode = getattr(d, "mode", "unknown") or "unknown"
                 modes[mode] = modes.get(mode, 0) + 1
@@ -296,15 +293,15 @@ async def get_alerts(severity: Optional[str] = None) -> str:
         Active alerts with their severity, device, title, and description.
     """
     try:
+        from homepot.app.models.AnalyticsModel import Alert
         from homepot.database import get_database_service
-        from homepot.models import Alert
 
         db_service = await get_database_service()
         async with db_service.get_session() as session:
             stmt = select(Alert).where(Alert.status == "active")
             if severity:
                 stmt = stmt.where(Alert.severity == severity.lower())
-            stmt = stmt.order_by(Alert.created_at.desc()).limit(20)
+            stmt = stmt.order_by(Alert.timestamp.desc()).limit(20)
 
             result = await session.execute(stmt)
             alerts = result.scalars().all()
