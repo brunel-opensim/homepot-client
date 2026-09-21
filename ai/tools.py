@@ -11,11 +11,10 @@ import json
 import logging
 from typing import Optional
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
