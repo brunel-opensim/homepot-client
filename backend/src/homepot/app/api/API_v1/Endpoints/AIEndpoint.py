@@ -3,22 +3,23 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
+from datetime import datetime, timezone
 import logging
 import os
 import sys
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from homepot.app.auth_utils import (
-    require_user,  # noqa: E402
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session as SASession
+
+from homepot.app.auth_utils import (  # noqa: E402
+    require_user,
     verify_device_belongs_to_user,
     verify_site_access_for_user,
 )
 from homepot.app.schemas.schemas import UserDict  # noqa: E402
-from pydantic import BaseModel, Field
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session as SASession
 
 # Add project root to path to allow importing 'ai' package
 # Current file: backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
@@ -29,12 +30,6 @@ project_root = os.path.abspath(
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
-from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
-from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
-from homepot.database import get_database_service, get_db  # noqa: E402
-from homepot.models import Device, HealthCheck, Site, User  # noqa: E402
-
 from ai.agent import run_agent  # noqa: E402
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
@@ -42,17 +37,23 @@ from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_memory import DeviceMemory  # noqa: E402
 from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
-from ai.gates import EnvelopeResult  # noqa: E402
-from ai.gates import (
+from ai.gates import (  # noqa: E402
     MODE_CAUTIONARY,
-    MODE_STATUS_ONLY,  # noqa: E402
+    MODE_STATUS_ONLY,
     GateContext,
     GateStatus,
     build_envelope_from_config,
 )
+from ai.gates import EnvelopeResult  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
+
+from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
+from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
+from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
+from homepot.database import get_database_service, get_db  # noqa: E402
+from homepot.models import Device, HealthCheck, Site, User  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
