@@ -144,6 +144,7 @@ nav:
       - AI & Cognitive Engine:
           - Roadmap: ai-roadmap.md
           - Implementation: ai-implementation.md
+          - Agentic AI: ai-agentic.md
           - API Reference: ai-api-reference.md
           - Context Builder: ai-context-builder.md
           - Trust & Validation Gates: ai-validation-gates.md
