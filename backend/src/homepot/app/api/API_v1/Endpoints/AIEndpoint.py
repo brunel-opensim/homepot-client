@@ -30,6 +30,7 @@ project_root = os.path.abspath(
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+from ai.agent import run_agent  # noqa: E402
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
@@ -174,6 +175,10 @@ class AIQueryRequest(BaseModel):
     role: Optional[str] = Field(None, description="User role of the requester")
     history: Optional[list[ChatMessage]] = Field(
         default_factory=list, description="Conversation history for short-term memory"
+    )
+    agentic: bool = Field(
+        default=False,
+        description="Enable agentic tool-calling mode for multi-step investigation",
     )
 
 
@@ -860,48 +865,70 @@ async def query_ai(
         if cmd_ref:
             system_knowledge += f"\n\n{cmd_ref}"
 
-        response = llm.generate_response(
-            prompt=request.query,
-            context=full_context,
-            system_prompt=(
-                "IDENTITY:\n"
-                "You are the HOMEPOT System Diagnostics AI, an advanced operational "
-                "assistant for the HOMEPOT Client ecosystem.\n"
-                "Your goal is to monitor, diagnose, and explain the behavior of "
-                "IoT devices, sites, and the platform itself.\n\n"
-                "CAPABILITIES & DATA SOURCES:\n"
-                "1. Real-Time Database (PostgreSQL): You have access to live device "
-                "metrics, site status, and push notification stats.\n"
-                "2. Long-Term Memory (ChromaDB): You can recall past anomalies, "
-                "error patterns, and resolutions to identify recurring issues.\n"
-                "3. System Knowledge: You are self-aware of the codebase structure, "
-                "file locations, and documentation.\n"
-                "4. Short-Term Memory: You maintain context of the current conversation.\n"
-                "5. AI Insights: anomaly detection and failure-prediction signals are "
-                "provided in [AI INSIGHTS: ...] blocks.\n\n"
-                "SYSTEM CONTEXT:\n"
-                f"{system_knowledge}\n\n"
-                "INSTRUCTIONS:\n"
-                "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
-                "general knowledge questions.\n"
-                "- Use the provided [CURRENT SYSTEM STATUS], [AI INSIGHTS: ...], and "
-                "[RELEVANT MEMORIES] blocks to ground your answers in facts.\n"
-                "- If you don't know something, admit it. Do not hallucinate system details.\n"
-                "- When listing alerts, use the explicit 'ID' field provided in "
-                "the [ACTIVE SYSTEM ALERTS] section. Format as '#ID'. Do not guess IDs.\n"
-                "- Uncertainty protocol: if telemetry or context evidence is incomplete, "
-                "state the gap explicitly instead of extrapolating an unsupported system state.\n"
-                "- Trust protocol: your context includes a [VALIDATION TRUST STATUS] block. "
-                "If 'Actionable' is 'no', you MUST explicitly tell the user their data could "
-                "not be fully validated (name the failed gate and trust score) and limit your "
-                "answer to cautionary, non-actionable observations -- never phrase a low-trust "
-                "answer as a confirmed diagnosis or a directive to act. If a 'Reason' line is "
-                "present, weave it in as ONE short supporting sentence (e.g. 'because telemetry "
-                "is 340s stale') -- do not list every validation check or invent additional "
-                "statistics beyond what's given.\n"
-                "- Be concise, professional, and technical where appropriate."
-            ),
+        system_prompt_text = (
+            "IDENTITY:\n"
+            "You are the HOMEPOT System Diagnostics AI, an advanced operational "
+            "assistant for the HOMEPOT Client ecosystem.\n"
+            "Your goal is to monitor, diagnose, and explain the behavior of "
+            "IoT devices, sites, and the platform itself.\n\n"
+            "CAPABILITIES & DATA SOURCES:\n"
+            "1. Real-Time Database (PostgreSQL): You have access to live device "
+            "metrics, site status, and push notification stats.\n"
+            "2. Long-Term Memory (ChromaDB): You can recall past anomalies, "
+            "error patterns, and resolutions to identify recurring issues.\n"
+            "3. System Knowledge: You are self-aware of the codebase structure, "
+            "file locations, and documentation.\n"
+            "4. Short-Term Memory: You maintain context of the current conversation.\n"
+            "5. AI Insights: anomaly detection and failure-prediction signals are "
+            "provided in [AI INSIGHTS: ...] blocks.\n\n"
+            "SYSTEM CONTEXT:\n"
+            f"{system_knowledge}\n\n"
+            "INSTRUCTIONS:\n"
+            "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
+            "general knowledge questions.\n"
+            "- Use the provided [CURRENT SYSTEM STATUS], [AI INSIGHTS: ...], and "
+            "[RELEVANT MEMORIES] blocks to ground your answers in facts.\n"
+            "- If you don't know something, admit it. Do not hallucinate system details.\n"
+            "- When listing alerts, use the explicit 'ID' field provided in "
+            "the [ACTIVE SYSTEM ALERTS] section. Format as '#ID'. Do not guess IDs.\n"
+            "- Uncertainty protocol: if telemetry or context evidence is incomplete, "
+            "state the gap explicitly instead of extrapolating an unsupported system state.\n"
+            "- Trust protocol: your context includes a [VALIDATION TRUST STATUS] block. "
+            "If 'Actionable' is 'no', you MUST explicitly tell the user their data could "
+            "not be fully validated (name the failed gate and trust score) and limit your "
+            "answer to cautionary, non-actionable observations -- never phrase a low-trust "
+            "answer as a confirmed diagnosis or a directive to act. If a 'Reason' line is "
+            "present, weave it in as ONE short supporting sentence (e.g. 'because telemetry "
+            "is 340s stale') -- do not list every validation check or invent additional "
+            "statistics beyond what's given.\n"
+            "- Be concise, professional, and technical where appropriate."
         )
+
+        if request.agentic:
+            # Agentic mode: multi-step tool-calling investigation
+            agent_result = await run_agent(
+                query=request.query,
+                context=full_context,
+                llm=llm,
+                device_id=request.device_id,
+            )
+            response = agent_result.response
+            agentic_info = {
+                "iterations": agent_result.iterations,
+                "tools_called": [
+                    {"tool": tc.tool_name, "iteration": tc.iteration}
+                    for tc in agent_result.tools_called
+                ],
+                "total_duration_ms": agent_result.total_duration_ms,
+            }
+        else:
+            # Direct mode: single LLM call (existing behavior)
+            response = llm.generate_response(
+                prompt=request.query,
+                context=full_context,
+                system_prompt=system_prompt_text,
+            )
+            agentic_info = None
         logger.info(
             "AI query done | device_id=%s | mode=%s | score=%.2f | actionable=%s",
             request.device_id or "N/A",
@@ -925,6 +952,7 @@ async def query_ai(
                     "trust_score": trust.trust_score,
                     "actionable": trust.is_actionable,
                     "failed_gate": trust.failed_gate_id,
+                    "agentic": request.agentic,
                 },
             )
             if not trust.is_actionable:
@@ -946,6 +974,7 @@ async def query_ai(
             "response": response,
             "timestamp": datetime.utcnow().isoformat(),
             "trust": trust.to_dict(),
+            **({"agentic": agentic_info} if agentic_info else {}),
         }
     except Exception as e:
         logger.error(f"AI query failed: {e}", exc_info=True)

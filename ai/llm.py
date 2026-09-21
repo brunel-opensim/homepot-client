@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import ollama  # type: ignore
 import yaml
@@ -76,4 +76,47 @@ class LLMService:
             return (
                 "I apologize, but I'm currently unable to connect to my AI brain "
                 "(Ollama). Please ensure the Ollama service is running."
+            )
+
+    def generate_with_tools(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: list,
+    ) -> ollama.ChatResponse:
+        """Generate a response with tool calling support.
+
+        Args:
+            messages: Full message history (system, user, assistant, tool).
+            tools: List of tool functions or JSON schema dicts for Ollama.
+
+        Returns:
+            ChatResponse with .message.content and .message.tool_calls.
+        """
+        try:
+            temperature = float(self.config["llm"].get("temperature", 0.7))
+            context_window = int(self.config["llm"].get("context_window", 4096))
+
+            response = self.client.chat(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                options={
+                    "temperature": temperature,
+                    "num_ctx": context_window,
+                },
+            )
+
+            return response
+
+        except Exception as e:
+            logger.error("Failed to generate LLM response with tools: %s", e)
+            # Return a mock response that signals failure
+            return ollama.ChatResponse(
+                message=ollama.Message(
+                    content=(
+                        "I apologize, but I'm currently unable to connect to my AI brain "
+                        "(Ollama). Please ensure the Ollama service is running."
+                    ),
+                    role="assistant",
+                )
             )
