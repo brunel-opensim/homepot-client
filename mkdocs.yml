@@ -133,6 +133,7 @@ nav:
       - Testing Guidelines: api-testing-guide.md
       - Platform Device Management:
           - macOS (Polling): macos-device-management.md
+          - Windows (Push+Polling): windows-device-management.md
       - Unified Push Gateway:
           - Overview: push-notification.md
           - Payload Structure: push-notification-payloads.md

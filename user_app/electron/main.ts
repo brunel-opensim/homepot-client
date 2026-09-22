@@ -1112,21 +1112,29 @@ function killAgent(): void {
 const ELEVATION_OPS = ['restart', 'shutdown'] as const
 
 function elevationSupported(): boolean {
-  return process.platform === 'darwin' || process.platform === 'linux'
+  return process.platform === 'darwin' || process.platform === 'linux' || process.platform === 'win32'
 }
 
 function elevationPaths(): { privilegedDir: string; ctlSrc: string; installer: string; elevationRoot: string } {
   const projectRoot = getProjectRoot()
   const privilegedDir = path.join(projectRoot, 'user_app', 'electron', 'privileged')
+  const isWindows = process.platform === 'win32'
   return {
     privilegedDir,
-    ctlSrc: process.env.HOMEPOT_CTL_PATH || path.join(privilegedDir, 'homepot-ctl'),
-    installer: path.join(privilegedDir, 'homepot-ctl-install.sh'),
+    ctlSrc: process.env.HOMEPOT_CTL_PATH || path.join(privilegedDir, isWindows ? 'homepot-ctl.ps1' : 'homepot-ctl'),
+    installer: path.join(privilegedDir, isWindows ? 'homepot-ctl-install.ps1' : 'homepot-ctl-install.sh'),
     elevationRoot: process.env.HOMEPOT_ELEVATION_ROOT || '',
   }
 }
 
 function installedCtlPath(): string {
+  if (process.platform === 'win32') {
+    const programData = process.env.PROGRAMDATA || 'C:\\ProgramData'
+    return process.env.HOMEPOT_CTL_PATH
+      || (process.env.HOMEPOT_ELEVATION_ROOT
+        ? path.join(process.env.HOMEPOT_ELEVATION_ROOT, 'homepot-ctl.ps1')
+        : path.join(programData, 'Homepot', 'homepot-ctl.ps1'))
+  }
   return process.env.HOMEPOT_CTL_PATH
     || (process.env.HOMEPOT_ELEVATION_ROOT
       ? path.join(process.env.HOMEPOT_ELEVATION_ROOT, 'homepot-ctl')
@@ -1134,6 +1142,12 @@ function installedCtlPath(): string {
 }
 
 function elevationDropinPath(): string {
+  if (process.platform === 'win32') {
+    const programData = process.env.PROGRAMDATA || 'C:\\ProgramData'
+    return process.env.HOMEPOT_ELEVATION_ROOT
+      ? path.join(process.env.HOMEPOT_ELEVATION_ROOT, 'elevation_installed.marker')
+      : path.join(programData, 'Homepot', 'elevation_installed.marker')
+  }
   return process.env.HOMEPOT_ELEVATION_ROOT
     ? path.join(process.env.HOMEPOT_ELEVATION_ROOT, 'sudoers.d', 'homepot')
     : '/etc/sudoers.d/homepot'
@@ -1156,7 +1170,7 @@ const execFileAsync = promisify(execFile)
 
 async function installManagedElevation(): Promise<{ installed: boolean; reason: string | null }> {
   if (elevationSupported() === false) {
-    return { installed: false, reason: 'Manage elevation is only available on macOS and Linux' }
+    return { installed: false, reason: 'Manage elevation is only available on macOS, Linux, and Windows' }
   }
   const { ctlSrc, installer, elevationRoot } = elevationPaths()
   if (!fs.existsSync(installer) || !fs.existsSync(ctlSrc)) {
@@ -1175,6 +1189,21 @@ async function installManagedElevation(): Promise<{ installed: boolean; reason: 
       if (elevationRoot) script += ` --root ${shellQuote(elevationRoot)}`
       // The one place the owner is explicitly asked for admin authorisation.
       await execFileAsync('osascript', ['-e', `do shell script ${JSON.stringify(script)} with administrator privileges`])
+    } else if (process.platform === 'win32') {
+      // Windows: run the PowerShell installer with UAC elevation
+      const psArgs = [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', installer,
+        '-CtlPath', ctlSrc,
+      ]
+      if (elevationRoot) {
+        psArgs.push('-Root', elevationRoot)
+      }
+      // Start-Process with -Verb RunAs triggers UAC elevation
+      const psScript = `Start-Process -FilePath 'powershell.exe' -ArgumentList @('${psArgs.join("','")}') -Verb RunAs -Wait -PassThru | Select-Object -ExpandProperty ExitCode`
+      await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript])
     } else {
       const args = ['/bin/sh', installer, '--ctl', ctlSrc]
       if (username) args.push('--uid', username)
@@ -1189,8 +1218,8 @@ async function installManagedElevation(): Promise<{ installed: boolean; reason: 
     }
   }
   const provisioned = fs.existsSync(elevationDropinPath())
-  recordAppEvent(provisioned ? 'info' : 'warning', 'elevation', provisioned ? 'Managed elevation installed' : 'Elevation install completed but the sudoers rule was not created')
-  return { installed: provisioned, reason: provisioned ? null : 'Elevation installer ran but the sudoers rule was not created' }
+  recordAppEvent(provisioned ? 'info' : 'warning', 'elevation', provisioned ? 'Managed elevation installed' : 'Elevation install completed but the elevation marker was not created')
+  return { installed: provisioned, reason: provisioned ? null : 'Elevation installer ran but the elevation marker was not created' }
 }
 
 async function deprovisionManagedElevation(): Promise<{ deprovisioned: boolean; reason: string | null }> {
@@ -1201,7 +1230,16 @@ async function deprovisionManagedElevation(): Promise<{ deprovisioned: boolean; 
     return { deprovisioned: false, reason: 'homepot-ctl is not installed on this device' }
   }
   try {
-    await execFileAsync('sudo', ['-n', ctl, 'deprovision'])
+    if (process.platform === 'win32') {
+      // Windows: remove the scheduled task and marker file
+      const removeScript = `
+        Unregister-ScheduledTask -TaskName 'HOMEPOT-Elevation' -Confirm:$false -ErrorAction SilentlyContinue
+        Remove-Item -Path '${elevationDropinPath()}' -Force -ErrorAction SilentlyContinue
+      `
+      await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', removeScript])
+    } else {
+      await execFileAsync('sudo', ['-n', ctl, 'deprovision'])
+    }
     recordAppEvent('info', 'elevation', 'Managed elevation deprovisioned')
     return { deprovisioned: true, reason: null }
   } catch (error) {

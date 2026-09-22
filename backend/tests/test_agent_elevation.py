@@ -44,12 +44,12 @@ def _provisioned_env(monkeypatch, tmp_path):
     [
         ("Darwin", True),
         ("Linux", True),
-        ("Windows", False),
+        ("Windows", True),
         ("FreeBSD", False),
     ],
 )
 def test_is_elevation_supported(monkeypatch, system, expected):
-    """Elevation is supported on macOS/Linux but not Windows/FreeBSD."""
+    """Elevation is supported on macOS/Linux/Windows but not FreeBSD."""
     _no_env(monkeypatch)
     _posix_env(monkeypatch)
     with patch("homepot.agent.utils.elevation.platform.system", return_value=system):
@@ -57,13 +57,13 @@ def test_is_elevation_supported(monkeypatch, system, expected):
 
 
 def test_is_elevation_supported_false_when_os_name_nt(monkeypatch):
-    """Windows is never elevation-supported even if the platform claims otherwise."""
+    """Windows is elevation-supported when platform.system() returns Windows."""
     _no_env(monkeypatch)
     with patch("homepot.agent.utils.elevation.os.name", "nt"):
         with patch(
-            "homepot.agent.utils.elevation.platform.system", return_value="Darwin"
+            "homepot.agent.utils.elevation.platform.system", return_value="Windows"
         ):
-            assert elevation.is_elevation_supported() is False
+            assert elevation.is_elevation_supported() is True
 
 
 def test_default_paths(monkeypatch):
@@ -103,8 +103,9 @@ class TestProvisionElevation:
     def test_unsupported_platform(self, monkeypatch):
         """Unsupported platforms report os_unsupported."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
-            "homepot.agent.utils.elevation.platform.system", return_value="Windows"
+            "homepot.agent.utils.elevation.platform.system", return_value="FreeBSD"
         ):
             result = elevation.provision_elevation()
         assert result == {"provisioned": False, "reason": "os_unsupported"}
@@ -195,13 +196,14 @@ class TestDeprovisionElevation:
 class TestElevatedCommandArgv:
     """The elevated argv is built only for installed, allowlisted ops."""
 
-    def test_windows_returns_none(self, monkeypatch):
-        """Windows has no elevated ctl argv."""
+    def test_windows_returns_none_when_not_installed(self, monkeypatch):
+        """Windows returns None when elevation helper is not installed."""
         _no_env(monkeypatch)
-        with patch(
-            "homepot.agent.utils.elevation.platform.system", return_value="Windows"
-        ):
-            assert elevation.elevated_command_argv("restart") is None
+        with patch("homepot.agent.utils.elevation.os.name", "nt"):
+            with patch(
+                "homepot.agent.utils.elevation.platform.system", return_value="Windows"
+            ):
+                assert elevation.elevated_command_argv("restart") is None
 
     def test_not_installed_returns_none(self, monkeypatch, tmp_path):
         """A missing layer produces no argv — dispatch fails actionably."""
@@ -248,13 +250,14 @@ class TestElevatedCommandArgv:
 class TestElevatedExecArgv:
     """Free-form shell execution reuses the scoped helper (`exec` op)."""
 
-    def test_windows_has_no_exec_argv(self, monkeypatch):
-        """Windows does not use the POSIX elevation helper."""
+    def test_windows_returns_none_when_not_installed(self, monkeypatch):
+        """Windows returns None when elevation helper is not installed."""
         _no_env(monkeypatch)
-        with patch(
-            "homepot.agent.utils.elevation.platform.system", return_value="Windows"
-        ):
-            assert elevation.elevated_exec_argv() is None
+        with patch("homepot.agent.utils.elevation.os.name", "nt"):
+            with patch(
+                "homepot.agent.utils.elevation.platform.system", return_value="Windows"
+            ):
+                assert elevation.elevated_exec_argv() is None
 
     def test_missing_layer_returns_none(self, monkeypatch, tmp_path):
         """A missing helper produces no exec argv — dispatch fails actionably."""
@@ -291,8 +294,9 @@ class TestSyncOsElevation:
     def test_unsupported_platform_is_noop(self, monkeypatch):
         """Unsupported platforms never touch the elevation layer."""
         _no_env(monkeypatch)
+        _posix_env(monkeypatch)
         with patch(
-            "homepot.agent.utils.elevation.platform.system", return_value="Windows"
+            "homepot.agent.utils.elevation.platform.system", return_value="FreeBSD"
         ):
             with patch(
                 "homepot.agent.utils.elevation.deprovision_elevation"

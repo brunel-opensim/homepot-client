@@ -70,7 +70,7 @@ def derive_capabilities(os_details: Optional[str]) -> Dict[str, bool]:
 
     if family in ("android", "windows"):
         return {
-            "root_access": False,
+            "root_access": True if family == "windows" else False,
             "command_execution": True,
             "process_monitoring": True,
             "filesystem_access": True,
