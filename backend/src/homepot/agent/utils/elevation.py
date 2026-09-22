@@ -9,16 +9,20 @@ the shell). Everything else is refused.
 Lifecycle
 ---------
 * **Install** (one-time, needs an OS admin prompt): the User App runs the
-  bundled installer as root via ``osascript`` (macOS) or ``pkexec`` (Linux).
-  It copies ``homepot-ctl`` into place and writes a NOPASSWD sudoers rule for
-  the app user scoped **only** to that helper.
+  bundled installer as root via ``osascript`` (macOS), ``pkexec`` (Linux), or
+  a UAC-elevated PowerShell command (Windows). It copies ``homepot-ctl`` into
+  place and writes a NOPASSWD sudoers rule for the app user scoped **only**
+  to that helper. On Windows, the helper is registered as a scheduled task
+  that runs with SYSTEM privileges.
 * **Provision/repair**: the agent re-runs ``sudo -n homepot-ctl
-  ensure-allowlist`` whenever the grant is present. This can only repair the
-  allowlist file; re-creating a removed sudoers drop-in requires the one-time
-  installer because no rule exists any more.
+  ensure-allowlist`` (POSIX) or verifies the scheduled task exists (Windows)
+  whenever the grant is present. This can only repair the allowlist file;
+  re-creating a removed sudoers drop-in requires the one-time installer
+  because no rule exists any more.
 * **Teardown (autonomous)**: when ``root_access`` is revoked the agent runs
-  ``sudo -n homepot-ctl deprovision``, removing the drop-in and allowlist
-  without any admin prompt. No lingering NOPASSWD rule survives a revoke.
+  ``sudo -n homepot-ctl deprovision`` (POSIX) or removes the scheduled task
+  (Windows), removing the drop-in and allowlist without any admin prompt. No
+  lingering NOPASSWD rule survives a revoke.
 
 Consent model: the owner's ``root_access`` grant is the one authorization —
 operators who reach this layer through the backend permission gate may run
@@ -40,7 +44,7 @@ logger = logging.getLogger(__name__)
 CTL_PATH_ENV = "HOMEPOT_CTL_PATH"
 ELEVATION_ROOT_ENV = "HOMEPOT_ELEVATION_ROOT"
 
-SUPPORTED_PLATFORMS = ("darwin", "linux")
+SUPPORTED_PLATFORMS = ("darwin", "linux", "windows")
 
 # The only host operations the elevation helper may perform as root.
 ALLOWED_OPS: tuple[str, ...] = ("restart", "shutdown", "exec")
@@ -51,20 +55,41 @@ EXEC_OP = "exec"
 # Dispatch command types served by the free-form ``exec`` op.
 FREE_FORM_COMMANDS = ("run_command", "run_script")
 
+# Windows scheduled task name for the elevation helper.
+WINDOWS_TASK_NAME = "HOMEPOT-Elevation"
+
 
 def elevation_root() -> str:
     """Return the install root (redirectable for tests/packaging)."""
-    return os.environ.get(ELEVATION_ROOT_ENV, "/usr/local/homepot")
+    env_root = os.environ.get(ELEVATION_ROOT_ENV)
+    if env_root:
+        return env_root
+    if os.name == "nt":
+        # On Windows, use ProgramData (typically C:\\ProgramData)
+        program_data = os.environ.get("PROGRAMDATA", "C:\\ProgramData")
+        return os.path.join(program_data, "Homepot")
+    return "/usr/local/homepot"
 
 
 def ctl_path() -> str:
     """Return the path to the ``homepot-ctl`` helper binary."""
-    return os.environ.get(CTL_PATH_ENV) or os.path.join(elevation_root(), "homepot-ctl")
+    env_path = os.environ.get(CTL_PATH_ENV)
+    if env_path:
+        return env_path
+    root = elevation_root()
+    if os.name == "nt":
+        return os.path.join(root, "homepot-ctl.ps1")
+    return os.path.join(root, "homepot-ctl")
 
 
 def dropin_path() -> str:
-    """Return the path of the scoped sudoers drop-in file."""
+    """Return the path of the scoped sudoers drop-in file (POSIX) or task marker (Windows)."""
     root = os.environ.get(ELEVATION_ROOT_ENV)
+    if os.name == "nt":
+        if root:
+            return os.path.join(root, "elevation_installed.marker")
+        program_data = os.environ.get("PROGRAMDATA", "C:\\ProgramData")
+        return os.path.join(program_data, "Homepot", "elevation_installed.marker")
     if root:
         return os.path.join(root, "sudoers.d", "homepot")
     return "/etc/sudoers.d/homepot"
@@ -73,6 +98,11 @@ def dropin_path() -> str:
 def allowlist_path() -> str:
     """Return the path of the root-owned allowlist file."""
     root = os.environ.get(ELEVATION_ROOT_ENV)
+    if os.name == "nt":
+        if root:
+            return os.path.join(root, "allowlist.json")
+        program_data = os.environ.get("PROGRAMDATA", "C:\\ProgramData")
+        return os.path.join(program_data, "Homepot", "allowlist.json")
     if root:
         return os.path.join(root, "allowlist.json")
     return "/etc/homepot/allowlist.json"
@@ -80,8 +110,6 @@ def allowlist_path() -> str:
 
 def is_elevation_supported() -> bool:
     """Whether this platform can host the scoped elevation layer."""
-    if os.name == "nt":
-        return False
     return platform.system().lower() in SUPPORTED_PLATFORMS
 
 
@@ -91,7 +119,22 @@ def is_elevation_installed() -> bool:
 
 
 def is_provisioned() -> bool:
-    """Whether the scoped sudoers drop-in currently exists."""
+    """Whether the scoped sudoers drop-in or scheduled task marker exists."""
+    if os.name == "nt":
+        # On Windows, check for the scheduled task or marker file
+        try:
+            result = subprocess.run(  # noqa: S603, S607
+                ["schtasks", "/query", "/tn", WINDOWS_TASK_NAME],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            if result.returncode == 0:
+                return True
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        return os.path.isfile(dropin_path())
     return os.path.isfile(dropin_path())
 
 
@@ -108,7 +151,39 @@ def elevation_status() -> Dict[str, Any]:
 
 
 def _run_ctl(argv: list[str]) -> Dict[str, Any]:
-    """Run ``sudo -n homepot-ctl <...>`` and return a result dict."""
+    """Run ``sudo -n homepot-ctl <...>`` (POSIX) or ``powershell <script>`` (Windows)."""
+    if os.name == "nt":
+        # On Windows, execute the PowerShell helper directly
+        ctl = ctl_path()
+        if not os.path.isfile(ctl):
+            return {"ok": False, "error": f"Helper not found: {ctl}"}
+        # Build PowerShell command: & 'C:\...\homepot-ctl.ps1' <args>
+        ps_args = [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            ctl,
+        ] + argv
+        try:
+            completed = subprocess.run(  # noqa: S603
+                ps_args,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return {"ok": False, "error": str(exc)}
+        return {
+            "ok": completed.returncode == 0,
+            "exit_code": completed.returncode,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+        }
+    # POSIX: use sudo
     cmd = ["sudo", "-n", ctl_path(), *argv]
     try:
         completed = subprocess.run(  # noqa: S603 - fixed argv list, no shell
@@ -143,6 +218,11 @@ def provision_elevation() -> Dict[str, Any]:
         return {"provisioned": False, "reason": "not_installed"}
     if not is_provisioned():
         return {"provisioned": False, "reason": "reinstall_required"}
+    if os.name == "nt":
+        # On Windows, provision is a no-op if the task exists; just ensure
+        # the allowlist file is in place.
+        _ensure_windows_allowlist()
+        return {"provisioned": True, "reason": None}
     outcome = _run_ctl(["ensure-allowlist"])
     return {
         "provisioned": bool(outcome["ok"]),
@@ -154,16 +234,46 @@ def provision_elevation() -> Dict[str, Any]:
     }
 
 
+def _ensure_windows_allowlist() -> None:
+    """Write the allowlist file on Windows."""
+    allowlist = allowlist_path()
+    os.makedirs(os.path.dirname(allowlist), exist_ok=True)
+    with open(allowlist, "w") as f:
+        f.write("op:restart\nop:shutdown\nop:exec\n")
+
+
 def deprovision_elevation() -> bool:
     """Autonomously remove the scoped elevation (no admin prompt needed).
 
     Uses the existing NOPASSWD rule for ``homepot-ctl`` to remove the drop-in
-    and allowlist. Returns ``True`` when the OS no longer grants the helper
-    (or never did).
+    and allowlist. On Windows, removes the scheduled task and marker file.
+    Returns ``True`` when the OS no longer grants the helper (or never did).
     """
     if not is_elevation_supported():
         return True
     if not is_elevation_installed():
+        return True
+    if os.name == "nt":
+        # On Windows, remove the scheduled task and marker file
+        try:
+            subprocess.run(  # noqa: S603, S607
+                ["schtasks", "/delete", "/tn", WINDOWS_TASK_NAME, "/f"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        # Remove marker and allowlist
+        marker = dropin_path()
+        allowlist = allowlist_path()
+        for path in (marker, allowlist):
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except OSError:
+                pass
         return True
     outcome = _run_ctl(["deprovision"])
     if outcome["ok"] or not is_provisioned():
@@ -215,6 +325,20 @@ def elevated_command_argv(command_type: str) -> Optional[list[str]]:
         return None
     if not is_elevation_installed():
         return None
+    if os.name == "nt":
+        # On Windows, execute the PowerShell helper directly (it runs via
+        # the scheduled task or the elevated service context).
+        return [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            ctl_path(),
+            "run",
+            command_type,
+        ]
     return ["sudo", "-n", ctl_path(), "run", command_type]
 
 
@@ -224,13 +348,26 @@ def elevated_exec_argv() -> Optional[list[str]]:
     Free-form ``run_command`` / ``run_script`` on macOS/Linux real devices run
     through the same scoped helper (``homepot-ctl run exec``); the command or
     script text is piped on stdin and the helper runs it via the shell as
-    root. Returns ``None`` when elevation is not available on this platform or
-    the helper is not installed.
+    root. On Windows, the PowerShell helper reads from stdin and executes via
+    PowerShell. Returns ``None`` when elevation is not available on this
+    platform or the helper is not installed.
     """
     if not is_elevation_supported():
         return None
     if not is_elevation_installed():
         return None
+    if os.name == "nt":
+        return [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            ctl_path(),
+            "run",
+            EXEC_OP,
+        ]
     return ["sudo", "-n", ctl_path(), "run", EXEC_OP]
 
 

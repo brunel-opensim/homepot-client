@@ -381,7 +381,7 @@ export default function Permissions() {
               </span>
               <span className="text-slate-500 text-xs">
                 {manageSupported
-                  ? "Run commands & scripts with root (sudo) privileges, scan the filesystem, update configuration & firmware, and reboot or shut down the system."
+                  ? "Run commands & scripts with elevated privileges, scan the filesystem, update configuration & firmware, and reboot or shut down the system."
                   : "Not supported on this OS"}
               </span>
             </div>

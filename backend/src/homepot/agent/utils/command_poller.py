@@ -179,8 +179,7 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
 
     # Command/script execution is always elevated: it is gated on the
     # root_access grant and runs through the scoped homepot-ctl helper on
-    # POSIX (or directly when the process already runs elevated, e.g. a
-    # Windows service).
+    # POSIX (or via the PowerShell helper on Windows).
     if not _is_windows_platform():
         elevated_argv = elevation_util.elevated_exec_argv()
         if elevated_argv is None:
@@ -211,21 +210,51 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
         # the shell as root; nothing is passed through argv.
         argv = elevated_argv
         script_text = source
-    elif script:
-        # PowerShell reads the script from stdin.
-        argv = _shell_for_scripts()
-        script_text = source
     else:
-        try:
-            argv = shlex.split(source)
-        except ValueError as exc:
-            return {"status": "failed", "result": {"error": str(exc)}}
-        if not argv:
-            return {
-                "status": "failed",
-                "result": {"error": "Command produced no executable arguments"},
-            }
-        script_text = None
+        # Windows: check if elevation helper is available
+        elevated_argv = elevation_util.elevated_exec_argv()
+        if elevation_util.is_elevation_supported():
+            if elevated_argv is None:
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            "run_command/run_script requires the Manage elevation "
+                            "layer, which is not installed on this device. "
+                            "Grant 'Manage device' access through the Homepot "
+                            "app on this device to enable command execution."
+                        )
+                    },
+                }
+            if not elevation_util.is_provisioned():
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            "run_command/run_script requires the Manage elevation "
+                            "layer, but its scheduled task is missing on this "
+                            "device. Re-grant 'Manage device' access through "
+                            "the Homepot app to reinstall it."
+                        )
+                    },
+                }
+            argv = elevated_argv
+            script_text = source
+        elif script:
+            # PowerShell reads the script from stdin.
+            argv = _shell_for_scripts()
+            script_text = source
+        else:
+            try:
+                argv = shlex.split(source)
+            except ValueError as exc:
+                return {"status": "failed", "result": {"error": str(exc)}}
+            if not argv:
+                return {
+                    "status": "failed",
+                    "result": {"error": "Command produced no executable arguments"},
+                }
+            script_text = None
 
     try:
         completed = subprocess.run(  # noqa: S603 - no shell; argv is explicit
@@ -663,10 +692,41 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _system_control(command_type: str) -> Dict[str, Any]:
-    """Reboot or power off the host system via elevation on POSIX."""
+    """Reboot or power off the host system via elevation."""
     if os.name == "nt" or platform.system().lower() == "windows":
-        action = "/r /t 0" if command_type == "restart" else "/s /t 0"
-        outcome = _run_argv(["shutdown", *shlex.split(action)])
+        # On Windows, check if the elevation helper is available
+        elevated_argv = elevation_util.elevated_command_argv(command_type)
+        if elevation_util.is_elevation_supported():
+            if elevated_argv is None:
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            f"{command_type} requires the Manage elevation "
+                            "layer, which is not installed on this device. "
+                            "Grant 'Manage device' access through the "
+                            "Homepot app on this device to enable power "
+                            "operations."
+                        )
+                    },
+                }
+            if not elevation_util.is_provisioned():
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            f"{command_type} requires the Manage elevation "
+                            "layer, but its scheduled task is missing on this "
+                            "device. Re-grant 'Manage device' access through "
+                            "the Homepot app to reinstall it."
+                        )
+                    },
+                }
+            outcome = _run_argv(elevated_argv)
+        else:
+            # Fallback: run shutdown directly (agent runs as elevated service)
+            action = "/r /t 0" if command_type == "restart" else "/s /t 0"
+            outcome = _run_argv(["shutdown", *shlex.split(action)])
     else:
         # Elevation is scoped to the homepot-ctl helper, never blanket sudo.
         # When the helper is absent (e.g. Manage was never granted through

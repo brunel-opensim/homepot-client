@@ -116,7 +116,7 @@ def test_final_offline_heartbeat_sends_online_false():
     [
         ("Linux 6.8.0 (Debian 12)", True, True),
         ("Android 14", False, True),
-        ("Windows 11", False, True),
+        ("Windows 11", True, True),
         ("iOS", False, True),
         ("", False, False),
     ],
@@ -216,7 +216,7 @@ def test_cli_only_defaults_to_linux_when_no_defaults_provided():
     ("module", "defaults_name", "expected_os", "expected_type", "expected_root"),
     [
         (android_pos_emulator, "ANDROID_DEFAULTS", "Android 14", "pos_terminal", False),
-        (windows_pos_emulator, "WINDOWS_DEFAULTS", "Windows 11", "pos_terminal", False),
+        (windows_pos_emulator, "WINDOWS_DEFAULTS", "Windows 11", "pos_terminal", True),
         (macos_pos_emulator, "MACOS_DEFAULTS", "macOS 14", "pos_terminal", True),
         (ios_pos_emulator, "IOS_DEFAULTS", "iOS 17", "tablet", False),
     ],
