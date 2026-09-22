@@ -652,10 +652,13 @@ class TestProcessCommand:
 
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_run_command_windows_no_sudo(self, run, system):
+    def test_run_command_windows_no_sudo(self, run, elev, system):
         """On Windows run_command runs without a sudo prefix."""
         system.return_value = "Windows"
+        elev.is_elevation_supported.return_value = False
+        elev.elevated_exec_argv.return_value = None
         run.return_value.returncode = 0
         run.return_value.stdout = "hello\n"
         run.return_value.stderr = ""
@@ -672,10 +675,13 @@ class TestProcessCommand:
 
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_restart_windows_uses_shutdown_exe(self, run, system):
+    def test_restart_windows_uses_shutdown_exe(self, run, elev, system):
         """On Windows restart uses the shutdown.exe tool directly."""
         system.return_value = "Windows"
+        elev.is_elevation_supported.return_value = False
+        elev.elevated_command_argv.return_value = None
         run.return_value.returncode = 0
         run.return_value.stdout = ""
         run.return_value.stderr = ""
@@ -688,10 +694,13 @@ class TestProcessCommand:
 
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_script_windows_uses_powershell(self, run, system):
+    def test_script_windows_uses_powershell(self, run, elev, system):
         """On Windows scripts run through PowerShell, not /bin/sh."""
         system.return_value = "Windows"
+        elev.is_elevation_supported.return_value = False
+        elev.elevated_exec_argv.return_value = None
         run.return_value.returncode = 0
         run.return_value.stdout = ""
         run.return_value.stderr = ""
