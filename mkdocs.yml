@@ -131,6 +131,8 @@ nav:
           - Authentication: user-authentication-api.md
           - Device Endpoints: devices-by-site-endpoint.md
       - Testing Guidelines: api-testing-guide.md
+      - Platform Device Management:
+          - macOS (Polling): macos-device-management.md
       - Unified Push Gateway:
           - Overview: push-notification.md
           - Payload Structure: push-notification-payloads.md
