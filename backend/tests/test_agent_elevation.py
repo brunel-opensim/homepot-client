@@ -87,14 +87,16 @@ def test_redirected_paths(monkeypatch, tmp_path):
 def test_installed_and_provisioned_state(monkeypatch, tmp_path):
     """Installed/provisioned reflect the presence of the helper and drop-in."""
     _missing_env(monkeypatch, tmp_path)
-    assert not elevation.is_elevation_installed()
-    assert not elevation.is_provisioned()
+    _posix_env(monkeypatch)
+    with patch("homepot.agent.utils.elevation.platform.system", return_value="Darwin"):
+        assert not elevation.is_elevation_installed()
+        assert not elevation.is_provisioned()
 
-    env = _provisioned_env(monkeypatch, tmp_path)
-    assert elevation.is_elevation_installed()
-    assert elevation.is_provisioned()
-    (env["root"] / "sudoers.d" / "homepot").unlink()
-    assert not elevation.is_provisioned()
+        env = _provisioned_env(monkeypatch, tmp_path)
+        assert elevation.is_elevation_installed()
+        assert elevation.is_provisioned()
+        (env["root"] / "sudoers.d" / "homepot").unlink()
+        assert not elevation.is_provisioned()
 
 
 class TestProvisionElevation:
