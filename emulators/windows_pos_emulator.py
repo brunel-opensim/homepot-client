@@ -26,6 +26,7 @@ LinuxPOSEmulator = POSEmulator
 
 WINDOWS_DEFAULTS: dict[str, Any] = {
     "device_name": "windows-pos-emulator-1",
+    "device_type": "pos_terminal",
     "os_details": "Windows 11",
     "mock_mac": "02:42:ac:11:00:04",
     "mock_hostname": "windows-pos-001",
