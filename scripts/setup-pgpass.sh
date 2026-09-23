@@ -4,6 +4,15 @@
 
 set -e
 
+# Defensive gate: under HOMEPOT_DB_AUTH=trust there is no password, so a
+# .pgpass file is meaningless (and would be misleading). setup-pgpass.sh is
+# normally skipped by init-postgresql.sh itself; this guard covers direct
+# invocation.
+if [ "${HOMEPOT_DB_AUTH:-peer}" = "trust" ]; then
+    echo -e "${YELLOW}[INFO]${NC} HOMEPOT_DB_AUTH=trust → skipping .pgpass setup (no password exists)"
+    exit 0
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "HOMEPOT PostgreSQL .pgpass Setup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

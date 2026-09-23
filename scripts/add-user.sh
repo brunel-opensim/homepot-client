@@ -24,12 +24,15 @@ IS_ADMIN="${4:-false}"
 # Database connection details (should match init-postgresql.sh)
 DB_NAME="homepot_db"
 DB_USER="homepot_user"
-DB_PASSWORD="homepot_dev_password"
+DB_PASSWORD="${HOMEPOT_DB_PASSWORD:-homepot_dev_password}"
 DB_HOST="localhost"
 DB_PORT="5432"
+DB_AUTH="${HOMEPOT_DB_AUTH:-peer}"
 
-# Export password for psql
-export PGPASSWORD="$DB_PASSWORD"
+# Under trust no password exists; PGPASSWORD would be ignored by psql anyway.
+if [ "$DB_AUTH" != "trust" ]; then
+    export PGPASSWORD="$DB_PASSWORD"
+fi
 
 # Python script to hash password and insert user
 # We use a temporary python script to handle password hashing correctly using the backend's logic

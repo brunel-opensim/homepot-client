@@ -12,7 +12,10 @@ DB_PORT="${HOMEPOT_DB_PORT:-5432}"
 DB_USER="${HOMEPOT_DB_USER:-homepot_user}"
 DB_NAME="${HOMEPOT_DB_NAME:-homepot_db}"
 DB_PASSWORD="${HOMEPOT_DB_PASSWORD:-homepot_dev_password}"
-export PGPASSWORD="$DB_PASSWORD"
+DB_AUTH="${HOMEPOT_DB_AUTH:-peer}"
+if [ "$DB_AUTH" != "trust" ]; then
+    export PGPASSWORD="$DB_PASSWORD"
+fi
 
 # Run a psql query against the configured database.
 psqlq() {
