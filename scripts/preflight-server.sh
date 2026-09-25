@@ -141,6 +141,89 @@ else
   fi
 fi
 
+# --- 6. Pre-existing HOMEPOT installs (single-clone check) --------------------
+head_ "6. Pre-existing HOMEPOT installs / conflicting services"
+echo "  (single-clone check: we want exactly ONE HOMEPOT, under $SITE_DIR)"
+
+# 6a. find any homepot clone in common locations (sudo-free; unreadable dirs skipped)
+SITE_REAL=$(cd "$SITE_DIR" 2>/dev/null && pwd -P)
+CLONE_LIST=""
+for base in /var/www /srv /opt /home /usr/local; do
+  [ -d "$base" ] || continue
+  found=$(find "$base" -maxdepth 4 \( -name 'homepot' -o -name 'homepot-client' -o -name 'Homepot' \) -type d 2>/dev/null || true)
+  if [ -n "$found" ]; then
+    while IFS= read -r d; do
+      [ -n "$d" ] || continue
+      real=$(cd "$d" 2>/dev/null && pwd -P)
+      # skip the deploy dir itself and anything resolving to the same realpath
+      [ "$real" = "$SITE_REAL" ] && continue
+      [ "$d" = "$SITE_DIR" ] && continue
+      CLONE_LIST="$CLONE_LIST$d"$'\n'
+    done <<< "$found"
+  fi
+done
+if [ -n "$CLONE_LIST" ]; then
+  n=$(printf "%s" "$CLONE_LIST" | grep -c .)
+  printf "%s" "$CLONE_LIST" | sed 's/^/      /'
+  if [ -d "$SITE_DIR" ]; then
+    fail "$n other homepot directory/ies found — we want exactly ONE clone at $SITE_DIR; review & remove the rest"
+  else
+    fail "$n homepot directory/ies found OUTSIDE the (not-yet-created) $SITE_DIR — decide which is the ONE live copy"
+  fi
+else
+  pass "no other homepot clone in /var/www,/srv,/opt,/home,/usr/local (single-clone clean)"
+fi
+
+# 6b. git state of the deploy clone (uncommitted changes = unknown version)
+if [ -d "$SITE_DIR/.git" ]; then
+  BR=$(git -C "$SITE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  SHA=$(git -C "$SITE_DIR" rev-parse --short HEAD 2>/dev/null)
+  DIRTY=$(git -C "$SITE_DIR" status --porcelain 2>/dev/null | head -5)
+  pass "deploy clone git: branch=$BR commit=$SHA"
+  if [ -n "$DIRTY" ]; then
+    warn "deploy clone has uncommitted changes (version is not reproducible):"
+    printf "$DIRTY" | sed 's/^/        /'
+  fi
+else
+  warn "no .git in $SITE_DIR (not a git clone, or not deployed yet)"
+fi
+
+# 6c. running HOMEPOT processes
+if command -v ps >/dev/null 2>&1; then
+  PROCS=$(ps -eo pid,args 2>/dev/null | grep -E 'uvicorn|vite|homepot' | grep -v -e grep -e 'ps -eo' | head -5)
+  if [ -n "$PROCS" ]; then
+    warn "HOMEPOT-looking processes already running (an old instance?):"
+    printf "%s\n" "$PROCS" | sed 's/^/      /'
+  else
+    pass "no running uvicorn/vite/homepot processes"
+  fi
+fi
+
+# 6d. systemd units that would conflict on restart
+if command -v systemctl >/dev/null 2>&1; then
+  UNITS=$(systemctl list-units --type=service --all 2>/dev/null | grep -i homepot | head -5)
+  if [ -n "$UNITS" ]; then
+    warn "systemd unit(s) named homepot exist (confirm only one is enabled):"
+    printf "$UNITS" | sed 's/^/      /'
+  else
+    pass "no systemd service named *homepot* (good: no duplicate auto-start)"
+  fi
+fi
+
+# 6e. ports the centralized dashboard needs (conflict = something else is there)
+if command -v ss >/dev/null 2>&1; then
+  for port in 8000 5173 11434; do
+    who=$(ss -ltnp 2>/dev/null | grep ":$port " | head -1)
+    if [ -n "$who" ]; then
+      warn "port $port already in use (will conflict with HOMEPOT): $who"
+    else
+      pass "port $port free"
+    fi
+  done
+else
+  warn "ss not available — could not check port conflicts"
+fi
+
 # --- summary -----------------------------------------------------------------
 echo
 if [ "$FAILURES" -eq 0 ]; then
