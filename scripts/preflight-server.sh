@@ -124,10 +124,18 @@ fi
 # --- 5. Deploy target directory ---------------------------------------------
 head_ "5. Deploy location ($SITE_DIR)"
 if [ -d "$SITE_DIR" ]; then
-  if [ -w "$SITE_DIR" ]; then
-    pass "'$SITE_DIR' exists and is writable by $(whoami)"
+  # Real write test (the -w flag can lie, e.g. on some ACL/NFS setups).
+  if touch "$SITE_DIR/.homepot_write_test" 2>/dev/null; then
+    rm -f "$SITE_DIR/.homepot_write_test"
+    pass "'$SITE_DIR' exists and is REALLY writable by $(whoami) (clone/build can happen here)"
   else
-    fail "'$SITE_DIR' exists but is NOT writable by $(whoami) — ask the server team to chown it"
+    fail "'$SITE_DIR' exists but is NOT writable by $(whoami)"
+    echo "       -> Ask the server team (sudo) to run ONE of:"
+    echo "            sudo chown -R $(whoami):$(whoami) $SITE_DIR"
+    echo "            sudo mkdir -p $SITE_DIR && sudo chown $(whoami):$(whoami) $SITE_DIR"
+    echo "          Note: demouser does NOT need write access to /var/www itself —"
+    echo "          only to the '$SITE_DIR' subdirectory. git clones INTO that subdir,"
+    echo "          so parent-directory write is never required."
   fi
 else
   if [ -d "$(dirname "$SITE_DIR")" ]; then
