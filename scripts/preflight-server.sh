@@ -55,7 +55,17 @@ if command -v pg_isready >/dev/null 2>&1; then
   if pg_isready -h "$DB_HOST" -p "$DB_PORT" >/dev/null 2>&1; then
     pass "pg_isready: server accepting connections on $DB_HOST:$DB_PORT"
   else
-    fail "pg_isready: nothing listening on $DB_HOST:$DB_PORT (is postgresql running?)"
+    fail "pg_isready: nothing listening on $DB_HOST:$DB_PORT"
+    # "Connection refused" means the server is down or not bound to TCP.
+    # It is NOT a trust/auth problem (that would say "authentication failed").
+    echo "       -> 'Connection refused' = PostgreSQL is NOT running or not on TCP."
+    echo "          Ask the server team to run these (they have sudo):"
+    echo "            pg_lsclusters                         # is the 16/main cluster running, on which port?"
+    echo "            systemctl status postgresql --no-pager"
+    echo "            sudo systemctl start postgresql        # if it is installed but stopped"
+    echo "          If it is running but still refused, the cluster may not be on TCP; check:"
+    echo "            sudo -u postgres psql -c 'show listen_addresses'   # want 'localhost' (or 127.0.0.1)"
+    echo "          and 'port' (must be 5432 to match this check)."
   fi
 fi
 
