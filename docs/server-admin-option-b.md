@@ -132,6 +132,67 @@ Nothing merges or launches until those two are true.
 
 ---
 
+## Preflight: which mode are we in?
+
+`scripts/preflight-server.sh` is a read-only readiness check. It picks its mode
+from `HOMEPOT_DB_HOST` — this matters, because the two topologies need different
+checks.
+
+| Mode | When | Trust checks (2)(3)(4) |
+|---|---|---|
+| **single-box** | `HOMEPOT_DB_HOST` unset or `localhost` (default) | run normally |
+| **split-host** | `HOMEPOT_DB_HOST=<db server IP>` | reported **SKIP**, never FAIL |
+
+In **split-host** mode the app server and the database are different machines, so
+`trust` in `pg_hba.conf` cannot apply: it only authenticates local socket and
+loopback connections, never a connection arriving from another host. Those
+deployments authenticate with a password plus a `pg_hba.conf` rule for the app
+server's source IP. The create/drop probe in check 3 is disabled in this mode on
+purpose, so the script can never touch a production database server.
+
+```bash
+# single-box (app and database on the same machine)
+./scripts/preflight-server.sh
+
+# split-host (database on a separate server)
+HOMEPOT_DB_HOST=10.0.0.9 \
+HOMEPOT_API_URL=http://127.0.0.1:8000 \
+./scripts/preflight-server.sh
+```
+
+**Check 7 is the real launch gate.** It probes the live API: `/api/v1/health`
+should return `200`, and `/api/v1/sites/` should return `200`/`401`/`403` — a
+`401` means the request reached FastAPI and authentication is being enforced,
+which is the healthy result. A `5xx` there points at the database. Note that
+`/api/v1/health` reports the *client* connection only, so a `200` from it does
+**not** prove the database is reachable.
+
+### ⚠️ Check 5 exists to stop you dropping the wrong database
+
+`init-postgresql.sh` and `reset-db.sh` **DROP and CREATE** a database, and both
+default to `DB_NAME=homepot_db`. If the deployment uses a different name, a
+"helpful" edit could point them at the production database. Check 5 reads the
+app's own `DATABASE__URL` and warns when the script's target disagrees with what
+the app is actually configured for.
+
+If it warns, do not run those scripts on that host. If you do need to, always
+name the database explicitly:
+
+```bash
+HOMEPOT_DB_NAME=<the name in the app's DATABASE__URL> ./scripts/preflight-server.sh
+```
+
+The check reads only the database name out of the URL; the password is never
+printed. If `backend/.env` is owned by a service account, re-run as that user so
+the check can read it:
+
+```bash
+sudo -u homepot ./scripts/preflight-server.sh
+```
+
+Other overrides: `HOMEPOT_DB_PORT`, `HOMEPOT_DB_USER`, `HOMEPOT_SITE_DIR`,
+`HOMEPOT_API_URL`, `HOMEPOT_PUBLIC_URL`.
+
 ## Reverting later (the full reverse, for the record)
 
 When production-ready, every trust spot on BOTH sides is grep-able:
