@@ -29,6 +29,19 @@ development and staging. The stack includes:
 These tasks require sudo access. Ask the server team to complete them
 before proceeding with deployment.
 
+> **Before starting:** run the read-only readiness check. It tells you whether
+> the app and the database share a host or not, and it verifies the live API:
+>
+> ```bash
+> ./scripts/preflight-server.sh                        # single-box (default)
+> HOMEPOT_DB_HOST=<db server IP> ./scripts/preflight-server.sh   # split-host
+> ```
+>
+> If the database lives on a **different machine**, do not enable `trust` and do
+> not run `init-postgresql.sh` / `reset-db.sh` there — those drop and create
+> databases. See `docs/server-admin-option-b.md` for the two modes and check 5,
+> which flags a database-name mismatch before anything destructive can run.
+
 ### 1. Install PostgreSQL 16
 
 ```bash
