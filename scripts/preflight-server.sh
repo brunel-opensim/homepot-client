@@ -218,9 +218,21 @@ fi
 # --- 6. Deploy target directory ---------------------------------------------
 head_ "6. Deploy location ($SITE_DIR)"
 if [ -d "$SITE_DIR" ]; then
+  DIRPERMS=$(ls -ld "$SITE_DIR" 2>/dev/null | awk '{print $1}')
+  DIROWNER=$(ls -ld "$SITE_DIR" 2>/dev/null | awk '{print $3":"$4}')
+  pass "exists: owner=$DIROWNER mode=$DIRPERMS"
+  case "$DIRPERMS" in
+    ????????w?)
+      fail "deploy root is WORLD-WRITABLE - any local account can replace files the service runs"
+      echo "       -> the app executes from this tree, so world-write is an escalation path."
+      echo "          Ask the server team (sudo):"
+      echo "            sudo chown <deploy-user>:<group> $SITE_DIR"
+      echo "            sudo chmod 755 $SITE_DIR"
+      ;;
+  esac
   if touch "$SITE_DIR/.homepot_write_test" 2>/dev/null; then
     rm -f "$SITE_DIR/.homepot_write_test"
-    pass "'$SITE_DIR' exists and is REALLY writable by $(whoami) (clone/build can happen here)"
+    pass "top level is writable by $(whoami)"
   else
     fail "'$SITE_DIR' exists but is NOT writable by $(whoami)"
     echo "       -> Ask the server team (sudo) to run ONE of:"
@@ -229,6 +241,29 @@ if [ -d "$SITE_DIR" ]; then
     echo "          Note: demouser does NOT need write access to /var/www itself -"
     echo "          only to the '$SITE_DIR' subdirectory. git clones INTO that subdir,"
     echo "          so parent-directory write is never required."
+  fi
+
+  # A real deploy writes INSIDE subdirectories and updates .git, so being able
+  # to write the top level is not the same as being able to deploy here.
+  DEEP_OK=1
+  for sub in scripts frontend .git; do
+    [ -d "$SITE_DIR/$sub" ] || continue
+    if touch "$SITE_DIR/$sub/.homepot_write_test" 2>/dev/null; then
+      rm -f "$SITE_DIR/$sub/.homepot_write_test"
+    else
+      DEEP_OK=0
+      warn "'$sub/' is NOT writable by $(whoami)"
+    fi
+  done
+  if [ "$DEEP_OK" -eq 1 ]; then
+    pass "subdirectories writable by $(whoami) (git pull / build can happen here)"
+  else
+    fail "cannot write into subdirectories - you can READ this deploy but not update it"
+    echo "       -> top-level write access alone is not a real deploy capability."
+    echo "          Pick ONE deploy account and let it own the tree (sudo):"
+    echo "            sudo chown -R <deploy-user>:<group> $SITE_DIR"
+    echo "          The service account (e.g. 'homepot') needs only READ on the code and"
+    echo "          WRITE on backend/ and logs/ - it does not need to own the tree."
   fi
 else
   if [ -d "$(dirname "$SITE_DIR")" ]; then
