@@ -195,6 +195,43 @@ def _ensure_push_log_columns(bind: Any) -> None:
             raise
 
 
+ASYNC_PG_DIALECT = "postgresql+asyncpg"
+SYNC_PG_DIALECT = "postgresql+psycopg2"
+
+
+def to_async_db_url(url: str) -> str:
+    """Return a database URL suitable for :func:`create_async_engine`.
+
+    The async engine cannot use a synchronous driver, and SQLAlchemy 2.1
+    resolves a bare ``postgresql://`` to psycopg 3 (which this project does not
+    install). Naming the driver explicitly keeps the async path on asyncpg
+    regardless of the installed SQLAlchemy version.
+    """
+    if url.startswith("sqlite://"):
+        return url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", f"{ASYNC_PG_DIALECT}://", 1)
+    return url
+
+
+def to_sync_db_url(url: str) -> str:
+    """Return a database URL suitable for :func:`create_engine`.
+
+    Used by Alembic and the synchronous utility scripts. This must accept a
+    bare ``postgresql://`` as well as an explicit ``postgresql+asyncpg://``:
+    deployment and CI set the bare form, and without normalising it SQLAlchemy
+    2.1 picks psycopg 3 for the sync engine and fails with
+    ``No module named 'psycopg'`` even though psycopg2 is installed.
+    """
+    if url.startswith("sqlite+aiosqlite://"):
+        return url.replace("sqlite+aiosqlite://", "sqlite://", 1)
+    if url.startswith("postgresql+asyncpg://"):
+        return url.replace(f"{ASYNC_PG_DIALECT}://", f"{SYNC_PG_DIALECT}://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", f"{SYNC_PG_DIALECT}://", 1)
+    return url
+
+
 class DatabaseService:
     """Async database service for HOMEPOT operations."""
 
@@ -203,11 +240,7 @@ class DatabaseService:
         settings = get_settings()
 
         # Convert SQLite URL to async format
-        db_url = settings.database.url
-        if db_url.startswith("sqlite://"):
-            db_url = db_url.replace("sqlite://", "sqlite+aiosqlite://")
-        elif db_url.startswith("postgresql://"):
-            db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
+        db_url = to_async_db_url(settings.database.url)
 
         engine_kwargs: Dict[str, Any] = {
             "echo": settings.database.echo_sql,
@@ -1604,10 +1637,7 @@ _settings = get_settings()
 _db_url = _settings.database.url
 
 # Convert async URLs to sync for this synchronous layer
-if _db_url.startswith("sqlite+aiosqlite://"):
-    _db_url = _db_url.replace("sqlite+aiosqlite://", "sqlite://")
-elif _db_url.startswith("postgresql+asyncpg://"):
-    _db_url = _db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+_db_url = to_sync_db_url(_db_url)
 
 # Create sync engine
 if _db_url.startswith("sqlite"):
