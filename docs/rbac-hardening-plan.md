@@ -76,6 +76,36 @@ The foundation is better than a rewrite would suggest:
 
 ---
 
+### 4.1 Role vocabulary and development-mode privilege — decided
+
+The vocabulary is now **two roles: `Admin` and `Technician`**. `Client` (the
+original signup default) and `Engineer` (introduced later) are retained only as
+accepted legacy spellings that normalise to `Technician`, so existing rows and
+older clients keep working without a migration.
+
+While we are still in development, `Technician` is deliberately granted
+**admin-equivalent access**, so the two roles are intentionally equivalent and
+role granularity does not block feature work. This is a single, explicitly
+named switch — `HOMEPOT_DEV_UNIFIED_ACCESS` (default **on**) — rather than a
+property baked into the data model, so making the roles differ later is a
+configuration change, not a rewrite. Unknown or unrecognised role values always
+resolve to `Technician`, never to `Admin`.
+
+`backend/src/homepot/app/roles.py` is now the single place roles are read,
+normalised and mapped to privilege; signup, the role-update endpoint and token
+issuance all go through it.
+
+Two consequences worth being explicit about:
+
+- **This does not reduce the severity of §5.3.** In unified mode every account is
+  privileged, so the control that matters is no longer "which tier did you get"
+  but "**who is allowed to have an account at all**". Restricting registration
+  stays the top item.
+- **The remaining gaps in §5.2 and §5.1 are still open.** The switch changes what a
+  role is worth, not how reliably it is enforced.
+
+---
+
 ## 5. Gaps
 
 ### 5.1 Privilege is a boolean, not a role
@@ -122,6 +152,10 @@ request exactly that role.
 This blocks the rest of the programme: role-based access control is not a
 meaningful control while a caller can simply mint the highest role. Exact
 request detail is deliberately kept out of this public document — see §10.
+
+Normalising the role (§4.1) tidies the vocabulary but does **not** close this:
+the endpoint is still unauthenticated, and in unified development mode every
+account it creates is privileged.
 
 ### 5.4 Auth coverage is inconsistent
 
@@ -204,6 +238,50 @@ for device-originated push. That is fine.
 
 ---
 
+### 6.2 Two technicians on one device: there is no precedence
+
+Asked directly — *if two technicians work the same device, which one wins?* — the
+answer today is **neither; the system has no notion of precedence at all.** There
+is no lock, no lease, no occupancy, no exclusive-access flag and no priority
+anywhere in the deployed application.
+
+Concretely:
+
+- **Commands execute in insertion order only.** `device_commands`
+  (`backend/src/homepot/models.py:584`) has no priority and no conflict
+  detection, so the earlier command runs first purely because it was inserted
+  first. That is an accident of ordering, not a designed precedence rule.
+- **The queue does not record who asked.** The table has no `issued_by` column, so
+  the command history cannot answer "who restarted this device?". The actor *is*
+  captured, but only in the audit log
+  (`.../Endpoints/DeviceCommandsEndpoint.py:163,321`) — one of the few call sites
+  that records it.
+- **Config edits are silent last-write-wins** (§6), so a technician can overwrite
+  a colleague's change without either of them noticing.
+- **Nothing warns a second technician.** Two people can hold the same device in
+  their dashboards with no indication that anyone else is working on it.
+
+The realistic failure mode is not a lost edit, it is an *interleaved operation*:
+one technician issues a restart or firmware update while another is mid-diagnosis
+and applying configuration, and neither is told. The results simply land on the
+device in queue order.
+
+Options, cheapest first:
+
+| Option | Effect | Cost |
+|---|---|---|
+| **A. Nothing** | Two technicians collide silently. Acceptable only if one person is ever logged in. | None |
+| **B. Visibility** | Surface "last commanded by *name*, *n* min ago" and a warning badge when the device changed underneath you. Prevents *silent* collisions, does not prevent them. | Small |
+| **C. Advisory lease** | A technician *takes* a device for a bounded period; others see it as held and get read-only. Auto-expires. This is the only option that actually answers the question. | Moderate — schema, expiry, and a way to release |
+| **D. Hard locking** | Strict mutual exclusion with a waiting queue. | High, and risky: stale locks can strand a device |
+
+**Recommendation:** B now, because it is cheap and reversible, and C before
+go-live, because C is the only thing that gives a real answer. D is not
+recommended. Option B does not require any of the role work to land first, so it
+can proceed in parallel.
+
+---
+
 ## 7. Definition of done
 
 Role-based access control can be called real when all of the following hold:
@@ -217,6 +295,8 @@ Role-based access control can be called real when all of the following hold:
 - [ ] Every privileged action records its actor
 - [ ] Authentication events are recorded
 - [ ] A test fails when an endpoint is added without an auth dependency
+- [ ] Concurrent work on one device is visible, and a bounded device lease defines
+      precedence (§6.2)
 
 ---
 
@@ -229,7 +309,7 @@ The order matters: the first item is what makes the rest safe to build and test.
 | **1** | Close open administrative signup; add authentication to the unprotected operational endpoints; disable agent simulation in production; enforce secure cookies; resolve the split secret-key configuration | Nothing else is safe to test until this lands. **Highest severity.** |
 | **2** | Make `require_role()` consult the database; check `is_active` at login; repair the role-update path so the stored role and the admin flag agree; add session revocation and a sane token lifetime | Turns "admin or not" into real enforcement |
 | **3** | Unify the four role vocabularies into one enum and hierarchy and migrate existing rows; record the actor on privileged actions; emit authentication events; protect audit reads | Makes the model coherent and accountable |
-| **4** | *Optional:* optimistic locking for concurrent edits, pool sizing for larger teams, an authenticated real-time broadcaster if live updates are wanted | Only matters once technicians actually collide |
+| **4** | Device contention: "last commanded by" visibility first, then a bounded advisory lease for real precedence (§6.2); plus optimistic locking for concurrent config edits, pool sizing for larger teams, and an authenticated real-time broadcaster if live updates are wanted | Only matters once technicians actually collide, and it does not depend on the role work |
 
 Item 1 is independent of items 2–4 and also protects the deployment that is
 already live. Items 2 and 3 can follow once item 1 is merged.
@@ -258,6 +338,11 @@ These change the shape of the work and should be settled before item 2 starts.
    a configuration decision more than a build.
 5. **Is a real-time dashboard actually required?** If not, item 4's broadcaster
    can be dropped.
+6. **How should two technicians on one device behave?** Specifically: is
+   *visibility* enough for now (B), or do we need a *lease* that grants one person
+   precedence (C)? And should a lease be taken explicitly by a technician, or
+   acquired automatically on first command? See §6.2 — this is the decision that
+   item 4 waits on.
 
 ---
 
@@ -271,9 +356,10 @@ request shapes would amount to publishing working attack instructions.
 Accordingly:
 
 - This document carries the architecture, the gaps, and the plan.
-- **Endpoint-level exploit detail is tracked in a private GitHub security
-  advisory**, not in this repository, and is not reproduced in comments, issues
-  or chat.
+- **Endpoint-level exploit detail is deliberately omitted** from this document and
+  is not to be reproduced in comments, issues or chat. It is to be recorded in a
+  private GitHub security advisory, **which has not been created yet** and should
+  be created before this document is merged.
 - Findings already posted publicly should be reviewed and redacted where they
   name specific unprotected endpoints on the live host.
 

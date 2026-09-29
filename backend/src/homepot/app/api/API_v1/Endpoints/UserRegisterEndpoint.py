@@ -35,6 +35,11 @@ from homepot.app.auth_utils import (
     verify_password,
 )
 from homepot.app.models import UserRegisterModel as models
+from homepot.app.roles import (
+    LEGACY_ROLE_ALIASES,
+    is_privileged,
+    normalize_role,
+)
 from homepot.app.schemas import schemas
 from homepot.app.utils.limiter import limiter
 from homepot.database import SessionLocal
@@ -85,10 +90,12 @@ def signup(
             logger.warning(f"Signup failed: Username {final_username} already taken")
             raise HTTPException(status_code=400, detail="Username already taken")
 
-        # Determine if admin based on role
-        user_role = user.role if user.role else "Client"
-        # Admin and Engineer both get is_admin=True for now, but role string differs
-        is_admin_user = user_role.lower() in ["admin", "engineer"]
+        # Canonical role vocabulary. Unknown/missing values resolve to
+        # Technician (least privilege). During development is_privileged()
+        # returns True for every role, so Admin and Technician are
+        # deliberately equivalent until HOMEPOT_DEV_UNIFIED_ACCESS is off.
+        user_role = normalize_role(user.role)
+        is_admin_user = is_privileged(user_role)
 
         # Assign to default tenant
         default_tenant = db.query(Tenant).filter(Tenant.slug == "default").first()
@@ -149,7 +156,11 @@ def login(
         logger.info(f"User logged in: {db_user.email}")
 
         # Create JWT tokens
-        token_data = {"sub": db_user.email, "is_admin": db_user.is_admin}
+        # is_privileged() honours HOMEPOT_DEV_UNIFIED_ACCESS, so during
+        # development every operator receives an admin-equivalent token
+        # regardless of the stored flag. With unified access off this
+        # falls back to the real role.
+        token_data = {"sub": db_user.email, "is_admin": is_privileged(db_user.role)}
         access_token = create_access_token(token_data)
         refresh_token = create_refresh_token(token_data)
 
@@ -207,14 +218,17 @@ def assign_role(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        if new_role.lower() == "admin":
-            user.is_admin = True  # type: ignore
-        elif new_role.lower() == "user":
-            user.is_admin = False  # type: ignore
-        else:
+        if new_role.strip().lower() not in LEGACY_ROLE_ALIASES:
             raise HTTPException(
-                status_code=400, detail="Invalid role. Allowed roles: Admin, User"
+                status_code=400,
+                detail="Invalid role. Allowed roles: Admin, Technician",
             )
+        canonical_role = normalize_role(new_role)
+        # Write BOTH the role string and the derived admin flag. Previously only
+        # is_admin was written, so user.role kept its stale value and any reader
+        # of the role column disagreed with the privilege decision.
+        user.role = canonical_role  # type: ignore
+        user.is_admin = is_privileged(canonical_role)  # type: ignore
 
         user.updated_at = datetime.now(timezone.utc)  # type: ignore
         db.commit()
