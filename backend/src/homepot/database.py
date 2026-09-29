@@ -929,8 +929,9 @@ class DatabaseService:
         device_id: int,
         command_type: str,
         payload: Optional[Dict[str, Any]] = None,
+        issued_by: Optional[str] = None,
     ) -> DeviceCommand:
-        """Create a new device command."""
+        """Create a new device command, recording who issued it."""
         import uuid
 
         async with self.get_session() as session:
@@ -940,6 +941,7 @@ class DatabaseService:
                 command_type=command_type,
                 payload=payload,
                 status=CommandStatus.PENDING,
+                issued_by=issued_by,
             )
             session.add(command)
             await session.commit()

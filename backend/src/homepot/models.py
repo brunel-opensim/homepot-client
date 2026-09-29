@@ -598,6 +598,10 @@ class DeviceCommand(Base):
     status = Column(String(20), default=CommandStatus.PENDING)
     result = Column(JSON, nullable=True)
 
+    # Who queued this command. Nullable: rows written before this column
+    # existed have no actor, and an empty queue is not an error.
+    issued_by = Column(String(255), nullable=True, index=True)
+
     created_at = Column(DateTime(timezone=True), default=utc_now)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
