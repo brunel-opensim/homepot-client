@@ -251,11 +251,15 @@ Concretely:
   (`backend/src/homepot/models.py:584`) has no priority and no conflict
   detection, so the earlier command runs first purely because it was inserted
   first. That is an accident of ordering, not a designed precedence rule.
-- **The queue does not record who asked.** The table has no `issued_by` column, so
-  the command history cannot answer "who restarted this device?". The actor *is*
-  captured, but only in the audit log
+- **The queue did not record who asked.** `device_commands` had no `issued_by`
+  column, so the command history could not answer "who restarted this device?".
+  The actor was captured, but only in the audit log
   (`.../Endpoints/DeviceCommandsEndpoint.py:163,321`) — one of the few call sites
   that records it.
+  **Fixed** by #480: commands record `issued_by` at queue time, the column is
+  exposed on the command history endpoint, and the dashboard shows who last
+  worked on a device, marks a colleague's commands, and warns when somebody else
+  sends a command to a device you have open.
 - **Config edits are silent last-write-wins** (§6), so a technician can overwrite
   a colleague's change without either of them noticing.
 - **Nothing warns a second technician.** Two people can hold the same device in
@@ -275,10 +279,11 @@ Options, cheapest first:
 | **C. Advisory lease** | A technician *takes* a device for a bounded period; others see it as held and get read-only. Auto-expires. This is the only option that actually answers the question. | Moderate — schema, expiry, and a way to release |
 | **D. Hard locking** | Strict mutual exclusion with a waiting queue. | High, and risky: stale locks can strand a device |
 
-**Recommendation:** B now, because it is cheap and reversible, and C before
-go-live, because C is the only thing that gives a real answer. D is not
-recommended. Option B does not require any of the role work to land first, so it
-can proceed in parallel.
+**Decision:** option **B** was chosen and is built (#480) — commands record their
+actor and the dashboard surfaces it. C (the lease) is still the only thing that
+gives a real answer to "which of us has precedence", and remains the pre-go-live
+follow-up. D is not recommended. B was picked partly because it does not depend
+on any of the role work landing first.
 
 ---
 
@@ -295,8 +300,9 @@ Role-based access control can be called real when all of the following hold:
 - [ ] Every privileged action records its actor
 - [ ] Authentication events are recorded
 - [ ] A test fails when an endpoint is added without an auth dependency
-- [ ] Concurrent work on one device is visible, and a bounded device lease defines
-      precedence (§6.2)
+- [x] Concurrent work on one device is *visible* — commands record their actor and
+      the dashboard surfaces it (§6.2, option B, #480)
+- [ ] A bounded device lease defines *precedence* (§6.2, option C)
 
 ---
 
@@ -338,11 +344,10 @@ These change the shape of the work and should be settled before item 2 starts.
    a configuration decision more than a build.
 5. **Is a real-time dashboard actually required?** If not, item 4's broadcaster
    can be dropped.
-6. **How should two technicians on one device behave?** Specifically: is
-   *visibility* enough for now (B), or do we need a *lease* that grants one person
-   precedence (C)? And should a lease be taken explicitly by a technician, or
-   acquired automatically on first command? See §6.2 — this is the decision that
-   item 4 waits on.
+6. **How should two technicians on one device behave?** *Visibility* (B) is
+   resolved and built (#480). Still open: should the lease that grants precedence
+   (C) be taken explicitly by a technician, or acquired automatically on the
+   first command? See §6.2.
 
 ---
 
