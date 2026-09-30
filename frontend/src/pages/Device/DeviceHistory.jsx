@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   Eye,
   AlertCircle,
   Ban,
+  UserRound,
 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,8 @@ import {
 } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/Toast';
 import CancelCommandDialog from '@/components/Devices/CancelCommandDialog';
+import { useAuth } from '@/hooks/useAuth';
+import { isOwnCommand, lastActorLabel, newForeignCommands } from '@/utils/deviceActivity';
 import {
   lifecycleStages,
   formatCommandType,
@@ -53,6 +56,19 @@ function StageStamp({ label, time }) {
   );
 }
 
+function ActorLine({ email, time }) {
+  if (!email) return null;
+  return (
+    <div className="flex items-center gap-1.5 text-[10px] text-amber-200/80">
+      <UserRound className="h-3 w-3 shrink-0" />
+      <span className="truncate">{email}</span>
+      {time ? (
+        <span className="text-slate-600">&middot; {new Date(time).toLocaleString()}</span>
+      ) : null}
+    </div>
+  );
+}
+
 export default function DeviceHistory() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -64,6 +80,11 @@ export default function DeviceHistory() {
   const [toast, setToast] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
+  const [colleagueAlert, setColleagueAlert] = useState(null);
+
+  const { user } = useAuth();
+  const currentUserEmail = user?.email || null;
+  const seenCommandIds = useRef(new Set());
   const [cancelError, setCancelError] = useState(null);
 
   const fetchData = useCallback(async () => {
@@ -73,6 +94,23 @@ export default function DeviceHistory() {
         api.devices.getCommands(id, 50),
       ]);
       setDevice(deviceData);
+
+      // A colleague may have acted on this device while it was open. Warn once
+      // per command rather than on every poll.
+      const incoming = newForeignCommands(
+        commandData || [],
+        seenCommandIds.current,
+        currentUserEmail
+      );
+      if (incoming.length > 0) {
+        const newest = incoming[0];
+        setColleagueAlert({
+          commandId: newest.command_id,
+          issuedBy: newest.issued_by,
+          commandType: newest.command_type,
+        });
+      }
+      seenCommandIds.current = new Set((commandData || []).map((c) => c.command_id));
       setHistory(commandData || []);
     } catch (err) {
       console.error('Failed to load command history:', err);
@@ -80,7 +118,7 @@ export default function DeviceHistory() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, currentUserEmail]);
 
   useEffect(() => {
     fetchData();
@@ -133,6 +171,11 @@ export default function DeviceHistory() {
     }
   };
 
+  const lastActor = useMemo(() => {
+    const actor = lastActorLabel(history);
+    return actor ? { email: actor, created_at: history[0]?.created_at } : null;
+  }, [history]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-full">
@@ -175,6 +218,39 @@ export default function DeviceHistory() {
           </div>
         </div>
 
+        {(colleagueAlert || lastActor) && (
+          <div
+            className={
+              'mb-3 rounded-lg border px-3 py-2 text-xs flex items-start gap-2 ' +
+              (colleagueAlert
+                ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+                : 'bg-[#06181c] border-[#0e2f37] text-slate-400')
+            }
+          >
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              {colleagueAlert ? (
+                <span>
+                  <span className="font-medium text-amber-100">{colleagueAlert.issuedBy}</span> sent
+                  a <span className="font-mono">{colleagueAlert.commandType}</span> command to this
+                  device.
+                </span>
+              ) : (
+                <span>
+                  Last commanded by{' '}
+                  <span className="font-medium text-slate-200">{lastActor.email}</span>
+                  {lastActor.created_at ? (
+                    <span className="text-slate-600">
+                      {' · '}
+                      {new Date(lastActor.created_at).toLocaleString()}
+                    </span>
+                  ) : null}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto pr-1 space-y-2">
           {history.length === 0 ? (
             <Card className="p-8 text-center bg-[#06181c] border-[#0e2f37] text-gray-400">
@@ -190,10 +266,16 @@ export default function DeviceHistory() {
                 cmd.status === 'expired' ||
                 cmd.status === 'cancelled';
               const message = resultMessage(cmd.result);
+              const mine = isOwnCommand(cmd, currentUserEmail);
+              const fromColleague = Boolean(cmd.issued_by && !mine);
               return (
                 <Card
                   key={cmd.command_id}
-                  className="p-3 bg-[#06181c] border-[#0e2f37] hover:border-teal-500/50 transition-colors group"
+                  className={`p-3 bg-[#06181c] transition-colors group ${
+                    fromColleague
+                      ? 'border-amber-500/40 hover:border-amber-400/60'
+                      : 'border-[#0e2f37] hover:border-teal-500/50'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -228,6 +310,12 @@ export default function DeviceHistory() {
                           <StageStamp label="Acknowledged" time={cmd.sent_at} />
                           <StageStamp label="Executed" time={cmd.executed_at} />
                         </div>
+
+                        {fromColleague && (
+                          <div className="mt-1.5">
+                            <ActorLine email={cmd.issued_by} time={cmd.created_at} />
+                          </div>
+                        )}
 
                         {message && (
                           <div className="mt-1.5 text-[11px] font-mono text-slate-400 truncate max-w-lg">

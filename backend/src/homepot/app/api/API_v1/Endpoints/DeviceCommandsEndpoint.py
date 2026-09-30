@@ -47,6 +47,7 @@ class CommandHistoryResponse(BaseModel):
     created_at: str
     sent_at: Optional[str] = None
     executed_at: Optional[str] = None
+    issued_by: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -145,6 +146,10 @@ async def queue_command(
         device_id=device.id,  # type: ignore
         command_type=command_type,
         payload=command_request.payload,
+        # Recorded on the command itself, not only in the audit log, so the
+        # dashboard can show who last worked on a device. See the RBAC
+        # hardening plan, "Two technicians on one device".
+        issued_by=current_user.get("email"),
     )
 
     # Best-effort silent wake-up so a push-capable device polls immediately.
@@ -429,6 +434,7 @@ async def get_device_command_history(
             created_at=cmd.created_at.isoformat(),  # type: ignore
             sent_at=cmd.sent_at.isoformat() if cmd.sent_at else None,  # type: ignore
             executed_at=cmd.executed_at.isoformat() if cmd.executed_at else None,  # type: ignore
+            issued_by=cmd.issued_by,  # type: ignore
         )
         for cmd in commands
     ]
