@@ -173,6 +173,10 @@ private.json
 scripts/*.py
 scripts/**/*.py
 
+# Real credentials for scripts/seed-users.sh. Only the .example template is
+# committed; never commit the populated file.
+scripts/seed-users.env
+
 # Docker
 docker-compose.override.yml
 
