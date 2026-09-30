@@ -48,18 +48,39 @@ If you prefer to create a new user:
 If you encounter issues with the registration form or need to create a specific user role directly in the database, you can use the `add-user.sh` script.
 
 1.  Open your terminal in the project root directory.
-2.  Run the script with the desired username, email, password, and admin status (true/false):
+2.  Run the script with the desired username, email, password, and role:
 
     ```bash
-    ./scripts/add-user.sh <username> <email> <password> [is_admin]
+    ./scripts/add-user.sh [--url DATABASE_URL] <username> <email> <password> [role]
     ```
 
-    **Example:**
+    **Examples:**
     ```bash
-    ./scripts/add-user.sh john_doe john@example.com secret123 false
+    ./scripts/add-user.sh john_doe john@example.com 'a-long-passphrase'
+    ./scripts/add-user.sh jane_ops jane@example.com 'a-long-passphrase' Admin
     ```
+
+    The role is `Admin` or `Technician` (case-insensitive; aliases such as `engineer`
+    or `viewer` are normalised). It defaults to `Technician`. Passing `true`/`false`
+    still works for older call sites.
+
+    Passwords must be at least 12 characters. By default the script targets the local
+    development database; use `--url` (or set `DATABASE__URL`) to point it at a
+    remote or split-host database.
 
     This will create a new user in the database that you can immediately use to log in.
+
+To provision several accounts at once, or to rebuild accounts after a database
+reset, use `seed-users.sh` instead. It reads credentials from a gitignored
+`scripts/seed-users.env` rather than the command line and is safe to re-run — it
+updates existing usernames in place instead of failing:
+
+```bash
+cp scripts/seed-users.env.example scripts/seed-users.env
+$EDITOR scripts/seed-users.env
+./scripts/seed-users.sh --dry-run    # report what would change
+./scripts/seed-users.sh
+```
 
 ## Troubleshooting
 

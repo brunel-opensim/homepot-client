@@ -1,126 +1,218 @@
 #!/bin/bash
-# Script to manually add a user to the HOMEPOT database
-# Usage: ./scripts/add-user.sh <username> <email> <password> [is_admin]
+# add-user.sh — create a single HOMEPOT user interactively.
+#
+# For provisioning several accounts, or for rebuilding after a database reset,
+# prefer scripts/seed-users.sh — it is re-runnable and reads credentials from a
+# gitignored file instead of the command line.
+#
+# Usage:
+#   ./scripts/add-user.sh <username> <email> <password> [role]
+#
+#   role: Admin | Technician (case-insensitive; legacy aliases such as
+#         "engineer" or "viewer" are normalised). Defaults to Technician.
+#         Use a literal 'true' or 'false' for is_admin to stay backward
+#         compatible with older call sites.
+#
+# Examples:
+#   ./scripts/add-user.sh john_doe john@example.com 'a-long-passphrase'
+#   ./scripts/add-user.sh jane_ops jane@example.com 'a-long-passphrase' Admin
+#   ./scripts/add-user.sh john_doe john@example.com 'a-long-passphrase' true
+#
+# The database URL is resolved the same way as scripts/upgrade-db.sh and
+# scripts/query-db.sh:
+#   --url 'postgresql://user:pw@host:5432/homepot_db'   (highest precedence)
+#   DATABASE__URL
+#   DATABASE_URL
+#   HOMEPOT_DB_HOST / _PORT / _USER / _NAME / _PASSWORD
+#   local dev default (localhost:5432/homepot_db)
+# This matters for split-host deployments, where the database is not on
+# localhost.
 
-set -e
+set -euo pipefail
 
-# Colors for output
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Check arguments
+usage() { sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; }
+
 if [ "$#" -lt 3 ]; then
-    echo "Usage: $0 <username> <email> <password> [is_admin]"
-    echo "Example: $0 john_doe john@example.com secret123 true"
+  echo -e "${RED}Error: too few arguments${NC}" >&2
+  usage >&2
+  exit 1
+fi
+
+# Pull --url out of the argument list before the positional count is checked,
+# so its presence does not trip the "too many arguments" guard.
+URL=""
+if [ "${1:-}" = "--url" ]; then
+  URL="${2:-}"
+  if [ -z "$URL" ]; then
+    echo -e "${RED}Error: --url requires a value${NC}" >&2
     exit 1
+  fi
+  shift 2
+fi
+
+if [ "$#" -gt 4 ]; then
+  echo -e "${RED}Error: too many arguments${NC}" >&2
+  usage >&2
+  exit 1
 fi
 
 USERNAME="$1"
 EMAIL="$2"
 PASSWORD="$3"
-IS_ADMIN="${4:-false}"
+ROLE_RAW="${4:-Technician}"
 
-# Database connection details (should match init-postgresql.sh)
-DB_NAME="homepot_db"
-DB_USER="homepot_user"
-DB_PASSWORD="${HOMEPOT_DB_PASSWORD:-homepot_dev_password}"
-DB_HOST="localhost"
-DB_PORT="5432"
-DB_AUTH="${HOMEPOT_DB_AUTH:-peer}"
+# Backward compatibility: older call sites passed is_admin as true/false.
+case "$ROLE_RAW" in
+  true)  ROLE_RAW="Admin" ;;
+  false) ROLE_RAW="Technician" ;;
+esac
 
-# Under trust no password exists; PGPASSWORD would be ignored by psql anyway.
-if [ "$DB_AUTH" != "trust" ]; then
-    export PGPASSWORD="$DB_PASSWORD"
+if [ "${#PASSWORD}" -lt 12 ]; then
+  echo -e "${RED}Error: password must be at least 12 characters.${NC}" >&2
+  exit 1
 fi
 
-# Python script to hash password and insert user
-# We use a temporary python script to handle password hashing correctly using the backend's logic
-cat << EOF > temp_add_user.py
-import sys
+# ----- Resolve the database URL ---------------------------------------------
+# CLI > DATABASE__URL > DATABASE_URL > HOMEPOT_DB_* > local dev default.
+if [ -n "$URL" ]; then
+  export DATABASE__URL="$URL"
+elif [ -n "${DATABASE__URL:-}" ]; then
+  :
+elif [ -n "${DATABASE_URL:-}" ]; then
+  export DATABASE__URL="$DATABASE_URL"
+else
+  DB_HOST="${HOMEPOT_DB_HOST:-localhost}"
+  DB_PORT="${HOMEPOT_DB_PORT:-5432}"
+  DB_USER="${HOMEPOT_DB_USER:-homepot_user}"
+  DB_NAME="${HOMEPOT_DB_NAME:-homepot_db}"
+  DB_PASSWORD="${HOMEPOT_DB_PASSWORD:-homepot_dev_password}"
+  export DATABASE__URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+fi
+
+# ----- Locate the interpreter ------------------------------------------------
+if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  PYTHON="$REPO_ROOT/.venv/bin/python"
+elif [ -x "$REPO_ROOT/backend/.venv/bin/python" ]; then
+  PYTHON="$REPO_ROOT/backend/.venv/bin/python"
+else
+  PYTHON="python3"
+fi
+
+if ! "$PYTHON" -c "import passlib, sqlalchemy" >/dev/null 2>&1; then
+  echo -e "${RED}Error: passlib/sqlalchemy not importable by $PYTHON${NC}" >&2
+  echo "Create the repo venv first:" >&2
+  echo "  python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt" >&2
+  exit 1
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "HOMEPOT Add User"
+echo "  username: $USERNAME"
+echo "  email:    $EMAIL"
+echo "  role:     $ROLE_RAW"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Password hashing and the dialect fix both need Python, so the work happens
+# there rather than in a temp file written to the repo root.
+REPO_ROOT="$REPO_ROOT" PYTHON="$PYTHON" \
+  HOMEPOT_NEW_USERNAME="$USERNAME" \
+  HOMEPOT_NEW_EMAIL="$EMAIL" \
+  HOMEPOT_NEW_PASSWORD="$PASSWORD" \
+  HOMEPOT_NEW_ROLE="$ROLE_RAW" \
+  "$PYTHON" - <<'PYEOF'
 import os
-import bcrypt
+import sys
 
-# Workaround for passlib/bcrypt 4.0+ incompatibility
-if not hasattr(bcrypt, '__about__'):
-    class About:
+REPO_ROOT = os.environ["REPO_ROOT"]
+sys.path.insert(0, os.path.join(REPO_ROOT, "backend", "src"))
+
+import bcrypt  # noqa: E402
+
+# passlib 1.7.x reads bcrypt.__about__, removed in bcrypt 4.0+.
+if not hasattr(bcrypt, "__about__"):
+    class _About:
         __version__ = bcrypt.__version__
-    bcrypt.__about__ = About()
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from passlib.context import CryptContext
+    bcrypt.__about__ = _About()
 
-# Add backend src to path to import models
-sys.path.append(os.path.abspath("backend/src"))
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from homepot.models import User, Base
+from homepot.app.auth_utils import hash_password  # noqa: E402
+from homepot.app.roles import (  # noqa: E402
+    ADMIN,
+    LEGACY_ROLE_ALIASES,
+    normalize_role,
+)
+from homepot.database import to_sync_db_url  # noqa: E402
+from homepot.models import User  # noqa: E402
 
-# Database URL
-DATABASE_URL = "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+RED = "\033[0;31m"
+YELLOW = "\033[1;33m"
+GREEN = "\033[0;32m"
+NC = "\033[0m"
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+username = os.environ["HOMEPOT_NEW_USERNAME"].strip()
+email = os.environ["HOMEPOT_NEW_EMAIL"].strip()
+password = os.environ["HOMEPOT_NEW_PASSWORD"]
+role_raw = os.environ["HOMEPOT_NEW_ROLE"].strip()
 
-def create_user(username, email, password, is_admin):
-    engine = create_engine(DATABASE_URL)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    db = SessionLocal()
+role = normalize_role(role_raw)
+if role_raw.lower() not in LEGACY_ROLE_ALIASES:
+    print(f"{RED}Error: unrecognised role {role_raw!r}.{NC}", file=sys.stderr)
+    print(f"Valid roles: {ADMIN}, Technician (aliases accepted).", file=sys.stderr)
+    sys.exit(1)
 
-    try:
-        # Check if user exists
-        existing_user = db.query(User).filter((User.email == email) | (User.username == username)).first()
-        if existing_user:
-            print(f"Error: User with email {email} or username {username} already exists.")
-            sys.exit(1)
+# Derive the legacy boolean from the canonical role, NOT from
+# roles.is_privileged(): that returns True for every role while
+# HOMEPOT_DEV_UNIFIED_ACCESS is on, which would make a Technician an admin.
+is_admin = role == ADMIN
 
-        hashed_password = pwd_context.hash(password)
-        
-        new_user = User(
+# #479: a bare postgresql:// URL must be normalised for the sync engine or
+# SQLAlchemy 2.1 picks psycopg 3 and fails with "No module named 'psycopg'".
+url = to_sync_db_url(os.environ["DATABASE__URL"])
+engine = create_engine(url)
+Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+db = Session()
+
+try:
+    clash = db.query(User).filter(User.username == username).first()
+    if clash is None:
+        clash = db.query(User).filter(User.email == email).first()
+    if clash is not None:
+        print(
+            f"{RED}Error:{NC} a user with that username or email already exists "
+            f"({clash.username}). Use scripts/seed-users.sh to update in place.",
+            file=sys.stderr,
+        )
+        db.rollback()
+        sys.exit(1)
+
+    db.add(
+        User(
             username=username,
             email=email,
-            hashed_password=hashed_password,
-            is_admin=is_admin.lower() == 'true',
-            is_active=True
+            hashed_password=hash_password(password),
+            role=role,
+            is_admin=is_admin,
+            is_active=True,
         )
-        
-        db.add(new_user)
-        db.commit()
-        print(f"Successfully created user: {username} ({email})")
-        
-    except Exception as e:
-        print(f"Error creating user: {e}")
-        sys.exit(1)
-    finally:
-        db.close()
-
-if __name__ == "__main__":
-    create_user(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
-EOF
-
-# Run the python script
-# We need to activate the virtual environment if it exists, or assume python is available
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
-elif [ -d "backend/.venv" ]; then
-    source backend/.venv/bin/activate
-fi
-
-# Install passlib if needed (it should be in requirements, but just in case)
-pip install passlib bcrypt sqlalchemy psycopg2-binary > /dev/null 2>&1 || true
-
-python3 temp_add_user.py "$USERNAME" "$EMAIL" "$PASSWORD" "$IS_ADMIN"
-RESULT=$?
-
-# Cleanup
-rm temp_add_user.py
-
-if [ $RESULT -eq 0 ]; then
-    echo -e "${GREEN}User added successfully!${NC}"
-    echo ""
-    echo "To delete this user later, run:"
-    echo "export PGPASSWORD='$DB_PASSWORD' && psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c \"DELETE FROM users WHERE username = '$USERNAME';\""
-else
-    echo -e "${RED}Failed to add user.${NC}"
-    exit 1
-fi
+    )
+    db.commit()
+    print(f"{GREEN}Created user {username} ({email}) with role {role}.{NC}")
+except Exception as exc:
+    db.rollback()
+    print(f"{RED}Failed to create user: {exc}{NC}", file=sys.stderr)
+    sys.exit(1)
+finally:
+    db.close()
+    engine.dispose()
+PYEOF
