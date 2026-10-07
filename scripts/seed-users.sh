@@ -121,19 +121,19 @@ if ! grep -qE '^[[:space:]]*HOMEPOT_SEED_USERS=' "$ENV_FILE"; then
 fi
 
 # ----- Locate the interpreter ------------------------------------------------
-# Prefer the repo venv so passlib/bcrypt/SQLAlchemy resolve the same way they do
-# in the service. Fall back to whatever python3 is on PATH.
+# The repo venv lives at the checkout root (.venv/), matching every other
+# script. There is deliberately NO fallback to backend/.venv: that path is not
+# part of the convention, and silently picking a non-canonical venv hid a real
+# deployment gap (the live server was once run from backend/.venv only).
 if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
   PYTHON="$REPO_ROOT/.venv/bin/python"
-elif [ -x "$REPO_ROOT/backend/.venv/bin/python" ]; then
-  PYTHON="$REPO_ROOT/backend/.venv/bin/python"
 else
   PYTHON="python3"
 fi
 
 if ! "$PYTHON" -c "import passlib, sqlalchemy" >/dev/null 2>&1; then
   echo -e "${RED}Error: passlib/sqlalchemy not importable by $PYTHON${NC}" >&2
-  echo "Create the repo venv first:" >&2
+  echo "Create the repo venv at the checkout root first:" >&2
   echo "  python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt" >&2
   exit 1
 fi
