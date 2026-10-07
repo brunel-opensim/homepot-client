@@ -1025,7 +1025,7 @@ Environment="DATABASE_URL=postgresql://homepot_user:password@localhost:5432/home
 Environment="OLLAMA_URL=http://localhost:11434"
 Environment="CHROMADB_PATH=/opt/homepot/chroma_db"
 Environment="AI_ENABLED=true"
-ExecStart=/opt/homepot/venv/bin/uvicorn homepot.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/homepot/.venv/bin/uvicorn homepot.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
 
@@ -1055,14 +1055,14 @@ sudo chown -R homepot:homepot /opt/homepot
 
 # 5. Set up Python virtual environment
 cd /opt/homepot
-sudo -u homepot python3.11 -m venv venv
-sudo -u homepot /opt/homepot/venv/bin/pip install -r backend/requirements.txt
+sudo -u homepot python3.11 -m venv .venv
+sudo -u homepot /opt/homepot/.venv/bin/pip install -r backend/requirements.txt
 
 # 6. Run database migrations
-sudo -u homepot /opt/homepot/venv/bin/alembic -c /opt/homepot/backend/alembic.ini upgrade head
+sudo -u homepot /opt/homepot/.venv/bin/alembic -c /opt/homepot/backend/alembic.ini upgrade head
 
 # 7. Initialize ChromaDB
-sudo -u homepot /opt/homepot/venv/bin/python -m homepot.ai.init_chromadb
+sudo -u homepot /opt/homepot/.venv/bin/python -m homepot.ai.init_chromadb
 
 # 8. Install and start systemd services
 sudo systemctl daemon-reload
