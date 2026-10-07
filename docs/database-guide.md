@@ -231,7 +231,7 @@ The easiest way to add data is through the REST API when the server is running.
 **Start the server:**
 ```bash
 cd backend
-python -m uvicorn homepot.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn homepot.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Add a new site:**
@@ -461,7 +461,7 @@ Use the built-in Swagger UI for interactive data creation:
 1. **Start the server:**
    ```bash
    cd backend
-   python -m uvicorn homepot.main:app --reload
+   python -m uvicorn homepot.app.main:app --reload
    ```
 
 2. **Open browser:** [http://localhost:8000/docs](http://localhost:8000/docs)

@@ -263,7 +263,7 @@ checkpoint_completion_target = 0.9
 ### Initialize PostgreSQL Database
 
 ```bash
-cd /home/mghorbani/workspace/homepot-client
+cd /var/www/homepot.cabera.com
 ./scripts/init-postgresql.sh
 ```
 

@@ -43,7 +43,7 @@ async def get_auth_token(client: httpx.AsyncClient) -> Optional[str]:
         print("ERROR: Could not connect to the server.")
         print("Please start the server by running:")
         print(
-            "source .venv/bin/activate && uvicorn homepot.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
+            "source .venv/bin/activate && uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &"
         )
         print("=" * 80 + "\n")
         return None
