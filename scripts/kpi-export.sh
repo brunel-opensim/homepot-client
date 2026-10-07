@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Resolve the venv python (same pattern as init-postgresql.sh). The repo venv
-# lives at the checkout root (.venv/); backend/.venv is not a canonical path.
+# lives at the checkout root (.venv/); a venv inside backend/ is not canonical.
 if [ -f ".venv/bin/python3" ]; then
     PYTHON=".venv/bin/python3"
 else

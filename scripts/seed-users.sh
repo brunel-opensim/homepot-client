@@ -122,9 +122,9 @@ fi
 
 # ----- Locate the interpreter ------------------------------------------------
 # The repo venv lives at the checkout root (.venv/), matching every other
-# script. There is deliberately NO fallback to backend/.venv: that path is not
-# part of the convention, and silently picking a non-canonical venv hid a real
-# deployment gap (the live server was once run from backend/.venv only).
+# script. There is deliberately NO fallback to a venv inside backend/: that
+# location is not part of the convention, and silently picking a non-canonical
+# venv hid a real deployment gap (the live server once ran from such a venv).
 if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
   PYTHON="$REPO_ROOT/.venv/bin/python"
 else

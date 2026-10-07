@@ -95,7 +95,7 @@ export DATABASE__URL="$HOMEPOT_DB_URL"
 
 # ----- Locate the interpreter ------------------------------------------------
 # The repo venv lives at the checkout root (.venv/), matching every other
-# script. No fallback to backend/.venv (non-canonical location).
+# script. No fallback to a venv inside backend/ (non-canonical location).
 if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
   PYTHON="$REPO_ROOT/.venv/bin/python"
 else
