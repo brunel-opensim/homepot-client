@@ -9,6 +9,14 @@
 # Usage: bash scripts/upgrade-db.sh [--url DATABASE_URL]
 set -euo pipefail
 
+# Resolve the repo root first: the URL resolution below reads backend/.env via
+# scripts/lib/db.sh, which needs REPO_ROOT to locate it.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+HOMEPOT_REPO_ROOT="$REPO_ROOT"
+# shellcheck source=scripts/lib/db.sh
+. "$SCRIPT_DIR/lib/db.sh"
+
 # ----- Resolve database URL -------------------------------------------------
 URL=""
 while (( "$#" )); do
@@ -19,24 +27,17 @@ while (( "$#" )); do
 done
 
 # Precedence: CLI --url > DATABASE__URL env var > DATABASE_URL env var >
-# config default (Postgres only, per repo migration).
+# HOMEPOT_DB_* > DATABASE__URL in backend/.env > config default (Postgres only,
+# per repo migration). Reading backend/.env is what lets this script find a
+# split-host deployment instead of silently targeting localhost/homepot_db.
 if [ -n "$URL" ]; then
-  export DATABASE__URL="$URL"
-elif [ -n "${DATABASE__URL:-}" ]; then
-  : # already set
-elif [ -n "${DATABASE_URL:-}" ]; then
-  export DATABASE__URL="$DATABASE_URL"
-else
-  # Config-driven Postgres default (DatabaseSettings defaults to Postgres).
-  export DATABASE__URL="postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
+  HOMEPOT_DB_URL="$URL"
 fi
+homepot_db_resolve
+export DATABASE__URL="$HOMEPOT_DB_URL"
 
-# Resolve the repo root and the venv's alembic CLI explicitly.  alembic is
-# installed in the repo venv (.venv/bin/alembic), which is NOT guaranteed to
-# be on PATH in a fresh shell, so reference it by absolute path.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-
+# alembic lives in the repo venv (.venv/bin/alembic), which is NOT guaranteed
+# to be on PATH in a fresh shell, so reference it by absolute path.
 if [ -x "$REPO_ROOT/.venv/bin/alembic" ]; then
   ALEMBIC="$REPO_ROOT/.venv/bin/alembic"
 elif command -v alembic >/dev/null 2>&1; then

@@ -175,8 +175,12 @@ default to `DB_NAME=homepot_db`. If the deployment uses a different name, a
 app's own `DATABASE__URL` and warns when the script's target disagrees with what
 the app is actually configured for.
 
-If it warns, do not run those scripts on that host. If you do need to, always
-name the database explicitly:
+If it warns, do not run those scripts on that host. The deployment-safe
+alternative is `scripts/reset-prod-db.sh`, which reads the app's own
+`backend/.env` for the database (so it always targets the real database, by
+name and by host), connects to a maintenance database to perform the drop, and
+refuses to touch any system database. Run it with `--dry-run` first. If you do
+need to use the dev scripts, always name the database explicitly:
 
 ```bash
 HOMEPOT_DB_NAME=<the name in the app's DATABASE__URL> ./scripts/preflight-server.sh
