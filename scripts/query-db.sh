@@ -1,16 +1,26 @@
 #!/bin/bash
 # Simple PostgreSQL query helper for HOMEPOT database
 #
-# Connection is configurable via env vars (defaults target a local dev
-# PostgreSQL, e.g. the one running inside WSL next to the backend):
-#   HOMEPOT_DB_HOST / _PORT / _USER / _NAME / _PASSWORD
+# The connection is resolved by scripts/lib/db.sh, in this order:
+#   HOMEPOT_DB_URL, DATABASE__URL, DATABASE_URL,
+#   HOMEPOT_DB_HOST / _PORT / _USER / _NAME / _PASSWORD,
+#   DATABASE__URL from backend/.env,
+#   local dev default (localhost:5432/homepot_db)
+# So on a split-host deployment it picks up the deployed configuration instead
+# of silently targeting localhost.
+#
 # Example (from macOS, pointing at the WSL/Windows host):
 #   HOMEPOT_DB_HOST=192.168.x.x ./scripts/query-db.sh devices
 
-DB_HOST="${HOMEPOT_DB_HOST:-localhost}"
-DB_PORT="${HOMEPOT_DB_PORT:-5432}"
-DB_USER="${HOMEPOT_DB_USER:-homepot_user}"
-DB_NAME="${HOMEPOT_DB_NAME:-homepot_db}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/db.sh
+. "$SCRIPT_DIR/lib/db.sh"
+homepot_db_resolve
+
+DB_HOST="$HOMEPOT_DB_HOST"
+DB_PORT="$HOMEPOT_DB_PORT"
+DB_USER="$HOMEPOT_DB_USER"
+DB_NAME="$HOMEPOT_DB_NAME"
 DB_PASSWORD="${HOMEPOT_DB_PASSWORD:-homepot_dev_password}"
 DB_AUTH="${HOMEPOT_DB_AUTH:-peer}"
 if [ "$DB_AUTH" != "trust" ]; then
@@ -338,7 +348,7 @@ EOF
         echo ""
         sudo -u postgres psql -c "SHOW data_directory;" 2>/dev/null || echo "  Default: /var/lib/postgresql/16/main/"
         echo ""
-        echo "Your database 'homepot_db' is stored there as binary files."
+        echo "Your database '$DB_NAME' is stored there as binary files."
         echo "You cannot directly open these files - you MUST use psql to access data."
         echo ""
         echo "To explore interactively, run:"

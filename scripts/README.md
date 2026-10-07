@@ -87,6 +87,48 @@ psql -h localhost -U homepot_user -d homepot_db
 sed -i '/homepot_db/d' ~/.pgpass
 ```
 
+### Database URL resolution (`lib/db.sh`)
+
+`query-db.sh`, `add-user.sh`, `seed-users.sh`, `upgrade-db.sh` and
+`reset-prod-db.sh` all resolve the database through `scripts/lib/db.sh`,
+in this order:
+
+1. `HOMEPOT_DB_URL` — explicit full URL
+2. `DATABASE__URL` / `DATABASE_URL` in the environment
+3. `HOMEPOT_DB_HOST` / `_PORT` / `_USER` / `_NAME` / `_PASSWORD`
+4. `DATABASE__URL` / `DATABASE_URL` read from `backend/.env`
+5. local dev default (`localhost:5432/homepot_db`)
+
+Step 4 is what makes the scripts work on split-host deployments, where the
+database is neither on `localhost` nor named `homepot_db`.
+
+### `reset-prod-db.sh`
+
+Drops and recreates the HOMEPOT database on a real deployment, then restarts the
+service, stamps alembic and re-seeds accounts. Intended to be safe to repeat.
+
+**Prerequisites** (both one-time, on the **database** host):
+
+```sql
+ALTER ROLE homepot_user CREATEDB;
+```
+
+…and a `pg_hba.conf` line letting `homepot_user` connect to the maintenance
+database (`postgres` by default), so `DROP DATABASE` has somewhere to run from.
+
+**Usage:**
+```bash
+./scripts/reset-prod-db.sh --dry-run   # check it can connect and would work
+./scripts/reset-prod-db.sh             # interactive, types db name to confirm
+./scripts/reset-prod-db.sh --yes       # non-interactive (automation)
+```
+
+If a prerequisite is missing, the script reports the exact fixing command
+instead of failing halfway through the drop. `--no-stop` leaves the service
+alone (and warns you to restart it yourself afterwards); `--no-seed` skips
+`seed-users.sh`. This is a **destructive** script: dump the database first if
+there is anything in it you would miss.
+
 ### Password Approaches in Scripts
 
 All scripts use standardized password handling:

@@ -35,6 +35,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=scripts/lib/db.sh
+. "$SCRIPT_DIR/lib/db.sh"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -82,16 +84,15 @@ while [ "$#" -gt 0 ]; do
 done
 
 # ----- Resolve the database URL ---------------------------------------------
-# Same precedence as scripts/upgrade-db.sh: CLI > DATABASE__URL > DATABASE_URL.
+# Same precedence as scripts/lib/db.sh: CLI > DATABASE__URL > DATABASE_URL >
+# HOMEPOT_DB_* > DATABASE__URL from backend/.env > local dev default. Reading
+# backend/.env is what makes this work against a split-host deployment, where
+# the database is neither on localhost nor named homepot_db.
 if [ -n "$URL" ]; then
-  export DATABASE__URL="$URL"
-elif [ -n "${DATABASE__URL:-}" ]; then
-  :
-elif [ -n "${DATABASE_URL:-}" ]; then
-  export DATABASE__URL="$DATABASE_URL"
-else
-  export DATABASE__URL="postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
+  HOMEPOT_DB_URL="$URL"
 fi
+homepot_db_resolve
+export DATABASE__URL="$HOMEPOT_DB_URL"
 
 # ----- Load credentials ------------------------------------------------------
 if [ ! -f "$ENV_FILE" ]; then
