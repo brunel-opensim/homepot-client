@@ -164,7 +164,7 @@ class DataCollectionValidator:
                         check_name, "warning", "No active devices found"
                     )
                     self.results["issues"].append(
-                        "No active devices. Start agents with: uvicorn homepot.main:app"
+                        "No active devices. Start agents with: uvicorn homepot.app.main:app"
                     )
                     print(
                         f"{Colors.YELLOW}⚠{Colors.END} {check_name}: No active devices"

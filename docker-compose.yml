@@ -48,9 +48,9 @@ services:
     command: >
       sh -c "
       if [ \"$$HOMEPOT_ENV\" = \"development\" ]; then
-        uvicorn homepot.main:app --host 0.0.0.0 --port 8000 --reload
+        uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
       else
-        uvicorn homepot.main:app --host 0.0.0.0 --port 8000
+        uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000
       fi
       "
     restart: unless-stopped

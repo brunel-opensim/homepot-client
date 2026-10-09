@@ -137,7 +137,7 @@ python backend/utils/populate_schedules.py
 
 ```bash
 source .venv/bin/activate
-uvicorn homepot.main:app --host 0.0.0.0 --port 8000
+uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Troubleshooting

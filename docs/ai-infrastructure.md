@@ -959,7 +959,7 @@ ollama pull phi3.5:3.8b
 ollama serve &
 
 # 4. Activate virtual environment
-cd /home/mghorbani/workspace/homepot-client
+cd /var/www/homepot.cabera.com
 source .venv/bin/activate
 
 # 5. Install Python dependencies
@@ -978,7 +978,7 @@ alembic upgrade head
 python -m homepot.ai.init_chromadb
 
 # 9. Start backend with AI service
-uvicorn homepot.main:app --reload --reload-dir src --reload-dir ../ai --host 0.0.0.0 --port 8000
+uvicorn homepot.app.main:app --reload --reload-dir src --reload-dir ../ai --host 0.0.0.0 --port 8000
 ```
 
 ---
@@ -1008,7 +1008,7 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-Create `/etc/systemd/system/homepot-backend.service`:
+Create `/etc/systemd/system/homepot-api.service`:
 
 ```ini
 [Unit]
@@ -1025,7 +1025,7 @@ Environment="DATABASE_URL=postgresql://homepot_user:password@localhost:5432/home
 Environment="OLLAMA_URL=http://localhost:11434"
 Environment="CHROMADB_PATH=/opt/homepot/chroma_db"
 Environment="AI_ENABLED=true"
-ExecStart=/opt/homepot/.venv/bin/uvicorn homepot.main:app --host 0.0.0.0 --port 8000
+ExecStart=/opt/homepot/.venv/bin/uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
 
@@ -1050,7 +1050,7 @@ sudo -u homepot ollama pull mistral:7b
 sudo -u homepot ollama pull phi3.5:3.8b
 
 # 4. Deploy application code
-sudo cp -r /home/mghorbani/workspace/homepot-client/* /opt/homepot/
+sudo cp -r /var/www/homepot.cabera.com/* /opt/homepot/
 sudo chown -R homepot:homepot /opt/homepot
 
 # 5. Set up Python virtual environment
@@ -1066,14 +1066,14 @@ sudo -u homepot /opt/homepot/.venv/bin/python -m homepot.ai.init_chromadb
 
 # 8. Install and start systemd services
 sudo systemctl daemon-reload
-sudo systemctl enable homepot-ollama homepot-backend
+sudo systemctl enable homepot-ollama homepot-api
 sudo systemctl start homepot-ollama
 sleep 5  # Wait for Ollama to initialize
-sudo systemctl start homepot-backend
+sudo systemctl start homepot-api
 
 # 9. Verify services
 sudo systemctl status homepot-ollama
-sudo systemctl status homepot-backend
+sudo systemctl status homepot-api
 
 # 10. Test AI service
 curl http://localhost:8000/api/ai/status
