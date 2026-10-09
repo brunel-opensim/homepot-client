@@ -58,9 +58,10 @@ fi
 # ---- install Python package ------------------------------------------------
 info "Installing homepot-agent Python package..."
 cd "$REPO_ROOT/backend"
-if [ -d ".venv" ]; then
-    PIP=".venv/bin/pip"
-    AGENT_BIN="$REPO_ROOT/backend/.venv/bin/homepot-agent"
+# The repo venv lives at the repo root (.venv/).
+if [ -d "$REPO_ROOT/.venv" ]; then
+    PIP="$REPO_ROOT/.venv/bin/pip"
+    AGENT_BIN="$REPO_ROOT/.venv/bin/homepot-agent"
 else
     PIP="pip3"
     AGENT_BIN="$(command -v homepot-agent || echo /usr/local/bin/homepot-agent)"

@@ -14,7 +14,7 @@ Starts the complete HOMEPOT website with backend and frontend.
 **What it does:**
 1. Checks prerequisites (Python, Node.js, PostgreSQL)
 2. Verifies ports 8000 and 5173 are available
-3. Activates Python virtual environment (root `venv/`)
+3. Activates Python virtual environment (root `.venv/`)
 4. Starts backend server on http://localhost:8000
 5. Starts frontend dev server on http://localhost:5173
 6. Opens website in default browser
@@ -213,7 +213,7 @@ If you're working on the frontend UI/UX:
 1. **Start the backend first:**
    ```bash
    cd backend
-   source ../venv/bin/activate
+   source ../.venv/bin/activate
    python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
 

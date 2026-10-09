@@ -551,11 +551,11 @@ validate_code_quality() {
         echo -n "    Security scan (bandit): "
         log_verbose "Running: bandit -r backend/ ai/ -ll --exclude venv,.venv,htmlcov,.pytest_cache,.mypy_cache"
         # Use -ll for low severity threshold, exclude virtual env and build artifacts
-        if bandit -r backend/ ai/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
+        if bandit -r backend/ ai/ -ll -q --exclude venv,.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>&1 | grep -v "WARNING" >/dev/null; then
             echo -e "${GREEN}Passed${NC}"
         else
             # Check exit code - 0 means success, 1 means issues found
-            if bandit -r backend/ ai/ -ll -q --exclude backend/venv,backend/.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>/dev/null; then
+            if bandit -r backend/ ai/ -ll -q --exclude venv,.venv,backend/htmlcov,backend/.pytest_cache,backend/.mypy_cache,backend/homepot.egg-info 2>/dev/null; then
                 echo -e "${GREEN}Passed${NC}"
             else
                 echo -e "${YELLOW}Warnings found - review with: bandit -r backend/ ai/ -ll${NC}"

@@ -72,13 +72,17 @@ fi
 info "Installing homepot-agent Python package..."
 cd "$REPO_ROOT/backend"
 
-if [ -d ".venv" ]; then
-    info "Using existing virtual environment at backend/.venv"
-    PIP=".venv/bin/pip"
-    PYTHON=".venv/bin/python"
+# The repo venv lives at the repo root (.venv/); that is the only venv location
+# we reuse. Without one we install into the system Python.
+if [ -d "$REPO_ROOT/.venv" ]; then
+    info "Using repo virtual environment at $REPO_ROOT/.venv"
+    PIP="$REPO_ROOT/.venv/bin/pip"
+    PYTHON="$REPO_ROOT/.venv/bin/python"
+    AGENT_BIN="$REPO_ROOT/.venv/bin/homepot-agent"
 else
     PIP="pip3"
     PYTHON="python3"
+    AGENT_BIN="$INSTALL_PREFIX/bin/homepot-agent"
 fi
 
 $PIP install --upgrade pip
@@ -96,7 +100,6 @@ cp "$SCRIPT_DIR/homepot-agent.service" "$SYSTEMD_DIR/$SERVICE_NAME.service"
 chmod 0644 "$SYSTEMD_DIR/$SERVICE_NAME.service"
 
 # Update the ExecStart to point to the installed agent binary
-AGENT_BIN="$INSTALL_PREFIX/bin/homepot-agent"
 sed -i "s|ExecStart=.*|ExecStart=$AGENT_BIN run|" "$SYSTEMD_DIR/$SERVICE_NAME.service"
 
 systemctl daemon-reload

@@ -116,11 +116,14 @@ git pull origin main
 
 ### 2. Set Up Python Environment
 
+The venv lives at the **checkout root** (`.venv/`), not under `backend/` —
+this matches `install-backend.sh` and the systemd unit's ExecStart. Run from
+the repo root:
+
 ```bash
-cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e backend/
 ```
 
 ### 3. Initialize Database

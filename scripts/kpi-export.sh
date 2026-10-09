@@ -9,11 +9,10 @@ set -euo pipefail
 # Run from the repo root regardless of the caller's cwd.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Resolve the venv python (same pattern as init-postgresql.sh).
+# Resolve the venv python (same pattern as init-postgresql.sh). The repo venv
+# lives at the checkout root (.venv/); a venv inside backend/ is not canonical.
 if [ -f ".venv/bin/python3" ]; then
     PYTHON=".venv/bin/python3"
-elif [ -f "backend/.venv/bin/python3" ]; then
-    PYTHON="backend/.venv/bin/python3"
 else
     PYTHON="python3"
 fi

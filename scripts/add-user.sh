@@ -94,17 +94,17 @@ homepot_db_resolve
 export DATABASE__URL="$HOMEPOT_DB_URL"
 
 # ----- Locate the interpreter ------------------------------------------------
+# The repo venv lives at the checkout root (.venv/), matching every other
+# script. No fallback to a venv inside backend/ (non-canonical location).
 if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
   PYTHON="$REPO_ROOT/.venv/bin/python"
-elif [ -x "$REPO_ROOT/backend/.venv/bin/python" ]; then
-  PYTHON="$REPO_ROOT/backend/.venv/bin/python"
 else
   PYTHON="python3"
 fi
 
 if ! "$PYTHON" -c "import passlib, sqlalchemy" >/dev/null 2>&1; then
   echo -e "${RED}Error: passlib/sqlalchemy not importable by $PYTHON${NC}" >&2
-  echo "Create the repo venv first:" >&2
+  echo "Create the repo venv at the checkout root first:" >&2
   echo "  python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt" >&2
   exit 1
 fi

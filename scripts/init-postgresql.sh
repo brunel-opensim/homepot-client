@@ -215,8 +215,6 @@ echo "Initializing database schema and admin user..."
 # Determine Python executable
 if [ -f ".venv/bin/python3" ]; then
     PYTHON_CMD=".venv/bin/python3"
-elif [ -f "backend/.venv/bin/python3" ]; then
-    PYTHON_CMD="backend/.venv/bin/python3"
 else
     PYTHON_CMD="python3"
 fi

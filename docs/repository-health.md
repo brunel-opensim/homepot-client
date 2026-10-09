@@ -201,7 +201,7 @@ CI/CD workflows (`.github/workflows/`)
 
 ### What SHOULD NOT Be Committed
 
-Dependencies (`node_modules/`, `venv/`)  
+Dependencies (`node_modules/`, `.venv/`, `venv/`)  
 Build artifacts (`dist/`, `build/`, `*.pyc`)  
 IDE settings (`.vscode/`, `.idea/` - personal preferences only)  
 Environment files with secrets (`.env`, `.env.local`)  
