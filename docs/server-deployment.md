@@ -11,6 +11,64 @@ development and staging. The stack includes:
 - **LLM**: Ollama with llama3.2 (3B model, ~2GB)
 - **Domain**: homepot.cabera.com (SSL via Let's Encrypt)
 
+## Production as-built (homepot.cabera.com)
+
+Current state of the live production server, for technicians applying changes.
+Last verified: 2026-10-09 (checkout `main` @ `c0ad135`).
+
+### Topology
+
+- **Split-host**: application/web host `51.161.114.192` and database host
+  `51.161.114.195:5432`. Apache serves `https://homepot.cabera.com` and
+  reverse-proxies to the API on loopback only.
+- **Checkout**: `/var/www/homepot.cabera.com`, files owned `ubuntu:homepot`,
+  operator account `demouser`. Never run `git` via sudo.
+
+### Python environment
+
+- The venv lives at the **checkout root**: `/var/www/homepot.cabera.com/.venv`
+  (canonical location — do not use `backend/.venv`). Rebuild it with:
+
+  ```bash
+  cd /var/www/homepot.cabera.com
+  python3 -m venv .venv && .venv/bin/pip install -e backend/
+  .venv/bin/python -c "import homepot, passlib, sqlalchemy, bcrypt"
+  .venv/bin/alembic --version
+  ```
+
+- Verified: `alembic 1.20.0` (the editable install resolves newer than the
+  `requirements.txt` pin `==1.17.2`, which is fine). The retired
+  `backend/.venv` was backed up to `/root/homepot-venv-backup-*`.
+
+### Service
+
+- Unit: `/etc/systemd/system/homepot-api.service` (no drop-ins as last known).
+- `WorkingDirectory=/var/www/homepot.cabera.com/backend`
+- `ExecStart=/var/www/homepot.cabera.com/.venv/bin/uvicorn homepot.app.main:app --host 127.0.0.1 --port 8000 --log-level info`
+- `homepot.app.main:app` is the canonical entrypoint; the legacy
+  `homepot.main:app` must never be started.
+
+### Database
+
+- Database `homepot`, role `homepot_user` (owner, has `CREATEDB`), on
+  `51.161.114.195`, password auth (scram). The two `pg_hba.conf` rules for the
+  web host and the maintenance-URL technique are recorded in
+  `docs/server-admin-option-b.md` (§ As-built).
+
+### Credentials (gitignored, deploy-only)
+
+- `backend/.env` → `DATABASE__URL` used by the app and the reset scripts.
+- `scripts/seed-users.env` → account set applied by
+  `scripts/seed-users.sh` after a reset (3 dev accounts: `maziar` Admin,
+  `gowtham` Technician, `robin` Technician, shared dev password). Google SSO
+  env vars are not configured.
+
+### Status / next actions
+
+- Reset NOT yet performed. The unit's `ExecStart` was still on the old
+  `backend/.venv` at the last check — confirm it points at the root `.venv`
+  before running a reset (see `docs/server-admin-option-b.md`).
+
 ## Server Requirements
 
 | Resource | Minimum | Recommended |
@@ -234,6 +292,20 @@ psql -h localhost -U postgres -d homepot_db \
 ./scripts/upgrade-db.sh
 ```
 
+### Reset Database (Production)
+
+Use `scripts/reset-prod-db.sh` — it reads `backend/.env` for the real database,
+connects via the maintenance URL to perform the DROP/CREATE, refuses to touch
+system databases, and re-runs migrations plus the user seed on success.
+Prerequisites: both `pg_hba.conf` rules, `CREATEDB` on `homepot_user`, the root
+`.venv`, and a populated `scripts/seed-users.env`. Run `--dry-run` first, then
+the real run (it types the database name to confirm):
+
+```bash
+./scripts/reset-prod-db.sh --dry-run
+./scripts/reset-prod-db.sh
+```
+
 ### Run Migrations
 
 ```bash
@@ -318,7 +390,10 @@ No server-side configuration is needed for elevation.
 | `setup-ollama.sh` | Install/start Ollama, pull model | No |
 | `start-dashboard.sh` | Start backend + frontend | No |
 | `stop-dashboard.sh` | Stop both services | No |
-| `reset-db.sh` | Drop and recreate database | No |
+| `reset-db.sh` | Drop and recreate database (dev) | No |
+| `reset-prod-db.sh` | Deployment-safe reset (DROP/CREATE via maintenance URL) | Yes (systemctl) |
+| `seed-users.sh` | Seed/rotate user accounts | No |
+| `add-user.sh` | Add a single user | No |
 | `status.sh` | Check all service statuses | No |
 | `upgrade-db.sh` | Run Alembic migrations | No |
 | `query-db.sh` | Query database | No |
