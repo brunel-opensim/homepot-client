@@ -207,3 +207,53 @@ grep -rn 'REVERT' scripts/ deploy/ docs/
 
 Reverse = delete the two `trust` lines in Step 1 + `reload`, then follow the
 password path in `docs/server-deployment.md` §1.
+
+---
+
+## Addendum: split-host rules in production (`homepot.cabera.com`)
+
+Production is split-host: app/web `51.161.114.192`, database
+`51.161.114.195`. `trust` cannot be used across hosts, so the DB server uses
+scram password rules instead — these are the working rules on the live host
+(order matters: DATABASE, then USER, then address):
+
+```text
+# TYPE  DATABASE  USER         ADDRESS            METHOD
+host    homepot   homepot_user 51.161.114.192/32   scram-sha-256
+host    postgres  homepot_user 51.161.114.192/32   scram-sha-256
+```
+
+- The `homepot` rule is the app's normal connection.
+- The `postgres` rule is the *maintenance* connection: reset scripts connect
+  to the `postgres` database to run `DROP DATABASE` / `CREATE DATABASE`.
+- Troubleshooting history: an earlier attempt had DATABASE and USER swapped,
+  which silently matched nothing and broke all connectivity. When adding
+  rules on a production instance, confirm with:
+
+  ```bash
+  SELECT line_number, database, user_name, address, auth_method, error
+  FROM pg_hba_file_rules
+  WHERE user_name = 'homepot_user'
+  ORDER BY line_number;
+  ```
+
+  then reload without restart: `SELECT pg_reload_conf();`.
+
+The role also needs the deploy-time flag:
+
+```sql
+ALTER ROLE homepot_user CREATEDB;
+```
+
+Verify connectivity and the flag **from the app host**. Rewrite the DB name in
+the URL (never pass `psql -d` together with a connection string — that falls
+back to the Unix socket):
+
+```bash
+DBURL=$(grep -E '^DATABASE__URL=' backend/.env | head -1 | cut -d= -f2-)
+psql "${DBURL%/homepot}/postgres" -c "SELECT 1"
+psql "${DBURL%/homepot}/postgres" -c "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user;"
+```
+
+Expect `1` and `t`. `scripts/reset-prod-db.sh` runs the same two checks during
+its preflight.
