@@ -88,6 +88,12 @@ def root() -> dict:
     return {"message": "I Am Alive"}
 
 
+@app.get("/health", tags=["Health"])
+def health() -> dict:
+    """Return the API process liveness status."""
+    return {"status": "ok"}
+
+
 @app.on_event("startup")
 async def initialize_database() -> None:
     """Initialize database schema when the API process starts."""
