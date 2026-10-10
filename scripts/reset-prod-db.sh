@@ -156,14 +156,14 @@ if ! MAINT_ERR="$(psql "$MAINT_URL" -v ON_ERROR_STOP=1 -tAc "SELECT 1" 2>&1 >/de
       ;;
   esac
 else
-  ROLE_PRIV="$(psql "$MAINT_URL" -tAc "SELECT rolsuper || ',' || rolcreatedb FROM pg_roles WHERE rolname = current_user" | tr -d '[:space:]')"
+  ROLE_PRIV="$(psql "$MAINT_URL" -tAc "SELECT rolsuper::int || ',' || rolcreatedb::int FROM pg_roles WHERE rolname = current_user" | tr -d '[:space:]')"
   ROLE_SUPER="${ROLE_PRIV%,*}"
   ROLE_CREATEDB="${ROLE_PRIV#*,}"
 
-  if [ "$ROLE_SUPER" = "t" ]; then
+  if [ "$ROLE_SUPER" = "1" ]; then
     echo -e "${YELLOW}note: connected as a superuser, not $HOMEPOT_DB_USER.${NC}" >&2
   fi
-  if [ "$ROLE_CREATEDB" != "t" ]; then
+  if [ "$ROLE_CREATEDB" != "1" ]; then
     PREFLIGHT_PROBLEM="$HOMEPOT_DB_USER lacks CREATEDB. It owns the database but
   cannot drop or recreate it. On the database host, run once:
 
