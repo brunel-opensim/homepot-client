@@ -17,6 +17,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+HOMEPOT_REPO_ROOT="$REPO_ROOT"
+# shellcheck source=scripts/lib/db.sh
+. "$SCRIPT_DIR/lib/db.sh"
 
 echo "=== HOMEPOT Demo Data Seeder ==="
 echo ""
@@ -34,7 +37,9 @@ fi
 # Default database connection (matches init-postgresql.sh)
 export DATABASE__URL="${DATABASE__URL:-postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db}"
 
-echo ">> Running demo seed against $DATABASE__URL ..."
+homepot_db_resolve
+
+echo ">> Running demo seed against $(homepot_db_describe) ..."
 "$PYTHON_CMD" "$REPO_ROOT/backend/utils/seed_data.py"
 
 echo ""
