@@ -18,6 +18,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from homepot.config import get_settings  # noqa: E402
+from homepot.database import to_sync_db_url  # noqa: E402
 from homepot.models import Base  # noqa: E402
 
 config = context.config
@@ -29,11 +30,18 @@ target_metadata = Base.metadata
 
 
 def _resolve_database_url() -> str:
-    """Resolve migration DB URL from env var or application settings."""
+    """Resolve migration DB URL from env var or application settings.
+
+    Normalise through :func:`homepot.database.to_sync_db_url`: a bare
+    ``postgresql://`` is interpreted by SQLAlchemy 2.1 as the psycopg 3
+    dialect, which this project does not install. The synchronous engine must
+    be pinned to psycopg2 (``postgresql+psycopg2://``) just like the other
+    utility scripts, or Alembic fails with ``No module named 'psycopg'``.
+    """
     env_db_url = os.getenv("DATABASE_URL") or os.getenv("DATABASE__URL")
     if env_db_url:
-        return env_db_url
-    return get_settings().database.url
+        return to_sync_db_url(env_db_url)
+    return to_sync_db_url(get_settings().database.url)
 
 
 def run_migrations_offline() -> None:
