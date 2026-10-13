@@ -106,5 +106,5 @@ fi
 
 echo ""
 echo "=== upgrade-db complete ==="
-echo "DB URL: $DATABASE__URL"
+echo "DB URL: $(homepot_db_describe)"
 echo "alembic_version: $(psql "$DATABASE__URL" -tAc 'SELECT version_num FROM alembic_version' 2>/dev/null | tr -d '[:space:]' || echo 'N/A')"
