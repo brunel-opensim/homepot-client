@@ -14,7 +14,8 @@ development and staging. The stack includes:
 ## Production as-built (homepot.cabera.com)
 
 Current state of the live production server, for technicians applying changes.
-Last verified: 2026-10-09 (checkout `main` @ `c0ad135`).
+Last verified: 2026-10-13, after the first successful production reset (current
+`main`).
 
 ### Topology
 
@@ -31,14 +32,23 @@ Last verified: 2026-10-09 (checkout `main` @ `c0ad135`).
 
   ```bash
   cd /var/www/homepot.cabera.com
-  python3 -m venv .venv && .venv/bin/pip install -e backend/
-  .venv/bin/python -c "import homepot, passlib, sqlalchemy, bcrypt"
+  python3 -m venv .venv
+  .venv/bin/pip install -e backend/
+  .venv/bin/pip install -r backend/requirements.txt
+  .venv/bin/python -c "import homepot, passlib, sqlalchemy, bcrypt, psycopg2"
   .venv/bin/alembic --version
   ```
 
-- Verified: `alembic 1.20.0` (the editable install resolves newer than the
-  `requirements.txt` pin `==1.17.2`, which is fine). The retired
-  `backend/.venv` was backed up to `/root/homepot-venv-backup-*`.
+  Run **both** installs — the same sequence `install-backend.sh` performs. The
+  editable step alone pulls the latest SQLAlchemy, and ≥ 2.1 resolves a bare
+  `postgresql://` URL to the psycopg 3 dialect, which is not installed; the
+  pinned `requirements.txt` (`sqlalchemy==2.0.45`, `psycopg2-binary`) keeps the
+  sync driver on psycopg2. Missing that second step is what broke `alembic
+  stamp` on the 2026-10-13 reset (`No module named 'psycopg'`), fixed by #490.
+
+- Verified: `alembic 1.20.0`; schema stamped at head
+  `20260929_add_command_issued_by`. The retired `backend/.venv` was backed up
+  to `/root/homepot-venv-backup-*`.
 
 ### Service
 
@@ -63,11 +73,20 @@ Last verified: 2026-10-09 (checkout `main` @ `c0ad135`).
   `gowtham` Technician, `robin` Technician, shared dev password). Google SSO
   env vars are not configured.
 
-### Status / next actions
+### Status (post-reset, 2026-10-13)
 
-- Reset NOT yet performed. The unit's `ExecStart` was still on the old
-  `backend/.venv` at the last check — confirm it points at the root `.venv`
-  before running a reset (see `docs/server-admin-option-b.md`).
+- **Reset executed successfully** with `scripts/reset-prod-db.sh`: DB dropped
+  and recreated as `homepot_user`, service restarted onto the root `.venv`,
+  alembic stamped at head (`20260929_add_command_issued_by`, 16 tables), and
+  three accounts provisioned — `maziar` (Admin), `gowtham` (Technician),
+  `robin` (Technician), shared dev password.
+- Verified live: `/api/v1/health` → 200; password login as `maziar` returns a
+  JWT with `is_admin: true`.
+- `demouser` has scoped passwordless sudo for **exactly** `/usr/bin/systemctl
+  stop homepot-api` and `/usr/bin/systemctl start homepot-api` (file
+  `/etc/sudoers.d/homepot-api-reset`) — required by `reset-prod-db.sh`;
+  nothing broader was granted.
+- Pre-reset devices were wiped by design — re-register devices after a reset.
 
 ## Server Requirements
 
@@ -182,6 +201,7 @@ the repo root:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e backend/
+pip install -r backend/requirements.txt
 ```
 
 ### 3. Initialize Database
