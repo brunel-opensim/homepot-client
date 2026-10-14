@@ -154,7 +154,7 @@ clean start/stop cycle, which doubles as a smoke test to catch startup issues ea
 |---------|--------------------|--------------------|---------------|--------------|
 | **Backend** (API :8000) | `backend.log`, `backend.out` | `backend.pid` | `./scripts/start-dashboard.sh` | `./scripts/stop-dashboard.sh` |
 | **Frontend** (Vite :5173) | `frontend.log` | `frontend.pid` | `./scripts/start-dashboard.sh` | `./scripts/stop-dashboard.sh` |
-| **AI / LLM** (Ollama :11434) | `ai.log` | `ai.pid` | `./scripts/setup-ollama.sh` | n/a (see note) |
+| **AI / LLM** (Ollama :11434) | `ai.log`, `ollama.log` | `ollama.pid` (dev) | `./scripts/setup-ollama.sh` | n/a (see note) |
 | **Emulator** (POS terminal) | `emulator-<name>.log` | `emulator-<name>.pid` | `./scripts/start-emulator.sh` | `./scripts/stop-emulator.sh [name]` |
 | **User App** (Electron agent) | `userapp.log` | `userapp.pid` | `./scripts/start-userapp.sh` | `./scripts/stop-userapp.sh` |
 
@@ -210,8 +210,9 @@ clean start/stop cycle, which doubles as a smoke test to catch startup issues ea
 > - **Ollama running as a different OS user** (e.g. systemd `ollama` service): `lsof` on
 >   the port returns nothing under your user, so `setup-ollama.sh` probes the Ollama
 >   HTTP API (`/api/version`) and falls back to `pgrep` — it will reuse the existing
->   instance and write its real PID to `ai.pid`. A stale/dead PID in `ai.pid` usually
->   means the instance could not bind the port.
+>   instance and does **not** write a PID file (systemd owns that process). `ollama.pid`
+>   is written only when the script starts its own instance; a stale/dead PID there
+>   usually means the instance could not bind the port.
 > - **"Request failed with status code 500" at login** almost always means the
 >   **backend is not running** — Vite returns a proxy 500. Check
 >   `curl http://127.0.0.1:8000/api/v1/health` first.
