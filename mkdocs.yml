@@ -110,6 +110,7 @@ nav:
       - Product Vision: product-vision.md
       - Compliance Matrix: architecture-compliance-matrix.md
       - RBAC Hardening Plan: rbac-hardening-plan.md
+      - Access Roles (Admin, Technician, Guest): guest-reviewer-role.md
       - UK KPI Evaluation Roadmap: kpi-evaluation-roadmap.md
       - KPI Export & Calculations: kpi-export.md
       - Pilot Operator Protocol: operator-protocol.md
