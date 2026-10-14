@@ -96,3 +96,16 @@ Then try running the start script again.
 
 ### Port Already in Use
 If port `8000` or `5173` is already in use, the start script will ask if you want to kill the existing process. Type `y` and press Enter to proceed.
+
+### Browser Can't Open the Dashboard (Network/ISP Filter)
+If the dashboard fails to load in a browser while other sites work — or it loads on
+your phone but not your computer — a network-level content filter is likely
+intercepting the connection. Common on UK ISPs: **EE broadband's "WiFi Security
+(Advanced Web Protect)" / "Web Safe"** blocks `homepot.cabera.com`. Symptoms include
+Safari's "Can't Open the Page" and Firefox's "SSL received a record that exceeded the
+maximum permissible length".
+
+This is a network problem, not a browser or HOMEPOT problem — switching browsers won't
+help. Turn off the ISP/router filter, or use a VPN or a different network. See
+[Server Deployment → Dashboard Unreachable From One Machine](server-deployment.md#dashboard-unreachable-from-one-machine-isp-content-filter)
+for the full diagnosis.

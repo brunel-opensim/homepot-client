@@ -458,3 +458,33 @@ tail -f logs/api.log
 ss -tlnp | grep :8000
 ss -tlnp | grep :11434
 ```
+
+### Dashboard Unreachable From One Machine (ISP Content Filter)
+
+Symptom: `https://homepot.cabera.com` works on some devices/networks but fails on
+another, with client errors such as:
+
+- Safari — "Can't Open the Page"
+- Firefox — "SSL received a record that exceeded the maximum permissible length"
+- `curl` — "wrong version number" or "tlsv1 alert protocol version"
+
+These mean a network-level content filter is intercepting TLS and returning a block
+page, not a HOMEPOT or browser problem. Seen in the field with **EE broadband**,
+whose "WiFi Security (Advanced Web Protect)" / "Web Safe" setting blocks
+`homepot.cabera.com` and redirects to `block.ee.co.uk`. Every browser on the
+affected machine fails identically; other machines (including phones on cellular)
+are unaffected.
+
+Diagnose from the affected machine — a block page appears as a `302` to the filter:
+
+```bash
+curl -vI http://homepot.cabera.com/ 2>&1 | grep -iE 'HTTP/|Location'
+```
+
+Fix (any one):
+- Disable the ISP/router web filter or parental controls for that connection.
+- Ask the ISP to whitelist/recategorise `homepot.cabera.com`.
+- Use a VPN or a different network (e.g. mobile hotspot) on the affected machine.
+
+No specific browser is required; any modern browser works once the network stops
+intercepting the connection.
