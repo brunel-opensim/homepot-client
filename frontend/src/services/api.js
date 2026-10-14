@@ -16,6 +16,10 @@ import axios from 'axios';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const API_VERSION = 'v1';
 const API_TIMEOUT = import.meta.env.VITE_API_TIMEOUT || 30000;
+// AI queries run synchronous CPU inference on the server and can legitimately
+// take 60-120s+ (longer on the first, cold request). The default 30s is far too
+// short; allow overriding via env. Still bounded by Apache's ProxyTimeout.
+const AI_QUERY_TIMEOUT = import.meta.env.VITE_AI_QUERY_TIMEOUT || 180000;
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -789,8 +793,11 @@ const api = {
       if (role) {
         payload.role = role;
       }
-      // Increase timeout for AI queries as model cold-start can take time
-      const response = await apiClient.post('/ai/query', payload, { timeout: 60000 });
+      // AI inference (local LLM, CPU) can take well over a minute, and cold
+      // model loads longer still -- use the AI-specific timeout.
+      const response = await apiClient.post('/ai/query', payload, {
+        timeout: AI_QUERY_TIMEOUT,
+      });
       return response.data;
     },
 

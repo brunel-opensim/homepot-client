@@ -8,6 +8,7 @@ See docs/ai-agentic.md for the full architecture.
 """
 
 from dataclasses import dataclass
+import asyncio
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -163,7 +164,8 @@ async def run_agent(
 
         # Call LLM with tools
         try:
-            response = llm.generate_with_tools(
+            response = await asyncio.to_thread(
+                llm.generate_with_tools,
                 messages=messages,
                 tools=TOOL_FUNCTIONS,
             )
@@ -232,7 +234,8 @@ async def run_agent(
             }
         )
         try:
-            response = llm.generate_with_tools(
+            response = await asyncio.to_thread(
+                llm.generate_with_tools,
                 messages=messages,
                 tools=TOOL_FUNCTIONS,
             )
