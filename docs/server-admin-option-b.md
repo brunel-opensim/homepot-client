@@ -167,7 +167,7 @@ which is the healthy result. A `5xx` there points at the database. Note that
 `/api/v1/health` reports the *client* connection only, so a `200` from it does
 **not** prove the database is reachable.
 
-### ⚠️ Check 5 exists to stop you dropping the wrong database
+### Warning: Check 5 exists to stop you dropping the wrong database
 
 `init-postgresql.sh` and `reset-db.sh` **DROP and CREATE** a database, and both
 default to `DB_NAME=homepot_db`. If the deployment uses a different name, a

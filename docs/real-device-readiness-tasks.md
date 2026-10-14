@@ -18,17 +18,17 @@ This document is based on a code-level audit of `backend/`, `frontend/`, and `us
 
 | Area | Status |
 | --- | --- |
-| Device registration + API key auth (`X-Device-ID` / `X-API-Key`) | ✅ Done |
-| Device DNA capture (`os_details`, `mac_address`, `wan_ip`, `peripherals`) | ✅ Done |
-| Agent heartbeat + telemetry loops with offline retry queue | ✅ Done (`backend/src/homepot/agent/real_device_agent.py`) |
-| Agent local IPC server (`/status`, `/health`, `/last-telemetry`) | ✅ Scaffolded (`agent/utils/local_ipc.py`) |
-| Device provisioning endpoint (`POST /api/v1/devices/provision`) | ✅ Done |
-| Pre-provisioned vs self-enrolled devices (`enrollment_method`) | ✅ Done |
-| Command queueing model + endpoints (`DeviceCommand`, `/devices/{id}/commands`, `/devices/pending`, `/commands/{id}/status`) | ✅ Endpoints exist |
-| Peripheral discovery for printers (CUPS `lpstat`, Windows `Get-Printer`) + emulator toggle | ✅ Partial (printers only) |
-| Dashboard command builder UI (`frontend/src/pages/Device/PushReview.jsx`) | ✅ Done |
-| User App scaffold (`user_app/`) — Vite + React 19 views (SetupWizard, HomeDashboard, Permissions, DeviceInfo) | ✅ Static UI only |
-| User App packaging for real devices — Electron shell + frozen `homepot-agent`/`homepot-emulator` (PyInstaller) bundled via `extraResources` + auto-update via draft GitHub releases | ✅ Partially delivered (see [user-app-frontend-guide.md §4.8](user-app-frontend-guide.md#48-real-device-transition--what-the-packaged-app-achieves)) |
+| Device registration + API key auth (`X-Device-ID` / `X-API-Key`) | ✓ Done |
+| Device DNA capture (`os_details`, `mac_address`, `wan_ip`, `peripherals`) | ✓ Done |
+| Agent heartbeat + telemetry loops with offline retry queue | ✓ Done (`backend/src/homepot/agent/real_device_agent.py`) |
+| Agent local IPC server (`/status`, `/health`, `/last-telemetry`) | ✓ Scaffolded (`agent/utils/local_ipc.py`) |
+| Device provisioning endpoint (`POST /api/v1/devices/provision`) | ✓ Done |
+| Pre-provisioned vs self-enrolled devices (`enrollment_method`) | ✓ Done |
+| Command queueing model + endpoints (`DeviceCommand`, `/devices/{id}/commands`, `/devices/pending`, `/commands/{id}/status`) | ✓ Endpoints exist |
+| Peripheral discovery for printers (CUPS `lpstat`, Windows `Get-Printer`) + emulator toggle | ✓ Partial (printers only) |
+| Dashboard command builder UI (`frontend/src/pages/Device/PushReview.jsx`) | ✓ Done |
+| User App scaffold (`user_app/`) — Vite + React 19 views (SetupWizard, HomeDashboard, Permissions, DeviceInfo) | ✓ Static UI only |
+| User App packaging for real devices — Electron shell + frozen `homepot-agent`/`homepot-emulator` (PyInstaller) bundled via `extraResources` + auto-update via draft GitHub releases | ✓ Partially delivered (see [user-app-frontend-guide.md §4.8](user-app-frontend-guide.md#48-real-device-transition--what-the-packaged-app-achieves)) |
 
 ## 2. Critical gaps found (drive the task list below)
 

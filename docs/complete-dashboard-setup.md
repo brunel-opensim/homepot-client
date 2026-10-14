@@ -30,7 +30,7 @@ This guide provides step-by-step instructions to run the complete HOMEPOT dashbo
 
 ### Important Dependencies
 
-⚠️ **bcrypt Version:** The project requires `bcrypt==4.1.3` for compatibility with `passlib`. Version 5.x has breaking changes that cause authentication failures. This is already pinned in `backend/requirements.txt`.
+**bcrypt Version:** The project requires `bcrypt==4.1.3` for compatibility with `passlib`. Version 5.x has breaking changes that cause authentication failures. This is already pinned in `backend/requirements.txt`.
 
 ## Quick Start
 

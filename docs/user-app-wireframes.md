@@ -58,7 +58,7 @@ Page 1 is first-run only.
 │   └─────────────────────────┘   │
 │                                 │
 │   ┌─────────────────────────┐   │
-│   │   🔐  Login with SSO    │   │
+│   │   *   Login with SSO    │   │
 │   └─────────────────────────┘   │
 │                                 │
 │             [ Next → ]          │
@@ -80,7 +80,7 @@ Page 1 is first-run only.
 
 ```
 ┌─────────────────────────────────┐
-│  HOMEPOT Agent       Radha  👤  │
+│  HOMEPOT Agent       Radha  o   │
 │ ─────────────────────────────── │
 │  ┌──────────────────────────┐   │
 │  │  ●  SECURE — ONLINE      │   │  ← green
@@ -92,7 +92,7 @@ Page 1 is first-run only.
 │   42%        61%       28%      │
 │                                 │
 │  ┌──────────────────────────┐   │
-│  │ ❤  Heartbeat: 13:52:01  │    │
+│  │ o   Heartbeat: 13:52:01  │    │
 │  └──────────────────────────┘   │
 │                                 │
 │ ┌──────┬───────────┬─────────┐  │
@@ -139,7 +139,7 @@ Page 1 is first-run only.
 │  Track connections        [ON]  │
 │  ─────────────────────────────  │
 │                                 │
-│  ⚠  Changes apply immediately   │
+│  !   Changes apply immediately   │
 │                                 │
 │ ┌──────┬───────────┬─────────┐  │
 │ │ Home │   Perms   │Settings │  │
@@ -182,7 +182,7 @@ Page 1 is first-run only.
 │  └──────────────────────────┘   │
 │                                 │
 │  ┌──────────────────────────┐   │
-│  │  🔌  Disconnect & Unpair │   │  ← red / danger
+│  │  x   Disconnect & Unpair │   │  ← red / danger
 │  └──────────────────────────┘   │
 │  Removes token, unpairs device  │
 │  (Soft delete) & resets app     │

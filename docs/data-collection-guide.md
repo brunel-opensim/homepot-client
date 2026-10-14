@@ -77,7 +77,7 @@ Minimum data requirement: 3 days
 ✓ Database Connectivity: Connected
 ✓ Agent Activity: 12 devices active
 ✓ Device Metrics: 45620 records (2.7 days)
-⚠ Job Outcomes: Only 1.2/3.0 days
+! Job Outcomes: Only 1.2/3.0 days
 ✓ Device State History: 234 records (2.7 days)
 ✓ Error Logs: 48 records (2.7 days)
 ✓ Configuration History: 15 records (2.7 days)
@@ -94,10 +94,10 @@ Validation Summary
 ======================================================================
 Total Checks: 9
   ✓ Passed: 8
-  ⚠ Warnings: 1
+  ! Warnings: 1
   ✗ Failed: 0
 
-⚠ Overall Status: WARNING
+! Overall Status: WARNING
 Some warnings detected. Review recommendations below.
 
 Recommendations:

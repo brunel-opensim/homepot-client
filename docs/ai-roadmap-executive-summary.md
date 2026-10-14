@@ -40,22 +40,22 @@ This reduces Phase 3-4 from **18 weeks to 5-8 weeks** and cuts costs by **75-90%
 
 ## 7 Strategic Phases
 
-### Phase 1: Foundation ✅
+### Phase 1: Foundation ✓
 **What:** Complete website integration, establish data collection  
 **Key Outcome:** 10+ devices streaming metrics to time-series database  
 **Status:** Complete
 
-### Phase 2: Data Pipeline ✅
+### Phase 2: Data Pipeline ✓
 **What:** Build ETL pipeline, analytics API, advanced dashboards  
 **Key Outcome:** Real-time analytics processing 10K+ metrics/hour  
 **Status:** Complete
 
-### Phase 3: AI Infrastructure ✅
+### Phase 3: AI Infrastructure ✓
 **What:** Adapt Personal AI Companion for device monitoring  
 **Key Outcome:** AI service with Ollama + ChromaDB + 12 context sources + 3 validation gates  
 **Status:** Complete
 
-### Phase 4: AI Data Integration 🟡 (Active)
+### Phase 4: AI Data Integration (Active)
 **What:** Feed ALL database fields into AI context, not just the original 14 tables  
 **Key Outcome:** AI accesses all 25 tables — device permissions, lifecycle, enrolment, jobs, org hierarchy  
 **Sub-layers:**
@@ -66,16 +66,16 @@ This reduces Phase 3-4 from **18 weeks to 5-8 weeks** and cuts costs by **75-90%
 
 **See full roadmap:** [`docs/ai-roadmap.md`](ai-roadmap.md)
 
-### Phase 5: Gate Chain Expansion 🟡 (Active — runs alongside Phase 4)
+### Phase 5: Gate Chain Expansion (Active — runs alongside Phase 4)
 **What:** Complete the validation gate architecture  
 **Key Outcome:** Gates D (permissions), E (lifecycle), F (context coverage), G (rollback)  
 **Status:** Gates D+E in development
 
-### Phase 6: Predictor & Scheduler Completion 🟡 (Upcoming)
+### Phase 6: Predictor & Scheduler Completion (Upcoming)
 **What:** Backfill stubs, production tuning, TimescaleDB aggregates  
 **Key Outcome:** Full failure prediction (4 factors), production-ready job scheduler
 
-### Phase 7: Calibration & Production 🔵 (Future)
+### Phase 7: Calibration & Production (Future)
 **What:** Natural language queries, automated reporting, full deployment  
 **Key Outcome:** Conversational AI interface with calibrated trust scores
 
