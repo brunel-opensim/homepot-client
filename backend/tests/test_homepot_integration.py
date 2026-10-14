@@ -198,6 +198,7 @@ class TestPhase2APIEndpoints:
     _headers: dict = {}
 
     def setup_method(self) -> None:
+        """Set up authenticated request headers for each test."""
         TestPhase2APIEndpoints._headers = auth_headers()
 
     def test_list_sites(self, client: TestClient) -> None:
