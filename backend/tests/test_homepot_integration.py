@@ -197,9 +197,12 @@ class TestPhase2APIEndpoints:
 
     _headers: dict = {}
 
+    def setup_method(self) -> None:
+        """Set up authenticated request headers for each test."""
+        TestPhase2APIEndpoints._headers = auth_headers()
+
     def test_list_sites(self, client: TestClient) -> None:
         """Test listing all POS sites."""
-        TestPhase2APIEndpoints._headers = auth_headers()
         response = client.get("/api/v1/sites", headers=TestPhase2APIEndpoints._headers)
 
         assert response.status_code == 200

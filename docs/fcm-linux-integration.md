@@ -31,7 +31,7 @@ Before you can send notifications, you need a Firebase account and credentials:
    - Follow the setup wizard
 
 3. **Download Service Account File**
-   - In Firebase Console, click the gear icon (⚙️) → "Project settings"
+   - In Firebase Console, click the gear icon → "Project settings"
    - Go to "Service accounts" tab
    - Click "Generate new private key"
    - Save the JSON file securely (e.g., `firebase-service-account.json`)

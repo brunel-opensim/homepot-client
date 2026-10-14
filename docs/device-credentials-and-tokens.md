@@ -88,7 +88,7 @@ token from `derive_push_channel(os_details)` (imported by
 `emulators/pos_engine.py` from the canonical
 `homepot/app/schemas/os_capabilities.py` module).
 
-> ⚠️ **Discrepancy:** The emulator currently sends this push token in
+> **Discrepancy:** The emulator currently sends this push token in
 > `device-dna` registration, but the `AgentRegisterRequest` schema does **not**
 > accept a `device_token` field, so the backend drops it and `device_token` is
 > stored as `None` for emulator-provisioned devices. Resolving whether `device_token`

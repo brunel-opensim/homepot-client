@@ -206,6 +206,21 @@ security(auth): implement token validation Closes #89
 - Update API documentation as needed
 - Maintain changelog entries
 
+### Markdown Style (no emoji)
+
+- **Do not use emoji in documentation.** Use the plain-text conventions below so
+  pages render consistently in the repository, the terminal, and the published
+  (Read the Docs) site.
+- Use `✓` (U+2713) for "yes / available / done" and `✗` (U+2717) for
+  "no / unavailable / failed".
+- Use the word `Warning:` — or `!` inside code/output samples — instead of the
+  warning emoji.
+- Keep decorative pictographs out of prose and tables. Standard typographic
+  characters already used across the docs — arrows (`→`), dashes (`—`), box
+  drawing in diagrams, and math symbols (`≥`, `≈`) — are fine.
+- This applies to code comments, commit messages, and pull-request descriptions
+  as well.
+
 ## Issue Reporting
 
 When reporting issues:

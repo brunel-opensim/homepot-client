@@ -131,13 +131,13 @@ key, traced end-to-end against what is built today:
 
 | Step | What happens | Status |
 |---|---|---|
-| 1. Dashboard compose | `PushReview.jsx` → **Apply Configuration** (`update_config`), sets `brightness`; required group = **Manage device**, granted → **Queue Command** | ✅ built |
-| 2. Backend queue + gate | `DeviceCommandsEndpoint` computes `required_permissions_for_command` → `["root_access"]`, checks the owner grant, creates `DeviceCommand` (`queued`) + audit | ✅ built |
-| 3. Delivery | The **emulator** polls `GET /devices/pending` (15s). The **User App itself has no pending-command loop** and no real APNs token/wake-up yet | ⚠️ polling only |
-| 4. On-device permission re-check | `command_poller._check_permission` re-verifies `root_access` — exists in the Python agent, not in the Electron app | ⚠️ agent only |
-| 5. Execute brightness on macOS | `process_command("update_config")` currently only records `applied_keys` ("config update acknowledged") — **no real brightness call** | ❌ gap |
-| 6. Report result | `PUT /devices/{id}/status` with `{status, executed_at, result}` — done by the agent/emulator, not the User App | ⚠️ agent only |
-| 7. Dashboard reflects result | Command History / Push History renders the terminal status | ✅ built |
+| 1. Dashboard compose | `PushReview.jsx` → **Apply Configuration** (`update_config`), sets `brightness`; required group = **Manage device**, granted → **Queue Command** | ✓ built |
+| 2. Backend queue + gate | `DeviceCommandsEndpoint` computes `required_permissions_for_command` → `["root_access"]`, checks the owner grant, creates `DeviceCommand` (`queued`) + audit | ✓ built |
+| 3. Delivery | The **emulator** polls `GET /devices/pending` (15s). The **User App itself has no pending-command loop** and no real APNs token/wake-up yet | ~ polling only |
+| 4. On-device permission re-check | `command_poller._check_permission` re-verifies `root_access` — exists in the Python agent, not in the Electron app | ~ agent only |
+| 5. Execute brightness on macOS | `process_command("update_config")` currently only records `applied_keys` ("config update acknowledged") — **no real brightness call** | ✗ gap |
+| 6. Report result | `PUT /devices/{id}/status` with `{status, executed_at, result}` — done by the agent/emulator, not the User App | ~ agent only |
+| 7. Dashboard reflects result | Command History / Push History renders the terminal status | ✓ built |
 
 ### Gaps for this example
 
@@ -158,15 +158,15 @@ for every command type. Status as of writing:
 
 | Command type | Tier | Execution status |
 |---|---|---|
-| `run_command` | Manage | ✅ real (free-form, via scoped `homepot-ctl run exec` on POSIX / direct on Windows) |
-| `run_script` | Manage | ✅ real (free-form, via scoped `homepot-ctl run exec` on POSIX / PowerShell on Windows) |
-| `ping` / `status_request` | — | ✅ real |
-| `update_config` | Manage | ✅ real — volume/brightness OS actions; unbound keys acknowledged |
-| `restart` / `shutdown` | Manage | ✅ real — via scoped `homepot-ctl run restart\|shutdown` |
-| `health_check` | Monitor | ✅ real |
-| `list_processes` | Monitor | ✅ real |
-| `list_connections` | Monitor | ✅ real (incl. `lsof` fallback for macOS socket reads) |
-| `scan_filesystem` | Manage | ✅ real (gated on `root_access`) |
+| `run_command` | Manage | ✓ real (free-form, via scoped `homepot-ctl run exec` on POSIX / direct on Windows) |
+| `run_script` | Manage | ✓ real (free-form, via scoped `homepot-ctl run exec` on POSIX / PowerShell on Windows) |
+| `ping` / `status_request` | — | ✓ real |
+| `update_config` | Manage | ✓ real — volume/brightness OS actions; unbound keys acknowledged |
+| `restart` / `shutdown` | Manage | ✓ real — via scoped `homepot-ctl run restart\|shutdown` |
+| `health_check` | Monitor | ✓ real |
+| `list_processes` | Monitor | ✓ real |
+| `list_connections` | Monitor | ✓ real (incl. `lsof` fallback for macOS socket reads) |
+| `scan_filesystem` | Manage | ✓ real (gated on `root_access`) |
 
 The emulator (`pos_engine.py`) simulates the same set; the real agent executes
 all nine against the host (`command_poller.process_command`), with free-form

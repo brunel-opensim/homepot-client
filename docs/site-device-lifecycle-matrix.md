@@ -102,10 +102,10 @@ is one code path and no per-source exceptions.
 
 | Action                      | Device state | Ingested data | Notes                                                         |
 | --------------------------- | ------------ | ------------- | ------------------------------------------------------------- |
-| Site is active              | `active`     | ✅ collected  | Heartbeats, telemetry, commands, logs all accepted.           |
-| **Archive site**            | `suspended`  | ❌ **stopped**| Emulator/agent requests return `403`; no new rows written.    |
-| **Restore site + resume dev**| `active`     | ✅ **resumed**| Requests accepted again; data collection picks up where it left off. |
-| **Unpair / retire device**  | `unpaired`   | ❌ **stopped**| Same `403` gate; device must be resumed to collect again.     |
+| Site is active              | `active`     | ✓ collected  | Heartbeats, telemetry, commands, logs all accepted.           |
+| **Archive site**            | `suspended`  | ✗ **stopped**| Emulator/agent requests return `403`; no new rows written.    |
+| **Restore site + resume dev**| `active`     | ✓ **resumed**| Requests accepted again; data collection picks up where it left off. |
+| **Unpair / retire device**  | `unpaired`   | ✗ **stopped**| Same `403` gate; device must be resumed to collect again.     |
 
 ### Verifying it on a live system
 
