@@ -81,15 +81,15 @@ In one line each:
 
 | Capability | Admin | Technician | Guest (prod) | Guest (dev) |
 |---|---|---|---|---|
-| Dashboard + AI | ✅ | ✅ | ✅ | ✅ |
-| View devices & sites | ✅ all | ✅ scoped | ✅ scoped | ✅ scoped |
-| Add / integrate / edit devices & sites | ✅ | ✅ scoped | ❌ | ✅ scoped |
-| Device commands, monitor, suspend/resume/retire | ✅ | ✅ scoped | ❌ | ✅ scoped |
-| Delete / purge (irreversible) | ✅ | ⚠️ see §12 | ❌ | ❌ |
-| View device credentials / tokens / bootstrap keys | ✅ | ✅ | ❌ | ❌ **floor** |
-| Jobs & push notifications | ✅ | ✅ | ❌ | ✅ scoped |
-| **Manage users & assign roles** | ✅ | ❌ | ❌ | ❌ **floor** |
-| **Manage tenants & memberships** | ✅ | ❌ | ❌ | ❌ **floor** |
+| Dashboard + AI | ✓ | ✓ | ✓ | ✓ |
+| View devices & sites | ✓ all | ✓ scoped | ✓ scoped | ✓ scoped |
+| Add / integrate / edit devices & sites | ✓ | ✓ scoped | ✗ | ✓ scoped |
+| Device commands, monitor, suspend/resume/retire | ✓ | ✓ scoped | ✗ | ✓ scoped |
+| Delete / purge (irreversible) | ✓ | see §12 | ✗ | ✗ |
+| View device credentials / tokens / bootstrap keys | ✓ | ✓ | ✗ | ✗ **floor** |
+| Jobs & push notifications | ✓ | ✓ | ✗ | ✓ scoped |
+| **Manage users & assign roles** | ✓ | ✗ | ✗ | ✗ **floor** |
+| **Manage tenants & memberships** | ✓ | ✗ | ✗ | ✗ **floor** |
 
 The **floor** (bold) does not move with the stage: **no role below Admin ever
 gains administration or device secrets.**
