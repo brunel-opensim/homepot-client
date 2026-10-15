@@ -3,8 +3,8 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
-from datetime import datetime, timezone
 import asyncio
+from datetime import datetime, timezone
 import logging
 import os
 import sys
@@ -590,19 +590,9 @@ async def query_ai(
             if request.device_id:
                 full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
 
-            # Insert Defined System Roles to prevent hallucination
-            full_context += (
-                "\n[SYSTEM ROLES DEFINITIONS]\n"
-                "The HOMEPOT Client system currently defines the following roles:\n"
-                "1. 'Admin': Complete system access, including user management, logs, "
-                "and system configuration.\n"
-                "2. 'Engineer': Technical access, including device management, diagnostics, "
-                "and configurations (similar to Admin but focused on operations).\n"
-                "3. 'Client' (User): Limited access, primarily for monitoring assigned devices, views, and "
-                "receiving notifications.\n"
-                "There are currently NO other defined roles (e.g., 'Agent Operator' is NOT "
-                "a valid role).\n"
-            )
+            # NOTE: the static [SYSTEM ROLES DEFINITIONS] block now lives in the
+            # cached system prompt (SystemKnowledge.get_system_prompt) so it is
+            # not re-evaluated by the CPU on every request.
 
             # Resolve device integer ID early so enriched context and gates
             # can both use it.
@@ -614,6 +604,7 @@ async def query_ai(
             # in parallel so total latency = slowest single query, not the sum.
             # The fleet summary (above) stays inline because it includes the
             # site/device listing that ContextBuilder doesn't replicate.
+            enriched = ""
             try:
                 enriched = await ContextBuilder.build_enriched_context(
                     device_id=request.device_id,
@@ -738,9 +729,8 @@ async def query_ai(
             else:
                 full_context += (
                     "\n[AI INSIGHTS]\n"
-                    "Skipped: Gate B (data integrity) did not pass for this request, so "
-                    "anomaly-detection and failure-prediction analytics are withheld rather "
-                    "than presented as trustworthy derived conclusions.\n"
+                    "Skipped: Gate B (data integrity) did not pass; analytics "
+                    "withheld.\n"
                 )
 
             # 7. Re-validate Gate C against the FINAL context (base context +
@@ -793,13 +783,11 @@ async def query_ai(
         if zero_fleet:
             full_context += (
                 "\n[REFUSAL MANDATE]\n"
-                "The fleet is EMPTY (0 active devices). State plainly in your "
-                "answer that no devices are currently connected and that no "
-                "AI validation gates were activated. Do NOT provide a "
-                "suggestion, recommendation, or any troubleshooting "
-                "directive. You MAY still report non-fleet system facts "
-                "(sites, alerts, push statistics, memory) strictly as "
-                "observable status -- never as a recommendation.\n"
+                "Fleet EMPTY (0 devices). Answer in at most 3 short sentences: "
+                "state that no devices are connected and no validation gates ran; "
+                "do NOT dump per-statistic zeros or give any suggestion or "
+                "recommendation. Non-fleet facts (sites, alerts, push, memory) only "
+                "as brief status.\n"
             )
         if not trust.is_actionable:
             full_context += (
@@ -857,53 +845,29 @@ async def query_ai(
                 "[END PER-DEVICE TRUST DIGEST]\n"
             )
 
-        # Get static system knowledge (no DB access needed beyond this point)
-        system_knowledge = knowledge.get_full_system_context()
-        doc_context = knowledge.get_documentation_context()
-        if doc_context:
-            system_knowledge += f"\n\n{doc_context}"
-        cmd_ref = knowledge.get_command_payload_reference()
-        if cmd_ref:
-            system_knowledge += f"\n\n{cmd_ref}"
-
-        system_prompt_text = (
-            "IDENTITY:\n"
-            "You are the HOMEPOT System Diagnostics AI, an advanced operational "
-            "assistant for the HOMEPOT Client ecosystem.\n"
-            "Your goal is to monitor, diagnose, and explain the behavior of "
-            "IoT devices, sites, and the platform itself.\n\n"
-            "CAPABILITIES & DATA SOURCES:\n"
-            "1. Real-Time Database (PostgreSQL): You have access to live device "
-            "metrics, site status, and push notification stats.\n"
-            "2. Long-Term Memory (ChromaDB): You can recall past anomalies, "
-            "error patterns, and resolutions to identify recurring issues.\n"
-            "3. System Knowledge: You are self-aware of the codebase structure, "
-            "file locations, and documentation.\n"
-            "4. Short-Term Memory: You maintain context of the current conversation.\n"
-            "5. AI Insights: anomaly detection and failure-prediction signals are "
-            "provided in [AI INSIGHTS: ...] blocks.\n\n"
-            "SYSTEM CONTEXT:\n"
-            f"{system_knowledge}\n\n"
-            "INSTRUCTIONS:\n"
-            "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
-            "general knowledge questions.\n"
-            "- Use the provided [CURRENT SYSTEM STATUS], [AI INSIGHTS: ...], and "
-            "[RELEVANT MEMORIES] blocks to ground your answers in facts.\n"
-            "- If you don't know something, admit it. Do not hallucinate system details.\n"
-            "- When listing alerts, use the explicit 'ID' field provided in "
-            "the [ACTIVE SYSTEM ALERTS] section. Format as '#ID'. Do not guess IDs.\n"
-            "- Uncertainty protocol: if telemetry or context evidence is incomplete, "
-            "state the gap explicitly instead of extrapolating an unsupported system state.\n"
-            "- Trust protocol: your context includes a [VALIDATION TRUST STATUS] block. "
-            "If 'Actionable' is 'no', you MUST explicitly tell the user their data could "
-            "not be fully validated (name the failed gate and trust score) and limit your "
-            "answer to cautionary, non-actionable observations -- never phrase a low-trust "
-            "answer as a confirmed diagnosis or a directive to act. If a 'Reason' line is "
-            "present, weave it in as ONE short supporting sentence (e.g. 'because telemetry "
-            "is 340s stale') -- do not list every validation check or invent additional "
-            "statistics beyond what's given.\n"
-            "- Be concise, professional, and technical where appropriate."
+        # Per-request size diagnostic. Every token in this dynamic context is
+        # re-evaluated by the CPU on each query (~22 tok/s), unlike the cached
+        # system prompt, so this breakdown is what guides trimming.
+        logger.info(
+            "AI context parts | full=%d site=%d job=%d memory=%d short=%d "
+            "enriched=%d other=%d",
+            len(full_context),
+            len(site_context),
+            len(job_context),
+            len(long_term_context),
+            len(short_term_context),
+            len(enriched),
+            len(full_context)
+            - len(site_context)
+            - len(job_context)
+            - len(long_term_context)
+            - len(short_term_context)
+            - len(enriched),
         )
+
+        # Static system prompt. Built by SystemKnowledge so the startup warm-up
+        # can prime Ollama's KV cache with the exact same prefix (see main.py).
+        system_prompt_text = knowledge.get_system_prompt()
 
         if request.agentic:
             # Agentic mode: multi-step tool-calling investigation

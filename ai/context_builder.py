@@ -268,7 +268,7 @@ class ContextBuilder:
     @staticmethod
     async def get_audit_context(
         device_id: Optional[str] = None,
-        limit: int = 5,
+        limit: int = 3,
         session: Optional[AsyncSession] = None,
         device_int_id: Optional[int] = None,
     ) -> str:
@@ -303,7 +303,16 @@ class ContextBuilder:
         limit: int,
         device_int_id: Optional[int] = None,
     ) -> str:
-        stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
+        stmt = (
+            select(AuditLog)
+            # Exclude the AI's own events (ai_query/ai_gate_failure/...).
+            # Without this the assistant feeds its previous turns' audit
+            # entries back into its own prompt -- pure self-referential noise
+            # that also grows with every query.
+            .where(AuditLog.event_type.notlike("ai_%")).order_by(
+                AuditLog.created_at.desc()
+            )
+        )
 
         if device_int_id:
             stmt = stmt.where(AuditLog.device_id == device_int_id)
@@ -335,7 +344,7 @@ class ContextBuilder:
 
     @staticmethod
     async def get_api_context(
-        limit: int = 5, session: Optional[AsyncSession] = None
+        limit: int = 3, session: Optional[AsyncSession] = None
     ) -> str:
         """Retrieve recent failed API requests.
 

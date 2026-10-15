@@ -62,18 +62,54 @@ class LLMService:
             # Extract options from config with type safety
             temperature = float(self.config["llm"].get("temperature", 0.7))
             context_window = int(self.config["llm"].get("context_window", 4096))
+            options = {
+                "temperature": temperature,
+                "num_ctx": context_window,
+            }
+            num_predict = self.config["llm"].get("num_predict")
+            if num_predict:
+                options["num_predict"] = int(num_predict)
 
             response = self.client.chat(
                 model=self.model,
                 messages=messages,
-                options={
-                    "temperature": temperature,
-                    "num_ctx": context_window,
-                },
+                options=options,
                 keep_alive=self.keep_alive,
             )
 
-            return str(response["message"]["content"])
+            def _ms(ns: Any) -> float:
+                try:
+                    return round(float(ns) / 1e6, 1)
+                except (TypeError, ValueError):
+                    return -1.0
+
+            # Per-request timing breakdown from Ollama: how much of the time is
+            # prompt evaluation (context/prefix) vs token generation. Essential
+            # for diagnosing slow answers on CPU-only hosts (see docs).
+            # done_reason == "length" means we hit num_predict and the answer was
+            # truncated (a deliberate latency bound, not an error).
+            done_reason = response.get("done_reason")
+            logger.info(
+                "LLM generate | system_chars=%d prompt_chars=%d num_ctx=%d "
+                "num_predict=%s | prompt_eval_count=%s prompt_eval_ms=%s "
+                "eval_count=%s eval_ms=%s load_ms=%s total_ms=%s done_reason=%s",
+                len(system_prompt or ""),
+                len(full_prompt),
+                context_window,
+                options.get("num_predict"),
+                response.get("prompt_eval_count"),
+                _ms(response.get("prompt_eval_duration")),
+                response.get("eval_count"),
+                _ms(response.get("eval_duration")),
+                _ms(response.get("load_duration")),
+                _ms(response.get("total_duration")),
+                done_reason,
+            )
+
+            content = str(response["message"]["content"])
+            if done_reason == "length":
+                content = content.rstrip() + " …"
+            return content
 
         except Exception as e:
             logger.error(f"Failed to generate LLM response: {e}")
@@ -99,15 +135,19 @@ class LLMService:
         try:
             temperature = float(self.config["llm"].get("temperature", 0.7))
             context_window = int(self.config["llm"].get("context_window", 4096))
+            options = {
+                "temperature": temperature,
+                "num_ctx": context_window,
+            }
+            num_predict = self.config["llm"].get("num_predict")
+            if num_predict:
+                options["num_predict"] = int(num_predict)
 
             response = self.client.chat(
                 model=self.model,
                 messages=messages,
                 tools=tools,
-                options={
-                    "temperature": temperature,
-                    "num_ctx": context_window,
-                },
+                options=options,
                 keep_alive=self.keep_alive,
             )
 

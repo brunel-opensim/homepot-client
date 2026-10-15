@@ -257,9 +257,9 @@ async def test_query_ai_includes_documentation_in_system_prompt():
     mock_llm = MagicMock()
     mock_llm.generate_response.return_value = "Test response"
     mock_knowledge = MagicMock()
-    mock_knowledge.get_full_system_context.return_value = "system knowledge"
-    mock_knowledge.get_documentation_context.return_value = (
-        "[DOCUMENTATION]\n--- docs/test.md ---\nTest documentation content"
+    mock_knowledge.get_system_prompt.return_value = (
+        "system knowledge\n\n[DOCUMENTATION]\n"
+        "--- docs/test.md ---\nTest documentation content"
     )
     mock_memory = MagicMock()
     mock_memory.get_memory_stats.return_value = {"total_memories": 0}
@@ -380,9 +380,8 @@ async def test_command_payload_reference_in_system_prompt():
     mock_llm = MagicMock()
     mock_llm.generate_response.return_value = "Test response"
     mock_knowledge = MagicMock()
-    mock_knowledge.get_full_system_context.return_value = "system knowledge"
-    mock_knowledge.get_documentation_context.return_value = ""
-    mock_knowledge.get_command_payload_reference.return_value = (
+    mock_knowledge.get_system_prompt.return_value = (
+        "system knowledge\n\n"
         "[COMMAND PAYLOAD REFERENCE]\nTest command reference content"
     )
     mock_memory = MagicMock()
