@@ -425,7 +425,7 @@ ollama list
 prompt plus the live context and an uncapped answer can take **60-120 s**; the
 tunings below bring a warm answer down to roughly **40-60 s**.
 
-- **Output cap**: `num_predict` (`ai/config.yaml`, default `120`) bounds the
+- **Output cap**: `num_predict` (`ai/config.yaml`, default `160`) bounds the
   generated tokens; without it the model can emit 1k+ tokens, adding tens of
   seconds of pure generation.
 - **Prompt trim** (static): `SystemKnowledge` caps the README overview and
@@ -467,7 +467,7 @@ llm:
   base_url: "http://localhost:11434"
   temperature: 0.7
   context_window: 8192  # fits the ~3.8k-token system prompt + live context
-  num_predict: 120      # cap generated tokens (bounds answer latency)
+  num_predict: 160      # cap generated tokens (bounds answer latency)
   keep_alive: "30m"     # keep the model + KV-cache prefix resident
 ```
 

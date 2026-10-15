@@ -17,10 +17,12 @@ llm:
   # status to the user turn. 4096 left no room (Ollama truncates the prompt,
   # which can evict instructions), so keep 8192 for headroom.
   context_window: 8192
-  # Cap generated tokens per answer. CPU generation runs at ~4 tok/s, so an
-  # unbounded (or 220-token) answer dominates latency. ~120 keeps answers
-  # useful while bounding the worst case (see docs/server-deployment.md).
-  num_predict: 120
+  # Cap generated tokens per answer. CPU generation runs at ~4 tok/s, so
+  # output length dominates latency. 160 lets the common "system status"
+  # answer (~110-140 tokens) finish rather than being cut mid-list, while
+  # still bounding the worst case (~37s of generation; see
+  # docs/server-deployment.md). Answers longer than this end with "…".
+  num_predict: 160
   # How long Ollama keeps the model resident after a request (Ollama's own
   # default is 5m). A long value avoids the cold-load cost on sparse queries.
   keep_alive: "30m"

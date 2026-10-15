@@ -783,9 +783,11 @@ async def query_ai(
         if zero_fleet:
             full_context += (
                 "\n[REFUSAL MANDATE]\n"
-                "Fleet EMPTY (0 devices): state that none are connected and no "
-                "gates ran; give no suggestion or recommendation. Non-fleet "
-                "facts (sites, alerts, push, memory) as status only.\n"
+                "Fleet EMPTY (0 devices). Answer in at most 3 short sentences: "
+                "state that no devices are connected and no validation gates ran; "
+                "do NOT dump per-statistic zeros or give any suggestion or "
+                "recommendation. Non-fleet facts (sites, alerts, push, memory) only "
+                "as brief status.\n"
             )
         if not trust.is_actionable:
             full_context += (
