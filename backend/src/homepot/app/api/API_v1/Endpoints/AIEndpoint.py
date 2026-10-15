@@ -49,6 +49,7 @@ from ai.gates import EnvelopeResult  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
+
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402

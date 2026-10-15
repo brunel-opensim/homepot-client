@@ -7,8 +7,8 @@ producing a final answer.
 See docs/ai-agentic.md for the full architecture.
 """
 
-from dataclasses import dataclass
 import asyncio
+from dataclasses import dataclass
 import logging
 import time
 from typing import Any, Dict, List, Optional

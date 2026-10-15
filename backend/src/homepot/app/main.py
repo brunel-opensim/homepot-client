@@ -162,6 +162,7 @@ async def warm_up_llm() -> None:
             # this background warm-up never aliases request-scoped mocks in tests.
             from ai.llm import LLMService
             from ai.system_knowledge import SystemKnowledge
+
             from homepot.app.api.API_v1.Endpoints.AIEndpoint import project_root
 
             llm = LLMService()
