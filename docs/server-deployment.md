@@ -73,6 +73,20 @@ Last verified: 2026-10-13, after the first successful production reset (current
   `gowtham` Technician, `robin` Technician, shared dev password). Google SSO
   env vars are not configured.
 
+### LLM (Ollama)
+
+- `ollama` **0.40.4** installed and running as a systemd unit
+  (`ollama.service`), **enabled at boot**, listening on `127.0.0.1:11434`.
+  The `llama3.2` model (~2 GB) is pulled.
+- The app reads the model/host from `ai/config.yaml` (`llm.model`,
+  `llm.base_url`). The dashboard AI calls Ollama **in-process** from the backend
+  (`ai/llm.py` → `localhost:11434`); the standalone `ai/api.py` service on
+  `:8001` is **not** required.
+- `demouser` has a scoped NOPASSWD rule for `systemctl start|stop|restart ollama`
+  (`/etc/sudoers.d/homepot-ollama`).
+- A **2 GB swapfile** is configured (the host has no other swap) to absorb the
+  model-load memory spike.
+
 ### Status (post-reset, 2026-10-13)
 
 - **Reset executed successfully** with `scripts/reset-prod-db.sh`: DB dropped
@@ -161,9 +175,22 @@ This allows demouser to manage PostgreSQL without sudo.
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sudo sh
+sudo systemctl enable --now ollama
 ```
 
-This installs the Ollama binary to `/usr/local/bin/ollama`.
+This installs the Ollama binary to `/usr/local/bin/ollama` and registers a
+systemd unit (`ollama.service`) that listens on `127.0.0.1:11434`. Enable it so
+it starts at boot.
+
+To let `demouser` manage Ollama without broad sudo, add a scoped rule at
+`/etc/sudoers.d/homepot-ollama` (`chmod 0440`; validate with `visudo -c`):
+
+```
+demouser ALL=(ALL) NOPASSWD: /usr/bin/systemctl start ollama, /usr/bin/systemctl stop ollama, /usr/bin/systemctl restart ollama
+```
+
+For low-RAM hosts, add a **2 GB swapfile** so the model load does not OOM
+(the production host has one).
 
 ### 5. Stop Existing HOMEPOT Services
 
@@ -269,14 +296,27 @@ Also update `backend/.env` with the same `DATABASE__URL` (no password).
 
 ### 5. Set Up Ollama and Pull Model
 
+The server team installs and enables Ollama (§ Pre-Deployment → Install
+Ollama). As `demouser`, just pull the model:
+
 ```bash
 ./scripts/setup-ollama.sh
 ```
 
 This script:
 - Reads the model name from `ai/config.yaml` (default: `llama3.2`)
-- Starts the Ollama server on port 11434
-- Pulls the llama3.2 model (~2GB download)
+- Detects and **reuses** the existing systemd Ollama instance on `:11434`
+  (it does not start a second server, and writes no PID file in this case)
+- Pulls `llama3.2` (~2 GB) if it is missing
+- Writes server stdout to `logs/ollama.log` only when it starts its own
+  instance (development)
+
+Verify:
+
+```bash
+ollama list                                   # -> llama3.2:latest
+curl -s http://127.0.0.1:11434/api/version    # -> {"version":"0.40.4"}
+```
 
 ### 6. Build Frontend
 
@@ -360,11 +400,17 @@ the real run (it types the database name to confirm):
 
 ## LLM Management
 
-### Start Ollama
+### Start / Restart Ollama
+
+On production Ollama runs as a systemd service — restart it directly:
 
 ```bash
-./scripts/setup-ollama.sh
+sudo systemctl restart ollama        # scoped NOPASSWD rule for demouser
+journalctl -u ollama -n 50 --no-pager
 ```
+
+`./scripts/setup-ollama.sh` is mainly for pulling models and development; it
+reuses (and never restarts) an existing systemd instance.
 
 ### Check Model Status
 
@@ -452,6 +498,28 @@ No server-side configuration is needed for elevation.
 | `query-db.sh` | Query database | No |
 | `seed-demo-data.sh` | Seed demo data | No |
 
+## Logging & Observability
+
+Where each component logs on production, and how to read it:
+
+| Component | Production | Development |
+|-----------|-----------|-------------|
+| Backend API | `journalctl -u homepot-api` **and** `logs/backend.log` | `logs/backend.log` |
+| AI / LLM app | `logs/ai.log` (also in journald via the backend) | `logs/ai.log` |
+| Ollama server | `journalctl -u ollama` | `logs/ollama.log` |
+| Frontend | **none** — static build served by Apache; errors in the browser console, requests in `/var/log/apache2/{access,error}.log` | `logs/frontend.log` (Vite dev server) |
+
+```bash
+journalctl -u homepot-api -n 100 --no-pager    # backend (production)
+journalctl -u ollama -n 50 --no-pager          # LLM server
+tail -f logs/ai.log                            # AI app logs
+tail -f logs/backend.log                       # backend file log
+```
+
+> `logs/` is ephemeral and gitignored. `frontend.log` is created **only** by the
+> development launcher (`scripts/start-dashboard.sh`) — there is no frontend log
+> on production because the frontend has no server-side process.
+
 ## Troubleshooting
 
 ### PostgreSQL Connection Refused
@@ -468,17 +536,22 @@ sudo systemctl start postgresql
 
 ```bash
 # Check if Ollama is running
-curl -s http://localhost:11434/api/tags
+curl -s http://127.0.0.1:11434/api/tags
 
-# Restart Ollama
+# Production: restart the systemd service (scoped NOPASSWD for demouser)
+sudo systemctl restart ollama
+journalctl -u ollama -n 50 --no-pager
+
+# Pull/re-check the model
 ./scripts/setup-ollama.sh
 ```
 
 ### API Returns 500 Errors
 
 ```bash
-# Check API logs
-tail -f logs/api.log
+# Check API logs (production: journald; also logs/backend.log)
+journalctl -u homepot-api -n 100 --no-pager
+tail -f logs/backend.log
 
 # Verify database connection
 ./scripts/query-db.sh tables

@@ -73,8 +73,14 @@ else
 fi
 
 LOG_DIR="logs"
-AI_LOG_FILE="$LOG_DIR/ai.log"
-AI_PID_FILE="$LOG_DIR/ai.pid"
+# Ollama server stdout/stderr. Kept separate from `logs/ai.log`, which the
+# backend's `ai` logger owns via a RotatingFileHandler — two writers appending
+# to (and rotating) the same file would corrupt each other's output.
+OLLAMA_LOG_FILE="$LOG_DIR/ollama.log"
+# PID of the Ollama server, written only when this script starts one itself.
+# When it reuses an existing (e.g. systemd-managed) instance it does not own
+# that process, so it writes no PID file.
+OLLAMA_PID_FILE="$LOG_DIR/ollama.pid"
 mkdir -p "$LOG_DIR"
 
 if [ -n "$PID" ]; then
@@ -82,20 +88,19 @@ if [ -n "$PID" ]; then
     # Check if it's actually ollama
     PROCESS_NAME=$(ps -p $PID -o comm= 2>/dev/null || echo unknown)
     if [[ "$PROCESS_NAME" == "ollama" ]] || curl -s -m 2 "http://127.0.0.1:$OLLAMA_PORT/api/version" > /dev/null 2>&1; then
-        echo -e "${GREEN}It is an existing Ollama instance. Reusing it.${NC}"
-        echo "$PID" > "$AI_PID_FILE"
+        echo -e "${GREEN}It is an existing Ollama instance. Reusing it (no PID file written).${NC}"
     else
         echo -e "${RED}Warning: Port $OLLAMA_PORT is used by '$PROCESS_NAME', not Ollama.${NC}"
         echo -e "${YELLOW}Attempting to kill conflicting process...${NC}"
         kill -9 $PID 2>/dev/null || true
         echo -e "Starting Ollama..."
-        nohup ollama serve >> "$AI_LOG_FILE" 2>&1 &
-        echo $! > "$AI_PID_FILE"
+        nohup ollama serve >> "$OLLAMA_LOG_FILE" 2>&1 &
+        echo $! > "$OLLAMA_PID_FILE"
     fi
 else
     echo -e "Starting Ollama server..."
-    nohup ollama serve >> "$AI_LOG_FILE" 2>&1 &
-    echo $! > "$AI_PID_FILE"
+    nohup ollama serve >> "$OLLAMA_LOG_FILE" 2>&1 &
+    echo $! > "$OLLAMA_PID_FILE"
     echo -e "Waiting for Ollama to start..."
     sleep 5
 fi
