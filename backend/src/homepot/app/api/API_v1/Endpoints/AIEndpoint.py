@@ -3,8 +3,8 @@
 Provides REST API access to AI-powered analytics, predictions, and recommendations.
 """
 
-from datetime import datetime, timezone
 import asyncio
+from datetime import datetime, timezone
 import logging
 import os
 import sys
@@ -49,7 +49,6 @@ from ai.gates import EnvelopeResult  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
-
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
@@ -590,19 +589,9 @@ async def query_ai(
             if request.device_id:
                 full_context += f"\n[FOCUS DEVICE]\nID: {request.device_id}"
 
-            # Insert Defined System Roles to prevent hallucination
-            full_context += (
-                "\n[SYSTEM ROLES DEFINITIONS]\n"
-                "The HOMEPOT Client system currently defines the following roles:\n"
-                "1. 'Admin': Complete system access, including user management, logs, "
-                "and system configuration.\n"
-                "2. 'Engineer': Technical access, including device management, diagnostics, "
-                "and configurations (similar to Admin but focused on operations).\n"
-                "3. 'Client' (User): Limited access, primarily for monitoring assigned devices, views, and "
-                "receiving notifications.\n"
-                "There are currently NO other defined roles (e.g., 'Agent Operator' is NOT "
-                "a valid role).\n"
-            )
+            # NOTE: the static [SYSTEM ROLES DEFINITIONS] block now lives in the
+            # cached system prompt (SystemKnowledge.get_system_prompt) so it is
+            # not re-evaluated by the CPU on every request.
 
             # Resolve device integer ID early so enriched context and gates
             # can both use it.
@@ -614,6 +603,7 @@ async def query_ai(
             # in parallel so total latency = slowest single query, not the sum.
             # The fleet summary (above) stays inline because it includes the
             # site/device listing that ContextBuilder doesn't replicate.
+            enriched = ""
             try:
                 enriched = await ContextBuilder.build_enriched_context(
                     device_id=request.device_id,
@@ -738,9 +728,8 @@ async def query_ai(
             else:
                 full_context += (
                     "\n[AI INSIGHTS]\n"
-                    "Skipped: Gate B (data integrity) did not pass for this request, so "
-                    "anomaly-detection and failure-prediction analytics are withheld rather "
-                    "than presented as trustworthy derived conclusions.\n"
+                    "Skipped: Gate B (data integrity) did not pass; analytics "
+                    "withheld.\n"
                 )
 
             # 7. Re-validate Gate C against the FINAL context (base context +
@@ -793,13 +782,9 @@ async def query_ai(
         if zero_fleet:
             full_context += (
                 "\n[REFUSAL MANDATE]\n"
-                "The fleet is EMPTY (0 active devices). State plainly in your "
-                "answer that no devices are currently connected and that no "
-                "AI validation gates were activated. Do NOT provide a "
-                "suggestion, recommendation, or any troubleshooting "
-                "directive. You MAY still report non-fleet system facts "
-                "(sites, alerts, push statistics, memory) strictly as "
-                "observable status -- never as a recommendation.\n"
+                "Fleet EMPTY (0 devices): state that none are connected and no "
+                "gates ran; give no suggestion or recommendation. Non-fleet "
+                "facts (sites, alerts, push, memory) as status only.\n"
             )
         if not trust.is_actionable:
             full_context += (
@@ -856,6 +841,26 @@ async def query_ai(
                 "it. Never borrow one device's grounding for another.\n"
                 "[END PER-DEVICE TRUST DIGEST]\n"
             )
+
+        # Per-request size diagnostic. Every token in this dynamic context is
+        # re-evaluated by the CPU on each query (~22 tok/s), unlike the cached
+        # system prompt, so this breakdown is what guides trimming.
+        logger.info(
+            "AI context parts | full=%d site=%d job=%d memory=%d short=%d "
+            "enriched=%d other=%d",
+            len(full_context),
+            len(site_context),
+            len(job_context),
+            len(long_term_context),
+            len(short_term_context),
+            len(enriched),
+            len(full_context)
+            - len(site_context)
+            - len(job_context)
+            - len(long_term_context)
+            - len(short_term_context)
+            - len(enriched),
+        )
 
         # Static system prompt. Built by SystemKnowledge so the startup warm-up
         # can prime Ollama's KV cache with the exact same prefix (see main.py).

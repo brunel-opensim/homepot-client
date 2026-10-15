@@ -86,10 +86,13 @@ class LLMService:
             # Per-request timing breakdown from Ollama: how much of the time is
             # prompt evaluation (context/prefix) vs token generation. Essential
             # for diagnosing slow answers on CPU-only hosts (see docs).
+            # done_reason == "length" means we hit num_predict and the answer was
+            # truncated (a deliberate latency bound, not an error).
+            done_reason = response.get("done_reason")
             logger.info(
                 "LLM generate | system_chars=%d prompt_chars=%d num_ctx=%d "
                 "num_predict=%s | prompt_eval_count=%s prompt_eval_ms=%s "
-                "eval_count=%s eval_ms=%s load_ms=%s total_ms=%s",
+                "eval_count=%s eval_ms=%s load_ms=%s total_ms=%s done_reason=%s",
                 len(system_prompt or ""),
                 len(full_prompt),
                 context_window,
@@ -100,9 +103,13 @@ class LLMService:
                 _ms(response.get("eval_duration")),
                 _ms(response.get("load_duration")),
                 _ms(response.get("total_duration")),
+                done_reason,
             )
 
-            return str(response["message"]["content"])
+            content = str(response["message"]["content"])
+            if done_reason == "length":
+                content = content.rstrip() + " …"
+            return content
 
         except Exception as e:
             logger.error(f"Failed to generate LLM response: {e}")
