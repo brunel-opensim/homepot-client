@@ -14,6 +14,10 @@ llm:
   base_url: "http://localhost:11434"
   temperature: 0.7
   context_window: 4096
+  # Cap generated tokens per answer. The model is chatty and CPU inference runs
+  # at ~6 tok/s, so an unbounded answer can take ~45s. ~220 tokens keeps
+  # answers useful but bounded (see docs/server-deployment.md).
+  num_predict: 220
   # How long Ollama keeps the model resident after a request (Ollama's own
   # default is 5m). A long value avoids the cold-load cost on sparse queries.
   keep_alive: "30m"

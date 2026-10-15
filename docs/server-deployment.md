@@ -420,18 +420,28 @@ ollama list
 
 ### AI Query Latency & Timeouts
 
-`llama3.2` on CPU with the full system-knowledge prompt takes **60-120 s** per
-answer, and longer on the first (cold) call while the model loads.
+`llama3.2` on CPU generates at ~6 tok/s and evaluates the prompt at ~35-95
+tok/s, so the full system-knowledge prompt plus an unbounded answer can take
+**60-120 s** per query (longer on the first, cold call while the model loads).
 
+- **Output cap**: `num_predict` (`ai/config.yaml`, default `220`) bounds the
+  generated tokens; without it the model can emit 1k+ tokens, adding ~45 s of
+  pure generation.
+- **Prompt trim**: `SystemKnowledge` caps the README overview and DB-schema
+  blocks (`ai/system_knowledge.py`) so the static prompt stays small — Ollama
+  re-evaluates that prefix on every request.
+- **Warm-up / KV cache**: on startup the backend primes Ollama with the *real*
+  system prompt (`SystemKnowledge.get_system_prompt()`), and `keep_alive`
+  (`ai/config.yaml`, default `30m`) keeps the model and cached prefix resident,
+  so sparse queries skip both the reload and the prompt-eval cost.
 - **Frontend**: `/api/v1/ai/query` uses `VITE_AI_QUERY_TIMEOUT` ms (default
   `180000`) — see `frontend/src/services/api.js`.
 - **Proxy**: Apache must allow at least as long (`ProxyTimeout 180` /
   `Timeout 180`; see Pre-Deployment → Reverse Proxy Timeout).
-- **Backend**: the model is preloaded on startup, and `keep_alive`
-  (`ai/config.yaml`, default `30m`) keeps it resident so sparse queries do not
-  pay the reload cost.
 - The LLM call runs in a worker thread (`asyncio.to_thread`), so a slow answer
   no longer blocks other API requests.
+- Per-request timings (`prompt_eval_ms`, `eval_ms`, `num_predict`) are logged
+  as `LLM generate | ...` lines — useful to confirm the mitigations above.
 
 ### Model Sizing Guide
 
@@ -451,6 +461,8 @@ llm:
   base_url: "http://localhost:11434"
   temperature: 0.7
   context_window: 4096
+  num_predict: 220      # cap generated tokens (bounds answer latency)
+  keep_alive: "30m"     # keep the model + KV-cache prefix resident
 ```
 
 ## Device Connection

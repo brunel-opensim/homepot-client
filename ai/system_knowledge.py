@@ -17,21 +17,29 @@ class SystemKnowledge:
         """Initialize with the project root path."""
         self.root_path = root_path
 
-    def get_system_overview(self) -> str:
-        """Get a high-level overview of the system from README.md."""
+    def get_system_overview(self, max_chars: int = 1800) -> str:
+        """Get a high-level overview of the system from README.md.
+
+        Capped at ``max_chars`` (trimmed to a line boundary). The README intro
+        is only background, and the LLM prompt is evaluated on every request, so
+        keeping this small keeps answers fast on CPU-only hosts.
+        """
         readme_path = os.path.join(self.root_path, "README.md")
         try:
             if os.path.exists(readme_path):
                 with open(readme_path, "r") as f:
                     content = f.read()
-                    # Extract the first 50 lines or until the first major section
-                    lines = content.split("\n")
-                    summary = []
-                    for line in lines:
-                        if line.startswith("## Project Structure"):
-                            break
-                        summary.append(line)
-                    return "\n".join(summary)
+                # Read until the first major section, then cap to a bound.
+                lines = content.split("\n")
+                summary = []
+                for line in lines:
+                    if line.startswith("## Project Structure"):
+                        break
+                    summary.append(line)
+                text = "\n".join(summary)
+                if len(text) > max_chars:
+                    text = text[:max_chars].rsplit("\n", 1)[0] + "\n  ... (truncated)"
+                return text
             return "System overview not available."
         except Exception as e:
             logger.error(f"Failed to read README.md: {e}")
@@ -72,8 +80,17 @@ class SystemKnowledge:
 
         return "\n".join(structure)
 
-    def get_database_schema_info(self) -> str:
-        """Extract database schema from SQLAlchemy models."""
+    def get_database_schema_info(
+        self, max_cols_per_table: int = 15, max_chars: int = 4500
+    ) -> str:
+        """Extract a compact database schema from the SQLAlchemy models.
+
+        Lists table names with their first ``max_cols_per_table`` columns and
+        caps the whole block at ``max_chars``. The full column-by-column dump is
+        ~12k chars and dominated the prompt, slowing every request on CPU hosts;
+        this keeps the useful shape (tables + key columns) at a fraction of the
+        size.
+        """
         schema = ["Database Schema (derived from SQLAlchemy models):"]
 
         model_files = [
@@ -92,12 +109,17 @@ class SystemKnowledge:
                     lines = content.split("\n")
 
                     current_table = None
+                    col_count = 0
                     for line in lines:
                         line = line.strip()
                         if line.startswith("class ") and "(Base)" in line:
                             current_table = line.split("class ")[1].split("(")[0]
+                            col_count = 0
                             schema.append(f"\nTable: {current_table}")
                         elif current_table and " = Column(" in line:
+                            if col_count >= max_cols_per_table:
+                                continue
+                            col_count += 1
                             # Extract column name and type roughly
                             col_name = line.split(" = ")[0]
                             col_def = line.split("Column(")[1].split(")")[0]
@@ -105,7 +127,10 @@ class SystemKnowledge:
             except Exception as e:
                 logger.error(f"Failed to parse model file {rel_path}: {e}")
 
-        return "\n".join(schema)
+        text = "\n".join(schema)
+        if len(text) > max_chars:
+            text = text[:max_chars].rsplit("\n", 1)[0] + "\n  ... (truncated)"
+        return text
 
     def get_full_system_context(self) -> str:
         """Combine overview, structure, and DB schema into a single context string."""
@@ -113,6 +138,62 @@ class SystemKnowledge:
             f"SYSTEM IDENTITY:\n{self.get_system_overview()}\n\n"
             f"{self.get_database_schema_info()}\n\n"
             f"{self.get_project_structure()}"
+        )
+
+    def get_system_prompt(self) -> str:
+        """Build the full static system prompt sent to the LLM.
+
+        Centralised here so the startup warm-up (see
+        ``backend/src/homepot/app/main.py``) can prime Ollama's KV cache with
+        the *exact* same prefix the request path uses -- otherwise the first
+        real query pays the whole prompt-eval cost (tens of seconds on CPU).
+        """
+        system_knowledge = self.get_full_system_context()
+        doc_context = self.get_documentation_context()
+        if doc_context:
+            system_knowledge += f"\n\n{doc_context}"
+        cmd_ref = self.get_command_payload_reference()
+        if cmd_ref:
+            system_knowledge += f"\n\n{cmd_ref}"
+
+        return (
+            "IDENTITY:\n"
+            "You are the HOMEPOT System Diagnostics AI, an advanced operational "
+            "assistant for the HOMEPOT Client ecosystem.\n"
+            "Your goal is to monitor, diagnose, and explain the behavior of "
+            "IoT devices, sites, and the platform itself.\n\n"
+            "CAPABILITIES & DATA SOURCES:\n"
+            "1. Real-Time Database (PostgreSQL): You have access to live device "
+            "metrics, site status, and push notification stats.\n"
+            "2. Long-Term Memory (ChromaDB): You can recall past anomalies, "
+            "error patterns, and resolutions to identify recurring issues.\n"
+            "3. System Knowledge: You are self-aware of the codebase structure, "
+            "file locations, and documentation.\n"
+            "4. Short-Term Memory: You maintain context of the current conversation.\n"
+            "5. AI Insights: anomaly detection and failure-prediction signals are "
+            "provided in [AI INSIGHTS: ...] blocks.\n\n"
+            "SYSTEM CONTEXT:\n"
+            f"{system_knowledge}\n\n"
+            "INSTRUCTIONS:\n"
+            "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
+            "general knowledge questions.\n"
+            "- Use the provided [CURRENT SYSTEM STATUS], [AI INSIGHTS: ...], and "
+            "[RELEVANT MEMORIES] blocks to ground your answers in facts.\n"
+            "- If you don't know something, admit it. Do not hallucinate system details.\n"
+            "- When listing alerts, use the explicit 'ID' field provided in "
+            "the [ACTIVE SYSTEM ALERTS] section. Format as '#ID'. Do not guess IDs.\n"
+            "- Uncertainty protocol: if telemetry or context evidence is incomplete, "
+            "state the gap explicitly instead of extrapolating an unsupported system state.\n"
+            "- Trust protocol: your context includes a [VALIDATION TRUST STATUS] block. "
+            "If 'Actionable' is 'no', you MUST explicitly tell the user their data could "
+            "not be fully validated (name the failed gate and trust score) and limit your "
+            "answer to cautionary, non-actionable observations -- never phrase a low-trust "
+            "answer as a confirmed diagnosis or a directive to act. If a 'Reason' line is "
+            "present, weave it in as ONE short supporting sentence (e.g. 'because telemetry "
+            "is 340s stale') -- do not list every validation check or invent additional "
+            "statistics beyond what's given.\n"
+            "- Be concise: aim for at most ~150 words unless the user asks for more; do "
+            "not restate the question or pad with pleasantries. Be professional and technical."
         )
 
     def get_documentation_context(self, max_chars_per_doc: int = 500) -> str:

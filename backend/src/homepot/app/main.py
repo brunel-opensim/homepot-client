@@ -158,19 +158,26 @@ async def warm_up_llm() -> None:
     async def _warm() -> None:
         logger = logging.getLogger(__name__)
         try:
+            # Use the real classes directly (not the app's cached services) so
+            # this background warm-up never aliases request-scoped mocks in tests.
             from ai.llm import LLMService
+            from ai.system_knowledge import SystemKnowledge
+            from homepot.app.api.API_v1.Endpoints.AIEndpoint import project_root
 
             llm = LLMService()
             if not await asyncio.to_thread(llm.check_health):
                 logger.info("LLM warm-up skipped: Ollama not reachable")
                 return
+            # Send the *real* system prompt so Ollama caches its KV prefix; the
+            # first real query then skips the (tens of seconds) prompt-eval cost.
+            system_prompt = SystemKnowledge(project_root).get_system_prompt()
             await asyncio.to_thread(
                 llm.generate_response,
                 "Reply with the single word: ready",
                 None,
-                "You are a health check. Reply with one word.",
+                system_prompt,
             )
-            logger.info("LLM warm-up complete (model resident)")
+            logger.info("LLM warm-up complete (model resident, prompt cached)")
         except Exception as e:
             logger.warning("LLM warm-up skipped (non-fatal): %s", e)
 

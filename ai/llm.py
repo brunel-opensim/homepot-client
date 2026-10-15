@@ -62,14 +62,18 @@ class LLMService:
             # Extract options from config with type safety
             temperature = float(self.config["llm"].get("temperature", 0.7))
             context_window = int(self.config["llm"].get("context_window", 4096))
+            options = {
+                "temperature": temperature,
+                "num_ctx": context_window,
+            }
+            num_predict = self.config["llm"].get("num_predict")
+            if num_predict:
+                options["num_predict"] = int(num_predict)
 
             response = self.client.chat(
                 model=self.model,
                 messages=messages,
-                options={
-                    "temperature": temperature,
-                    "num_ctx": context_window,
-                },
+                options=options,
                 keep_alive=self.keep_alive,
             )
 
@@ -83,12 +87,13 @@ class LLMService:
             # prompt evaluation (context/prefix) vs token generation. Essential
             # for diagnosing slow answers on CPU-only hosts (see docs).
             logger.info(
-                "LLM generate | system_chars=%d prompt_chars=%d num_ctx=%d | "
-                "prompt_eval_count=%s prompt_eval_ms=%s eval_count=%s "
-                "eval_ms=%s load_ms=%s total_ms=%s",
+                "LLM generate | system_chars=%d prompt_chars=%d num_ctx=%d "
+                "num_predict=%s | prompt_eval_count=%s prompt_eval_ms=%s "
+                "eval_count=%s eval_ms=%s load_ms=%s total_ms=%s",
                 len(system_prompt or ""),
                 len(full_prompt),
                 context_window,
+                options.get("num_predict"),
                 response.get("prompt_eval_count"),
                 _ms(response.get("prompt_eval_duration")),
                 response.get("eval_count"),
@@ -123,15 +128,19 @@ class LLMService:
         try:
             temperature = float(self.config["llm"].get("temperature", 0.7))
             context_window = int(self.config["llm"].get("context_window", 4096))
+            options = {
+                "temperature": temperature,
+                "num_ctx": context_window,
+            }
+            num_predict = self.config["llm"].get("num_predict")
+            if num_predict:
+                options["num_predict"] = int(num_predict)
 
             response = self.client.chat(
                 model=self.model,
                 messages=messages,
                 tools=tools,
-                options={
-                    "temperature": temperature,
-                    "num_ctx": context_window,
-                },
+                options=options,
                 keep_alive=self.keep_alive,
             )
 
