@@ -73,6 +73,30 @@ class LLMService:
                 keep_alive=self.keep_alive,
             )
 
+            def _ms(ns: Any) -> float:
+                try:
+                    return round(float(ns) / 1e6, 1)
+                except (TypeError, ValueError):
+                    return -1.0
+
+            # Per-request timing breakdown from Ollama: how much of the time is
+            # prompt evaluation (context/prefix) vs token generation. Essential
+            # for diagnosing slow answers on CPU-only hosts (see docs).
+            logger.info(
+                "LLM generate | system_chars=%d prompt_chars=%d num_ctx=%d | "
+                "prompt_eval_count=%s prompt_eval_ms=%s eval_count=%s "
+                "eval_ms=%s load_ms=%s total_ms=%s",
+                len(system_prompt or ""),
+                len(full_prompt),
+                context_window,
+                response.get("prompt_eval_count"),
+                _ms(response.get("prompt_eval_duration")),
+                response.get("eval_count"),
+                _ms(response.get("eval_duration")),
+                _ms(response.get("load_duration")),
+                _ms(response.get("total_duration")),
+            )
+
             return str(response["message"]["content"])
 
         except Exception as e:
