@@ -24,6 +24,9 @@ class LLMService:
 
         self.model = self.config["llm"]["model"]
         self.base_url = self.config["llm"]["base_url"]
+        # How long Ollama keeps the model loaded after a request. A long value
+        # avoids paying the (tens of seconds) cold-load cost on sparse queries.
+        self.keep_alive = self.config["llm"].get("keep_alive", "30m")
 
         # Initialize Ollama client
         self.client = ollama.Client(host=self.base_url)
@@ -67,6 +70,7 @@ class LLMService:
                     "temperature": temperature,
                     "num_ctx": context_window,
                 },
+                keep_alive=self.keep_alive,
             )
 
             return str(response["message"]["content"])
@@ -104,6 +108,7 @@ class LLMService:
                     "temperature": temperature,
                     "num_ctx": context_window,
                 },
+                keep_alive=self.keep_alive,
             )
 
             return response

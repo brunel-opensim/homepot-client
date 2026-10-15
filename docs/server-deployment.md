@@ -172,6 +172,24 @@ sudo systemctl stop homepot-api homepot-agent homepot-frontend 2>/dev/null
 sudo systemctl disable homepot-api homepot-agent homepot-frontend 2>/dev/null
 ```
 
+### 6. Reverse Proxy Timeout (Apache)
+
+The dashboard AI answers with local CPU inference and can take **60-120 s**
+(longer on the first, cold request). Apache's default `Timeout`/`ProxyTimeout`
+is 60 s, so it will cut the response off with a **504** before the backend
+finishes. In the API vhost, raise both to match the app:
+
+```apache
+ProxyTimeout 180
+Timeout 180
+```
+
+Then reload Apache:
+
+```bash
+sudo systemctl reload apache2
+```
+
 ## Deployment (demouser Tasks)
 
 All steps below are performed as `demouser` **without sudo**.
@@ -353,6 +371,21 @@ the real run (it types the database name to confirm):
 ```bash
 ollama list
 ```
+
+### AI Query Latency & Timeouts
+
+`llama3.2` on CPU with the full system-knowledge prompt takes **60-120 s** per
+answer, and longer on the first (cold) call while the model loads.
+
+- **Frontend**: `/api/v1/ai/query` uses `VITE_AI_QUERY_TIMEOUT` ms (default
+  `180000`) — see `frontend/src/services/api.js`.
+- **Proxy**: Apache must allow at least as long (`ProxyTimeout 180` /
+  `Timeout 180`; see Pre-Deployment → Reverse Proxy Timeout).
+- **Backend**: the model is preloaded on startup, and `keep_alive`
+  (`ai/config.yaml`, default `30m`) keeps it resident so sparse queries do not
+  pay the reload cost.
+- The LLM call runs in a worker thread (`asyncio.to_thread`), so a slow answer
+  no longer blocks other API requests.
 
 ### Model Sizing Guide
 

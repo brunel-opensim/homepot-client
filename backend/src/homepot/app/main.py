@@ -1,5 +1,6 @@
 """Imports for the app."""
 
+import asyncio
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -144,6 +145,37 @@ async def initialize_client() -> None:
         logging.getLogger(__name__).info("HOMEPOT Client connected successfully")
     except Exception as e:
         logging.getLogger(__name__).warning(f"Failed to connect client on startup: {e}")
+
+
+@app.on_event("startup")
+async def warm_up_llm() -> None:
+    """Preload the local LLM in the background so the first query isn't a cold start.
+
+    Best-effort: never blocks startup and silently skips when Ollama is not
+    reachable (e.g. the local AI stack is not deployed).
+    """
+
+    async def _warm() -> None:
+        logger = logging.getLogger(__name__)
+        try:
+            from ai.llm import LLMService
+
+            llm = LLMService()
+            if not await asyncio.to_thread(llm.check_health):
+                logger.info("LLM warm-up skipped: Ollama not reachable")
+                return
+            await asyncio.to_thread(
+                llm.generate_response,
+                "Reply with the single word: ready",
+                None,
+                "You are a health check. Reply with one word.",
+            )
+            logger.info("LLM warm-up complete (model resident)")
+        except Exception as e:
+            logger.warning("LLM warm-up skipped (non-fatal): %s", e)
+
+    # Keep a reference so the fire-and-forget task isn't garbage-collected.
+    app.state.llm_warmup_task = asyncio.create_task(_warm())
 
 
 # Incluse all routes from API v1

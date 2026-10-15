@@ -4,6 +4,7 @@ Provides REST API access to AI-powered analytics, predictions, and recommendatio
 """
 
 from datetime import datetime, timezone
+import asyncio
 import logging
 import os
 import sys
@@ -922,8 +923,11 @@ async def query_ai(
                 "total_duration_ms": agent_result.total_duration_ms,
             }
         else:
-            # Direct mode: single LLM call (existing behavior)
-            response = llm.generate_response(
+            # Direct mode: single LLM call (existing behavior). The Ollama
+            # client is synchronous, so run it in a thread to avoid blocking the
+            # event loop (and every other request) for the whole generation.
+            response = await asyncio.to_thread(
+                llm.generate_response,
                 prompt=request.query,
                 context=full_context,
                 system_prompt=system_prompt_text,
