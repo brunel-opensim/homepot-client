@@ -460,7 +460,7 @@ llm:
   model: "llama3.2"
   base_url: "http://localhost:11434"
   temperature: 0.7
-  context_window: 4096
+  context_window: 8192  # fits the ~3.8k-token system prompt + live context
   num_predict: 220      # cap generated tokens (bounds answer latency)
   keep_alive: "30m"     # keep the model + KV-cache prefix resident
 ```

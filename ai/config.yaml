@@ -13,7 +13,10 @@ llm:
   model: "llama3.2"
   base_url: "http://localhost:11434"
   temperature: 0.7
-  context_window: 4096
+  # The static system prompt is ~3.8k tokens; the request also appends live
+  # status to the user turn. 4096 left no room (Ollama truncates the prompt,
+  # which can evict instructions), so keep 8192 for headroom.
+  context_window: 8192
   # Cap generated tokens per answer. The model is chatty and CPU inference runs
   # at ~6 tok/s, so an unbounded answer can take ~45s. ~220 tokens keeps
   # answers useful but bounded (see docs/server-deployment.md).
