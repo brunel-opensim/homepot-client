@@ -207,14 +207,15 @@ class DeviceMemory:
         Returns the memory id (or ``None`` on failure).
         """
         metadata: Dict[str, Any] = scope.write_metadata() if scope else {}
-        metadata["created_at"] = int(created_at or time.time())
         if extra_metadata:
             metadata.update(extra_metadata)
         if memory_id is None:
+            # Exclude the timestamp so identical content dedups across seconds.
             digest = json.dumps(metadata, sort_keys=True, default=str)
             memory_id = hashlib.sha256(
                 f"{text}\x00{digest}".encode("utf-8")
             ).hexdigest()
+        metadata["created_at"] = int(created_at or time.time())
         try:
             self.collection.upsert(
                 documents=[text], metadatas=[metadata], ids=[memory_id]
