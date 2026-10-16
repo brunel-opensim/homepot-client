@@ -155,6 +155,7 @@ nav:
           - Trust & Validation Gates: ai-validation-gates.md
           - Anomaly Detection: anomaly-detection.md
           - Infrastructure: ai-infrastructure.md
+          - Memory (Short & Long-Term): ai-memory.md
           - Memory Inspection: ai-memory-inspection.md
       - Audit System: audit-compliance.md
       - Background Analytics: backend-analytics.md

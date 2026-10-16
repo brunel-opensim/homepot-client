@@ -27,10 +27,25 @@ llm:
   # default is 5m). A long value avoids the cold-load cost on sparse queries.
   keep_alive: "30m"
 
+# Long-term AI memory (ChromaDB vector store) -- see docs/ai-memory.md.
+#
+# Memories are scoped (user/site/device) and recalled by semantic similarity.
+# Changing `distance_metric` after the collection exists has no effect until the
+# collection is recreated (delete `chroma_path`), and `max_distance` is only
+# meaningful for the metric the collection was built with.
 memory:
   chroma_path: "data/chroma_db"
   collection_name: "device_logs"
-  embedding_model: "all-MiniLM-L6-v2"
+  embedding_model: "all-MiniLM-L6-v2"   # informational; ChromaDB's default embedder
+  distance_metric: "cosine"             # "cosine" (0..2) or "l2"
+  n_results: 5                          # max memories recalled per query
+  # Relevance cutoff on the vector distance (lower = more similar). Memories
+  # farther than this are not injected. Set to null to disable the cutoff and
+  # always return the top `n_results`.
+  max_distance: 0.9
+  retention_days: 90                    # prune memories older than this (null = keep forever)
+  answer_digest_chars: 500              # how much of each answer to store
+  write_on_query: true                  # persist a compact memory after each AI answer
 
 database:
   # Use PostgreSQL from docker-compose

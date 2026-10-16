@@ -6,6 +6,8 @@ This guide explains how to inspect and debug the AI's Long-Term Memory (ChromaDB
 
 The AI uses **ChromaDB** as a vector store to remember past device anomalies, analysis results, and resolutions. Unlike PostgreSQL, which stores structured data (tables), ChromaDB stores **semantic embeddings** (vectors) that allow the AI to find "similar" events based on meaning.
 
+Every record now also carries scope and retention metadata: `user_id`, `site_id`, `device_id`, `created_at`, and `source`. Recall is filtered to the caller's scope (admins are unrestricted) and memories older than `retention_days` are pruned automatically. See [AI Memory](ai-memory.md) for the full design and configuration.
+
 To help developers visualize what the AI "remembers," we provide a command-line tool: `scripts/query-chroma.sh`.
 
 ## The Inspection Tool
