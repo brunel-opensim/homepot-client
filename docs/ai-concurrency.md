@@ -1,0 +1,166 @@
+# AI Concurrency & Load
+
+How HOMEPOT behaves when more than one user (or tab) asks the AI a question at
+the same time, and the small application-level gate that keeps that behaviour
+bounded and predictable.
+
+!!! info "Why this page exists"
+    The production host has **no GPU** and runs a single Ollama inference slot.
+    Everything here is about making a queue that already exists (inside Ollama)
+    *visible* and **bounded**, rather than a silent 60-second hang.
+
+---
+
+## The bottleneck: one inference slot
+
+`llama3.2:latest` runs on CPU on a 4-core / ~7.6 GB host. Ollama only runs as
+many generations in parallel as it has KV-cache "slots", controlled by
+`OLLAMA_NUM_PARALLEL`. That variable is **unset on the production host**, so
+Ollama runs **one slot** — confirmed by `journalctl -u ollama` showing only
+`slot id 0`.
+
+Consequences:
+
+- Every generation is served one at a time; extra requests **queue inside
+  Ollama**, invisibly.
+- A caller sees a 30-60s wait with no feedback and no upper bound.
+- Generation runs at roughly **4.2-4.3 tok/s** on this CPU (prompt-eval on the
+  cached system prefix is fast, ~0.3-0.7s, because `main.py` warms it up).
+
+Without an application-level queue, a burst of N users each waits for the N-1
+before them, and nobody can tell whether the service is busy or broken.
+
+---
+
+## What the backend does: a slot gate
+
+Before it calls Ollama, the direct (non-agentic) query path takes a slot from a
+process-wide gate. The gate is a `threading.Semaphore`, taken **inside the
+worker thread** that runs the synchronous Ollama client:
+
+```python
+# backend/src/homepot/app/utils/ai_gate.py
+class AIConcurrencyGate:
+    def __init__(self, max_concurrent=1, queue_timeout_seconds=None):
+        self._semaphore = threading.Semaphore(self.max_concurrent)
+        ...
+
+    def run(self, func, *args, **kwargs):
+        acquired = self._semaphore.acquire(timeout=self.queue_timeout_seconds)
+        if not acquired:
+            raise AIBusyError(...)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            self._semaphore.release()
+```
+
+```python
+# backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
+response = await asyncio.to_thread(
+    gate.run,
+    llm.generate_response,
+    prompt=request.query,
+    context=full_context,
+    system_prompt=system_prompt_text,
+)
+```
+
+Why a thread semaphore and not `asyncio.Semaphore`:
+
+- The Ollama client is synchronous and already runs in a worker thread, so the
+  slot is acquired and released on that same thread.
+- It is independent of the event loop, so it behaves identically under the
+  single production loop and under the fresh loops pytest creates per test.
+
+### Behaviour
+
+| Config | Behaviour |
+|---|---|
+| Slot free | Runs immediately. |
+| All slots busy, wait <= `queue_timeout_seconds` | Waits, then runs in order. |
+| All slots busy, wait > `queue_timeout_seconds` | Returns **HTTP 503** with `Retry-After: 5` and a friendly "assistant is busy" message. |
+
+A rejected request is rejected *before* calling Ollama, so it costs no CPU and
+does not consume a place in Ollama's own queue.
+
+Measured on the production host with the default single slot:
+
+| Concurrent requests | Result |
+|---|---|
+| 2 | both complete, ~30s each |
+| 4 | all complete within ~37s |
+| 6 | all complete within ~33s |
+
+The mixed latencies are the queue draining; the gate makes this explicit and
+bounds the worst case at `queue_timeout_seconds`.
+
+---
+
+## Configuration
+
+`ai/config.yaml` -> `llm`:
+
+```yaml
+llm:
+  max_concurrent: 1            # generations allowed to run at once
+  queue_timeout_seconds: 45    # wait budget before HTTP 503; null/<=0 = wait forever
+```
+
+Keep `max_concurrent` aligned with Ollama's real slot count. Setting it higher
+than Ollama's slots does not add throughput; it just moves the queue back inside
+Ollama where callers get no feedback.
+
+The gate is created lazily from this config on the first AI request
+(`get_ai_gate()`), so changing it requires an API restart.
+
+### Raising Ollama's parallelism
+
+Setting `OLLAMA_NUM_PARALLEL=2` (systemd override for `ollama`) allows two
+concurrent generations. Each slot allocates its own KV cache for the configured
+context window (`num_ctx` 8192 here), which costs **roughly another 3 GB of
+RAM** — not safe on the current 7.6 GB host alongside the 3.1 GB model. If the
+gate is set to 2, Ollama's `OLLAMA_NUM_PARALLEL` should be raised to match.
+
+---
+
+## What this does *not* cover
+
+- **Agentic mode.** `request.agentic` runs a multi-step tool loop via
+  `run_agent`, which is not yet wrapped by the gate. Leave agentic mode off
+  under load; the gate currently protects the direct path only.
+- **Fairness across users.** The gate is first-come, first-served. One client
+  firing many requests can occupy the slot(s) ahead of others. Per-user rate
+  limiting (reusing the slowapi `Limiter` already wired in `main.py`) is a
+  follow-up.
+- **Multiple API workers.** A `threading.Semaphore` is per-process. With more
+  than one uvicorn worker, each process has its own gate, so the effective
+  limit is `workers x max_concurrent`. The current deployment runs a single
+  worker.
+- **Feedback while queued.** A waiting caller still just waits up to the
+  timeout; there is no progress stream yet.
+
+---
+
+## Verifying
+
+Unit tests (no Ollama needed):
+
+```bash
+cd backend && python -m pytest tests/test_ai_concurrency.py -q
+```
+
+Manual, against a running API:
+
+```bash
+# Three at once; with max_concurrent=1, queue_timeout_seconds=45 the
+# third should still be served (within the timeout), and a 7th under a
+# tight timeout should get HTTP 503 + Retry-After.
+for i in 1 2 3; do
+  curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" \
+    -X POST http://127.0.0.1:8000/api/v1/ai/query \
+    -H "Authorization: Bearer $(cat /tmp/hp_token)" \
+    -H "Content-Type: application/json" \
+    -d '{"query":"status"}' &
+done; wait
+```

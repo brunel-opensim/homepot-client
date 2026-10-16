@@ -53,6 +53,10 @@ from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
+from homepot.app.utils.ai_gate import (  # noqa: E402
+    AIBusyError,
+    AIConcurrencyGate,
+)
 from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
 from homepot.database import get_database_service, get_db  # noqa: E402
 from homepot.models import Device, HealthCheck, Site, User  # noqa: E402
@@ -433,6 +437,24 @@ def get_ai_services() -> Any:
     if _ai_services["memory"] is None:
         _ai_services["memory"] = DeviceMemory()
     return _ai_services["llm"], _ai_services["knowledge"], _ai_services["memory"]
+
+
+# Process-wide gate that caps concurrent generations (see utils/ai_gate.py).
+# Built lazily from the LLM config on first use so tests that patch
+# get_ai_services still control it.
+_ai_gate: Optional[AIConcurrencyGate] = None
+
+
+def get_ai_gate(llm: Any) -> AIConcurrencyGate:
+    """Return the shared AI concurrency gate, built from the LLM config."""
+    global _ai_gate
+    if _ai_gate is None:
+        llm_cfg = (getattr(llm, "config", {}) or {}).get("llm", {}) or {}
+        _ai_gate = AIConcurrencyGate(
+            max_concurrent=llm_cfg.get("max_concurrent", 1),
+            queue_timeout_seconds=llm_cfg.get("queue_timeout_seconds"),
+        )
+    return _ai_gate
 
 
 @router.post("/query", tags=["AI Chat"])
@@ -916,13 +938,32 @@ async def query_ai(
         else:
             # Direct mode: single LLM call (existing behavior). The Ollama
             # client is synchronous, so run it in a thread to avoid blocking the
-            # event loop (and every other request) for the whole generation.
-            response = await asyncio.to_thread(
-                llm.generate_response,
-                prompt=request.query,
-                context=full_context,
-                system_prompt=system_prompt_text,
-            )
+            # event loop (and every other request) for the whole generation. The
+            # gate caps how many generations run at once and bounds the wait, so
+            # a burst returns a prompt "busy" instead of silently queueing inside
+            # Ollama (see utils/ai_gate.py and docs/ai-concurrency.md).
+            gate = get_ai_gate(llm)
+            try:
+                response = await asyncio.to_thread(
+                    gate.run,
+                    llm.generate_response,
+                    prompt=request.query,
+                    context=full_context,
+                    system_prompt=system_prompt_text,
+                )
+            except AIBusyError:
+                logger.warning(
+                    "AI request rejected: all %d slot(s) busy",
+                    gate.max_concurrent,
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "The assistant is busy handling other requests. "
+                        "Please try again in a few seconds."
+                    ),
+                    headers={"Retry-After": "5"},
+                )
             agentic_info = None
 
         # 5b. Persist a compact, scoped long-term memory of this answer so later
@@ -996,6 +1037,9 @@ async def query_ai(
             "trust": trust.to_dict(),
             **({"agentic": agentic_info} if agentic_info else {}),
         }
+    except HTTPException:
+        # Preserve deliberate status codes (e.g. 503 when the AI gate is full).
+        raise
     except Exception as e:
         logger.error(f"AI query failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
