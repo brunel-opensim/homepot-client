@@ -8,20 +8,29 @@ in Phase 2.
 import asyncio
 from datetime import datetime, timezone
 import os
+import sys
 import tempfile
 
-from ai.actions import ActionProposal
-from fastapi.testclient import TestClient
-import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
+current_dir = os.path.dirname(os.path.abspath(__file__))
+workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
+if workspace_root not in sys.path:
+    sys.path.insert(0, workspace_root)
 
-from homepot.app.auth_utils import create_access_token, hash_password
-from homepot.app.models.AnalyticsModel import AIActionApproval, AIActionPlan
-from homepot.app.repositories.ai_action_repository import AIActionRepository
-from homepot.config import reload_settings
-import homepot.database
-from homepot.models import Base, Device, Site, SiteMembership, User
+from ai.actions import ActionProposal  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+import pytest  # noqa: E402
+from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
+from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
+from homepot.app.models.AnalyticsModel import (  # noqa: E402
+    AIActionApproval,
+    AIActionPlan,
+)
+from homepot.app.repositories import ai_action_repository  # noqa: E402
+from homepot.config import reload_settings  # noqa: E402
+import homepot.database  # noqa: E402
+from homepot.models import Base, Device, Site, SiteMembership, User  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -109,7 +118,7 @@ def _make_plan(db, device_id, *, created_by="ai@deleg.test"):
     proposals = [
         ActionProposal("restart", device_id, {}, "device unresponsive", "T2", True)
     ]
-    return AIActionRepository(db).create_plan(
+    return ai_action_repository.AIActionRepository(db).create_plan(
         proposals,
         risk_tier="T2",
         reversible=True,
