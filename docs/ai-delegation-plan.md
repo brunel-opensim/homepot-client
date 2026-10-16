@@ -383,6 +383,22 @@ the executor (Phase 3) are still to come. Tests live in
 `backend/tests/test_ai_delegation_phase1.py` and
 `backend/tests/test_ai_agent.py`.
 
+**Phase 2 status: implemented (approval-only / human-in-the-loop).** Captured
+plans are now persisted with status `pending_approval` (the promotion from
+`proposed` when the trust envelope is actionable), and a new `AIActionEndpoint`
+exposes `GET /ai/action-plans`, `GET /ai/action-plans/{plan_id}`,
+`POST /action-plans/{plan_id}/approve` and `/reject`. Decisions are **per-plan**
+(matching `AIActionApproval.plan_id`), scoped with
+`verify_device_belongs_to_user(..., minimum_role="operator")` (admins bypass;
+lists are filtered to accessible devices), and audited via
+`AI_PROPOSAL_APPROVED`/`AI_PROPOSAL_REJECTED` (`AI_PROPOSAL_CREATED` on
+capture). Only `pending_approval` plans are reviewable; terminal plans return
+`409`. Decisions record the actor in `ai_action_approval` but **do not execute**
+— that is Phase 3. A minimal frontend review page (`/ai-proposals`, "AI
+Proposals" in the sidebar) lists plans and approves/rejects them. Backend tests:
+`backend/tests/test_ai_action_approval.py`; frontend test:
+`frontend/tests/unit/AIProposalsList.test.jsx`.
+
 ---
 
 ## 14. Open decisions (need sign-off before Phase 1)

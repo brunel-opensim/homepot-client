@@ -16,6 +16,7 @@ from .Endpoints import (
     AgentsEndpoints,
     AgentStatusEndpoint,
     AgentTelemetryEndpoint,
+    AIActionEndpoint,
     AIEndpoint,
     AnalyticsEndpoint,
     ClientEndpoint,
@@ -105,6 +106,9 @@ api_v1_router.include_router(AnalyticsEndpoint.router, tags=["Analytics"])
 api_v1_router.include_router(DashboardEndpoint.router, tags=["Dashboard"])
 api_v1_router.include_router(
     AIEndpoint.router, prefix="/ai", tags=["AI & Machine Learning"]
+)
+api_v1_router.include_router(
+    AIActionEndpoint.router, prefix="/ai", tags=["AI Action Delegation"]
 )
 api_v1_router.include_router(KPIExportEndpoint.router, prefix="/kpi", tags=["KPI"])
 

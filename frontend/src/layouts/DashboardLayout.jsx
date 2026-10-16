@@ -12,6 +12,7 @@ export default function DashboardLayout() {
     location.pathname.startsWith('/sites/') ||
     location.pathname.startsWith('/device') ||
     location.pathname === '/data-collection' ||
+    location.pathname === '/ai-proposals' ||
     location.pathname === '/useractivity' ||
     location.pathname === '/agents';
 

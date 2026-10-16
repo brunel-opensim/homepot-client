@@ -30,6 +30,7 @@ const UserActivity = lazy(() => import('../pages/UserActivity'));
 const Agents = lazy(() => import('../pages/Agents'));
 const DataCollection = lazy(() => import('../pages/DataCollection'));
 const EnrolmentIntentsList = lazy(() => import('../pages/EnrolmentIntents/EnrolmentIntentsList'));
+const AIProposalsList = lazy(() => import('../pages/AIProposals/AIProposalsList'));
 
 export default function RoutesIndex() {
   return (
@@ -70,6 +71,7 @@ export default function RoutesIndex() {
           <Route path="device/:id/push-review" element={<PushReview />} />
           <Route path="useractivity" element={<UserActivity />} />
           <Route path="/agents" element={<Agents />} />
+          <Route path="ai-proposals" element={<AIProposalsList />} />
 
           {/* If you want / (root after login) to go to /dashboard */}
           <Route index element={<Navigate to="dashboard" replace />} />
