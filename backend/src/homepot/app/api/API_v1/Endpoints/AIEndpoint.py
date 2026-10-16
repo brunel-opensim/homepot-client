@@ -1083,12 +1083,40 @@ async def query_ai(
                         reversible=all_reversible(agent_result.proposals),
                         trust=trust,
                         created_by=current_user.get("email"),
+                        # The trust envelope already vetted the answer, so the
+                        # plan is promoted straight to awaiting a technician
+                        # (Phase 2). See docs/ai-delegation-plan.md section 6.
+                        status="pending_approval",
                     )
                 except Exception:
                     logger.warning(
                         "Failed to persist AI action proposal", exc_info=True
                     )
                 proposal_info = _build_proposal_info(agent_result.proposals, plan)
+                if plan is not None:
+                    try:
+                        await get_audit_logger().log_event(
+                            event_type=AuditEventType.AI_PROPOSAL_CREATED,
+                            description=(
+                                f"AI proposal created | plan={plan.plan_id} | "
+                                f"risk={plan.risk_tier}"
+                            ),
+                            user_id=current_user.get("user_id"),
+                            event_metadata={
+                                "plan_id": plan.plan_id,
+                                "risk_tier": plan.risk_tier,
+                                "reversible": plan.reversible,
+                                "target_devices": [
+                                    step.target_device_id
+                                    for step in plan.steps
+                                    if step.target_device_id
+                                ],
+                            },
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Failed to audit AI proposal creation", exc_info=True
+                        )
             else:
                 logger.info(
                     "AI produced %d proposal(s) but they were not surfaced "

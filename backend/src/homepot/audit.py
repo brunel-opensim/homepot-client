@@ -73,6 +73,10 @@ class AuditEventType(str, Enum):
     # AI events
     AI_QUERY = "ai_query"
     AI_GATE_FAILURE = "ai_gate_failure"
+    # AI action-delegation proposal lifecycle (docs/ai-delegation-plan.md).
+    AI_PROPOSAL_CREATED = "ai_proposal_created"
+    AI_PROPOSAL_APPROVED = "ai_proposal_approved"
+    AI_PROPOSAL_REJECTED = "ai_proposal_rejected"
 
     # Security events
     API_ACCESS = "api_access"

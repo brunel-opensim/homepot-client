@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Map, Monitor, PlusCircle, LogOut } from 'lucide-react';
+import { LayoutDashboard, Map, Monitor, PlusCircle, LogOut, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import ProfileModal from '@/components/ui/ProfileModal';
 
@@ -35,6 +35,7 @@ export default function Sidebar() {
     { to: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { to: '/sites', icon: <Map size={20} />, label: 'Sites' },
     { to: '/device', icon: <Monitor size={20} />, label: 'Devices' },
+    { to: '/ai-proposals', icon: <Sparkles size={20} />, label: 'AI Proposals' },
   ];
 
   const actionItems = [

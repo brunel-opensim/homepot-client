@@ -809,6 +809,51 @@ const api = {
       return response.data;
     },
   },
+
+  // AI action-delegation proposals (Phase 2). Technicians review and
+  // approve/reject plans the AI proposed; nothing is executed here.
+  aiProposals: {
+    /**
+     * List action plans, newest first, scoped to the caller's devices.
+     * @param {string} [status] - Optional plan status filter
+     */
+    list: async (status = null, limit = 50, offset = 0) => {
+      const params = { limit, offset };
+      if (status) {
+        params.status = status;
+      }
+      const response = await apiClient.get('/ai/action-plans', { params });
+      return response.data;
+    },
+
+    /**
+     * Get a single action plan by id.
+     */
+    get: async (planId) => {
+      const response = await apiClient.get(`/ai/action-plans/${planId}`);
+      return response.data;
+    },
+
+    /**
+     * Approve an action plan (records the decision; does not execute).
+     */
+    approve: async (planId, reason = null) => {
+      const response = await apiClient.post(`/ai/action-plans/${planId}/approve`, {
+        reason,
+      });
+      return response.data;
+    },
+
+    /**
+     * Reject an action plan.
+     */
+    reject: async (planId, reason = null) => {
+      const response = await apiClient.post(`/ai/action-plans/${planId}/reject`, {
+        reason,
+      });
+      return response.data;
+    },
+  },
 };
 
 /**
