@@ -1,7 +1,12 @@
 # Agentic AI Architecture
 
 > **Status:** Tier 1 Implementation
-> **Related:** [AI Implementation](ai-implementation.md) | [Context Builder](ai-context-builder.md) | [Trust & Validation Gates](ai-validation-gates.md) | [Memory Inspection](ai-memory-inspection.md)
+> **Related:** [AI Implementation](ai-implementation.md) | [Context Builder](ai-context-builder.md) | [Trust & Validation Gates](ai-validation-gates.md) | [Memory Inspection](ai-memory-inspection.md) | [Concurrency & Load](ai-concurrency.md)
+>
+> **Implemented:** ReAct loop + 8 tools, concurrency-gated per LLM call,
+> caller-scoped memory recall, graceful fallback to a direct answer.
+> **Not implemented:** validation-gate checks on tool I/O, per-device access
+> control in tools (marked below).
 
 The HOMEPOT diagnostic system currently operates as a single-turn RAG pipeline: the LLM receives rich context, generates a response, and stops. Agentic AI extends this to a **multi-step reasoning loop** where the LLM can autonomously query additional data sources, investigate hunches, and build up evidence before answering — mimicking how a human technician would diagnose a problem.
 
@@ -60,9 +65,18 @@ graph LR
 ### Key Design Principles
 
 - **Non-breaking**: The existing single-turn pipeline remains the default. Agentic mode is opt-in via `agentic: true` in the API request.
-- **Graceful degradation**: If the agent loop fails or the model produces malformed tool calls, the system falls back to the direct LLM call with whatever context was already assembled.
-- **Trust-gated tools**: Each tool execution is validated through the existing gate framework before its results are fed back to the LLM.
+- **Graceful degradation**: If the agent loop fails to produce an answer (LLM error, or budget exhausted with no output), it returns with `fell_back_to_direct=True` and the endpoint answers directly with the already-assembled context. It does **not** invent an answer.
+- **Concurrency-shared**: Every LLM call in the loop goes through the same `AIConcurrencyGate` as a direct query, so agentic mode cannot starve the inference slot and returns the same HTTP 503 when saturated. See [AI Concurrency & Load](ai-concurrency.md).
+- **Caller-scoped recall**: The caller's `MemoryScope` is bound for the run, so memory-reading tools (e.g. `search_similar_incidents`) recall only what the user may see.
 - **Budget-bounded**: The agent loop is hard-capped at 5 iterations and 60 seconds total to prevent runaway inference.
+
+!!! warning "Not yet implemented"
+    - **Trust-gated tools.** Tool outputs are **not** run through the validation
+      gates (Gate B/C) and modifying tools are not pre-checked with Gate D/E.
+      The gate integration sketched below is aspirational.
+    - **Per-device access control in tools.** Device tools accept any
+      `device_id`; they do not enforce `verify_device_belongs_to_user`. Treat
+      agentic tool access as currently unrestricted until this is added.
 
 ## Tool Registry
 
@@ -157,9 +171,18 @@ The agent loop stops when:
 2. **Max iterations**: 5 iterations reached without a final answer. The agent returns a partial answer with what it found.
 3. **Timeout**: 60 seconds total elapsed. The agent returns whatever it has.
 4. **Tool failure**: A critical tool fails. The agent continues with available data.
-5. **Validation gate failure**: A tool output fails Gate B (data integrity). The agent is informed and may try a different approach.
+5. **LLM failure**: A generation raises; the loop stops and the result is flagged
+   `fell_back_to_direct` so the endpoint can answer directly.
+
+(Validation-gate-based termination is not implemented — see the note above.)
 
 ## Integration with Validation Gates
+
+!!! warning "Design sketch — not yet implemented"
+    The code below describes the intended integration. The current
+    `ai/agent.py` does **not** run tool outputs through the gates and does not
+    pre-check modifying tools. The trust envelope computed for the request is
+    still surfaced to the model in the injected context.
 
 The existing validation gate framework provides safety for agentic tool use:
 
@@ -229,7 +252,8 @@ The response includes additional fields when agentic mode is used:
             {"tool": "get_error_logs", "iteration": 2},
             {"tool": "get_command_history", "iteration": 3}
         ],
-        "total_duration_ms": 4500
+        "total_duration_ms": 4500,
+        "fell_back_to_direct": false
     }
 }
 ```
@@ -264,16 +288,23 @@ The agent loop uses the same model — it simply makes multiple calls instead of
 
 For comparison, the direct pipeline (single LLM call) takes ~5-8s. Agentic mode adds 7-12s for complex queries.
 
+!!! warning "These numbers assume a GPU"
+    On the current CPU-only production host each generation is ~30-40s
+    (≈4.3 tok/s), so the 60 s loop cap realistically allows only ~1 tool round.
+    Agentic mode is best treated as an opt-in diagnostic that runs alone, not
+    under concurrent load.
+
 ## Limitations
 
 | Limitation | Impact | Mitigation |
 |---|---|---|
-| 3B model produces unreliable tool calls | May hallucinate tool names or arguments | Fallback to regex extraction from text; log malformed calls |
+| 3B model produces unreliable tool calls | May hallucinate tool names or arguments | Unknown tools/args return an error string the model can observe; no regex fallback yet |
 | 5-iteration cap | Complex multi-device diagnostics may be truncated | Increase cap for specific query types in future |
 | No parallel tool calls | Sequential tool execution adds latency | Group related data into single tools |
-| No self-reflection | Agent cannot evaluate its own reasoning quality | Validation gates provide external quality check |
+| No self-reflection | Agent cannot evaluate its own reasoning quality | Fallback to a direct answer when the loop produces nothing |
 | No human-in-the-loop | Agent executes autonomously | Future: add confirmation step for modifying actions |
-| Context window pressure | Each tool result adds to context | Truncate tool results to 500 chars, prioritize recent |
+| Context window pressure | Each tool result adds to context | Truncate tool results to 1500 chars, prioritize recent |
+| Tool access not per-device scoped | Device tools accept any `device_id` | Not yet enforced; rely on endpoint-level device checks |
 
 ## Implementation Tiers
 

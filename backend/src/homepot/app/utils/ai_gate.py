@@ -15,11 +15,12 @@ import logging
 import threading
 from typing import Any, Callable, Optional
 
+from ai.exceptions import AIBusyError
+
 logger = logging.getLogger(__name__)
 
-
-class AIBusyError(Exception):
-    """Raised when a request waited longer than allowed for an AI slot."""
+# Re-exported so existing imports of ``ai_gate.AIBusyError`` keep working.
+__all__ = ["AIBusyError", "AIConcurrencyGate"]
 
 
 class AIConcurrencyGate:

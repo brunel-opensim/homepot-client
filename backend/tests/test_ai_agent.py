@@ -17,6 +17,8 @@ if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
 from ai.agent import AgentResult, ToolCallRecord, _execute_tool, run_agent  # noqa: E402
+from ai.device_memory import MemoryScope  # noqa: E402
+from ai.exceptions import AIBusyError  # noqa: E402
 from ai.tools import (  # noqa: E402
     TOOL_FUNCTIONS,
     TOOL_REGISTRY,
@@ -25,7 +27,10 @@ from ai.tools import (  # noqa: E402
     get_device_metrics,
     get_device_status,
     get_error_logs,
+    get_tool_memory_scope,
+    reset_tool_memory_scope,
     search_similar_incidents,
+    set_tool_memory_scope,
 )
 
 # ── Tool registry tests ──────────────────────────────────────────────────────
@@ -199,6 +204,30 @@ def test_search_similar_incidents_with_results():
         assert "connectivity drops" in result
 
 
+def test_search_similar_incidents_uses_bound_scope():
+    """search_similar_incidents should recall within the run's memory scope."""
+    scope = MemoryScope(user_id=7, site_ids=[3])
+    token = set_tool_memory_scope(scope)
+    try:
+        with patch("ai.tools.DeviceMemory") as mock_dm:
+            mock_dm.return_value.query_similar.return_value = []
+            search_similar_incidents("connectivity")
+            _, kwargs = mock_dm.return_value.query_similar.call_args
+            assert kwargs["scope"] is scope
+    finally:
+        reset_tool_memory_scope(token)
+
+
+def test_search_similar_incidents_unscoped_by_default():
+    """With no scope bound, recall passes scope=None (unchanged default)."""
+    assert get_tool_memory_scope() is None
+    with patch("ai.tools.DeviceMemory") as mock_dm:
+        mock_dm.return_value.query_similar.return_value = []
+        search_similar_incidents("connectivity")
+        _, kwargs = mock_dm.return_value.query_similar.call_args
+        assert kwargs["scope"] is None
+
+
 # ── Agent loop tests ─────────────────────────────────────────────────────────
 
 
@@ -332,6 +361,83 @@ async def test_run_agent_llm_failure():
 
     assert result.response  # Should have some fallback text
     assert result.iterations == 0
+
+
+@pytest.mark.asyncio
+async def test_run_agent_marks_fallback_on_llm_failure():
+    """A failed loop should flag fallback so the endpoint can answer directly."""
+    mock_llm = MagicMock()
+    mock_llm.generate_with_tools.side_effect = Exception("Ollama connection refused")
+
+    result = await run_agent(query="Test query", context="[CONTEXT]", llm=mock_llm)
+
+    assert result.fell_back_to_direct is True
+
+
+@pytest.mark.asyncio
+async def test_run_agent_routes_calls_through_gate():
+    """Every LLM call should go through the supplied gate.run()."""
+    mock_llm = MagicMock()
+    response = MagicMock()
+    response.message.content = "All good."
+    response.message.tool_calls = None
+    mock_llm.generate_with_tools.return_value = response
+
+    calls = []
+
+    class _Gate:
+        def run(self, func, *args, **kwargs):
+            calls.append(1)
+            return func(*args, **kwargs)
+
+    result = await run_agent(query="q", context="c", llm=mock_llm, gate=_Gate())
+
+    assert calls == [1]
+    assert result.response == "All good."
+
+
+@pytest.mark.asyncio
+async def test_run_agent_propagates_busy_error():
+    """A saturated gate on the first call should surface AIBusyError."""
+    mock_llm = MagicMock()
+
+    class _BusyGate:
+        def run(self, func, *args, **kwargs):
+            raise AIBusyError("full")
+
+    with pytest.raises(AIBusyError):
+        await run_agent(query="q", context="c", llm=mock_llm, gate=_BusyGate())
+
+
+@pytest.mark.asyncio
+async def test_run_agent_binds_and_resets_tool_scope():
+    """run_agent binds memory_scope for tools and resets it afterwards."""
+    mock_llm = MagicMock()
+
+    tool_response = MagicMock()
+    tool_response.message.content = ""
+    tool_call = MagicMock()
+    tool_call.function.name = "get_device_status"
+    tool_call.function.arguments = {"device_id": "POS-001"}
+    tool_response.message.tool_calls = [tool_call]
+
+    final_response = MagicMock()
+    final_response.message.content = "done"
+    final_response.message.tool_calls = None
+    mock_llm.generate_with_tools.side_effect = [tool_response, final_response]
+
+    scope = MemoryScope(user_id=5, site_ids=[1])
+    seen = {}
+
+    async def fake_exec(name, args):
+        seen["scope"] = get_tool_memory_scope()
+        return "data"
+
+    with patch("ai.agent._execute_tool", side_effect=fake_exec):
+        await run_agent(query="q", context="c", llm=mock_llm, memory_scope=scope)
+
+    assert seen["scope"] is scope
+    assert get_tool_memory_scope() is None  # restored after the run
 
 
 # ── Endpoint integration tests ───────────────────────────────────────────────

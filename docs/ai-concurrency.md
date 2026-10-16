@@ -126,9 +126,6 @@ gate is set to 2, Ollama's `OLLAMA_NUM_PARALLEL` should be raised to match.
 
 ## What this does *not* cover
 
-- **Agentic mode.** `request.agentic` runs a multi-step tool loop via
-  `run_agent`, which is not yet wrapped by the gate. Leave agentic mode off
-  under load; the gate currently protects the direct path only.
 - **Fairness across users.** The gate is first-come, first-served. One client
   firing many requests can occupy the slot(s) ahead of others. Per-user rate
   limiting (reusing the slowapi `Limiter` already wired in `main.py`) is a
@@ -139,6 +136,16 @@ gate is set to 2, Ollama's `OLLAMA_NUM_PARALLEL` should be raised to match.
   worker.
 - **Feedback while queued.** A waiting caller still just waits up to the
   timeout; there is no progress stream yet.
+
+!!! note "Agentic mode is gated too"
+    Each LLM call inside `run_agent` is routed through the same gate per call
+    (`ai/agent.py` `_generate_with_gate`), so agentic queries share the slot
+    budget and return the same 503 when saturated. Tool execution runs *outside*
+    the slot, letting other requests interleave between an agent's reasoning
+    steps. A saturated gate on the first generation raises `AIBusyError` (→ 503);
+    saturation on the forced final-answer call is absorbed into the agent's
+    fallback instead of failing the request.
+
 
 ---
 

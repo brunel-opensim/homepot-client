@@ -7,16 +7,48 @@ them. Tools wrap existing ContextBuilder methods and database queries.
 See docs/ai-agentic.md for the full architecture.
 """
 
+import contextvars
 import json
 import logging
 from typing import Optional
 
 from ai.context_builder import ContextBuilder
-from ai.device_memory import DeviceMemory
+from ai.device_memory import DeviceMemory, MemoryScope
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Per-request tool scope
+# ---------------------------------------------------------------------------
+#
+# Tool functions must keep simple, schema-friendly signatures (Ollama derives
+# the JSON schema from the type hints), so the caller's access scope cannot be a
+# normal parameter. Instead the agent sets it in a ContextVar for the duration
+# of a run and the tools that read user data consult it. This keeps agentic
+# recall scoped exactly like the direct path, without leaking scope into the
+# model-visible tool schema.
+
+_tool_memory_scope: contextvars.ContextVar[Optional[MemoryScope]] = (
+    contextvars.ContextVar("tool_memory_scope", default=None)
+)
+
+
+def set_tool_memory_scope(scope: Optional[MemoryScope]) -> contextvars.Token:
+    """Bind the caller's memory scope for the current run; returns a token."""
+    return _tool_memory_scope.set(scope)
+
+
+def reset_tool_memory_scope(token: contextvars.Token) -> None:
+    """Restore the previous memory scope using the token from ``set_...``."""
+    _tool_memory_scope.reset(token)
+
+
+def get_tool_memory_scope() -> Optional[MemoryScope]:
+    """Return the memory scope bound to the current run (or ``None``)."""
+    return _tool_memory_scope.get()
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +234,9 @@ def search_similar_incidents(query: str) -> str:
     """
     try:
         device_memory = DeviceMemory()
-        results = device_memory.query_similar(query, n_results=5)
+        results = device_memory.query_similar(
+            query, n_results=5, scope=get_tool_memory_scope()
+        )
 
         if not results:
             return "No similar incidents found in memory."

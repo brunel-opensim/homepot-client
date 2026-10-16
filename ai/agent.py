@@ -13,8 +13,14 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
+from ai.exceptions import AIBusyError
 from ai.llm import LLMService
-from ai.tools import TOOL_FUNCTIONS, TOOL_REGISTRY
+from ai.tools import (
+    TOOL_FUNCTIONS,
+    TOOL_REGISTRY,
+    reset_tool_memory_scope,
+    set_tool_memory_scope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +120,40 @@ async def _execute_tool(tool_name: str, arguments: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+async def _generate_with_gate(
+    llm: LLMService,
+    messages: List[Dict[str, Any]],
+    gate: Optional[Any] = None,
+) -> Any:
+    """Run ``llm.generate_with_tools`` off the event loop, through the gate.
+
+    The Ollama client is synchronous, so it always runs in a worker thread. When
+    a concurrency ``gate`` is supplied its blocking ``run`` wrapper is used, so
+    each generation respects the shared slot budget (and raises
+    ``AIBusyError`` when saturated).
+    """
+    if gate is not None:
+        return await asyncio.to_thread(
+            gate.run,
+            llm.generate_with_tools,
+            messages=messages,
+            tools=TOOL_FUNCTIONS,
+        )
+    return await asyncio.to_thread(
+        llm.generate_with_tools,
+        messages=messages,
+        tools=TOOL_FUNCTIONS,
+    )
+
+
 async def run_agent(
     query: str,
     context: str,
     llm: LLMService,
     device_id: Optional[str] = None,
     max_iterations: int = MAX_ITERATIONS,
+    gate: Optional[Any] = None,
+    memory_scope: Optional[Any] = None,
 ) -> AgentResult:
     """Run the ReAct agent loop.
 
@@ -132,12 +166,25 @@ async def run_agent(
         llm: LLM service instance.
         device_id: Optional device ID for context.
         max_iterations: Maximum number of tool-calling iterations.
+        gate: Optional concurrency gate (anything with a blocking ``run``
+            method). Each LLM call goes through it so agentic mode shares the
+            same inference-slot budget as direct queries.
+        memory_scope: Optional :class:`ai.device_memory.MemoryScope` bound to
+            this run so memory-reading tools recall only what the caller may
+            see.
 
     Returns:
         AgentResult with the final response and metadata.
+
+    Raises:
+        AIBusyError: If the concurrency gate is saturated for an early
+            generation (i.e. before any answer was produced). The API maps this
+            to HTTP 503. Saturation on the forced final-answer call is absorbed
+            into the fallback message instead of failing the whole request.
     """
     start_time = time.monotonic()
     tools_called: List[ToolCallRecord] = []
+    fell_back_to_direct = False
 
     # Build initial messages
     system_content = AGENT_SYSTEM_PROMPT
@@ -151,104 +198,110 @@ async def run_agent(
 
     last_response_text = ""
 
-    for iteration in range(max_iterations):
-        # Check total timeout
-        elapsed = time.monotonic() - start_time
-        if elapsed > TOTAL_TIMEOUT_SECONDS:
-            logger.warning(
-                "Agent loop timeout after %.1fs at iteration %d",
-                elapsed,
-                iteration,
-            )
-            break
+    scope_token = set_tool_memory_scope(memory_scope)
+    try:
+        for iteration in range(max_iterations):
+            # Check total timeout
+            elapsed = time.monotonic() - start_time
+            if elapsed > TOTAL_TIMEOUT_SECONDS:
+                logger.warning(
+                    "Agent loop timeout after %.1fs at iteration %d",
+                    elapsed,
+                    iteration,
+                )
+                break
 
-        # Call LLM with tools
-        try:
-            response = await asyncio.to_thread(
-                llm.generate_with_tools,
-                messages=messages,
-                tools=TOOL_FUNCTIONS,
-            )
-        except Exception as e:
-            logger.error("LLM call failed at iteration %d: %s", iteration, e)
-            break
+            # Call LLM with tools
+            try:
+                response = await _generate_with_gate(llm, messages, gate)
+            except AIBusyError:
+                # No slot for the very first/early call: surface "busy" to the
+                # caller rather than pretending we investigated.
+                raise
+            except Exception as e:
+                logger.error("LLM call failed at iteration %d: %s", iteration, e)
+                fell_back_to_direct = True
+                break
 
-        # Append assistant message to history
-        assistant_msg: Dict[str, Any] = {
-            "role": response.message.role,
-            "content": response.message.content or "",
-        }
-        if response.message.tool_calls:
-            assistant_msg["tool_calls"] = response.message.tool_calls
-        messages.append(assistant_msg)
+            # Append assistant message to history
+            assistant_msg: Dict[str, Any] = {
+                "role": response.message.role,
+                "content": response.message.content or "",
+            }
+            if response.message.tool_calls:
+                assistant_msg["tool_calls"] = response.message.tool_calls
+            messages.append(assistant_msg)
 
-        # Check if model produced a final answer (no tool calls)
-        if not response.message.tool_calls:
-            last_response_text = response.message.content or ""
-            break
+            # Check if model produced a final answer (no tool calls)
+            if not response.message.tool_calls:
+                last_response_text = response.message.content or ""
+                break
 
-        # Execute each tool call
-        for call in response.message.tool_calls:
-            tool_name = call.function.name
-            arguments = dict(call.function.arguments)
+            # Execute each tool call
+            for call in response.message.tool_calls:
+                tool_name = call.function.name
+                arguments = dict(call.function.arguments)
 
-            # Record the call
-            record = ToolCallRecord(
-                tool_name=tool_name,
-                iteration=iteration + 1,
-                arguments=arguments,
-            )
-            tools_called.append(record)
+                # Record the call
+                record = ToolCallRecord(
+                    tool_name=tool_name,
+                    iteration=iteration + 1,
+                    arguments=arguments,
+                )
+                tools_called.append(record)
 
-            # Execute tool
-            result = await _execute_tool(tool_name, arguments)
+                # Execute tool
+                result = await _execute_tool(tool_name, arguments)
 
-            # Update record with result preview
-            record.result_preview = result[:200]
+                # Update record with result preview
+                record.result_preview = result[:200]
 
-            logger.info(
-                "Agent tool call: %s(%s) -> %d chars",
-                tool_name,
-                arguments,
-                len(result),
-            )
+                logger.info(
+                    "Agent tool call: %s(%s) -> %d chars",
+                    tool_name,
+                    arguments,
+                    len(result),
+                )
 
-            # Feed result back as tool message
+                # Feed result back as tool message
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_name": tool_name,
+                        "content": result,
+                    }
+                )
+
+        # If we exhausted iterations without a final answer, ask for one
+        if not last_response_text:
             messages.append(
                 {
-                    "role": "tool",
-                    "tool_name": tool_name,
-                    "content": result,
+                    "role": "user",
+                    "content": (
+                        "Please provide your final answer based on all the information "
+                        "you have gathered so far. Do not call any more tools."
+                    ),
                 }
             )
+            try:
+                response = await _generate_with_gate(llm, messages, gate)
+                last_response_text = response.message.content or ""
+            except AIBusyError:
+                logger.warning("Agent final-answer call hit a saturated gate")
+            except Exception as e:
+                logger.error("Final answer LLM call failed: %s", e)
+                fell_back_to_direct = True
 
-    # If we exhausted iterations without a final answer, ask for one
-    if not last_response_text:
-        messages.append(
-            {
-                "role": "user",
-                "content": (
-                    "Please provide your final answer based on all the information "
-                    "you have gathered so far. Do not call any more tools."
-                ),
-            }
-        )
-        try:
-            response = await asyncio.to_thread(
-                llm.generate_with_tools,
-                messages=messages,
-                tools=TOOL_FUNCTIONS,
-            )
-            last_response_text = response.message.content or (
-                "I was unable to complete the investigation within the allowed "
-                "iterations. Please try a more specific question."
-            )
-        except Exception as e:
-            logger.error("Final answer LLM call failed: %s", e)
-            last_response_text = (
-                "I was unable to complete the investigation. "
-                "Please try a more specific question."
-            )
+            if not last_response_text:
+                last_response_text = (
+                    "I was unable to complete the investigation. "
+                    "Please try a more specific question."
+                )
+                # Nothing useful was produced; the caller may retry, or the
+                # endpoint falls back to a direct answer.
+                fell_back_to_direct = True
+    finally:
+        reset_tool_memory_scope(scope_token)
 
     total_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -257,4 +310,5 @@ async def run_agent(
         iterations=len(tools_called),
         tools_called=tools_called,
         total_duration_ms=total_ms,
+        fell_back_to_direct=fell_back_to_direct,
     )
