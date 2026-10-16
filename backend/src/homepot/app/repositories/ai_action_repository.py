@@ -162,7 +162,7 @@ class AIActionRepository:
             reason=reason,
             device_scope=device_scope,
         )
-        plan.status = decision
+        plan.status = decision  # type: ignore[assignment]
         self.db.add(approval)
         self.db.commit()
         self.db.refresh(approval)
