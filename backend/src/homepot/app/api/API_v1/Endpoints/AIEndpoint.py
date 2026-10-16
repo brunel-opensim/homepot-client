@@ -457,6 +457,48 @@ def get_ai_gate(llm: Any) -> AIConcurrencyGate:
     return _ai_gate
 
 
+def _ai_busy_http_exception(gate: AIConcurrencyGate) -> HTTPException:
+    """Build the 503 returned when every AI slot is busy."""
+    logger.warning(
+        "AI request rejected: all %d slot(s) busy",
+        gate.max_concurrent,
+    )
+    return HTTPException(
+        status_code=503,
+        detail=(
+            "The assistant is busy handling other requests. "
+            "Please try again in a few seconds."
+        ),
+        headers={"Retry-After": "5"},
+    )
+
+
+async def _generate_direct(
+    llm: Any,
+    query: str,
+    context: str,
+    system_prompt_text: str,
+    gate: AIConcurrencyGate,
+) -> str:
+    """Run a single direct generation, through the concurrency gate.
+
+    The Ollama client is synchronous, so it runs in a worker thread; the gate
+    caps how many generations run at once and bounds the wait, so a burst gets
+    an explicit "busy" (``AIBusyError`` → HTTP 503) instead of queueing
+    invisibly inside Ollama (see utils/ai_gate.py and docs/ai-concurrency.md).
+    """
+    try:
+        return await asyncio.to_thread(
+            gate.run,
+            llm.generate_response,
+            prompt=query,
+            context=context,
+            system_prompt=system_prompt_text,
+        )
+    except AIBusyError:
+        raise _ai_busy_http_exception(gate)
+
+
 @router.post("/query", tags=["AI Chat"])
 async def query_ai(
     request: AIQueryRequest,
@@ -919,14 +961,36 @@ async def query_ai(
         system_prompt_text = knowledge.get_system_prompt()
 
         if request.agentic:
-            # Agentic mode: multi-step tool-calling investigation
-            agent_result = await run_agent(
-                query=request.query,
-                context=full_context,
-                llm=llm,
-                device_id=request.device_id,
-            )
-            response = agent_result.response
+            # Agentic mode: multi-step tool-calling investigation. Each LLM
+            # call is routed through the same concurrency gate as a direct
+            # query, and the caller's memory scope is passed in so memory-reading
+            # tools only recall what this user may see.
+            gate = get_ai_gate(llm)
+            try:
+                agent_result = await run_agent(
+                    query=request.query,
+                    context=full_context,
+                    llm=llm,
+                    device_id=request.device_id,
+                    gate=gate,
+                    memory_scope=memory_scope,
+                )
+            except AIBusyError:
+                raise _ai_busy_http_exception(gate)
+
+            if agent_result.fell_back_to_direct:
+                # Documented graceful degradation: the loop could not produce an
+                # answer (LLM/tool failure or budget exhausted with no output),
+                # so answer directly with the context we already assembled.
+                logger.warning(
+                    "Agent loop produced no answer; falling back to direct generation"
+                )
+                response = await _generate_direct(
+                    llm, request.query, full_context, system_prompt_text, gate
+                )
+            else:
+                response = agent_result.response
+
             agentic_info = {
                 "iterations": agent_result.iterations,
                 "tools_called": [
@@ -934,36 +998,17 @@ async def query_ai(
                     for tc in agent_result.tools_called
                 ],
                 "total_duration_ms": agent_result.total_duration_ms,
+                "fell_back_to_direct": agent_result.fell_back_to_direct,
             }
         else:
-            # Direct mode: single LLM call (existing behavior). The Ollama
-            # client is synchronous, so run it in a thread to avoid blocking the
-            # event loop (and every other request) for the whole generation. The
-            # gate caps how many generations run at once and bounds the wait, so
-            # a burst returns a prompt "busy" instead of silently queueing inside
-            # Ollama (see utils/ai_gate.py and docs/ai-concurrency.md).
-            gate = get_ai_gate(llm)
-            try:
-                response = await asyncio.to_thread(
-                    gate.run,
-                    llm.generate_response,
-                    prompt=request.query,
-                    context=full_context,
-                    system_prompt=system_prompt_text,
-                )
-            except AIBusyError:
-                logger.warning(
-                    "AI request rejected: all %d slot(s) busy",
-                    gate.max_concurrent,
-                )
-                raise HTTPException(
-                    status_code=503,
-                    detail=(
-                        "The assistant is busy handling other requests. "
-                        "Please try again in a few seconds."
-                    ),
-                    headers={"Retry-After": "5"},
-                )
+            # Direct mode: single LLM call (existing behavior).
+            response = await _generate_direct(
+                llm,
+                request.query,
+                full_context,
+                system_prompt_text,
+                get_ai_gate(llm),
+            )
             agentic_info = None
 
         # 5b. Persist a compact, scoped long-term memory of this answer so later
