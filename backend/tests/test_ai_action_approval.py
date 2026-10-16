@@ -8,7 +8,13 @@ in Phase 2.
 import asyncio
 from datetime import datetime, timezone
 import os
+import sys
 import tempfile
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
+if workspace_root not in sys.path:
+    sys.path.insert(0, workspace_root)
 
 from ai.actions import ActionProposal
 from fastapi.testclient import TestClient
