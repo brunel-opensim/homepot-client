@@ -113,6 +113,41 @@ describe('AIProposalsList', () => {
     expect(await screen.findByText(/No AI action proposals/)).toBeInTheDocument();
   });
 
+  it('shows an Execute button only for approved plans', async () => {
+    renderPage();
+    await screen.findByText('AI Action Proposals');
+    expect(screen.getAllByText('Execute')).toHaveLength(1);
+  });
+
+  it('executes an approved plan and refreshes the list', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    api.aiProposals.execute.mockResolvedValue({ ...mockPlans[1], status: 'executing' });
+
+    renderPage();
+    await screen.findByText('AI Action Proposals');
+    await userEvent.click(screen.getByText('Execute'));
+
+    await waitFor(() => {
+      expect(api.aiProposals.execute).toHaveBeenCalledWith(mockPlans[1].plan_id);
+    });
+    expect(api.aiProposals.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces a policy block when execution is refused', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    api.aiProposals.execute.mockResolvedValue({
+      ...mockPlans[1],
+      status: 'blocked',
+      policy: { allowed: false, reasons: ['Device is not active.'] },
+    });
+
+    renderPage();
+    await screen.findByText('AI Action Proposals');
+    await userEvent.click(screen.getByText('Execute'));
+
+    expect((await screen.findAllByText(/Device is not active/)).length).toBeGreaterThan(0);
+  });
+
   it('shows a loading spinner while fetching', () => {
     api.aiProposals.list.mockImplementation(() => new Promise(() => {}));
     renderPage();

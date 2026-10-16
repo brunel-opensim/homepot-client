@@ -399,6 +399,23 @@ Proposals" in the sidebar) lists plans and approves/rejects them. Backend tests:
 `backend/tests/test_ai_action_approval.py`; frontend test:
 `frontend/tests/unit/AIProposalsList.test.jsx`.
 
+**Phase 3 status: implemented (deterministic executor + verify + rollback).**
+The new `homepot.app.ai_ops` package holds the execution layer:
+`policy.py` re-checks live data (declared action, tier in T1/T2, device
+`active`, `root_access` granted, blast radius ≤ 5) before anything runs;
+`executor.py` queues one `DeviceCommand` per step through the same command path
+the operator UI uses and snapshots each `update_config` so it can be undone;
+`rollback.py` queues inverse `update_config` commands (and treats `restart` as
+self-reverting); `verifier.py` advances a plan as device results arrive and
+writes exactly one `AIActionOutcome`. `POST /ai/action-plans/{plan_id}/execute`
+(only `approved` plans; a policy failure records status `blocked` and returns
+`200` with a `policy` block) kicks the plan into `executing`, and a background
+reconcile loop in `main.py` finalises it to `succeeded` / `rolled_back` /
+`failed`. New audit events: `AI_EXECUTION_STARTED`/`BLOCKED`/`SUCCEEDED`/
+`FAILED`/`ROLLED_BACK`. The `/ai-proposals` page gains an **Execute** button for
+approved plans and an outcome line. Backend tests:
+`backend/tests/test_ai_execution.py`.
+
 ---
 
 ## 14. Open decisions (need sign-off before Phase 1)

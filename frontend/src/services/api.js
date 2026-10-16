@@ -853,6 +853,16 @@ const api = {
       });
       return response.data;
     },
+
+    /**
+     * Execute an approved action plan (Phase 3).
+     * Queues the underlying device commands asynchronously; the plan moves to
+     * `executing` and its outcome is filled in once devices report back.
+     */
+    execute: async (planId) => {
+      const response = await apiClient.post(`/ai/action-plans/${planId}/execute`);
+      return response.data;
+    },
   },
 };
 

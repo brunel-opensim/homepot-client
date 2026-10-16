@@ -1,0 +1,108 @@
+"""Rollback for failed AI action plans (Phase 3).
+
+When a step fails mid-plan, the applied reversible steps are undone in reverse
+order by queueing the inverse command through the same command queue. The
+verifier then confirms the rollback commands completed.
+
+* ``update_config`` — inverse is ``update_config`` with the snapshotted
+  ``previous`` values (captured by the executor at queue time).
+* ``restart`` — self-reverting: the device recovers on its own, so there is
+  nothing to queue; the step is marked ``rolled_back`` immediately.
+"""
+
+import logging
+from typing import Any, Dict, List
+
+from sqlalchemy import update
+from sqlalchemy.orm import Session as SASession
+
+from homepot.app.ai_ops.registry import get_action_spec
+from homepot.app.models.AnalyticsModel import AIActionStep
+from homepot.database import get_database_service
+from homepot.models import Device
+
+logger = logging.getLogger(__name__)
+
+STEP_DONE = "done"
+STEP_ROLLED_BACK = "rolled_back"
+
+# Key under which the inverse (rollback) command id is stored on the step.
+ROLLBACK_COMMAND_KEY = "rollback_command_id"
+
+
+async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bool:
+    """Queue inverse commands for applied, reversible steps (reverse order).
+
+    Returns ``True`` when at least one rollback command was queued, so the
+    caller can distinguish "rolling back" from "nothing to undo". As in the
+    executor, the sync read transaction is closed before the async inserts.
+    """
+    if db_service is None:
+        db_service = await get_database_service()
+
+    to_rollback: List[Dict[str, Any]] = []
+    for step in sorted(plan.steps, key=lambda s: s.seq or 0, reverse=True):
+        spec = get_action_spec(step.action)
+        if spec is None or not spec.reversible:
+            continue
+
+        if step.action != "update_config":
+            # Self-reverting (e.g. restart): only undo if it was actually
+            # applied; a failed restart needs no inverse.
+            if step.status == STEP_DONE:
+                to_rollback.append({"step_id": step.step_id, "self_reverting": True})
+            continue
+
+        # update_config may have partially applied even when the command
+        # reported failure, so attempt to restore the snapshot in that case too.
+        if step.status not in (STEP_DONE, "failed"):
+            continue
+
+        previous = (step.rollback_params or {}).get("previous")
+        if not isinstance(previous, dict) or not previous:
+            continue
+
+        device = (
+            db.query(Device).filter(Device.device_id == step.target_device_id).first()
+        )
+        if device is None:
+            continue
+
+        to_rollback.append(
+            {
+                "step_id": step.step_id,
+                "self_reverting": False,
+                "device_pk": device.id,
+                "command_type": spec.command_type,
+                "previous": previous,
+            }
+        )
+
+    db.commit()
+
+    queued = False
+    for item in to_rollback:
+        if item["self_reverting"]:
+            db.execute(
+                update(AIActionStep)
+                .where(AIActionStep.step_id == item["step_id"])
+                .values(status=STEP_ROLLED_BACK)
+            )
+            continue
+
+        command = await db_service.create_device_command(
+            device_id=item["device_pk"],
+            command_type=item["command_type"],
+            payload={"data": item["previous"]},
+            issued_by="ai:rollback",
+        )
+        db.execute(
+            update(AIActionStep)
+            .where(AIActionStep.step_id == item["step_id"])
+            .values(rollback_params={ROLLBACK_COMMAND_KEY: command.command_id})
+        )
+        queued = True
+
+    db.commit()
+    db.expire_all()
+    return queued

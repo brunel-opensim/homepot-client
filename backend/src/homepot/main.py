@@ -47,6 +47,10 @@ client_instance: Optional[HomepotClient] = None
 _command_expiry_task: Optional[asyncio.Task[None]] = None
 _intent_expiry_task: Optional[asyncio.Task[None]] = None
 _stale_device_task: Optional[asyncio.Task[None]] = None
+_ai_execution_task: Optional[asyncio.Task[None]] = None
+
+# How often to advance AI action plans that are mid-execution (Phase 3).
+AI_EXECUTION_RECONCILE_SECONDS = 10
 
 
 async def _run_command_expiry_loop() -> None:
@@ -78,6 +82,41 @@ async def _run_intent_expiry_loop() -> None:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
+async def _run_ai_execution_reconcile_loop() -> None:
+    """Advance AI action plans that are mid-execution (Phase 3).
+
+    Execution is asynchronous: the executor queues device commands and the
+    device reports back later. This loop moves ``executing``/``rolling_back``
+    plans to a terminal state once their commands finish.
+    """
+    from homepot.app.ai_ops.verifier import reconcile_plan
+    from homepot.app.repositories.ai_action_repository import AIActionRepository
+    from homepot.database import SessionLocal
+
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                repo = AIActionRepository(db)
+                plans = repo.list_plans(
+                    statuses={"executing", "rolling_back"}, limit=100
+                )
+                for plan in plans:
+                    try:
+                        await reconcile_plan(db, plan)
+                    except Exception:
+                        logger.warning(
+                            "Failed to reconcile AI plan %s",
+                            plan.plan_id,
+                            exc_info=True,
+                        )
+            finally:
+                db.close()
+        except Exception:
+            logger.warning("AI execution reconcile loop failed", exc_info=True)
+        await asyncio.sleep(AI_EXECUTION_RECONCILE_SECONDS)
+
+
 async def _run_stale_device_detection_loop() -> None:
     """Periodically mark active devices with stale heartbeats as OFFLINE."""
     POLL_INTERVAL_SECONDS = 60
@@ -97,6 +136,7 @@ async def _run_stale_device_detection_loop() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan events."""
     global client_instance, _command_expiry_task, _intent_expiry_task, _stale_device_task
+    global _ai_execution_task
 
     # Startup
     logger.info("Starting HOMEPOT Client application...")
@@ -120,6 +160,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start background stale-device detection task
     _stale_device_task = asyncio.create_task(_run_stale_device_detection_loop())
     logger.info("Stale device detection background task started")
+
+    # Start background AI action-execution reconcile task (Phase 3)
+    _ai_execution_task = asyncio.create_task(_run_ai_execution_reconcile_loop())
+    logger.info("AI execution reconcile background task started")
 
     # Initialize job orchestrator
     try:
@@ -236,6 +280,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             pass
         _stale_device_task = None
         logger.info("Stale device detection background task stopped")
+
+    # Cancel background AI execution reconcile task
+    if _ai_execution_task is not None:
+        _ai_execution_task.cancel()
+        try:
+            await _ai_execution_task
+        except asyncio.CancelledError:
+            pass
+        _ai_execution_task = None
+        logger.info("AI execution reconcile background task stopped")
 
     # Shutdown database
     try:
