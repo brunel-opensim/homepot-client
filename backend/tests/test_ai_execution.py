@@ -8,24 +8,40 @@ state machine is fully deterministic and needs no live device.
 
 import asyncio
 from datetime import datetime, timezone
+import os
+import sys
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
-from ai.actions import ActionProposal
-from fastapi.testclient import TestClient
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+current_dir = os.path.dirname(os.path.abspath(__file__))
+workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
+if workspace_root not in sys.path:
+    sys.path.insert(0, workspace_root)
 
-from homepot.app.ai_ops.executor import start_execution
-from homepot.app.ai_ops.policy import evaluate_plan
-from homepot.app.ai_ops.verifier import reconcile_plan
-from homepot.app.auth_utils import create_access_token, hash_password
-from homepot.app.models.AnalyticsModel import AIActionOutcome
-from homepot.app.repositories.ai_action_repository import AIActionRepository
-from homepot.config import reload_settings
-import homepot.database
-from homepot.models import Base, Device, LifecycleState, Site, SiteMembership, User
+from ai.actions import ActionProposal  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+import pytest  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
+from homepot.app.ai_ops.executor import start_execution  # noqa: E402
+from homepot.app.ai_ops.policy import evaluate_plan  # noqa: E402
+from homepot.app.ai_ops.verifier import reconcile_plan  # noqa: E402
+from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
+from homepot.app.models.AnalyticsModel import AIActionOutcome  # noqa: E402
+from homepot.app.repositories.ai_action_repository import (  # noqa: E402
+    AIActionRepository,
+)
+from homepot.config import reload_settings  # noqa: E402
+import homepot.database  # noqa: E402
+from homepot.models import (  # noqa: E402
+    Base,
+    Device,
+    LifecycleState,
+    Site,
+    SiteMembership,
+    User,
+)
 
 
 @pytest.fixture(autouse=True)
