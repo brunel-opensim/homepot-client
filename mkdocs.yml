@@ -157,6 +157,7 @@ nav:
           - Infrastructure: ai-infrastructure.md
           - Memory (Short & Long-Term): ai-memory.md
           - Memory Inspection: ai-memory-inspection.md
+          - Concurrency & Load: ai-concurrency.md
       - Audit System: audit-compliance.md
       - Background Analytics: backend-analytics.md
 
