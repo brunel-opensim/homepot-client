@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import logging
 import os
 import sys
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -32,6 +32,7 @@ project_root = os.path.abspath(
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+from ai.actions import all_reversible, max_risk_tier  # noqa: E402
 from ai.agent import run_agent  # noqa: E402
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
@@ -53,6 +54,9 @@ from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
+from homepot.app.repositories.ai_action_repository import (  # noqa: E402
+    AIActionRepository,
+)
 from homepot.app.utils.ai_gate import (  # noqa: E402
     AIBusyError,
     AIConcurrencyGate,
@@ -471,6 +475,55 @@ def _ai_busy_http_exception(gate: AIConcurrencyGate) -> HTTPException:
         ),
         headers={"Retry-After": "5"},
     )
+
+
+def _build_proposal_info(
+    proposals: List[Any], plan: Optional[Any] = None
+) -> Dict[str, Any]:
+    """Serialize an agent run's proposals for the AI query response (Phase 1).
+
+    Mirrors the persisted plan when available, or falls back to the in-memory
+    proposals if persistence failed, so the technician still sees the intent.
+    Nothing here executes an action.
+    """
+    if plan is not None:
+        return {
+            "plan_id": plan.plan_id,
+            "persisted": True,
+            "status": plan.status,
+            "risk_tier": plan.risk_tier,
+            "reversible": plan.reversible,
+            "rationale": plan.rationale,
+            "steps": [
+                {
+                    "seq": step.seq,
+                    "action": step.action,
+                    "target_device_id": step.target_device_id,
+                    "params": step.params,
+                    "status": step.status,
+                }
+                for step in plan.steps
+            ],
+        }
+
+    return {
+        "plan_id": None,
+        "persisted": False,
+        "status": "proposed",
+        "risk_tier": max_risk_tier(proposals),
+        "reversible": all_reversible(proposals),
+        "rationale": "\n".join(p.rationale for p in proposals if p.rationale) or None,
+        "steps": [
+            {
+                "seq": seq,
+                "action": p.action,
+                "target_device_id": p.target_device_id,
+                "params": p.params,
+                "status": "proposed",
+            }
+            for seq, p in enumerate(proposals)
+        ],
+    }
 
 
 async def _generate_direct(
@@ -1011,6 +1064,40 @@ async def query_ai(
             )
             agentic_info = None
 
+        # 5a. Capture AI-proposed actions (Phase 1: proposal-only / dry-run).
+        # A proposal is only surfaced when the trust envelope deems the answer
+        # actionable AND the agent completed normally (not a direct fallback):
+        # we never present an action as approvable off the back of a degraded
+        # run. Nothing is executed here -- the plan is recorded with status
+        # "proposed" for a technician to review (Phase 2). See
+        # docs/ai-delegation-plan.md.
+        proposal_info = None
+        if agentic_info is not None and agent_result.proposals:
+            if trust.is_actionable and not agent_result.fell_back_to_direct:
+                plan = None
+                try:
+                    repo = AIActionRepository(db)
+                    plan = repo.create_plan(
+                        agent_result.proposals,
+                        risk_tier=max_risk_tier(agent_result.proposals),
+                        reversible=all_reversible(agent_result.proposals),
+                        trust=trust,
+                        created_by=current_user.get("email"),
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to persist AI action proposal", exc_info=True
+                    )
+                proposal_info = _build_proposal_info(agent_result.proposals, plan)
+            else:
+                logger.info(
+                    "AI produced %d proposal(s) but they were not surfaced "
+                    "(actionable=%s, fell_back=%s)",
+                    len(agent_result.proposals),
+                    trust.is_actionable,
+                    agent_result.fell_back_to_direct,
+                )
+
         # 5b. Persist a compact, scoped long-term memory of this answer so later
         # queries can recall it. Best-effort: a storage failure must never break
         # a query, and we skip the Ollama-unreachable fallback string.
@@ -1081,6 +1168,7 @@ async def query_ai(
             "timestamp": datetime.utcnow().isoformat(),
             "trust": trust.to_dict(),
             **({"agentic": agentic_info} if agentic_info else {}),
+            **({"proposal": proposal_info} if proposal_info else {}),
         }
     except HTTPException:
         # Preserve deliberate status codes (e.g. 503 when the AI gate is full).

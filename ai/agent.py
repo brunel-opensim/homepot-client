@@ -8,18 +8,21 @@ See docs/ai-agentic.md for the full architecture.
 """
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 import time
 from typing import Any, Dict, List, Optional
 
+from ai.actions import ActionProposal
 from ai.exceptions import AIBusyError
 from ai.llm import LLMService
 from ai.tools import (
     TOOL_FUNCTIONS,
     TOOL_REGISTRY,
     reset_tool_memory_scope,
+    reset_tool_proposal_sink,
     set_tool_memory_scope,
+    set_tool_proposal_sink,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,6 +77,7 @@ class AgentResult:
     tools_called: List[ToolCallRecord]
     total_duration_ms: int
     fell_back_to_direct: bool = False
+    proposals: List[ActionProposal] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +189,7 @@ async def run_agent(
     start_time = time.monotonic()
     tools_called: List[ToolCallRecord] = []
     fell_back_to_direct = False
+    proposals: List[ActionProposal] = []
 
     # Build initial messages
     system_content = AGENT_SYSTEM_PROMPT
@@ -199,6 +204,7 @@ async def run_agent(
     last_response_text = ""
 
     scope_token = set_tool_memory_scope(memory_scope)
+    sink_token = set_tool_proposal_sink(proposals)
     try:
         for iteration in range(max_iterations):
             # Check total timeout
@@ -302,6 +308,7 @@ async def run_agent(
                 fell_back_to_direct = True
     finally:
         reset_tool_memory_scope(scope_token)
+        reset_tool_proposal_sink(sink_token)
 
     total_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -311,4 +318,5 @@ async def run_agent(
         tools_called=tools_called,
         total_duration_ms=total_ms,
         fell_back_to_direct=fell_back_to_direct,
+        proposals=proposals,
     )

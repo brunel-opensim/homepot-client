@@ -369,6 +369,20 @@ tables yet — **capture wiring and metrics land with the producers** in Phases
 Phases 0–2 are ordinary backend/DB/UI work; only phases 1 and 3 touch the AI.
 That is why this goal is achievable.
 
+**Phase 1 status: implemented (proposal-only / dry-run).** The action registry
+`ai/actions.py` declares the v1 capabilities (`update_config`, `restart`, both
+**T2**, reversible, `root_access`) and validates model output against it; the
+agent gains a `propose_device_action` tool that records validated proposals in a
+per-run ContextVar sink (never executes); `run_agent` returns them on
+`AgentResult.proposals`; and the agentic `/ai/query` branch persists them to
+`ai_action_plan`/`ai_action_step` (status `proposed`) via
+`AIActionRepository`, returning a `proposal` block. Proposals are surfaced only
+when the trust envelope is actionable and the agent completed normally (not a
+direct fallback). There is **no execution path** yet — approval (Phase 2) and
+the executor (Phase 3) are still to come. Tests live in
+`backend/tests/test_ai_delegation_phase1.py` and
+`backend/tests/test_ai_agent.py`.
+
 ---
 
 ## 14. Open decisions (need sign-off before Phase 1)
