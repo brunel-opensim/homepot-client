@@ -358,7 +358,9 @@ async def execute_action_plan(
     # Scope first, so a caller outside the device's site cannot trigger it.
     targets = _authorize_plan(db, db_user, plan)
 
-    if plan.status != "approved":
+    # Atomically claim the plan so two concurrent requests cannot both execute.
+    if not repo.claim_for_execution(str(plan.plan_id)):
+        db.refresh(plan)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -366,6 +368,7 @@ async def execute_action_plan(
                 "(only 'approved' plans execute)"
             ),
         )
+    db.refresh(plan)
 
     plan, policy = await start_execution(db, plan, actor=str(current_user.get("email")))
 

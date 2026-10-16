@@ -33,50 +33,60 @@ ROLLBACK_COMMAND_KEY = "rollback_command_id"
 async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bool:
     """Queue inverse commands for applied, reversible steps (reverse order).
 
-    Returns ``True`` when at least one rollback command was queued, so the
-    caller can distinguish "rolling back" from "nothing to undo". As in the
-    executor, the sync read transaction is closed before the async inserts.
+    Returns ``True`` when the plan has rollback work to track — either a command
+    just queued, a command queued by an earlier (possibly interrupted) call, or
+    a self-reverting step now marked ``rolled_back``. This lets the caller move
+    the plan to ``rolling_back`` even across retries.
+
+    Idempotent: steps that already carry a rollback command are skipped, so a
+    retry after a partial failure never queues a duplicate inverse command. As
+    in the executor, the sync read transaction is closed before the async
+    inserts.
     """
     if db_service is None:
         db_service = await get_database_service()
 
     to_rollback: List[Dict[str, Any]] = []
-    for step in sorted(plan.steps, key=lambda s: s.seq or 0, reverse=True):
+    already_tracked = False
+    for step in sorted(plan.steps, key=lambda s: s.seq, reverse=True):
+        rollback_params = step.rollback_params or {}
+        if rollback_params.get(ROLLBACK_COMMAND_KEY):
+            already_tracked = True
+            continue
+        if step.status == STEP_ROLLED_BACK:
+            continue
+
         spec = get_action_spec(step.action)
         if spec is None or not spec.reversible:
             continue
 
-        if step.action != "update_config":
-            # Self-reverting (e.g. restart): only undo if it was actually
-            # applied; a failed restart needs no inverse.
-            if step.status == STEP_DONE:
-                to_rollback.append({"step_id": step.step_id, "self_reverting": True})
-            continue
+        if step.action == "update_config":
+            if step.status not in (STEP_DONE, "failed"):
+                continue
+            previous = rollback_params.get("previous")
+            if not previous:
+                continue
 
-        # update_config may have partially applied even when the command
-        # reported failure, so attempt to restore the snapshot in that case too.
-        if step.status not in (STEP_DONE, "failed"):
-            continue
+            device = (
+                db.query(Device)
+                .filter(Device.device_id == step.target_device_id)
+                .first()
+            )
+            if device is None:
+                continue
 
-        previous = (step.rollback_params or {}).get("previous")
-        if not isinstance(previous, dict) or not previous:
-            continue
-
-        device = (
-            db.query(Device).filter(Device.device_id == step.target_device_id).first()
-        )
-        if device is None:
-            continue
-
-        to_rollback.append(
-            {
-                "step_id": step.step_id,
-                "self_reverting": False,
-                "device_pk": device.id,
-                "command_type": spec.command_type,
-                "previous": previous,
-            }
-        )
+            to_rollback.append(
+                {
+                    "step_id": step.step_id,
+                    "self_reverting": False,
+                    "device_pk": device.id,
+                    "command_type": spec.command_type,
+                    "previous": previous,
+                    "existing": dict(rollback_params),
+                }
+            )
+        elif step.status == STEP_DONE:
+            to_rollback.append({"step_id": step.step_id, "self_reverting": True})
 
     db.commit()
 
@@ -88,6 +98,7 @@ async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bo
                 .where(AIActionStep.step_id == item["step_id"])
                 .values(status=STEP_ROLLED_BACK)
             )
+            queued = True
             continue
 
         command = await db_service.create_device_command(
@@ -96,13 +107,15 @@ async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bo
             payload={"data": item["previous"]},
             issued_by="ai:rollback",
         )
+        merged = dict(item["existing"])
+        merged[ROLLBACK_COMMAND_KEY] = command.command_id
         db.execute(
             update(AIActionStep)
             .where(AIActionStep.step_id == item["step_id"])
-            .values(rollback_params={ROLLBACK_COMMAND_KEY: command.command_id})
+            .values(rollback_params=merged)
         )
         queued = True
 
     db.commit()
     db.expire_all()
-    return queued
+    return queued or already_tracked

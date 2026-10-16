@@ -19,6 +19,7 @@ from sqlalchemy.orm import sessionmaker
 
 from homepot.app.ai_ops.executor import start_execution
 from homepot.app.ai_ops.policy import evaluate_plan
+from homepot.app.ai_ops.rollback import begin_rollback
 from homepot.app.ai_ops.verifier import reconcile_plan
 from homepot.app.auth_utils import create_access_token, hash_password
 from homepot.app.models.AnalyticsModel import AIActionOutcome
@@ -405,6 +406,105 @@ def test_reconcile_records_single_outcome():
         db.close()
 
 
+def test_begin_rollback_is_idempotent():
+    """Running rollback twice queues the inverse command only once."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db, config={"brightness": 10})
+        plan, fake = _queue_plan(
+            db, "POS-A", action="update_config", params={"config": {"brightness": 80}}
+        )
+        plan.steps[0].status = "failed"
+        db.commit()
+
+        assert asyncio.run(begin_rollback(db, plan, db_service=fake)) is True
+        assert asyncio.run(begin_rollback(db, plan, db_service=fake)) is True
+
+        rollback = [c for c in fake.created if c.issued_by == "ai:rollback"]
+        assert len(rollback) == 1
+        assert plan.steps[0].rollback_params["previous"] == {"brightness": 10}
+    finally:
+        db.close()
+
+
+def test_rolling_back_without_queued_rollback_fails():
+    """A rolling-back plan with an unqueued inverse fails, not false success."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db, config={"brightness": 10})
+        plan, fake = _queue_plan(
+            db, "POS-A", action="update_config", params={"config": {"brightness": 80}}
+        )
+        plan.steps[0].status = "failed"
+        plan.status = "rolling_back"
+        db.commit()
+
+        assert asyncio.run(reconcile_plan(db, plan, db_service=fake)) == "failed"
+        assert plan.outcome.rolled_back is False
+        assert plan.outcome.rollback_success is False
+    finally:
+        db.close()
+
+
+def test_interrupted_rollback_is_retried_not_falsely_succeeded(monkeypatch):
+    """If queueing the rollback fails, the plan retries and never claims success."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db, config={"brightness": 10})
+        plan, fake = _queue_plan(
+            db, "POS-A", action="update_config", params={"config": {"brightness": 80}}
+        )
+        command = fake.commands[plan.steps[0].command_id]
+        command.status = "completed"
+        command.result = {
+            "status": "completed",
+            "result": {"results": {"brightness": {"status": "failed"}}},
+        }
+
+        import homepot.app.ai_ops.verifier as verifier
+
+        real_begin_rollback = verifier.begin_rollback
+        calls = {"n": 0}
+
+        async def flaky(db_, plan_, db_service=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("rollback queue unavailable")
+            return await real_begin_rollback(db_, plan_, db_service)
+
+        monkeypatch.setattr(verifier, "begin_rollback", flaky)
+
+        with pytest.raises(RuntimeError):
+            asyncio.run(reconcile_plan(db, plan, db_service=fake))
+        db.refresh(plan)
+        assert plan.status == "executing"
+        assert plan.outcome is None
+
+        assert asyncio.run(reconcile_plan(db, plan, db_service=fake)) == "rolling_back"
+        assert plan.outcome is None
+    finally:
+        db.close()
+
+
+# --------------------------------------------------------------------------
+# Atomic execute claim
+# --------------------------------------------------------------------------
+
+
+def test_claim_for_execution_is_atomic():
+    """Only the first claim of an approved plan succeeds."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan = _make_plan(db, "POS-A")
+        repo = AIActionRepository(db)
+        assert repo.claim_for_execution(plan.plan_id) is True
+        assert repo.claim_for_execution(plan.plan_id) is False
+        assert repo.get_plan(plan.plan_id).status == "executing"
+    finally:
+        db.close()
+
+
 # --------------------------------------------------------------------------
 # Execute endpoint
 # --------------------------------------------------------------------------
@@ -502,3 +602,18 @@ def test_execute_unknown_plan_is_404(client: TestClient):
         "/api/v1/ai/action-plans/nope/execute", headers=_headers(admin_email)
     )
     assert resp.status_code == 404
+
+
+def test_execute_twice_conflicts(client: TestClient):
+    """A second execute of the same plan is refused (single execution)."""
+    db = homepot.database.SessionLocal()
+    try:
+        seed = _seed(db)
+        plan = _make_plan(db, "POS-A")
+        plan_id, tech_email = plan.plan_id, seed["tech"].email
+    finally:
+        db.close()
+
+    url = f"/api/v1/ai/action-plans/{plan_id}/execute"
+    assert client.post(url, headers=_headers(tech_email)).status_code == 200
+    assert client.post(url, headers=_headers(tech_email)).status_code == 409
