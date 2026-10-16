@@ -28,6 +28,7 @@ from ai.tools import (  # noqa: E402
     get_device_status,
     get_error_logs,
     get_tool_memory_scope,
+    get_tool_proposal_sink,
     reset_tool_memory_scope,
     search_similar_incidents,
     set_tool_memory_scope,
@@ -36,9 +37,9 @@ from ai.tools import (  # noqa: E402
 # ── Tool registry tests ──────────────────────────────────────────────────────
 
 
-def test_tool_registry_has_all_eight_tools():
-    """Tool registry should contain exactly 8 tools."""
-    assert len(TOOL_REGISTRY) == 8
+def test_tool_registry_has_all_nine_tools():
+    """Tool registry should contain exactly 9 tools."""
+    assert len(TOOL_REGISTRY) == 9
 
 
 def test_tool_registry_names():
@@ -52,6 +53,7 @@ def test_tool_registry_names():
         "search_similar_incidents",
         "get_fleet_summary",
         "get_alerts",
+        "propose_device_action",
     }
     assert set(TOOL_REGISTRY.keys()) == expected
 
@@ -438,6 +440,43 @@ async def test_run_agent_binds_and_resets_tool_scope():
 
     assert seen["scope"] is scope
     assert get_tool_memory_scope() is None  # restored after the run
+
+
+@pytest.mark.asyncio
+async def test_run_agent_collects_proposals():
+    """The agent should collect validated proposals from the proposal tool."""
+    mock_llm = MagicMock()
+
+    tool_response = MagicMock()
+    tool_response.message.content = ""
+    tool_call = MagicMock()
+    tool_call.function.name = "propose_device_action"
+    tool_call.function.arguments = {
+        "action": "restart",
+        "target_device_id": "POS-001",
+        "rationale": "device unresponsive",
+    }
+    tool_response.message.tool_calls = [tool_call]
+
+    final_response = MagicMock()
+    final_response.message.content = "A restart is pending approval."
+    final_response.message.tool_calls = None
+    mock_llm.generate_with_tools.side_effect = [tool_response, final_response]
+
+    result = await run_agent(
+        query="POS-001 is stuck, fix it",
+        context="[CONTEXT]",
+        llm=mock_llm,
+        device_id="POS-001",
+    )
+
+    assert len(result.proposals) == 1
+    proposal = result.proposals[0]
+    assert proposal.action == "restart"
+    assert proposal.target_device_id == "POS-001"
+    assert proposal.risk_tier == "T2"
+    assert proposal.reversible is True
+    assert get_tool_proposal_sink() is None  # restored after the run
 
 
 # ── Endpoint integration tests ───────────────────────────────────────────────

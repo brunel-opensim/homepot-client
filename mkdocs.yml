@@ -158,6 +158,7 @@ nav:
           - Memory (Short & Long-Term): ai-memory.md
           - Memory Inspection: ai-memory-inspection.md
           - Concurrency & Load: ai-concurrency.md
+          - Task Delegation (Plan): ai-delegation-plan.md
       - Audit System: audit-compliance.md
       - Background Analytics: backend-analytics.md
 

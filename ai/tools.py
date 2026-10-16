@@ -10,8 +10,9 @@ See docs/ai-agentic.md for the full architecture.
 import contextvars
 import json
 import logging
-from typing import Optional
+from typing import List, Optional
 
+from ai.actions import ActionProposal, validate_proposal
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory, MemoryScope
 from sqlalchemy import select
@@ -49,6 +50,36 @@ def reset_tool_memory_scope(token: contextvars.Token) -> None:
 def get_tool_memory_scope() -> Optional[MemoryScope]:
     """Return the memory scope bound to the current run (or ``None``)."""
     return _tool_memory_scope.get()
+
+
+# ---------------------------------------------------------------------------
+# Per-request proposal sink
+# ---------------------------------------------------------------------------
+#
+# Like the memory scope, the proposal collector is a ContextVar so tools keep
+# schema-friendly signatures. When the agent starts a run it binds an empty list
+# here; ``propose_device_action`` appends validated proposals to it, and the
+# endpoint reads the list once the run finishes (see docs/ai-delegation-plan.md,
+# Phase 1). Nothing is executed — this is a dry-run capture only.
+
+_tool_proposal_sink: contextvars.ContextVar[Optional[List[ActionProposal]]] = (
+    contextvars.ContextVar("tool_proposal_sink", default=None)
+)
+
+
+def set_tool_proposal_sink(sink: Optional[List[ActionProposal]]) -> contextvars.Token:
+    """Bind the proposal collector for the current run; returns a token."""
+    return _tool_proposal_sink.set(sink)
+
+
+def reset_tool_proposal_sink(token: contextvars.Token) -> None:
+    """Restore the previous proposal collector using the token from ``set_...``."""
+    _tool_proposal_sink.reset(token)
+
+
+def get_tool_proposal_sink() -> Optional[List[ActionProposal]]:
+    """Return the proposal collector bound to the current run (or ``None``)."""
+    return _tool_proposal_sink.get()
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +388,79 @@ async def get_alerts(severity: Optional[str] = None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool 9: propose_device_action
+# ---------------------------------------------------------------------------
+
+
+def propose_device_action(
+    action: str,
+    target_device_id: str,
+    rationale: str,
+    params: Optional[str] = None,
+) -> str:
+    """Propose a device-management action for technician approval (does NOT execute).
+
+    Use this when the user's request implies a change to a device (for example
+    applying a configuration or restarting it). This records a *proposal* only:
+    a technician must review and approve before anything runs. Never claim an
+    action was performed — always tell the user it is pending approval.
+
+    Args:
+        action: The proposed action. Must be one of 'update_config' or 'restart'.
+        target_device_id: The device identifier the action applies to.
+        rationale: Why the action is recommended, citing the evidence you
+                observed (metrics, errors, config history).
+        params: Optional JSON object string of action parameters, e.g.
+                '{"config": {"log_level": "debug"}}'. Omit for actions such as
+                'restart' that take no parameters.
+
+    Returns:
+        A confirmation that the proposal was recorded (not executed), or an
+        error explaining why it was rejected.
+    """
+    parsed: dict = {}
+    if params:
+        try:
+            parsed = json.loads(params)
+        except (TypeError, ValueError):
+            return (
+                f"Invalid params for '{action}': expected a JSON object string, "
+                f"got {params!r}."
+            )
+        if not isinstance(parsed, dict):
+            return f"Invalid params for '{action}': expected a JSON object."
+
+    spec, error = validate_proposal(action, target_device_id, parsed)
+    if error or spec is None:
+        return f"Proposal rejected: {error}"
+
+    proposal = ActionProposal(
+        action=spec.name,
+        target_device_id=str(target_device_id).strip(),
+        params=parsed,
+        rationale=rationale or "",
+        risk_tier=spec.risk_tier,
+        reversible=spec.reversible,
+    )
+
+    sink = get_tool_proposal_sink()
+    if sink is None:
+        return (
+            f"Proposal validated ({spec.name} on {target_device_id}) but no "
+            "proposal sink is active; nothing was recorded."
+        )
+    sink.append(proposal)
+
+    return (
+        f"Recorded proposal: {spec.name} on {target_device_id} "
+        f"(risk {spec.risk_tier}, reversible={spec.reversible}). "
+        "This is a PROPOSAL only — it has NOT been executed and requires "
+        "technician approval. In your final answer, state clearly that the "
+        "action is pending approval and must not be assumed to have happened."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tool registry for the agent loop
 # ---------------------------------------------------------------------------
 
@@ -370,6 +474,7 @@ TOOL_REGISTRY = {
     "search_similar_incidents": (search_similar_incidents, False),
     "get_fleet_summary": (get_fleet_summary, True),
     "get_alerts": (get_alerts, True),
+    "propose_device_action": (propose_device_action, False),
 }
 
 # Tool functions list for Ollama SDK (auto-generates JSON schema)
@@ -382,4 +487,5 @@ TOOL_FUNCTIONS = [
     search_similar_incidents,
     get_fleet_summary,
     get_alerts,
+    propose_device_action,
 ]

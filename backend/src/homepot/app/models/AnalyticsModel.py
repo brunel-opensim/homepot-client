@@ -1,6 +1,7 @@
 """Analytics models for tracking system metrics and user behavior."""
 
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -349,4 +351,174 @@ class Alert(Base):
     __table_args__ = (
         Index("idx_alert_status_severity", "status", "severity"),
         Index("idx_alert_device", "device_id"),
+    )
+
+
+class AIActionPlan(Base):
+    """A device-management action (or batch) proposed by the AI.
+
+    A plan is *proposed*, never executed directly: a deterministic executor
+    applies approved steps. This row is the durable record of what the AI
+    proposed, why, and how trustworthy the underlying context was, so outcome
+    tracking and later autonomy decisions have a stable anchor.
+
+    Status lifecycle mirrors ``docs/ai-delegation-plan.md``:
+    ``proposed`` -> ``blocked`` | ``pending_approval`` -> ``approved`` |
+    ``rejected`` -> ``executing`` -> ``succeeded`` | ``failed`` |
+    ``rolled_back`` | ``expired``.
+    """
+
+    __tablename__ = "ai_action_plan"
+
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(String(36), nullable=False, default=lambda: str(uuid4()))
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    # Link back to the AI query / audit event that produced the proposal.
+    source_query_id = Column(String(36), nullable=True)
+
+    # Trust envelope snapshot (from EnvelopeResult in ai/gates/envelope.py).
+    trust_mode = Column(String(50), nullable=True)
+    trust_score = Column(Float, nullable=True)
+    passed_gates = Column(JSON, nullable=True)
+    failed_gate = Column(String(50), nullable=True)
+
+    # Classification and lifecycle.
+    risk_tier = Column(String(10), nullable=True)  # T1..T4
+    status = Column(String(20), nullable=False, default="proposed")
+    reversible = Column(Boolean, nullable=False, default=False)
+
+    # Explainability.
+    rationale = Column(Text, nullable=True)
+    evidence = Column(JSON, nullable=True)
+
+    created_by = Column(String(255), nullable=True)
+    provenance = Column(String(20), nullable=True)
+
+    # Relationships
+    steps = relationship(
+        "AIActionStep",
+        back_populates="plan",
+        cascade="all, delete-orphan",
+        order_by="AIActionStep.seq",
+    )
+    approvals = relationship(
+        "AIActionApproval",
+        back_populates="plan",
+        cascade="all, delete-orphan",
+    )
+    outcome = relationship(
+        "AIActionOutcome",
+        back_populates="plan",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("plan_id", name="uq_ai_action_plan_plan_id"),
+        Index("idx_ai_action_plan_status", "status"),
+        Index("idx_ai_action_plan_risk_tier", "risk_tier"),
+        Index("idx_ai_action_plan_source_query", "source_query_id"),
+    )
+
+
+class AIActionStep(Base):
+    """A single ordered operation within an :class:`AIActionPlan`."""
+
+    __tablename__ = "ai_action_step"
+
+    id = Column(Integer, primary_key=True, index=True)
+    step_id = Column(String(36), nullable=False, default=lambda: str(uuid4()))
+    plan_id = Column(
+        String(36),
+        ForeignKey("ai_action_plan.plan_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    seq = Column(Integer, nullable=False, default=0)
+
+    action = Column(String(50), nullable=False)  # e.g. "update_config"
+    target_device_id = Column(String(50), nullable=True)
+    params = Column(JSON, nullable=True)
+    preconditions = Column(JSON, nullable=True)
+    postconditions = Column(JSON, nullable=True)
+    rollback_params = Column(JSON, nullable=True)
+
+    status = Column(String(20), nullable=False, default="pending")
+    command_id = Column(String(36), nullable=True)  # links to device_commands
+
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    plan = relationship("AIActionPlan", back_populates="steps")
+
+    __table_args__ = (
+        UniqueConstraint("step_id", name="uq_ai_action_step_step_id"),
+        Index("idx_ai_action_step_plan_id", "plan_id"),
+        Index("idx_ai_action_step_target_device", "target_device_id"),
+        Index("idx_ai_action_step_status", "status"),
+    )
+
+
+class AIActionApproval(Base):
+    """A technician's decision on an :class:`AIActionPlan`."""
+
+    __tablename__ = "ai_approval"
+
+    id = Column(Integer, primary_key=True, index=True)
+    approval_id = Column(String(36), nullable=False, default=lambda: str(uuid4()))
+    plan_id = Column(
+        String(36),
+        ForeignKey("ai_action_plan.plan_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    actor = Column(String(255), nullable=False)
+    decision = Column(String(20), nullable=False)  # approved | rejected
+    reason = Column(Text, nullable=True)
+    decided_at = Column(DateTime, nullable=False, default=utc_now)
+    device_scope = Column(JSON, nullable=True)
+
+    # Relationships
+    plan = relationship("AIActionPlan", back_populates="approvals")
+
+    __table_args__ = (
+        UniqueConstraint("approval_id", name="uq_ai_approval_approval_id"),
+        Index("idx_ai_approval_plan_id", "plan_id"),
+    )
+
+
+class AIActionOutcome(Base):
+    """The verified real-world result of an :class:`AIActionPlan`.
+
+    One outcome per plan: this is the evidence that turns "the AI was probably
+    right" into measured reliability and confidence calibration.
+    """
+
+    __tablename__ = "ai_outcome"
+
+    id = Column(Integer, primary_key=True, index=True)
+    outcome_id = Column(String(36), nullable=False, default=lambda: str(uuid4()))
+    plan_id = Column(
+        String(36),
+        ForeignKey("ai_action_plan.plan_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    verified = Column(Boolean, nullable=False, default=False)
+    metrics_before = Column(JSON, nullable=True)
+    metrics_after = Column(JSON, nullable=True)
+    rolled_back = Column(Boolean, nullable=False, default=False)
+    rollback_success = Column(Boolean, nullable=True)
+    error = Column(Text, nullable=True)
+    recorded_at = Column(DateTime, nullable=False, default=utc_now)
+    provenance = Column(String(20), nullable=True)
+
+    # Relationships
+    plan = relationship("AIActionPlan", back_populates="outcome")
+
+    __table_args__ = (
+        UniqueConstraint("outcome_id", name="uq_ai_outcome_outcome_id"),
+        UniqueConstraint("plan_id", name="uq_ai_outcome_plan_id"),
     )
