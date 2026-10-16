@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as SASession
 
 from homepot.app.auth_utils import (  # noqa: E402
+    get_accessible_site_ids,
     require_user,
     verify_device_belongs_to_user,
     verify_site_access_for_user,
@@ -35,7 +36,7 @@ from ai.agent import run_agent  # noqa: E402
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
-from ai.device_memory import DeviceMemory  # noqa: E402
+from ai.device_memory import DeviceMemory, MemoryScope  # noqa: E402
 from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.gates import (  # noqa: E402
@@ -438,6 +439,7 @@ def get_ai_services() -> Any:
 async def query_ai(
     request: AIQueryRequest,
     current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
     """Query the AI assistant."""
     logger.info(
@@ -464,7 +466,32 @@ async def query_ai(
                 ]
             )
 
-        # 2. Build Long-Term Context (Vector Memory)
+        # 2. Determine the caller's long-term memory scope (RBAC-aware) and
+        # recall scoped memories. Admins recall across all memories; everyone
+        # else is limited to their sites, and to a single device when the query
+        # is device-focused.
+        is_admin = current_user.get("role") == "Admin"
+        site_scope: Optional[list] = None
+        if not is_admin:
+            try:
+                db_user = (
+                    db.query(User)
+                    .filter(User.email == current_user.get("email"))
+                    .first()
+                )
+                if db_user is not None:
+                    accessible = get_accessible_site_ids(db_user, db)
+                    site_scope = list(accessible) if accessible is not None else None
+            except Exception as e:
+                logger.warning("Failed to resolve memory scope: %s", e)
+        memory_scope = MemoryScope(
+            user_id=current_user.get("user_id"),
+            site_ids=site_scope,
+            device_id=request.device_id,
+            is_admin=is_admin,
+        )
+
+        # 2b. Build Long-Term Context (Vector Memory)
         long_term_context = ""
         try:
             # Get Memory Stats (Self-Awareness)
@@ -474,8 +501,8 @@ async def query_ai(
                 f"Total Memories Stored: {mem_stats['total_memories']}\n"
             )
 
-            # Get Similar Memories
-            similar_memories = memory.query_similar(request.query)
+            # Get Similar Memories (scope-filtered + relevance-thresholded)
+            similar_memories = memory.query_similar(request.query, scope=memory_scope)
             if similar_memories:
                 long_term_context += "\n[RELEVANT MEMORIES]\n"
                 long_term_context += "\n".join(
@@ -897,6 +924,31 @@ async def query_ai(
                 system_prompt=system_prompt_text,
             )
             agentic_info = None
+
+        # 5b. Persist a compact, scoped long-term memory of this answer so later
+        # queries can recall it. Best-effort: a storage failure must never break
+        # a query, and we skip the Ollama-unreachable fallback string.
+        try:
+            if (
+                getattr(memory, "write_on_query", True)
+                and response
+                and "unable to connect to my AI brain" not in response
+            ):
+                digest_chars = getattr(memory, "answer_digest_chars", 500)
+                if not isinstance(digest_chars, int) or digest_chars <= 0:
+                    digest_chars = 500
+                memory.remember(
+                    f"Q: {request.query}\nA: {response[:digest_chars]}",
+                    scope=memory_scope,
+                    extra_metadata={
+                        "source": "ai_query",
+                        "trust_score": round(float(trust.trust_score), 3),
+                        "is_actionable": bool(trust.is_actionable),
+                    },
+                )
+        except Exception:
+            logger.warning("Failed to persist AI memory", exc_info=True)
+
         logger.info(
             "AI query done | device_id=%s | mode=%s | score=%.2f | actionable=%s",
             request.device_id or "N/A",
