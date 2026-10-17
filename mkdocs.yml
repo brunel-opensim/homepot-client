@@ -159,6 +159,7 @@ nav:
           - Memory Inspection: ai-memory-inspection.md
           - Concurrency & Load: ai-concurrency.md
           - Task Delegation (Plan): ai-delegation-plan.md
+          - Query Intent Routing (Design): ai-query-routing.md
       - Audit System: audit-compliance.md
       - Background Analytics: backend-analytics.md
 
