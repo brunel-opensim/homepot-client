@@ -7,31 +7,39 @@ plan. Nothing is executed. These tests cover the registry, the
 """
 
 import os
+import sys
 import tempfile
 from types import SimpleNamespace
 
-from ai.actions import (
+current_dir = os.path.dirname(os.path.abspath(__file__))
+workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
+if workspace_root not in sys.path:
+    sys.path.insert(0, workspace_root)
+
+from ai.actions import (  # noqa: E402
     ACTION_REGISTRY,
     ActionProposal,
     all_reversible,
     max_risk_tier,
     validate_proposal,
 )
-from ai.tools import (
+from ai.tools import (  # noqa: E402
     get_tool_proposal_sink,
     propose_device_action,
     reset_tool_proposal_sink,
     set_tool_proposal_sink,
 )
-import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
+import pytest  # noqa: E402
+from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from homepot.app.models.AnalyticsModel import AIActionPlan, AIActionStep
-from homepot.app.repositories.ai_action_repository import AIActionRepository
-from homepot.config import reload_settings
-import homepot.database
-from homepot.models import Base
+from homepot.app.models.AnalyticsModel import AIActionPlan, AIActionStep  # noqa: E402
+from homepot.app.repositories.ai_action_repository import (  # noqa: E402
+    AIActionRepository,
+)
+from homepot.config import reload_settings  # noqa: E402
+import homepot.database  # noqa: E402
+from homepot.models import Base  # noqa: E402
 
 # ── Action registry tests ────────────────────────────────────────────────────
 
