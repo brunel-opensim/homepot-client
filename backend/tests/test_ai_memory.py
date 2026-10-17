@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
+import zlib
 
 from chromadb.api.types import EmbeddingFunction
 import pytest
@@ -35,7 +36,7 @@ class BagOfWordsEmbedding(EmbeddingFunction):
         for text in input:
             vec = [0.0] * self.dim
             for token in str(text).lower().split():
-                vec[hash(token) % self.dim] += 1.0
+                vec[zlib.crc32(token.encode()) % self.dim] += 1.0
             vectors.append(vec)
         return vectors
 
