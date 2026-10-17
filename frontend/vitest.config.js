@@ -7,17 +7,18 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // A real origin is required for jsdom to expose localStorage/sessionStorage.
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost/',
+      },
+    },
     setupFiles: './tests/setup.js',
     css: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'tests/',
-        '*.config.js',
-        'dist/',
-      ],
+      exclude: ['node_modules/', 'tests/', '*.config.js', 'dist/'],
     },
   },
   resolve: {

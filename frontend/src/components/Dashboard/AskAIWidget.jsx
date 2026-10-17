@@ -15,10 +15,28 @@ import {
   ChevronDown,
   X,
   ListChecks,
+  BookOpen,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
+
+// Intent modes the technician can pick (docs/ai-query-routing.md §6.1).
+// `auto` (default) lets the backend heuristics resolve the mode; the explicit
+// choices override them. The LLM never chooses the mode.
+const AI_MODES = [
+  { id: 'auto', label: 'Auto', title: 'Let the assistant decide (recommended)' },
+  {
+    id: 'knowledge',
+    label: 'Knowledge',
+    title: 'Answer how-to / definition questions from documentation',
+  },
+  {
+    id: 'diagnostic',
+    label: 'Diagnostic',
+    title: 'Investigate live system state through the validation gates',
+  },
+];
 
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
 // Covers all five canonical modes plus grounded. Falls back to mode_1
@@ -247,6 +265,11 @@ export default function AskAIWidget() {
     }
   });
   const [trustExpanded, setTrustExpanded] = useState(false);
+  // Selected intent mode; remembered per session (docs/ai-query-routing.md §6.1).
+  const [mode, setMode] = useState(() => localStorage.getItem('homepot_ai_mode') || 'auto');
+  // How the backend actually resolved the query (routing.resolved) -- drives
+  // whether we show the gate/trust UI or a documentation "Knowledge" chip.
+  const [routing, setRouting] = useState(null);
   const [loading, setLoading] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
@@ -278,10 +301,15 @@ export default function AskAIWidget() {
     }
   }, [trust]);
 
+  useEffect(() => {
+    localStorage.setItem('homepot_ai_mode', mode);
+  }, [mode]);
+
   const clearHistory = () => {
     setQuery('');
     setResponse(null);
     setTrust(null);
+    setRouting(null);
     setTrustExpanded(false);
     setReplaying(false);
     setError(null);
@@ -300,7 +328,7 @@ export default function AskAIWidget() {
   useEffect(() => {
     let interval;
     if (loading) {
-      const messages = [
+      const gateMessages = [
         'Reviewing conversation history...',
         'Running Gate A: Contract & Infrastructure...',
         'Accessing long-term memory & vector store...',
@@ -313,6 +341,15 @@ export default function AskAIWidget() {
         'Running Gate E: Lifecycle Integrity...',
         'Synthesizing insights...',
       ];
+      // Knowledge queries skip the gates, so the gate narration would be
+      // misleading (docs/ai-query-routing.md §7).
+      const knowledgeMessages = [
+        'Searching documentation...',
+        'Reviewing product guides & SOPs...',
+        'Gathering relevant references...',
+        'Synthesizing an answer...',
+      ];
+      const messages = mode === 'knowledge' ? knowledgeMessages : gateMessages;
       let i = 0;
       setLoadingMessage(messages[0]);
       interval = setInterval(() => {
@@ -323,7 +360,7 @@ export default function AskAIWidget() {
       }, 1500); // Change message every 1.5 seconds
     }
     return () => clearInterval(interval);
-  }, [loading]);
+  }, [loading, mode]);
 
   const handleAsk = async (e) => {
     e.preventDefault();
@@ -333,15 +370,20 @@ export default function AskAIWidget() {
     setError(null);
     setResponse(null);
     setTrust(null);
+    setRouting(null);
     setTrustExpanded(false);
 
     try {
       const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
-      const result = await api.ai.query(query, null, userRole);
-      // The backend returns { response, timestamp, trust } -- trust is the
-      // validation envelope's gate-by-gate outcome (see ai/gates/envelope.py).
+      // `auto` is sent as null so the backend default (heuristics) applies.
+      const modeArg = mode === 'auto' ? null : mode;
+      const result = await api.ai.query(query, null, userRole, modeArg);
+      // The backend returns { response, timestamp, trust, routing } -- trust is
+      // the validation envelope's gate-by-gate outcome (see ai/gates/envelope.py)
+      // and routing reports how the intent was resolved (knowledge vs diagnostic).
       setResponse(result.response);
       setTrust(result.trust || null);
+      setRouting(result.routing || null);
       // Show an animated gate replay before revealing the response,
       // so the technician sees the validation chain in action.
       if (result.trust?.gates?.length) {
@@ -354,6 +396,10 @@ export default function AskAIWidget() {
       setLoading(false);
     }
   };
+
+  // The backend marks documentation answers with an informational trust (no
+  // gates ran), so we surface a "Knowledge" chip instead of the gate UI.
+  const isKnowledge = routing?.resolved === 'knowledge' || trust?.trust_mode === 'informational';
 
   return (
     <Card className="h-full flex flex-col shadow-md">
@@ -393,11 +439,21 @@ export default function AskAIWidget() {
             <GateReplay trust={trust} onDone={handleGateReplayDone} />
           ) : response ? (
             <div className="relative group min-h-full">
-              <TrustBanner
-                trust={trust}
-                expanded={trustExpanded}
-                onToggle={() => setTrustExpanded((v) => !v)}
-              />
+              {isKnowledge ? (
+                <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Knowledge</span>
+                  <span className="font-normal text-purple-500/80 dark:text-purple-400/70">
+                    — answered from documentation
+                  </span>
+                </div>
+              ) : (
+                <TrustBanner
+                  trust={trust}
+                  expanded={trustExpanded}
+                  onToggle={() => setTrustExpanded((v) => !v)}
+                />
+              )}
               <div className="sticky top-0 float-right z-10">
                 <Button
                   variant="ghost"
@@ -422,26 +478,58 @@ export default function AskAIWidget() {
         </div>
 
         {/* Input Area */}
-        <form onSubmit={handleAsk} className="flex gap-2">
-          <input
-            type="text"
-            spellCheck="true"
-            lang="en"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g., How is our system performing today?"
-            className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-            disabled={loading}
-          />
-          <Button
-            type="submit"
-            disabled={loading || !query.trim()}
-            size="icon"
-            className="bg-purple-600 hover:bg-purple-700 text-white"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </form>
+        <div className="flex flex-col gap-2">
+          <form onSubmit={handleAsk} className="flex gap-2">
+            <input
+              type="text"
+              spellCheck="true"
+              lang="en"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="e.g., How is our system performing today?"
+              className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+              disabled={loading}
+            />
+            <Button
+              type="submit"
+              disabled={loading || !query.trim()}
+              size="icon"
+              aria-label="Send"
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </form>
+
+          {/* Mode selector (docs/ai-query-routing.md §6.1). Auto lets the
+              backend heuristics decide; the technician can force a path. */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-gray-500 dark:text-gray-400">Mode:</span>
+            <div
+              role="group"
+              aria-label="AI query mode"
+              className="inline-flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden"
+            >
+              {AI_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  title={m.title}
+                  onClick={() => setMode(m.id)}
+                  disabled={loading}
+                  aria-pressed={mode === m.id}
+                  className={`px-2.5 py-1 transition-colors disabled:opacity-50 ${
+                    mode === m.id
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
