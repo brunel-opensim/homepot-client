@@ -26,6 +26,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from homepot.agents import get_agent_manager, stop_agent_manager
+from homepot.app.ai_ops.reconcile import run_ai_execution_reconcile_loop
 from homepot.app.api.API_v1.Api import api_v1_router
 from homepot.app.api.API_v1.Endpoints.SitesEndpoint import generate_site_id
 from homepot.audit import AuditEventType, get_audit_logger
@@ -48,9 +49,6 @@ _command_expiry_task: Optional[asyncio.Task[None]] = None
 _intent_expiry_task: Optional[asyncio.Task[None]] = None
 _stale_device_task: Optional[asyncio.Task[None]] = None
 _ai_execution_task: Optional[asyncio.Task[None]] = None
-
-# How often to advance AI action plans that are mid-execution (Phase 3).
-AI_EXECUTION_RECONCILE_SECONDS = 10
 
 
 async def _run_command_expiry_loop() -> None:
@@ -80,41 +78,6 @@ async def _run_intent_expiry_loop() -> None:
         except Exception as e:
             logger.error(f"Intent expiry error: {e}", exc_info=True)
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
-
-
-async def _run_ai_execution_reconcile_loop() -> None:
-    """Advance AI action plans that are mid-execution (Phase 3).
-
-    Execution is asynchronous: the executor queues device commands and the
-    device reports back later. This loop moves ``executing``/``rolling_back``
-    plans to a terminal state once their commands finish.
-    """
-    from homepot.app.ai_ops.verifier import reconcile_plan
-    from homepot.app.repositories.ai_action_repository import AIActionRepository
-    from homepot.database import SessionLocal
-
-    while True:
-        try:
-            db = SessionLocal()
-            try:
-                repo = AIActionRepository(db)
-                plans = repo.list_plans(
-                    statuses={"executing", "rolling_back"}, limit=100
-                )
-                for plan in plans:
-                    try:
-                        await reconcile_plan(db, plan)
-                    except Exception:
-                        logger.warning(
-                            "Failed to reconcile AI plan %s",
-                            plan.plan_id,
-                            exc_info=True,
-                        )
-            finally:
-                db.close()
-        except Exception:
-            logger.warning("AI execution reconcile loop failed", exc_info=True)
-        await asyncio.sleep(AI_EXECUTION_RECONCILE_SECONDS)
 
 
 async def _run_stale_device_detection_loop() -> None:
@@ -162,7 +125,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Stale device detection background task started")
 
     # Start background AI action-execution reconcile task (Phase 3)
-    _ai_execution_task = asyncio.create_task(_run_ai_execution_reconcile_loop())
+    _ai_execution_task = asyncio.create_task(run_ai_execution_reconcile_loop())
     logger.info("AI execution reconcile background task started")
 
     # Initialize job orchestrator
