@@ -56,6 +56,7 @@ from ai.query_router import (  # noqa: E402
     routing_enabled,
 )
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
+
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.app.repositories.ai_action_repository import (  # noqa: E402
