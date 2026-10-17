@@ -6,6 +6,7 @@ used across the test suite.
 
 import faulthandler
 import os
+import sys
 import threading
 import time
 from typing import Any, Dict, Generator
@@ -18,6 +19,13 @@ import pytest
 # PostgreSQL/TimescaleDB test database). This must happen before any local
 # imports evaluate the settings globally.
 os.environ.setdefault("DATABASE__URL", "sqlite+aiosqlite:///:memory:")
+
+# The top-level ``ai`` package lives at the repository root, which is not on
+# sys.path when pytest runs from backend/. Make it importable regardless of
+# which test module is collected first (e.g. test_ai_concurrency in a shard).
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 # Configure asyncio for testing
 pytest_plugins = ("pytest_asyncio",)
