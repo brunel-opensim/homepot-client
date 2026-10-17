@@ -16,13 +16,19 @@ Design rules (see ``docs/ai-delegation-plan.md`` section 7):
 
 from homepot.app.ai_ops.executor import start_execution
 from homepot.app.ai_ops.policy import PolicyResult, evaluate_plan
+from homepot.app.ai_ops.reconcile import (
+    AI_EXECUTION_RECONCILE_SECONDS,
+    run_ai_execution_reconcile_loop,
+)
 from homepot.app.ai_ops.rollback import begin_rollback
 from homepot.app.ai_ops.verifier import reconcile_plan
 
 __all__ = [
+    "AI_EXECUTION_RECONCILE_SECONDS",
     "PolicyResult",
     "evaluate_plan",
     "start_execution",
     "reconcile_plan",
     "begin_rollback",
+    "run_ai_execution_reconcile_loop",
 ]

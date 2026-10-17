@@ -633,3 +633,20 @@ def test_execute_twice_conflicts(client: TestClient):
     url = f"/api/v1/ai/action-plans/{plan_id}/execute"
     assert client.post(url, headers=_headers(tech_email)).status_code == 200
     assert client.post(url, headers=_headers(tech_email)).status_code == 409
+
+
+def test_served_app_starts_ai_reconcile_loop():
+    """The served app (``homepot.app.main``) must start the reconcile loop.
+
+    Regression: the Phase 3 loop was wired into the legacy ``homepot.main``
+    module, but the deployed service runs ``homepot.app.main:app``, so the
+    verifier never ran and plans stayed stuck in ``executing`` forever.
+    """
+    from homepot.app.main import app as served_app
+
+    with TestClient(served_app):
+        task = getattr(served_app.state, "ai_execution_task", None)
+        assert task is not None, "AI reconcile loop task was not started"
+        assert not task.done()
+
+    assert getattr(served_app.state, "ai_execution_task", None) is None
