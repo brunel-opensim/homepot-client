@@ -58,6 +58,32 @@ memory:
   answer_digest_chars: 500              # how much of each answer to store
   write_on_query: true                  # persist a compact memory after each AI answer
 
+# Documentation retrieval (Tier C grounding; ai/doc_retriever.py).
+#
+# The knowledge path answers how-to/definition questions from documentation.
+# This vector index covers the whole `docs/*.md` corpus so answers can cite
+# real file paths instead of a fixed five-doc excerpt list (which left common
+# topics like device enrolment unsourced, so the model invented file names).
+#
+# `n_results` caps how many chunks are injected per query; `max_distance` is a
+# relevance cutoff on the vector distance (lower = closer, `null` disables it).
+# Chunking is heading-aware; long sections are split into `chunk_size`
+# windows with `chunk_overlap` characters of overlap. The index rebuilds only
+# when a doc's path/size/mtime changes (see DocRetriever._index_version), so a
+# stable corpus costs nothing per query.
+docs:
+  chroma_path: "data/docs_chroma"
+  collection_name: "project_docs"
+  distance_metric: "cosine"             # "cosine" (0..2) or "l2"
+  n_results: 6                          # max doc chunks injected per query
+  # Cosine distance for a relevant MiniLM match is typically <0.9; unrelated
+  # chunks sit near 1.0. Raise toward 1.0 to widen recall, lower to tighten.
+  max_distance: 0.9
+  chunk_size: 1200                      # characters per chunk (~300 tokens)
+  chunk_overlap: 150                    # overlap between split windows
+  max_chunks_per_doc: 60                # bound one doc's contribution
+  max_file_bytes: 2000000               # skip unreasonably large files
+
 database:
   # Use PostgreSQL from docker-compose
   url: "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"
