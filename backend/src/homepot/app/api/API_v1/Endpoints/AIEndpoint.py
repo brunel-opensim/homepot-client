@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Literal, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -50,6 +50,11 @@ from ai.gates import (  # noqa: E402
 from ai.gates import EnvelopeResult  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
+from ai.query_router import (  # noqa: E402
+    MODE_KNOWLEDGE,
+    resolve_query_mode,
+    routing_enabled,
+)
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
@@ -189,6 +194,14 @@ class AIQueryRequest(BaseModel):
     agentic: bool = Field(
         default=False,
         description="Enable agentic tool-calling mode for multi-step investigation",
+    )
+    mode: Literal["auto", "knowledge", "diagnostic"] = Field(
+        default="auto",
+        description=(
+            "Query path: 'auto' classifies by intent (default), 'knowledge' "
+            "answers from documentation without the device gates, 'diagnostic' "
+            "forces the operational gated path."
+        ),
     )
 
 
@@ -552,6 +565,131 @@ async def _generate_direct(
         raise _ai_busy_http_exception(gate)
 
 
+def _informational_trust() -> Dict[str, Any]:
+    """Build the trust object for a knowledge query: informational, non-actionable.
+
+    No device data was validated (none was needed), so there is no gate result,
+    score or failed gate. The shape mirrors ``EnvelopeResult.to_dict()`` so the
+    UI can render both uniformly.
+    """
+    return {
+        "trust_mode": "informational",
+        "trust_mode_label": "Informational",
+        "trust_score": None,
+        "actionable": False,
+        "passed_gates": [],
+        "failed_gate": None,
+        "gates": [],
+        "summary": (
+            "Knowledge answer grounded in documentation; no device data was "
+            "validated (none was needed)."
+        ),
+    }
+
+
+async def _answer_knowledge(
+    *,
+    request: AIQueryRequest,
+    current_user: UserDict,
+    llm: Any,
+    knowledge: Any,
+    memory: Any,
+    short_term_context: str,
+    long_term_context: str,
+    memory_scope: MemoryScope,
+    routing_info: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Answer a knowledge-mode query from documentation only.
+
+    Skips the fleet/device DB scans, the validation gates (A-E) and the AI
+    insights entirely (see docs/ai-query-routing.md section 7): a how-to answer
+    does not need live device state. The response carries an informational trust
+    object and can never produce a proposal.
+    """
+    parts: List[str] = [
+        "[MODE]\nknowledge (documentation-only; no live device data)",
+    ]
+    if request.context:
+        parts.append(
+            "[USER CONTEXT]\n" + _sanitize_ai_input(request.context, "context")
+        )
+    if request.role:
+        parts.append("[REQUESTER ROLE]\n" + _sanitize_ai_input(request.role, "role"))
+    if long_term_context:
+        parts.append(long_term_context)
+    if short_term_context:
+        parts.append(short_term_context)
+    knowledge_context = "\n".join(parts)
+
+    system_prompt_text = knowledge.get_knowledge_prompt()
+    response = await _generate_direct(
+        llm,
+        request.query,
+        knowledge_context,
+        system_prompt_text,
+        get_ai_gate(llm),
+    )
+
+    logger.info(
+        "AI query done | mode=knowledge | reason=%s",
+        routing_info.get("reason"),
+    )
+
+    # Best-effort memory write, mirroring the diagnostic path so later queries
+    # can recall the answer. No trust score applies on this path.
+    try:
+        if (
+            getattr(memory, "write_on_query", True)
+            and response
+            and "unable to connect to my AI brain" not in response
+        ):
+            digest_chars = getattr(memory, "answer_digest_chars", 500)
+            if not isinstance(digest_chars, int) or digest_chars <= 0:
+                digest_chars = 500
+            memory.remember(
+                f"Q: {request.query}\nA: {response[:digest_chars]}",
+                scope=memory_scope,
+                extra_metadata={
+                    "source": "ai_query",
+                    "trust_score": 0.0,
+                    "is_actionable": False,
+                    "routing_mode": MODE_KNOWLEDGE,
+                },
+            )
+    except Exception:
+        logger.warning("Failed to persist AI memory", exc_info=True)
+
+    try:
+        await get_audit_logger().log_event(
+            event_type=AuditEventType.AI_QUERY,
+            description=(
+                f"AI query | mode=knowledge | " f"device={request.device_id or 'N/A'}"
+            ),
+            user_id=current_user.get("user_id"),
+            event_metadata={
+                "query_length": len(request.query),
+                "trust_mode": "informational",
+                "actionable": False,
+                "routing_mode": MODE_KNOWLEDGE,
+                "routing_reason": routing_info.get("reason"),
+            },
+        )
+    except Exception:
+        logger.warning("Failed to persist AI audit event", exc_info=True)
+
+    logger.info(
+        "AI query done | device_id=%s | mode=knowledge | actionable=False",
+        request.device_id or "N/A",
+    )
+
+    return {
+        "response": response,
+        "timestamp": datetime.utcnow().isoformat(),
+        "trust": _informational_trust(),
+        "routing": routing_info,
+    }
+
+
 @router.post("/query", tags=["AI Chat"])
 async def query_ai(
     request: AIQueryRequest,
@@ -627,6 +765,42 @@ async def query_ai(
                 )
         except Exception as e:
             logger.warning(f"Failed to query vector memory: {e}")
+
+        # 2b. Resolve the query's intent and, for a knowledge (how-to/definition)
+        # question, answer from documentation only -- skipping the fleet/device
+        # DB scans, the validation gates and the AI insights below. Anything
+        # ambiguous resolves to 'diagnostic' so today's gate-backed behaviour
+        # stays the default (see ai/query_router.py and docs/ai-query-routing.md).
+        routing = resolve_query_mode(
+            request.query,
+            requested=request.mode,
+            device_id=request.device_id,
+            history=request.history,
+            enabled=routing_enabled(),
+        )
+        routing_info = {
+            "requested": routing.requested,
+            "resolved": routing.resolved,
+            "reason": routing.reason,
+        }
+        logger.info(
+            "AI query routing | requested=%s | resolved=%s | reason=%s",
+            routing.requested,
+            routing.resolved,
+            routing.reason,
+        )
+        if routing.resolved == MODE_KNOWLEDGE:
+            return await _answer_knowledge(
+                request=request,
+                current_user=current_user,
+                llm=llm,
+                knowledge=knowledge,
+                memory=memory,
+                short_term_context=short_term_context,
+                long_term_context=long_term_context,
+                memory_scope=memory_scope,
+                routing_info=routing_info,
+            )
 
         # 3. Build Real-Time System Context
         db_service = await get_database_service()
@@ -1174,6 +1348,9 @@ async def query_ai(
                     "actionable": trust.is_actionable,
                     "failed_gate": trust.failed_gate_id,
                     "agentic": request.agentic,
+                    "routing_mode": routing_info["resolved"],
+                    "routing_requested": routing_info["requested"],
+                    "routing_reason": routing_info["reason"],
                 },
             )
             if not trust.is_actionable:
@@ -1195,6 +1372,7 @@ async def query_ai(
             "response": response,
             "timestamp": datetime.utcnow().isoformat(),
             "trust": trust.to_dict(),
+            "routing": routing_info,
             **({"agentic": agentic_info} if agentic_info else {}),
             **({"proposal": proposal_info} if proposal_info else {}),
         }

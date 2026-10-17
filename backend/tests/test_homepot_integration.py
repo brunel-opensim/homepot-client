@@ -533,7 +533,7 @@ class TestEndToEndWorkflows:
 
     def test_agent_management_workflow(self, client: TestClient) -> None:
         """Test agent management workflow: list, monitor, notify, restart."""
-        h = TestEndToEndWorkflows._headers
+        h = auth_headers()
         site_id = generate_random_id("AGENT_WF_SITE")
         site_resp = client.post(
             "/api/v1/sites",
