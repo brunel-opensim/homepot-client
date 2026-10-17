@@ -784,14 +784,19 @@ const api = {
      * @param {string} query - The user's question
      * @param {string} [deviceId] - Optional device context
      * @param {string} [role] - Optional user role context
+     * @param {string} [mode] - Optional intent override: 'auto' | 'knowledge'
+     *   | 'diagnostic'. Omitted (or 'auto') lets the backend heuristics decide.
      */
-    query: async (query, deviceId = null, role = null) => {
+    query: async (query, deviceId = null, role = null, mode = null) => {
       const payload = { query };
       if (deviceId) {
         payload.device_id = deviceId;
       }
       if (role) {
         payload.role = role;
+      }
+      if (mode) {
+        payload.mode = mode;
       }
       // AI inference (local LLM, CPU) can take well over a minute, and cold
       // model loads longer still -- use the AI-specific timeout.
