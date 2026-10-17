@@ -124,15 +124,15 @@ async def _reconcile_executing(db: SASession, plan: Any, db_service: Any = None)
     db.commit()
 
     if any_failed:
-        plan.status = "rolling_back"
-        db.commit()
-        queued = await begin_rollback(db, plan, db_service)
-        if not queued:
+        trackable = await begin_rollback(db, plan, db_service)
+        if trackable:
+            plan.status = "rolling_back"
+        else:
             _record_outcome(
                 db, plan, verified=False, rolled_back=False, error="step failed"
             )
             plan.status = "failed"
-            db.commit()
+        db.commit()
         return cast(str, plan.status)
 
     if all_done:
@@ -153,6 +153,11 @@ async def _reconcile_rolling_back(
     for step in plan.steps:
         rollback_id = (step.rollback_params or {}).get(ROLLBACK_COMMAND_KEY)
         if not rollback_id:
+            # A config step that should have a queued inverse but has none was
+            # never rolled back (interrupted or un-snapshotted). Fail safe rather
+            # than report a rollback that did not happen.
+            if step.action == "update_config" and step.status in (STEP_DONE, "failed"):
+                rollback_failed = True
             continue
         command = await db_service.get_command(rollback_id)
         if command is None:

@@ -11,9 +11,9 @@ with ``action``/``target_device_id``/``params``/``rationale``/``risk_tier``/
 any backend context.
 """
 
-from typing import Any, Iterable, List, Optional
+from typing import Any, Iterable, List, Optional, cast
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from homepot.app.models.AnalyticsModel import (
@@ -79,6 +79,24 @@ class AIActionRepository:
         self.db.commit()
         self.db.refresh(plan)
         return plan
+
+    def claim_for_execution(self, plan_id: str) -> bool:
+        """Atomically move an ``approved`` plan to ``executing``.
+
+        Returns ``True`` only for the caller that won the race. This is the
+        single-execution guard: a conditional ``UPDATE`` means two concurrent
+        Execute requests cannot both queue the plan's commands.
+        """
+        result = self.db.execute(
+            update(AIActionPlan)
+            .where(
+                AIActionPlan.plan_id == plan_id,
+                AIActionPlan.status == "approved",
+            )
+            .values(status="executing")
+        )
+        self.db.commit()
+        return cast(int, getattr(result, "rowcount", 0)) == 1
 
     def get_plan(self, plan_id: str) -> Optional[AIActionPlan]:
         """Return a plan by its business ``plan_id``, or ``None``."""
