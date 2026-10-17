@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as SASession
 
+from homepot.app.ai_ops.executor import start_execution
 from homepot.app.auth_utils import (
     get_accessible_site_ids,
     require_user,
@@ -85,6 +86,22 @@ def _serialize_plan(plan: AIActionPlan) -> Dict[str, Any]:
             }
             for approval in plan.approvals
         ],
+        "outcome": (
+            {
+                "verified": plan.outcome.verified,
+                "rolled_back": plan.outcome.rolled_back,
+                "rollback_success": plan.outcome.rollback_success,
+                "error": plan.outcome.error,
+                "recorded_at": (
+                    plan.outcome.recorded_at.isoformat()
+                    if plan.outcome.recorded_at
+                    else None
+                ),
+                "provenance": plan.outcome.provenance,
+            }
+            if plan.outcome is not None
+            else None
+        ),
     }
 
 
@@ -287,3 +304,87 @@ async def reject_action_plan(
 ) -> Dict[str, Any]:
     """Reject an AI action plan, recording the actor and reason."""
     return await _decide(plan_id, "rejected", payload, current_user, db)
+
+
+async def _log_execution(
+    current_user: UserDict,
+    plan: AIActionPlan,
+    event_type: AuditEventType,
+    targets: List[str],
+) -> None:
+    """Best-effort audit of an execution transition; never breaks the request."""
+    try:
+        await get_audit_logger().log_event(
+            event_type=event_type,
+            description=(
+                f"AI plan {plan.status} | plan={plan.plan_id} | "
+                f"risk={plan.risk_tier} | devices={','.join(targets) or 'N/A'}"
+            ),
+            user_id=current_user.get("user_id"),
+            event_metadata={
+                "plan_id": plan.plan_id,
+                "status": plan.status,
+                "risk_tier": plan.risk_tier,
+                "reversible": plan.reversible,
+                "target_devices": targets,
+                "actor": current_user.get("email"),
+            },
+        )
+    except Exception:
+        logger.warning("Failed to audit AI plan execution", exc_info=True)
+
+
+@router.post("/action-plans/{plan_id}/execute", tags=["AI Action Delegation"])
+async def execute_action_plan(
+    plan_id: str,
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Execute an *approved* AI action plan (Phase 3).
+
+    Policy is re-checked against live data, then one device command is queued
+    per step through the same command path the operator UI uses. Completion is
+    asynchronous: the plan moves to ``executing`` and the verifier finalises it
+    once the device reports back. Nothing executes without a prior approval.
+    """
+    db_user = _get_db_user(db, current_user)
+    repo = AIActionRepository(db)
+    plan = repo.get_plan(plan_id)
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
+        )
+
+    # Scope first, so a caller outside the device's site cannot trigger it.
+    targets = _authorize_plan(db, db_user, plan)
+
+    if plan.status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Plan is '{plan.status}' and cannot be executed "
+                "(only 'approved' plans execute)"
+            ),
+        )
+
+    plan, policy = await start_execution(db, plan, actor=str(current_user.get("email")))
+
+    if not policy.allowed:
+        await _log_execution(
+            current_user, plan, AuditEventType.AI_EXECUTION_BLOCKED, targets
+        )
+    else:
+        await _log_execution(
+            current_user, plan, AuditEventType.AI_EXECUTION_STARTED, targets
+        )
+
+    logger.info(
+        "AI plan execute | plan=%s | status=%s | actor=%s | devices=%s",
+        plan.plan_id,
+        plan.status,
+        current_user.get("email"),
+        targets,
+    )
+    result = _serialize_plan(plan)
+    result["policy"] = {"allowed": policy.allowed, "reasons": policy.reasons}
+    return result

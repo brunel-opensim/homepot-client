@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Clock,
   Cpu,
+  PlayCircle,
 } from 'lucide-react';
 import api, { apiHelpers } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,10 @@ const STATUS_FILTERS = [
   { value: 'pending_approval', label: 'Pending Approval' },
   { value: '', label: 'All Statuses' },
   { value: 'approved', label: 'Approved' },
+  { value: 'executing', label: 'Executing' },
+  { value: 'succeeded', label: 'Succeeded' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'rolled_back', label: 'Rolled Back' },
   { value: 'rejected', label: 'Rejected' },
   { value: 'blocked', label: 'Blocked' },
 ];
@@ -88,6 +93,39 @@ export default function AIProposalsList() {
       fetchPlans();
     } catch (err) {
       console.error(`Failed to ${decision} plan:`, err);
+      setToast({ type: 'error', message: apiHelpers.formatError(err) });
+    } finally {
+      setBusyPlan(null);
+    }
+  };
+
+  const handleExecute = async (planId) => {
+    if (
+      !window.confirm(
+        'Execute this approved plan now? Device commands will be queued and run on the devices.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setBusyPlan(planId);
+      const result = await api.aiProposals.execute(planId);
+      if (result.status === 'blocked') {
+        const reasons = (result.policy?.reasons || []).join(' ');
+        setToast({
+          type: 'error',
+          message: `Execution blocked by policy. ${reasons}`.trim(),
+        });
+      } else {
+        setToast({
+          type: 'success',
+          message: 'Execution started; devices will report back shortly.',
+        });
+      }
+      fetchPlans();
+    } catch (err) {
+      console.error('Failed to execute plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
     } finally {
       setBusyPlan(null);
@@ -173,6 +211,7 @@ export default function AIProposalsList() {
                   busy={busyPlan === plan.plan_id}
                   onApprove={() => handleDecide(plan.plan_id, 'approve')}
                   onReject={() => handleDecide(plan.plan_id, 'reject')}
+                  onExecute={() => handleExecute(plan.plan_id)}
                 />
               ))}
             </div>
@@ -189,8 +228,9 @@ function pendingApprovalCount(plans) {
   return plans.filter((plan) => plan.status === 'pending_approval').length;
 }
 
-function PlanCard({ plan, busy, onApprove, onReject }) {
+function PlanCard({ plan, busy, onApprove, onReject, onExecute }) {
   const reviewable = plan.status === 'pending_approval';
+  const executable = plan.status === 'approved';
   const targets = [...new Set((plan.steps || []).map((step) => step.target_device_id))].filter(
     Boolean
   );
@@ -228,6 +268,8 @@ function PlanCard({ plan, busy, onApprove, onReject }) {
             ))}
           </div>
 
+          {plan.outcome && <OutcomeLine outcome={plan.outcome} />}
+
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
             <span className="font-mono">{plan.plan_id}</span>
             {targets.length > 0 && <span>devices: {targets.join(', ')}</span>}
@@ -239,30 +281,60 @@ function PlanCard({ plan, busy, onApprove, onReject }) {
           </div>
         </div>
 
-        {reviewable && (
-          <div className="flex md:flex-col gap-2 shrink-0">
+        <div className="flex md:flex-col gap-2 shrink-0">
+          {reviewable && (
+            <>
+              <Button
+                size="sm"
+                onClick={onApprove}
+                disabled={busy}
+                className="bg-teal-600 text-white hover:bg-teal-700"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Approve
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onReject}
+                disabled={busy}
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                Reject
+              </Button>
+            </>
+          )}
+          {executable && (
             <Button
               size="sm"
-              onClick={() => onApprove(plan.plan_id)}
+              onClick={onExecute}
               disabled={busy}
-              className="bg-teal-600 text-white hover:bg-teal-700"
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
             >
-              <CheckCircle className="h-4 w-4 mr-1" />
-              Approve
+              <PlayCircle className="h-4 w-4 mr-1" />
+              Execute
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onReject}
-              disabled={busy}
-              className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-            >
-              <XCircle className="h-4 w-4 mr-1" />
-              Reject
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </Card>
   );
+}
+
+function OutcomeLine({ outcome }) {
+  if (outcome.rolled_back) {
+    return (
+      <p className="text-xs text-purple-400">
+        Rolled back{outcome.rollback_success === false ? ' (rollback failed)' : ' successfully'}.
+      </p>
+    );
+  }
+  if (outcome.verified) {
+    return <p className="text-xs text-green-400">Verified against the device.</p>;
+  }
+  if (outcome.error) {
+    return <p className="text-xs text-red-400">Failed: {outcome.error}</p>;
+  }
+  return null;
 }

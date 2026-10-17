@@ -1010,6 +1010,14 @@ class DatabaseService:
                 return command
             return None
 
+    async def get_command(self, command_id: str) -> Optional[DeviceCommand]:
+        """Get a single command by its unique command_id."""
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(DeviceCommand).where(DeviceCommand.command_id == command_id)
+            )
+            return result.scalar_one_or_none()
+
     async def get_commands_for_device(
         self, device_id: int, limit: int = 100, offset: int = 0
     ) -> List[DeviceCommand]:
