@@ -7,8 +7,8 @@ function (no model download) and a throwaway on-disk database.
 import os
 import sys
 import time
-import zlib
 from unittest.mock import AsyncMock, MagicMock, patch
+import zlib
 
 from chromadb.api.types import EmbeddingFunction
 import pytest
