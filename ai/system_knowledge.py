@@ -227,9 +227,11 @@ class SystemKnowledge:
         report.
         """
         system_knowledge = self.get_full_system_context()
-        doc_context = self.get_documentation_context()
-        if doc_context:
-            system_knowledge += f"\n\n{doc_context}"
+        # Procedural docs are no longer embedded here: the knowledge path
+        # retrieves the most relevant chunks per query and injects them as a
+        # [RELEVANT DOCUMENTATION] block (see _answer_knowledge / DocRetriever).
+        # A fixed excerpt list would only compete with the retrieved,
+        # query-specific sources.
         cmd_ref = self.get_command_payload_reference()
         if cmd_ref:
             system_knowledge += f"\n\n{cmd_ref}"
@@ -245,8 +247,9 @@ class SystemKnowledge:
             "CAPABILITIES & DATA SOURCES:\n"
             "1. System Knowledge: you are self-aware of the codebase structure, "
             "file locations, and documentation.\n"
-            "2. Documentation: procedural docs are provided in the "
-            "[DOCUMENTATION] block.\n"
+            "2. Documentation: the most relevant procedural docs for this "
+            "question are retrieved and provided in the "
+            "[RELEVANT DOCUMENTATION] block.\n"
             "3. Long-Term Memory (ChromaDB): relevant prior answers may appear "
             "in the [RELEVANT MEMORIES] block.\n"
             "4. Short-Term Memory: context of the current conversation.\n\n"
@@ -254,9 +257,11 @@ class SystemKnowledge:
             f"{system_knowledge}\n\n"
             f"{_DEFINED_SYSTEM_ROLES}"
             "INSTRUCTIONS:\n"
-            "- Answer from the provided documentation and system context; cite "
-            "the source (e.g. docs/device-credentials-and-tokens.md) when you "
-            "can.\n"
+            "- Answer from the provided documentation and system context. Cite "
+            "ONLY file paths that appear in the [RELEVANT DOCUMENTATION] block "
+            "(e.g. docs/device-registration.md). Never invent a file name or "
+            "cite a source that is not in that block. If the block has nothing "
+            "relevant, say you don't have documentation for that.\n"
             "- This is a DOCUMENTATION-ONLY answer: no live device data was "
             "collected and no validation gates ran. Do not present operational "
             "state as current, and do not claim a device is online/offline. If "

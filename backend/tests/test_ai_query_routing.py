@@ -150,6 +150,24 @@ def _build_mocks():
     return mock_llm, mock_knowledge, mock_memory
 
 
+def _mock_retriever(chunks=None):
+    """Return a stand-in DocRetriever so tests never index the real corpus."""
+    retriever = MagicMock()
+    retriever.retrieve.return_value = (
+        [
+            {
+                "content": "# Enrolment workflow\nCreate a site, issue a key.",
+                "source": "docs/device-registration.md",
+                "heading": "Enrolment workflow",
+                "distance": 0.2,
+            }
+        ]
+        if chunks is None
+        else chunks
+    )
+    return retriever
+
+
 @pytest.mark.asyncio
 async def test_knowledge_query_skips_gates_and_returns_informational_trust():
     """A knowledge query must not build/run the gates or device context."""
@@ -165,6 +183,7 @@ async def test_knowledge_query_skips_gates_and_returns_informational_trust():
             "get_ai_services",
             return_value=_services(mock_llm, mock_knowledge, mock_memory),
         ),
+        patch.object(AIEndpoint, "get_doc_retriever", return_value=_mock_retriever()),
         patch.object(AIEndpoint, "build_envelope_from_config", build_envelope),
         patch.object(ContextBuilder, "build_enriched_context", enriched),
     ):
@@ -193,6 +212,13 @@ async def test_knowledge_query_skips_gates_and_returns_informational_trust():
     assert "VALIDATION TRUST STATUS" not in call_kwargs["context"]
     assert "[CURRENT SYSTEM STATUS]" not in call_kwargs["context"]
 
+    # Tier C grounding: retrieved docs are injected and surfaced as sources.
+    assert "[RELEVANT DOCUMENTATION]" in call_kwargs["context"]
+    assert "docs/device-registration.md" in call_kwargs["context"]
+    assert response["sources"] == ["docs/device-registration.md"]
+    # The fixed five-doc fallback must not run when retrieval hit.
+    mock_knowledge.get_documentation_context.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_knowledge_query_no_proposal_even_if_agentic_requested():
@@ -207,6 +233,7 @@ async def test_knowledge_query_no_proposal_even_if_agentic_requested():
             "get_ai_services",
             return_value=_services(mock_llm, mock_knowledge, mock_memory),
         ),
+        patch.object(AIEndpoint, "get_doc_retriever", return_value=_mock_retriever()),
         patch.object(AIEndpoint, "run_agent", new=AsyncMock()) as run_agent,
     ):
         request = AIEndpoint.AIQueryRequest(

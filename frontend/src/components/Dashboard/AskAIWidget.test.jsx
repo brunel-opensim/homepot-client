@@ -33,6 +33,7 @@ const knowledgeResult = {
     resolved: 'knowledge',
     reason: "how-to signal: 'how do'",
   },
+  sources: ['docs/device-registration.md'],
 };
 
 const diagnosticResult = {
@@ -124,6 +125,32 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
     expect(await screen.findByText(/answered from documentation/i)).toBeInTheDocument();
     // The informational trust must not be rendered as a gate banner.
     expect(screen.queryByText('Informational')).toBeNull();
+  });
+
+  it('shows the real retrieved doc sources for knowledge answers', async () => {
+    api.ai.query.mockResolvedValue(knowledgeResult);
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+
+    await user.type(screen.getByRole('textbox'), 'How do I enroll a device?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByText('docs/device-registration.md')).toBeInTheDocument();
+    expect(localStorage.getItem('homepot_ai_sources')).toBe(
+      JSON.stringify(['docs/device-registration.md'])
+    );
+  });
+
+  it('does not show doc sources for diagnostic answers', async () => {
+    api.ai.query.mockResolvedValue(diagnosticResult);
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+
+    await user.type(screen.getByRole('textbox'), 'What is the system status?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByText('Status Only')).toBeInTheDocument();
+    expect(screen.queryByText('docs/device-registration.md')).toBeNull();
   });
 
   it('shows the gate trust banner for diagnostic answers', async () => {
