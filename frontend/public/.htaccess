@@ -1,0 +1,28 @@
+# HOMEPOT SPA routing
+# Serve the client-side app (index.html) for any non-file, non-API path so deep
+# links and refreshes such as /sites, /dashboard and /device/:id resolve to the
+# React app instead of Apache's "Not Found" 404 page.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Never rewrite the API / backend (proxied to the FastAPI service)
+  RewriteRule ^api/ - [L]
+
+  # Serve real files and directories as-is
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else -> SPA entry point
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Never cache the HTML shell so clients always pick up the latest asset hashes
+<IfModule mod_headers.c>
+  <Files "index.html">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </Files>
+</IfModule>
