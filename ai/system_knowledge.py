@@ -9,6 +9,22 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Single source of truth for the role definitions shared by the diagnostic and
+# knowledge prompts. Kept byte-identical to the previous inline copy so the
+# startup KV-cache warm-up prefix (main.py) is unaffected.
+_DEFINED_SYSTEM_ROLES = (
+    "DEFINED SYSTEM ROLES:\n"
+    "The HOMEPOT Client system defines these roles:\n"
+    "1. 'Admin': Complete system access, including user management, logs, "
+    "and system configuration.\n"
+    "2. 'Engineer': Technical access, including device management, "
+    "diagnostics, and configurations (similar to Admin but focused on "
+    "operations).\n"
+    "3. 'Client' (User): Limited access, primarily for monitoring assigned "
+    "devices, views, and notifications.\n"
+    "There are NO other defined roles (e.g. 'Agent Operator' is NOT valid).\n\n"
+)
+
 
 class SystemKnowledge:
     """Service for retrieving system architecture and codebase structure."""
@@ -174,16 +190,7 @@ class SystemKnowledge:
             "provided in [AI INSIGHTS: ...] blocks.\n\n"
             "SYSTEM CONTEXT:\n"
             f"{system_knowledge}\n\n"
-            "DEFINED SYSTEM ROLES:\n"
-            "The HOMEPOT Client system defines these roles:\n"
-            "1. 'Admin': Complete system access, including user management, logs, "
-            "and system configuration.\n"
-            "2. 'Engineer': Technical access, including device management, "
-            "diagnostics, and configurations (similar to Admin but focused on "
-            "operations).\n"
-            "3. 'Client' (User): Limited access, primarily for monitoring assigned "
-            "devices, views, and notifications.\n"
-            "There are NO other defined roles (e.g. 'Agent Operator' is NOT valid).\n\n"
+            f"{_DEFINED_SYSTEM_ROLES}"
             "INSTRUCTIONS:\n"
             "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
             "general knowledge questions.\n"
@@ -206,6 +213,62 @@ class SystemKnowledge:
             "asks for more detail; do not restate the question or pad with "
             "pleasantries. Prefer a short list over prose. Be professional and "
             "technical."
+        )
+
+    def get_knowledge_prompt(self) -> str:
+        """Build the system prompt for the knowledge (documentation) path.
+
+        Used for informational/how-to queries that skip the device-data
+        validation pipeline (see docs/ai-query-routing.md). It keeps the same
+        system knowledge, documentation and command reference as the diagnostic
+        prompt, but uses a product/SOP framing and drops the operational
+        "diagnose the fleet" instruction and the [VALIDATION TRUST STATUS]
+        instruction -- no gates run on this path, so there is no trust status to
+        report.
+        """
+        system_knowledge = self.get_full_system_context()
+        doc_context = self.get_documentation_context()
+        if doc_context:
+            system_knowledge += f"\n\n{doc_context}"
+        cmd_ref = self.get_command_payload_reference()
+        if cmd_ref:
+            system_knowledge += f"\n\n{cmd_ref}"
+
+        return (
+            "IDENTITY:\n"
+            "You are the HOMEPOT Knowledge Assistant, a product and SOP "
+            "assistant for the HOMEPOT Client ecosystem.\n"
+            "Your goal is to answer how-to, definition, and product questions "
+            "from documentation: device enrollment, credentials and tokens, "
+            "device lifecycle, commands and payloads, roles and permissions, "
+            "and platform concepts.\n\n"
+            "CAPABILITIES & DATA SOURCES:\n"
+            "1. System Knowledge: you are self-aware of the codebase structure, "
+            "file locations, and documentation.\n"
+            "2. Documentation: procedural docs are provided in the "
+            "[DOCUMENTATION] block.\n"
+            "3. Long-Term Memory (ChromaDB): relevant prior answers may appear "
+            "in the [RELEVANT MEMORIES] block.\n"
+            "4. Short-Term Memory: context of the current conversation.\n\n"
+            "SYSTEM CONTEXT:\n"
+            f"{system_knowledge}\n\n"
+            f"{_DEFINED_SYSTEM_ROLES}"
+            "INSTRUCTIONS:\n"
+            "- Answer from the provided documentation and system context; cite "
+            "the source (e.g. docs/device-credentials-and-tokens.md) when you "
+            "can.\n"
+            "- This is a DOCUMENTATION-ONLY answer: no live device data was "
+            "collected and no validation gates ran. Do not present operational "
+            "state as current, and do not claim a device is online/offline. If "
+            "the question needs live data, say so and suggest asking about the "
+            "fleet.\n"
+            "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
+            "general knowledge questions.\n"
+            "- If you don't know something, admit it. Do not hallucinate system "
+            "details.\n"
+            "- Be concise: aim for at most ~80 words unless the user explicitly "
+            "asks for more detail; prefer a short list over prose. Be "
+            "professional and technical."
         )
 
     def get_documentation_context(self, max_chars_per_doc: int = 500) -> str:

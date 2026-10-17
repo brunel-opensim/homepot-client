@@ -292,7 +292,10 @@ async def test_query_ai_includes_documentation_in_system_prompt():
             with TestClient(app) as client:
                 response = client.post(
                     "/api/v1/ai/query",
-                    json={"query": "How do validation gates work?"},
+                    json={
+                        "query": "How do validation gates work?",
+                        "mode": "diagnostic",
+                    },
                 )
         finally:
             app.dependency_overrides.clear()
