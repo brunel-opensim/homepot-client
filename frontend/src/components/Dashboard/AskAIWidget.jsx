@@ -16,6 +16,7 @@ import {
   X,
   ListChecks,
   BookOpen,
+  FileText,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
@@ -270,6 +271,17 @@ export default function AskAIWidget() {
   // How the backend actually resolved the query (routing.resolved) -- drives
   // whether we show the gate/trust UI or a documentation "Knowledge" chip.
   const [routing, setRouting] = useState(null);
+  // Real documentation files the backend retrieved to ground a knowledge answer
+  // (docs/ai-query-routing.md §8.1). These are actual repo paths, not file
+  // names the model invented.
+  const [sources, setSources] = useState(() => {
+    try {
+      const stored = localStorage.getItem('homepot_ai_sources');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
@@ -305,17 +317,27 @@ export default function AskAIWidget() {
     localStorage.setItem('homepot_ai_mode', mode);
   }, [mode]);
 
+  useEffect(() => {
+    if (sources && sources.length) {
+      localStorage.setItem('homepot_ai_sources', JSON.stringify(sources));
+    } else {
+      localStorage.removeItem('homepot_ai_sources');
+    }
+  }, [sources]);
+
   const clearHistory = () => {
     setQuery('');
     setResponse(null);
     setTrust(null);
     setRouting(null);
+    setSources([]);
     setTrustExpanded(false);
     setReplaying(false);
     setError(null);
     localStorage.removeItem('homepot_ai_query');
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
+    localStorage.removeItem('homepot_ai_sources');
   };
 
   const handleCopy = () => {
@@ -371,6 +393,7 @@ export default function AskAIWidget() {
     setResponse(null);
     setTrust(null);
     setRouting(null);
+    setSources([]);
     setTrustExpanded(false);
 
     try {
@@ -378,12 +401,15 @@ export default function AskAIWidget() {
       // `auto` is sent as null so the backend default (heuristics) applies.
       const modeArg = mode === 'auto' ? null : mode;
       const result = await api.ai.query(query, null, userRole, modeArg);
-      // The backend returns { response, timestamp, trust, routing } -- trust is
-      // the validation envelope's gate-by-gate outcome (see ai/gates/envelope.py)
-      // and routing reports how the intent was resolved (knowledge vs diagnostic).
+      // The backend returns { response, timestamp, trust, routing, sources } --
+      // trust is the validation envelope's gate-by-gate outcome (see
+      // ai/gates/envelope.py), routing reports how the intent was resolved
+      // (knowledge vs diagnostic), and sources lists the real doc files a
+      // knowledge answer was grounded in.
       setResponse(result.response);
       setTrust(result.trust || null);
       setRouting(result.routing || null);
+      setSources(result.sources || []);
       // Show an animated gate replay before revealing the response,
       // so the technician sees the validation chain in action.
       if (result.trust?.gates?.length) {
@@ -440,13 +466,29 @@ export default function AskAIWidget() {
           ) : response ? (
             <div className="relative group min-h-full">
               {isKnowledge ? (
-                <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>Knowledge</span>
-                  <span className="font-normal text-purple-500/80 dark:text-purple-400/70">
-                    — answered from documentation
-                  </span>
-                </div>
+                <>
+                  <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Knowledge</span>
+                    <span className="font-normal text-purple-500/80 dark:text-purple-400/70">
+                      — answered from documentation
+                    </span>
+                  </div>
+                  {sources.length > 0 && (
+                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                      {sources.map((src) => (
+                        <span
+                          key={src}
+                          title={`Retrieved source: ${src}`}
+                          className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                        >
+                          <FileText className="w-3 h-3 shrink-0" />
+                          {src}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
               ) : (
                 <TrustBanner
                   trust={trust}

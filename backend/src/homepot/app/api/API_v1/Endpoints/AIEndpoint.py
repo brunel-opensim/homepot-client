@@ -39,6 +39,7 @@ from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_memory import DeviceMemory, MemoryScope  # noqa: E402
 from ai.device_resolver import DeviceResolver  # noqa: E402
+from ai.doc_retriever import DocRetriever  # noqa: E402
 from ai.failure_predictor import FailurePredictor  # noqa: E402
 from ai.gates import (  # noqa: E402
     MODE_CAUTIONARY,
@@ -474,6 +475,21 @@ def get_ai_gate(llm: Any) -> AIConcurrencyGate:
     return _ai_gate
 
 
+# Documentation retriever for the knowledge path (Tier C grounding). Built
+# lazily and kept separate from `_ai_services` so the long-standing
+# `get_ai_services()` 3-tuple contract (and the tests that patch it) is
+# unchanged. Tests patch this to avoid indexing the real corpus.
+_doc_retriever: Optional[DocRetriever] = None
+
+
+def get_doc_retriever() -> DocRetriever:
+    """Return the shared documentation retriever (Tier C grounding)."""
+    global _doc_retriever
+    if _doc_retriever is None:
+        _doc_retriever = DocRetriever(docs_dir=os.path.join(project_root, "docs"))
+    return _doc_retriever
+
+
 def _ai_busy_http_exception(gate: AIConcurrencyGate) -> HTTPException:
     """Build the 503 returned when every AI slot is busy."""
     logger.warning(
@@ -587,6 +603,25 @@ def _informational_trust() -> Dict[str, Any]:
     }
 
 
+def _format_retrieved_docs(chunks: List[Dict[str, Any]]) -> str:
+    """Render retrieved doc chunks as a citable ``[RELEVANT DOCUMENTATION]`` block.
+
+    Each chunk is labelled with its real repo-relative path (and section
+    heading) so the model can cite sources that actually exist, and the API can
+    return the same paths in the response's ``sources`` list.
+    """
+    if not chunks:
+        return ""
+    lines = ["[RELEVANT DOCUMENTATION]"]
+    for chunk in chunks:
+        source = chunk.get("source") or "docs/unknown.md"
+        heading = chunk.get("heading") or ""
+        label = f"{source} — {heading}" if heading else source
+        lines.append(f"--- {label} ---")
+        lines.append(str(chunk.get("content", "")).strip())
+    return "\n".join(lines)
+
+
 async def _answer_knowledge(
     *,
     request: AIQueryRequest,
@@ -615,6 +650,30 @@ async def _answer_knowledge(
         )
     if request.role:
         parts.append("[REQUESTER ROLE]\n" + _sanitize_ai_input(request.role, "role"))
+
+    # Tier C grounding: retrieve the most relevant documentation chunks for this
+    # query and inject them with their real file paths so the model cites actual
+    # sources instead of inventing them (see docs/ai-query-routing.md 8.1).
+    sources: List[str] = []
+    doc_block = ""
+    try:
+        retriever = get_doc_retriever()
+        chunks = retriever.retrieve(request.query)
+        if chunks:
+            doc_block = _format_retrieved_docs(chunks)
+            sources = DocRetriever.unique_sources(chunks)
+    except Exception:
+        logger.warning("Documentation retrieval failed", exc_info=True)
+
+    if doc_block:
+        parts.append(doc_block)
+    else:
+        # No retrieval hit (or retriever unavailable): fall back to the fixed
+        # doc excerpts so the answer is not left with no context at all.
+        fallback = knowledge.get_documentation_context()
+        if fallback:
+            parts.append(fallback)
+
     if long_term_context:
         parts.append(long_term_context)
     if short_term_context:
@@ -687,6 +746,7 @@ async def _answer_knowledge(
         "timestamp": datetime.utcnow().isoformat(),
         "trust": _informational_trust(),
         "routing": routing_info,
+        "sources": sources,
     }
 
 
