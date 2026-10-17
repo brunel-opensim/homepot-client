@@ -230,11 +230,13 @@ SOP assistant for HOMEPOT). It keeps the command-payload reference
 (`ai/system_knowledge.py:248-342`) and the role definitions, but drops the
 operational "diagnose the fleet" framing and the trust instruction.
 
-**Documentation context.** Expand and deepen the doc set
-(`ai/system_knowledge.py:211-246`) so how-to answers are grounded, e.g. add
-enrollment, credentials/tokens, device lifecycle, and a FAQ; then select only
-the **relevant** docs for the query (keyword scoring first; embeddings later) to
-respect the prompt budget. The knowledge path must never present operational
+**Documentation context — implemented (v1).** The path retrieves the most
+relevant chunks from the **whole `docs/*.md` corpus** and injects them as a
+`[RELEVANT DOCUMENTATION]` block with real file paths (see
+[§8.1](#81-grounding-sources-of-truth-code-vs-docs) and
+[AI Documentation Retrieval](ai-doc-retrieval.md)). The old fixed five-doc
+excerpt list (`ai/system_knowledge.py:279-314`) is kept only as a fallback when
+retrieval returns nothing. The knowledge path must never present operational
 data as if it were live.
 
 **No proposals.** The `propose_device_action` tool is not offered to the model
@@ -251,11 +253,12 @@ the prose — is the point of reference when they diverge.
 
 | Source | What is exposed | Limits | Ref |
 |---|---|---|---|
-| README | intro prose | ~1800 chars, to first section | `ai/system_knowledge.py:20-33` |
-| Project structure | **file names only** (4 dirs) | top 15 files each | `ai/system_knowledge.py:60-81` |
-| DB schema | tables + first columns, **parsed from models** | 15 cols/table, ≤4500 chars | `ai/system_knowledge.py:83-133` |
-| Documentation | **first 500 chars** of 5 docs | fixed list | `ai/system_knowledge.py:211-246` |
-| Command reference | **hand-written literal** | static string | `ai/system_knowledge.py:257-342` |
+| README | intro prose | ~1800 chars, to first section | `ai/system_knowledge.py:36-61` |
+| Project structure | **file names only** (4 dirs) | top 15 files each | `ai/system_knowledge.py:64-97` |
+| DB schema | tables + first columns, **parsed from models** | 15 cols/table, ≤4500 chars | `ai/system_knowledge.py:99-148` |
+| Documentation (knowledge path) | **whole `docs/*.md` corpus, retrieved per query** | top-k chunks + `max_distance` cutoff | `ai/doc_retriever.py` |
+| Documentation (fallback) | **first 500 chars** of 5 docs | fixed list; used only when retrieval misses | `ai/system_knowledge.py:279-314` |
+| Command reference | **hand-written literal** | static string | `ai/system_knowledge.py:316-410` |
 | Agent tools | live device/fleet/memory reads + proposal capture | no code/doc access | `ai/tools.py:468-478` |
 
 So the model can list files and see a slice of the schema, but **cannot open,
@@ -263,7 +266,15 @@ read, or search a source file on demand**. When docs drift from code it has no
 route to the truth — and while the DB schema is *derived* from code, the command
 reference is manual and can silently fall out of sync.
 
+The knowledge path's *documentation* grounding now retrieves from the whole
+corpus (Tier C, below); everything else in this table is unchanged, and there is
+still **no on-demand code/source access** (that is Tier B).
+
 ### Grounding tiers (cheapest → richest)
+
+**Status:** Tier C is **implemented** (v1) — see
+[AI Documentation Retrieval](ai-doc-retrieval.md). Tier A and Tier B remain
+proposals.
 
 **Tier A — generate structured references from code (recommended first).**
 Replace hand-maintained literals with values derived from their real source at
@@ -280,12 +291,20 @@ Generate at process start, and/or via a build step whose output is committed and
 diffable. Deterministic, no LLM, no per-query cost.
 
 **Tier C — retrieve docs (+ selected generated references) instead of fixed
-excerpts.**
-Reuse the existing ChromaDB store (`DeviceMemory`) as a knowledge index: chunk
-the docs (and the Tier-A references), retrieve the top-k relevant chunks for the
-query, and attach **citations** (`doc.md#anchor`, `path:line`). This replaces
-"first 500 chars of 5 files" with query-relevant context inside a bounded budget,
-and lets the corpus grow without bloating every prompt.
+excerpts. — ✅ implemented (v1)**
+A ChromaDB index over the docs (`ai/doc_retriever.py`) chunks the corpus and
+retrieves the top-k relevant chunks for the query, attaching **citations** (real
+`docs/…` paths). This replaces "first 500 chars of 5 files" with query-relevant
+context inside a bounded budget, and lets the corpus grow without bloating every
+prompt.
+
+As built: heading-aware chunking, a ChromaDB collection under `ai/data/docs_chroma`
+with version-gated rebuilds (`path/size/mtime`), the chunks injected as a
+`[RELEVANT DOCUMENTATION]` block, and the retrieved paths returned as a
+machine-readable `sources` list (rendered as chips in the UI). It reuses the
+existing ChromaDB/embedder stack rather than `DeviceMemory` directly, so the two
+stores stay separate. Generated Tier-A references are **not** indexed yet. Full
+details: [AI Documentation Retrieval](ai-doc-retrieval.md).
 
 **Tier B — read-only code tools (optional; only if we want true on-demand code).**
 Add allowlisted, sandboxed tools to the knowledge and agentic paths:
@@ -381,6 +400,14 @@ operational path.
   (assert the gate/envelope path is not invoked) and returns informational
   `trust`; a `diagnostic` query is byte-for-byte the current behaviour; proposals
   are only ever produced on the operational path.
+- **Grounding tests (Tier C) — implemented:** `backend/tests/test_ai_doc_retrieval.py`
+  exercises the real ChromaDB index with a deterministic embedder (retrieval
+  relevance + real source, heading metadata, reindex on corpus change,
+  stable-corpus no-op, empty query, distance cutoff, long-section windowing,
+  missing docs dir); the knowledge-path tests assert the `[RELEVANT DOCUMENTATION]`
+  block, the `sources` response field, and that the fixed-doc fallback is not used
+  on a retrieval hit; the frontend tests cover the UI source chips. See
+  [AI Documentation Retrieval § Testing](ai-doc-retrieval.md#testing).
 5. **Naming:** `knowledge` vs `informational` vs `general`; and the new
    `trust_mode` label.
 6. **Grounding scope:** do we ship Tier A alone in v1, or A + C? (Proposed: A
@@ -391,10 +418,10 @@ operational path.
    (startup vs explicit reindex).
 8. **Citations in the UI:** render `path:line` / `doc#anchor` as links, or plain
    text?
-- **Grounding tests:** a drift test asserting the generated Tier-A references
-  match `COMMAND_TYPES`/`ACTION_REGISTRY`; retrieval returns cited chunks within
-  the prompt budget; Tier-B tools reject paths outside the allowlist, `.env`, and
-  oversized reads.
+- **Grounding tests (Tier A / Tier B — not yet implemented):** a drift test
+  asserting generated Tier-A references match `COMMAND_TYPES`/`ACTION_REGISTRY`;
+  Tier-B tools reject paths outside the allowlist, `.env`, and oversized reads.
+  (Tier C retrieval is covered by the grounding tests above.)
 
 ## 14. Open questions
 
@@ -414,13 +441,18 @@ operational path.
 
 - `backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py` — `/ai/query`
   handler (context assembly, gates, insights, trust injection, proposals).
-- `ai/system_knowledge.py` — system prompt, documentation context, command
-  reference.
+- `ai/system_knowledge.py` — system prompt, documentation context (fallback),
+  command reference.
+- `ai/doc_retriever.py` — the Tier C documentation index/retrieval
+  (`DocRetriever`); configured by the `docs:` section of `ai/config.yaml`.
 - `ai/tools.py` — the agent's tool set (live-data reads + proposal capture; no
   code access today).
 - `ai/gates/` — the validation envelope (A–E) and `EnvelopeResult`.
 - `frontend/src/components/Dashboard/AskAIWidget.jsx` and
   `frontend/src/services/api.js` (`api.ai.query`) — the chat surface and the
   mode plumbing described in § 6.1.
+- [AI Documentation Retrieval](ai-doc-retrieval.md) — the implemented Tier C
+  grounding layer.
+- [AI Memory](ai-memory.md) — the shared ChromaDB stack.
 - [Agentic AI](ai-agentic.md), [Trust & Validation Gates](ai-validation-gates.md),
   [Task Delegation](ai-delegation-plan.md), [Concurrency & Load](ai-concurrency.md).
