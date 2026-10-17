@@ -1,15 +1,20 @@
 # AI Task Delegation — Approval-Gated Device Actions
 
-> **Status:** Draft / proposed
+> **Status:** Level 2 (approval-gated) — **Phases 0–3 implemented and deployed**;
+> Phase 4 (expanded action set + autonomy controller) is design-only.
 > **Goal:** the AI proposes a complete device-management action (or batch); a
 > technician reviews and approves it; the system executes deterministically; the
 > result is verified and recorded; measured reliability expands what the AI may
 > handle over time.
 > **Related:** [Agentic AI](ai-agentic.md) | [Trust & Validation Gates](ai-validation-gates.md) | [Provenance & Outcomes](provenance-and-outcomes.md) | [KPI Evaluation Roadmap](kpi-evaluation-roadmap.md) | [Device Configuration (MDM)](device-configuration-mdm.md) | [RBAC Hardening Plan](rbac-hardening-plan.md) | [Audit & Compliance](audit-compliance.md)
 >
-> **Implemented:** nothing in this document yet — it specifies the work.
-> This extends the "Future Expansion" items already listed in
-> [Agentic AI](ai-agentic.md) — *Tool proposal validation* and
+> **Implemented:** Phases 0–3 are shipped and running in production — the
+> proposal layer, trust-gated capture, the review page, the approval API, and the
+> deterministic executor with verification and rollback. **§ 5.1** is the
+> as-built reference (pipeline, file paths, endpoints, how to try it); § 6–§ 11
+> are the original design rationale; § 13 tracks phase status; Phase 4 is still
+> design-only. This document extends the "Future Expansion" items already listed
+> in [Agentic AI](ai-agentic.md) — *Tool proposal validation* and
 > *Human-in-the-loop: technician can approve/reject the agent's proposed
 > actions* — into a concrete design.
 
@@ -154,6 +159,143 @@ proposal and the executor is LLM-generated.
 
 ---
 
+## 5.1 Implemented end-to-end (Phases 0–3)
+
+This is the **as-built** reference for the "AI Proposals" feature: what runs
+today, where it lives, and how to exercise it. The design rationale is in § 1–§
+12; the file paths below are the ground truth.
+
+### Where a proposal comes from
+
+1. A technician (or agent) asks the AI a question through the agentic query
+   endpoint (`POST /ai/query` with `"agentic": true`). The ReAct agent
+   investigates with its read-only tools (`ai/agent.py`) and, if it concludes an
+   action is warranted, calls the `propose_device_action` tool.
+2. That tool **never executes anything**. It validates the proposal against the
+   allowlist (`ai/actions.py::validate_proposal` — unknown action, missing
+   target id or missing required params are rejected) and pushes a validated
+   `ActionProposal` into a per-run ContextVar sink.
+3. `run_agent` returns them on `AgentResult.proposals`.
+4. `AIEndpoint.py` surfaces proposals **only if** the trust envelope marks the
+   answer *actionable* **and** the agent run completed normally (a direct-LLM
+   fallback never yields approvable actions) — see `AIEndpoint.py:1067`.
+5. For surfaced proposals, `AIActionRepository.create_plan` persists an
+   `ai_action_plan` + `ai_action_step` rows with status **`pending_approval`**,
+   carrying the risk tier (`max_risk_tier`), `reversible` (`all_reversible`),
+   rationale, evidence, and the trust envelope (`trust_mode`, `trust_score`,
+   `passed_gates`, `failed_gate`). Capture is audited (`AI_PROPOSAL_CREATED`)
+   and returned to the caller in a `proposal` block.
+
+If the answer is not actionable the AI still answers in prose, but no plan is
+created and nothing appears on the review page.
+
+### Validation envelope (why a proposal is trustworthy)
+
+Proposals only exist downstream of the ordered gate chain
+(`ai/gates/envelope.py`; first failure wins): **A** infrastructure/schema, **B**
+data integrity, **C** context readiness, **D** permission/capability, **E**
+lifecycle. The first failing gate sets a non-actionable Mode and a
+`failed_gate_id` (e.g. `"C (post-insight)"`). The resulting `trust_score`,
+`passed_gate_ids` and `failed_gate` are copied onto the plan and shown in the UI.
+
+### Review UI — `/ai-proposals` ("AI Proposals" in the sidebar)
+
+`frontend/src/pages/AIProposals/AIProposalsList.jsx`. Default filter is **Pending
+Approval**; other filters: All, Approved, Executing, Succeeded, Failed, Rolled
+Back, Rejected, Blocked. Each card shows the status badge, risk tier, reversible
+flag, rationale, the steps (`action → target_device`), the outcome line once
+finished, target devices, and the trust score/mode. Buttons are status-driven:
+
+* `pending_approval` → **Approve** / **Reject**
+* `approved` → **Execute**
+* any terminal status → no buttons
+
+### Approval & execution API (`AIActionEndpoint.py`, mounted under `/api/v1/ai`)
+
+| Method & path | Purpose | Guard |
+|---|---|---|
+| `GET /action-plans` | list plans, newest first | auth; filtered to the caller's accessible devices |
+| `GET /action-plans/{id}` | one plan | auth; `404` if any target is outside scope |
+| `POST /action-plans/{id}/approve` | record an approval (**no execution**) | `pending_approval` only (else `409`); operator on every target device |
+| `POST /action-plans/{id}/reject` | record a rejection + optional reason | same |
+| `POST /action-plans/{id}/execute` | hand an approved plan to the executor | `approved` only (atomic claim, else `409`) |
+
+Every decision is scope-checked with
+`verify_device_belongs_to_user(..., minimum_role="operator")` (admins bypass) and
+audited (`AI_PROPOSAL_APPROVED` / `AI_PROPOSAL_REJECTED`). Approving does **not**
+run anything — execution is a deliberate second action.
+
+### Execution pipeline
+
+`POST .../execute`:
+
+1. `claim_for_execution` atomically moves `approved → executing` so two requests
+   cannot both run it.
+2. `executor.start_execution` re-runs **policy** against live data
+   (`ai_ops/policy.py`): the action must be declared; its tier must be `T1`/`T2`;
+   every target device must exist and be `active`; the required permission
+   (`root_access`) must be granted; and the plan must target at most
+   `MAX_DEVICES_PER_PLAN` (5) devices. If policy blocks, the plan is recorded
+   `blocked` and the response carries the reasons — nothing is queued.
+3. On success the executor queues one `DeviceCommand` per step through the
+   **same command path the operator UI uses** (single audited mutate path),
+   snapshots the config needed for rollback, marks the steps `queued`, and
+   returns immediately — execution is asynchronous.
+4. A background reconcile loop (`ai_ops/reconcile.py`, every 10 s) advances
+   in-flight plans via `ai_ops/verifier.py`: it maps each command's status onto
+   its step (`pending→queued`, `sent→running`, `completed→done`,
+   `failed`/`expired`/`cancelled`→`failed`), treats per-key `update_config`
+   failures reported inside a "completed" result as failures, and when every step
+   is `done` records the outcome and sets `succeeded`.
+5. On any step failure it enters **rollback** (`ai_ops/rollback.py`): reversible
+   applied steps are undone in reverse order — `update_config` queues the inverse
+   using the snapshotted `previous` values; `restart` is self-reverting and is
+   marked `rolled_back` immediately. The verifier confirms the inverse commands
+   and sets `rolled_back` (success) or `failed` (a rollback command itself
+   failed).
+6. Exactly one `AIActionOutcome` is written per terminal plan
+   (`verified` / `rolled_back` / `rollback_success` / `error` / `provenance`) —
+   the empirical evidence future autonomy decisions are earned from.
+
+State machine as implemented: `pending_approval → approved → executing →
+succeeded | rolling_back → rolled_back | failed`, plus `blocked`, `rejected`
+and `expired`.
+
+### Audit events (`homepot/audit.py`)
+
+`ai_proposal_created`, `ai_proposal_approved`, `ai_proposal_rejected`,
+`ai_execution_started`, `ai_execution_blocked`, `ai_execution_succeeded`,
+`ai_execution_failed`, `ai_execution_rolled_back` — alongside the pre-existing
+`ai_query` and `ai_gate_failure`.
+
+### Runtime wiring & deployment
+
+The reconcile loop must run in the process that **serves the API**
+(`homepot.app.main:app`) — the app the `homepot-api` systemd service and the
+Docker image launch. It is started and cancelled by the startup/shutdown hooks in
+`backend/src/homepot/app/main.py`. This is called out because the loop
+previously lived only in the legacy `homepot.main` module, which the deployed
+service never imports, so the verifier never ran in production and plans stuck
+in `executing`. **PR #508** extracted it to `ai_ops/reconcile.py` and wired the
+served app into it; a regression test
+(`test_served_app_starts_ai_reconcile_loop`) guards the wiring.
+
+The review page is a client-side route (`/ai-proposals`); behind the production
+Apache vhost it relies on the SPA history fallback
+(`frontend/public/.htaccess`, **PR #510**) so deep links and refreshes resolve to
+the app instead of a `404`.
+
+### How to try it
+
+Ask the AI (agentic mode, with the target device's telemetry fresh and its
+`root_access` granted) something that warrants an action — e.g. *"&lt;device&gt;
+looks offline, restart it"*. If every gate passes and the run is healthy the plan
+appears under **AI Proposals** as *Pending Approval*; then Approve → Execute and
+watch *Executing* → *Succeeded* (or a rollback). v1 is deliberately limited to
+`update_config` and `restart` (both **T2**, reversible) on a single device.
+
+---
+
 ## 6. Proposal lifecycle
 
 An `ActionPlan` moves through an explicit state machine; every transition is
@@ -167,7 +309,8 @@ audited.
 | `approved` / `rejected` | Technician decision recorded | technician |
 | `executing` | Executor running steps | system |
 | `succeeded` | All steps verified | system |
-| `failed` | A step failed; see rollback | system |
+| `rolling_back` | A step failed; undoing reversible steps | system |
+| `failed` | A step (or rollback) failed and could not be undone | system |
 | `rolled_back` | Reverted to pre-action state | system |
 | `expired` | Not approved within a window | system |
 
@@ -179,17 +322,19 @@ Terminal: `succeeded`, `failed`, `rolled_back`, `rejected`, `expired`, `blocked`
 
 | Component | Location | Responsibility |
 |---|---|---|
-| **Proposal tools** | extend `ai/tools.py` | Read-only investigation tools (existing) **plus** proposal-only tools that emit an `ActionPlan`; never execute |
-| **`ai_ops` service** | new `backend/src/homepot/app/ai_ops/` | registry, policy, approval, executor, verifier, rollback |
-| **Action registry** | `ai_ops/registry.py` | Declares each capability + risk tier + reversibility + required permission |
-| **Policy engine** | `ai_ops/policy.py` | RBAC, blast radius, device state, maintenance windows; wraps Gate D/E |
-| **Executor** | `ai_ops/executor.py` | Deterministic, idempotent; calls the **same** command/config paths as the UI |
-| **Verifier** | `ai_ops/verifier.py` | Post-conditions via existing health/metrics |
-| **Rollback** | `ai_ops/rollback.py` | Inverse ops / snapshot restore |
-| **API** | new `AIActionsEndpoint.py` | `POST /propose`, `GET /`, `POST /{id}/approve`, `/reject`, `/execute` |
-| **Data model** | new models + Alembic | `ai_action_plan`, `ai_action_step`, `ai_approval`, `ai_outcome` |
-| **Metrics** | extend `ai/analytics_service.py` | Reliability + confidence calibration per action type |
-| **UI** | frontend | "AI Proposals" queue: plan, target(s), diff, rationale, risk, approve/reject, outcome |
+| **Proposal tool** | `ai/tools.py` (`propose_device_action`) + `ai/actions.py` | Validates a model proposal against the allowlist and records it in a per-run sink; never executes |
+| **Action registry** | `ai/actions.py` | Declares each capability + risk tier + reversibility + required permission (v1: `update_config`, `restart`, both T2) |
+| **`ai_ops` service** | `backend/src/homepot/app/ai_ops/` | policy, executor, verifier, rollback, reconcile loop |
+| **Registry bridge** | `ai_ops/registry.py` | Re-exposes `ai/actions.py` to the backend (one source of truth, no drift) |
+| **Policy engine** | `ai_ops/policy.py` | Declared action; tier `T1`/`T2`; device `active`; required permission granted; blast radius ≤ 5 devices |
+| **Executor** | `ai_ops/executor.py` | Deterministic; queues one command per step via the **same** path as the UI; snapshots state for rollback |
+| **Verifier** | `ai_ops/verifier.py` | Maps command results onto steps; writes the single `AIActionOutcome` |
+| **Rollback** | `ai_ops/rollback.py` | Inverse `update_config` (snapshot) / self-reverting `restart` |
+| **Reconcile loop** | `ai_ops/reconcile.py` | Background driver (10 s); started/cancelled by `homepot/app/main.py` |
+| **API** | `backend/src/homepot/app/api/API_v1/Endpoints/AIActionEndpoint.py` (under `/api/v1/ai`) | `GET /action-plans`, `GET /action-plans/{id}`, `POST /action-plans/{id}/approve`, `/reject`, `/execute` |
+| **Data model** | `AnalyticsModel.py` + migration `20261016_add_ai_action_tables` | `ai_action_plan`, `ai_action_step`, `ai_approval`, `ai_outcome` |
+| **Metrics** | *pending* — extend `ai/analytics_service.py` | Reliability + confidence calibration per action type (Phase 4) |
+| **UI** | `frontend/src/pages/AIProposals/AIProposalsList.jsx` | Review queue: status, target(s), rationale, risk, steps, approve/reject/execute, outcome |
 
 Design rule: the executor must **reuse `DeviceCommandsEndpoint` /
 `AgentConfigHistoryEndpoint` behaviour, not re-implement it**, so there is a
@@ -362,9 +507,9 @@ sample size and success bar agreed up front.
 `backend/src/homepot/app/models/AnalyticsModel.py`; migration
 `20261016_add_ai_action_tables` creates the schema (idempotently, since the app
 also builds it via `Base.metadata.create_all`); tests are in
-`backend/tests/test_ai_action_models.py`. No endpoint or agent touches these
-tables yet — **capture wiring and metrics land with the producers** in Phases
-1–3.
+`backend/tests/test_ai_action_models.py`. No endpoint or agent touched these
+tables at Phase 0 — **capture wiring landed with the producers in Phases 1–3**
+(see § 5.1); reliability metrics remain for Phase 4.
 
 Phases 0–2 are ordinary backend/DB/UI work; only phases 1 and 3 touch the AI.
 That is why this goal is achievable.
@@ -393,7 +538,7 @@ exposes `GET /ai/action-plans`, `GET /ai/action-plans/{plan_id}`,
 lists are filtered to accessible devices), and audited via
 `AI_PROPOSAL_APPROVED`/`AI_PROPOSAL_REJECTED` (`AI_PROPOSAL_CREATED` on
 capture). Only `pending_approval` plans are reviewable; terminal plans return
-`409`. Decisions record the actor in `ai_action_approval` but **do not execute**
+`409`. Decisions record the actor in `ai_approval` but **do not execute**
 — that is Phase 3. A minimal frontend review page (`/ai-proposals`, "AI
 Proposals" in the sidebar) lists plans and approves/rejects them. Backend tests:
 `backend/tests/test_ai_action_approval.py`; frontend test:
@@ -410,11 +555,20 @@ self-reverting); `verifier.py` advances a plan as device results arrive and
 writes exactly one `AIActionOutcome`. `POST /ai/action-plans/{plan_id}/execute`
 (only `approved` plans; a policy failure records status `blocked` and returns
 `200` with a `policy` block) kicks the plan into `executing`, and a background
-reconcile loop in `main.py` finalises it to `succeeded` / `rolled_back` /
-`failed`. New audit events: `AI_EXECUTION_STARTED`/`BLOCKED`/`SUCCEEDED`/
+reconcile loop (`ai_ops/reconcile.py`, started by the served
+`homepot/app/main.py`) finalises it to `succeeded` / `rolled_back` / `failed`.
+New audit events: `AI_EXECUTION_STARTED`/`BLOCKED`/`SUCCEEDED`/
 `FAILED`/`ROLLED_BACK`. The `/ai-proposals` page gains an **Execute** button for
 approved plans and an outcome line. Backend tests:
 `backend/tests/test_ai_execution.py`.
+
+The reconcile loop originally lived only in the legacy `homepot.main` module
+(which the deployed service never imports), so it never ran in production and
+plans stuck in `executing`. **PR #508** extracted it to `ai_ops/reconcile.py`
+and wired it into the served app, guarded by the
+`test_served_app_starts_ai_reconcile_loop` regression test. Phases 0–3 plus that
+fix and the hardening work merged in PRs #503–#508 and are deployed; § 5.1 is the
+as-built reference.
 
 ---
 
