@@ -7,6 +7,7 @@ import asyncio
 from datetime import datetime, timezone
 import logging
 import os
+import re
 import sys
 from typing import Any, Dict, List, Literal, Optional, cast
 
@@ -588,6 +589,40 @@ async def _generate_direct(
         raise _ai_busy_http_exception(gate)
 
 
+# Leading "[ANSWER]" tag the small model sometimes emits by mimicking the
+# bracketed context blocks it is given ([RELEVANT DOCUMENTATION], etc.).
+_LEADING_ANSWER_TAG_RE = re.compile(r"^(?:\s*\[ANSWER\]\s*:?\s*)+", re.IGNORECASE)
+# A trailing "Source:"/"Sources:" attribution line. Sources are returned
+# separately in the response's ``sources`` field, so these are redundant.
+_SOURCE_LINE_RE = re.compile(r"^\s*Sources?:", re.IGNORECASE)
+
+
+def _strip_answer_markup(text: str) -> str:
+    """Remove internal format artifacts a small model sometimes emits.
+
+    The AI context is built from bracketed blocks ([RELEVANT DOCUMENTATION],
+    [RELEVANT MEMORIES], ...), and the model occasionally mimics that style by
+    wrapping its reply in a leading ``[ANSWER]`` tag and/or appending a trailing
+    ``Source: [RELEVANT DOCUMENTATION]`` line. Neither belongs in the
+    user-facing answer -- the cited files are returned separately in the
+    response's ``sources`` field. The system prompt also asks for plain text,
+    but the model is stochastic, so strip defensively as well.
+    """
+    if not text:
+        return text
+    cleaned = _LEADING_ANSWER_TAG_RE.sub("", text, count=1)
+    lines = cleaned.split("\n")
+    # Drop trailing blank lines and redundant source-attribution lines, stopping
+    # at the first line of real content.
+    while lines:
+        last = lines[-1].strip()
+        if last == "" or _SOURCE_LINE_RE.match(last):
+            lines.pop()
+        else:
+            break
+    return "\n".join(lines).strip()
+
+
 def _informational_trust() -> Dict[str, Any]:
     """Build the trust object for a knowledge query: informational, non-actionable.
 
@@ -738,6 +773,11 @@ async def _answer_knowledge(
             system_prompt_text,
             gate,
         )
+
+    # Strip internal format artifacts (leading [ANSWER] tag / trailing
+    # "Source:" line) so a stochastic emission never leaks markup to the user.
+    # Covers both the Tier B agent branch and the direct-generation branch.
+    response = _strip_answer_markup(response)
 
     logger.info(
         "AI query done | mode=knowledge | reason=%s",
@@ -1334,6 +1374,11 @@ async def query_ai(
                 get_ai_gate(llm),
             )
             agentic_info = None
+
+        # Strip internal format artifacts (leading [ANSWER] tag / trailing
+        # "Source:" line), mirroring the knowledge path, so markup never
+        # reaches the user.
+        response = _strip_answer_markup(response)
 
         # 5a. Capture AI-proposed actions (Phase 1: proposal-only / dry-run).
         # A proposal is only surfaced when the trust envelope deems the answer
