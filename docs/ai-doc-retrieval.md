@@ -38,14 +38,14 @@ so the UI never has to trust model-written citations.
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart 
     Q[Query] --> R[DocRetriever.retrieve]
     R --> C1{Index current?}
     C1 -- no --> B[Rebuild: chunk + embed docs/*.md]
     C1 -- yes --> S[Similarity search]
     B --> S
     S --> K[Top-k chunks + real paths]
-    K --> P[Inject as [RELEVANT DOCUMENTATION]]
+    K --> P["Inject as [RELEVANT DOCUMENTATION]"]
     P --> L[LLM answers, cites only those paths]
     K --> O[Response.sources]
     O --> U[UI source chips]
