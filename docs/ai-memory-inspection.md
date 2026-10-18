@@ -23,8 +23,39 @@ The tool is located at `scripts/query-chroma.sh`. It wraps a Python script (`ai/
 ### Usage
 
 ```bash
-./scripts/query-chroma.sh [command] [options]
+./scripts/query-chroma.sh [--store memory|docs] [command] [options]
 ```
+
+### Stores
+
+There are two ChromaDB stores, both visible to the AI at query time:
+
+| `--store` | Path | Collection | What it holds |
+|---|---|---|---|
+| `memory` (default) | `ai/data/chroma_db` | `device_logs` | Long-term AI memory: past Q&As, anomaly analyses and resolutions. Recalled into the `[RELEVANT MEMORIES]` block of every query. |
+| `docs` | `ai/data/docs_chroma` | `project_docs` | Tier C documentation index: chunked `docs/*.md` used for grounding knowledge answers. |
+
+Use `--store docs` to see **exactly which documentation chunks** the AI is given for a
+question — this is the fastest way to tell whether a bad answer is a retrieval miss (the
+right chunk was never returned) or a generation miss (the chunk was returned but ignored).
+
+```bash
+./scripts/query-chroma.sh --store docs query "How can I enrol a device?"
+```
+
+### Inspecting a Live Server
+
+ChromaDB opens its SQLite file in read-write mode, so a second process (e.g. `demouser`
+over SSH) cannot open a store that the running API already holds, or one owned by another
+user. Rather than failing, the tool copies the store to a temporary directory and inspects
+the copy, printing a notice:
+
+```text
+Note: the live store could not be opened (...); inspecting a snapshot copy instead.
+```
+
+The copy is removed when the command exits. If no `-wal`/`-shm` files are present (Chroma
+checkpoints on idle) the snapshot is a consistent point-in-time view.
 
 ### Available Commands
 
@@ -82,4 +113,5 @@ Exports all IDs and Metadata (but not the full vector data) for a complete overv
 ## Troubleshooting
 
 *   **"Collection not found"**: The AI hasn't created the memory yet. Run an analysis via the API first.
-*   **"Database not found"**: Check that `ai/data/chroma_db` exists.
+*   **"Database not found"**: Check that `ai/data/chroma_db` exists. Use `--store docs` for the documentation index at `ai/data/docs_chroma`.
+*   **"attempt to write a readonly database"** followed by a snapshot notice: this is expected when inspecting a store held by the running API or owned by another user — the tool falls back to a temporary copy automatically. If you instead see the error *without* the snapshot notice, the copy itself failed (check `/tmp` is writable and has space).

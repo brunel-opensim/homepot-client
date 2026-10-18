@@ -1,5 +1,12 @@
 #!/bin/bash
 # Simple ChromaDB query helper for HOMEPOT AI memory
+#
+# Two stores are inspected (see ai/config.yaml):
+#   memory -> data/chroma_db   / collection device_logs  (AI long-term memory)
+#   docs   -> data/docs_chroma / collection project_docs (Tier C doc index)
+#
+# If the live store cannot be opened (the running API holds it, or it is owned
+# by another user), the inspector falls back to a temporary snapshot copy.
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -13,7 +20,11 @@ fi
 
 # If no argument provided, show usage
 if [ $# -eq 0 ]; then
-    echo "Usage: ./scripts/query-chroma.sh [command]"
+    echo "Usage: ./scripts/query-chroma.sh [--store memory|docs] [command]"
+    echo ""
+    echo "Stores (default: memory):"
+    echo "  memory              - AI long-term memory (data/chroma_db)"
+    echo "  docs                - Tier C documentation index (data/docs_chroma)"
     echo ""
     echo "Available commands:"
     echo "  list                - List all collections"
@@ -26,6 +37,8 @@ if [ $# -eq 0 ]; then
     echo "  ./scripts/query-chroma.sh count"
     echo "  ./scripts/query-chroma.sh peek -n 3"
     echo "  ./scripts/query-chroma.sh query \"camera failure\""
+    echo "  ./scripts/query-chroma.sh --store docs count"
+    echo "  ./scripts/query-chroma.sh --store docs query \"device enrolment\""
     exit 1
 fi
 
