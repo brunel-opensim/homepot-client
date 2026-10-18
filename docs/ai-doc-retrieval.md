@@ -38,14 +38,14 @@ so the UI never has to trust model-written citations.
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart 
     Q[Query] --> R[DocRetriever.retrieve]
     R --> C1{Index current?}
     C1 -- no --> B[Rebuild: chunk + embed docs/*.md]
     C1 -- yes --> S[Similarity search]
     B --> S
     S --> K[Top-k chunks + real paths]
-    K --> P[Inject as [RELEVANT DOCUMENTATION]]
+    K --> P["Inject as [RELEVANT DOCUMENTATION]"]
     P --> L[LLM answers, cites only those paths]
     K --> O[Response.sources]
     O --> U[UI source chips]
@@ -175,6 +175,11 @@ must still never present live operational state in `knowledge` mode, even if a
 retrieved snippet mentions a device (see
 [Query Intent Routing §8](ai-query-routing.md#8-knowledge-path-details)).
 
+This layer covers **prose docs only**. On-demand, exact access to code is a
+separate, design-only capability — [AI Code Access (Tier B)](ai-code-access.md) —
+which reads live files instead of a pre-built index, and is meant to compose with
+this one (retrieve docs first; read code when precision is needed).
+
 ---
 
 ## References
@@ -188,3 +193,5 @@ retrieved snippet mentions a device (see
 - `frontend/src/components/Dashboard/AskAIWidget.jsx` — source chips.
 - [AI Memory](ai-memory.md) — the same ChromaDB stack for long-term recall.
 - [Query Intent Routing](ai-query-routing.md) — modes and the grounding tiers.
+- [AI Code Access (Tier B)](ai-code-access.md) — live read-only code tools
+  (design-only).
