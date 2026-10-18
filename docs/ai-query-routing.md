@@ -306,7 +306,8 @@ existing ChromaDB/embedder stack rather than `DeviceMemory` directly, so the two
 stores stay separate. Generated Tier-A references are **not** indexed yet. Full
 details: [AI Documentation Retrieval](ai-doc-retrieval.md).
 
-**Tier B — read-only code tools (optional; only if we want true on-demand code).**
+**Tier B — read-only code tools (design-only; see
+[AI Code Access (Tier B)](ai-code-access.md)).**
 Add allowlisted, sandboxed tools to the knowledge and agentic paths:
 
 ```
@@ -327,7 +328,8 @@ Hard constraints:
 - Answers that use code must **cite** `path:line`.
 
 B is more powerful but costs model iterations on the CPU host, so it must be
-bounded and enabled deliberately.
+bounded and enabled deliberately. Full contracts, safety envelope, and rollout:
+[AI Code Access (Tier B)](ai-code-access.md).
 
 ### Freshness & invalidation
 

@@ -161,6 +161,7 @@ nav:
           - Task Delegation (Plan): ai-delegation-plan.md
           - Query Intent Routing (Design): ai-query-routing.md
           - Documentation Retrieval (Grounding): ai-doc-retrieval.md
+          - Code Access (Tier B, Design): ai-code-access.md
       - Audit System: audit-compliance.md
       - Background Analytics: backend-analytics.md
 
