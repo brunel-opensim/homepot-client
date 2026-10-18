@@ -124,8 +124,13 @@ def test_open_client_snapshots_readonly_store(tmp_path, monkeypatch):
 
     # Point the snapshot at a fixed dir so cleanup is observable.
     snap_target = tmp_path / "snap"
+
+    def _mkdtemp(**_kwargs):
+        snap_target.mkdir()
+        return str(snap_target)
+
     monkeypatch.setattr(
-        inspect_chroma.tempfile, "mkdtemp", lambda **_k: str(snap_target)
+        inspect_chroma.tempfile, "mkdtemp", _mkdtemp
     )
 
     real_client = chromadb.PersistentClient
