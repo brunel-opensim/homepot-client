@@ -247,5 +247,54 @@ def test_endpoint_persists_and_recalls_scoped_memory():
     assert remember_kwargs["scope"].user_id == 1
 
 
+def test_knowledge_query_isolates_long_term_memory():
+    """A knowledge query neither recalls nor persists long-term memory.
+
+    Knowledge answers are grounded in documentation only. The store holds the
+    model's own past output, so feeding it back on a path with no live ground
+    truth would let a wrong answer reinforce itself -- the knowledge path must
+    skip memory in both directions (see docs/ai-memory.md).
+    """
+    from fastapi.testclient import TestClient
+
+    from homepot.app.api.API_v1.Endpoints import AIEndpoint
+    from homepot.app.main import app
+
+    mock_llm = MagicMock()
+    mock_llm.generate_response.return_value = "Use the enrolment feature."
+    mock_knowledge = MagicMock()
+    mock_knowledge.get_knowledge_prompt.return_value = "knowledge prompt"
+    mock_knowledge.get_documentation_context.return_value = "docs"
+    mock_memory = MagicMock()
+
+    with (
+        patch.object(
+            AIEndpoint,
+            "get_ai_services",
+            return_value=(mock_llm, mock_knowledge, mock_memory),
+        ),
+        patch.object(
+            AIEndpoint,
+            "get_doc_retriever",
+            side_effect=Exception("docs unavailable"),
+        ),
+    ):
+        _authorize_ai_query(app)
+        try:
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/v1/ai/query",
+                    json={"query": "How can I enrol a device?"},
+                )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    # The knowledge path must not touch long-term memory in either direction.
+    assert not mock_memory.get_memory_stats.called
+    assert not mock_memory.query_similar.called
+    assert not mock_memory.remember.called
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
