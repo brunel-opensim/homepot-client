@@ -92,6 +92,15 @@ async def test_execute_tool_wrong_arguments():
 
 
 @pytest.mark.asyncio
+async def test_execute_tool_refuses_name_outside_allowlist():
+    """An offered-tools allowlist blocks any tool name not in it."""
+    result = await _execute_tool(
+        "get_device_status", {"device_id": "POS-001"}, {"read_file"}
+    )
+    assert "not available" in result
+
+
+@pytest.mark.asyncio
 async def test_execute_tool_success():
     """Executing a tool with correct args should return a result."""
     with patch("ai.tools.ContextBuilder") as mock_cb:
@@ -431,7 +440,7 @@ async def test_run_agent_binds_and_resets_tool_scope():
     scope = MemoryScope(user_id=5, site_ids=[1])
     seen = {}
 
-    async def fake_exec(name, args):
+    async def fake_exec(name, args, allowed=None):
         seen["scope"] = get_tool_memory_scope()
         return "data"
 

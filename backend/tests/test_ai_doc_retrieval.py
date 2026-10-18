@@ -10,6 +10,7 @@ import sys
 import zlib
 
 from chromadb.api.types import EmbeddingFunction
+import pytest
 import yaml
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,6 +19,14 @@ if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
 from ai.doc_retriever import DocRetriever  # noqa: E402
+
+# ChromaDB's native Rust bindings intermittently crash the interpreter with an
+# access violation in Collection.add on Windows runners; the retrieval logic is
+# platform independent and is still exercised on Linux and macOS.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="ChromaDB native access violation on Windows CI",
+)
 
 
 class BagOfWordsEmbedding(EmbeddingFunction):

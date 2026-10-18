@@ -84,6 +84,43 @@ docs:
   max_chunks_per_doc: 60                # bound one doc's contribution
   max_file_bytes: 2000000               # skip unreasonably large files
 
+# Read-only repository access for the AI (Tier B grounding; ai/repo_tools.py).
+#
+# The knowledge and agentic paths may read the project's own documentation and
+# code on demand via allowlisted, bounded, read-only tools (read_file,
+# search_code, list_dir). Unlike the docs: index above, these read the *live*
+# files (always current, exact path:line) and store no copy.
+#
+# DISABLED by default: the tools are only offered when `enabled` is true (or
+# the AI_CODE_ACCESS env var is truthy). Paths are resolved with realpath, so
+# `..` traversal, absolute paths and symlink escapes are rejected; `deny` globs
+# block secret material even inside a root. See docs/ai-code-access.md.
+code_access:
+  enabled: false
+  roots:                                # only these trees are readable
+    - "docs/"
+    - "backend/src/"
+    - "ai/"
+    - "frontend/src/"
+  deny:                                 # refused even inside a root
+    - ".env"
+    - ".env.*"
+    - "*.pem"
+    - "*.key"
+    - "*.p12"
+    - "*.pfx"
+    - "id_rsa*"
+    - "id_ed25519*"
+    - "*credentials*"
+    - "*secret*"
+  max_read_lines: 400                   # lines per read_file
+  max_hits: 20                          # matches per search_code
+  max_entries: 200                      # entries per list_dir
+  max_bytes_per_call: 65536             # byte cap on one tool result
+  max_tool_calls: 6                     # per-run tool-call budget
+  max_tool_bytes: 262144                # per-run tool-result byte budget
+  max_file_bytes: 2000000               # skip files larger than this
+
 database:
   # Use PostgreSQL from docker-compose
   url: "postgresql://homepot_user:homepot_dev_password@localhost:5432/homepot_db"

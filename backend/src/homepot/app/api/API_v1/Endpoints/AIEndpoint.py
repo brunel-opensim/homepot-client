@@ -56,6 +56,13 @@ from ai.query_router import (  # noqa: E402
     resolve_query_mode,
     routing_enabled,
 )
+from ai.repo_tools import (  # noqa: E402
+    REPO_TOOL_FUNCTIONS,
+    code_access_enabled,
+    get_repo_access,
+    reset_repo_source_sink,
+    set_repo_source_sink,
+)
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
 
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
@@ -680,14 +687,58 @@ async def _answer_knowledge(
         parts.append(short_term_context)
     knowledge_context = "\n".join(parts)
 
-    system_prompt_text = knowledge.get_knowledge_prompt()
-    response = await _generate_direct(
-        llm,
-        request.query,
-        knowledge_context,
-        system_prompt_text,
-        get_ai_gate(llm),
-    )
+    gate = get_ai_gate(llm)
+
+    # Tier B (Tier C + on-demand repo tools): when read-only repository access
+    # is enabled, let the model consult documentation and code via a bounded,
+    # read-only tool loop. The proposal tool is never offered here, so the
+    # knowledge path still cannot emit a plan, and the trust object stays
+    # informational. Files it reads are surfaced as extra sources.
+    if code_access_enabled():
+        access = get_repo_access()
+        system_prompt_text = knowledge.get_knowledge_prompt(include_repo_tools=True)
+        repo_sources: List[str] = []
+        sink_token = set_repo_source_sink(repo_sources)
+        try:
+            try:
+                agent_result = await run_agent(
+                    query=request.query,
+                    context=knowledge_context,
+                    llm=llm,
+                    tools=list(REPO_TOOL_FUNCTIONS),
+                    system_prompt=system_prompt_text,
+                    gate=gate,
+                    memory_scope=memory_scope,
+                    max_iterations=access.max_tool_calls,
+                    max_tool_bytes=access.max_tool_bytes,
+                )
+            except AIBusyError:
+                raise _ai_busy_http_exception(gate)
+        finally:
+            reset_repo_source_sink(sink_token)
+
+        if agent_result.response and not agent_result.fell_back_to_direct:
+            response = agent_result.response
+        else:
+            # Loop produced no usable answer: answer directly with the context.
+            logger.warning(
+                "Knowledge tool loop produced no answer; falling back to direct"
+            )
+            response = await _generate_direct(
+                llm, request.query, knowledge_context, system_prompt_text, gate
+            )
+        for path in repo_sources:
+            if path not in sources:
+                sources.append(path)
+    else:
+        system_prompt_text = knowledge.get_knowledge_prompt()
+        response = await _generate_direct(
+            llm,
+            request.query,
+            knowledge_context,
+            system_prompt_text,
+            gate,
+        )
 
     logger.info(
         "AI query done | mode=knowledge | reason=%s",
@@ -1261,6 +1312,7 @@ async def query_ai(
                     device_id=request.device_id,
                     gate=gate,
                     memory_scope=memory_scope,
+                    include_repo_tools=code_access_enabled(),
                 )
             except AIBusyError:
                 raise _ai_busy_http_exception(gate)
