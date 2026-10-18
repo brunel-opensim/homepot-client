@@ -129,9 +129,7 @@ def test_open_client_snapshots_readonly_store(tmp_path, monkeypatch):
         snap_target.mkdir()
         return str(snap_target)
 
-    monkeypatch.setattr(
-        inspect_chroma.tempfile, "mkdtemp", _mkdtemp
-    )
+    monkeypatch.setattr(inspect_chroma.tempfile, "mkdtemp", _mkdtemp)
 
     real_client = chromadb.PersistentClient
     calls = {"n": 0}
