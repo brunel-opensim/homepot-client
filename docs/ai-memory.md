@@ -46,10 +46,18 @@ Long-term memory is a persistent **ChromaDB** collection. Each entry is a small
 text record plus metadata, stored as an embedding so the AI can recall entries
 that are *semantically similar* to the current question.
 
+!!! note "Knowledge answers are docs-only"
+    Long-term memory is used **only by the device-backed diagnostic path**. A
+    knowledge (how-to/definition) answer is grounded in documentation alone: it
+    neither recalls past memories nor writes its answer to the store. The store
+    holds the model's own past output, and feeding it back on a path with no live
+    ground truth would let a wrong answer reinforce itself with nothing to
+    correct it. See [AI Query Routing](ai-query-routing.md).
+
 ### What gets stored
 
-After a successful query the endpoint stores a compact record
-(`write_on_query: true`):
+After a successful **diagnostic** query the endpoint stores a compact record
+(`write_on_query: true`); knowledge answers are never stored:
 
 ```
 Q: <the question>
@@ -124,7 +132,7 @@ memory:
   max_distance: 0.9                     # relevance cutoff (metric-specific); null = off
   retention_days: 90                    # prune older than this; null = keep
   answer_digest_chars: 500              # how much of each answer to store
-  write_on_query: true                  # persist a memory after each AI answer
+  write_on_query: true                  # persist a memory after each diagnostic answer
 ```
 
 To change the distance metric on an existing deployment, stop the backend and
@@ -153,5 +161,6 @@ scope and age of every memory.
 `backend/tests/test_ai_memory.py` covers the store end-to-end with a
 deterministic embedding function and a throwaway database: similarity recall,
 site/user/device scoping, admin bypass, the distance cutoff, deduplication, and
-retention pruning — plus an endpoint test asserting that a query both recalls
-with a scope and persists the answer.
+retention pruning — plus endpoint tests asserting that a diagnostic query both
+recalls with a scope and persists the answer, while a knowledge query touches
+long-term memory in neither direction.

@@ -635,9 +635,7 @@ async def _answer_knowledge(
     current_user: UserDict,
     llm: Any,
     knowledge: Any,
-    memory: Any,
     short_term_context: str,
-    long_term_context: str,
     memory_scope: MemoryScope,
     routing_info: Dict[str, Any],
 ) -> Dict[str, Any]:
@@ -681,8 +679,9 @@ async def _answer_knowledge(
         if fallback:
             parts.append(fallback)
 
-    if long_term_context:
-        parts.append(long_term_context)
+    # Long-term memory is deliberately NOT included here: a knowledge answer is
+    # grounded in documentation only, never in the model's own past output
+    # (see docs/ai-memory.md).
     if short_term_context:
         parts.append(short_term_context)
     knowledge_context = "\n".join(parts)
@@ -745,29 +744,11 @@ async def _answer_knowledge(
         routing_info.get("reason"),
     )
 
-    # Best-effort memory write, mirroring the diagnostic path so later queries
-    # can recall the answer. No trust score applies on this path.
-    try:
-        if (
-            getattr(memory, "write_on_query", True)
-            and response
-            and "unable to connect to my AI brain" not in response
-        ):
-            digest_chars = getattr(memory, "answer_digest_chars", 500)
-            if not isinstance(digest_chars, int) or digest_chars <= 0:
-                digest_chars = 500
-            memory.remember(
-                f"Q: {request.query}\nA: {response[:digest_chars]}",
-                scope=memory_scope,
-                extra_metadata={
-                    "source": "ai_query",
-                    "trust_score": 0.0,
-                    "is_actionable": False,
-                    "routing_mode": MODE_KNOWLEDGE,
-                },
-            )
-    except Exception:
-        logger.warning("Failed to persist AI memory", exc_info=True)
+    # Knowledge answers are intentionally NOT written to long-term memory. They
+    # are informational (never gate-validated) and derived from docs, so
+    # persisting them only stores the model's own output; recalling it later
+    # would let a wrong answer reinforce itself with no ground truth to correct
+    # it. See docs/ai-memory.md.
 
     try:
         await get_audit_logger().log_event(
@@ -857,31 +838,11 @@ async def query_ai(
             is_admin=is_admin,
         )
 
-        # 2b. Build Long-Term Context (Vector Memory)
-        long_term_context = ""
-        try:
-            # Get Memory Stats (Self-Awareness)
-            mem_stats = memory.get_memory_stats()
-            long_term_context = (
-                f"\n[MEMORY SYSTEM STATUS]\n"
-                f"Total Memories Stored: {mem_stats['total_memories']}\n"
-            )
-
-            # Get Similar Memories (scope-filtered + relevance-thresholded)
-            similar_memories = memory.query_similar(request.query, scope=memory_scope)
-            if similar_memories:
-                long_term_context += "\n[RELEVANT MEMORIES]\n"
-                long_term_context += "\n".join(
-                    [f"- {m['content']}" for m in similar_memories]
-                )
-        except Exception as e:
-            logger.warning(f"Failed to query vector memory: {e}")
-
-        # 2b. Resolve the query's intent and, for a knowledge (how-to/definition)
-        # question, answer from documentation only -- skipping the fleet/device
-        # DB scans, the validation gates and the AI insights below. Anything
-        # ambiguous resolves to 'diagnostic' so today's gate-backed behaviour
-        # stays the default (see ai/query_router.py and docs/ai-query-routing.md).
+        # 2b. Resolve the query's intent BEFORE building long-term memory, so a
+        # knowledge (how-to/definition) answer can stay documentation-only. The
+        # long-term store holds the model's own past answers; feeding them back
+        # on a path with no live ground truth lets it repeat stale or wrong output
+        # instead of consulting the docs (see docs/ai-memory.md).
         routing = resolve_query_mode(
             request.query,
             requested=request.mode,
@@ -900,15 +861,39 @@ async def query_ai(
             routing.resolved,
             routing.reason,
         )
+
+        # 2c. Build Long-Term Context (Vector Memory). Only the device-backed
+        # diagnostic path recalls memory; knowledge answers skip it entirely so
+        # they can never echo the model's own past output.
+        long_term_context = ""
+        if routing.resolved != MODE_KNOWLEDGE:
+            try:
+                # Get Memory Stats (Self-Awareness)
+                mem_stats = memory.get_memory_stats()
+                long_term_context = (
+                    f"\n[MEMORY SYSTEM STATUS]\n"
+                    f"Total Memories Stored: {mem_stats['total_memories']}\n"
+                )
+
+                # Get Similar Memories (scope-filtered + relevance-thresholded)
+                similar_memories = memory.query_similar(
+                    request.query, scope=memory_scope
+                )
+                if similar_memories:
+                    long_term_context += "\n[RELEVANT MEMORIES]\n"
+                    long_term_context += "\n".join(
+                        [f"- {m['content']}" for m in similar_memories]
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to query vector memory: {e}")
+
         if routing.resolved == MODE_KNOWLEDGE:
             return await _answer_knowledge(
                 request=request,
                 current_user=current_user,
                 llm=llm,
                 knowledge=knowledge,
-                memory=memory,
                 short_term_context=short_term_context,
-                long_term_context=long_term_context,
                 memory_scope=memory_scope,
                 routing_info=routing_info,
             )
