@@ -26,7 +26,7 @@ The two paths then diverge:
 ```
 POST /api/v1/ai/query
         |
-        +-- knowledge  -> Chroma "project_docs" (top-6 chunks, cutoff 0.9)
+        +-- knowledge  -> Chroma "project_docs" (top-4 chunks, cutoff 0.9)
         |                 -> static knowledge prompt + [RELEVANT DOCUMENTATION]
         |                 -> LLM -> strip [ANSWER]/Source markup
         |                 (no DB scan, no gates, no memory read, no memory write)
@@ -74,32 +74,32 @@ Devices by Mode: 0 simulated, 0 emulated, 0 real
 | Property | Value (observed) |
 | --- | --- |
 | Collection | `project_docs` |
-| Location | `ai/data/docs_chroma` (31 MB: 21 MB SQLite + 2 x 5.2 MB HNSW segments) |
-| Contents | 108 top-level `docs/*.md` -> **2920 chunks** + 1 index-version record = 2921 items |
+| Location | `ai/data/docs_chroma` (~27 MB: 22 MB SQLite + HNSW segments) |
+| Contents | 109 top-level `docs/*.md` -> **3227 chunks** + 1 index-version record = 3228 items |
 | Embedder | ChromaDB default ONNX `all-MiniLM-L6-v2` (384-d), cosine distance |
 | Metadata | `{source, title, heading}` per chunk |
-| Retrieval | `n_results: 6`, `max_distance: 0.9` |
+| Retrieval | `n_results: 4`, `max_distance: 0.9` |
 
 **How a chunk is built** (`ai/doc_retriever.py`): markdown is split into
-heading-aware sections; each long section is windowed at `chunk_size: 1200`
+heading-aware sections; each long section is windowed at `chunk_size: 800`
 characters with `chunk_overlap: 150`; each window is stored as
 `# {heading}\n{window}` with id `sha256(source, section_idx, window_idx)`.
 
-**Rebuild policy**: the index version is a hash of every doc's
-`(path, size, mtime)`. When the corpus hash changes, the collection is recreated
-and re-added (lazily, on the next knowledge query). A stable corpus costs
-nothing per query; touching any doc triggers a full rebuild.
+**Rebuild policy**: the index version is a hash of the corpus
+(`path`, `size`, `mtime`) plus the indexing settings (`chunk_size`,
+`chunk_overlap`, `max_chunks_per_doc`, `max_file_bytes`). When the hash changes,
+the collection is recreated and re-added (lazily, on the next knowledge query).
+A stable corpus costs nothing per query; touching any doc - or changing the
+chunking - triggers a full rebuild.
 
 **Retrieval is grounded in real paths.** For *"How do I enrol a device?"*
-(`n=6`, cutoff 0.9) the six chunks were:
+(`n=4`, cutoff 0.9) the four chunks were:
 
 ```
-0.3819  docs/enrolment-intents.md              - Enrolment Intents
-0.3861  docs/device-registration.md            - Method A: Pre-Provisioned (Dashboard-Driven)
-0.4164  docs/device-lifecycle-and-ownership.md - Pre-provisioned enrolment
-0.4208  docs/device-registration.md            - Prerequisites
-0.4303  docs/device-registration.md            - Step 2: Register a Device
-0.4422  docs/device-lifecycle-and-ownership.md - Canonical state model
+0.3548  docs/device-registration.md             - Method A: Pre-Provisioned (Dashboard-Driven)
+0.3819  docs/enrolment-intents.md               - Enrolment Intents
+0.4164  docs/device-lifecycle-and-ownership.md  - Pre-provisioned enrolment
+0.4208  docs/device-registration.md             - Prerequisites
 ```
 
 Those chunks are rendered into a `[RELEVANT DOCUMENTATION]` block, each

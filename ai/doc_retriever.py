@@ -72,11 +72,11 @@ class DocRetriever:
         self.docs_dir = os.path.abspath(docs_dir)
         self.collection_name = str(cfg.get("collection_name", "project_docs"))
         self.distance_metric = str(cfg.get("distance_metric", "cosine"))
-        self.n_results = int(cfg.get("n_results", 6))
+        self.n_results = int(cfg.get("n_results", 4))
         # Cutoff on the vector distance; metric-specific (lower = closer).
         # ``None`` disables the cutoff and returns the top-k regardless.
         self.max_distance: Optional[float] = cfg.get("max_distance")
-        self.chunk_size = int(cfg.get("chunk_size", 1200))
+        self.chunk_size = int(cfg.get("chunk_size", 800))
         self.chunk_overlap = int(cfg.get("chunk_overlap", 150))
         # Bound what any single chunk contributes so one huge doc cannot flood
         # the context. Also applied per file as a soft read cap.
@@ -137,8 +137,23 @@ class DocRetriever:
         return rel.replace(os.sep, "/")
 
     def _index_version(self) -> str:
-        """Hash of every doc's ``(path, size, mtime)`` -- changes with the corpus."""
+        """Hash of the corpus *and* every setting that shapes the index.
+
+        Covers each doc's ``(path, size, mtime)`` plus the indexing settings
+        (``chunk_size``, ``chunk_overlap``, ``max_chunks_per_doc``,
+        ``max_file_bytes``). Without the settings, changing one would silently
+        keep serving an index built with the old values - the retrieval-cost
+        knobs in ``config.yaml`` would appear to do nothing.
+        """
         digest = hashlib.sha256()
+        digest.update(
+            (
+                f"chunk_size={self.chunk_size}\x00"
+                f"chunk_overlap={self.chunk_overlap}\x00"
+                f"max_chunks_per_doc={self.max_chunks_per_doc}\x00"
+                f"max_file_bytes={self.max_file_bytes}\n"
+            ).encode("utf-8")
+        )
         for path in self._discover_docs():
             try:
                 st = os.stat(path)
