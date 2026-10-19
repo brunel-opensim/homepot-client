@@ -22,8 +22,16 @@ import sys
 import tempfile
 from typing import Any, Dict, Optional, Tuple
 
-import chromadb  # type: ignore
-import yaml  # type: ignore
+try:
+    import chromadb  # type: ignore
+    import yaml  # type: ignore
+except ModuleNotFoundError as exc:
+    sys.exit(
+        f"Error: module '{exc.name}' is not installed for {sys.executable}.\n"
+        "Run this tool with the project virtualenv:\n"
+        "  .venv/bin/python ai/inspect_chroma.py --help\n"
+        "or install the dependencies: pip install -r backend/requirements.txt"
+    )
 
 # Default paths
 WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

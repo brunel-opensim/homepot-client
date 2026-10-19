@@ -12,9 +12,14 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 WORKSPACE_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Check if python3 is available
-if ! command -v python3 &> /dev/null; then
-    echo "Error: python3 is not installed or not in PATH."
+# Check if a python interpreter with the project deps is available: the
+# virtualenv holds chromadb, which a bare system python3 usually lacks.
+PYTHON="$WORKSPACE_ROOT/.venv/bin/python"
+if [ ! -x "$PYTHON" ]; then
+    PYTHON="$(command -v python3 || true)"
+fi
+if [ -z "$PYTHON" ]; then
+    echo "Error: no Python interpreter found (expected $WORKSPACE_ROOT/.venv/bin/python or python3 in PATH)."
     exit 1
 fi
 
@@ -42,5 +47,5 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-# Run the python inspector
-python3 "$WORKSPACE_ROOT/ai/inspect_chroma.py" "$@"
+# Run the python inspector with the interpreter that has the project deps.
+exec "$PYTHON" "$WORKSPACE_ROOT/ai/inspect_chroma.py" "$@"
