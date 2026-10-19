@@ -156,6 +156,29 @@ class SystemKnowledge:
             f"{self.get_project_structure()}"
         )
 
+    def _shared_prefix(self) -> str:
+        """Return the byte-identical leading block every query path starts with.
+
+        Ollama reuses its key/value cache for the *common prefix* of two
+        prompts: when the leading bytes match the previous request, only the
+        new tail is evaluated. On the CPU-only demo host a warm prefix costs
+        ~0.2-0.9s to re-enter while a cold one costs tens of seconds for the
+        same token count, so this block is deliberately emitted *first* and
+        unchanged by every path. That makes the startup warm-up
+        (``backend/src/homepot/app/main.py``) pay off for knowledge queries too,
+        and stops a switch between the diagnostic and knowledge paths from
+        re-evaluating the whole system prompt.
+
+        It carries exactly the text the paths previously assembled inline
+        (system context, command reference, role definitions) -- only the
+        order changed -- so the model still receives the same grounding.
+        """
+        shared = self.get_full_system_context()
+        cmd_ref = self.get_command_payload_reference()
+        if cmd_ref:
+            shared += f"\n\n{cmd_ref}"
+        return f"SYSTEM CONTEXT:\n{shared}\n\n{_DEFINED_SYSTEM_ROLES}"
+
     def get_system_prompt(self) -> str:
         """Build the full static system prompt sent to the LLM.
 
@@ -163,17 +186,14 @@ class SystemKnowledge:
         ``backend/src/homepot/app/main.py``) can prime Ollama's KV cache with
         the *exact* same prefix the request path uses -- otherwise the first
         real query pays the whole prompt-eval cost (tens of seconds on CPU).
+        It leads with :meth:`_shared_prefix` so the diagnostic and knowledge
+        paths both reuse that primed prefix (see that method).
         """
-        system_knowledge = self.get_full_system_context()
         doc_context = self.get_documentation_context()
-        if doc_context:
-            system_knowledge += f"\n\n{doc_context}"
-        cmd_ref = self.get_command_payload_reference()
-        if cmd_ref:
-            system_knowledge += f"\n\n{cmd_ref}"
+        doc_block = f"{doc_context}\n\n" if doc_context else ""
 
         return (
-            "IDENTITY:\n"
+            self._shared_prefix() + "IDENTITY:\n"
             "You are the HOMEPOT System Diagnostics AI, an advanced operational "
             "assistant for the HOMEPOT Client ecosystem.\n"
             "Your goal is to monitor, diagnose, and explain the behavior of "
@@ -188,9 +208,7 @@ class SystemKnowledge:
             "4. Short-Term Memory: You maintain context of the current conversation.\n"
             "5. AI Insights: anomaly detection and failure-prediction signals are "
             "provided in [AI INSIGHTS: ...] blocks.\n\n"
-            "SYSTEM CONTEXT:\n"
-            f"{system_knowledge}\n\n"
-            f"{_DEFINED_SYSTEM_ROLES}"
+            f"{doc_block}"
             "INSTRUCTIONS:\n"
             "- Scope your answers to the HOMEPOT system. Do not answer unrelated "
             "general knowledge questions.\n"
@@ -232,16 +250,11 @@ class SystemKnowledge:
                 default (``False``) leaves the prompt byte-identical so the
                 disabled path is unaffected.
         """
-        system_knowledge = self.get_full_system_context()
         # Procedural docs are no longer embedded here: the knowledge path
         # retrieves the most relevant chunks per query and injects them as a
         # [RELEVANT DOCUMENTATION] block (see _answer_knowledge / DocRetriever).
         # A fixed excerpt list would only compete with the retrieved,
         # query-specific sources.
-        cmd_ref = self.get_command_payload_reference()
-        if cmd_ref:
-            system_knowledge += f"\n\n{cmd_ref}"
-
         repo_instructions = ""
         if include_repo_tools:
             repo_instructions = (
@@ -257,7 +270,7 @@ class SystemKnowledge:
             )
 
         return (
-            "IDENTITY:\n"
+            self._shared_prefix() + "IDENTITY:\n"
             "You are the HOMEPOT Knowledge Assistant, a product and SOP "
             "assistant for the HOMEPOT Client ecosystem.\n"
             "Your goal is to answer how-to, definition, and product questions "
@@ -271,9 +284,6 @@ class SystemKnowledge:
             "question are retrieved and provided in the "
             "[RELEVANT DOCUMENTATION] block.\n"
             "3. Short-Term Memory: context of the current conversation.\n\n"
-            "SYSTEM CONTEXT:\n"
-            f"{system_knowledge}\n\n"
-            f"{_DEFINED_SYSTEM_ROLES}"
             "INSTRUCTIONS:\n"
             "- Answer from the provided documentation and system context. Cite "
             "ONLY file paths that appear in the [RELEVANT DOCUMENTATION] block "

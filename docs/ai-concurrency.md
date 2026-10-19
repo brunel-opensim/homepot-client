@@ -24,8 +24,13 @@ Consequences:
 - Every generation is served one at a time; extra requests **queue inside
   Ollama**, invisibly.
 - A caller sees a 30-60s wait with no feedback and no upper bound.
-- Generation runs at roughly **4.2-4.3 tok/s** on this CPU (prompt-eval on the
-  cached system prefix is fast, ~0.3-0.7s, because `main.py` warms it up).
+- Generation runs at roughly **4.2-4.3 tok/s** on this CPU. Prompt evaluation is
+  much faster at ~30 tok/s, but only when Ollama can reuse the previous
+  request's key/value prefix — a matching prefix costs ~0.2-0.9s to re-enter,
+  while one that diverges early costs ~110-130s for a ~3.5k-token prompt. That
+  is why `main.py` warms the prefix at startup and every query path leads with
+  the same shared block: see
+  [Prompt-prefix caching](ai-query-routing.md#prompt-prefix-caching-path-switch-latency).
 
 Without an application-level queue, a burst of N users each waits for the N-1
 before them, and nobody can tell whether the service is busy or broken.
