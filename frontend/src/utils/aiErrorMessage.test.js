@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { aiErrorMessage } from './aiErrorMessage';
+import { aiErrorMessage, isCancel } from './aiErrorMessage';
 import { AI_QUERY_TIMEOUT_MINUTES } from './aiTimeouts';
 
 /** Minimal axios-shaped error. */
@@ -57,5 +57,26 @@ describe('aiErrorMessage', () => {
   it('never returns an empty message', () => {
     expect(aiErrorMessage(undefined)).toBeTruthy();
     expect(aiErrorMessage({})).toBeTruthy();
+  });
+
+  it('does not report a deliberate Stop/Esc as a failure', () => {
+    // axios raises ERR_CANCELED for an aborted request, which is the user's
+    // own action -- not the timeout case, and not a server error.
+    expect(aiErrorMessage({ code: 'ERR_CANCELED' })).toMatch(/cancelled/i);
+    expect(aiErrorMessage({ name: 'CanceledError' })).toMatch(/cancelled/i);
+    expect(aiErrorMessage({ code: 'ERR_CANCELED' })).not.toMatch(/timed out/i);
+  });
+});
+
+describe('isCancel', () => {
+  it('recognises the shapes axios uses for an aborted request', () => {
+    expect(isCancel({ code: 'ERR_CANCELED' })).toBe(true);
+    expect(isCancel({ name: 'CanceledError' })).toBe(true);
+  });
+
+  it('does not mistake a timeout or a server error for a cancel', () => {
+    expect(isCancel({ code: 'ECONNABORTED' })).toBe(false);
+    expect(isCancel({ response: { status: 503 } })).toBe(false);
+    expect(isCancel(undefined)).toBe(false);
   });
 });

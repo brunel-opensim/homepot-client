@@ -76,7 +76,13 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
     await user.type(screen.getByRole('textbox'), 'What is the system status?');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
-    expect(api.ai.query).toHaveBeenCalledWith('What is the system status?', null, 'Admin', null);
+    expect(api.ai.query).toHaveBeenCalledWith(
+      'What is the system status?',
+      null,
+      'Admin',
+      null,
+      expect.any(AbortSignal)
+    );
   });
 
   it('forwards the chosen mode and remembers it per session', async () => {
@@ -92,7 +98,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'How do I enroll a device?',
       null,
       'Admin',
-      'knowledge'
+      'knowledge',
+      expect.any(AbortSignal)
     );
     expect(localStorage.getItem('homepot_ai_mode')).toBe('knowledge');
   });
@@ -110,7 +117,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'How do I enroll a device?',
       null,
       'Admin',
-      'diagnostic'
+      'diagnostic',
+      expect.any(AbortSignal)
     );
   });
 
@@ -197,5 +205,61 @@ describe('AskAIWidget failure messages (frontend/src/utils/aiErrorMessage.js)', 
     await ask();
 
     expect(await screen.findByText(/could not reach the server/i)).toBeInTheDocument();
+  });
+});
+
+describe('AskAIWidget cancelling a query in flight', () => {
+  /** A query that only settles when its AbortSignal fires, like axios does. */
+  function pendingUntilAborted() {
+    return vi.fn(
+      (query, deviceId, role, mode, signal) =>
+        new Promise((resolve, reject) => {
+          signal.addEventListener('abort', () =>
+            reject(Object.assign(new Error('canceled'), { code: 'ERR_CANCELED' }))
+          );
+        })
+    );
+  }
+
+  async function startQuery() {
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+    await user.type(screen.getByRole('textbox'), 'What is the system status?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByRole('button', { name: /^stop$/i });
+    return user;
+  }
+
+  it('stops the query with the Stop button and shows a cancelled state', async () => {
+    api.ai.query.mockImplementation(pendingUntilAborted());
+    const user = await startQuery();
+
+    await user.click(screen.getByRole('button', { name: /^stop$/i }));
+
+    expect(await screen.findByText(/query cancelled/i)).toBeInTheDocument();
+    // A cancel is the user's own action, not a failure: no error panel.
+    expect(screen.queryByText(/couldn't answer that/i)).toBeNull();
+    expect(screen.queryByText(/Failed to get a response/i)).toBeNull();
+  });
+
+  it('stops the query with the Escape key', async () => {
+    api.ai.query.mockImplementation(pendingUntilAborted());
+    const user = await startQuery();
+
+    await user.keyboard('{Escape}');
+
+    expect(await screen.findByText(/query cancelled/i)).toBeInTheDocument();
+  });
+
+  it('aborts the underlying request, not just the UI', async () => {
+    api.ai.query.mockImplementation(pendingUntilAborted());
+    const user = await startQuery();
+
+    const signal = api.ai.query.mock.calls[0][4];
+    expect(signal.aborted).toBe(false);
+
+    await user.keyboard('{Escape}');
+
+    expect(signal.aborted).toBe(true);
   });
 });

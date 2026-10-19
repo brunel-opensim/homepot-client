@@ -5,6 +5,8 @@
  * so "it didn't answer" has several distinct causes that a generic
  * "Failed to get a response. Please try again." hides:
  *
+ *   - A deliberate Stop/Esc (``ERR_CANCELED``): the user's own action, not a
+ *     fault, so it is reported separately from an error.
  *   - 503: another query holds the only slot (docs/ai-concurrency.md).
  *   - Client/axios timeout (ECONNABORTED) or a 504 from the reverse proxy:
  *     the model was still generating. The first question after a break pays a
@@ -24,7 +26,17 @@ function serverDetail(error) {
   return typeof detail === 'string' && detail.trim() ? detail.trim() : null;
 }
 
+/** True when the request was abandoned by the user rather than by the server. */
+export function isCancel(error) {
+  return Boolean(error) && (error.code === 'ERR_CANCELED' || error.name === 'CanceledError');
+}
+
 export function aiErrorMessage(error) {
+  // A deliberate Stop/Esc is not a failure; the caller renders it separately.
+  if (isCancel(error)) {
+    return 'The request was cancelled.';
+  }
+
   const status = error?.response?.status;
   const detail = serverDetail(error);
 
