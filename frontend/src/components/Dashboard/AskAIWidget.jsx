@@ -23,6 +23,7 @@ import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { aiErrorMessage, isCancel } from '@/utils/aiErrorMessage';
+import { newQueryId } from '@/utils/aiQueryId';
 
 // Intent modes the technician can pick (docs/ai-query-routing.md §6.1).
 // `auto` (default) lets the backend heuristics resolve the mode; the explicit
@@ -290,17 +291,32 @@ export default function AskAIWidget() {
   const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
   const [slowHint, setSlowHint] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  // Whether the server confirmed the cancel: true only when it had an in-flight
+  // query to discard, so the panel never claims something it cannot know.
+  const [cancelConfirmed, setCancelConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
   // Holds the in-flight query's AbortController so Stop/Esc can abandon it.
   const abortRef = useRef(null);
+  // The id of the query in flight, so Stop/Esc can name it to the server.
+  const queryIdRef = useRef(null);
 
   const handleGateReplayDone = useCallback(() => {
     setReplaying(false);
   }, []);
 
-  // Abandon the query in flight. The server sees the disconnect and discards the
-  // answer instead of remembering it (docs/ai-concurrency.md).
+  // Abandon the query in flight. Aborting stops this page waiting; telling the
+  // server which query to abandon is what makes it discard the answer instead of
+  // remembering it. The report is best-effort -- if it fails the page still
+  // stops, it just cannot claim the answer was discarded
+  // (docs/ai-concurrency.md).
   const handleCancel = useCallback(() => {
+    const queryId = queryIdRef.current;
+    if (queryId) {
+      api.ai
+        .cancel(queryId)
+        .then((result) => setCancelConfirmed(result?.cancelled === true))
+        .catch(() => setCancelConfirmed(false));
+    }
     abortRef.current?.abort();
   }, []);
 
@@ -347,6 +363,7 @@ export default function AskAIWidget() {
     setReplaying(false);
     setError(null);
     setCancelled(false);
+    setCancelConfirmed(false);
     localStorage.removeItem('homepot_ai_query');
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
@@ -424,6 +441,7 @@ export default function AskAIWidget() {
     setLoading(true);
     setError(null);
     setCancelled(false);
+    setCancelConfirmed(false);
     setResponse(null);
     setTrust(null);
     setRouting(null);
@@ -432,12 +450,16 @@ export default function AskAIWidget() {
 
     const controller = new AbortController();
     abortRef.current = controller;
+    // Every query carries an id so Stop/Esc can name exactly which one to
+    // abandon server-side (see api.ai.cancel).
+    const queryId = newQueryId();
+    queryIdRef.current = queryId;
 
     try {
       const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
       // `auto` is sent as null so the backend default (heuristics) applies.
       const modeArg = mode === 'auto' ? null : mode;
-      const result = await api.ai.query(query, null, userRole, modeArg, controller.signal);
+      const result = await api.ai.query(query, null, userRole, modeArg, controller.signal, queryId);
       // The backend returns { response, timestamp, trust, routing, sources } --
       // trust is the validation envelope's gate-by-gate outcome (see
       // ai/gates/envelope.py), routing reports how the intent was resolved
@@ -463,6 +485,7 @@ export default function AskAIWidget() {
       }
     } finally {
       abortRef.current = null;
+      queryIdRef.current = null;
       setLoading(false);
     }
   };
@@ -522,7 +545,9 @@ export default function AskAIWidget() {
               <Square className="w-4 h-4" />
               <span className="font-medium">Query cancelled</span>
               <p className="text-xs text-gray-400 max-w-xs">
-                Nothing was saved — the abandoned answer is discarded rather than stored in memory.
+                {cancelConfirmed
+                  ? 'Nothing was saved — the abandoned answer is discarded rather than stored in memory.'
+                  : 'Stopped on this page. The answer may have finished server-side before the cancel arrived.'}
               </p>
             </div>
           ) : error ? (

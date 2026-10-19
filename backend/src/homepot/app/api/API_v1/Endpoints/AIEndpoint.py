@@ -71,6 +71,7 @@ from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.app.repositories.ai_action_repository import (  # noqa: E402
     AIActionRepository,
 )
+from homepot.app.utils import ai_cancel  # noqa: E402
 from homepot.app.utils.ai_gate import (  # noqa: E402
     AIBusyError,
     AIConcurrencyGate,
@@ -211,6 +212,26 @@ class AIQueryRequest(BaseModel):
             "answers from documentation without the device gates, 'diagnostic' "
             "forces the operational gated path."
         ),
+    )
+    query_id: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Client-generated id for this query. Post the same id to "
+            "POST /ai/query/cancel to abandon the query (Stop/Esc); the server "
+            "then discards the answer instead of remembering it."
+        ),
+    )
+
+
+class AIQueryCancelRequest(BaseModel):
+    """Request model for cancelling an in-flight AI query."""
+
+    query_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        description="The query_id sent with the AI query to abandon",
     )
 
 
@@ -592,12 +613,14 @@ async def _generate_direct(
 async def _client_disconnected(http_request: Optional[Request]) -> bool:
     """Report whether the caller has gone away (technician pressed Stop/Esc).
 
-    Starlette's ``is_disconnected`` does not block, so it is cheap enough to
-    check before and after a generation. Cancelling cannot interrupt a
-    generation that is already running - the Ollama client is synchronous and
-    runs in a worker thread - so these checks are deliberately narrower: never
-    *start* expensive work for a caller who has left, and never persist an
-    answer they abandoned (see docs/ai-concurrency.md).
+    Best-effort only. Starlette's ``is_disconnected`` does not block, so it is
+    cheap enough to check before and after a generation, but it is *not* the
+    mechanism this deployment relies on: ``AnalyticsMiddleware``
+    (a ``BaseHTTPMiddleware``) re-wraps the ASGI ``receive`` callable and the
+    check then never reports a disconnect, and Apache does not forward a browser
+    abort to the backend either. Explicit cancellation via
+    ``POST /ai/query/cancel`` is what actually works - see
+    ``homepot.app.utils.ai_cancel`` and docs/ai-concurrency.md.
     """
     if http_request is None:
         # Called directly (tests) rather than through an ASGI request.
@@ -608,25 +631,45 @@ async def _client_disconnected(http_request: Optional[Request]) -> bool:
         return False
 
 
+async def _abandon_reason(
+    http_request: Optional[Request],
+    cancel_token: Optional[ai_cancel.AICancelToken],
+) -> Optional[str]:
+    """Why the caller abandoned this query, or ``None`` if they have not.
+
+    The explicit token is checked first: it is the signal that works through the
+    analytics middleware and Apache. The disconnect check is kept as a
+    best-effort extra for callers that do not use the cancel endpoint.
+    """
+    if cancel_token is not None and cancel_token.cancelled:
+        return "explicit_cancel"
+    if await _client_disconnected(http_request):
+        return "client_disconnect"
+    return None
+
+
 async def _audit_cancelled_query(
     request: AIQueryRequest,
     current_user: UserDict,
     *,
     mode: str,
     stage: str,
+    source: str,
     routing_info: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Record an abandoned query so cancellations are visible in the audit log."""
     logger.info(
-        "AI query cancelled by client | mode=%s | stage=%s | user=%s",
+        "AI query cancelled by client | mode=%s | stage=%s | source=%s | user=%s",
         mode,
         stage,
+        source,
         current_user.get("email"),
     )
     metadata: Dict[str, Any] = {
         "query_length": len(request.query),
         "cancelled": True,
         "cancel_stage": stage,
+        "cancel_source": source,
         "trust_mode": mode,
         "actionable": False,
     }
@@ -749,6 +792,7 @@ async def _answer_knowledge(
     memory_scope: MemoryScope,
     routing_info: Dict[str, Any],
     http_request: Optional[Request] = None,
+    cancel_token: Optional[ai_cancel.AICancelToken] = None,
 ) -> Dict[str, Any]:
     """Answer a knowledge-mode query from documentation only.
 
@@ -802,12 +846,14 @@ async def _answer_knowledge(
     # Cancel check (1/2): if the technician pressed Stop while the documentation
     # was being retrieved, skip the generation instead of burning CPU on an
     # answer nobody will read.
-    if await _client_disconnected(http_request):
+    abandon_reason = await _abandon_reason(http_request, cancel_token)
+    if abandon_reason:
         await _audit_cancelled_query(
             request,
             current_user,
             mode=MODE_KNOWLEDGE,
             stage="before_generation",
+            source=abandon_reason,
             routing_info=routing_info,
         )
         return _cancelled_response(routing_info, _informational_trust())
@@ -871,12 +917,14 @@ async def _answer_knowledge(
     # Cancel check (2/2): the answer was abandoned, so do not record it as a
     # delivered query. Knowledge answers are never written to memory anyway (see
     # docs/ai-memory.md), so this only suppresses the success audit entry.
-    if await _client_disconnected(http_request):
+    abandon_reason = await _abandon_reason(http_request, cancel_token)
+    if abandon_reason:
         await _audit_cancelled_query(
             request,
             current_user,
             mode=MODE_KNOWLEDGE,
             stage="after_generation",
+            source=abandon_reason,
             routing_info=routing_info,
         )
         return _cancelled_response(routing_info, _informational_trust())
@@ -924,6 +972,33 @@ async def _answer_knowledge(
     }
 
 
+@router.post("/query/cancel", tags=["AI Chat"])
+async def cancel_query(
+    request: AIQueryCancelRequest,
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Abandon an in-flight AI query (technician pressed Stop/Esc).
+
+    The widget posts back the ``query_id`` it sent with the question. The
+    matching query stops at its next cancel check: no memory write, no proposal,
+    and an audit entry tagged as cancelled. This request is deliberately tiny
+    and does not touch the generation gate, so it is answered while a generation
+    is still running.
+
+    ``cancelled: false`` means there was nothing to cancel: the query had
+    already finished, or the id is unknown (which includes another user's query,
+    so the endpoint cannot be used to probe for live queries).
+    """
+    matched = ai_cancel.cancel_query(request.query_id, current_user.get("user_id"))
+    logger.info(
+        "AI query cancel requested | query_id=%s | matched=%s | user=%s",
+        request.query_id,
+        matched,
+        current_user.get("email"),
+    )
+    return {"cancelled": matched}
+
+
 @router.post("/query", tags=["AI Chat"])
 async def query_ai(
     request: AIQueryRequest,
@@ -932,6 +1007,33 @@ async def query_ai(
     # Injected from the ASGI scope by FastAPI. It defaults to None only so
     # handlers can still be called directly in tests; see _client_disconnected.
     http_request: Request = None,  # type: ignore[assignment]
+) -> Dict[str, Any]:
+    """Query the AI assistant.
+
+    Registers the query's cancellation token for the duration of the request, so
+    a technician pressing Stop/Esc can abandon it explicitly. See
+    ``homepot.app.utils.ai_cancel`` and docs/ai-concurrency.md.
+    """
+    cancel_token = (
+        ai_cancel.register_query(request.query_id, current_user.get("user_id"))
+        if request.query_id
+        else None
+    )
+    try:
+        return await _query_ai_impl(
+            request, current_user, db, http_request, cancel_token
+        )
+    finally:
+        if cancel_token is not None:
+            ai_cancel.release_query(cancel_token)
+
+
+async def _query_ai_impl(
+    request: AIQueryRequest,
+    current_user: UserDict,
+    db: SASession,
+    http_request: Optional[Request] = None,
+    cancel_token: Optional[ai_cancel.AICancelToken] = None,
 ) -> Dict[str, Any]:
     """Query the AI assistant."""
     logger.info(
@@ -1042,6 +1144,7 @@ async def query_ai(
                 memory_scope=memory_scope,
                 routing_info=routing_info,
                 http_request=http_request,
+                cancel_token=cancel_token,
             )
 
         # 3. Build Real-Time System Context
@@ -1432,12 +1535,14 @@ async def query_ai(
         # Cancel check (1/2): the technician may have pressed Stop/Esc while the
         # context was being assembled. Nothing has been generated yet, so skip
         # the (expensive) inference entirely.
-        if await _client_disconnected(http_request):
+        abandon_reason = await _abandon_reason(http_request, cancel_token)
+        if abandon_reason:
             await _audit_cancelled_query(
                 request,
                 current_user,
                 mode=trust.trust_mode.label,
                 stage="before_generation",
+                source=abandon_reason,
                 routing_info=routing_info,
             )
             return _cancelled_response(routing_info, trust.to_dict())
@@ -1504,12 +1609,14 @@ async def query_ai(
         # proposal, for a query the technician rejected. The generation itself
         # cannot be interrupted (worker thread), so this is the point where an
         # "esc" stops having side effects.
-        if await _client_disconnected(http_request):
+        abandon_reason = await _abandon_reason(http_request, cancel_token)
+        if abandon_reason:
             await _audit_cancelled_query(
                 request,
                 current_user,
                 mode=trust.trust_mode.label,
                 stage="after_generation",
+                source=abandon_reason,
                 routing_info=routing_info,
             )
             return _cancelled_response(routing_info, trust.to_dict())
