@@ -165,3 +165,37 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
     expect(screen.queryByText(/answered from documentation/i)).toBeNull();
   });
 });
+
+describe('AskAIWidget failure messages (frontend/src/utils/aiErrorMessage.js)', () => {
+  async function ask() {
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+    await user.type(screen.getByRole('textbox'), 'What is the system status?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+  }
+
+  it('explains a busy assistant (503) instead of failing generically', async () => {
+    api.ai.query.mockRejectedValue({
+      response: { status: 503, data: {}, headers: { 'retry-after': '5' } },
+    });
+    await ask();
+
+    expect(await screen.findByText(/busy answering another question/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to get a response/i)).toBeNull();
+  });
+
+  it('explains a timeout while the model is still thinking', async () => {
+    api.ai.query.mockRejectedValue({ code: 'ECONNABORTED' });
+    await ask();
+
+    expect(await screen.findByText(/timed out/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to get a response/i)).toBeNull();
+  });
+
+  it('explains a dropped connection', async () => {
+    api.ai.query.mockRejectedValue({ request: {} });
+    await ask();
+
+    expect(await screen.findByText(/could not reach the server/i)).toBeInTheDocument();
+  });
+});
