@@ -16,9 +16,7 @@
  * Pure, so it can be tested without a browser (see aiErrorMessage.test.js).
  */
 
-// Must mirror the timeout used by `api.ai.query` (VITE_AI_QUERY_TIMEOUT).
-const AI_TIMEOUT_MS = Number(import.meta.env?.VITE_AI_QUERY_TIMEOUT) || 180000;
-const AI_TIMEOUT_MINUTES = Math.max(1, Math.round(AI_TIMEOUT_MS / 60000));
+import { AI_QUERY_TIMEOUT_MINUTES } from './aiTimeouts';
 
 /** A server error body carries `detail`; only use it when it is readable text. */
 function serverDetail(error) {
@@ -43,7 +41,7 @@ export function aiErrorMessage(error) {
   // Still generating: axios gave up, or the reverse proxy cut the connection.
   if (error?.code === 'ECONNABORTED' || status === 504) {
     return (
-      `The AI assistant was still thinking after ${AI_TIMEOUT_MINUTES} minutes and the ` +
+      `The AI assistant was still thinking after ${AI_QUERY_TIMEOUT_MINUTES} minutes and the ` +
       'request timed out. The model runs on CPU, and the first question after a ' +
       'break is the slowest — please ask again, the next attempt is usually faster.'
     );

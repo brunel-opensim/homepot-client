@@ -102,17 +102,22 @@ two independent ceilings:
 
 | Bound | Value | Where |
 |---|---|---|
-| Client request timeout | `VITE_AI_QUERY_TIMEOUT`, default 180000 ms | `frontend/src/services/api.js` |
-| Reverse-proxy timeout | Apache `Timeout 300` | server vhost |
+| Client request timeout | `VITE_AI_QUERY_TIMEOUT`, default 600000 ms (10 min) | `frontend/src/utils/aiTimeouts.js` |
+| Reverse-proxy timeout | Apache `ProxyTimeout 600` | server vhost |
 | Queue budget before the 503 | `queue_timeout_seconds: 45` | `ai/config.yaml` |
 
-A cold model load can exceed both, which is why "the assistant didn't answer" is
-not one error but several. `frontend/src/utils/aiErrorMessage.js` maps them to
-distinct, actionable messages: busy slot (503 + `Retry-After`), timed out
-(client or proxy), expired session (401), permission (403), server error (5xx,
-with the backend's `detail`), or unreachable server (no response). The widget
-also shows a "still working" hint after 90 s, so a slow cold start is not
-mistaken for a failure.
+The client and proxy ceilings are matched on purpose, so a time-out is reported
+the same way whichever is reached first. They used to be 180 s, which a cold
+start can exceed: a cold knowledge query measured **324 s** on the deployment
+host, so both are now 10 minutes. Keeping the model warm (`llm.keep_alive`) is
+the cheaper fix, since a resident model answers in 40-120 s.
+
+Because "the assistant didn't answer" has several such causes,
+`frontend/src/utils/aiErrorMessage.js` maps them to distinct, actionable
+messages: busy slot (503 + `Retry-After`), timed out (client or proxy), expired
+session (401), permission (403), server error (5xx, with the backend's
+`detail`), or unreachable server (no response). The widget also shows a "still
+working" hint after 90 s, so a slow cold start is not mistaken for a failure.
 
 ---
 

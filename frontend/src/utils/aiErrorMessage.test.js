@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { aiErrorMessage } from './aiErrorMessage';
+import { AI_QUERY_TIMEOUT_MINUTES } from './aiTimeouts';
 
 /** Minimal axios-shaped error. */
 const failed = (status, { data, headers } = {}) => ({
@@ -22,6 +23,8 @@ describe('aiErrorMessage', () => {
     const message = aiErrorMessage({ code: 'ECONNABORTED' });
     expect(message).toMatch(/timed out/i);
     expect(message).toMatch(/CPU/);
+    // The message must name the same ceiling the client actually waits for.
+    expect(message).toContain(`${AI_QUERY_TIMEOUT_MINUTES} minutes`);
   });
 
   it('explains a 504 from the reverse proxy as the same slow-model case', () => {
