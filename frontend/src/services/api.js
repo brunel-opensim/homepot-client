@@ -788,8 +788,11 @@ const api = {
      * @param {string} [role] - Optional user role context
      * @param {string} [mode] - Optional intent override: 'auto' | 'knowledge'
      *   | 'diagnostic'. Omitted (or 'auto') lets the backend heuristics decide.
+     * @param {AbortSignal} [signal] - Optional abort signal. Aborting abandons
+     *   the request; the server notices the disconnect and discards the answer
+     *   rather than remembering it (docs/ai-concurrency.md).
      */
-    query: async (query, deviceId = null, role = null, mode = null) => {
+    query: async (query, deviceId = null, role = null, mode = null, signal) => {
       const payload = { query };
       if (deviceId) {
         payload.device_id = deviceId;
@@ -804,6 +807,7 @@ const api = {
       // model loads longer still -- use the AI-specific timeout.
       const response = await apiClient.post('/ai/query', payload, {
         timeout: AI_QUERY_TIMEOUT_MS,
+        signal,
       });
       return response.data;
     },

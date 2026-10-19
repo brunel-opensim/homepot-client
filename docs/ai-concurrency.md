@@ -104,7 +104,7 @@ two independent ceilings:
 |---|---|---|
 | Client request timeout | `VITE_AI_QUERY_TIMEOUT`, default 600000 ms (10 min) | `frontend/src/utils/aiTimeouts.js` |
 | Reverse-proxy timeout | Apache `ProxyTimeout 600` | server vhost |
-| Queue budget before the 503 | `queue_timeout_seconds: 45` | `ai/config.yaml` |
+| Queue budget before the 503 | `queue_timeout_seconds: 120` | `ai/config.yaml` |
 
 The client and proxy ceilings are matched on purpose, so a time-out is reported
 the same way whichever is reached first. They used to be 180 s, which a cold
@@ -121,6 +121,41 @@ working" hint after 90 s, so a slow cold start is not mistaken for a failure.
 
 ---
 
+## Cancelling a query (Stop / Esc)
+
+A technician who can see the assistant going the wrong way does not have to wait
+it out. The widget's **Stop** button — or the **Esc** key — aborts the HTTP
+request (`AbortController` → axios `signal`), and the server makes the cancel
+mean something:
+
+| Cancelled | What the server does |
+|---|---|
+| While queued, before generation | The generation is **never started**: no CPU is spent on an answer nobody will read. |
+| While generating | The generation finishes (see below), but the answer is **discarded**: no memory write, no proposal, no "delivered" audit entry. |
+| Either stage | Audited as `AI query cancelled` with `cancelled: true` and `cancel_stage`, so abandonment is measurable rather than invisible. |
+
+The UI renders a distinct "Query cancelled" state — deliberately not an error,
+and not the timeout message.
+
+The one thing a cancel cannot do is stop a generation that is already running.
+The Ollama client is synchronous and runs in a worker thread
+(`asyncio.to_thread`), and **threads cannot be cancelled**; the slot is released
+when the thread returns. That is bounded here because `num_predict: 160` caps
+output at ~40-120 s warm, and the checks above make sure the abandoned work
+leaves nothing behind.
+
+Only the *side effects* are cancelled, in other words — not the arithmetic. So
+cancelling is not free: the slot stays busy until the abandoned generation ends,
+and an immediate retry queues behind it. `queue_timeout_seconds` is set to 120 s
+for exactly that reason, so a retried question waits for the slot instead of
+collecting a 503.
+
+The relevant tests are `backend/tests/test_ai_query_cancellation.py` and the
+`AskAIWidget cancelling a query in flight` block in
+`frontend/src/components/Dashboard/AskAIWidget.test.jsx`.
+
+---
+
 ## Configuration
 
 `ai/config.yaml` -> `llm`:
@@ -128,7 +163,7 @@ working" hint after 90 s, so a slow cold start is not mistaken for a failure.
 ```yaml
 llm:
   max_concurrent: 1            # generations allowed to run at once
-  queue_timeout_seconds: 45    # wait budget before HTTP 503; null/<=0 = wait forever
+  queue_timeout_seconds: 120   # wait budget before HTTP 503; null/<=0 = wait forever
 ```
 
 Keep `max_concurrent` aligned with Ollama's real slot count. Setting it higher
@@ -160,6 +195,12 @@ gate is set to 2, Ollama's `OLLAMA_NUM_PARALLEL` should be raised to match.
   worker.
 - **Feedback while queued.** A waiting caller still just waits up to the
   timeout; there is no progress stream yet.
+- **Interrupting a running generation.** Stop/Esc is honoured before a
+  generation starts and after it finishes (discarding the answer), but cannot
+  abort the Ollama call in flight — the synchronous client blocks a worker
+  thread, and threads cannot be cancelled. Doing better needs a streaming or
+  async Ollama client, which would also change the gate from a thread semaphore
+  to an event-loop one.
 
 !!! note "Agentic mode is gated too"
     Each LLM call inside `run_agent` is routed through the same gate per call
@@ -184,7 +225,7 @@ cd backend && python -m pytest tests/test_ai_concurrency.py -q
 Manual, against a running API:
 
 ```bash
-# Three at once; with max_concurrent=1, queue_timeout_seconds=45 the
+# Three at once; with max_concurrent=1, queue_timeout_seconds=120 the
 # third should still be served (within the timeout), and a 7th under a
 # tight timeout should get HTTP 503 + Retry-After.
 for i in 1 2 3; do

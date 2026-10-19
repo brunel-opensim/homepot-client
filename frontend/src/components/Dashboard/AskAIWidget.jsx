@@ -14,6 +14,7 @@ import {
   ShieldX,
   ChevronDown,
   X,
+  Square,
   ListChecks,
   BookOpen,
   FileText,
@@ -21,7 +22,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
-import { aiErrorMessage } from '@/utils/aiErrorMessage';
+import { aiErrorMessage, isCancel } from '@/utils/aiErrorMessage';
 
 // Intent modes the technician can pick (docs/ai-query-routing.md §6.1).
 // `auto` (default) lets the backend heuristics resolve the mode; the explicit
@@ -288,10 +289,19 @@ export default function AskAIWidget() {
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
   const [slowHint, setSlowHint] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Holds the in-flight query's AbortController so Stop/Esc can abandon it.
+  const abortRef = useRef(null);
 
   const handleGateReplayDone = useCallback(() => {
     setReplaying(false);
+  }, []);
+
+  // Abandon the query in flight. The server sees the disconnect and discards the
+  // answer instead of remembering it (docs/ai-concurrency.md).
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
   }, []);
 
   // Persist query and response to localStorage whenever they change
@@ -336,6 +346,7 @@ export default function AskAIWidget() {
     setTrustExpanded(false);
     setReplaying(false);
     setError(null);
+    setCancelled(false);
     localStorage.removeItem('homepot_ai_query');
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
@@ -394,23 +405,39 @@ export default function AskAIWidget() {
     };
   }, [loading, mode]);
 
+  // Esc aborts a query that is taking too long, same as the Stop button.
+  useEffect(() => {
+    if (!loading) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        handleCancel();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [loading, handleCancel]);
+
   const handleAsk = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
 
     setLoading(true);
     setError(null);
+    setCancelled(false);
     setResponse(null);
     setTrust(null);
     setRouting(null);
     setSources([]);
     setTrustExpanded(false);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
       // `auto` is sent as null so the backend default (heuristics) applies.
       const modeArg = mode === 'auto' ? null : mode;
-      const result = await api.ai.query(query, null, userRole, modeArg);
+      const result = await api.ai.query(query, null, userRole, modeArg, controller.signal);
       // The backend returns { response, timestamp, trust, routing, sources } --
       // trust is the validation envelope's gate-by-gate outcome (see
       // ai/gates/envelope.py), routing reports how the intent was resolved
@@ -426,9 +453,16 @@ export default function AskAIWidget() {
         setReplaying(true);
       }
     } catch (err) {
-      console.error('AI Query failed:', err);
-      setError(aiErrorMessage(err));
+      if (isCancel(err)) {
+        // A deliberate Stop/Esc: not a failure, so it does not get an error
+        // message. The server discards the abandoned answer (no memory write).
+        setCancelled(true);
+      } else {
+        console.error('AI Query failed:', err);
+        setError(aiErrorMessage(err));
+      }
     } finally {
+      abortRef.current = null;
       setLoading(false);
     }
   };
@@ -471,6 +505,25 @@ export default function AskAIWidget() {
                   take a couple of minutes.
                 </span>
               )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCancel}
+                className="mt-1 h-7 gap-1.5 text-xs"
+                title="Stop this query (Esc)"
+              >
+                <Square className="w-3 h-3" />
+                Stop
+              </Button>
+            </div>
+          ) : cancelled ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-gray-500">
+              <Square className="w-4 h-4" />
+              <span className="font-medium">Query cancelled</span>
+              <p className="text-xs text-gray-400 max-w-xs">
+                Nothing was saved — the abandoned answer is discarded rather than stored in memory.
+              </p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-red-500">
