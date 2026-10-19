@@ -6,7 +6,7 @@ import AskAIWidget from './AskAIWidget';
 import api from '@/services/api';
 
 vi.mock('@/services/api', () => ({
-  default: { ai: { query: vi.fn() } },
+  default: { ai: { query: vi.fn(), cancel: vi.fn() } },
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
@@ -56,6 +56,8 @@ const diagnosticResult = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The server reports whether it still had the query in flight to cancel.
+  api.ai.cancel.mockResolvedValue({ cancelled: true });
   localStorage.clear();
 });
 
@@ -81,7 +83,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       null,
       'Admin',
       null,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      expect.any(String)
     );
   });
 
@@ -99,7 +102,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       null,
       'Admin',
       'knowledge',
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      expect.any(String)
     );
     expect(localStorage.getItem('homepot_ai_mode')).toBe('knowledge');
   });
@@ -118,7 +122,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       null,
       'Admin',
       'diagnostic',
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      expect.any(String)
     );
   });
 
@@ -261,5 +266,53 @@ describe('AskAIWidget cancelling a query in flight', () => {
     await user.keyboard('{Escape}');
 
     expect(signal.aborted).toBe(true);
+  });
+
+  it('reports the query id to the server, not just the abort', async () => {
+    api.ai.query.mockImplementation(pendingUntilAborted());
+    const user = await startQuery();
+
+    // The browser abort alone is swallowed by Apache and the analytics
+    // middleware, so the id is what actually cancels the query server-side.
+    const queryId = api.ai.query.mock.calls[0][5];
+    expect(queryId).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /^stop$/i }));
+
+    expect(api.ai.cancel).toHaveBeenCalledWith(queryId);
+  });
+
+  it('confirms the answer was discarded when the server had it in flight', async () => {
+    api.ai.query.mockImplementation(pendingUntilAborted());
+    api.ai.cancel.mockResolvedValue({ cancelled: true });
+    const user = await startQuery();
+
+    await user.keyboard('{Escape}');
+
+    expect(await screen.findByText(/nothing was saved/i)).toBeInTheDocument();
+  });
+
+  it('does not claim a discard when nothing was left to cancel', async () => {
+    api.ai.query.mockImplementation(pendingUntilAborted());
+    // The answer had already finished server-side: it was stored, so the panel
+    // must not say otherwise.
+    api.ai.cancel.mockResolvedValue({ cancelled: false });
+    const user = await startQuery();
+
+    await user.keyboard('{Escape}');
+
+    expect(await screen.findByText(/may have finished server-side/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing was saved/i)).toBeNull();
+  });
+
+  it('does not claim a discard when the cancel report itself fails', async () => {
+    api.ai.query.mockImplementation(pendingUntilAborted());
+    api.ai.cancel.mockRejectedValue(new Error('offline'));
+    const user = await startQuery();
+
+    await user.keyboard('{Escape}');
+
+    expect(await screen.findByText(/may have finished server-side/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing was saved/i)).toBeNull();
   });
 });

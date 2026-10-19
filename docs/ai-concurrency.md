@@ -124,15 +124,50 @@ working" hint after 90 s, so a slow cold start is not mistaken for a failure.
 ## Cancelling a query (Stop / Esc)
 
 A technician who can see the assistant going the wrong way does not have to wait
-it out. The widget's **Stop** button — or the **Esc** key — aborts the HTTP
-request (`AbortController` → axios `signal`), and the server makes the cancel
-mean something:
+it out. The widget's **Stop** button — or the **Esc** key — does two things:
+
+1. aborts the HTTP request (`AbortController` → axios `signal`), so the page
+   stops waiting immediately; and
+2. posts the query's id back to `POST /api/v1/ai/query/cancel`, which flags the
+   in-flight query server-side.
+
+Both parts are needed, because aborting the request alone does **not** reach the
+backend in this deployment:
+
+- the API is wrapped in `AnalyticsMiddleware`, a `BaseHTTPMiddleware`, which
+  re-wraps the ASGI `receive` callable — with it in the stack
+  `request.is_disconnected()` never reports a disconnect (verified against the
+  deployed uvicorn 0.54 / starlette 1.7 stack, with and without the middleware);
+- in production Apache keeps a worker blocked reading the backend response and
+  does not notice the browser abort either: an aborted request ran to completion
+  and Apache logged a `502` only when its own `ProxyTimeout` expired.
+
+So the id is the signal that counts. Every query carries a client-generated
+`query_id`, and the cancel endpoint looks it up in a small in-flight registry
+(`backend/src/homepot/app/utils/ai_cancel.py`). The handler checks the flag at
+two points — before and after generation — which is what makes a cancel mean
+something:
 
 | Cancelled | What the server does |
 |---|---|
 | While queued, before generation | The generation is **never started**: no CPU is spent on an answer nobody will read. |
 | While generating | The generation finishes (see below), but the answer is **discarded**: no memory write, no proposal, no "delivered" audit entry. |
-| Either stage | Audited as `AI query cancelled` with `cancelled: true` and `cancel_stage`, so abandonment is measurable rather than invisible. |
+| Either stage | Audited as `AI query cancelled` with `cancelled: true`, `cancel_stage` (`before_generation` / `after_generation`) and `cancel_source` (`explicit_cancel` / `client_disconnect`), so abandonment is measurable rather than invisible. |
+
+`POST /ai/query/cancel` is answered while a generation is still running: it is a
+tiny request that does not touch the generation gate. It replies
+`{"cancelled": true}` only when it really did flag an in-flight query, and
+`{"cancelled": false}` when the id is unknown or the query had already finished.
+A `query_id` owned by another user is treated exactly like an unknown one, so the
+endpoint cannot be used to probe for other users' queries. The widget uses that
+answer to avoid claiming "nothing was saved" when the answer had in fact already
+been stored.
+
+The older disconnect check is still made (`cancel_source: client_disconnect`),
+but only as a best-effort extra for callers that do not use the cancel endpoint.
+It is not what the feature relies on: neither the analytics middleware nor Apache
+forwards the abort, so a deployment with only that check would never cancel
+anything.
 
 The UI renders a distinct "Query cancelled" state — deliberately not an error,
 and not the timeout message.
@@ -150,9 +185,10 @@ and an immediate retry queues behind it. `queue_timeout_seconds` is set to 120 s
 for exactly that reason, so a retried question waits for the slot instead of
 collecting a 503.
 
-The relevant tests are `backend/tests/test_ai_query_cancellation.py` and the
+The relevant tests are `backend/tests/test_ai_query_cancellation.py`, the
 `AskAIWidget cancelling a query in flight` block in
-`frontend/src/components/Dashboard/AskAIWidget.test.jsx`.
+`frontend/src/components/Dashboard/AskAIWidget.test.jsx`, and
+`frontend/src/utils/aiQueryId.test.js`.
 
 ---
 

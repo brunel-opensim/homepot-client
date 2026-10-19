@@ -788,11 +788,13 @@ const api = {
      * @param {string} [role] - Optional user role context
      * @param {string} [mode] - Optional intent override: 'auto' | 'knowledge'
      *   | 'diagnostic'. Omitted (or 'auto') lets the backend heuristics decide.
-     * @param {AbortSignal} [signal] - Optional abort signal. Aborting abandons
-     *   the request; the server notices the disconnect and discards the answer
-     *   rather than remembering it (docs/ai-concurrency.md).
+     * @param {AbortSignal} [signal] - Optional abort signal. Aborting only stops
+     *   this page waiting; pair it with `api.ai.cancel(queryId)` so the server
+     *   discards the answer instead of remembering it (docs/ai-concurrency.md).
+     * @param {string} [queryId] - Client-generated id for this query, sent back
+     *   to `api.ai.cancel` if the technician presses Stop/Esc.
      */
-    query: async (query, deviceId = null, role = null, mode = null, signal) => {
+    query: async (query, deviceId = null, role = null, mode = null, signal, queryId = null) => {
       const payload = { query };
       if (deviceId) {
         payload.device_id = deviceId;
@@ -803,12 +805,30 @@ const api = {
       if (mode) {
         payload.mode = mode;
       }
+      if (queryId) {
+        payload.query_id = queryId;
+      }
       // AI inference (local LLM, CPU) can take well over a minute, and cold
       // model loads longer still -- use the AI-specific timeout.
       const response = await apiClient.post('/ai/query', payload, {
         timeout: AI_QUERY_TIMEOUT_MS,
         signal,
       });
+      return response.data;
+    },
+
+    /**
+     * Abandon an in-flight AI query (Stop/Esc).
+     *
+     * A transport-level abort is not enough: the API runs behind Apache and a
+     * BaseHTTPMiddleware that both swallow the disconnect, so the server is told
+     * explicitly. Fire-and-forget: `{ cancelled: false }` just means the query
+     * had already finished (nothing was left to cancel).
+     *
+     * @param {string} queryId - The id sent with the query.
+     */
+    cancel: async (queryId) => {
+      const response = await apiClient.post('/ai/query/cancel', { query_id: queryId });
       return response.data;
     },
 

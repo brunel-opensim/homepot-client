@@ -58,9 +58,9 @@ that are *semantically similar* to the current question.
 
 After a successful **diagnostic** query the endpoint stores a compact record
 (`write_on_query: true`); knowledge answers are never stored. A query the
-technician cancels (Stop/Esc) is not stored either: the abandoned answer is
-discarded rather than remembered — see
-[Cancelling a query](ai-concurrency.md#cancelling-a-query-stop-esc).
+technician cancels (Stop/Esc) is not stored either: the widget reports the cancel
+to the server, which discards the abandoned answer rather than remembering it —
+see [Cancelling a query](ai-concurrency.md#cancelling-a-query-stop-esc).
 
 ```
 Q: <the question>
