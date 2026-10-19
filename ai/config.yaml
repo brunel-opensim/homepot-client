@@ -35,8 +35,11 @@ llm:
   # at once (keep aligned with Ollama's slot count) and `queue_timeout_seconds`
   # bounds how long a request waits for a slot before the API returns HTTP 503
   # ("busy") instead of hanging. Set to 0/omit to wait indefinitely.
+  # 120s (not 45s) because an abandoned query -- Stop/Esc -- keeps the slot busy
+  # until its generation ends, so a retry should wait for the slot rather than
+  # collect a 503 (see docs/ai-concurrency.md, "Cancelling a query").
   max_concurrent: 1
-  queue_timeout_seconds: 45
+  queue_timeout_seconds: 120
 
 # Long-term AI memory (ChromaDB vector store) -- see docs/ai-memory.md.
 #

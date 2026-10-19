@@ -11,7 +11,7 @@ import re
 import sys
 from typing import Any, Dict, List, Literal, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as SASession
@@ -589,6 +589,81 @@ async def _generate_direct(
         raise _ai_busy_http_exception(gate)
 
 
+async def _client_disconnected(http_request: Optional[Request]) -> bool:
+    """Report whether the caller has gone away (technician pressed Stop/Esc).
+
+    Starlette's ``is_disconnected`` does not block, so it is cheap enough to
+    check before and after a generation. Cancelling cannot interrupt a
+    generation that is already running - the Ollama client is synchronous and
+    runs in a worker thread - so these checks are deliberately narrower: never
+    *start* expensive work for a caller who has left, and never persist an
+    answer they abandoned (see docs/ai-concurrency.md).
+    """
+    if http_request is None:
+        # Called directly (tests) rather than through an ASGI request.
+        return False
+    try:
+        return await http_request.is_disconnected()
+    except Exception:  # pragma: no cover - never fail a query over this
+        return False
+
+
+async def _audit_cancelled_query(
+    request: AIQueryRequest,
+    current_user: UserDict,
+    *,
+    mode: str,
+    stage: str,
+    routing_info: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Record an abandoned query so cancellations are visible in the audit log."""
+    logger.info(
+        "AI query cancelled by client | mode=%s | stage=%s | user=%s",
+        mode,
+        stage,
+        current_user.get("email"),
+    )
+    metadata: Dict[str, Any] = {
+        "query_length": len(request.query),
+        "cancelled": True,
+        "cancel_stage": stage,
+        "trust_mode": mode,
+        "actionable": False,
+    }
+    if routing_info:
+        metadata["routing_mode"] = routing_info.get("resolved")
+        metadata["routing_reason"] = routing_info.get("reason")
+    try:
+        await get_audit_logger().log_event(
+            event_type=AuditEventType.AI_QUERY,
+            description=(
+                f"AI query cancelled | mode={mode} | stage={stage} | "
+                f"device={request.device_id or 'N/A'}"
+            ),
+            user_id=current_user.get("user_id"),
+            event_metadata=metadata,
+        )
+    except Exception:
+        logger.warning("Failed to persist cancelled AI audit event", exc_info=True)
+
+
+def _cancelled_response(
+    routing_info: Dict[str, Any], trust: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Response body for a query the caller abandoned.
+
+    The client has already disconnected, so nothing reads this; it exists so the
+    early return is explicit and testable rather than a bare ``None``.
+    """
+    return {
+        "response": "",
+        "cancelled": True,
+        "timestamp": datetime.utcnow().isoformat(),
+        "trust": trust,
+        "routing": routing_info,
+    }
+
+
 # Leading "[ANSWER]" tag the small model sometimes emits by mimicking the
 # bracketed context blocks it is given ([RELEVANT DOCUMENTATION], etc.).
 _LEADING_ANSWER_TAG_RE = re.compile(r"^(?:\s*\[ANSWER\]\s*:?\s*)+", re.IGNORECASE)
@@ -673,6 +748,7 @@ async def _answer_knowledge(
     short_term_context: str,
     memory_scope: MemoryScope,
     routing_info: Dict[str, Any],
+    http_request: Optional[Request] = None,
 ) -> Dict[str, Any]:
     """Answer a knowledge-mode query from documentation only.
 
@@ -722,6 +798,19 @@ async def _answer_knowledge(
     knowledge_context = "\n".join(parts)
 
     gate = get_ai_gate(llm)
+
+    # Cancel check (1/2): if the technician pressed Stop while the documentation
+    # was being retrieved, skip the generation instead of burning CPU on an
+    # answer nobody will read.
+    if await _client_disconnected(http_request):
+        await _audit_cancelled_query(
+            request,
+            current_user,
+            mode=MODE_KNOWLEDGE,
+            stage="before_generation",
+            routing_info=routing_info,
+        )
+        return _cancelled_response(routing_info, _informational_trust())
 
     # Tier B (Tier C + on-demand repo tools): when read-only repository access
     # is enabled, let the model consult documentation and code via a bounded,
@@ -779,6 +868,19 @@ async def _answer_knowledge(
     # Covers both the Tier B agent branch and the direct-generation branch.
     response = _strip_answer_markup(response)
 
+    # Cancel check (2/2): the answer was abandoned, so do not record it as a
+    # delivered query. Knowledge answers are never written to memory anyway (see
+    # docs/ai-memory.md), so this only suppresses the success audit entry.
+    if await _client_disconnected(http_request):
+        await _audit_cancelled_query(
+            request,
+            current_user,
+            mode=MODE_KNOWLEDGE,
+            stage="after_generation",
+            routing_info=routing_info,
+        )
+        return _cancelled_response(routing_info, _informational_trust())
+
     logger.info(
         "AI query done | mode=knowledge | reason=%s",
         routing_info.get("reason"),
@@ -827,6 +929,9 @@ async def query_ai(
     request: AIQueryRequest,
     current_user: UserDict = Depends(require_user()),
     db: SASession = Depends(get_db),
+    # Injected from the ASGI scope by FastAPI. It defaults to None only so
+    # handlers can still be called directly in tests; see _client_disconnected.
+    http_request: Request = None,  # type: ignore[assignment]
 ) -> Dict[str, Any]:
     """Query the AI assistant."""
     logger.info(
@@ -936,6 +1041,7 @@ async def query_ai(
                 short_term_context=short_term_context,
                 memory_scope=memory_scope,
                 routing_info=routing_info,
+                http_request=http_request,
             )
 
         # 3. Build Real-Time System Context
@@ -1323,6 +1429,19 @@ async def query_ai(
         # can prime Ollama's KV cache with the exact same prefix (see main.py).
         system_prompt_text = knowledge.get_system_prompt()
 
+        # Cancel check (1/2): the technician may have pressed Stop/Esc while the
+        # context was being assembled. Nothing has been generated yet, so skip
+        # the (expensive) inference entirely.
+        if await _client_disconnected(http_request):
+            await _audit_cancelled_query(
+                request,
+                current_user,
+                mode=trust.trust_mode.label,
+                stage="before_generation",
+                routing_info=routing_info,
+            )
+            return _cancelled_response(routing_info, trust.to_dict())
+
         if request.agentic:
             # Agentic mode: multi-step tool-calling investigation. Each LLM
             # call is routed through the same concurrency gate as a direct
@@ -1379,6 +1498,21 @@ async def query_ai(
         # "Source:" line), mirroring the knowledge path, so markup never
         # reaches the user.
         response = _strip_answer_markup(response)
+
+        # Cancel check (2/2): the answer was abandoned, so it must not become
+        # remembered truth. Skipping this leaves no memory record, and no
+        # proposal, for a query the technician rejected. The generation itself
+        # cannot be interrupted (worker thread), so this is the point where an
+        # "esc" stops having side effects.
+        if await _client_disconnected(http_request):
+            await _audit_cancelled_query(
+                request,
+                current_user,
+                mode=trust.trust_mode.label,
+                stage="after_generation",
+                routing_info=routing_info,
+            )
+            return _cancelled_response(routing_info, trust.to_dict())
 
         # 5a. Capture AI-proposed actions (Phase 1: proposal-only / dry-run).
         # A proposal is only surfaced when the trust envelope deems the answer
