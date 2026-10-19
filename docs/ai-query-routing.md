@@ -338,9 +338,67 @@ bounded and enabled deliberately. Full contracts, safety envelope, and rollout:
 - The system prompt is rebuilt per request today (`AIEndpoint.py:1014`), so doc
   edits are already picked up without a restart. Keep that for docs, but keep
   the generated references deterministic so the startup warm-up prefix
-  (`homepot/app/main.py:204`) stays identical and the KV cache still hits.
+  (`homepot/app/main.py:204`) stays identical and the KV cache still hits —
+  see *Prompt-prefix caching* below for what it costs when that breaks.
 - Retrieval-index rebuilds stay out of the request path (startup or an explicit
   reindex) to avoid per-query cost.
+
+### Prompt-prefix caching (path-switch latency)
+
+Ollama reuses its KV cache for the **common prefix** of two prompts: when the
+leading bytes of a request match the previous one, only the new tail is
+evaluated; when they diverge early, the whole prompt is re-evaluated.
+Prompt-eval on the demo host (`llama3.2` on 4 CPU cores) runs at ~30 tok/s and
+is the dominant cost of a query that is not cache-warm:
+
+| case | tokens evaluated | prompt-eval time |
+| --- | --- | --- |
+| prefix matches the previous request | ~450 (the tail) | ~17 s |
+| prefix is cold (never seen / model reloaded) | ~3,500 (whole prompt) | 111-132 s |
+| exact same prompt repeats | ~0 | 0.2-0.9 s |
+
+`main.py` warms the model at startup by sending the **diagnostic** prompt, so
+for that warm-up to be worth anything, every other path must *start with those
+same bytes*. Both paths therefore begin with `SystemKnowledge._shared_prefix()`
+— the static system context, the command-payload reference and the role
+definitions — and only then add their mode-specific identity, capability list
+and instructions. The diagnostic-only `[DOCUMENTATION]` block sits after that
+fork on purpose: including it earlier would break the prefix for `knowledge`,
+which deliberately omits it.
+
+This is enforced, not just intended: `backend/tests/test_ai_system_prompt_cache.py`
+asserts that the shared block leads all three prompts (diagnostic, knowledge,
+knowledge + repo tools) and stays byte-identical between calls.
+
+Before the paths were aligned, they forked at character 30 — the first sentence
+of the identity line ("...System Diagnostics AI" vs "...Knowledge Assistant") —
+so switching from a diagnostic to a knowledge question re-evaluated the entire
+~3.2k-token system prompt. Measured with the model unloaded between runs, so
+both prefixes started genuinely cold:
+
+```
+switch diagnostic -> knowledge, prompt evaluation
+  before: 111,887 ms
+  after :  17,020 ms      (6.6x faster, ~95 s saved per switch)
+```
+
+Rotating a conversation between the two paths is the normal demo case, so this
+is the difference between a ~2-3 minute answer and a ~1 minute one. Note what
+the fix does *not* do: everything after the fork — the mode-specific
+instructions plus the per-query user turn (retrieved docs, live status) — is
+still evaluated on every request at ~30 tok/s. Shrinking the prompt or the
+retrieved context is the lever for that.
+
+Consequences for future edits:
+
+- Keep the shared block first and deterministic. A per-request value inside it
+  (timestamp, request counter, unsorted directory walk) would silently disable
+  prefix reuse for *every* query on every path.
+- Mode-specific text belongs in the tail: `[RELEVANT DOCUMENTATION]`, the
+  `[VALIDATION TRUST STATUS]` protocol and the repo-tool guidance are all
+  tail-only today.
+- When adding a new path, start its system prompt with `_shared_prefix()`.
+
 
 ### Relationship to the routing design
 
