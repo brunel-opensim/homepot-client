@@ -238,6 +238,10 @@ server {
     SSLCertificateKeyFile /etc/ssl/private/key.pem
     
     ProxyPreserveHost On
+    # AI queries run synchronous CPU inference and can take minutes; without a
+    # raised ProxyTimeout the proxy cuts them off (docs/ai-concurrency.md).
+    ProxyTimeout 600
+    Timeout 600
     ProxyPass /api/ http://localhost:8000/
     ProxyPassReverse /api/ http://localhost:8000/
     

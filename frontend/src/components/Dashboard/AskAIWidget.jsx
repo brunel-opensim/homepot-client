@@ -21,6 +21,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
+import { aiErrorMessage } from '@/utils/aiErrorMessage';
 
 // Intent modes the technician can pick (docs/ai-query-routing.md §6.1).
 // `auto` (default) lets the backend heuristics resolve the mode; the explicit
@@ -286,6 +287,7 @@ export default function AskAIWidget() {
   const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
+  const [slowHint, setSlowHint] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const handleGateReplayDone = useCallback(() => {
@@ -349,6 +351,7 @@ export default function AskAIWidget() {
 
   useEffect(() => {
     let interval;
+    let slowTimer;
     if (loading) {
       const gateMessages = [
         'Reviewing conversation history...',
@@ -374,6 +377,10 @@ export default function AskAIWidget() {
       const messages = mode === 'knowledge' ? knowledgeMessages : gateMessages;
       let i = 0;
       setLoadingMessage(messages[0]);
+      setSlowHint(false);
+      // The model runs on CPU and a cold load can take a couple of minutes;
+      // after 90s say so rather than letting the user think it has stalled.
+      slowTimer = setTimeout(() => setSlowHint(true), 90000);
       interval = setInterval(() => {
         i = i + 1;
         if (i < messages.length) {
@@ -381,7 +388,10 @@ export default function AskAIWidget() {
         }
       }, 1500); // Change message every 1.5 seconds
     }
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(slowTimer);
+    };
   }, [loading, mode]);
 
   const handleAsk = async (e) => {
@@ -417,7 +427,7 @@ export default function AskAIWidget() {
       }
     } catch (err) {
       console.error('AI Query failed:', err);
-      setError('Failed to get a response. Please try again.');
+      setError(aiErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -450,16 +460,25 @@ export default function AskAIWidget() {
         {/* Response Area */}
         <div className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
+            <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2 text-center px-4">
               <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
               <span className="text-xs animate-pulse transition-all duration-300">
                 {loadingMessage}
               </span>
+              {slowHint && (
+                <span className="text-[10px] text-gray-400 max-w-[18rem]">
+                  Still working — the model runs on CPU, and the first question after a break can
+                  take a couple of minutes.
+                </span>
+              )}
             </div>
           ) : error ? (
-            <div className="flex items-center text-red-500 gap-2 h-full justify-center">
-              <AlertCircle className="w-4 h-4" />
-              {error}
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-red-500">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span className="font-medium">The assistant couldn&apos;t answer that</span>
+              </div>
+              <p className="text-xs text-red-400/90 max-w-xs">{error}</p>
             </div>
           ) : replaying ? (
             <GateReplay trust={trust} onDone={handleGateReplayDone} />
