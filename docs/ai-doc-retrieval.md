@@ -170,23 +170,39 @@ keeps the evaluated prefix cached while the model stays resident.
     "device credentials") were unaffected in the same test. If completeness
     outweighs the ~17–22 s, restore `n_results: 6` and `chunk_size: 1200`.
 
-!!! warning "First query pays the indexing cost"
-    The index is built lazily on the first knowledge query: the whole corpus is
-    chunked and embedded once (it reuses the embedder long-term memory already
-    uses). This happens **outside** the AI concurrency gate, so it never holds a
-    generation slot. Later queries are a no-op unless a document changes.
+!!! note "Where the indexing cost is paid"
+
+    The index is embedded at **startup**, in the background, as part of the
+    AI warm-up (`homepot.app.main.warm_up_llm`): if the corpus changed, the
+    rebuild (measured **100.4 s** for 3,221 chunks on the demo host) happens
+    while the deploy is still settling, so no technician waits for it. The
+    lazy path is still there as the fallback — a knowledge query that arrives
+    before the warm-up finishes, or after a doc edit with no restart, does the
+    same version check inline and rebuilds if stale. Either way the work runs
+    **outside** the AI concurrency gate, so it never holds a generation slot,
+    and an unchanged corpus is a no-op.
 
 ---
 
 ## Operations
 
-- **Location:** `ai/data/docs_chroma` (git-ignored via `ai/data/`).
+- **Location:** `ai/data/docs_chroma` (git-ignored via `ai/data/`, owned by the
+  API's service user).
 - **Rebuild:** edit/delete the directory, or call `DocRetriever.ensure_indexed(force=True)`.
   Normal invalidation is automatic (a doc's `path/size/mtime`, or any indexing
-  setting such as `chunk_size`, changing).
+  setting such as `chunk_size`, changing). A rebuild is **all-or-nothing**: any
+  changed doc re-embeds the whole corpus (~100 s for 3,221 chunks on the demo
+  host).
+- **Cost per query when nothing changed:** ~2.5 ms version check (measured on
+  the demo host), plus ~0.3 s to embed the query itself.
+- **Warm-up:** `warm_up_llm` at startup calls `ensure_indexed()`, so a doc edit
+  is billed to the deploy rather than to the next query. It is gated on Ollama
+  being reachable (the same gate the LLM warm-up uses), so CI never embeds the
+  corpus as a side effect of starting the app.
 - **Stats:** `DocRetriever.get_stats()` returns the chunk count and paths.
 - **Failure is non-fatal:** retrieval errors are caught in `_answer_knowledge`
   and fall back to the fixed doc excerpts; a knowledge answer is always produced.
+  A failed warm-up is logged and ignored — startup is never blocked.
 
 ---
 
@@ -200,6 +216,10 @@ keeps the evaluated prefix cached while the model stays resident.
 - `backend/tests/test_ai_query_routing.py` knowledge tests assert the
   `[RELEVANT DOCUMENTATION]` block, the `sources` response field, and that the
   fixed-doc fallback is **not** used when retrieval hits.
+- `backend/tests/test_ai_startup_warmup.py` (3 tests) pins the startup warm-up:
+  the index is embedded at startup when Ollama is reachable, skipped when it
+  is not (so CI never embeds the corpus), and a broken index never fails
+  startup.
 - `frontend/src/components/Dashboard/AskAIWidget.test.jsx` covers source-chip
   rendering/persistence and their absence on diagnostic answers.
 
