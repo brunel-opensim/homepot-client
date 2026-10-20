@@ -122,8 +122,7 @@ export default function Downloads() {
     };
   }, []);
 
-  const latestVersion =
-    platforms.find((p) => p.version)?.version || null;
+  const latestVersion = platforms.find((p) => p.version)?.version || null;
 
   if (loading) {
     return (
@@ -166,9 +165,7 @@ export default function Downloads() {
           <CardContent className="p-4 flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
             <div className="text-sm">
-              <p className="text-amber-200 font-medium">
-                Could not read the release feed
-              </p>
+              <p className="text-amber-200 font-medium">Could not read the release feed</p>
               <p className="text-amber-400/80 mt-1">
                 The platform list below may be incomplete. Release information is read from{' '}
                 <code className="text-amber-300">{DOWNLOADS_BASE}/latest.yml</code>; if you are
@@ -231,9 +228,7 @@ export default function Downloads() {
                       <code className="text-slate-400 break-all">{primary.url}</code>
                     </div>
 
-                    {platform.note && (
-                      <p className="text-xs text-slate-500">{platform.note}</p>
-                    )}
+                    {platform.note && <p className="text-xs text-slate-500">{platform.note}</p>}
 
                     {others.length > 0 && (
                       <div className="mt-1 pt-3 border-t border-slate-800 space-y-2">
@@ -273,8 +268,9 @@ export default function Downloads() {
         <CardContent className="p-4">
           <h2 className="text-sm font-semibold text-white mb-1">After installing</h2>
           <p className="text-sm text-slate-400">
-            The app starts a setup wizard that asks for a <strong className="text-slate-300">Site ID</strong>{' '}
-            and a <strong className="text-slate-300">Bootstrap Key</strong>. Both are on the site page
+            The app starts a setup wizard that asks for a{' '}
+            <strong className="text-slate-300">Site ID</strong> and a{' '}
+            <strong className="text-slate-300">Bootstrap Key</strong>. Both are on the site page
             under <strong className="text-slate-300">Sites</strong> — open the site and use the{' '}
             <strong className="text-slate-300">Bootstrap Key</strong> dialog to generate or copy it.
           </p>

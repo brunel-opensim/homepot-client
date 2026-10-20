@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Map, Monitor, PlusCircle, LogOut, Sparkles, Download } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Map,
+  Monitor,
+  PlusCircle,
+  LogOut,
+  Sparkles,
+  Download,
+} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import ProfileModal from '@/components/ui/ProfileModal';
 
