@@ -80,11 +80,19 @@ so every site will show "Generate Bootstrap Key".
 
 ## 4. Install the User App on the device
 
-Current installer:
+Open **Downloads** in the dashboard sidebar (under *Actions*). It shows the
+current version, the installer size, and a Download button, and always reflects
+what is actually published on the server.
+
+The direct link is:
 
 ```
 https://homepot.cabera.com/downloads/homepot-agent-setup-0.3.0.exe
 ```
+
+> Use the exact filename. `https://homepot.cabera.com/downloads` on its own
+> returns **403** (directory listing is disabled), so the link cannot be
+> shortened to the folder.
 
 - Size: 128,108,327 bytes
 - SHA512 matches `latest.yml` published with the release

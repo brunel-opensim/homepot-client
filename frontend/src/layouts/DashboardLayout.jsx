@@ -14,7 +14,8 @@ export default function DashboardLayout() {
     location.pathname === '/data-collection' ||
     location.pathname === '/ai-proposals' ||
     location.pathname === '/useractivity' ||
-    location.pathname === '/agents';
+    location.pathname === '/agents' ||
+    location.pathname === '/downloads';
 
   return (
     <div
