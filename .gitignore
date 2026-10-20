@@ -203,6 +203,9 @@ dependency-health-report-*/
 security-audit-report-*/
 workflow-artifacts-*/
 test-results-*/
+# Native User App packages fetched by scripts/package-userapp.sh download
+# (see packaging/README.md). Hundreds of MB of unpacked builds; never committed.
+release-artifacts/
 
 # Backup files created by upgrade processes
 backup-requirements.txt
