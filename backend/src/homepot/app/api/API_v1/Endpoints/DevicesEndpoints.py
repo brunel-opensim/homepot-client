@@ -21,8 +21,8 @@ from homepot.app.auth_utils import (
     api_key_header,
     authenticate_device_credentials,
     device_id_header,
-    get_accessible_site_ids,
     get_current_device,
+    get_readable_site_ids,
     require_user,
     security,
     verify_device_belongs_to_user,
@@ -339,13 +339,14 @@ async def list_device(
                 .where(Device.is_active.is_(True))
             )
 
-            # Non-admin users only see devices in their accessible sites
+            # Non-admin users only see devices in their accessible sites. Read
+            # visibility uses get_readable_site_ids so accounts with no
+            # membership at all can still see the fleet (see that helper);
+            # mutation endpoints keep the stricter get_accessible_site_ids.
             if not db_user.is_admin:
-                accessible_site_ids = get_accessible_site_ids(db_user, db)
-                if accessible_site_ids:
-                    query = query.where(Device.site_id.in_(accessible_site_ids))
-                else:
-                    return {"devices": []}
+                readable_site_ids = get_readable_site_ids(db_user, db)
+                if readable_site_ids is not None:
+                    query = query.where(Device.site_id.in_(readable_site_ids))
 
             query = query.order_by(Device.created_at.desc())
             result = await session.execute(query)
@@ -475,7 +476,9 @@ async def get_device(
                     )
                     if not db_user:
                         raise HTTPException(status_code=403, detail="User not found")
-                    verify_device_belongs_to_user(db_user, device, db)
+                    verify_device_belongs_to_user(
+                        db_user, device, db, unified_fleet_access=True
+                    )
                 else:
                     raise HTTPException(
                         status_code=401,
@@ -580,7 +583,7 @@ async def get_device_credentials(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_device_belongs_to_user(db_user, device, db)
+        verify_device_belongs_to_user(db_user, device, db, unified_fleet_access=True)
 
         return {
             "device_id": device.device_id,
@@ -630,7 +633,9 @@ async def update_device(
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
-        verify_device_belongs_to_user(db_user, existing, db, minimum_role="operator")
+        verify_device_belongs_to_user(
+            db_user, existing, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         # Prepare config update
         config_update = {}
@@ -722,7 +727,9 @@ async def delete_device(
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        verify_device_belongs_to_user(
+            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         if mode == "purge":
             success = await db_service.purge_device(device_id)
@@ -1078,7 +1085,9 @@ async def suspend_device(
         )
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        verify_device_belongs_to_user(
+            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         # ----- Idempotency check (parity with unpair) -----
         # A retried request (network timeout / double submit) with the same
@@ -1211,7 +1220,9 @@ async def resume_device(
         )
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        verify_device_belongs_to_user(
+            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         # ----- Idempotency check (parity with unpair) -----
         if payload.idempotency_key:
@@ -1334,7 +1345,9 @@ async def retire_device(
         device = await db_service.get_device_by_device_id(device_id)
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        verify_device_belongs_to_user(
+            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         current_lifecycle = device.lifecycle_state
         eligible = (
@@ -1478,7 +1491,11 @@ async def reenrol_device(
 
         # Verify access to the target site
         verify_site_access_for_user(
-            db_user, payload.site_id, db, minimum_role="operator"
+            db_user,
+            payload.site_id,
+            db,
+            minimum_role="operator",
+            unified_fleet_access=True,
         )
 
         current_lifecycle = device.lifecycle_state
@@ -1666,11 +1683,17 @@ async def transfer_device(
             )
 
         # Verify access on source site
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        verify_device_belongs_to_user(
+            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         # Verify access on target site
         verify_site_access_for_user(
-            db_user, payload.target_site_id, db, minimum_role="operator"
+            db_user,
+            payload.target_site_id,
+            db,
+            minimum_role="operator",
+            unified_fleet_access=True,
         )
 
         # Validate target site exists
@@ -1868,7 +1891,9 @@ async def toggle_device_monitor(
                 )
 
             # Verify access before modifying
-            verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+            verify_device_belongs_to_user(
+                db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            )
 
             device.is_monitored = monitor  # type: ignore
             await session.commit()
@@ -1910,7 +1935,7 @@ async def get_devices_by_site(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db)
+        verify_site_access_for_user(db_user, site_id, db, unified_fleet_access=True)
 
         db_service = await get_database_service()
 
@@ -2019,7 +2044,9 @@ async def get_device_metrics(
             device = result.scalars().first()
             if not device:
                 raise HTTPException(status_code=404, detail="Device not found")
-            verify_device_belongs_to_user(db_user, device, db)
+            verify_device_belongs_to_user(
+                db_user, device, db, unified_fleet_access=True
+            )
 
             # Fetch metrics
             metrics_result = await session.execute(
@@ -2071,7 +2098,9 @@ async def get_device_audit_logs(
             device = result.scalars().first()
             if not device:
                 raise HTTPException(status_code=404, detail="Device not found")
-            verify_device_belongs_to_user(db_user, device, db)
+            verify_device_belongs_to_user(
+                db_user, device, db, unified_fleet_access=True
+            )
 
             # Fetch logs
             logs_result = await session.execute(
@@ -2117,7 +2146,9 @@ async def get_device_jobs(
             device = result.scalars().first()
             if not device:
                 raise HTTPException(status_code=404, detail="Device not found")
-            verify_device_belongs_to_user(db_user, device, db)
+            verify_device_belongs_to_user(
+                db_user, device, db, unified_fleet_access=True
+            )
 
             jobs_result = await session.execute(
                 select(Job)
@@ -2173,7 +2204,9 @@ async def get_device_error_logs(
             )
             dev = dev_result.scalars().first()
             if dev:
-                verify_device_belongs_to_user(db_user, dev, db)
+                verify_device_belongs_to_user(
+                    db_user, dev, db, unified_fleet_access=True
+                )
 
             # Query using the context JSON column since device_id column was removed
             errors_result = await session.execute(
@@ -2288,7 +2321,7 @@ async def get_device_alerts(
             dev = dev_result.scalars().first()
             if not dev:
                 raise HTTPException(status_code=404, detail="Device not found")
-            verify_device_belongs_to_user(db_user, dev, db)
+            verify_device_belongs_to_user(db_user, dev, db, unified_fleet_access=True)
 
             alerts_result = await session.execute(
                 select(analytics_models.Alert)

@@ -49,7 +49,11 @@ def provision_device(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
         verify_site_access_for_user(
-            db_user, payload.site_id, db, minimum_role="operator"
+            db_user,
+            payload.site_id,
+            db,
+            minimum_role="operator",
+            unified_fleet_access=True,
         )
 
         service = AgentService(db)

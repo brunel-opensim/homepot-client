@@ -617,16 +617,28 @@ def verify_site_access_for_user(
     site_str_id: str,
     db: Session,
     minimum_role: str = "viewer",
+    *,
+    unified_fleet_access: bool = False,
 ) -> dict:
     """Verify a user has at least the minimum role on a site (string ID).
 
     Admins bypass this check.  Raises HTTPException on failure.
     Returns the resolved Site object on success.
+
+    Callers that pass ``unified_fleet_access=True`` additionally allow an
+    unconfigured operator (a non-admin with no membership anywhere) through, so
+    technicians can inspect and test devices across the fleet. Callers leave it
+    False to keep the strict per-site check -- the AI action approval and
+    execution routes rely on that, since those endpoints record reviewed
+    decisions and must not admit a technician from outside the site.
     """
     from homepot.models import Site, SiteMembership, TenantMembership
 
-    if db_user.is_admin:
-        return {"role": "Admin", "user_id": cast(int, db_user.id)}
+    if has_unified_fleet_access(db_user, db, unified_fleet_access=unified_fleet_access):
+        return {
+            "role": "Technician" if not db_user.is_admin else "Admin",
+            "user_id": cast(int, db_user.id),
+        }
 
     site = db.query(Site).filter(Site.site_id == site_str_id).first()
     if not site:
@@ -680,6 +692,91 @@ def verify_site_access_for_user(
     return {"role": cast(str, sm.role), "user_id": cast(int, db_user.id)}
 
 
+def user_has_any_site_grant(db_user: User, db: Session) -> bool:
+    """Return True if the user holds any tenant- or site-level membership.
+
+    Used to distinguish "this user has been granted access somewhere" from
+    "this user has been granted nothing at all". A user with no grants would
+    otherwise see an empty dashboard with no way to self-serve, which is not a
+    meaningful access-control decision -- it is an unconfigured account.
+    """
+    if db_user.is_admin:
+        return True
+
+    from homepot.models import SiteMembership, TenantMembership
+
+    tenant_grant = (
+        db.query(TenantMembership.id)
+        .filter(TenantMembership.user_id == db_user.id)
+        .first()
+    )
+    if tenant_grant:
+        return True
+
+    site_grant = (
+        db.query(SiteMembership.id).filter(SiteMembership.user_id == db_user.id).first()
+    )
+    return site_grant is not None
+
+
+def is_unconfigured_operator(db_user: User, db: Session) -> bool:
+    """Whether the user is a non-admin holding no membership whatsoever.
+
+    These are the demo technicians: provisioned with ``role=Technician`` and no
+    tenant or site membership, because creating a site does not grant the
+    creator access to it. Strict scoping would hide every site and reject every
+    device action, leaving them unable to see or test the fleet.
+    """
+    return not db_user.is_admin and not user_has_any_site_grant(db_user, db)
+
+
+def has_unified_fleet_access(
+    db_user: User,
+    db: Session,
+    *,
+    unified_fleet_access: bool = False,
+) -> bool:
+    """Whether the user has unrestricted access to the whole fleet.
+
+    True for admins always (as before). Additionally, when the caller opts in
+    with ``unified_fleet_access=True``, true for an unconfigured operator (see
+    :func:`is_unconfigured_operator`).
+
+    The opt-in is deliberate: the relaxation is only wanted for the surface
+    technicians use to inspect and test devices. Endpoints that append to an
+    audit trail of reviewed decisions -- notably the AI action approval and
+    execution routes -- must NOT opt in, so that a technician outside a site
+    remains forbidden from approving or executing AI-proposed actions there.
+
+    This is deliberately NOT achieved by making the operators admins: the stored
+    ``is_admin`` flag stays False (see ``scripts/seed-users.sh``), and no
+    admin-only endpoint becomes reachable through this path. Proper role-based
+    access (guest/reviewer tiers included) supersedes this later; because the
+    policy is centralised here, reverting a call site is a one-line change.
+    """
+    if db_user.is_admin:
+        return True
+    return unified_fleet_access and is_unconfigured_operator(db_user, db)
+
+
+def get_readable_site_ids(
+    db_user: User,
+    db: Session,
+    minimum_role: str = "viewer",
+) -> Optional[set[int]]:
+    """Site IDs the user may READ, for list/detail views.
+
+    Returns ``None`` to mean "unrestricted -- no WHERE clause".
+
+    Read listing opts into the relaxed fleet visibility so unconfigured
+    operators can see the fleet to test it (see
+    :func:`has_unified_fleet_access`).
+    """
+    if has_unified_fleet_access(db_user, db, unified_fleet_access=True):
+        return None
+    return get_accessible_site_ids(db_user, db, minimum_role=minimum_role)
+
+
 def get_accessible_site_ids(
     db_user: User,
     db: Session,
@@ -688,6 +785,9 @@ def get_accessible_site_ids(
     """Get the set of site database IDs (integer IDs) that the user has access to.
 
     If the user is an admin, returns None (all sites accessible).
+
+    This is the authoritative check for *acting* on a site; read-only views may
+    be intentionally looser -- see :func:`get_readable_site_ids`.
     """
     if db_user.is_admin:
         return None
@@ -735,6 +835,8 @@ def verify_device_belongs_to_user(
     device: Device,
     db: Session,
     minimum_role: str = "viewer",
+    *,
+    unified_fleet_access: bool = False,
 ) -> None:
     """Verify that a device's site is accessible by the user."""
     site = cast("Site", db.query(Site).filter(Site.id == device.site_id).first())
@@ -743,4 +845,10 @@ def verify_device_belongs_to_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device site not found",
         )
-    verify_site_access_for_user(db_user, cast(str, site.site_id), db, minimum_role)
+    verify_site_access_for_user(
+        db_user,
+        cast(str, site.site_id),
+        db,
+        minimum_role,
+        unified_fleet_access=unified_fleet_access,
+    )

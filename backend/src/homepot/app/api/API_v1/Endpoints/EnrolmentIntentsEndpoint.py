@@ -72,7 +72,9 @@ async def create_enrolment_intent(
             raise HTTPException(status_code=403, detail="User not found")
         db_user: User = current_db_user
         site = _get_site_by_site_id(db, site_id)
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         if payload.idempotency_key:
             existing = (
@@ -143,7 +145,9 @@ async def list_enrolment_intents(
             raise HTTPException(status_code=403, detail="User not found")
         db_user: User = current_db_user
         site = _get_site_by_site_id(db, site_id)
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="viewer")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="viewer", unified_fleet_access=True
+        )
 
         svc = await get_database_service()
         intents = await svc.get_enrolment_intents_by_site(
@@ -198,7 +202,9 @@ def get_enrolment_intent(
             raise HTTPException(status_code=403, detail="User not found")
         db_user: User = current_db_user
         _get_site_by_site_id(db, site_id)
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="viewer")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="viewer", unified_fleet_access=True
+        )
 
         intent = _get_intent_by_id_sync(db, intent_id)
         if not intent:
@@ -252,7 +258,9 @@ async def update_enrolment_intent_status(
             raise HTTPException(status_code=403, detail="User not found")
         db_user: User = current_db_user
         _get_site_by_site_id(db, site_id)
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         intent = _get_intent_by_id_sync(db, intent_id)
         if not intent:
@@ -352,7 +360,9 @@ async def regenerate_claim_token(
             raise HTTPException(status_code=403, detail="User not found")
         db_user: User = current_db_user
         _get_site_by_site_id(db, site_id)
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         svc = await get_database_service()
         result = await svc.regenerate_claim_token(intent_id=intent_id)

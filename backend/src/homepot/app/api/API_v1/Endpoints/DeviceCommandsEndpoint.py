@@ -101,7 +101,9 @@ async def queue_command(
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
+    verify_device_belongs_to_user(
+        db_user, device, sync_db, minimum_role="operator", unified_fleet_access=True
+    )
 
     # Commands must only be queued for active devices. A suspended device is
     # server-side isolated (its polls get 403), so queued commands would sit
@@ -281,7 +283,9 @@ async def cancel_command(
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
+    verify_device_belongs_to_user(
+        db_user, device, sync_db, minimum_role="operator", unified_fleet_access=True
+    )
 
     commands = await db.get_commands_for_device(cast(int, device.id))
     command = next((c for c in commands if c.command_id == command_id), None)
@@ -421,7 +425,9 @@ async def get_device_command_history(
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
-    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="viewer")
+    verify_device_belongs_to_user(
+        db_user, device, sync_db, minimum_role="viewer", unified_fleet_access=True
+    )
 
     commands = await db.get_commands_for_device(device.id)  # type: ignore
     return [
