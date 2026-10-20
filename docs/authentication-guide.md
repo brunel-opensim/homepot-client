@@ -1,21 +1,28 @@
 # Authentication Guide
 
-This guide details the authentication flows for the HomePot application, covering both the Client and Engineer (Admin) experiences.
+This guide details the authentication flows for the HomePot application, covering both the Client and Engineer (Admin) login experiences.
 
 ## Overview
 
-HomePot supports two distinct user roles with separate login/signup experiences:
+HomePot supports two login experiences, but only one privilege distinction:
 
-1.  **Engineers (Admins)**: Have full access to system configuration, device management, and detailed analytics.
-2.  **Clients (Users)**: Have restricted access focused on monitoring their specific devices and basic home management.
+1.  **Engineers (Admins)**: `role=Admin` — full access to system configuration, device management, and detailed analytics. Only an existing Admin can grant this, via `PUT /auth/users/{email}/role`.
+2.  **Clients (Technicians)**: `role=Technician` — the least-privileged operator role, used for device and site work. Self-registration always produces this role.
 
 ## User Registration (Sign Up)
 
 The Sign Up page provides a tabbed interface to easily switch between creating an Engineer account or a Client account.
 
+!!! warning "Self-registration always creates a Technician"
+    The `/auth/signup` endpoint is public, so it never honours a requested
+    role: every account it creates is a `Technician` with `is_admin=False`.
+    Promotion to `Admin` is an admin-only action performed afterwards via
+    `PUT /auth/users/{email}/role`. The Engineer/Client tabs select the
+    sign-up *form*, not a privilege level.
+
 ### Engineer Sign Up
 - **Tab:** Select "ENGINEER"
-- **Role Assigned:** `Admin` (and `is_admin=True`)
+- **Role Assigned:** `Technician` (and `is_admin=False`)
 - **Required Fields:**
     - Full Name
     - Email
@@ -24,7 +31,7 @@ The Sign Up page provides a tabbed interface to easily switch between creating a
 
 ### Client Sign Up
 - **Tab:** Select "CLIENT"
-- **Role Assigned:** `User` (and `is_admin=False`)
+- **Role Assigned:** `Technician` (and `is_admin=False`)
 - **Required Fields:**
     - Full Name
     - Email
@@ -32,7 +39,8 @@ The Sign Up page provides a tabbed interface to easily switch between creating a
     - Role (Dropdown: e.g., Home Owner, Resident)
 
 ### Key Features
-*   **Smart Role Selection:** The active tab automatically sets the underlying system role (`Admin` vs `User`).
+*   **Smart Role Selection:** The active tab selects the sign-up form only; both
+    tabs create the same least-privilege `Technician` account.
 *   **Full Name Support:** Users can now provide their full real name, which is stored in the database for personalized greetings and audit logs.
 *   **Username Generation:** If a username is not explicitly provided (via API), the system automatically generates one from the email address to ensure seamless registration.
 
@@ -61,8 +69,8 @@ The `users` table includes:
 - `username` (Unique, can be auto-generated)
 - `full_name` (Display Name)
 - `hashed_password` (Bcrypt hash)
-- `role` (String: "Admin", "Client", etc.)
-- `is_admin` (Boolean flag derived from role)
+- `role` (String: canonical `Admin` or `Technician`; see `homepot.app.roles`)
+- `is_admin` (Boolean kept in step with `role`; a role is never derived from it)
 
 ### Security
 - **Rate Limiting:** Public authentication endpoints (Login/Signup) are protected against brute-force attacks (e.g., 5 req/min).

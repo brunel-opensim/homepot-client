@@ -317,6 +317,14 @@ The order matters: the first item is what makes the rest safe to build and test.
 | **3** | Unify the four role vocabularies into one enum and hierarchy and migrate existing rows; record the actor on privileged actions; emit authentication events; protect audit reads | Makes the model coherent and accountable |
 | **4** | Device contention: "last commanded by" visibility first, then a bounded advisory lease for real precedence (§6.2); plus optimistic locking for concurrent config edits, pool sizing for larger teams, and an authenticated real-time broadcaster if live updates are wanted | Only matters once technicians actually collide, and it does not depend on the role work |
 
+> **Status note.** Part of item 1 has landed: `POST /auth/signup` no longer
+> honours a caller-supplied role and no longer derives `is_admin` from
+> `is_privileged()`, so self-registration can only create a least-privilege
+> `Technician` (see the "User Registration" section of
+> `docs/authentication-guide.md`). The remaining item-1 work — authentication on
+> the unprotected operational endpoints, agent simulation in production, secure
+> cookies, and the split secret-key configuration — is still outstanding.
+
 Item 1 is independent of items 2–4 and also protects the deployment that is
 already live. Items 2 and 3 can follow once item 1 is merged.
 
