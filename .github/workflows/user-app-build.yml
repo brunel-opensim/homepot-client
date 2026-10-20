@@ -24,9 +24,20 @@ on:
         type: boolean
         required: false
         default: false
+      api_base_url:
+        description: 'Backend URL baked into the packaged app'
+        type: string
+        required: false
+        default: 'https://homepot.cabera.com/api/v1'
 
 permissions:
   contents: read
+
+env:
+  # The renderer has no .env in CI (user_app/.env.local is git-ignored), so
+  # without this the bundle falls back to the hardcoded http://localhost:8000
+  # and every packaged installer points at the technician's own machine.
+  VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || 'https://homepot.cabera.com/api/v1' }}
 
 jobs:
   quality:
@@ -165,6 +176,19 @@ jobs:
         run: npm run build
         env:
           VITE_ELECTRON: 'true'
+
+      - name: Assert the renderer carries a real backend URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A localhost URL here means the packaged installer would only work
+          # on the machine that built it -- fail loudly instead.
+          if grep -rq 'localhost:8000' dist/assets/; then
+            echo "ERROR: packaged renderer still points at localhost:8000"
+            echo "VITE_API_BASE_URL was: '${VITE_API_BASE_URL:-<unset>}'"
+            exit 1
+          fi
+          grep -rhoE 'https?://[a-zA-Z0-9.:_-]+/api/v1' dist/assets/ | sort -u | head -3
 
       - name: Package with electron-builder
         run: npx electron-builder ${{ matrix.targets }} --publish never
