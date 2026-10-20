@@ -342,7 +342,7 @@ async def get_site(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db)
+        verify_site_access_for_user(db_user, site_id, db, unified_fleet_access=True)
 
         db_service = await get_database_service()
 
@@ -412,7 +412,9 @@ async def delete_site(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         db_service = await get_database_service()
         from sqlalchemy import delete, select, update
@@ -724,7 +726,9 @@ async def restore_site(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         db_service = await get_database_service()
 
@@ -793,7 +797,9 @@ async def toggle_site_monitor(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         db_service = await get_database_service()
 
@@ -835,7 +841,7 @@ async def get_site_stats(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db)
+        verify_site_access_for_user(db_user, site_id, db, unified_fleet_access=True)
 
         db_service = await get_database_service()
 

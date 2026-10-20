@@ -59,7 +59,7 @@ async def get_site_dashboard(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db)
+        verify_site_access_for_user(db_user, site_id, db, unified_fleet_access=True)
 
         # Resolve the integer site.id from the string site_id
         site = db.query(Site).filter(Site.site_id == site_id).first()

@@ -85,7 +85,9 @@ async def create_pos_config_job(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_site_access_for_user(db_user, site_id, db, minimum_role="operator")
+        verify_site_access_for_user(
+            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         orchestrator = await get_job_orchestrator()
 

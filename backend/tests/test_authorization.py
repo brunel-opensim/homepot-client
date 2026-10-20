@@ -638,30 +638,39 @@ class TestAdminBypass:
 
 
 # ===================================================================
-# Tests: unconfigured accounts (interim read visibility)
+# Tests: unconfigured accounts (interim unified fleet access)
 # ===================================================================
 
 
-class TestUnconfiguredUserReadVisibility:
-    """A non-admin with no membership anywhere can read the fleet.
+def _make_unconfigured_user(email: str) -> None:
+    """Create a non-admin user holding no tenant or site membership."""
+    db = homepot.database.SessionLocal()
+    create_user_sync(
+        db,
+        email=email,
+        username=email.split("@")[0],
+        password="pass",
+        role="Technician",
+    )
+    db.commit()
+    db.close()
 
-    Accounts created for the demo hold no tenant or site membership, and
+
+class TestUnconfiguredUserFleetAccess:
+    """A non-admin with no membership anywhere gets fleet-wide access.
+
+    Accounts provisioned for the demo hold no tenant or site membership, and
     creating a site does not grant the creator access to it, so strict scoping
-    left them with an empty dashboard and no way to self-serve. Read views are
-    therefore opened up for exactly that case, while mutation endpoints stay
-    restricted (see TestSiteOperatorScope and the mutating cases below).
+    left them with an empty dashboard and unable to enrol or test devices.
+    Technicians therefore get unrestricted fleet access for this interim period
+    so they can see and work on devices -- without being made admins.
     """
 
     def test_user_with_no_membership_sees_all_sites(
         self, client: TestClient, seeded_db: Any
     ) -> None:
         """An unconfigured non-admin sees every site rather than none."""
-        db = homepot.database.SessionLocal()
-        create_user_sync(
-            db, email="lonely@example.com", username="lonely", password="pass"
-        )
-        db.commit()
-        db.close()
+        _make_unconfigured_user("lonely@example.com")
 
         resp = client.get("/api/v1/sites/", headers=_auth_header("lonely@example.com"))
         assert resp.status_code == 200
@@ -673,12 +682,7 @@ class TestUnconfiguredUserReadVisibility:
         self, client: TestClient, seeded_db: Any
     ) -> None:
         """An unconfigured non-admin sees every device, to allow fleet testing."""
-        db = homepot.database.SessionLocal()
-        create_user_sync(
-            db, email="lonely2@example.com", username="lonely2", password="pass"
-        )
-        db.commit()
-        db.close()
+        _make_unconfigured_user("lonely2@example.com")
 
         resp = client.get(
             "/api/v1/devices/device", headers=_auth_header("lonely2@example.com")
@@ -701,36 +705,67 @@ class TestUnconfiguredUserReadVisibility:
         assert "site-a-1" in site_ids
         assert "site-b-1" not in site_ids
 
-    def test_unconfigured_user_cannot_delete_other_site(
+    def test_unconfigured_user_cannot_mutate_when_scoped_peer_exists(
         self, client: TestClient, seeded_db: Any
     ) -> None:
-        """Read visibility must not extend to mutations."""
-        db = homepot.database.SessionLocal()
-        create_user_sync(
-            db, email="lonely3@example.com", username="lonely3", password="pass"
-        )
-        db.commit()
-        db.close()
+        """A user WITH a membership remains denied outside their sites.
 
+        This is the control for the relaxation: it proves that mutation guards
+        are still enforced for configured accounts, so the loosening applies
+        only to accounts that hold no membership at all.
+        """
         resp = client.delete(
-            "/api/v1/sites/site-b-1", headers=_auth_header("lonely3@example.com")
+            "/api/v1/sites/site-b-1", headers=_auth_header("user.a@example.com")
         )
         assert resp.status_code == 403
 
-    def test_unconfigured_user_cannot_modify_other_device(
+    def test_unconfigured_technician_is_not_admin(
         self, client: TestClient, seeded_db: Any
     ) -> None:
-        """Read visibility must not extend to device mutations."""
-        db = homepot.database.SessionLocal()
-        create_user_sync(
-            db, email="lonely4@example.com", username="lonely4", password="pass"
-        )
-        db.commit()
-        db.close()
+        """Fleet access must not confer admin privilege.
+
+        The seeded ``is_admin`` flag stays False; an admin-only endpoint must
+        still reject an unconfigured technician.
+        """
+        _make_unconfigured_user("lonely4@example.com")
 
         resp = client.put(
-            "/api/v1/devices/device/dev-b-1",
-            json={"name": "Renamed"},
+            "/api/v1/auth/users/lonely4@example.com/role?new_role=Admin",
             headers=_auth_header("lonely4@example.com"),
+        )
+        assert resp.status_code == 403
+
+    def test_unconfigured_technician_can_work_on_any_site(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """An unconfigured technician can act on a site, not merely read it.
+
+        This is the positive counterpart to the AI denials
+        (``test_non_member_cannot_decide``,
+        ``test_execute_non_member_is_forbidden``): device-facing routes opt into
+        fleet access so technicians can test devices, while those AI routes
+        deliberately do not.
+        """
+        _make_unconfigured_user("lonely5@example.com")
+
+        resp = client.put(
+            "/api/v1/sites/site-b-1/monitor",
+            headers=_auth_header("lonely5@example.com"),
+        )
+        assert resp.status_code != 403
+
+    def test_ai_routes_stay_strict_for_unconfigured_technician(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """AI action routes must NOT inherit fleet access.
+
+        Guards the boundary chosen deliberately: approving or rejecting an
+        AI-proposed action stays restricted to the device's site members.
+        """
+        _make_unconfigured_user("lonely6@example.com")
+
+        resp = client.get(
+            "/api/v1/ai/insights/site/site-b-1",
+            headers=_auth_header("lonely6@example.com"),
         )
         assert resp.status_code == 403

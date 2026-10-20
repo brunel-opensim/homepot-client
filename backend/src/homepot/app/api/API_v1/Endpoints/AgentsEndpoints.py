@@ -258,7 +258,9 @@ async def send_push_notification(
     db_user = cast(
         User, sync_db.query(User).filter(User.email == current_user["email"]).first()
     )
-    verify_device_belongs_to_user(db_user, device, sync_db, minimum_role="operator")
+    verify_device_belongs_to_user(
+        db_user, device, sync_db, minimum_role="operator", unified_fleet_access=True
+    )
     notification_data = {**notification_data, "action": "notification"}
 
     # Persist the push lifecycle record so the device can pick it up and ack it

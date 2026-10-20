@@ -54,6 +54,7 @@ def rotate_device_key(
             device.site.site_id if device.site else "",
             db,
             minimum_role="operator",
+            unified_fleet_access=True,
         )
 
         # Reject rotation for inactive lifecycle states

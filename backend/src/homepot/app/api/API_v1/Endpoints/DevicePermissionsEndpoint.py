@@ -209,7 +209,9 @@ def admin_override_device_permissions(
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        verify_device_belongs_to_user(
+            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+        )
 
         capabilities = _get_capabilities_dict(device)
         incoming = payload.permissions.model_dump(exclude_unset=True)
@@ -312,7 +314,9 @@ def get_device_permissions(
             db_user = cast(User, db.query(User).filter(User.email == email).first())
             if not db_user:
                 raise HTTPException(status_code=403, detail="User not found")
-            verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+            verify_device_belongs_to_user(
+                db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            )
         else:
             raise HTTPException(
                 status_code=401,
