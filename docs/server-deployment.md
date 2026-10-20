@@ -372,6 +372,24 @@ Technicians then fetch them over HTTPS, e.g.:
 https://homepot.cabera.com/downloads/homepot-agent-setup-0.3.0.exe
 ```
 
+#### Downloads page in the dashboard
+
+Directory listing is disabled (`Options -Indexes`), so browsing to
+`/downloads/` returns **403** and the files are only discoverable by their exact
+names. The dashboard's **Downloads** page (`/downloads`, in the sidebar under
+*Actions*) is the discoverable entry point.
+
+It does not hardcode the version. At load it reads the update feeds
+(`latest.yml`, `latest-mac.yml`, `latest-linux.yml`) and shows the version,
+filenames and sizes actually staged, so it cannot disagree with the server.
+
+One trap worth knowing when debugging it: a **missing** feed does not 404 here.
+The SPA fallback in `frontend/dist/.htaccess` rewrites unknown paths to
+`index.html` and returns **200 with an HTML body**, so a naive `resp.ok` check
+would treat an absent feed as present. The page rejects a body that does not
+start like YAML, which is why an unpublished platform shows "No build
+published" rather than a broken link.
+
 Notes:
 
 - **Verify the transfer.** These files are ~130 MB each and a dropped connection
@@ -398,6 +416,14 @@ Notes:
   `downloads/`. Re-copy the installers after rebuilding the dashboard, or keep a
   separate directory outside `dist` and reference it with an `Alias` (requires
   root).
+
+  **Deploying the dashboard therefore silently removes the installers.** The
+  Downloads page (below) will then report "No build published" until they are
+  re-staged. After any frontend deploy, confirm they are still present:
+
+  ```bash
+  ssh demouser 'ls -l /var/www/homepot.cabera.com/frontend/dist/downloads/'
+  ```
 - A published GitHub release is the other delivery route and is what the app's
   built-in updater is configured against
   (`provider: github`, in `user_app/package.json`).
