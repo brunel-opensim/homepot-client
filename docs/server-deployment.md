@@ -383,12 +383,31 @@ It does not hardcode the version. At load it reads the update feeds
 (`latest.yml`, `latest-mac.yml`, `latest-linux.yml`) and shows the version,
 filenames and sizes actually staged, so it cannot disagree with the server.
 
-One trap worth knowing when debugging it: a **missing** feed does not 404 here.
-The SPA fallback in `frontend/dist/.htaccess` rewrites unknown paths to
-`index.html` and returns **200 with an HTML body**, so a naive `resp.ok` check
-would treat an absent feed as present. The page rejects a body that does not
-start like YAML, which is why an unpublished platform shows "No build
-published" rather than a broken link.
+Two traps worth knowing when debugging it:
+
+1. **A missing feed does not 404 here.** The SPA fallback rewrites unknown paths
+   to `index.html` and returns **200 with an HTML body**, so a naive `resp.ok`
+   check would treat an absent feed as present. The page rejects a body that
+   does not start like YAML, which is why an unpublished platform shows "No
+   build published" rather than a broken link.
+
+2. **The page route and the installer directory share the path `/downloads`.**
+   Because a *real* directory of that name exists, Apache's `DirectorySlash`
+   redirected `/downloads` to `/downloads/`, which then hit
+   `Options -Indexes` and returned **403** — the page was unreachable. The
+   `.htaccess` therefore disables `DirectorySlash` and rewrites the bare
+   `/downloads` path to the SPA, matching real **files** before directories so
+   the installers still serve.
+
+   This only shows up behind Apache. Serving `dist/` with a plain static server
+   (or a test stub) does not reproduce `DirectorySlash`, so **the page must be
+   checked over HTTPS on the server**, not only against a local dev server:
+
+   ```bash
+   for u in /downloads /downloads/latest.yml /downloads/homepot-agent-setup-<version>.exe; do
+     curl -s -o /dev/null -w "%{http_code}  $u\n" "https://homepot.cabera.com$u"
+   done   # all must be 200
+   ```
 
 Notes:
 
@@ -424,6 +443,11 @@ Notes:
   ```bash
   ssh demouser 'ls -l /var/www/homepot.cabera.com/frontend/dist/downloads/'
   ```
+- **Apache config lives in `frontend/public/.htaccess`, not `dist/`.** Vite
+  copies `public/` into `dist/` on every build, so `dist/.htaccess` is a build
+  artifact. Edit the **`public/`** copy, or the change is lost on the next
+  deploy. Rule changes there need no root (`demouser` owns both files) and take
+  effect immediately — no Apache restart.
 - A published GitHub release is the other delivery route and is what the app's
   built-in updater is configured against
   (`provider: github`, in `user_app/package.json`).
