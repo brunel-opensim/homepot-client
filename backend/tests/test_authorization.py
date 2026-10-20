@@ -635,3 +635,102 @@ class TestAdminBypass:
         site_ids = [s["site_id"] for s in resp.json()["sites"]]
         assert "site-a-1" in site_ids
         assert "site-b-1" in site_ids
+
+
+# ===================================================================
+# Tests: unconfigured accounts (interim read visibility)
+# ===================================================================
+
+
+class TestUnconfiguredUserReadVisibility:
+    """A non-admin with no membership anywhere can read the fleet.
+
+    Accounts created for the demo hold no tenant or site membership, and
+    creating a site does not grant the creator access to it, so strict scoping
+    left them with an empty dashboard and no way to self-serve. Read views are
+    therefore opened up for exactly that case, while mutation endpoints stay
+    restricted (see TestSiteOperatorScope and the mutating cases below).
+    """
+
+    def test_user_with_no_membership_sees_all_sites(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """An unconfigured non-admin sees every site rather than none."""
+        db = homepot.database.SessionLocal()
+        create_user_sync(
+            db, email="lonely@example.com", username="lonely", password="pass"
+        )
+        db.commit()
+        db.close()
+
+        resp = client.get("/api/v1/sites/", headers=_auth_header("lonely@example.com"))
+        assert resp.status_code == 200
+        site_ids = [s["site_id"] for s in resp.json()["sites"]]
+        assert "site-a-1" in site_ids
+        assert "site-b-1" in site_ids
+
+    def test_user_with_no_membership_sees_all_devices(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """An unconfigured non-admin sees every device, to allow fleet testing."""
+        db = homepot.database.SessionLocal()
+        create_user_sync(
+            db, email="lonely2@example.com", username="lonely2", password="pass"
+        )
+        db.commit()
+        db.close()
+
+        resp = client.get(
+            "/api/v1/devices/device", headers=_auth_header("lonely2@example.com")
+        )
+        assert resp.status_code == 200
+        device_ids = [d["device_id"] for d in resp.json()["devices"]]
+        assert "dev-a-1" in device_ids
+        assert "dev-b-1" in device_ids
+
+    def test_user_with_membership_still_scoped(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """A user WITH a membership keeps the strict scoped view.
+
+        Guards against the interim relaxation leaking into configured accounts.
+        """
+        resp = client.get("/api/v1/sites/", headers=_auth_header("user.a@example.com"))
+        assert resp.status_code == 200
+        site_ids = [s["site_id"] for s in resp.json()["sites"]]
+        assert "site-a-1" in site_ids
+        assert "site-b-1" not in site_ids
+
+    def test_unconfigured_user_cannot_delete_other_site(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """Read visibility must not extend to mutations."""
+        db = homepot.database.SessionLocal()
+        create_user_sync(
+            db, email="lonely3@example.com", username="lonely3", password="pass"
+        )
+        db.commit()
+        db.close()
+
+        resp = client.delete(
+            "/api/v1/sites/site-b-1", headers=_auth_header("lonely3@example.com")
+        )
+        assert resp.status_code == 403
+
+    def test_unconfigured_user_cannot_modify_other_device(
+        self, client: TestClient, seeded_db: Any
+    ) -> None:
+        """Read visibility must not extend to device mutations."""
+        db = homepot.database.SessionLocal()
+        create_user_sync(
+            db, email="lonely4@example.com", username="lonely4", password="pass"
+        )
+        db.commit()
+        db.close()
+
+        resp = client.put(
+            "/api/v1/devices/device/dev-b-1",
+            json={"name": "Renamed"},
+            headers=_auth_header("lonely4@example.com"),
+        )
+        assert resp.status_code == 403

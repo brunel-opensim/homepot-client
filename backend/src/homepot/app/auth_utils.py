@@ -680,6 +680,60 @@ def verify_site_access_for_user(
     return {"role": cast(str, sm.role), "user_id": cast(int, db_user.id)}
 
 
+def user_has_any_site_grant(db_user: User, db: Session) -> bool:
+    """Return True if the user holds any tenant- or site-level membership.
+
+    Used to distinguish "this user has been granted access somewhere" from
+    "this user has been granted nothing at all". A user with no grants would
+    otherwise see an empty dashboard with no way to self-serve, which is not a
+    meaningful access-control decision -- it is an unconfigured account.
+    """
+    if db_user.is_admin:
+        return True
+
+    from homepot.models import SiteMembership, TenantMembership
+
+    tenant_grant = (
+        db.query(TenantMembership.id)
+        .filter(TenantMembership.user_id == db_user.id)
+        .first()
+    )
+    if tenant_grant:
+        return True
+
+    site_grant = (
+        db.query(SiteMembership.id).filter(SiteMembership.user_id == db_user.id).first()
+    )
+    return site_grant is not None
+
+
+def get_readable_site_ids(
+    db_user: User,
+    db: Session,
+    minimum_role: str = "viewer",
+) -> Optional[set[int]]:
+    """Site IDs the user may READ, for list/detail views.
+
+    Returns ``None`` to mean "unrestricted -- no WHERE clause".
+
+    This is deliberately looser than :func:`get_accessible_site_ids`, which
+    continues to govern mutations. Two cases return ``None``:
+
+    * admins, as before, and
+    * non-admins holding **no** membership anywhere.
+
+    The second case is an interim measure so that technicians can see and test
+    devices across the demo fleet. Their accounts currently have no tenant or
+    site membership, and creating a site does not grant the creator access to
+    it, so scoping would hide every site from them. Proper role-based access
+    (guest/reviewer tiers included) supersedes this; because it is centralised
+    here, reinstating strict scoping for reads is a one-line change.
+    """
+    if not user_has_any_site_grant(db_user, db):
+        return None
+    return get_accessible_site_ids(db_user, db, minimum_role=minimum_role)
+
+
 def get_accessible_site_ids(
     db_user: User,
     db: Session,
@@ -688,6 +742,9 @@ def get_accessible_site_ids(
     """Get the set of site database IDs (integer IDs) that the user has access to.
 
     If the user is an admin, returns None (all sites accessible).
+
+    This is the authoritative check for *acting* on a site; read-only views may
+    be intentionally looser -- see :func:`get_readable_site_ids`.
     """
     if db_user.is_admin:
         return None

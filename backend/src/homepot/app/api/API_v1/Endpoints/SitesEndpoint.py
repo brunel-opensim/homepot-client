@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as SASession
 
 from homepot.app.auth_utils import (
     UserDict,
-    get_accessible_site_ids,
+    get_readable_site_ids,
     require_user,
     verify_site_access_for_user,
 )
@@ -208,13 +208,14 @@ async def list_sites(
             if not include_archived:
                 query = query.where(Site.is_active.is_(True))
 
-            # Non-admin users only see sites they can access
+            # Non-admin users only see sites they can access. Read visibility
+            # uses get_readable_site_ids so accounts with no membership at all
+            # can still see the fleet (see that helper for rationale); mutation
+            # endpoints keep the stricter get_accessible_site_ids.
             if not db_user.is_admin:
-                accessible_site_ids = get_accessible_site_ids(db_user, db)
-                if accessible_site_ids:
-                    query = query.where(Site.id.in_(accessible_site_ids))
-                else:
-                    return {"sites": []}
+                readable_site_ids = get_readable_site_ids(db_user, db)
+                if readable_site_ids is not None:
+                    query = query.where(Site.id.in_(readable_site_ids))
 
             result = await session.execute(query.order_by(Site.created_at.desc()))
             sites = result.scalars().all()

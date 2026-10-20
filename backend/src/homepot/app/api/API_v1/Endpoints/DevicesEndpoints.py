@@ -21,8 +21,8 @@ from homepot.app.auth_utils import (
     api_key_header,
     authenticate_device_credentials,
     device_id_header,
-    get_accessible_site_ids,
     get_current_device,
+    get_readable_site_ids,
     require_user,
     security,
     verify_device_belongs_to_user,
@@ -339,13 +339,14 @@ async def list_device(
                 .where(Device.is_active.is_(True))
             )
 
-            # Non-admin users only see devices in their accessible sites
+            # Non-admin users only see devices in their accessible sites. Read
+            # visibility uses get_readable_site_ids so accounts with no
+            # membership at all can still see the fleet (see that helper);
+            # mutation endpoints keep the stricter get_accessible_site_ids.
             if not db_user.is_admin:
-                accessible_site_ids = get_accessible_site_ids(db_user, db)
-                if accessible_site_ids:
-                    query = query.where(Device.site_id.in_(accessible_site_ids))
-                else:
-                    return {"devices": []}
+                readable_site_ids = get_readable_site_ids(db_user, db)
+                if readable_site_ids is not None:
+                    query = query.where(Device.site_id.in_(readable_site_ids))
 
             query = query.order_by(Device.created_at.desc())
             result = await session.execute(query)
