@@ -360,21 +360,40 @@ static content — so a download link needs **no Apache change and no root**:
 ```bash
 # demouser is in the `homepot` group, which has write access to dist/
 mkdir -p /var/www/homepot.cabera.com/frontend/dist/downloads
-cp user_app/release/*.exe user_app/release/*.msi user_app/release/latest.yml \
-   /var/www/homepot.cabera.com/frontend/dist/downloads/
+
+# From a machine with the release downloaded (see the GitHub release):
+scp homepot-agent-setup-<version>.exe homepot-agent-<version>.msi latest.yml \
+    demouser:/var/www/homepot.cabera.com/frontend/dist/downloads/
 ```
 
 Technicians then fetch them over HTTPS, e.g.:
 
 ```
-https://homepot.cabera.com/downloads/HOMEPOT Agent Setup 0.2.0.exe
+https://homepot.cabera.com/downloads/homepot-agent-setup-0.3.0.exe
 ```
 
 Notes:
 
-- For Windows auto-update to function, `HOMEPOT Agent Setup <version>.exe` and
-  `latest.yml` must be **replaced together** whenever a new version is published;
-  a stale `latest.yml` points the updater at a missing file.
+- **Verify the transfer.** These files are ~130 MB each and a dropped connection
+  silently leaves a truncated file at a valid-looking URL, which fails only when
+  a technician runs it. Always compare sizes/hashes after copying:
+
+  ```bash
+  ssh demouser 'stat -c "%s %n" /var/www/homepot.cabera.com/frontend/dist/downloads/*'
+  shasum -a 512 homepot-agent-setup-<version>.exe   # compare with latest.yml sha512
+  ```
+
+  A truncated upload is worse than a missing one — remove it and retry rather
+  than leaving it in place.
+- **`rsync` from macOS is unreliable here.** macOS ships `openrsync`
+  (`protocol version 29`, advertised as rsync 2.6.9-compatible), which rejects
+  common flags such as `--append-verify`. Plain `scp` works; run large copies in
+  the background so a network hiccup does not abort them.
+- For Windows auto-update to function, the installer `.exe` and `latest.yml` must
+  be **replaced together** whenever a new version is published; a stale
+  `latest.yml` points the updater at a missing file. The `url:` inside
+  `latest.yml` must exactly match the asset filename — this is asserted at
+  package time in CI (see `.github/workflows/user-app-build.yml`).
 - `npm run build` (frontend) recreates `frontend/dist` and will remove
   `downloads/`. Re-copy the installers after rebuilding the dashboard, or keep a
   separate directory outside `dist` and reference it with an `Alias` (requires
