@@ -2,6 +2,17 @@
 # Serve the client-side app (index.html) for any non-file, non-API path so deep
 # links and refreshes such as /sites, /dashboard and /device/:id resolve to the
 # React app instead of Apache's "Not Found" 404 page.
+
+# A real directory named "downloads/" holds the User App installers. Apache
+# would normally redirect /downloads -> /downloads/ (DirectorySlash) and that
+# then 403s, because directory listing is off. The dashboard ALSO has a React
+# route at /downloads, so the redirect is turned off and the bare path is
+# rewritten to the SPA below; files inside downloads/ are unaffected because
+# real files are matched first.
+<IfModule mod_dir.c>
+  DirectorySlash Off
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -9,8 +20,15 @@
   # Never rewrite the API / backend (proxied to the FastAPI service)
   RewriteRule ^api/ - [L]
 
-  # Serve real files and directories as-is
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  # Real files are served as-is. This covers /downloads/<installer> and, unlike
+  # matching "-f OR -d", it cannot swallow the /downloads page route.
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # Bare /downloads is the dashboard page, not the directory listing.
+  RewriteRule ^downloads/?$ index.html [L]
+
+  # Any other existing directory (none expected) is served as-is.
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
