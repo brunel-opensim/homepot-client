@@ -213,6 +213,40 @@ jobs:
           test -d "$res_dir/homepot-agent" -a -d "$res_dir/homepot-emulator"
           find "$res_dir" -maxdepth 2 -type f \( -name 'homepot-agent*' -o -name 'homepot-emulator*' \)
 
+      - name: Assert update feeds reference files that are actually produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          # electron-updater builds its download URL from the "url:" field in
+          # latest*.yml. If that filename does not match the file we later
+          # upload, every installed client 404s on update. Filenames containing
+          # spaces are especially dangerous: "gh release upload" rewrites them to
+          # dots, silently diverging from the value electron-builder recorded.
+          # Each platform emits only its own feed, so glob rather than list
+          # literal names: nullglob drops the feeds this OS never produced.
+          shopt -s nullglob
+          feeds=(release/latest*.yml)
+          if [[ ${#feeds[@]} -eq 0 ]]; then
+            echo "No latest*.yml produced"; exit 1
+          fi
+          echo "Feeds to check: ${feeds[*]}"
+          status=0
+          for feed in "${feeds[@]}"; do
+            echo "--- $feed"
+            urls=$(grep -E '^[[:space:]]+-?[[:space:]]*url:' "$feed" \
+              | sed -E 's/.*url:[[:space:]]*//' | tr -d '"'"'"'')
+            for url in $urls; do
+              base="$(basename "$url")"
+              if [ -z "$(find release -maxdepth 1 -name "$base" -print -quit)" ]; then
+                echo "ERROR: $feed references '$base' but no such file was produced"
+                status=1
+              else
+                echo "  ok: $base"
+              fi
+            done
+          done
+          exit $status
+
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -272,4 +306,11 @@ jobs:
                   releases/latest.yml releases/latest-mac.yml releases/latest-linux.yml)
           [[ ${#assets[@]} -gt 0 ]] || { echo "No release assets found"; exit 1; }
           printf 'Uploading: %s\n' "${assets[@]}"
+          # Refuse to upload names "gh" would rewrite (it turns spaces into dots),
+          # which would desynchronise latest*.yml from the real asset names.
+          for a in "${assets[@]}"; do
+            case "$(basename "$a")" in
+              *" "*) echo "ERROR: asset name contains a space: $(basename "$a")"; exit 1 ;;
+            esac
+          done
           gh release upload "${VERSION}" "${assets[@]}" --clobber
