@@ -197,15 +197,39 @@ def get_current_user(
 
 
 def require_role(required_role: str) -> Any:
-    """Dependency to require a specific user role."""
+    """Dependency to require a specific user role.
 
-    def role_checker(user: TokenData = Depends(get_current_user)) -> UserDict:
-        if user.role != required_role:
+    The role is read from the stored ``User`` row, NOT from the token claim.
+    ``get_current_user`` projects the token's ``is_admin`` claim onto a binary
+    Admin/User role, and that claim is inflated by design in development
+    (``roles.py`` grants it to every role while ``HOMEPOT_DEV_UNIFIED_ACCESS``
+    is on). Trusting it here would let any operator reach admin-only endpoints,
+    including the one that assigns roles.
+
+    The stored role is the authority: ``scripts/seed-users.sh`` and the
+    role-assignment endpoint both keep ``User.role`` and ``User.is_admin`` in
+    step deliberately. This mirrors ``require_user``, which already resolves the
+    role from the database rather than the token.
+    """
+
+    def role_checker(
+        user: TokenData = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> UserDict:
+        db_user = cast(User, db.query(User).filter(User.email == user.email).first())
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User not found",
+            )
+
+        stored_role = "Admin" if db_user.is_admin else cast(str, db_user.role)
+        if stored_role != required_role:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Requires {required_role} role",
             )
-        return {"email": user.email, "role": user.role}
+        return {"email": cast(str, db_user.email), "role": stored_role}
 
     return role_checker
 
