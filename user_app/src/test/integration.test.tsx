@@ -10,7 +10,7 @@ beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
   delete window.electronAPI
-  window.history.pushState({}, '', '/')
+  window.location.hash = '#/'
 })
 
 function ok(body: unknown) {
@@ -134,7 +134,7 @@ describe('App routing', () => {
         connectivity_state: 'online',
       })
     })
-    window.history.pushState({}, '', '/settings')
+    window.location.hash = '#/settings'
     render(<App />)
     await waitFor(() => {
       expect(screen.getByText('Device Info & Settings')).toBeInTheDocument()
@@ -160,14 +160,14 @@ describe('App routing', () => {
         getRecentLogs: vi.fn().mockResolvedValue([{ id: 'event-1', timestamp: new Date().toISOString(), category: 'application', level: 'info', message: 'User interface ready' }]),
       },
     } as unknown as NonNullable<Window['electronAPI']>
-    window.history.pushState({}, '', '/logs')
+    window.location.hash = '#/logs'
     render(<App />)
     expect(await screen.findByText('Application Logs')).toBeInTheDocument()
     expect(await screen.findByText('User interface ready')).toBeInTheDocument()
   })
 
   it('unknown path redirects to /', async () => {
-    window.history.pushState({}, '', '/nonexistent')
+    window.location.hash = '#/nonexistent'
     render(<App />)
     expect(await screen.findByText('Step 1 of 4')).toBeInTheDocument()
   })
