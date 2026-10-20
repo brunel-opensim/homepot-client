@@ -249,14 +249,27 @@ jobs:
       - name: Create/update draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
+          set -euo pipefail
           VERSION="${{ steps.version.outputs.APP_VERSION }}"
           # Find an existing draft for this version, otherwise create one.
-          DRAFT_URL=$(gh release list --draft --limit 100 --json tagName,isDraft \
+          # "gh release list" has no --draft flag (only --exclude-drafts), and
+          # filtering in --jq keeps this a single call.
+          EXISTING=$(gh release list --limit 100 --json tagName,isDraft \
             --jq ".[] | select(.tagName == \"${VERSION}\") | select(.isDraft == true) | .tagName" | head -1)
-          if [ -z "$DRAFT_URL" ]; then
+          if [ -z "$EXISTING" ]; then
             gh release create "${VERSION}" --draft --title "HOMEPOT Agent ${VERSION}" \
-              --notes "Packaged HOMEPOT Agent for real-device testing." >/dev/null
+              --notes "Packaged HOMEPOT Agent for real-device testing."
           fi
-          cd releases
-          gh release upload "${VERSION}" ./* --clobber
+          # Upload only the installers and update feeds. "gh release upload ./*"
+          # also walks the unpacked/ directories and drags in builder-debug.yml,
+          # which fails with "is a directory" after the real assets have already
+          # landed (leaving a red run over a usable release).
+          shopt -s nullglob
+          assets=(releases/*.exe releases/*.msi releases/*.dmg releases/*.zip \
+                  releases/*.AppImage releases/*.deb releases/*.rpm \
+                  releases/latest.yml releases/latest-mac.yml releases/latest-linux.yml)
+          [[ ${#assets[@]} -gt 0 ]] || { echo "No release assets found"; exit 1; }
+          printf 'Uploading: %s\n' "${assets[@]}"
+          gh release upload "${VERSION}" "${assets[@]}" --clobber
