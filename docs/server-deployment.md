@@ -350,6 +350,39 @@ curl -s http://localhost:8000/health | python3 -m json.tool
 curl -s http://localhost:11434/api/tags | python3 -m json.tool
 ```
 
+### 9. Publishing User App installers (optional)
+
+Technicians install the packaged **User App** (`user_app/`) on their own machines;
+the API and dashboard stay on this server. Because the vhost `DocumentRoot` is
+`frontend/dist`, any file placed in a subdirectory there is served publicly as
+static content — so a download link needs **no Apache change and no root**:
+
+```bash
+# demouser is in the `homepot` group, which has write access to dist/
+mkdir -p /var/www/homepot.cabera.com/frontend/dist/downloads
+cp user_app/release/*.exe user_app/release/*.msi user_app/release/latest.yml \
+   /var/www/homepot.cabera.com/frontend/dist/downloads/
+```
+
+Technicians then fetch them over HTTPS, e.g.:
+
+```
+https://homepot.cabera.com/downloads/HOMEPOT Agent Setup 0.2.0.exe
+```
+
+Notes:
+
+- For Windows auto-update to function, `HOMEPOT Agent Setup <version>.exe` and
+  `latest.yml` must be **replaced together** whenever a new version is published;
+  a stale `latest.yml` points the updater at a missing file.
+- `npm run build` (frontend) recreates `frontend/dist` and will remove
+  `downloads/`. Re-copy the installers after rebuilding the dashboard, or keep a
+  separate directory outside `dist` and reference it with an `Alias` (requires
+  root).
+- A published GitHub release is the other delivery route and is what the app's
+  built-in updater is configured against
+  (`provider: github`, in `user_app/package.json`).
+
 ## Database Management
 
 ### Reset Database (Development)

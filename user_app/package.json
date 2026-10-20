@@ -1,7 +1,7 @@
 {
   "name": "homepot-agent",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "HOMEPOT Agent — desktop client for the HOMEPOT device management platform",
   "author": {
     "name": "HOMEPOT",
@@ -57,14 +57,16 @@
         "AppImage"
       ],
       "category": "Utility",
-      "icon": "resources/icon.png"
+      "icon": "resources/icon.png",
+      "artifactName": "${name}-${version}-${arch}.${ext}"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "artifactName": "${name}-${version}-${arch}.${ext}"
     },
     "win": {
       "target": [
@@ -72,6 +74,12 @@
         "msi"
       ],
       "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "artifactName": "${name}-setup-${version}.${ext}"
+    },
+    "msi": {
+      "artifactName": "${name}-${version}.${ext}"
     }
   },
   "dependencies": {
