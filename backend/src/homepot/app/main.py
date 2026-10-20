@@ -4,6 +4,7 @@ import asyncio
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -181,6 +182,10 @@ async def stop_ai_execution_reconcile() -> None:
 async def warm_up_llm() -> None:
     """Preload the local LLM in the background so the first query isn't a cold start.
 
+    Also rebuilds the docs vector index if the documentation corpus changed
+    (see ``docs/ai-doc-retrieval.md``), so a doc edit is billed to the deploy
+    rather than to the next technician's question.
+
     Best-effort: never blocks startup and silently skips when Ollama is not
     reachable (e.g. the local AI stack is not deployed).
     """
@@ -193,7 +198,10 @@ async def warm_up_llm() -> None:
             from ai.llm import LLMService
             from ai.system_knowledge import SystemKnowledge
 
-            from homepot.app.api.API_v1.Endpoints.AIEndpoint import project_root
+            from homepot.app.api.API_v1.Endpoints.AIEndpoint import (
+                get_doc_retriever,
+                project_root,
+            )
 
             llm = LLMService()
             if not await asyncio.to_thread(llm.check_health):
@@ -209,8 +217,25 @@ async def warm_up_llm() -> None:
                 system_prompt,
             )
             logger.info("LLM warm-up complete (model resident, prompt cached)")
+
+            # Rebuild the docs index here when the corpus moved, instead of
+            # letting retrieve() do it inline. Every knowledge query checks the
+            # corpus version (~2.5 ms when unchanged) but re-embeds the *whole*
+            # corpus when it changed: 100.4 s for 3,221 chunks on the demo
+            # host, spent inside whoever asked the first question after the
+            # change. Same Ollama gate as above: the index is only consumed by the
+            # knowledge path, which cannot answer without the model, and this
+            # keeps CI (no Ollama) from embedding 1.4 MB of docs as a side
+            # effect of starting the app.
+            started = time.perf_counter()
+            rebuilt = await asyncio.to_thread(get_doc_retriever().ensure_indexed)
+            logger.info(
+                "Docs index warm-up: %s (%.1fs)",
+                "rebuilt" if rebuilt else "already current",
+                time.perf_counter() - started,
+            )
         except Exception as e:
-            logger.warning("LLM warm-up skipped (non-fatal): %s", e)
+            logger.warning("AI warm-up skipped (non-fatal): %s", e)
 
     # Keep a reference so the fire-and-forget task isn't garbage-collected.
     app.state.llm_warmup_task = asyncio.create_task(_warm())

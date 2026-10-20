@@ -439,7 +439,12 @@ tunings below bring a warm answer down to roughly **40-60 s**.
 - **Warm-up / KV cache**: on startup the backend primes Ollama with the *real*
   system prompt (`SystemKnowledge.get_system_prompt()`), and `keep_alive`
   (`ai/config.yaml`, default `30m`) keeps the model and cached prefix resident,
-  so sparse queries skip both the reload and the prompt-eval cost.
+  so sparse queries skip both the reload and the prompt-eval cost. The same
+  startup hook also rebuilds the **docs vector index** when `docs/*.md` changed
+  (~100 s for ~3,220 chunks — see `docs/ai-doc-retrieval.md`), so an edit made in
+  a deploy is never billed to the first technician's question afterwards. Both
+  run in the background and neither blocks startup or holds a generation slot;
+  a restart logs `Docs index warm-up: rebuilt|already current (…s)`.
 - **Frontend**: `/api/v1/ai/query` uses `VITE_AI_QUERY_TIMEOUT` ms (default
   `180000`) — see `frontend/src/services/api.js`.
 - **Proxy**: Apache must allow at least as long (`ProxyTimeout 180` /
