@@ -65,10 +65,16 @@ Sections longer than `chunk_size` are split into overlapping windows
 ### Indexing & versioning
 
 The index is a ChromaDB collection (`project_docs`) built lazily on the first
-retrieval. A **version hash** over every doc's `(path, size, mtime)` decides
-whether the index is stale, so a stable corpus is a **no-op** on every later
-query; editing a doc rebuilds the index once. A sentinel document
-(`__index_version__`) records the current version.
+retrieval. A **version hash** over the corpus `(path, size, mtime)` *and* the
+indexing settings (`chunk_size`, `chunk_overlap`, `max_chunks_per_doc`,
+`max_file_bytes`) decides whether the index is stale, so a stable corpus is a
+**no-op** on every later query; editing a doc — or changing how the corpus is
+chunked — rebuilds the index once. A sentinel document (`__index_version__`)
+records the current version.
+
+The indexing settings are part of the hash on purpose: each one changes what
+gets stored, so without them a config edit would silently keep serving chunks
+built with the old values (e.g. lowering `chunk_size` would have no effect).
 
 ### Retrieval
 
@@ -127,12 +133,42 @@ The `docs:` section of `ai/config.yaml` (`ai/doc_retriever.py`):
 | `chroma_path` | `data/docs_chroma` | ChromaDB path (relative to `ai/`) |
 | `collection_name` | `project_docs` | ChromaDB collection name |
 | `distance_metric` | `cosine` | `cosine` (0..2) or `l2` |
-| `n_results` | `6` | Max chunks injected per query |
+| `n_results` | `4` | Max chunks injected per query |
 | `max_distance` | `0.9` | Relevance cutoff; `null` disables it |
-| `chunk_size` | `1200` | Characters per chunk (~300 tokens) |
+| `chunk_size` | `800` | Characters per chunk (~200 tokens) |
 | `chunk_overlap` | `150` | Overlap between split windows |
 | `max_chunks_per_doc` | `60` | Bound one document's contribution |
 | `max_file_bytes` | `2000000` | Skip unreasonably large files |
+
+### Cost
+
+The retrieved block sits in the **user turn**, not the system prompt, so Ollama
+re-evaluates it on every request (the system prompt is the part the startup
+warm-up primes). On the CPU demo host prompt eval runs at ~25–35 tok/s, so the
+injected characters map directly onto seconds of wait. Measured on the live host
+with an identical system prompt, changing only the retrieved block:
+
+| Question | `6` × `1200` | `4` × `800` | Saved |
+|---|---|---|---|
+| Explain device credentials and tokens | 36.4 s | 14.9 s | 21.5 s |
+| What does `root_access` allow? | 36.2 s | 19.9 s | 16.3 s |
+
+Averaged over 8 representative questions, `6` × `1200` injects ~2,950 chars
+(~740 prompt tokens) per query and `4` × `800` injects ~1,730 (~430 tokens) — a
+41% cut — with the block bounded at ~3.4k chars worst case (4 × `chunk_size`
+plus labels). Prompt-eval time for a repeated question is near zero: Ollama
+keeps the evaluated prefix cached while the model stays resident.
+
+!!! note "Trade-off"
+
+    Fewer chunks means less context for "list everything" questions: on
+    *"What does `root_access` allow?"* the `4` × `800` answer is correct but less
+    exhaustive than the `6` × `1200` one (it gives the reboot/shutdown
+    capability without also listing sudo, filesystem scan, and config/firmware
+    updates). `5` × `800` behaved the same way, so dropping one chunk is not
+    what recovers it. How-to questions ("enrol a device", "push notifications",
+    "device credentials") were unaffected in the same test. If completeness
+    outweighs the ~17–22 s, restore `n_results: 6` and `chunk_size: 1200`.
 
 !!! warning "First query pays the indexing cost"
     The index is built lazily on the first knowledge query: the whole corpus is
@@ -146,7 +182,8 @@ The `docs:` section of `ai/config.yaml` (`ai/doc_retriever.py`):
 
 - **Location:** `ai/data/docs_chroma` (git-ignored via `ai/data/`).
 - **Rebuild:** edit/delete the directory, or call `DocRetriever.ensure_indexed(force=True)`.
-  Normal invalidation is automatic (doc `path/size/mtime` changes).
+  Normal invalidation is automatic (a doc's `path/size/mtime`, or any indexing
+  setting such as `chunk_size`, changing).
 - **Stats:** `DocRetriever.get_stats()` returns the chunk count and paths.
 - **Failure is non-fatal:** retrieval errors are caught in `_answer_knowledge`
   and fall back to the fixed doc excerpts; a knowledge answer is always produced.
@@ -155,10 +192,11 @@ The `docs:` section of `ai/config.yaml` (`ai/doc_retriever.py`):
 
 ## Testing
 
-- `backend/tests/test_ai_doc_retrieval.py` (9 tests) exercises the real ChromaDB
+- `backend/tests/test_ai_doc_retrieval.py` (10 tests) exercises the real ChromaDB
   index with a deterministic embedder: retrieval relevance + real source,
-  heading metadata, re-index on corpus change, stable-corpus no-op, empty query,
-  distance cutoff, long-section windowing, and a missing docs directory.
+  heading metadata, re-index on corpus change, re-index on an indexing-config
+  change, stable-corpus no-op, empty query, distance cutoff, long-section
+  windowing, and a missing docs directory.
 - `backend/tests/test_ai_query_routing.py` knowledge tests assert the
   `[RELEVANT DOCUMENTATION]` block, the `sources` response field, and that the
   fixed-doc fallback is **not** used when retrieval hits.

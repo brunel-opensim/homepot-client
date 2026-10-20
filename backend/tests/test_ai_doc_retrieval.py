@@ -152,6 +152,28 @@ def test_stable_corpus_is_not_reindexed(tmp_path):
     assert retriever.ensure_indexed() is False
 
 
+def test_chunk_config_change_invalidates_the_index(tmp_path):
+    """Changing an indexing setting must rebuild: the settings are versioned.
+
+    Otherwise a config change silently keeps serving an index built with the
+    old values (the retrieval-cost knobs in config.yaml would do nothing).
+    """
+    retriever = make_retriever(tmp_path, {"a.md": ENROL_DOC})
+    assert retriever.ensure_indexed() is True
+
+    retriever.chunk_size = 200
+    assert retriever.ensure_indexed() is True
+    assert retriever.ensure_indexed() is False
+
+    retriever.chunk_overlap = 40
+    assert retriever.ensure_indexed() is True
+    assert retriever.ensure_indexed() is False
+
+    retriever.max_chunks_per_doc = 2
+    assert retriever.ensure_indexed() is True
+    assert retriever.ensure_indexed() is False
+
+
 def test_empty_or_blank_query_returns_nothing(tmp_path):
     """Blank queries short-circuit without touching the index."""
     retriever = make_retriever(tmp_path, {"a.md": ENROL_DOC})

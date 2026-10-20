@@ -299,12 +299,12 @@ context inside a bounded budget, and lets the corpus grow without bloating every
 prompt.
 
 As built: heading-aware chunking, a ChromaDB collection under `ai/data/docs_chroma`
-with version-gated rebuilds (`path/size/mtime`), the chunks injected as a
-`[RELEVANT DOCUMENTATION]` block, and the retrieved paths returned as a
-machine-readable `sources` list (rendered as chips in the UI). It reuses the
-existing ChromaDB/embedder stack rather than `DeviceMemory` directly, so the two
-stores stay separate. Generated Tier-A references are **not** indexed yet. Full
-details: [AI Documentation Retrieval](ai-doc-retrieval.md).
+with version-gated rebuilds (`path/size/mtime` plus the indexing settings), the
+chunks injected as a `[RELEVANT DOCUMENTATION]` block, and the retrieved paths
+returned as a machine-readable `sources` list (rendered as chips in the UI). It
+reuses the existing ChromaDB/embedder stack rather than `DeviceMemory` directly,
+so the two stores stay separate. Generated Tier-A references are **not** indexed
+yet. Full details: [AI Documentation Retrieval](ai-doc-retrieval.md).
 
 **Tier B — read-only code tools (design-only; see
 [AI Code Access (Tier B)](ai-code-access.md)).**

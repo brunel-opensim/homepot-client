@@ -78,11 +78,22 @@ docs:
   chroma_path: "data/docs_chroma"
   collection_name: "project_docs"
   distance_metric: "cosine"             # "cosine" (0..2) or "l2"
-  n_results: 6                          # max doc chunks injected per query
+  # Retrieval size is per-query latency: the injected [RELEVANT DOCUMENTATION]
+  # block is part of the *user* turn, which Ollama re-evaluates on every request
+  # (the system prompt is prefix-cached; the user turn is not) at ~25-35 tok/s
+  # on the CPU demo host. 6 x 1200 injected ~2,950 chars (~740 tokens, ~25s) per
+  # query; 4 x 800 injects ~1,730 (~430 tokens) and measured ~17-22s less prompt
+  # eval live. Fewer chunks does make "list everything" answers less exhaustive
+  # - see docs/ai-doc-retrieval.md ("Cost").
+  n_results: 4                          # max doc chunks injected per query
   # Cosine distance for a relevant MiniLM match is typically <0.9; unrelated
   # chunks sit near 1.0. Raise toward 1.0 to widen recall, lower to tighten.
   max_distance: 0.9
-  chunk_size: 1200                      # characters per chunk (~300 tokens)
+  # Long sections are split into `chunk_size` windows with `chunk_overlap`
+  # characters of overlap. Smaller chunks cost fewer tokens each and embed more
+  # precisely, and together with `n_results` they bound the block above.
+  # Changing any indexing setting rebuilds the index (see _index_version).
+  chunk_size: 800                       # characters per chunk (~200 tokens)
   chunk_overlap: 150                    # overlap between split windows
   max_chunks_per_doc: 60                # bound one doc's contribution
   max_file_bytes: 2000000               # skip unreasonably large files
