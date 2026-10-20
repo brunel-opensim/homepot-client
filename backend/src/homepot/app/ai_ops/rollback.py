@@ -98,6 +98,7 @@ async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bo
                 .where(AIActionStep.step_id == item["step_id"])
                 .values(status=STEP_ROLLED_BACK)
             )
+            db.commit()
             queued = True
             continue
 
@@ -114,8 +115,8 @@ async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bo
             .where(AIActionStep.step_id == item["step_id"])
             .values(rollback_params=merged)
         )
+        db.commit()
         queued = True
 
-    db.commit()
     db.expire_all()
     return queued or already_tracked

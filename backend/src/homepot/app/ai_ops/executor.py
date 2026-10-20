@@ -144,7 +144,7 @@ async def start_execution(
             .where(AIActionStep.step_id == item["step_id"])
             .values(**values)
         )
+        db.commit()
 
-    db.commit()
     db.expire_all()
     return plan, policy
