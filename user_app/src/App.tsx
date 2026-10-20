@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useApp } from './context/AppContext'
 import { AppProvider } from './context/AppProvider'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -24,7 +24,7 @@ function Wrapped({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AppProvider>
         <PermissionConsentPrompt />
         <Routes>
@@ -42,6 +42,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppProvider>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
