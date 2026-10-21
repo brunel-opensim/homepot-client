@@ -42,6 +42,10 @@
       {
         "from": "pyinstaller-dist",
         "to": "bin"
+      },
+      {
+        "from": "electron/privileged",
+        "to": "user_app/electron/privileged"
       }
     ],
     "publish": {
