@@ -100,10 +100,11 @@ An `.msi` build of the same version is also staged at
 
 ### Verify the download before running it
 
-The installer is unsigned, so Windows SmartScreen may warn on first run, and a
-partial or tampered download would look exactly like a working one. Verify the
-file first. The expected **SHA-256** is shown on the **Downloads** page (click
-**Copy**), and is also published machine-readably at:
+A partial or tampered download would look exactly like a working one, and the
+installers are unsigned (see *First run* below), so the operating system will
+not check them for you. Verify the file first. The expected **SHA-256** is shown
+on the **Downloads** page (click **Copy**), and is also published
+machine-readably at:
 
 ```
 https://homepot.cabera.com/downloads/checksums.json
@@ -148,6 +149,36 @@ After verifying, run the installer and launch the app. The packaged app is
 pre-pointed at `https://homepot.cabera.com/api/v1`; no manual API configuration
 is needed.
 
+### First run: the installers are unsigned
+
+The installers have **no code-signing certificate**, so the operating system
+cannot vouch for their publisher and will warn on first run. This is expected,
+not a sign of a problem — it is why the checksum above matters. Only continue
+once the SHA-256 matches.
+
+**Windows — "Windows protected your PC" (SmartScreen).** Click **More info**,
+confirm the app is *HOMEPOT Agent*, then click **Run anyway**. The warning
+appears because the `.exe`/`.msi` is unsigned; it does not by itself mean the
+file is unsafe.
+
+**macOS — "cannot be opened because the developer cannot be verified"**
+(Gatekeeper). The macOS build is unsigned **and un-notarized**, so it is
+blocked by default. After confirming the checksum, right-click the app and
+choose **Open**, then confirm — macOS remembers the exception after the first
+launch. If macOS still refuses, clear the quarantine flag on the installed app:
+
+```
+xattr -dr com.apple.quarantine "/Applications/HOMEPOT Agent.app"
+```
+
+**Linux** installers (`.deb`, `.rpm`, `.AppImage`) are unsigned too and typically
+install without a warning; the `sha256sum` check above is your only guarantee,
+so do not skip it.
+
+> A signed build would remove these warnings but requires a paid certificate
+> per platform. Until then, **verify the checksum** and treat any warning as
+> normal — never as a reason to bypass verification.
+
 Verify the device can reach the backend before enrolling:
 
 ```
@@ -179,6 +210,8 @@ open **Devices**.
 | --- | --- |
 | "does not have Engineer access" on login | You used the **Engineer** tab. Use the **Client** tab (§1). |
 | SHA-256 does not match the Downloads page | Do **not** run the installer. Delete it, download again (§4); if it still mismatches, report it — the file may have been altered in transit or on the server. |
+| Windows SmartScreen blocks the installer | Expected — the installer is unsigned. Click **More info** → **Run anyway**, but only after the SHA-256 matches (§4). |
+| macOS says "developer cannot be verified" | Expected — the build is unsigned and un-notarized. Right-click → **Open**, or `xattr -dr com.apple.quarantine "/Applications/HOMEPOT Agent.app"` (§4). |
 | No SHA-256 shown on the Downloads page | `checksums.json` is missing from `/downloads`. Downloads still work, but verify against the feed's SHA-512 in `latest.yml` instead, and tell a maintainer to re-publish the manifest (see `docs/server-deployment.md` §9). |
 | Sites list is empty | The account holds a tenant or site membership, which scopes it. Ask for the interim fleet visibility to be confirmed, or use an account with no memberships. |
 | Bootstrap Key dialog shows "No bootstrap key configured" | Expected on a fresh site — click **Generate Bootstrap Key**. |
