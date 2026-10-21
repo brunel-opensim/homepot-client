@@ -398,6 +398,98 @@ jobs:
         id: version
         run: echo "APP_VERSION=v$(node -p "require('./user_app/package.json').version")" >> "$GITHUB_OUTPUT"
 
+      # A version number must mean one set of bytes. This release is published
+      # (and mirrored to the Downloads page) under the version in
+      # user_app/package.json, and the upload below uses --clobber, so a build
+      # whose installers differ from what is already published would silently
+      # overwrite them: the tag would then describe two different builds.
+      #
+      # That is exactly the drift this pipeline exists to prevent, and nothing
+      # stops it today because a rebuild of an unchanged tree produces
+      # byte-identical installers, so re-runs look harmless until the day a
+      # change lands without a version bump. Compare the freshly built files
+      # against the release's own per-asset digests and refuse to proceed.
+      #
+      # A re-run of the same tree passes: its digests match. A rebuild after a
+      # code change fails until the version is bumped.
+      - name: Refuse to republish different bytes under the same version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.APP_VERSION }}"
+
+          # Nothing published under this tag yet: first publish, nothing to
+          # compare against.
+          if ! gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "No existing release for ${VERSION}; nothing to compare."
+            exit 0
+          fi
+
+          # The REST API is used rather than "gh release view --json assets"
+          # because only the API surfaces each asset's "digest".
+          #
+          # Looked up from the release LIST rather than
+          # "releases/tags/${VERSION}": the tag endpoint returns 404 for a
+          # draft, and drafts are the normal case here, because the publish job
+          # creates the release as a draft and this check runs before the
+          # upload both when the draft already exists and when it does not.
+          RELEASE=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"${VERSION}\")")
+          if [ -z "$RELEASE" ]; then
+            echo "No existing release for ${VERSION}; nothing to compare."
+            exit 0
+          fi
+          if [ "$(echo "$RELEASE" | jq -r '.assets | length')" -eq 0 ]; then
+            echo "Release ${VERSION} has no assets yet; nothing to compare."
+            exit 0
+          fi
+
+          echo "$RELEASE" | jq -r '.assets[] | "\(.name) \(.digest // "none")"' > /tmp/published.txt
+
+          python3 - <<'PY'
+          import hashlib, pathlib, sys
+
+          published = {}
+          for line in pathlib.Path('/tmp/published.txt').read_text().splitlines():
+              name, _, digest = line.partition(' ')
+              if digest.startswith('sha256:'):
+                  published[name] = digest.split(':', 1)[1]
+
+          if not published:
+              print('No published digests available to compare; skipping.')
+              sys.exit(0)
+
+          local = pathlib.Path('releases')
+          checked = mismatched = 0
+          for path in sorted(local.iterdir()):
+              if not path.is_file() or path.name not in published:
+                  continue
+              h = hashlib.sha256()
+              with open(path, 'rb') as fh:
+                  for chunk in iter(lambda: fh.read(1 << 20), b''):
+                      h.update(chunk)
+              checked += 1
+              if h.hexdigest() != published[path.name]:
+                  mismatched += 1
+                  print(f'  DIFFERS: {path.name}')
+              else:
+                  print(f'  same:    {path.name}')
+
+          print(f'\n{checked} asset(s) already published, {mismatched} differing')
+          if mismatched:
+              print(f'\nERROR: {mismatched} file(s) differ from the bytes already '
+                    f'published under this version.\n'
+                    f'       The version number is the identity of the bytes: publishing '
+                    f'this would\n'
+                    f'       make one tag describe two builds, and the Downloads page and '
+                    f'updater\n'
+                    f'       would disagree about what that version is.\n'
+                    f'       Bump the version in user_app/package.json and rebuild.')
+              sys.exit(1)
+          PY
+
       - name: Create/update draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
