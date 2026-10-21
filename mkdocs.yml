@@ -201,6 +201,7 @@ nav:
   - User App:
       - Getting Started: get_start_userapp.md
       - Frontend Guide: user-app-frontend-guide.md
+      - Releases & Versioning: user-app-releases.md
       - Wireframes: user-app-wireframes.md
       - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
       - Verify with Emulators: verify-user-app-with-emulators.md
