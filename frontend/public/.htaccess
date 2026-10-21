@@ -28,6 +28,16 @@
   # Bare /downloads is the dashboard page, not the directory listing.
   RewriteRule ^downloads/?$ index.html [L]
 
+  # Anything else under downloads/ that is not a real file is genuinely missing:
+  # 404 instead of the SPA fallback below. Without this, a request for a file
+  # that is not there (a superseded installer, a feed, a blockmap) returns
+  # index.html as 200 text/html, so "absent" is indistinguishable from
+  # "present" for anything that downloads by URL -- including electron-updater,
+  # which then reads an HTML page where it expected a blockmap or a feed.
+  # This is a hard 404 rather than a friendly page because the audience is a
+  # download client, not a browser.
+  RewriteRule ^downloads/ - [R=404,L]
+
   # Any other existing directory (none expected) is served as-is.
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]

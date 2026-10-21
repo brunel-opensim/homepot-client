@@ -399,22 +399,27 @@ verifies each one before anything goes live. The repository is public, so it
 needs **no token and no `gh`** — only `curl` and `python3`:
 
 ```bash
-# On the server (or anywhere with the target directory mounted).
-cd ~/homepot-client
+# On the server. The script is installed durably at ~/bin/mirror-downloads.sh
+# (~/bin is on PATH via .profile), so it survives reboots and does not have to
+# be copied over by hand. Keep it in step with the repo:
+#
+#   # from a workstation, after a change to the script on main:
+#   git show main:scripts/mirror-downloads.sh \
+#     | ssh demouser 'cat > ~/bin/mirror-downloads.sh && chmod +x ~/bin/mirror-downloads.sh'
 
 # Verify without installing: downloads everything, checks every digest,
 # leaves the live directory untouched.
-DRY_RUN=1 ./scripts/mirror-downloads.sh
+DRY_RUN=1 ~/bin/mirror-downloads.sh
 
 # Latest published release:
-./scripts/mirror-downloads.sh
+~/bin/mirror-downloads.sh
 
 # A specific version:
-./scripts/mirror-downloads.sh v0.3.1
+~/bin/mirror-downloads.sh v0.3.2
 
 # Override the destination (default: the live dist/downloads):
 TARGET_DIR=/var/www/homepot.cabera.com/frontend/dist/downloads \
-  ./scripts/mirror-downloads.sh
+  ~/bin/mirror-downloads.sh
 ```
 
 For each asset it checks the bytes against **GitHub's own per-asset `sha256`
@@ -532,11 +537,14 @@ page simply omits the checksum blocks.
 
 Two traps worth knowing when debugging it:
 
-1. **A missing feed does not 404 here.** The SPA fallback rewrites unknown paths
-   to `index.html` and returns **200 with an HTML body**, so a naive `resp.ok`
-   check would treat an absent feed as present. The page rejects a body that
-   does not start like YAML, which is why an unpublished platform shows "No
-   build published" rather than a broken link.
+1. **A missing feed used to not 404 here.** The SPA fallback rewrote unknown
+   paths to `index.html` and returned **200 with an HTML body**, so a naive
+   `resp.ok` check would treat an absent feed as present. That is fixed for
+   `downloads/`: a path under it that is not a real file now returns **404**.
+   The page still rejects a body that does not start like YAML, because that is
+   cheap and covers any other origin serving an error page with a 200, and
+   because it is what makes an unpublished platform show "No build published"
+   rather than a broken link.
 
 2. **The page route and the installer directory share the path `/downloads`.**
    Because a *real* directory of that name exists, Apache's `DirectorySlash`
