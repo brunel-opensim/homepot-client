@@ -355,16 +355,95 @@ curl -s http://localhost:11434/api/tags | python3 -m json.tool
 Technicians install the packaged **User App** (`user_app/`) on their own machines;
 the API and dashboard stay on this server. Because the vhost `DocumentRoot` is
 `frontend/dist`, any file placed in a subdirectory there is served publicly as
-static content — so a download link needs **no Apache change and no root**:
+static content — so a download link needs **no Apache change and no root**.
+
+#### The rule: one version number, one set of bytes
+
+The GitHub release is the **single source of truth**. The server mirrors it; it
+is never assembled by hand.
+
+This matters because a version number is a promise to two different consumers:
+
+- the **auto-updater**, which decides whether to download by comparing versions,
+  then verifies the download against the `sha512` in the feed;
+- a **technician**, who reads the SHA-256 off the Downloads page and checks the
+  file they actually received.
+
+If two different builds both call themselves `0.3.0`, a device that already has
+one of them can be shown a feed for the same version with a different digest.
+The updater has no way to interpret that: it may conclude the release is not
+newer and never update, or download it and fail verification. And no one can
+tell the two apart by looking at the filename.
+
+That is not hypothetical — it already happened with `v0.3.0`:
+
+| | GitHub `v0.3.0` | server `/downloads` (was) |
+|---|---|---|
+| `latest.yml` `sha512` | `E/duYD7G…` | `wawin3Y2…` |
+| `.exe` size | 128,108,327 | 128,115,209 |
+| `checksums.json` | absent (predates the manifest) | present |
+
+Two builds, one version, different bytes. `v0.3.1` exists to resolve this: it is
+the first release carrying `checksums.json`, and it gives every device a
+genuinely newer version to converge on.
+
+**So: never re-upload a different build under an existing version, and never
+edit a published release's assets in place.** If a build is wrong, bump the
+version. The mirror below enforces the one-way nature of this by refusing
+anything that does not match the published release.
+
+#### Mirroring the release (preferred)
+
+`scripts/mirror-downloads.sh` pulls the assets from the published release and
+verifies each one before anything goes live. The repository is public, so it
+needs **no token and no `gh`** — only `curl` and `python3`:
+
+```bash
+# On the server (or anywhere with the target directory mounted).
+cd ~/homepot-client
+
+# Verify without installing: downloads everything, checks every digest,
+# leaves the live directory untouched.
+DRY_RUN=1 ./scripts/mirror-downloads.sh
+
+# Latest published release:
+./scripts/mirror-downloads.sh
+
+# A specific version:
+./scripts/mirror-downloads.sh v0.3.1
+
+# Override the destination (default: the live dist/downloads):
+TARGET_DIR=/var/www/homepot.cabera.com/frontend/dist/downloads \
+  ./scripts/mirror-downloads.sh
+```
+
+For each asset it checks the bytes against **GitHub's own per-asset `sha256`
+digest** from the release API, then cross-checks the release's `checksums.json`
+against those same bytes. Files are staged next to the target and swapped in by
+rename, so the live directory is never empty and a partial download changes
+nothing. The previous set is kept as `downloads.old.<timestamp>` for rollback.
+
+It **refuses** to mirror a release that has no `checksums.json`, because doing so
+would silently strip the digests from the Downloads page — worse than not
+mirroring. It also refuses draft releases, whose bytes can still change.
+
+Technicians then fetch them over HTTPS, e.g.:
+
+```
+https://homepot.cabera.com/downloads/homepot-agent-setup-0.3.1.exe
+```
+
+#### Copying by hand (fallback only)
+
+If the mirror cannot run, copying with `scp` still works, but you own the
+verification:
 
 ```bash
 # demouser is in the `homepot` group, which has write access to dist/
 mkdir -p /var/www/homepot.cabera.com/frontend/dist/downloads
 
-# From a machine with the release downloaded (see the GitHub release), copy
-# every platform's installers, the update feeds and the checksum manifest.
-# checksums.json is produced by the packaging job and MUST ship alongside the
-# files it describes, or the Downloads page shows no checksums.
+# Take the files from the published release, not from a local build directory,
+# so what is served is what was actually released.
 scp homepot-agent-setup-<version>.exe homepot-agent-<version>.msi \
     homepot-agent-<version>-arm64.dmg homepot-agent-<version>-arm64.zip \
     homepot-agent-<version>-x86_64.AppImage homepot-agent-<version>-amd64.deb \
@@ -373,11 +452,18 @@ scp homepot-agent-setup-<version>.exe homepot-agent-<version>.msi \
     demouser:/var/www/homepot.cabera.com/frontend/dist/downloads/
 ```
 
-Technicians then fetch them over HTTPS, e.g.:
+`checksums.json` MUST ship in the **same** upload as the files it describes.
+Then verify every file against the release's digests before walking away:
 
+```bash
+# For each asset, compare the local hash with what GitHub recorded:
+curl -s https://api.github.com/repos/brunel-opensim/homepot-client/releases/latest \
+  | python3 -c 'import json,sys; [print(a["digest"], a["name"]) for a in json.load(sys.stdin)["assets"]]'
+ssh demouser 'cd /var/www/homepot.cabera.com/frontend/dist/downloads && sha256sum *.exe *.msi *.dmg *.zip *.AppImage *.deb *.rpm'
 ```
-https://homepot.cabera.com/downloads/homepot-agent-setup-0.3.0.exe
-```
+
+Any mismatch means a bad transfer. Delete the file and re-copy it — a truncated
+installer fails only when a technician runs it.
 
 #### checksums.json
 
@@ -474,7 +560,8 @@ Notes:
 
 - **Verify the transfer.** These files are ~130 MB each and a dropped connection
   silently leaves a truncated file at a valid-looking URL, which fails only when
-  a technician runs it. Always compare sizes/hashes after copying:
+  a technician runs it. The mirror script does this for you; if you copy by hand,
+  compare sizes/hashes afterwards:
 
   ```bash
   # Sizes on the server ...
@@ -546,9 +633,12 @@ Notes:
   deploy. Rule changes there need no root (`demouser` owns both files) and take
   effect immediately — no Apache restart.
 - A published GitHub release is the other delivery route and is what the app's
-  built-in updater is configured against
-  (`provider: github`, in `user_app/package.json`). The release also carries
-  `checksums.json`, so the same digests are available from either route.
+  built-in updater is configured against (`provider: github`, in
+  `user_app/package.json`). Since `v0.3.1` the release carries
+  `checksums.json`, so the same digests are available from either route. For
+  `v0.3.0` they are **not** the same — that release predates the manifest and
+  its bytes differ from what the server served; see "one version number, one set
+  of bytes" above.
 
 ## Database Management
 
@@ -720,6 +810,7 @@ No server-side configuration is needed for elevation.
 | `upgrade-db.sh` | Run Alembic migrations | No |
 | `query-db.sh` | Query database | No |
 | `seed-demo-data.sh` | Seed demo data | No |
+| `mirror-downloads.sh` | Mirror the published GitHub release into `dist/downloads/`, verifying every asset | No |
 
 ## Logging & Observability
 
