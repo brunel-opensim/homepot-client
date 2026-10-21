@@ -247,6 +247,79 @@ jobs:
           done
           exit $status
 
+      - name: Generate checksum manifest for published installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Technicians verify downloads against this manifest, so it must be
+          # built from the exact bytes that get published -- generated here, next
+          # to the artifacts, rather than reconstructed later by hand.
+          #
+          # Two digests per artifact, both from the same read:
+          #   sha256 -- what `certutil -hashfile` / `sha256sum` / `shasum -a 256`
+          #             print by default, so a technician can reproduce it.
+          #   sha512 -- electron-builder's own digest. It is what the updater
+          #             verifies against, and it must equal the feed's sha512.
+          # The assertion below is the point: if the feed and this manifest ever
+          # disagree, the build fails instead of publishing a checksum page that
+          # contradicts the auto-updater.
+          #
+          # Each matrix runner only sees its own platform's artifacts, so it
+          # writes a per-OS fragment (checksums.<os>.json). The publish job
+          # merges the fragments into the single checksums.json that ships --
+          # writing checksums.json here would let the three runners overwrite
+          # each other under download-artifact's merge-multiple.
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, re, sys
+
+          release = pathlib.Path('release')
+          manifest = {}
+
+          extensions = ('.exe', '.msi', '.dmg', '.zip', '.AppImage', '.deb', '.rpm')
+          for path in sorted(release.iterdir()):
+              if not path.is_file() or path.name.endswith('.blockmap'):
+                  continue
+              if not path.name.endswith(extensions):
+                  continue
+              data = path.read_bytes()
+              manifest[path.name] = {
+                  'size': len(data),
+                  'sha256': hashlib.sha256(data).hexdigest(),
+                  'sha512': base64.b64encode(hashlib.sha512(data).digest()).decode(),
+              }
+
+          if not manifest:
+              sys.exit('ERROR: no installers found to checksum')
+
+          # Cross-check every file the feeds reference: it must have an entry,
+          # and the digest must match what the feed advertises.
+          status = 0
+          for feed in sorted(release.glob('latest*.yml')):
+              text = feed.read_text()
+              for url, sha512 in re.findall(
+                  r'url:\s*(\S+).*?sha512:\s*(\S+)', text, re.DOTALL
+              ):
+                  url = url.strip('\'"')
+                  sha512 = sha512.strip('\'"')
+                  entry = manifest.get(url)
+                  if entry is None:
+                      print(f'ERROR: {feed.name} references {url} with no checksum entry')
+                      status = 1
+                  elif entry['sha512'] != sha512:
+                      print(f'ERROR: {feed.name} sha512 for {url} does not match the file')
+                      status = 1
+                  else:
+                      print(f'  ok: {url} (feed sha512 verified)')
+          if status:
+              sys.exit(status)
+
+          os_name = os.environ['RUNNER_OS'].lower()
+          release.joinpath(f'checksums.{os_name}.json').write_text(
+              json.dumps({'files': manifest}, indent=2, sort_keys=True) + '\n'
+          )
+          print(f'\nchecksums.{os_name}.json: {len(manifest)} artifacts')
+          PY
+
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -276,6 +349,51 @@ jobs:
       - name: Show release files
         run: ls -laR releases
 
+      - name: Merge per-platform checksum fragments
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Each package runner wrote checksums.<os>.json for its own artifacts.
+          # Combine them into the single checksums.json that the Downloads page
+          # and technicians fetch. Fail if a fragment is missing, so a partial
+          # manifest is never published as if it were complete.
+          python3 - <<'PY'
+          import glob, json, pathlib, re, sys
+
+          merged = {}
+          fragments = sorted(glob.glob('releases/checksums.*.json'))
+          if not fragments:
+              sys.exit('ERROR: no checksum fragments found')
+
+          for fragment in fragments:
+              data = json.loads(pathlib.Path(fragment).read_text())
+              for name, entry in data.get('files', {}).items():
+                  if name in merged:
+                      sys.exit(f'ERROR: {name} appears in more than one fragment')
+                  merged[name] = entry
+              print(f'  {fragment}: {len(data.get("files", {}))} artifacts')
+
+          # Every file a feed references must be present, or the page would show
+          # a version whose checksum is unknown. Match the same shape the
+          # packaging step parses: indented "- url: <file>" entries (plus the
+          # top-level "path:" fallback), not an anchored "url:".
+          for feed in sorted(glob.glob('releases/latest*.yml')):
+              text = pathlib.Path(feed).read_text()
+              referenced = set(re.findall(r'(?:^|\s)(?:- )?url:\s*(\S+)', text, re.M))
+              path_match = re.search(r'^path:\s*(\S+)', text, re.M)
+              if path_match:
+                  referenced.add(path_match.group(1))
+              for url in sorted(referenced):
+                  url = url.strip('\'"')
+                  if url not in merged:
+                      sys.exit(f'ERROR: {feed} references {url} with no checksum entry')
+
+          pathlib.Path('releases/checksums.json').write_text(
+              json.dumps({'files': merged}, indent=2, sort_keys=True) + '\n'
+          )
+          print(f'checksums.json: {len(merged)} artifacts')
+          PY
+
       - name: Get version from app package
         id: version
         run: echo "APP_VERSION=v$(node -p "require('./user_app/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -303,7 +421,8 @@ jobs:
           shopt -s nullglob
           assets=(releases/*.exe releases/*.msi releases/*.dmg releases/*.zip \
                   releases/*.AppImage releases/*.deb releases/*.rpm \
-                  releases/latest.yml releases/latest-mac.yml releases/latest-linux.yml)
+                  releases/latest.yml releases/latest-mac.yml releases/latest-linux.yml \
+                  releases/checksums.json)
           [[ ${#assets[@]} -gt 0 ]] || { echo "No release assets found"; exit 1; }
           printf 'Uploading: %s\n' "${assets[@]}"
           # Refuse to upload names "gh" would rewrite (it turns spaces into dots),

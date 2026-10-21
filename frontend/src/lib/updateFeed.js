@@ -52,3 +52,45 @@ export function formatBytes(bytes) {
   const mb = bytes / (1024 * 1024);
   return `${mb.toFixed(1)} MB`;
 }
+
+/**
+ * Reader for checksums.json, published next to the installers by the packaging
+ * job and generated from the exact bytes that were uploaded.
+ *
+ * Returns an empty map when the manifest is absent or malformed so the page
+ * degrades to "no checksum shown" rather than rendering a wrong digest.
+ */
+export function parseChecksums(text) {
+  if (!text) return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return {};
+  }
+  const files = parsed && parsed.files;
+  if (!files || typeof files !== 'object') return {};
+
+  const result = {};
+  for (const [name, entry] of Object.entries(files)) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { sha256, sha512, size } = entry;
+    if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(sha256)) continue;
+    result[name] = { sha256: sha256.toLowerCase(), sha512: sha512 || null, size: size ?? null };
+  }
+  return result;
+}
+
+/** The command a technician runs to hash a downloaded file on their OS. */
+export function verifyCommand(platformId, filename) {
+  switch (platformId) {
+    case 'windows':
+      return `certutil -hashfile "${filename}" SHA256`;
+    case 'macos':
+      return `shasum -a 256 ~/Downloads/${filename}`;
+    case 'linux':
+      return `sha256sum ~/Downloads/${filename}`;
+    default:
+      return `sha256sum ${filename}`;
+  }
+}
