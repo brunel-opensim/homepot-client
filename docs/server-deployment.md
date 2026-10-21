@@ -516,6 +516,30 @@ Notes:
   ```bash
   ssh demouser 'ls -l /var/www/homepot.cabera.com/frontend/dist/downloads/'
   ```
+
+  To avoid the gap entirely, build into a staging directory and swap, carrying
+  `downloads/` across in the same operation:
+
+  ```bash
+  ssh demouser
+  cd /var/www/homepot.cabera.com/frontend
+
+  # Build elsewhere so the live dist is untouched while npm runs.
+  npm run build -- --outDir /tmp/homepot-dist-new
+
+  # Swap atomically, moving downloads/ from the old dist into the new one.
+  mv dist "dist.old-$(date -u +%Y%m%dT%H%M%SZ)"
+  cp -a /tmp/homepot-dist-new dist
+  mv dist.old-*/downloads dist/downloads
+
+  # Verify, then keep or move the rollback out of the repo tree:
+  #   mv dist.old-* ~/frontend-dist-rollback-<date>
+  # (dist/ is git-ignored, but dist.old-* is not, so it would show in
+  #  `git status` if left in place.)
+  ```
+
+  Then confirm `/downloads`, `/downloads/checksums.json` and one installer URL
+  all return **200**.
 - **Apache config lives in `frontend/public/.htaccess`, not `dist/`.** Vite
   copies `public/` into `dist/` on every build, so `dist/.htaccess` is a build
   artifact. Edit the **`public/`** copy, or the change is lost on the next
