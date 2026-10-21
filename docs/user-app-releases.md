@@ -189,6 +189,11 @@ Practical consequence: never hand-copy an installer into the server's
 8. Confirm the Downloads page shows the new version with digests, and that
    missing paths now 404 rather than returning the SPA page.
 
+Note that the *dashboard* serving that page has its own independent version:
+its commit comes from a frontend build, not from the app version above, and is
+visible at `/build-info.json`
+([Server Deployment §8](server-deployment.md#is-the-deployed-dashboard-current)).
+
 ## 9. Current releases
 
 | Version | Notes |
