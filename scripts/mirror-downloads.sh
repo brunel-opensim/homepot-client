@@ -228,6 +228,21 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
+# Warn about blockmaps the live set has and the staged set lacks. Not fatal:
+# the app still updates, just without a differential download. But it is a
+# silent regression in update size, so say it out loud rather than let the
+# swap hide it.
+if command -v diff >/dev/null; then
+  LOST=$(comm -23 \
+    <(cd "$TARGET_DIR" && ls -1 *.blockmap 2>/dev/null | sort) \
+    <(cd "$STAGE"     && ls -1 *.blockmap 2>/dev/null | sort))
+  if [ -n "$LOST" ]; then
+    log "Warning: the release does not carry these blockmaps, which are live now:"
+    printf '  %s\n' $LOST >&2
+    log "Updates of those targets will fall back to a full download."
+  fi
+fi
+
 # Move the old set aside, move the new one in, then remove the old one. At no
 # point is the live directory empty: the gap between the two renames is a
 # single filesystem operation on the same directory. Existence was checked

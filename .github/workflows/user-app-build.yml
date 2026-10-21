@@ -414,13 +414,26 @@ jobs:
             gh release create "${VERSION}" --draft --title "HOMEPOT Agent ${VERSION}" \
               --notes "Packaged HOMEPOT Agent for real-device testing."
           fi
-          # Upload only the installers and update feeds. "gh release upload ./*"
-          # also walks the unpacked/ directories and drags in builder-debug.yml,
-          # which fails with "is a directory" after the real assets have already
-          # landed (leaving a red run over a usable release).
+          # Upload the installers, their blockmaps and the update feeds.
+          # "gh release upload ./*" also walks the unpacked/ directories and
+          # drags in builder-debug.yml, which fails with "is a directory" after
+          # the real assets have already landed (leaving a red run over a
+          # usable release).
+          #
+          # The blockmaps ship because electron-updater uses them to build a
+          # differential update: without them every update falls back to a full
+          # ~130-165 MB download. electron-builder emits them only for the
+          # Windows NSIS installer and the macOS zip/dmg, so exactly those three
+          # exist -- *.blockmap globs them without having to name them.
+          #
+          # Note: latest-linux.yml advertises a blockMapSize for the AppImage even
+          # though no AppImage blockmap is written. That is upstream
+          # electron-builder behaviour, not a missing file, and it is harmless:
+          # the updater falls back to a full download. Do not gate on it.
           shopt -s nullglob
           assets=(releases/*.exe releases/*.msi releases/*.dmg releases/*.zip \
                   releases/*.AppImage releases/*.deb releases/*.rpm \
+                  releases/*.blockmap \
                   releases/latest.yml releases/latest-mac.yml releases/latest-linux.yml \
                   releases/checksums.json)
           [[ ${#assets[@]} -gt 0 ]] || { echo "No release assets found"; exit 1; }
