@@ -213,6 +213,33 @@ jobs:
           test -d "$res_dir/homepot-agent" -a -d "$res_dir/homepot-emulator"
           find "$res_dir" -maxdepth 2 -type f \( -name 'homepot-agent*' -o -name 'homepot-emulator*' \)
 
+      - name: Assert packaged app ships the elevation helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The "Manage device" grant installs scoped OS elevation from
+          # electron/privileged. If these files are missing from the package the
+          # grant fails with "Elevation installer not found" on a real device,
+          # so fail the build rather than shipping a broken installer.
+          case "${{ matrix.os }}" in
+            macos-latest)
+              app_dir="$(find release -maxdepth 3 -name 'HOMEPOT Agent.app' -type d | head -1)"
+              test -n "$app_dir"
+              priv_dir="$app_dir/Contents/Resources/user_app/electron/privileged"
+              ;;
+            windows-latest)
+              priv_dir="release/win-unpacked/resources/user_app/electron/privileged"
+              ;;
+            ubuntu-latest)
+              priv_dir="release/linux-unpacked/resources/user_app/electron/privileged"
+              ;;
+          esac
+          test -d "$priv_dir"
+          for f in homepot-ctl homepot-ctl.ps1 homepot-ctl-install.ps1 homepot-ctl-install.sh; do
+            test -f "$priv_dir/$f" || { echo "missing elevation helper: $priv_dir/$f" >&2; exit 1; }
+          done
+          find "$priv_dir" -maxdepth 1 -type f
+
       - name: Assert update feeds reference files that are actually produced
         shell: bash
         run: |
