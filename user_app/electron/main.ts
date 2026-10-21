@@ -917,6 +917,12 @@ function registerIpcHandlers() {
 
   ipcMain.handle('agent:start', async () => {
     recordAppEvent('info', 'agent', 'Starting on-device agent')
+    // Re-enrolment must restart the agent so it picks up the freshly issued
+    // device credentials. Without this, a stale agent started under the
+    // previous device id keeps heartbeating with the old credentials forever
+    // (startAgentProcess no-ops when an agent is already running), and the
+    // backend rejects it with 401/404 while the new device never comes online.
+    killAgent()
     const started = startAgentProcess()
     return { started }
   })
