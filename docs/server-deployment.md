@@ -350,6 +350,52 @@ curl -s http://localhost:8000/health | python3 -m json.tool
 curl -s http://localhost:11434/api/tags | python3 -m json.tool
 ```
 
+#### Is the deployed dashboard current?
+
+`frontend/dist` is git-ignored and assembled on the server, so a deployment
+records nothing about its own source by default. The build therefore writes a
+`build-info.json` alongside `index.html`, recording the commit it was built
+from. Checking a deployment is one fetch, no login and no `ls -l` timestamps:
+
+```bash
+curl -s https://homepot.cabera.com/build-info.json
+```
+
+```json
+{
+  "commit": "450f9be551dec9b39c8f28e27e914026a006daa7",
+  "commitShort": "450f9be",
+  "branch": "main",
+  "dirty": true,
+  "runId": null,
+  "repository": null,
+  "builtAt": "2026-10-21T17:04:02.183Z"
+}
+```
+
+Compare `commit` against the commit the docs and code claim, rather than
+trusting a file timestamp:
+
+```bash
+curl -s https://homepot.cabera.com/build-info.json | python3 -c \
+  "import json,sys; print(json.load(sys.stdin)['commitShort'])"
+git -C /var/www/homepot.cabera.com log --oneline -1
+```
+
+Two fields are easy to misread:
+
+- **`dirty`** describes the *whole checkout*, not `frontend/`. A local edit to
+  an unrelated deploy-only file (e.g. `ai/config.yaml`) sets it to `true` even
+  when the frontend tree is exactly at `commit`. To narrow it:
+  `git status --porcelain -- frontend`. It is also `null`, not `false`, when
+  git was unavailable at build time — "unknown" is not "clean".
+- **`runId`/`repository`** are only set when the build ran in CI. A server-side
+  build leaves them `null`, which is expected, not a fault.
+
+The file is served with `no-store`, so a cached copy can never report an
+outdated commit. If the response is **404**, the deployment predates this
+feature and `frontend/dist` was not rebuilt after the plugin landed.
+
 ### 9. Publishing User App installers (optional)
 
 Technicians install the packaged **User App** (`user_app/`) on their own machines;
