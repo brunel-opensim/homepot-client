@@ -1201,8 +1201,13 @@ async function installManagedElevation(): Promise<{ installed: boolean; reason: 
       if (elevationRoot) {
         psArgs.push('-Root', elevationRoot)
       }
-      // Start-Process with -Verb RunAs triggers UAC elevation
-      const psScript = `Start-Process -FilePath 'powershell.exe' -ArgumentList @('${psArgs.join("','")}') -Verb RunAs -Wait -PassThru | Select-Object -ExpandProperty ExitCode`
+      // Start-Process with -Verb RunAs triggers UAC elevation. `-Wait` is
+      // unreliable with `-Verb RunAs` (ShellExecute), and piping the result to
+      // `Select-Object -ExpandProperty ExitCode` then throws "Process must exit
+      // before requested information can be determined". Grab the process handle
+      // and wait on it explicitly instead; the marker file below is the real
+      // success signal, not the exit code.
+      const psScript = `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('${psArgs.join("','")}') -Verb RunAs -PassThru; $p.WaitForExit()`
       await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript])
     } else {
       const args = ['/bin/sh', installer, '--ctl', ctlSrc]
