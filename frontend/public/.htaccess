@@ -53,4 +53,13 @@
     Header set Pragma "no-cache"
     Header set Expires "0"
   </Files>
+
+  # build-info.json records which commit a deployment was built from, so a
+  # cached copy would report the wrong commit -- the one thing it exists to
+  # prevent. Its whole audience is a one-off verification request anyway.
+  <Files "build-info.json">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </Files>
 </IfModule>

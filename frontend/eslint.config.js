@@ -36,9 +36,9 @@ export default defineConfig([
       },
     },
   },
-  // Config files need Node.js globals
+  // Config files and build-side plugins need Node.js globals
   {
-    files: ['*.config.js'],
+    files: ['*.config.js', 'build-info-plugin.js'],
     languageOptions: {
       globals: {
         ...globals.node,
