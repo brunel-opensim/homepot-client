@@ -145,6 +145,8 @@ export interface DeviceCredentials {
   deviceType?: string
   deviceOs?: string
   enrollmentMethod?: string
+  /** Base backend URL (no `/api/v1`); used to configure the on-device agent. */
+  backendUrl?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +193,9 @@ export class SimulationStorage implements CredentialStorage {
     localStorage.setItem(lsKey('enrollment_method'), creds.enrollmentMethod ?? 'self-enrolled')
     if (creds.siteId) {
       localStorage.setItem(lsKey('site_id'), creds.siteId)
+    }
+    if (creds.backendUrl) {
+      localStorage.setItem(lsKey('backend_url'), creds.backendUrl)
     }
     // API key goes to sessionStorage (cleared when tab closes)
     sessionStorage.setItem(SS_API_KEY, creds.apiKey)
@@ -304,6 +309,7 @@ export class LinuxFileStorage implements CredentialStorage {
       if (creds.deviceType) data.device_type = creds.deviceType
       if (creds.deviceOs) data.device_os = creds.deviceOs
       if (creds.enrollmentMethod) data.enrollment_method = creds.enrollmentMethod
+      if (creds.backendUrl) data.backend_url = creds.backendUrl
       await this.writeFile(data)
     }
     // Also save to simulation storage for backward compat
@@ -379,6 +385,7 @@ export class ElectronStorage implements CredentialStorage {
     if (creds.deviceType) data.device_type = creds.deviceType
     if (creds.deviceOs) data.device_os = creds.deviceOs
     if (creds.enrollmentMethod) data.enrollment_method = creds.enrollmentMethod
+    if (creds.backendUrl) data.backend_url = creds.backendUrl
     await this.api.save(data)
   }
 

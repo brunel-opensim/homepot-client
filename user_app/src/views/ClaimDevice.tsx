@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { credentialStorage } from '../services/credentialStorage';
 import { claimDevice } from '../services/api';
+import { apiBaseUrl } from '../config/api';
 
 export default function ClaimDevice() {
   const navigate = useNavigate();
@@ -66,6 +67,7 @@ export default function ClaimDevice() {
         deviceType: form.deviceType,
         deviceOs,
         enrollmentMethod: 'pre-provisioned',
+        backendUrl: apiBaseUrl.replace('/api/v1', ''),
       });
 
       const agentResult = await window.electronAPI?.agent.start();
