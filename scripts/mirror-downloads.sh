@@ -228,17 +228,22 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-# Warn about blockmaps the live set has and the staged set lacks. Not fatal:
-# the app still updates, just without a differential download. But it is a
-# silent regression in update size, so say it out loud rather than let the
+# Warn about blockmap *targets* the live set has and the staged set lacks. Not
+# fatal: the app still updates, just without a differential download. But it is
+# a silent regression in update size, so say it out loud rather than let the
 # swap hide it.
+#
+# Compared by the extension the blockmap belongs to (".exe", ".zip", ".dmg"),
+# not by filename: a version bump renames every file, so a plain name diff
+# would report every blockmap as lost on every release. What matters is
+# whether the new set still carries a blockmap for each target kind, since the
+# feed's blockMapSize is per target, not per version.
 if command -v diff >/dev/null; then
-  LOST=$(comm -23 \
-    <(cd "$TARGET_DIR" && ls -1 *.blockmap 2>/dev/null | sort) \
-    <(cd "$STAGE"     && ls -1 *.blockmap 2>/dev/null | sort))
+  kinds() { ls -1 "$1"/*.blockmap 2>/dev/null | sed -E 's/\.blockmap$//; s/.*(\.[a-zA-Z0-9]+)$/\1/' | sort -u; }
+  LOST=$(comm -23 <(kinds "$TARGET_DIR") <(kinds "$STAGE"))
   if [ -n "$LOST" ]; then
-    log "Warning: the release does not carry these blockmaps, which are live now:"
-    printf '  %s\n' $LOST >&2
+    log "Warning: the live set has blockmaps for targets the release does not:"
+    printf '  *%s\n' $LOST >&2
     log "Updates of those targets will fall back to a full download."
   fi
 fi
