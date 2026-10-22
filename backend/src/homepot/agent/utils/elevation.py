@@ -438,12 +438,14 @@ def run_elevated(
         return {"ok": False, "error": f"could not write elevation request: {exc}"}
 
     try:
-        trigger = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell; schtasks on PATH
-            ["schtasks", "/run", "/tn", WINDOWS_TASK_NAME],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
+        trigger = (
+            subprocess.run(  # noqa: S603, S607 - fixed argv, no shell; schtasks on PATH
+                ["schtasks", "/run", "/tn", WINDOWS_TASK_NAME],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"ok": False, "error": f"could not trigger elevation task: {exc}"}
