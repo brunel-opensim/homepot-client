@@ -304,6 +304,15 @@ def sync_os_elevation(permissions: Optional[Dict[str, bool]]) -> None:
                     "Elevation not provisioned while root_access granted; app must run installer"
                 )
                 return
+            if os.name == "nt" and not is_windows_task_current():
+                # The task exists but runs an action from an older release, so
+                # it never answers an elevation request. Only a fresh grant
+                # (re-running the installer) can repair it.
+                logger.warning(
+                    "Elevation task '%s' runs a stale action; the app must re-run "
+                    "the installer (toggle Manage off and on) to repair it",
+                    WINDOWS_TASK_NAME,
+                )
             if not os.path.isfile(allowlist_path()):
                 provision_elevation()
         elif is_provisioned():
@@ -381,6 +390,61 @@ def _elevation_result_path(request_id: str) -> str:
     return os.path.join(elevation_root(), f"elevation-result-{request_id}.json")
 
 
+def _elevation_helper_error_path() -> str:
+    return os.path.join(elevation_root(), "elevation_helper_error.txt")
+
+
+def _read_helper_error() -> str:
+    """Return the helper's last recorded error (empty when there is none)."""
+    try:
+        with open(_elevation_helper_error_path(), "r", encoding="utf-8-sig") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+def windows_task_state() -> Dict[str, Any]:
+    """Return the Windows elevation task's registration state.
+
+    ``registered`` is False when the task does not exist, ``action`` holds the
+    task's "Task To Run" line and ``current`` says whether that action is the
+    ``execute-request`` verb this release expects. A task left over from an
+    older release keeps working as far as Task Scheduler is concerned but
+    never produces a result, so the agent needs to recognise it and ask for a
+    fresh grant instead of timing out silently.
+
+    The plain-text ``schtasks /fo LIST`` output is used rather than
+    ``/xml`` because the XML is UTF-16 and would not survive decoding.
+    """
+    state: Dict[str, Any] = {"registered": False, "action": "", "current": False}
+    if os.name != "nt":
+        return state
+    try:
+        result = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+            ["schtasks", "/query", "/tn", WINDOWS_TASK_NAME, "/fo", "LIST"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return state
+    if result.returncode != 0:
+        return state
+    state["registered"] = True
+    for line in result.stdout.splitlines():
+        if "homepot-ctl" in line or "execute-request" in line:
+            state["action"] = line.strip()
+            break
+    state["current"] = "execute-request" in state["action"]
+    return state
+
+
+def is_windows_task_current() -> bool:
+    """Whether the registered task runs the current ``execute-request`` verb."""
+    return bool(windows_task_state()["current"])
+
+
 def run_elevated(
     op: str, script: Optional[str] = None, timeout: int = 30
 ) -> Dict[str, Any]:
@@ -431,6 +495,14 @@ def run_elevated(
     except OSError:
         pass
 
+    # A request left over from an earlier attempt would be executed by the
+    # next scheduled task run, so drop it before writing the current one.
+    try:
+        if os.path.isfile(request_path):
+            os.remove(request_path)
+    except OSError:
+        pass
+
     try:
         with open(request_path, "w", encoding="utf-8") as fh:
             json.dump({"request_id": request_id, "op": op, "script": script}, fh)
@@ -464,7 +536,9 @@ def run_elevated(
     while time.monotonic() < deadline:
         if os.path.isfile(result_path):
             try:
-                with open(result_path, "r", encoding="utf-8") as fh:
+                # utf-8-sig: Windows PowerShell writes UTF-8 with a BOM, which
+                # is not valid JSON and would otherwise parse as garbage.
+                with open(result_path, "r", encoding="utf-8-sig") as fh:
                     result = json.load(fh)
                 os.remove(result_path)
             except (OSError, ValueError):
@@ -477,7 +551,46 @@ def run_elevated(
             }
         time.sleep(0.5)
 
-    return {"ok": False, "error": "elevation request timed out waiting for the helper"}
+    # Timed out. Report *why* rather than just "timed out": a pending request
+    # means the scheduled task never ran the helper, while a consumed request
+    # means the helper ran but died before writing a result.
+    request_pending = os.path.isfile(request_path)
+    details = [
+        (
+            "the request is still pending, so the scheduled task never ran the helper"
+            if request_pending
+            else "the request was consumed, so the helper ran but wrote no result"
+        )
+    ]
+    task_state = windows_task_state()
+    if task_state["registered"] and task_state["action"]:
+        details.append(f"task action: {task_state['action']}")
+    elif task_state["registered"]:
+        details.append(
+            f"task '{WINDOWS_TASK_NAME}' is registered with no readable action"
+        )
+    else:
+        details.append(f"task '{WINDOWS_TASK_NAME}' is not registered")
+    helper_error = _read_helper_error()
+    if helper_error:
+        details.append(f"helper error: {helper_error}")
+
+    # Do not leave a pending request behind: the next scheduled task run would
+    # execute it out of band.
+    try:
+        if request_pending:
+            os.remove(request_path)
+    except OSError:
+        pass
+
+    return {
+        "ok": False,
+        "error": (
+            "elevation request timed out waiting for the helper ("
+            + "; ".join(details)
+            + ")"
+        ),
+    }
 
 
 def parse_ctl_status(output: str) -> Dict[str, Any]:

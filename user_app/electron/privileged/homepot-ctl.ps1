@@ -43,6 +43,57 @@ function Write-Status {
     @{ installed = $installed; provisioned = $provisioned; allowlist = $allowlistExists } | ConvertTo-Json
 }
 
+function Write-JsonFile {
+    # Write UTF-8 *without* a BOM. Windows PowerShell's `Set-Content -Encoding
+    # UTF8` emits a BOM, and a BOM-prefixed document is not valid JSON, so the
+    # agent's parser rejected the result and reported an empty failure.
+    param([string]$Path, $Data)
+    $json = ConvertTo-Json -InputObject $Data
+    [System.IO.File]::WriteAllText($Path, $json, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Write-HelperError {
+    # The agent reads this file when a request times out, so a failure inside
+    # the helper is visible instead of looking like a silent hang.
+    param([string]$Message)
+    try {
+        $Message | Set-Content -Path (Join-Path $Base "elevation_helper_error.txt") -Encoding UTF8
+    } catch {
+        # Reporting must never mask the original error.
+    }
+}
+
+function Register-ElevationTask {
+    # Register (or re-register) the SYSTEM scheduled task that executes
+    # elevation requests. Verification matters: a task that failed to register
+    # looks identical to a working one from the caller's point of view.
+    param([string]$ScriptPath)
+
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" `
+        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$ScriptPath`" execute-request"
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddYears(100)
+    # No network gate: this is a purely local task and must run whether or not
+    # the machine currently has a usable network profile. `StartWhenAvailable`
+    # is deliberately not set — with a far-future trigger it only risks the
+    # task firing once on its own right after registration.
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+        -MultipleInstances IgnoreNew
+    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
+        -Settings $settings -Principal $principal -Description "HOMEPOT Device Elevation Helper" | Out-Null
+
+    # Verify the task really exists and runs the `execute-request` verb. The
+    # Task Scheduler API is used rather than `schtasks /xml` because the XML
+    # output is UTF-16 and would not survive decoding reliably.
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+    $arguments = ($task.Actions | ForEach-Object { $_.Arguments }) -join " "
+    if ($arguments -notmatch "execute-request") {
+        throw "scheduled task '$TaskName' was registered with an unexpected action"
+    }
+}
+
 function Test-AllowlistEntry {
     param([string]$Op)
     if (-not (Test-Path $Allowlist)) { return $false }
@@ -91,27 +142,15 @@ op:shutdown
 op:exec
 "@ | Set-Content -Path $Allowlist -Encoding UTF8
 
-    # Create marker file
-    "installed" | Set-Content -Path $Marker -Encoding UTF8
-
     # Register scheduled task that runs this script with SYSTEM privileges.
     # The action is `execute-request`: the unprivileged agent writes a request
     # file and triggers the task via `schtasks /run`; this SYSTEM context then
     # reads and executes it. The trigger is far-future so the task never fires
     # on its own.
-    $scriptPath = $PSCommandPath
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$scriptPath`" execute-request"
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddYears(100)
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-        -StartWhenAvailable -RunOnlyIfNetworkAvailable -MultipleInstances IgnoreNew
-    $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+    Register-ElevationTask -ScriptPath $PSCommandPath
 
-    # Remove existing task if any
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
-        -Settings $settings -Principal $principal -Description "HOMEPOT Device Elevation Helper" | Out-Null
+    # Create marker file — only after the task is verified.
+    "installed" | Set-Content -Path $Marker -Encoding UTF8
 }
 
 function Remove-Elevation {
@@ -131,12 +170,24 @@ function Invoke-ExecuteRequest {
     # elevation, and each operation is read from a file it can write but not
     # (directly) execute elevated.
     $RequestPath = Join-Path $Base "elevation-request.json"
+    # Clear the previous attempt's error first so the file always describes
+    # the most recent run.
+    Remove-Item (Join-Path $Base "elevation_helper_error.txt") -Force -ErrorAction SilentlyContinue
+
     if (-not (Test-Path $RequestPath)) {
-        Write-Error "homepot-ctl: no elevation request pending"
+        Write-HelperError -Message "no elevation request pending"
+        [Console]::Error.WriteLine("homepot-ctl: no elevation request pending")
         exit 2
     }
 
-    $req = Get-Content $RequestPath -Raw | ConvertFrom-Json
+    try {
+        $req = Get-Content $RequestPath -Raw | ConvertFrom-Json
+    } catch {
+        Write-HelperError -Message "could not parse the elevation request: $($_.Exception.Message)"
+        [Console]::Error.WriteLine("homepot-ctl: could not parse the elevation request")
+        exit 2
+    }
+
     $reqId = $req.request_id
     $ResultPath = Join-Path $Base "elevation-result-$reqId.json"
 
@@ -144,54 +195,63 @@ function Invoke-ExecuteRequest {
     $stderr = ""
     $exitCode = 0
 
-    switch ($req.op) {
-        "exec" {
-            # Allowlist gate (fail-closed): free-form exec is only honoured when
-            # the owner has explicitly allowed it.
-            if (-not (Test-AllowlistEntry -Op "exec")) {
-                $stderr = "homepot-ctl: operation 'exec' is not allowed"
+    try {
+        switch ($req.op) {
+            "exec" {
+                # Allowlist gate (fail-closed): free-form exec is only honoured when
+                # the owner has explicitly allowed it.
+                if (-not (Test-AllowlistEntry -Op "exec")) {
+                    $stderr = "homepot-ctl: operation 'exec' is not allowed"
+                    $exitCode = 2
+                    break
+                }
+                try {
+                    $scriptBlock = [scriptblock]::Create([string]$req.script)
+                    $stdout = (& $scriptBlock 2>&1 | Out-String)
+                    $exitCode = 0
+                } catch {
+                    $stderr = $_.Exception.Message
+                    $exitCode = 1
+                }
+            }
+            "restart" {
+                if (-not (Test-AllowlistEntry -Op "restart")) {
+                    $stderr = "homepot-ctl: operation 'restart' is not allowed"
+                    $exitCode = 2
+                    break
+                }
+                $stdout = "restart initiated"
+                shutdown /r /t 5
+            }
+            "shutdown" {
+                if (-not (Test-AllowlistEntry -Op "shutdown")) {
+                    $stderr = "homepot-ctl: operation 'shutdown' is not allowed"
+                    $exitCode = 2
+                    break
+                }
+                $stdout = "shutdown initiated"
+                shutdown /s /t 5
+            }
+            default {
+                $stderr = "homepot-ctl: unknown elevation op '$($req.op)'"
                 $exitCode = 2
-                break
-            }
-            try {
-                $scriptBlock = [scriptblock]::Create([string]$req.script)
-                $stdout = (& $scriptBlock 2>&1 | Out-String)
-                $exitCode = 0
-            } catch {
-                $stderr = $_.Exception.Message
-                $exitCode = 1
             }
         }
-        "restart" {
-            if (-not (Test-AllowlistEntry -Op "restart")) {
-                $stderr = "homepot-ctl: operation 'restart' is not allowed"
-                $exitCode = 2
-                break
-            }
-            $stdout = "restart initiated"
-            shutdown /r /t 5
-        }
-        "shutdown" {
-            if (-not (Test-AllowlistEntry -Op "shutdown")) {
-                $stderr = "homepot-ctl: operation 'shutdown' is not allowed"
-                $exitCode = 2
-                break
-            }
-            $stdout = "shutdown initiated"
-            shutdown /s /t 5
-        }
-        default {
-            $stderr = "homepot-ctl: unknown elevation op '$($req.op)'"
-            $exitCode = 2
-        }
+    } catch {
+        $stderr = $_.Exception.Message
+        $exitCode = 1
     }
 
-    @{
+    if ($exitCode -ne 0) {
+        Write-HelperError -Message $stderr
+    }
+
+    Write-JsonFile -Path $ResultPath -Data @{
         request_id = $reqId
         exit_code  = $exitCode
         stdout     = $stdout
         stderr     = $stderr
-    } | ConvertTo-Json | Set-Content -Path $ResultPath -Encoding UTF8
+    }
 
     # Best-effort cleanup of the consumed request.
     Remove-Item $RequestPath -Force -ErrorAction SilentlyContinue

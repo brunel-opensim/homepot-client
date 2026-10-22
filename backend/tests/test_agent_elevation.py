@@ -1,6 +1,8 @@
 """Tests for the scoped OS elevation layer (homepot-ctl)."""
 
+import json
 import os
+import subprocess  # noqa: S404 - test doubles only
 from unittest.mock import patch
 
 import pytest
@@ -354,3 +356,181 @@ def test_parse_ctl_status():
         "provisioned": "yes",
     }
     assert elevation.parse_ctl_status("not json") == {}
+
+
+def _windows_env(monkeypatch, tmp_path):
+    """Point the elevation layer at a fake installed Windows helper."""
+    root = tmp_path / "elevation"
+    root.mkdir()
+    ctl = root / "homepot-ctl.ps1"
+    ctl.write_text("# helper\n")
+    monkeypatch.setenv("HOMEPOT_ELEVATION_ROOT", str(root))
+    monkeypatch.setenv("HOMEPOT_CTL_PATH", str(ctl))
+    return root
+
+
+def _completed(argv, returncode=0, stdout="", stderr=""):
+    return subprocess.CompletedProcess(argv, returncode, stdout=stdout, stderr=stderr)
+
+
+class TestWindowsTaskState:
+    """The agent can tell a missing task from one with a stale action."""
+
+    def test_not_registered_when_query_fails(self):
+        """A failed query means the task does not exist."""
+        with patch("homepot.agent.utils.elevation.os.name", "nt"):
+            with patch(
+                "homepot.agent.utils.elevation.subprocess.run",
+                return_value=_completed([], 1, stderr="ERROR: not found"),
+            ):
+                state = elevation.windows_task_state()
+        assert state == {"registered": False, "action": "", "current": False}
+        assert elevation.is_windows_task_current() is False
+
+    def test_detects_current_action(self):
+        """A task running `execute-request` is the current one."""
+        stdout = (
+            "TaskName:         \\HOMEPOT-Elevation\n"
+            "Task To Run:      powershell.exe -NoProfile -NonInteractive "
+            '-ExecutionPolicy Bypass -File "C:\\ProgramData\\Homepot\\homepot-ctl.ps1" '
+            "execute-request\n"
+        )
+        with patch("homepot.agent.utils.elevation.os.name", "nt"):
+            with patch(
+                "homepot.agent.utils.elevation.subprocess.run",
+                return_value=_completed([], 0, stdout=stdout),
+            ):
+                state = elevation.windows_task_state()
+                assert elevation.is_windows_task_current() is True
+        assert state["registered"] is True
+        assert state["current"] is True
+        assert "execute-request" in state["action"]
+
+    def test_detects_stale_action(self):
+        """A task from an older release is registered but never answers."""
+        stdout = (
+            "TaskName:         \\HOMEPOT-Elevation\n"
+            "Task To Run:      powershell.exe -NoProfile -NonInteractive "
+            '-ExecutionPolicy Bypass -File "C:\\ProgramData\\Homepot\\homepot-ctl.ps1"\n'
+        )
+        with patch("homepot.agent.utils.elevation.os.name", "nt"):
+            with patch(
+                "homepot.agent.utils.elevation.subprocess.run",
+                return_value=_completed([], 0, stdout=stdout),
+            ):
+                state = elevation.windows_task_state()
+        assert state["registered"] is True
+        assert state["current"] is False
+        assert elevation.is_windows_task_current() is False
+
+
+class TestRunElevatedWindows:
+    """The Windows request/result protocol is diagnosed, not just timed out."""
+
+    def test_reads_result_written_with_a_utf8_bom(self, monkeypatch, tmp_path):
+        """Windows PowerShell writes UTF-8 with a BOM; the result still parses."""
+        root = _windows_env(monkeypatch, tmp_path)
+
+        def fake_run(argv, **_kwargs):
+            return _completed(argv, 0)
+
+        def fake_sleep(_seconds):
+            request = json.loads((root / "elevation-request.json").read_text())
+            payload = {
+                "request_id": request["request_id"],
+                "exit_code": 0,
+                "stdout": "nt authority\\system",
+                "stderr": "",
+            }
+            (root / f"elevation-result-{request['request_id']}.json").write_bytes(
+                b"\xef\xbb\xbf" + json.dumps(payload).encode("utf-8")
+            )
+
+        with (
+            patch("homepot.agent.utils.elevation.os.name", "nt"),
+            patch(
+                "homepot.agent.utils.elevation.platform.system",
+                return_value="Windows",
+            ),
+            patch("homepot.agent.utils.elevation.subprocess.run", side_effect=fake_run),
+            patch("homepot.agent.utils.elevation.time.sleep", side_effect=fake_sleep),
+        ):
+            outcome = elevation.run_elevated("exec", "whoami", timeout=5)
+
+        assert outcome["ok"] is True
+        assert outcome["stdout"].strip() == "nt authority\\system"
+
+    def test_trigger_failure_is_reported(self, monkeypatch, tmp_path):
+        """A failing `schtasks /run` is surfaced instead of a bare timeout."""
+        _windows_env(monkeypatch, tmp_path)
+        with (
+            patch("homepot.agent.utils.elevation.os.name", "nt"),
+            patch(
+                "homepot.agent.utils.elevation.platform.system",
+                return_value="Windows",
+            ),
+            patch(
+                "homepot.agent.utils.elevation.subprocess.run",
+                return_value=_completed([], 1, stderr="ERROR: access denied"),
+            ),
+        ):
+            outcome = elevation.run_elevated("exec", "whoami", timeout=5)
+
+        assert outcome["ok"] is False
+        assert "could not trigger elevation task" in outcome["error"]
+        assert "access denied" in outcome["error"]
+
+    def test_timeout_reports_that_the_task_never_ran(self, monkeypatch, tmp_path):
+        """A pending request means the scheduled task never ran the helper."""
+        root = _windows_env(monkeypatch, tmp_path)
+
+        def fake_run(argv, **_kwargs):
+            if "/fo" in argv:
+                return _completed(argv, 1, stderr="ERROR: not found")
+            return _completed(argv, 0)
+
+        with (
+            patch("homepot.agent.utils.elevation.os.name", "nt"),
+            patch(
+                "homepot.agent.utils.elevation.platform.system",
+                return_value="Windows",
+            ),
+            patch("homepot.agent.utils.elevation.subprocess.run", side_effect=fake_run),
+            patch("homepot.agent.utils.elevation.time.sleep"),
+        ):
+            outcome = elevation.run_elevated("exec", "whoami", timeout=0.05)
+
+        assert outcome["ok"] is False
+        assert "still pending" in outcome["error"]
+        assert "is not registered" in outcome["error"]
+        # The pending request must not be left for a later task run to execute.
+        assert not (root / "elevation-request.json").exists()
+
+    def test_stale_request_is_replaced(self, monkeypatch, tmp_path):
+        """A request left over from an earlier attempt is not executed later."""
+        root = _windows_env(monkeypatch, tmp_path)
+        (root / "elevation-request.json").write_text('{"request_id": "stale"}')
+        seen = {}
+
+        def fake_run(argv, **_kwargs):
+            if "/fo" in argv:
+                return _completed(argv, 1, stderr="ERROR: not found")
+            # The task is triggered after the request is written, so this is
+            # where the request the agent actually sent can be observed.
+            seen["request"] = json.loads((root / "elevation-request.json").read_text())
+            return _completed(argv, 0)
+
+        with (
+            patch("homepot.agent.utils.elevation.os.name", "nt"),
+            patch(
+                "homepot.agent.utils.elevation.platform.system",
+                return_value="Windows",
+            ),
+            patch("homepot.agent.utils.elevation.subprocess.run", side_effect=fake_run),
+            patch("homepot.agent.utils.elevation.time.sleep"),
+        ):
+            elevation.run_elevated("exec", "whoami", timeout=0.05)
+
+        assert seen["request"]["request_id"] != "stale"
+        assert seen["request"]["op"] == "exec"
+        assert seen["request"]["script"] == "whoami"

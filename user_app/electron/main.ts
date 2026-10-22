@@ -1159,6 +1159,30 @@ function elevationDropinPath(): string {
     : '/etc/sudoers.d/homepot'
 }
 
+/**
+ * Path of the file the Windows installer writes its outcome to.
+ *
+ * The installer is started through ShellExecute (UAC), which cannot capture
+ * stdout/stderr, so it reports through this file instead.
+ */
+function elevationInstallStatusPath(): string {
+  if (process.platform !== 'win32') return ''
+  const programData = process.env.PROGRAMDATA || 'C:\\ProgramData'
+  return process.env.HOMEPOT_ELEVATION_ROOT
+    ? path.join(process.env.HOMEPOT_ELEVATION_ROOT, 'elevation_install_status.txt')
+    : path.join(programData, 'Homepot', 'elevation_install_status.txt')
+}
+
+function readElevationInstallStatus(): string {
+  const statusPath = elevationInstallStatusPath()
+  if (!statusPath) return ''
+  try {
+    return fs.readFileSync(statusPath, 'utf-8').replace(/^\uFEFF/, '').trim()
+  } catch {
+    return ''
+  }
+}
+
 function managedElevationStatus() {
   return {
     supported: elevationSupported(),
@@ -1211,9 +1235,18 @@ async function installManagedElevation(): Promise<{ installed: boolean; reason: 
       // unreliable with `-Verb RunAs` (ShellExecute), and piping the result to
       // `Select-Object -ExpandProperty ExitCode` then throws "Process must exit
       // before requested information can be determined". Grab the process handle
-      // and wait on it explicitly instead; the marker file below is the real
-      // success signal, not the exit code.
-      const psScript = `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('${psArgs.join("','")}') -Verb RunAs -PassThru; $p.WaitForExit()`
+      // and wait on it explicitly instead, then propagate the child's exit code.
+      //
+      // `Start-Process` joins -ArgumentList with plain spaces and adds no
+      // quotes of its own, so any argument containing a space has to carry its
+      // own double quotes or the elevated process receives a truncated path.
+      const argList = psArgs
+        .map((arg) => (/\s/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg))
+        .map((arg) => `'${arg.replace(/'/g, "''")}'`)
+        .join(',')
+      const psScript =
+        `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @(${argList}) ` +
+        `-Verb RunAs -PassThru; $p.WaitForExit(); exit $p.ExitCode`
       await execFileAsync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript])
     } else {
       const args = ['/bin/sh', installer, '--ctl', ctlSrc]
@@ -1222,13 +1255,31 @@ async function installManagedElevation(): Promise<{ installed: boolean; reason: 
       await execFileAsync('pkexec', args)
     }
   } catch (error) {
-    recordAppEvent('error', 'elevation', `Managed elevation install failed: ${String(error)}`)
+    // The installer reports its own reason through the status file; prefer it
+    // over the generic "command failed" message, which says nothing about
+    // what actually went wrong inside the elevated process.
+    const installStatus = readElevationInstallStatus()
+    const reason =
+      installStatus && installStatus !== 'ok'
+        ? installStatus
+        : error instanceof Error
+          ? error.message
+          : 'Elevation setup was cancelled or failed'
+    recordAppEvent('error', 'elevation', `Managed elevation install failed: ${reason}`)
     return {
       installed: false,
-      reason: error instanceof Error ? error.message : 'Elevation setup was cancelled or failed',
+      reason,
     }
   }
   const provisioned = fs.existsSync(elevationDropinPath())
+  const installStatus = readElevationInstallStatus()
+  if (installStatus && installStatus !== 'ok') {
+    // The installer ran and reported a failure. The marker it may have left
+    // behind is not proof that the elevation layer works, so report the
+    // installer's own reason rather than a generic success.
+    recordAppEvent('error', 'elevation', `Managed elevation install failed: ${installStatus}`)
+    return { installed: false, reason: installStatus }
+  }
   recordAppEvent(provisioned ? 'info' : 'warning', 'elevation', provisioned ? 'Managed elevation installed' : 'Elevation install completed but the elevation marker was not created')
   return { installed: provisioned, reason: provisioned ? null : 'Elevation installer ran but the elevation marker was not created' }
 }
