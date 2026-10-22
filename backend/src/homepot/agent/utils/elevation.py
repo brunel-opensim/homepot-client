@@ -38,8 +38,8 @@ import os
 import platform
 import subprocess  # noqa: S404 - fixed argv list, no shell
 import time
-import uuid
 from typing import Any, Dict, Optional
+import uuid
 
 logger = logging.getLogger(__name__)
 
