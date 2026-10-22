@@ -220,14 +220,24 @@ export default function Permissions() {
         (await credentialStorage.getMetadata("enrollment_method")) !== "emulated";
       try {
         if (isManage && enabled && isRealDevice && window.electronAPI?.elevation) {
-          // Match the consent flow: OS elevation must exist before the grant is
-          // committed, so a cancelled/failed admin prompt aborts the toggle.
+          // Grant first, then install OS elevation. Installing before granting
+          // races with the agent's periodic elevation sync: the agent tears the
+          // helper down whenever it observes root_access=false, so a marker the
+          // installer creates moments before the grant lands can be removed
+          // again before we read it ("elevation marker was not created").
+          await updatePermissions(dId, aKey, patch);
           const res = await window.electronAPI.elevation.install();
           if (!res.installed) {
+            // Roll the grant back so consent never outlives a failed elevation
+            // install (e.g. a cancelled UAC prompt).
+            const revert: Record<string, boolean> = {};
+            for (const key of keys) revert[key] = false;
+            await updatePermissions(dId, aKey, revert);
             throw new Error(res.reason || "Elevation setup failed — Manage access was not enabled");
           }
+        } else {
+          await updatePermissions(dId, aKey, patch);
         }
-        await updatePermissions(dId, aKey, patch);
         if (manageRevoked && isRealDevice && window.electronAPI?.elevation) {
           // Autonomously strip the OS elevation after the backend revoke lands.
           const res = await window.electronAPI.elevation.deprovision();
