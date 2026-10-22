@@ -116,6 +116,26 @@ jobs:
         shell: bash
         run: bash ../.github/workflows/scripts/frozen-smoke.sh "${{ matrix.os }}"
 
+      - name: Parse the Windows elevation helpers
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # The elevation helper and its installer are the only Windows-only
+          # artefacts in the app and nothing else exercises them, so a syntax
+          # error would only surface as "elevation does not work" on a real
+          # device. Parse them here instead.
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem -Path 'electron/privileged' -Filter '*.ps1' | ForEach-Object {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName, [ref]$null, [ref]$errors)
+            if ($errors) {
+              $errors | ForEach-Object { Write-Host "$($_.Extent.File):$($_.Extent.StartLineNumber): $($_.Message)" }
+              throw "PowerShell syntax errors in $($_.Name)"
+            }
+            Write-Host "ok $($_.Name)"
+          }
+
   package:
     name: Package (${{ matrix.os }})
     needs: [quality]
@@ -239,6 +259,24 @@ jobs:
             test -f "$priv_dir/$f" || { echo "missing elevation helper: $priv_dir/$f" >&2; exit 1; }
           done
           find "$priv_dir" -maxdepth 1 -type f
+
+      - name: Parse the packaged Windows elevation helpers
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Parse the helpers as they were actually packaged, so a syntax error
+          # cannot reach a device.
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem -Path 'release/win-unpacked/resources/user_app/electron/privileged' -Filter '*.ps1' | ForEach-Object {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName, [ref]$null, [ref]$errors)
+            if ($errors) {
+              $errors | ForEach-Object { Write-Host "$($_.Extent.File):$($_.Extent.StartLineNumber): $($_.Message)" }
+              throw "PowerShell syntax errors in $($_.Name)"
+            }
+            Write-Host "ok $($_.Name)"
+          }
 
       - name: Assert update feeds reference files that are actually produced
         shell: bash
