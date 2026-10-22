@@ -356,7 +356,7 @@ export default function DeviceInfo() {
                 <p className="text-slate-200 text-xs font-medium">Start at login</p>
                 <p className="text-slate-400 text-xs mt-0.5">
                   {loginItemEnabled
-                    ? 'The agent resumes automatically after this Mac restarts'
+                    ? 'The agent resumes automatically after this device restarts'
                     : 'Opened manually — a reboot leaves the device offline until launched'}
                 </p>
               </div>
@@ -366,13 +366,13 @@ export default function DeviceInfo() {
                 aria-label="Start at login"
                 aria-checked={loginItemEnabled}
                 onClick={() => handleToggleLaunchAtLogin(!loginItemEnabled)}
-                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                className={`relative w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${
                   loginItemEnabled ? 'bg-teal-600' : 'bg-slate-500'
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                    loginItemEnabled ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                    loginItemEnabled ? 'translate-x-6' : 'translate-x-0'
                   }`}
                 />
               </button>
