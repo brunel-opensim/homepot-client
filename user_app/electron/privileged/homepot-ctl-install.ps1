@@ -50,10 +50,13 @@ op:exec
 $markerPath = Join-Path $InstallDir "elevation_installed.marker"
 "installed" | Set-Content -Path $markerPath -Encoding UTF8
 
-# Register scheduled task that runs the helper with SYSTEM privileges
+# Register scheduled task that runs the helper with SYSTEM privileges. The
+# action is `execute-request` (the unprivileged agent writes a request file and
+# triggers the task via `schtasks /run`); the trigger is far-future so the task
+# never fires on its own.
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$destPath`""
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5)
+    -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$destPath`" execute-request"
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddYears(100)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -StartWhenAvailable -RunOnlyIfNetworkAvailable -MultipleInstances IgnoreNew
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest

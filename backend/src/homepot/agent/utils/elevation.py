@@ -37,6 +37,8 @@ import logging
 import os
 import platform
 import subprocess  # noqa: S404 - fixed argv list, no shell
+import time
+import uuid
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -369,6 +371,101 @@ def elevated_exec_argv() -> Optional[list[str]]:
             EXEC_OP,
         ]
     return ["sudo", "-n", ctl_path(), "run", EXEC_OP]
+
+
+def _elevation_request_path() -> str:
+    return os.path.join(elevation_root(), "elevation-request.json")
+
+
+def _elevation_result_path(request_id: str) -> str:
+    return os.path.join(elevation_root(), f"elevation-result-{request_id}.json")
+
+
+def run_elevated(
+    op: str, script: Optional[str] = None, timeout: int = 30
+) -> Dict[str, Any]:
+    """Run an elevated operation through the scoped helper and return its result.
+
+    POSIX: ``sudo -n homepot-ctl run <op>`` (script piped on stdin, run as
+    root). Windows: write a request file, trigger the SYSTEM scheduled task via
+    ``schtasks /run``, and poll for the result file the helper writes back.
+
+    Returns ``{"ok", "exit_code", "stdout", "stderr"}`` on completion, or
+    ``{"ok": False, "error": ...}`` when the operation could not be run.
+    """
+    if not is_elevation_supported():
+        return {"ok": False, "error": "elevation is not supported on this platform"}
+    if not is_elevation_installed():
+        return {"ok": False, "error": "elevation helper is not installed"}
+
+    if os.name != "nt":
+        argv = ["sudo", "-n", ctl_path(), "run", op]
+        try:
+            completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+                argv,
+                input=script,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return {"ok": False, "error": str(exc)}
+        return {
+            "ok": completed.returncode == 0,
+            "exit_code": completed.returncode,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+        }
+
+    # Windows: the helper runs as SYSTEM only via the scheduled task. Write a
+    # request the agent can author but only the SYSTEM task may execute, then
+    # poll for the result the helper writes back.
+    request_id = uuid.uuid4().hex
+    request_path = _elevation_request_path()
+    result_path = _elevation_result_path(request_id)
+
+    try:
+        if os.path.isfile(result_path):
+            os.remove(result_path)
+    except OSError:
+        pass
+
+    try:
+        with open(request_path, "w", encoding="utf-8") as fh:
+            json.dump({"request_id": request_id, "op": op, "script": script}, fh)
+    except OSError as exc:
+        return {"ok": False, "error": f"could not write elevation request: {exc}"}
+
+    try:
+        subprocess.run(  # noqa: S603, S607 - fixed argv, no shell; schtasks on PATH
+            ["schtasks", "/run", "/tn", WINDOWS_TASK_NAME],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"ok": False, "error": f"could not trigger elevation task: {exc}"}
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if os.path.isfile(result_path):
+            try:
+                with open(result_path, "r", encoding="utf-8") as fh:
+                    result = json.load(fh)
+                os.remove(result_path)
+            except (OSError, ValueError):
+                result = {}
+            return {
+                "ok": result.get("exit_code", 1) == 0,
+                "exit_code": result.get("exit_code", 1),
+                "stdout": result.get("stdout", "") or "",
+                "stderr": result.get("stderr", "") or "",
+            }
+        time.sleep(0.5)
+
+    return {"ok": False, "error": "elevation request timed out waiting for the helper"}
 
 
 def parse_ctl_status(output: str) -> Dict[str, Any]:

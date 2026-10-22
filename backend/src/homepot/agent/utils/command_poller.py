@@ -211,10 +211,12 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
         argv = elevated_argv
         script_text = source
     else:
-        # Windows: check if elevation helper is available
-        elevated_argv = elevation_util.elevated_exec_argv()
+        # Windows: when elevation is available, run via the SYSTEM scheduled
+        # task (request/result protocol) so the helper executes elevated rather
+        # than inheriting the agent's unprivileged context. Otherwise fall back
+        # to a plain local run.
         if elevation_util.is_elevation_supported():
-            if elevated_argv is None:
+            if not elevation_util.is_elevation_installed():
                 return {
                     "status": "failed",
                     "result": {
@@ -238,8 +240,28 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
                         )
                     },
                 }
-            argv = elevated_argv
-            script_text = source
+            outcome = elevation_util.run_elevated("exec", source, timeout)
+            if not outcome.get("ok"):
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            outcome.get("error")
+                            or outcome.get("stderr")
+                            or "elevated command failed"
+                        ),
+                        "exit_code": outcome.get("exit_code"),
+                        "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+                    },
+                }
+            return {
+                "status": "completed",
+                "result": {
+                    "exit_code": outcome.get("exit_code", 0),
+                    "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+                    "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+                },
+            }
         elif script:
             # PowerShell reads the script from stdin.
             argv = _shell_for_scripts()
@@ -722,7 +744,9 @@ def _system_control(command_type: str) -> Dict[str, Any]:
                         )
                     },
                 }
-            outcome = _run_argv(elevated_argv)
+            # Run through the SYSTEM scheduled task (request/result protocol)
+            # so the helper executes elevated rather than unprivileged.
+            outcome = elevation_util.run_elevated(command_type)
         else:
             # Fallback: run shutdown directly (agent runs as elevated service)
             action = "/r /t 0" if command_type == "restart" else "/s /t 0"

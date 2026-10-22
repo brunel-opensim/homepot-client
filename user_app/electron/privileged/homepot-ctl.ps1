@@ -17,7 +17,7 @@
 
 param(
     [Parameter(Mandatory=$true, Position=0)]
-    [ValidateSet("status", "ensure-allowlist", "run", "deprovision")]
+    [ValidateSet("status", "ensure-allowlist", "run", "execute-request", "deprovision")]
     [string]$Verb,
 
     [Parameter(Position=1)]
@@ -94,11 +94,15 @@ op:exec
     # Create marker file
     "installed" | Set-Content -Path $Marker -Encoding UTF8
 
-    # Register scheduled task that runs this script with SYSTEM privileges
+    # Register scheduled task that runs this script with SYSTEM privileges.
+    # The action is `execute-request`: the unprivileged agent writes a request
+    # file and triggers the task via `schtasks /run`; this SYSTEM context then
+    # reads and executes it. The trigger is far-future so the task never fires
+    # on its own.
     $scriptPath = $PSCommandPath
     $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$scriptPath`" run"
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5)
+        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$scriptPath`" execute-request"
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddYears(100)
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
         -StartWhenAvailable -RunOnlyIfNetworkAvailable -MultipleInstances IgnoreNew
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
@@ -119,6 +123,80 @@ function Remove-Elevation {
     if (Test-Path $Allowlist) { Remove-Item $Allowlist -Force -ErrorAction SilentlyContinue }
 }
 
+function Invoke-ExecuteRequest {
+    # Read a request file written by the unprivileged agent and execute it as
+    # SYSTEM (this helper runs via the HOMEPOT-Elevation scheduled task), then
+    # write a result file the agent polls for. This is the Windows equivalent
+    # of `sudo -n homepot-ctl run <op>`: the agent never receives blanket
+    # elevation, and each operation is read from a file it can write but not
+    # (directly) execute elevated.
+    $RequestPath = Join-Path $Base "elevation-request.json"
+    if (-not (Test-Path $RequestPath)) {
+        Write-Error "homepot-ctl: no elevation request pending"
+        exit 2
+    }
+
+    $req = Get-Content $RequestPath -Raw | ConvertFrom-Json
+    $reqId = $req.request_id
+    $ResultPath = Join-Path $Base "elevation-result-$reqId.json"
+
+    $stdout = ""
+    $stderr = ""
+    $exitCode = 0
+
+    switch ($req.op) {
+        "exec" {
+            # Allowlist gate (fail-closed): free-form exec is only honoured when
+            # the owner has explicitly allowed it.
+            if (-not (Test-AllowlistEntry -Op "exec")) {
+                $stderr = "homepot-ctl: operation 'exec' is not allowed"
+                $exitCode = 2
+                break
+            }
+            try {
+                $scriptBlock = [scriptblock]::Create([string]$req.script)
+                $stdout = (& $scriptBlock 2>&1 | Out-String)
+                $exitCode = 0
+            } catch {
+                $stderr = $_.Exception.Message
+                $exitCode = 1
+            }
+        }
+        "restart" {
+            if (-not (Test-AllowlistEntry -Op "restart")) {
+                $stderr = "homepot-ctl: operation 'restart' is not allowed"
+                $exitCode = 2
+                break
+            }
+            $stdout = "restart initiated"
+            shutdown /r /t 5
+        }
+        "shutdown" {
+            if (-not (Test-AllowlistEntry -Op "shutdown")) {
+                $stderr = "homepot-ctl: operation 'shutdown' is not allowed"
+                $exitCode = 2
+                break
+            }
+            $stdout = "shutdown initiated"
+            shutdown /s /t 5
+        }
+        default {
+            $stderr = "homepot-ctl: unknown elevation op '$($req.op)'"
+            $exitCode = 2
+        }
+    }
+
+    @{
+        request_id = $reqId
+        exit_code  = $exitCode
+        stdout     = $stdout
+        stderr     = $stderr
+    } | ConvertTo-Json | Set-Content -Path $ResultPath -Encoding UTF8
+
+    # Best-effort cleanup of the consumed request.
+    Remove-Item $RequestPath -Force -ErrorAction SilentlyContinue
+}
+
 # Main dispatch
 switch ($Verb) {
     "status" { Write-Status }
@@ -130,9 +208,10 @@ switch ($Verb) {
         }
         Invoke-Run -Op $Operation
     }
+    "execute-request" { Invoke-ExecuteRequest }
     "deprovision" { Remove-Elevation }
     default {
-        Write-Error "usage: homepot-ctl.ps1 {status|ensure-allowlist|run <op>|deprovision}"
+        Write-Error "usage: homepot-ctl.ps1 {status|ensure-allowlist|run <op>|execute-request|deprovision}"
         exit 2
     }
 }
