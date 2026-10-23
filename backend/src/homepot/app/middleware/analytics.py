@@ -1,5 +1,6 @@
 """Middleware for automatic API request logging and performance monitoring."""
 
+import asyncio
 import logging
 import time
 from typing import Callable, Optional
@@ -11,9 +12,40 @@ from starlette.types import ASGIApp
 
 from homepot.app.auth_utils import ALGORITHM, COOKIE_NAME, SECRET_KEY
 from homepot.app.models.AnalyticsModel import APIRequestLog
-from homepot.database import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+# Paths that are never written to the API request log.
+#
+# The first group are pure noise (health probes, metrics scraping, docs).
+# The second group is the high-frequency machine-to-machine reporting surface:
+# every registered device posts heartbeat/telemetry/logs/alerts on a 30s
+# cadence, and those requests already land in their own dedicated tables
+# (``device_metrics``, ``health_checks``, etc.). Writing an ``api_request_logs``
+# row for each one multiplies write load for no analytical value and was a
+# major contributor to the production database pool-exhaustion outages.
+#
+# Matching is by ``startswith`` on the full path (which includes the
+# ``/api/v1`` prefix), so each entry here must cover the prefixed form too.
+_SKIP_PATHS = (
+    "/health",
+    "/metrics",
+    "/docs",
+    "/openapi.json",
+    "/favicon.ico",
+    # Device/agent machine-to-machine reporting (30s cadence per device).
+    "/api/v1/agent/",
+    # API-level liveness used by load balancers and monitoring.
+    "/api/v1/health",
+    "/api/v1/metrics",
+)
+
+# Cap the number of concurrent analytics writes. Analytics logging is
+# best-effort: when this many writes are already in flight, further samples are
+# dropped rather than queueing up and starving the shared connection pool (and,
+# transitively, real request traffic) under load.
+_ANALYTICS_MAX_CONCURRENT_WRITES = 16
+_analytics_write_semaphore = asyncio.Semaphore(_ANALYTICS_MAX_CONCURRENT_WRITES)
 
 
 class AnalyticsMiddleware(BaseHTTPMiddleware):
@@ -32,9 +64,9 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
             response: Response = await call_next(request)
             return response
 
-        # Skip logging for health check and metrics endpoints to avoid noise
-        skip_paths = ["/health", "/metrics", "/docs", "/openapi.json", "/favicon.ico"]
-        if any(request.url.path.startswith(path) for path in skip_paths):
+        # Skip logging for health check, metrics, and machine-to-machine
+        # endpoints to avoid noise and write amplification.
+        if any(request.url.path.startswith(path) for path in _SKIP_PATHS):
             response = await call_next(request)
             return response
 
@@ -74,24 +106,29 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
         # Calculate response time
         response_time_ms = (time.time() - start_time) * 1000
 
-        # Log to database asynchronously (non-blocking)
+        # Log to database asynchronously (non-blocking, best-effort). The write
+        # runs as a detached task on the async engine, so it can never block
+        # the event loop on a synchronous commit or exhaust a small sync pool —
+        # the previous behaviour that stalled requests under load.
         try:
-            self._log_request(
-                endpoint=endpoint,
-                method=method,
-                status_code=response.status_code,
-                response_time_ms=response_time_ms,
-                user_id=user_id,
-                ip_address=ip_address,
-                user_agent=user_agent,
+            asyncio.create_task(
+                self._log_request(
+                    endpoint=endpoint,
+                    method=method,
+                    status_code=response.status_code,
+                    response_time_ms=response_time_ms,
+                    user_id=user_id,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                )
             )
         except Exception as e:
-            # Don't fail the request if logging fails
-            logger.error(f"Failed to log API request: {str(e)}")
+            # Don't fail the request if scheduling the log fails
+            logger.debug("Failed to schedule API request log: %s", e)
 
         return response
 
-    def _log_request(
+    async def _log_request(
         self,
         endpoint: str,
         method: str,
@@ -101,22 +138,30 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> None:
-        """Log request to database."""
-        db = SessionLocal()
-        try:
-            log_entry = APIRequestLog(
-                endpoint=endpoint,
-                method=method,
-                status_code=status_code,
-                response_time_ms=response_time_ms,
-                user_id=user_id,
-                ip_address=ip_address,
-                user_agent=user_agent,
-            )
-            db.add(log_entry)
-            db.commit()
-        except Exception as e:
-            logger.error(f"Error writing API log: {str(e)}")
-            db.rollback()
-        finally:
-            db.close()
+        """Write one request-log row, dropping the sample under backpressure."""
+        # Drop the sample if the write queue is already saturated. Analytics is
+        # best-effort; never let it queue unbounded work against the pool.
+        if _analytics_write_semaphore.locked():
+            return
+
+        async with _analytics_write_semaphore:
+            try:
+                from homepot.database import get_database_service
+
+                db_service = await get_database_service()
+                async with db_service.get_session() as session:
+                    session.add(
+                        APIRequestLog(
+                            endpoint=endpoint,
+                            method=method,
+                            status_code=status_code,
+                            response_time_ms=response_time_ms,
+                            user_id=user_id,
+                            ip_address=ip_address,
+                            user_agent=user_agent,
+                        )
+                    )
+                    # get_session() commits on clean exit and rolls back on error.
+            except Exception as e:
+                # Never raise out of the analytics path.
+                logger.debug("Error writing API request log: %s", e)
