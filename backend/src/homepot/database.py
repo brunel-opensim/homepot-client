@@ -258,6 +258,24 @@ class DatabaseService:
             engine_kwargs["poolclass"] = StaticPool
             engine_kwargs["connect_args"] = {"check_same_thread": False}
 
+        # PostgreSQL (asyncpg): honour the configured pool bounds and recycle
+        # connections so a silently dropped/SSL-closed connection is never
+        # handed out stale. These settings were previously defined in
+        # ``DatabaseSettings`` but never applied to the async engine — the
+        # engine silently used the defaults and had no defence against
+        # connection drops, a key contributor to the production
+        # pool-exhaustion / SSL-drop outages.
+        if db_url.startswith("postgresql+asyncpg://"):
+            engine_kwargs.update(
+                {
+                    "pool_size": settings.database.pool_size,
+                    "max_overflow": settings.database.max_overflow,
+                    "pool_timeout": settings.database.pool_timeout,
+                    "pool_recycle": settings.database.pool_recycle,
+                    "pool_pre_ping": True,
+                }
+            )
+
         self.engine = create_async_engine(db_url, **engine_kwargs)
 
         self.session_maker = async_sessionmaker(
@@ -1665,8 +1683,14 @@ if _db_url.startswith("sqlite"):
         sync_engine_kwargs["poolclass"] = StaticPool
     sync_engine = create_engine(_db_url, **sync_engine_kwargs)
 elif _db_url.startswith("postgresql"):
+    _pool_settings = get_settings().database
     sync_engine = create_engine(
-        _db_url, pool_pre_ping=True, pool_size=5, max_overflow=10
+        _db_url,
+        pool_pre_ping=True,
+        pool_size=_pool_settings.pool_size,
+        max_overflow=_pool_settings.max_overflow,
+        pool_timeout=_pool_settings.pool_timeout,
+        pool_recycle=_pool_settings.pool_recycle,
     )
 else:
     sync_engine = create_engine(_db_url)
