@@ -83,6 +83,23 @@ try {
         throw "scheduled task '$TaskName' was registered with an unexpected action"
     }
 
+    # Grant read+execute to Authenticated Users on the task so the unprivileged
+    # agent can start it with `schtasks /run`. A task registered with a SYSTEM
+    # principal gets a default DACL granting only Administrators and SYSTEM, so
+    # the agent's `schtasks /run` fails with "Access is denied". The same grant
+    # also lets the agent read the task back (`schtasks /query`) to confirm it
+    # is current. Idempotent: re-running the installer must not duplicate the
+    # ACE. Uses the Task Scheduler COM API (`Schedule.Service`) — the only
+    # supported way to edit a task's security descriptor.
+    $scheduler = New-Object -ComObject Schedule.Service
+    $scheduler.Connect()
+    $registered = $scheduler.GetFolder("\").GetTask($TaskName)
+    $sddl = $registered.GetSecurityDescriptor(0xF)   # 0xF = owner|group|dacl|sacl
+    if ($sddl -notmatch '\(A;;GRGX;;;AU\)') {
+        $sddl = $sddl + '(A;;GRGX;;;AU)'
+        $registered.SetSecurityDescriptor($sddl, 0xF)
+    }
+
     # Create allowlist
     @"
 op:restart
