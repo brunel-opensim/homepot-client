@@ -8,11 +8,6 @@ from sqlalchemy import select
 from homepot.app.models.AnalyticsModel import APIRequestLog
 from homepot.database import get_database_service
 
-# Unique endpoint markers so these tests never collide with rows written by
-# other tests (the analytics middleware logs a row per request, and CI may run
-# against a shared test database).
-_MARKER = "/retention-test"
-
 
 def _naive_utc(dt: datetime) -> datetime:
     """Return a naive-UTC datetime, matching ``AnalyticsModel.utc_now``."""
@@ -29,12 +24,12 @@ def _make_log(endpoint: str, timestamp: datetime) -> APIRequestLog:
     )
 
 
-async def _marker_endpoints(db) -> set:
-    """Return the set of endpoints under ``_MARKER`` currently in the table."""
+async def _marker_endpoints(db, marker: str) -> set:
+    """Return the set of endpoints under ``marker/`` currently in the table."""
     async with db.get_session() as session:
         result = await session.execute(
             select(APIRequestLog.endpoint).where(
-                APIRequestLog.endpoint.like(f"{_MARKER}/%")
+                APIRequestLog.endpoint.like(f"{marker}/%")
             )
         )
         return set(result.scalars().all())
@@ -44,35 +39,37 @@ async def _marker_endpoints(db) -> set:
 async def test_delete_old_api_request_logs_only_removes_expired_rows():
     """Rows older than the retention window are deleted; recent rows survive."""
     db = await get_database_service()
+    marker = "/retention-test/expired"
 
     old = _naive_utc(datetime.now(timezone.utc) - timedelta(days=60))
     recent = _naive_utc(datetime.now(timezone.utc) - timedelta(days=1))
 
     async with db.get_session() as session:
-        session.add(_make_log(f"{_MARKER}/old", old))
-        session.add(_make_log(f"{_MARKER}/recent", recent))
-        session.add(_make_log(f"{_MARKER}/old-2", old))
+        session.add(_make_log(f"{marker}/old", old))
+        session.add(_make_log(f"{marker}/recent", recent))
+        session.add(_make_log(f"{marker}/old-2", old))
 
     deleted = await db.delete_old_api_request_logs(retention_days=30)
 
     assert deleted >= 2  # at least our two expired rows (others may exist)
 
-    assert await _marker_endpoints(db) == {f"{_MARKER}/recent"}
+    assert await _marker_endpoints(db, marker) == {f"{marker}/recent"}
 
 
 @pytest.mark.asyncio
 async def test_delete_old_api_request_logs_batches_large_backlogs():
     """A backlog larger than one batch is cleared across multiple batches."""
     db = await get_database_service()
+    marker = "/retention-test/batch"
 
     old = _naive_utc(datetime.now(timezone.utc) - timedelta(days=60))
     async with db.get_session() as session:
         for i in range(15):
-            session.add(_make_log(f"{_MARKER}/batch-{i}", old))
+            session.add(_make_log(f"{marker}/{i}", old))
 
     deleted = await db.delete_old_api_request_logs(
         retention_days=30, batch_size=5, max_batches=10
     )
 
     assert deleted >= 15
-    assert await _marker_endpoints(db) == set()
+    assert await _marker_endpoints(db, marker) == set()

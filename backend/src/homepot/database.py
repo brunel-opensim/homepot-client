@@ -1133,7 +1133,7 @@ class DatabaseService:
                 result = await session.execute(
                     delete(APIRequestLog).where(APIRequestLog.id.in_(subquery))
                 )
-                deleted = result.rowcount or 0
+                deleted = int(getattr(result, "rowcount", 0) or 0)
                 # get_session() commits on clean exit.
             total_deleted += deleted
             if deleted < batch_size:
