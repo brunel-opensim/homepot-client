@@ -22,6 +22,18 @@ class DatabaseSettings(BaseSettings):
     max_overflow: int = Field(
         default=10, description="Maximum connection pool overflow"
     )
+    pool_timeout: int = Field(
+        default=30,
+        description="Seconds to wait for a pooled connection before timing out",
+    )
+    pool_recycle: int = Field(
+        default=300,
+        description=(
+            "Seconds before a pooled connection is recycled. A non-negative "
+            "value defends against connections silently closed by PostgreSQL "
+            "or an intermediate proxy (e.g. SSL drops) being handed out stale."
+        ),
+    )
 
 
 class AuthSettings(BaseSettings):
