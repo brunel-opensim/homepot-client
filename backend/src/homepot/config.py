@@ -22,6 +22,13 @@ class DatabaseSettings(BaseSettings):
     max_overflow: int = Field(
         default=10, description="Maximum connection pool overflow"
     )
+    api_request_log_retention_days: int = Field(
+        default=30,
+        description=(
+            "Days to retain rows in api_request_logs before the periodic "
+            "background cleanup deletes them. Set to 0 to disable trimming."
+        ),
+    )
 
 
 class AuthSettings(BaseSettings):

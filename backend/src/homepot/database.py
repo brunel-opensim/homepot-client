@@ -1082,6 +1082,52 @@ class DatabaseService:
             await session.commit()
             return len(devices)
 
+    async def delete_old_api_request_logs(
+        self,
+        retention_days: int = 30,
+        batch_size: int = 5000,
+        max_batches: int = 200,
+    ) -> int:
+        """Delete ``api_request_logs`` rows older than ``retention_days``.
+
+        The analytics middleware writes one row per request, so this table
+        grows unbounded and (with several indexes) makes every insert slower
+        over time. Rows are removed in bounded batches so a large backlog is
+        cleared without holding a single long transaction or lock.
+
+        Returns the total number of rows deleted.
+        """
+        from sqlalchemy import delete
+
+        try:
+            from homepot.app.models.AnalyticsModel import APIRequestLog
+        except ImportError:
+            logger.warning("AnalyticsModel unavailable; skipping api_request_logs trim")
+            return 0
+
+        cutoff = datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None
+        ) - datetime.timedelta(days=retention_days)
+        total_deleted = 0
+        for _ in range(max_batches):
+            async with self.get_session() as session:
+                # Delete by primary key so the batch is bounded by ``batch_size``
+                # and never depends on a planner choosing a timestamp scan.
+                subquery = (
+                    select(APIRequestLog.id)
+                    .where(APIRequestLog.timestamp < cutoff)
+                    .limit(batch_size)
+                )
+                result = await session.execute(
+                    delete(APIRequestLog).where(APIRequestLog.id.in_(subquery))
+                )
+                deleted = result.rowcount or 0
+                # get_session() commits on clean exit.
+            total_deleted += deleted
+            if deleted < batch_size:
+                break
+        return total_deleted
+
     # Health check operations
     async def create_health_check(
         self,
