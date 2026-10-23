@@ -516,6 +516,40 @@ ssh demouser 'cd /var/www/homepot.cabera.com/frontend/dist/downloads && sha256su
 Any mismatch means a bad transfer. Delete the file and re-copy it — a truncated
 installer fails only when a technician runs it.
 
+#### Keeping a local copy (server-down resilience)
+
+`homepot.cabera.com/downloads/` is a *mirror*, not the source of truth — the
+GitHub release is. Because the repository is public, the installers stay
+downloadable even when the server is unreachable, so a workstation can keep its
+own local copy as a fallback distribution path.
+
+A local download reads from GitHub directly and never touches the server, so it
+cannot interfere with the live mirror. The copy is byte-identical to what the
+server serves, because both mirror the same release.
+
+```bash
+# From a workstation. release-artifacts/ is gitignored.
+mkdir -p release-artifacts/v0.3.9
+
+# Option A — gh CLI (simplest; needs gh and its auth):
+gh release download v0.3.9 --dir release-artifacts/v0.3.9 --clobber
+
+# Option B — the mirror script against a local directory (no gh; only curl and
+# python3, and it verifies every digest before finishing):
+TARGET_DIR="$PWD/release-artifacts/v0.3.9" ./scripts/mirror-downloads.sh v0.3.9
+```
+
+Verify the bytes against `checksums.json` before relying on the copy: the mirror
+script does this itself, while after `gh release download` you compare
+`sha256sum` over the installers with the manifest's `sha256` entries. A single
+machine can also be pointed straight at GitHub as a last resort:
+
+```
+https://github.com/brunel-opensim/homepot-client/releases/download/v0.3.9/homepot-agent-setup-0.3.9.exe
+```
+
+Refresh the copy on each release — it is a snapshot, not a live mirror.
+
 #### checksums.json
 
 `checksums.json` lists every published artifact with its `sha256` (hex), its
