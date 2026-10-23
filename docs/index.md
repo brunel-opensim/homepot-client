@@ -14,6 +14,11 @@ Welcome to the HOMEPOT Client documentation! This comprehensive guide will help 
 - **[Development Guide](development-guide.md)** - How to contribute
 - **[Testing Guide](testing-guide.md)** - How to test your code
 - **[API Testing Guide](api-testing-guide.md)** - Manual API testing and validation
+- **[Enrolment Intents](enrolment-intents.md)** - Operator-invited device enrollment with one-time tokens
+- **[Device Onboarding (Technician)](device-onboarding-technician.md)** - Step-by-step onboarding guide
+- **[User App Releases](user-app-releases.md)** - Release pipeline, feeds, and verification
+- **[User App Trust & Elevation](user-app-trust-and-elevation.md)** - Trust model and scoped elevation
+- **[Server Deployment](server-deployment.md)** - Backend/frontend deployment and release mirroring
 
 ### For Stakeholders
 - **[Visual Examples](visual-examples.md)** - Screenshots and diagrams

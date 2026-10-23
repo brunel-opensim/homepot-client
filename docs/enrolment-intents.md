@@ -2,6 +2,17 @@
 
 Pre-provisioned enrolment intents allow an administrator to create a pending device slot for a site, generate a one-time claim token, and hand that token off to an installer. The installer's User App or agent submits the token to complete the enrolment — the administrator never needs to be physically present at the device.
 
+## When to use this vs Bootstrap Key
+
+| Aspect | **Enrolment Intents** | **Bootstrap Key (User App + Site ID + Key)** |
+| --- | --- | --- |
+| **Initiation** | Operator creates intent in dashboard/API | User enters Site ID + Bootstrap Key directly in the User App |
+| **Scope** | One token per device (consumed on claim) | One site-wide key for multiple devices until rotated |
+| **Approval** | Explicit (`pending` → `approved`) or can auto-claim depending on workflow | Implicit — enrolls immediately if key is valid |
+| **Auditability** | Full trail: creator, intent ID, status, expiry, consumption | Minimal: device marked `self-enrolled` via bootstrap |
+| **Revocation** | Revoke a single intent without affecting others | Rotate the site bootstrap key to block new enrollments |
+| **Best for** | Production rollouts, technician installs, traceable onboarding | Demos, emulators, quick trusted setups |
+
 ## Workflow
 
 ```mermaid

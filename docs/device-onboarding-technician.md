@@ -78,7 +78,22 @@ so every site will show "Generate Bootstrap Key".
 
 ---
 
-## 4. Install the User App on the device
+## 4. Choose an enrollment method
+
+There are **two ways** to enroll a device. Pick the one that fits your use case:
+
+| Aspect | **Enrolment Intents** (Recommended) | **User App + Site ID + Bootstrap Key** (Quick) |
+| --- | --- | --- |
+| **Who initiates** | Operator creates an intent from the dashboard | User/device initiates from the User App |
+| **Scope** | 1:1 — one token per device, consumed on use | 1:N — one key can enroll multiple devices until rotated |
+| **Approval** | Can be left `pending` until approved; supports approve/reject/revoke | Auto-enrolls immediately when key is valid |
+| **Audit trail** | Strong — tracks creator, intent ID, status history, expiry | Minimal — marked as `self-enrolled` |
+| **Security** | Time-limited, one-time claim token; only hash stored | Site-wide shared key; rotate to revoke all new enrollments |
+| **Best for** | Production, controlled rollouts, per-device tracking | Demos, emulators, quick trusted onboarding |
+
+For detailed instructions on **Enrolment Intents**, see [Enrolment Intents](enrolment-intents.md). For the **Bootstrap Key** flow below, continue with sections 4-6.
+
+## 5. Install the User App on the device
 
 Open **Downloads** in the dashboard sidebar (under *Actions*). It shows the
 current version, the installer size, a Download button, and the **SHA-256** of
