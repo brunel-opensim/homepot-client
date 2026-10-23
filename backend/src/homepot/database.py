@@ -1099,12 +1099,6 @@ class DatabaseService:
         """
         from sqlalchemy import delete
 
-        try:
-            from homepot.app.models.AnalyticsModel import APIRequestLog
-        except ImportError:
-            logger.warning("AnalyticsModel unavailable; skipping api_request_logs trim")
-            return 0
-
         cutoff = datetime.datetime.now(datetime.timezone.utc).replace(
             tzinfo=None
         ) - datetime.timedelta(days=retention_days)
