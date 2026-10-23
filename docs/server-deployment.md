@@ -65,6 +65,43 @@ Last verified: 2026-10-13, after the first successful production reset (current
   web host and the maintenance-URL technique are recorded in
   `docs/server-admin-option-b.md` (§ As-built).
 
+### Database connection pool
+
+The API holds two connection pools: the async engine (the request path and
+`DatabaseService`) and a smaller synchronous engine (Alembic, the reconcile
+loop, and a few sync endpoints). Both read their bounds from the same settings
+and — since #572 — actually honour them (previously the async engine ignored
+the pool settings entirely and ran on defaults with no recycle).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `DATABASE__POOL_SIZE` | `5` | Steady-state connections per engine |
+| `DATABASE__MAX_OVERFLOW` | `10` | Extra connections allowed above `POOL_SIZE` under load |
+| `DATABASE__POOL_TIMEOUT` | `30` | Seconds a request waits for a connection before failing |
+| `DATABASE__POOL_RECYCLE` | `300` | Seconds before a pooled connection is recycled (defends against silently dropped / SSL-closed connections) |
+
+The async engine also enables `pool_pre_ping`, so a connection closed by
+PostgreSQL or an intermediate proxy is detected before use instead of being
+handed out stale.
+
+**Tuning.** The defaults (5 + 10 overflow) are enough for a single uvicorn
+worker. If you raise `--workers`, or see connection-timeout errors in the logs,
+bump `DATABASE__POOL_SIZE` / `DATABASE__MAX_OVERFLOW` and confirm Postgres has
+headroom (see *Database connection pool exhaustion* under Troubleshooting).
+
+### API request log retention
+
+The analytics middleware writes one `api_request_logs` row per request, and
+that table (with several indexes) grew unbounded — a slow-burn load source.
+Since #573 a background task trims rows older than
+`DATABASE__API_REQUEST_LOG_RETENTION_DAYS` (default `30`; set `0` to disable)
+on startup and every 6 hours, in bounded batches so it never blocks request
+traffic.
+
+The trim is logged as `Trimmed N stale api_request_logs row(s)`. Confirm the
+task is running by looking for `API request log retention task started` in
+`journalctl -u homepot-api`.
+
 ### Credentials (gitignored, deploy-only)
 
 - `backend/.env` → `DATABASE__URL` used by the app and the reset scripts.
@@ -290,6 +327,17 @@ export ENABLE_AGENT_SIMULATION="false"
 export HOST="127.0.0.1"
 export PORT="8000"
 export LOG_LEVEL="INFO"
+
+# Database connection pool (see "Database connection pool" above). The async
+# engine now honours these; tune them if you change uvicorn workers or see
+# connection-timeout errors.
+export DATABASE__POOL_SIZE="5"
+export DATABASE__MAX_OVERFLOW="10"
+export DATABASE__POOL_TIMEOUT="30"
+export DATABASE__POOL_RECYCLE="300"
+
+# api_request_logs retention (see "API request log retention" above).
+export DATABASE__API_REQUEST_LOG_RETENTION_DAYS="30"
 ```
 
 Also update `backend/.env` with the same `DATABASE__URL` (no password).
@@ -958,6 +1006,34 @@ tail -f logs/backend.log
 # Verify database connection
 ./scripts/query-db.sh tables
 ```
+
+### Database connection pool exhaustion
+
+Symptom: `/api/v1/*` endpoints time out or return 500s while `/api/v1/health`
+still responds and the database port is reachable from the web host. This is
+the failure mode behind the two production outages: the analytics middleware
+performed a synchronous DB write inside the async event loop on every request
+(blocking the loop and saturating the small sync pool), and the async engine
+ignored its pool settings and had no defence against dropped connections —
+both fixed in #572.
+
+Diagnose on the database host (`51.161.114.195`):
+
+```bash
+psql -h localhost -U postgres -c "SELECT count(*) FROM pg_stat_activity;"
+psql -h localhost -U postgres -c "SHOW max_connections;"
+```
+
+If the count is pinned at or near `max_connections`, connections are leaking or
+the pool bounds are too small. Restart `homepot-api` to clear the pools:
+
+```bash
+sudo systemctl restart homepot-api && sleep 10
+curl -s http://127.0.0.1:8000/api/v1/health
+```
+
+Then review `DATABASE__POOL_*` and confirm the non-blocking analytics
+middleware from #572 is deployed.
 
 ### Port Already in Use
 
