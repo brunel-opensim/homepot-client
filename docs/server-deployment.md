@@ -84,10 +84,14 @@ The async engine also enables `pool_pre_ping`, so a connection closed by
 PostgreSQL or an intermediate proxy is detected before use instead of being
 handed out stale.
 
-**Tuning.** The defaults (5 + 10 overflow) are enough for a single uvicorn
-worker. If you raise `--workers`, or see connection-timeout errors in the logs,
-bump `DATABASE__POOL_SIZE` / `DATABASE__MAX_OVERFLOW` and confirm Postgres has
-headroom (see *Database connection pool exhaustion* under Troubleshooting).
+### Database pool tuning
+
+Defaults (5 steady + 10 overflow) fit a single uvicorn worker. If you run
+multiple `--workers`, or see connection-timeout errors in the logs, raise
+`DATABASE__POOL_SIZE` / `DATABASE__MAX_OVERFLOW` and confirm Postgres has
+headroom: `SELECT count(*) FROM pg_stat_activity;` must stay well under
+`SHOW max_connections;` (see *Database connection pool exhaustion* under
+Troubleshooting).
 
 ### API request log retention
 
