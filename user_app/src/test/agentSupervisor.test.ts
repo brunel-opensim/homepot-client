@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   AgentSupervisor,
   DEFAULT_CRASH_LOOP_POLICY,
+  AGENT_SHUTDOWN_GRACE_MS,
 } from '../../electron/agentSupervisor'
 
 /** A controllable clock so the rolling-window logic is deterministic. */
@@ -20,6 +21,13 @@ describe('AgentSupervisor', () => {
     const s = new AgentSupervisor()
     s.markIntentionalStop()
     expect(s.onExit()).toEqual({ kind: 'intentional' })
+  })
+
+  it('shutdown grace exceeds the agent shutdown timeout (30s)', () => {
+    // The agent's graceful-shutdown budget is `shutdown_timeout_seconds` = 30s;
+    // Electron must not SIGKILL before that or the final OFFLINE heartbeat is
+    // cut short.
+    expect(AGENT_SHUTDOWN_GRACE_MS).toBeGreaterThanOrEqual(30_000)
   })
 
   it('clears the intentional flag after an intentional exit', () => {

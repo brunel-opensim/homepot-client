@@ -6,7 +6,7 @@ import os from 'node:os'
 import { spawn, execFile, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { AgentSupervisor } from './agentSupervisor'
+import { AgentSupervisor, AGENT_SHUTDOWN_GRACE_MS } from './agentSupervisor'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -1116,7 +1116,7 @@ function killAgent(): void {
     if (!processToKill.killed) {
       setTimeout(() => {
         try { processToKill.kill('SIGKILL') } catch { /* ignore */ }
-      }, 3000)
+      }, AGENT_SHUTDOWN_GRACE_MS)
     }
   } catch {
     agentProcess = null
