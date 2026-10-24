@@ -10,9 +10,11 @@ import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 from typing import Any, Dict, List, Optional
 
+import httpx
 import psutil
 
 from homepot.agent.utils import elevation as elevation_util
+from homepot.agent.utils.errors import classify_status
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,18 @@ async def fetch_device_permissions(
         data = body.get("data") or {}
         perms: Dict[str, bool] = data.get("permissions") or {}
         return perms
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        err = classify_status(url, status_code)
+        if err is not None:
+            logger.error(
+                "Permissions fetch permanent failure url=%s status=%s",
+                url,
+                status_code,
+            )
+            raise err
+        logger.warning("Failed to fetch device permissions (HTTP %s)", status_code)
+        return None
     except Exception as exc:
         logger.warning("Failed to fetch device permissions: %s", exc)
         return None
