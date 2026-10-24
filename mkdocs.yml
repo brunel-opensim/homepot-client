@@ -200,6 +200,7 @@ nav:
           - Fleet Load Testing: fleet-simulation.md
           - Real Device Agent: real-device-agent.md
           - Offline Resilience & Failure Modes: device-offline-resilience.md
+          - Resilience Implementation Plan: device-resilience-implementation-plan.md
           - Real Device Transition: real-device-transition.md
           - Team Tasks (Readiness): real-device-readiness-tasks.md
 
