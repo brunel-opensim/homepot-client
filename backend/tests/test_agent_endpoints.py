@@ -222,6 +222,41 @@ def test_offline_heartbeat_marks_device_offline(client: TestClient):
         db.close()
 
 
+def test_heartbeat_ignores_skewed_device_clock(client: TestClient):
+    """Verify ``last_heartbeat_at`` is server time, not the device clock.
+
+    A drifting device clock must not report a device falsely OFFLINE
+    (gap 5 / W6).
+    """
+    site = _create_site("site-heartbeat-skew")
+    api_key = _create_device("heartbeat-skew-1", int(site.id))
+
+    # Device clock is six hours behind; if the backend trusted it, the device
+    # would look stale and flip OFFLINE despite a live heartbeat.
+    skewed = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
+    response = client.post(
+        "/api/v1/agent/heartbeat",
+        json={"device_id": "heartbeat-skew-1", "timestamp": skewed},
+        headers=_device_headers("heartbeat-skew-1", api_key),
+    )
+    assert response.status_code == 200
+
+    db = homepot.database.SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == "heartbeat-skew-1").first()
+        assert device is not None
+        assert device.last_heartbeat_at is not None
+        # Server receive time, not the six-hours-ago device timestamp.
+        last = device.last_heartbeat_at
+        if last.tzinfo is None:
+            # SQLite round-trips datetimes without tzinfo; treat as UTC.
+            last = last.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - last).total_seconds()
+        assert abs(age) < 60
+    finally:
+        db.close()
+
+
 def test_telemetry_single_is_saved(client: TestClient):
     """POST /api/v1/agent/telemetry should persist a single telemetry record."""
     site = _create_site("site-telemetry-single")
