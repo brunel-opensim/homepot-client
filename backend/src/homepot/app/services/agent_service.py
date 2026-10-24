@@ -161,7 +161,13 @@ class AgentService:
             raise e
 
     def update_heartbeat(self, payload: AgentHeartbeatRequest) -> dict:
-        """Update a device heartbeat timestamp and return heartbeat metadata."""
+        """Update a device heartbeat timestamp and return heartbeat metadata.
+
+        ``last_heartbeat_at`` is set to server receive time, not the device's
+        ``payload.timestamp``, so connectivity cannot be corrupted by a drifting
+        device clock. The device-reported timestamp is kept only for display in
+        the response (and is independently preserved in telemetry).
+        """
         try:
             device = self.repository.get_device_by_device_id(payload.device_id)
             if not device:
@@ -169,8 +175,11 @@ class AgentService:
 
             self.lifecycle.assert_active(device)
 
+            # Server-authoritative receive time for connectivity; matches the
+            # emulator path (agents.py), which already uses server `now`.
+            received_at = _utc_now()
             updated = self.repository.update_last_heartbeat(
-                device, payload.timestamp, online=payload.online
+                device, received_at, online=payload.online
             )
             return {
                 "device_id": updated.device_id,
