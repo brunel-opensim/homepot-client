@@ -72,6 +72,7 @@ For developers and system administrators:
 
 - **[Development Guide](development-guide.md)** - Testing, code quality, and contributing
 - **[Database Guide](database-guide.md)** - Database setup, management, and usage
+- **[Device Offline Resilience](device-offline-resilience.md)** - Failure modes and resilience for the User App and on-device agent
 
 ## Platform Integration Guides
 
