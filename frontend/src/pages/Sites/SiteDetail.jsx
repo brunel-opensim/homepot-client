@@ -7,10 +7,12 @@ import {
   Activity,
   Loader2,
   Trash2,
+  Copy,
   Edit,
   PlusCircle,
   LayoutDashboard,
   AlertTriangle,
+  Check,
   CheckCircle,
   KeyRound,
   RotateCcw,
@@ -58,7 +60,21 @@ export default function SiteDetail() {
   // Bootstrap key dialog state
   const [isBootstrapKeyOpen, setIsBootstrapKeyOpen] = useState(false);
 
+  const [copiedSiteId, setCopiedSiteId] = useState(null);
+
   const isArchived = site ? site.is_active === false : false;
+
+  const handleCopySiteId = async () => {
+    const siteId = site.site_id || site.id;
+    if (!siteId) return;
+    try {
+      await navigator.clipboard.writeText(siteId);
+      setCopiedSiteId(siteId);
+      setTimeout(() => setCopiedSiteId(null), 2000);
+    } catch {
+      console.error('Failed to copy site ID');
+    }
+  };
 
   const refreshStats = useCallback(async () => {
     try {
@@ -238,8 +254,19 @@ export default function SiteDetail() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold tracking-tight mb-1 text-white">{site.name}</h1>
-              <div className="flex items-center text-teal-400/80 font-mono text-sm mb-2">
+              <div className="flex items-center gap-1.5 text-teal-400/80 font-mono text-sm mb-2">
                 Site ID: {site.site_id || site.id}
+                <button
+                  onClick={handleCopySiteId}
+                  className="p-0.5 rounded text-gray-400 hover:text-teal-400 transition-colors shrink-0"
+                  title="Copy Site ID"
+                >
+                  {copiedSiteId === (site.site_id || site.id) ? (
+                    <Check size={12} className="text-teal-400" />
+                  ) : (
+                    <Copy size={12} />
+                  )}
+                </button>
               </div>
               <div className="flex items-center text-gray-400">
                 <MapPin className="h-4 w-4 mr-1.5" />
