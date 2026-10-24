@@ -64,6 +64,18 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Guard Windows elevation SetSecurityDescriptor flags
+        run: |
+          # SetSecurityDescriptor takes a TASK_CREATION flag (0 = default), not
+          # the SECURITY_INFORMATION bitmask (0xF) that GetSecurityDescriptor
+          # uses. Passing 0xF fails at runtime with E_INVALIDARG ("Value does
+          # not fall within the expected range"), which the parse-only Windows
+          # steps below cannot catch. Refuse the buggy call at the source.
+          if grep -rn 'SetSecurityDescriptor.*0xF' electron/privileged/*.ps1; then
+            echo "ERROR: SetSecurityDescriptor must use flag 0, not 0xF" >&2
+            exit 1
+          fi
+
       - name: Run tests
         run: npm run test
 
