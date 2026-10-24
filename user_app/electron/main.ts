@@ -6,6 +6,7 @@ import os from 'node:os'
 import { spawn, execFile, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
+import { AgentSupervisor } from './agentSupervisor'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -57,6 +58,9 @@ let isQuitting = false
 let emulatorProcess: ChildProcess | null = null
 let emulatorDeviceId: string | null = null
 let agentProcess: ChildProcess | null = null
+// Restarts the agent on an unexpected exit (crash) with crash-loop backoff,
+// and never resurrects it after an intentional stop (unpair / re-enrol / quit).
+const agentSupervisor = new AgentSupervisor()
 // Recent stderr lines from the emulator process, surfaced in the setup error
 // when the emulator fails to start (e.g. missing python/httpx).
 let emulatorStderr: string[] = []
@@ -923,6 +927,9 @@ function registerIpcHandlers() {
     // (startAgentProcess no-ops when an agent is already running), and the
     // backend rejects it with 401/404 while the new device never comes online.
     killAgent()
+    // A manual (re-)start gets a fresh crash budget; only automatic restarts
+    // after an unexpected exit count toward the crash-loop limit.
+    agentSupervisor.resetCrashLoop()
     const started = startAgentProcess()
     return { started }
   })
@@ -1060,6 +1067,10 @@ function startAgentProcess(): boolean {
       })
   agentProcess = child
 
+  // A freshly-spawned agent is expected to keep running; if it exits without
+  // an explicit stop, treat that as a crash and restart it.
+  agentSupervisor.resetIntentionalStop()
+
   child.stdout?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
       safeLog(`[agent] ${line}`)
@@ -1078,8 +1089,15 @@ function startAgentProcess(): boolean {
   child.on('exit', (code) => {
     safeLog(`[agent] exited with code ${code}`)
     recordAppEvent(code === 0 ? 'info' : 'error', 'agent', `Device agent exited with code ${code ?? 'unknown'}`)
-    if (agentProcess === child) {
-      agentProcess = null
+    // A stale child (superseded by a newer agent) must not drive a restart.
+    if (agentProcess !== child) return
+    agentProcess = null
+    const decision = agentSupervisor.onExit()
+    if (decision.kind === 'restart') {
+      recordAppEvent('error', 'agent', 'Device agent exited unexpectedly; restarting')
+      startAgentProcess()
+    } else if (decision.kind === 'crash-loop-limit') {
+      recordAppEvent('error', 'agent', 'Device agent crash loop detected; not restarting')
     }
   })
 
@@ -1090,6 +1108,7 @@ function startAgentProcess(): boolean {
 function killAgent(): void {
   if (!agentProcess) return
   recordAppEvent('info', 'agent', 'Stopping device agent')
+  agentSupervisor.markIntentionalStop()
   const processToKill = agentProcess
   try {
     processToKill.kill('SIGTERM')
@@ -1315,6 +1334,8 @@ function startDeviceAgentIfProvisioned(): void {
   if (!credentials.device_id || !credentials.api_key) return
   // Emulated devices keep using the emulator process instead.
   if (credentials.enrollment_method === 'emulated') return
+  // App-launch start is a fresh start, not an automatic crash-restart.
+  agentSupervisor.resetCrashLoop()
   startAgentProcess()
 }
 
