@@ -94,10 +94,14 @@ try {
     $scheduler = New-Object -ComObject Schedule.Service
     $scheduler.Connect()
     $registered = $scheduler.GetFolder("\").GetTask($TaskName)
-    $sddl = $registered.GetSecurityDescriptor(0xF)   # 0xF = owner|group|dacl|sacl
+    # GetSecurityDescriptor takes SECURITY_INFORMATION flags (0xF =
+    # owner|group|dacl|sacl). SetSecurityDescriptor instead takes a
+    # TASK_CREATION flag (0 = default); passing 0xF there fails with
+    # E_INVALIDARG ("Value does not fall within the expected range").
+    $sddl = $registered.GetSecurityDescriptor(0xF)
     if ($sddl -notmatch '\(A;;GRGX;;;AU\)') {
         $sddl = $sddl + '(A;;GRGX;;;AU)'
-        $registered.SetSecurityDescriptor($sddl, 0xF)
+        $registered.SetSecurityDescriptor($sddl, 0)
     }
 
     # Create allowlist
