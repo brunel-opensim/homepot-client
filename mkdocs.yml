@@ -115,6 +115,10 @@ nav:
       - KPI Export & Calculations: kpi-export.md
       - Pilot Operator Protocol: operator-protocol.md
       - Evidence Recording: provenance-and-outcomes.md
+      - Architecture Decisions:
+          - Overview: adr/overview.md
+          - ADR-0001 Command Delivery Semantics: adr/0001-command-delivery-semantics.md
+          - ADR-0002 Agent Supervision & Lifetime: adr/0002-agent-supervision-and-lifetime.md
       - Getting Started:
           - Quick Start: getting-started.md
           - Running Locally: running-locally.md
@@ -195,6 +199,7 @@ nav:
           - Agent Packaging & Identity: agent-packaging-and-identity.md
           - Fleet Load Testing: fleet-simulation.md
           - Real Device Agent: real-device-agent.md
+          - Offline Resilience & Failure Modes: device-offline-resilience.md
           - Real Device Transition: real-device-transition.md
           - Team Tasks (Readiness): real-device-readiness-tasks.md
 
