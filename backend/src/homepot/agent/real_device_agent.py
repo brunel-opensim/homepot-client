@@ -32,6 +32,11 @@ from homepot.agent.utils.command_poller import (
     process_command,
 )
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
+from homepot.agent.utils.errors import (
+    DeviceRemovedError,
+    PermanentDeliveryError,
+    classify_status,
+)
 from homepot.agent.utils.heartbeat import build_heartbeat_payload, utc_now_iso
 from homepot.agent.utils.hostname_encoding import idna_encode_url
 from homepot.agent.utils.local_ipc import (
@@ -137,6 +142,29 @@ def get_auth_headers(config: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
+def _record_submission(
+    submission_log: Optional[SubmissionLog],
+    url: str,
+    payload: Dict[str, Any],
+    status_code: Optional[int],
+    accepted: bool,
+) -> None:
+    """Append a submission attempt to the optional submission log."""
+    if submission_log is None:
+        return
+    sample_timestamp = None
+    if isinstance(payload, dict):
+        sample_timestamp = payload.get("timestamp")
+    submission_log.append(
+        endpoint=url,
+        status_code=status_code,
+        payload_timestamp=(
+            str(sample_timestamp) if sample_timestamp is not None else None
+        ),
+        accepted=accepted,
+    )
+
+
 async def post_json(
     client: httpx.AsyncClient,
     url: str,
@@ -154,6 +182,9 @@ async def post_json(
     is provided, the attempt (endpoint, payload sample timestamp, HTTP status,
     and acceptance) is appended to the agent submission log so PF-01 ingestion
     success can be computed.
+
+    Raises ``DeviceRemovedError``/``PermanentDeliveryError`` for permanent
+    (non-retryable) HTTP statuses (401/403/404/409) so callers stop retrying.
     """
     accepted = False
     status_code: Optional[int] = None
@@ -168,21 +199,23 @@ async def post_json(
         response.raise_for_status()
         accepted = True
         status_code = response.status_code
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        err = classify_status(url, status_code)
+        if err is not None:
+            logger.error(
+                "%s permanent failure url=%s status=%s",
+                method.upper(),
+                url,
+                status_code,
+            )
+            _record_submission(submission_log, url, payload, status_code, False)
+            raise err
+        logger.warning("%s failed url=%s status=%s", method.upper(), url, status_code)
     except Exception as e:
         logger.warning("%s failed url=%s error=%s", method.upper(), url, e)
 
-    if submission_log is not None:
-        sample_timestamp = None
-        if isinstance(payload, dict):
-            sample_timestamp = payload.get("timestamp")
-        submission_log.append(
-            endpoint=url,
-            status_code=status_code,
-            payload_timestamp=(
-                str(sample_timestamp) if sample_timestamp is not None else None
-            ),
-            accepted=accepted,
-        )
+    _record_submission(submission_log, url, payload, status_code, accepted)
     return accepted
 
 
@@ -219,21 +252,23 @@ async def post_json_parsed(
         status_code = response.status_code
         parsed = response.json()
         body = parsed if isinstance(parsed, dict) else None
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        err = classify_status(url, status_code)
+        if err is not None:
+            logger.error(
+                "%s permanent failure url=%s status=%s",
+                method.upper(),
+                url,
+                status_code,
+            )
+            _record_submission(submission_log, url, payload, status_code, False)
+            raise err
+        logger.warning("%s failed url=%s status=%s", method.upper(), url, status_code)
     except Exception as e:
         logger.warning("%s failed url=%s error=%s", method.upper(), url, e)
 
-    if submission_log is not None:
-        sample_timestamp = None
-        if isinstance(payload, dict):
-            sample_timestamp = payload.get("timestamp")
-        submission_log.append(
-            endpoint=url,
-            status_code=status_code,
-            payload_timestamp=(
-                str(sample_timestamp) if sample_timestamp is not None else None
-            ),
-            accepted=accepted,
-        )
+    _record_submission(submission_log, url, payload, status_code, accepted)
     return body
 
 
@@ -242,11 +277,23 @@ async def get_json(
     url: str,
     headers: Dict[str, str],
 ) -> Any:
-    """Send GET request to backend and return parsed JSON on success, or ``None``."""
+    """Send GET request to backend and return parsed JSON on success, or ``None``.
+
+    Raises ``DeviceRemovedError``/``PermanentDeliveryError`` for permanent
+    (non-retryable) HTTP statuses (401/403/404/409).
+    """
     try:
         response = await client.get(url, headers=headers, timeout=10.0)
         response.raise_for_status()
         return response.json()
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        err = classify_status(url, status_code)
+        if err is not None:
+            logger.error("GET permanent failure url=%s status=%s", url, status_code)
+            raise err
+        logger.warning("GET failed url=%s status=%s", url, status_code)
+        return None
     except Exception as e:
         logger.warning("GET failed url=%s error=%s", url, e)
         return None
@@ -290,6 +337,14 @@ async def ack_command_backend(
         )
         response.raise_for_status()
         return True
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        err = classify_status(url, status_code)
+        if err is not None:
+            logger.error("ACK permanent failure url=%s status=%s", url, status_code)
+            raise err
+        logger.warning("ACK failed url=%s status=%s", url, status_code)
+        return False
     except Exception as e:
         logger.warning("ACK failed url=%s error=%s", url, e)
         return False
@@ -326,6 +381,12 @@ async def _report_status_to_live_logs(
         logger.info(
             "Status report posted to Live Logs for device=%s", config["device_id"]
         )
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        err = classify_status(url, status_code)
+        if err is not None:
+            raise err
+        logger.warning("Status log post failed url=%s status=%s", url, status_code)
     except Exception as e:
         logger.warning("Status log post failed url=%s error=%s", url, e)
 
@@ -470,6 +531,15 @@ async def pending_commands_loop(
                         await _report_status_to_live_logs(
                             client, config, result["result"]
                         )
+        except DeviceRemovedError as e:
+            logger.error(
+                "Pending commands loop: device removed from backend (%s); stopping", e
+            )
+            return
+        except PermanentDeliveryError as e:
+            logger.warning(
+                "Pending commands: dropped command after permanent failure (%s)", e
+            )
         except Exception as e:
             logger.error("Pending commands loop error: %s", e, exc_info=True)
         wake_event.clear()
@@ -516,6 +586,13 @@ async def command_result_loop(
                                 "method": "PUT",
                             }
                         )
+        except DeviceRemovedError as e:
+            logger.error(
+                "Command result loop: device removed from backend (%s); stopping", e
+            )
+            return
+        except PermanentDeliveryError as e:
+            logger.warning("Command result dropped after permanent failure (%s)", e)
         except Exception as e:
             logger.error("Command result loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
@@ -629,6 +706,10 @@ async def send_registration(
         register_url = f"{config['backend_url'].rstrip('/')}/api/v1/agent/device-dna"
         if not await post_json(client, register_url, payload, get_auth_headers(config)):
             retry_queue.enqueue({"url": register_url, "payload": payload})
+    except DeviceRemovedError as e:
+        logger.error("Registration: device removed from backend (%s)", e)
+    except PermanentDeliveryError as e:
+        logger.error("Registration permanently failed (%s)", e)
     except Exception as e:
         logger.error("Registration payload build/send failed: %s", e, exc_info=True)
 
@@ -716,6 +797,9 @@ async def heartbeat_loop(
                         ipc_server.config.app,  # type: ignore[arg-type]
                         status="OFFLINE",
                     )
+        except (DeviceRemovedError, PermanentDeliveryError) as e:
+            logger.error("Heartbeat loop: permanent delivery failure (%s); stopping", e)
+            return
         except Exception as e:
             logger.error("Heartbeat loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
@@ -773,6 +857,9 @@ async def telemetry_loop(
                 )
             if not ok:
                 retry_queue.enqueue({"url": url, "payload": payload})
+        except (DeviceRemovedError, PermanentDeliveryError) as e:
+            logger.error("Telemetry loop: permanent delivery failure (%s); stopping", e)
+            return
         except Exception as e:
             logger.error("Telemetry loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
@@ -855,6 +942,9 @@ async def alerts_loop(
                     )
                 else:
                     logger.warning("Alert report failed: %s", payload["title"])
+        except (DeviceRemovedError, PermanentDeliveryError) as e:
+            logger.error("Alert loop: permanent delivery failure (%s); stopping", e)
+            return
         except Exception as e:
             logger.error("Alert loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
@@ -895,6 +985,9 @@ async def live_logs_loop(
                 last_signature = signature
         except asyncio.CancelledError:
             raise
+        except (DeviceRemovedError, PermanentDeliveryError) as e:
+            logger.error("Live log loop: permanent delivery failure (%s); stopping", e)
+            return
         except Exception as e:
             logger.error("Live log loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
@@ -989,6 +1082,17 @@ async def _report_background_job(
                     str(current_job_id)[:8],
                     outcome["error_message"],
                 )
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+            err = classify_status(update_url, status_code)
+            if err is not None:
+                raise err
+            logger.warning(
+                "Job status update failed job_id=%s status=%s",
+                current_job_id,
+                status_code,
+            )
+            return current_job_id
         except Exception as e:
             logger.warning(
                 "Job status update failed job_id=%s error=%s",
@@ -1020,6 +1124,13 @@ async def _report_background_job(
                 str(job_id)[:8],
             )
         return job_id
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code
+        err = classify_status(create_url, status_code)
+        if err is not None:
+            raise err
+        logger.warning("Job create failed url=%s status=%s", create_url, status_code)
+        return None
     except Exception as e:
         logger.warning("Job create failed url=%s error=%s", create_url, e)
         return None
@@ -1043,6 +1154,11 @@ async def job_reporting_loop(
             current_job_id = await _report_background_job(
                 client, config, current_job_id
             )
+        except (DeviceRemovedError, PermanentDeliveryError) as e:
+            logger.error(
+                "Job reporting loop: permanent delivery failure (%s); stopping", e
+            )
+            return
         except Exception as e:
             logger.error("Job reporting loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
@@ -1065,16 +1181,28 @@ async def retry_flush_loop(
         try:
             queued_items = retry_queue.dequeue_ready()
             for item in queued_items:
-                ok = await post_json(
-                    client,
-                    item["url"],
-                    item["payload"],
-                    get_auth_headers(config),
-                    submission_log=submission_log,
-                    method=str(item.get("method", "POST")),
-                )
-                if not ok:
-                    retry_queue.requeue(item)
+                try:
+                    ok = await post_json(
+                        client,
+                        item["url"],
+                        item["payload"],
+                        get_auth_headers(config),
+                        submission_log=submission_log,
+                        method=str(item.get("method", "POST")),
+                    )
+                    if not ok:
+                        retry_queue.requeue(item)
+                except PermanentDeliveryError as e:
+                    # 404/409: this payload will never be accepted; drop it and
+                    # move on to the next item rather than retrying forever.
+                    logger.warning(
+                        "Dropping queued item after permanent failure: %s", e
+                    )
+        except DeviceRemovedError as e:
+            logger.error(
+                "Retry flush loop: device removed from backend (%s); stopping", e
+            )
+            return
         except Exception as e:
             logger.error("Retry flush loop error: %s", e, exc_info=True)
         await asyncio.sleep(interval)
