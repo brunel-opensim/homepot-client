@@ -23,6 +23,15 @@ export const DEFAULT_CRASH_LOOP_POLICY: CrashLoopPolicy = {
   windowMs: 5 * 60 * 1000,
 }
 
+/**
+ * How long Electron waits after SIGTERM before escalating to SIGKILL when
+ * stopping the agent. This must exceed the agent's own graceful-shutdown
+ * budget — its `shutdown_timeout_seconds` default is 30s, during which it
+ * cancels its loops and posts the final OFFLINE heartbeat — so an intentional
+ * stop actually lands the OFFLINE signal instead of being cut off mid-heartbeat.
+ */
+export const AGENT_SHUTDOWN_GRACE_MS = 35_000
+
 export type AgentExitDecision =
   | { kind: 'intentional' }
   | { kind: 'restart' }
