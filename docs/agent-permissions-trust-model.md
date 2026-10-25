@@ -91,9 +91,12 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 | `shutdown` | `root_access` | Manage | power off the host system |
 | `install_program` | `root_access` | Manage | install a program via winget (Windows) |
 | `uninstall_program` | `root_access` | Manage | uninstall a program via winget (Windows) |
+| `update_program` | `root_access` | Manage | update a program via winget (Windows) |
+| `upgrade_all_programs` | `root_access` | Manage | upgrade all programs via winget (Windows) |
 | `health_check` | `command_execution` | Monitor | self-tests / diagnostics |
 | `list_processes` | `process_monitoring` | Monitor | view running processes |
 | `list_connections` | `network_monitoring` | Monitor | view network connections |
+| `list_installed_programs` | `command_execution` | Monitor | list installed programs via winget (Windows) |
 
 ### Non-privileged commands
 
@@ -111,6 +114,9 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 | Update Firmware | `update_config` | `root_access` |
 | Install Program | `install_program` | `root_access` |
 | Uninstall Program | `uninstall_program` | `root_access` |
+| List Installed Programs | `list_installed_programs` | `command_execution` |
+| Update Program | `update_program` | `root_access` |
+| Upgrade All Programs | `upgrade_all_programs` | `root_access` |
 | Run Diagnostics | `health_check` | `command_execution` |
 | List Processes | `list_processes` | `process_monitoring` |
 | List Network Connections | `list_connections` | `network_monitoring` |
@@ -130,7 +136,7 @@ device and whether that may include root:
 | User App toggle | Maps to permissions | Enables |
 |---|---|---|
 | **Allow Dashboard to monitor this device** | `command_execution`, `filesystem_access`, `process_monitoring`, `network_monitoring` | run diagnostics, view processes & network |
-| **Allow Dashboard to manage this device** | `root_access` | run commands/scripts with sudo, scan the filesystem, update config/firmware, install/uninstall programs, reboot or shut down the system (only available when monitoring is on) |
+| **Allow Dashboard to manage this device** | `root_access` | run commands/scripts with sudo, scan the filesystem, update config/firmware, install/uninstall/update programs, reboot or shut down the system (only available when monitoring is on) |
 
 The backend still enforces the strict **per-command** permission checks; the
 two-toggles are purely the owner-facing simplification. `root_access` is only

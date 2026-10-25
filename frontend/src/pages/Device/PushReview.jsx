@@ -88,6 +88,27 @@ const COMMAND_TEMPLATES = {
     defaultData: { package: 'Notepad++.Notepad++', timeout_seconds: 300 },
     description: 'Uninstall a program from the Windows device via winget (silent).',
   },
+  LIST_INSTALLED_PROGRAMS: {
+    label: 'List Installed Programs',
+    action: 'list_installed_programs',
+    permission: 'command_execution',
+    defaultData: {},
+    description: 'List the programs installed on the Windows device via winget.',
+  },
+  UPDATE_PROGRAM: {
+    label: 'Update Program',
+    action: 'update_program',
+    permission: 'root_access',
+    defaultData: { package: 'Notepad++.Notepad++', timeout_seconds: 300 },
+    description: 'Update a program on the Windows device via winget (silent).',
+  },
+  UPGRADE_ALL_PROGRAMS: {
+    label: 'Upgrade All Programs',
+    action: 'upgrade_all_programs',
+    permission: 'root_access',
+    defaultData: { timeout_seconds: 600 },
+    description: 'Upgrade all installed programs on the Windows device via winget (silent).',
+  },
   RUN_DIAGNOSTICS: {
     label: 'Run Diagnostics',
     action: 'health_check',
