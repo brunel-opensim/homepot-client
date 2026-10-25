@@ -670,6 +670,23 @@ def _pop_next_result(app: Any) -> tuple[Optional[str], Optional[Dict[str, Any]]]
     return (cid, result)
 
 
+def _firmware_version() -> str:
+    """Return a best-effort firmware/OS version string for the host.
+
+    A general-purpose OS has no single "firmware" to report, so use the OS
+    build/kernel version (``platform.version()``) as the closest portable proxy
+    — this is the value ``systeminfo`` shows as "OS Version". Falls back to
+    ``<system> <release>`` when the version string is empty.
+    """
+    try:
+        version = platform.version()
+        if version and version.strip():
+            return version.strip()
+    except Exception:  # noqa: BLE001 - best-effort
+        pass
+    return f"{platform.system()} {platform.release()}".strip()
+
+
 async def send_registration(
     client: httpx.AsyncClient,
     config: Dict[str, Any],
@@ -702,6 +719,7 @@ async def send_registration(
             "device_type": config.get("device_type", "pos_terminal"),
             "mac_address": get_mac_address(),
             "os_details": config.get("os_details"),
+            "firmware_version": _firmware_version(),
             "local_ip": get_local_ip(),
             "wan_ip": get_wan_ip(),
             "peripherals": get_connected_peripherals(),
@@ -1384,6 +1402,7 @@ async def bootstrap_agent(
                 "device_type": config.get("device_type", "pos_terminal"),
                 "mac_address": get_mac_address(),
                 "os_details": config.get("os_details"),
+                "firmware_version": _firmware_version(),
                 "local_ip": get_local_ip(),
                 "wan_ip": get_wan_ip(),
                 "peripherals": get_connected_peripherals(),

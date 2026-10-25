@@ -183,6 +183,17 @@ def test_next_job_outcome_always_completes() -> None:
         assert outcome["error_message"] is None
 
 
+def test_firmware_version_returns_nonempty() -> None:
+    """The firmware/OS version helper returns a non-empty string."""
+    assert rda._firmware_version().strip() != ""
+
+
+def test_firmware_version_prefers_platform_version(monkeypatch) -> None:
+    """The helper returns platform.version() when it is available."""
+    monkeypatch.setattr(rda.platform, "version", lambda: "10.0.26300")
+    assert rda._firmware_version() == "10.0.26300"
+
+
 def test_pending_commands_loop_wakes_on_push_event() -> None:
     """The command poller wakes early when the push wake_event is set."""
     config = {
