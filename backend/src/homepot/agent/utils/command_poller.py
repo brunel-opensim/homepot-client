@@ -714,14 +714,41 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
             return _powershell_argv(script)
 
         def _win_brightness(value: Any) -> List[str]:
-            # WMI brightness requires the hardware + WmiSetBrightness support
-            # (present on laptops); desktops without it fail with a clear
-            # error rather than silently no-op'ing.
+            # Set brightness through the Monitor Configuration API
+            # (dxva2.dll SetMonitorBrightness) rather than the WMI
+            # WmiSetBrightness method, which is only wired up on Intel-graphics
+            # laptops. The DDC/CI path works on a wider range of panels; if the
+            # panel has no physical-monitor brightness interface this fails
+            # with a clear error instead of silently no-op'ing.
             pct = max(0, min(100, int(value)))
             script = (
-                "(Get-CimInstance -Namespace root/WMI "
-                "-ClassName WmiMonitorBrightnessMethods)"
-                f".WmiSetBrightness(1, {pct})"
+                "Add-Type -TypeDefinition @'\n"
+                "using System;\n"
+                "using System.Runtime.InteropServices;\n"
+                "public static class B {\n"
+                "    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int x; public int y; }\n"  # noqa: E501
+                "    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]\n"
+                "    public struct PM { public IntPtr h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string desc; }\n"  # noqa: E501
+                '    [DllImport("user32.dll")] public static extern IntPtr MonitorFromPoint(POINT pt, uint f);\n'  # noqa: E501
+                '    [DllImport("dxva2.dll")] public static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr h, out uint c);\n'  # noqa: E501
+                '    [DllImport("dxva2.dll")] public static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr h, uint c, [Out] PM[] m);\n'  # noqa: E501
+                '    [DllImport("dxva2.dll")] public static extern bool SetMonitorBrightness(IntPtr h, uint b);\n'  # noqa: E501
+                '    [DllImport("dxva2.dll")] public static extern bool DestroyPhysicalMonitors(uint c, [In] PM[] m);\n'  # noqa: E501
+                "    public static int Set(int pct) {\n"
+                "        pct = Math.Max(0, Math.Min(100, pct));\n"
+                "        IntPtr h = MonitorFromPoint(new POINT(), 1);\n"
+                "        uint c;\n"
+                "        if (!GetNumberOfPhysicalMonitorsFromHMONITOR(h, out c) || c == 0) return 1;\n"
+                "        PM[] m = new PM[c];\n"
+                "        if (!GetPhysicalMonitorsFromHMONITOR(h, c, m)) return 2;\n"
+                "        bool ok = SetMonitorBrightness(m[0].h, (uint)pct);\n"
+                "        DestroyPhysicalMonitors(c, m);\n"
+                "        return ok ? 0 : 3;\n"
+                "    }\n"
+                "}\n"
+                "'@\n"
+                f"$rc = [B]::Set({pct})\n"
+                'if ($rc -ne 0) { throw "SetMonitorBrightness failed (rc=$rc)" }\n'
             )
             return _powershell_argv(script)
 
