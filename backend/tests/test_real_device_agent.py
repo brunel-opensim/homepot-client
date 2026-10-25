@@ -2,6 +2,7 @@
 
 import asyncio
 from typing import Any, Dict, List
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -180,3 +181,44 @@ def test_next_job_outcome_always_completes() -> None:
         outcome = rda._next_job_outcome()
         assert outcome["status"] == "completed"
         assert outcome["error_message"] is None
+
+
+def test_pending_commands_loop_wakes_on_push_event() -> None:
+    """The command poller wakes early when the push wake_event is set."""
+    config = {
+        "command_poll_interval_seconds": 60,
+        "device_id": "dev-1",
+        "api_key": "key",
+        "backend_url": "http://x",
+    }
+    wake_event = asyncio.Event()
+    polls: List[str] = []
+
+    async def fake_get_json(client: Any, url: str, headers: Any) -> None:
+        polls.append(url)
+        return None
+
+    async def run() -> None:
+        with (
+            patch.object(
+                rda, "fetch_device_permissions", new=AsyncMock(return_value=None)
+            ),
+            patch.object(rda, "get_json", side_effect=fake_get_json),
+            patch.object(rda, "parse_pending_commands", return_value=[]),
+        ):
+            task = asyncio.create_task(
+                rda.pending_commands_loop(None, config, None, None, wake_event)
+            )
+            # Let the first poll complete, then the loop waits on wake_event.
+            await asyncio.sleep(0.15)
+            wake_event.set()
+            # The loop should wake immediately and poll again (interval is 60s).
+            await asyncio.sleep(0.15)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(run())
+    assert len(polls) >= 2

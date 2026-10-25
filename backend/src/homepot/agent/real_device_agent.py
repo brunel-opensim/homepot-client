@@ -542,8 +542,13 @@ async def pending_commands_loop(
             )
         except Exception as e:
             logger.error("Pending commands loop error: %s", e, exc_info=True)
+        # Wait for the next poll interval, but wake early when a push
+        # notification signals that commands are waiting (see PushWakeupListener).
+        try:
+            await asyncio.wait_for(wake_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
         wake_event.clear()
-        await asyncio.sleep(interval)
 
 
 async def command_result_loop(
