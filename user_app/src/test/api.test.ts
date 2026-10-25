@@ -467,9 +467,9 @@ describe('verifyDeviceCredentials', () => {
     await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(false)
   })
 
-  it('returns true on 403 (suspended device, creds still valid)', async () => {
+  it('returns true on 423 (suspended device, creds still valid)', async () => {
     mockFetch.mockResolvedValueOnce(
-      Promise.resolve(new Response(JSON.stringify({ detail: "device is in lifecycle state 'suspended'" }), { status: 403 })),
+      Promise.resolve(new Response(JSON.stringify({ detail: 'Device is suspended; resume the device to restore access' }), { status: 423 })),
     )
     await expect(verifyDeviceCredentials(DEVICE_ID, API_KEY)).resolves.toBe(true)
   })

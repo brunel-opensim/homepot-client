@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials
 import jwt
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session as SASession
 from sqlalchemy.orm import joinedload
 
@@ -333,10 +333,17 @@ async def list_device(
         db_service = await get_database_service()
 
         async with db_service.get_session() as session:
+            # Suspended devices stay visible so an operator can open the
+            # detail page and resume them; unpaired devices remain hidden.
             query = (
                 select(Device)
                 .options(joinedload(Device.site), joinedload(Device.credentials))
-                .where(Device.is_active.is_(True))
+                .where(
+                    or_(
+                        Device.is_active.is_(True),
+                        Device.lifecycle_state == LifecycleState.SUSPENDED.value,
+                    )
+                )
             )
 
             # Non-admin users only see devices in their accessible sites. Read

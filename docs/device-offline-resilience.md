@@ -168,6 +168,14 @@ removed device whose agent keeps polling (see *Stale devices*, direction A).
   connection reset), and drop permanent (401/403/404/409) with a terminal
   log/state.
 
+**Suspension is special (423 Locked).** Suspension is reversible, so it is
+deliberately *not* in the permanent set. The backend's device-auth layer returns
+`423 Locked` for a suspended device (and `403` only for unpaired/retired
+devices). The agent maps 423 to `DeviceSuspendedError`, pauses its loops
+(heartbeat, telemetry, alerts, live logs, jobs, command polling, retry flush),
+and resumes reporting automatically once the device is resumed from the
+Dashboard — no agent restart required.
+
 ### 7. Unbounded retry queue, O(n²) disk churn, no jitter
 
 `RetryQueue` has no size/TTL cap, and `enqueue`/`save` rewrite the entire JSON

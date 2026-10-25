@@ -34,6 +34,7 @@ from homepot.agent.utils.command_poller import (
 from homepot.agent.utils.device_dna import get_local_ip, get_mac_address, get_wan_ip
 from homepot.agent.utils.errors import (
     DeviceRemovedError,
+    DeviceSuspendedError,
     PermanentDeliveryError,
     classify_status,
 )
@@ -184,7 +185,9 @@ async def post_json(
     success can be computed.
 
     Raises ``DeviceRemovedError``/``PermanentDeliveryError`` for permanent
-    (non-retryable) HTTP statuses (401/403/404/409) so callers stop retrying.
+    (non-retryable) HTTP statuses (401/403/404/409) so callers stop retrying,
+    and ``DeviceSuspendedError`` for **423 Locked** so callers pause and resume
+    automatically once the device is un-suspended.
     """
     accepted = False
     status_code: Optional[int] = None
@@ -203,12 +206,20 @@ async def post_json(
         status_code = e.response.status_code
         err = classify_status(url, status_code)
         if err is not None:
-            logger.error(
-                "%s permanent failure url=%s status=%s",
-                method.upper(),
-                url,
-                status_code,
-            )
+            if isinstance(err, DeviceSuspendedError):
+                logger.info(
+                    "%s paused url=%s status=%s (device suspended)",
+                    method.upper(),
+                    url,
+                    status_code,
+                )
+            else:
+                logger.error(
+                    "%s permanent failure url=%s status=%s",
+                    method.upper(),
+                    url,
+                    status_code,
+                )
             _record_submission(submission_log, url, payload, status_code, False)
             raise err
         logger.warning("%s failed url=%s status=%s", method.upper(), url, status_code)
@@ -256,12 +267,20 @@ async def post_json_parsed(
         status_code = e.response.status_code
         err = classify_status(url, status_code)
         if err is not None:
-            logger.error(
-                "%s permanent failure url=%s status=%s",
-                method.upper(),
-                url,
-                status_code,
-            )
+            if isinstance(err, DeviceSuspendedError):
+                logger.info(
+                    "%s paused url=%s status=%s (device suspended)",
+                    method.upper(),
+                    url,
+                    status_code,
+                )
+            else:
+                logger.error(
+                    "%s permanent failure url=%s status=%s",
+                    method.upper(),
+                    url,
+                    status_code,
+                )
             _record_submission(submission_log, url, payload, status_code, False)
             raise err
         logger.warning("%s failed url=%s status=%s", method.upper(), url, status_code)
@@ -280,7 +299,8 @@ async def get_json(
     """Send GET request to backend and return parsed JSON on success, or ``None``.
 
     Raises ``DeviceRemovedError``/``PermanentDeliveryError`` for permanent
-    (non-retryable) HTTP statuses (401/403/404/409).
+    (non-retryable) HTTP statuses (401/403/404/409), and
+    ``DeviceSuspendedError`` for **423 Locked** (recoverable).
     """
     try:
         response = await client.get(url, headers=headers, timeout=10.0)
@@ -290,7 +310,12 @@ async def get_json(
         status_code = e.response.status_code
         err = classify_status(url, status_code)
         if err is not None:
-            logger.error("GET permanent failure url=%s status=%s", url, status_code)
+            if isinstance(err, DeviceSuspendedError):
+                logger.info(
+                    "GET paused url=%s status=%s (device suspended)", url, status_code
+                )
+            else:
+                logger.error("GET permanent failure url=%s status=%s", url, status_code)
             raise err
         logger.warning("GET failed url=%s status=%s", url, status_code)
         return None
@@ -341,7 +366,12 @@ async def ack_command_backend(
         status_code = e.response.status_code
         err = classify_status(url, status_code)
         if err is not None:
-            logger.error("ACK permanent failure url=%s status=%s", url, status_code)
+            if isinstance(err, DeviceSuspendedError):
+                logger.info(
+                    "ACK paused url=%s status=%s (device suspended)", url, status_code
+                )
+            else:
+                logger.error("ACK permanent failure url=%s status=%s", url, status_code)
             raise err
         logger.warning("ACK failed url=%s status=%s", url, status_code)
         return False
@@ -531,6 +561,8 @@ async def pending_commands_loop(
                         await _report_status_to_live_logs(
                             client, config, result["result"]
                         )
+        except DeviceSuspendedError as e:
+            logger.info("Pending commands paused: device suspended (%s)", e)
         except DeviceRemovedError as e:
             logger.error(
                 "Pending commands loop: device removed from backend (%s); stopping", e
@@ -591,6 +623,8 @@ async def command_result_loop(
                                 "method": "PUT",
                             }
                         )
+        except DeviceSuspendedError as e:
+            logger.info("Command results paused: device suspended (%s)", e)
         except DeviceRemovedError as e:
             logger.error(
                 "Command result loop: device removed from backend (%s); stopping", e
@@ -731,6 +765,8 @@ async def send_registration(
             retry_queue.enqueue({"url": register_url, "payload": payload})
     except DeviceRemovedError as e:
         logger.error("Registration: device removed from backend (%s)", e)
+    except DeviceSuspendedError as e:
+        logger.info("Registration skipped: device suspended (%s)", e)
     except PermanentDeliveryError as e:
         logger.error("Registration permanently failed (%s)", e)
     except Exception as e:
@@ -820,6 +856,8 @@ async def heartbeat_loop(
                         ipc_server.config.app,  # type: ignore[arg-type]
                         status="OFFLINE",
                     )
+        except DeviceSuspendedError as e:
+            logger.info("Heartbeat paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
             logger.error("Heartbeat loop: permanent delivery failure (%s); stopping", e)
             return
@@ -880,6 +918,8 @@ async def telemetry_loop(
                 )
             if not ok:
                 retry_queue.enqueue({"url": url, "payload": payload})
+        except DeviceSuspendedError as e:
+            logger.info("Telemetry paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
             logger.error("Telemetry loop: permanent delivery failure (%s); stopping", e)
             return
@@ -965,6 +1005,8 @@ async def alerts_loop(
                     )
                 else:
                     logger.warning("Alert report failed: %s", payload["title"])
+        except DeviceSuspendedError as e:
+            logger.info("Alerts paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
             logger.error("Alert loop: permanent delivery failure (%s); stopping", e)
             return
@@ -1008,6 +1050,8 @@ async def live_logs_loop(
                 last_signature = signature
         except asyncio.CancelledError:
             raise
+        except DeviceSuspendedError as e:
+            logger.info("Live logs paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
             logger.error("Live log loop: permanent delivery failure (%s); stopping", e)
             return
@@ -1177,6 +1221,8 @@ async def job_reporting_loop(
             current_job_id = await _report_background_job(
                 client, config, current_job_id
             )
+        except DeviceSuspendedError as e:
+            logger.info("Job reporting paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
             logger.error(
                 "Job reporting loop: permanent delivery failure (%s); stopping", e
@@ -1215,12 +1261,18 @@ async def retry_flush_loop(
                     )
                     if not ok:
                         retry_queue.requeue(item)
+                except DeviceSuspendedError:
+                    # Suspension is temporary; keep the payload queued so it
+                    # flushes once the device is resumed.
+                    retry_queue.requeue(item)
                 except PermanentDeliveryError as e:
                     # 404/409: this payload will never be accepted; drop it and
                     # move on to the next item rather than retrying forever.
                     logger.warning(
                         "Dropping queued item after permanent failure: %s", e
                     )
+        except DeviceSuspendedError as e:
+            logger.info("Retry flush paused: device suspended (%s)", e)
         except DeviceRemovedError as e:
             logger.error(
                 "Retry flush loop: device removed from backend (%s); stopping", e

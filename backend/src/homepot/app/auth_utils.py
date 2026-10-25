@@ -249,6 +249,26 @@ def _reject_unknown_device(device_id: str, api_key: Optional[str]) -> NoReturn:
     )
 
 
+def _reject_inactive_lifecycle(device: Device) -> NoReturn:
+    """Reject a device whose lifecycle state forbids authentication.
+
+    Suspended devices get **423 Locked**: suspension is reversible and the
+    on-device agent must pause and retry, then resume reporting automatically
+    once the device is resumed. Unpaired/retired devices get **403 Forbidden**:
+    their credentials are revoked, which is terminal.
+    """
+    if device.lifecycle_state == LifecycleState.SUSPENDED.value:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail="Device is suspended; resume the device to restore access",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Device lifecycle state is '{device.lifecycle_state}'; "
+        "only 'active' or 'pending' devices may authenticate",
+    )
+
+
 def authenticate_device_credentials(
     db: Session, device_id: str, api_key: str
 ) -> Device:
@@ -269,14 +289,11 @@ def authenticate_device_credentials(
     if not device:
         _reject_unknown_device(device_id, api_key)
 
-    # Reject inactive lifecycle states (allow ACTIVE + PENDING)
+    # Reject inactive lifecycle states (allow ACTIVE + PENDING). Suspended is
+    # 423 (recoverable), unpaired/retired is 403 (terminal).
     allowed_states = {LifecycleState.ACTIVE.value, LifecycleState.PENDING.value}
     if device.lifecycle_state not in allowed_states:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Device lifecycle state is '{device.lifecycle_state}'; "
-            "only 'active' or 'pending' devices may authenticate",
-        )
+        _reject_inactive_lifecycle(device)
 
     if not device.api_key_hash:
         raise HTTPException(
@@ -312,14 +329,11 @@ async def get_current_device(
     if not device:
         _reject_unknown_device(device_id, api_key)
 
-    # Reject inactive lifecycle states (allow ACTIVE + PENDING)
+    # Reject inactive lifecycle states (allow ACTIVE + PENDING). Suspended is
+    # 423 (recoverable), unpaired/retired is 403 (terminal).
     allowed_states = {LifecycleState.ACTIVE.value, LifecycleState.PENDING.value}
     if device.lifecycle_state not in allowed_states:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Device lifecycle state is '{device.lifecycle_state}'; "
-            "only 'active' or 'pending' devices may authenticate",
-        )
+        _reject_inactive_lifecycle(device)
 
     if not device.api_key_hash:
         raise HTTPException(

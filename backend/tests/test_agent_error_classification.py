@@ -15,6 +15,7 @@ from homepot.agent.real_device_agent import get_json, post_json, post_json_parse
 from homepot.agent.utils.command_poller import fetch_device_permissions
 from homepot.agent.utils.errors import (
     DeviceRemovedError,
+    DeviceSuspendedError,
     PermanentDeliveryError,
     classify_status,
     is_device_terminal_status,
@@ -68,6 +69,44 @@ def test_classify_status_returns_permanent_delivery(code: int) -> None:
 def test_classify_status_returns_none_for_transient(code: int) -> None:
     """Transient statuses are not classified at all."""
     assert classify_status("https://x/heartbeat", code) is None
+
+
+def test_classify_status_returns_device_suspended() -> None:
+    """423 Locked maps to the recoverable ``DeviceSuspendedError``."""
+    err = classify_status("https://x/heartbeat", 423)
+    assert isinstance(err, DeviceSuspendedError)
+    assert err.status_code == 423
+    assert err.url == "https://x/heartbeat"
+    assert not isinstance(err, DeviceRemovedError)
+
+
+def test_suspended_status_is_not_permanent_or_terminal() -> None:
+    """Suspension must never be treated as a dead credential."""
+    assert is_permanent_status(423) is False
+    assert is_device_terminal_status(423) is False
+
+
+class TestPostJsonSuspended:
+    """``post_json`` surfaces 423 as a recoverable suspension."""
+
+    def test_post_json_raises_device_suspended(self) -> None:
+        """A 423 response raises ``DeviceSuspendedError``, not removal."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(423, json={"detail": "Device is suspended"})
+
+        async def run() -> bool:
+            transport = httpx.MockTransport(handler)
+            async with httpx.AsyncClient(transport=transport) as client:
+                return await post_json(
+                    client,
+                    "https://x/api/v1/agent/heartbeat",
+                    {"device_id": "d1"},
+                    {"X-Device-ID": "d1"},
+                )
+
+        with pytest.raises(DeviceSuspendedError):
+            asyncio.run(run())
 
 
 class TestPostJsonPermanent:
