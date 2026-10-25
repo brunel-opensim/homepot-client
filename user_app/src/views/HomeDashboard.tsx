@@ -3,8 +3,9 @@ import TabBar from '../components/TabBar'
 import GaugeRing from '../components/GaugeRing'
 import MetricsHistoryChart from '../components/MetricsHistoryChart'
 import { credentialStorage } from '../services/credentialStorage'
-import { fetchDeviceStatus, fetchDeviceMetrics, fetchDeviceMetricsHistory } from '../services/api'
+import { fetchDeviceStatus, fetchDeviceMetrics, fetchDeviceMetricsHistory, fetchPermissions } from '../services/api'
 import { getCachedTelemetry, setCachedTelemetry } from '../services/telemetryCache'
+import { MANAGE_KEY, MONITOR_KEYS } from '../services/permissionsEvents'
 import type { DeviceStatus, DeviceMetrics } from '../services/api'
 
 function formatUptime(totalSeconds: number | null): string {
@@ -67,6 +68,7 @@ export default function HomeDashboard() {
   const [status, setStatus] = useState<DeviceStatus | null>(null)
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null)
   const [history, setHistory] = useState<DeviceMetrics[]>([])
+  const [devicePermissions, setDevicePermissions] = useState<Record<string, boolean> | null>(null)
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
 
@@ -122,6 +124,17 @@ export default function HomeDashboard() {
         // silently degrade
       }
     }
+    async function fetchPermissionsData() {
+      const dId = deviceIdRef.current
+      const aKey = apiKeyRef.current
+      if (!dId || !aKey) return
+      try {
+        const res = await fetchPermissions(dId, aKey)
+        setDevicePermissions(res.permissions)
+      } catch {
+        // silently degrade
+      }
+    }
     if (!deviceIdRef.current || !apiKeyRef.current) return
 
     // Render any cached telemetry immediately, then refresh from the backend.
@@ -135,13 +148,16 @@ export default function HomeDashboard() {
     fetchStatus()
     fetchMetrics()
     fetchHistory()
+    fetchPermissionsData()
     const statusInterval = setInterval(fetchStatus, 30000)
     const metricsInterval = setInterval(fetchMetrics, 15000)
     const historyInterval = setInterval(fetchHistory, 30000)
+    const permissionsInterval = setInterval(fetchPermissionsData, 30000)
     return () => {
       clearInterval(statusInterval)
       clearInterval(metricsInterval)
       clearInterval(historyInterval)
+      clearInterval(permissionsInterval)
     }
   }, [deviceId])
 
@@ -152,6 +168,13 @@ export default function HomeDashboard() {
   // 'unknown' (no heartbeat yet — e.g. right after provisioning) renders as
   // CONNECTING instead of alarming red OFFLINE.
   const isConnecting = !isOnline && !isOffline
+
+  // Prompt the owner to grant access until both tiers are granted. Until then
+  // no telemetry flows, so the CPU/Memory/Disk gauges stay empty.
+  const monitorGranted =
+    !!devicePermissions && MONITOR_KEYS.every((k) => devicePermissions[k] === true)
+  const manageGranted = !!devicePermissions && devicePermissions[MANAGE_KEY] === true
+  const showAccessPrompt = isOnline && !(monitorGranted && manageGranted)
 
   const statusStyles = isOnline
     ? {
@@ -224,6 +247,11 @@ export default function HomeDashboard() {
               <p className={`font-bold text-sm ${statusStyles.text}`}>
                 {statusStyles.label}
               </p>
+              {showAccessPrompt && (
+                <p className="text-[11px] text-emerald-100/80 mt-0.5 leading-snug">
+                  Grant Monitor &amp; Manage access from the Perms page to enable telemetry.
+                </p>
+              )}
             </div>
             <div className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${statusStyles.dot}`} />
           </div>
