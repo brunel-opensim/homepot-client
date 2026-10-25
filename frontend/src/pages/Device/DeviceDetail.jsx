@@ -338,7 +338,15 @@ export default function Device() {
         })
         .catch((err) => console.debug('Job poll skipped', err));
 
-      // 5. Fetch Alerts - Live
+      // 5. Fetch Command History — status_request results land here
+      api.devices
+        .getCommands(id, 50)
+        .then((historyData) => {
+          setPushHistory(historyData || []);
+        })
+        .catch((err) => console.debug('Command poll skipped', err));
+
+      // 6. Fetch Alerts - Live
       // We must fetch from DB alerts AND AI to maintain the unified list.
       // Currently, the polling only updates from DB, and overwrites the initial merged list!
       // This is why IDs disappear after the first render (polling overwrites merged state).
@@ -441,40 +449,25 @@ export default function Device() {
         return;
       }
 
-      // Call the Generic API
+      // Queue the command. Actions are tracked as device commands (Commands
+      // tab) — not as orchestrated Jobs; creating a Job here would also fire a
+      // spurious configuration-update push through the POS config pipeline.
       await api.devices.triggerAction(id, actionKey);
-
-      // Update Command History
-      const newHistoryItem = {
-        title: `Action: ${actionKey.replace('_', ' ')}`,
-        date: new Date().toLocaleString(),
-      };
-      setJobHistory((prev) => [newHistoryItem, ...prev]);
-
-      // Update Logs (Toast only since we don't have local logs anymore)
-      // const newLogItem = ...
 
       // Handle specific actions
       if (actionKey === 'status_request') {
-        // 1. Create a tracking Job
-        if (device?.site_id) {
-          try {
-            await api.jobs.create(device.site_id, {
-              action: 'Manual Status Check',
-              description: `User requested status check for device ${id}`,
-              priority: 'high',
-              device_id: id,
-            });
-          } catch (jobErr) {
-            console.warn('Failed to create tracking job:', jobErr);
-          }
-        }
-
-        // 2. Refresh device data
         const deviceData = await api.devices.getDeviceById(id);
         setDevice(deviceData);
+
+        // Show the queued command straight away; the 2s poll picks up the
+        // completed result once the device reports back.
+        api.devices
+          .getCommands(id, 50)
+          .then((historyData) => setPushHistory(historyData || []))
+          .catch((err) => console.debug('Command refresh skipped', err));
+
         setToast({
-          message: `Status request sent. Job created.`,
+          message: 'Status request sent — see Live Logs and Commands for the report.',
           type: 'success',
         });
       } else {
@@ -593,7 +586,7 @@ export default function Device() {
           ...prev,
           {
             type: 'output',
-            text: 'Status request sent — check the Live Logs tab for the device report.',
+            text: 'Status request sent — see Live Logs and Commands for the report.',
           },
         ]);
       } catch (err) {
