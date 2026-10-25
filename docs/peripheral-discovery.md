@@ -19,8 +19,10 @@ Instead of attempting direct cloud-to-peripheral communication, the system lever
 The orchestration of this polling logic resides in `backend/src/homepot/agent/utils/real_device_discovery.py`. 
 
 This module adheres to the Open-Closed Principle, serving as a unified entry point to execute OS-specific scripts:
-- **Windows**: Executes `Get-Printer` via PowerShell.
-- **Linux/macOS**: Executes `lpstat -p` via CUPS.
+- **Windows printers**: Executes `Get-Printer` via PowerShell and normalises each row (`Name`, `DriverName`, `PortName`, `PrinterStatus`) into the unified schema.
+- **Windows scanners**: Executes `Get-PnpDevice -Class Image`, skipping camera/webcam entries.
+- **Windows card readers**: Executes `Get-PnpDevice -Class SmartCardReader`.
+- **Linux/macOS printers**: Executes `lpstat -p` via CUPS.
 
 It currently exports a unified dictionary schema:
 ```json
@@ -38,6 +40,10 @@ It currently exports a unified dictionary schema:
   "card_readers": []
 }
 ```
+
+Discovery is best-effort: any OS command that fails, times out (10s), or returns
+unparseable output yields an empty (or `{"error": ...}`) list rather than raising,
+so a misbehaving peripheral never blocks Device DNA registration.
 
 ## The Hardware Emulator
 During development, UI creation, or fleet load simulation, acquiring hundreds of physical USB printers is impractical. 
