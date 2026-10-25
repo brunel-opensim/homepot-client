@@ -897,3 +897,67 @@ def test_cancel_requires_operator_auth(client: TestClient) -> None:
     # No auth at all
     resp = client.post(f"/api/v1/devices/{device_id}/commands/{cmd_id}/cancel")
     assert resp.status_code == 401
+
+
+def test_suspended_device_auth_returns_423_and_recovers_after_resume(
+    client: TestClient,
+) -> None:
+    """Suspended devices are 423 Locked (recoverable); unpaired devices are 403."""
+    ctx = _setup_site_and_device(client)
+    headers = _device_headers(ctx)
+    pending = "/api/v1/devices/pending"
+
+    assert client.get(pending, headers=headers).status_code == 200
+
+    db = homepot.database.SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == ctx["device_id"]).first()
+        assert device is not None
+        device.lifecycle_state = LifecycleState.SUSPENDED.value
+        device.is_active = False
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get(pending, headers=headers)
+    assert resp.status_code == 423
+    assert "suspended" in resp.json()["detail"].lower()
+
+    resume = client.post(
+        f"/api/v1/devices/device/{ctx['device_id']}/resume",
+        json={"reason": "test resume"},
+        headers=ctx["auth_headers"],
+    )
+    assert resume.status_code == 200, resume.text
+    assert client.get(pending, headers=headers).status_code == 200
+
+    db = homepot.database.SessionLocal()
+    try:
+        device = db.query(Device).filter(Device.device_id == ctx["device_id"]).first()
+        assert device is not None
+        device.lifecycle_state = LifecycleState.UNPAIRED.value
+        device.is_active = False
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get(pending, headers=headers)
+    assert resp.status_code == 403
+    assert "unpaired" in resp.json()["detail"]
+
+
+def test_suspended_device_stays_visible_for_resume(client: TestClient) -> None:
+    """The fleet list keeps suspended devices so operators can resume them."""
+    ctx = _setup_site_and_device(client)
+    resp = client.post(
+        f"/api/v1/devices/device/{ctx['device_id']}/suspend",
+        json={"reason": "visibility"},
+        headers=ctx["auth_headers"],
+    )
+    assert resp.status_code == 200, resp.text
+
+    listed = client.get("/api/v1/devices/device", headers=ctx["auth_headers"])
+    assert listed.status_code == 200, listed.text
+    by_id = {d["device_id"]: d for d in listed.json()["devices"]}
+    assert ctx["device_id"] in by_id
+    assert by_id[ctx["device_id"]]["lifecycle_state"] == "suspended"

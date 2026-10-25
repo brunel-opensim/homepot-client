@@ -9,9 +9,10 @@ import time
 import httpx
 import pytest
 
-from homepot.agent.real_device_agent import live_logs_loop
+from homepot.agent.real_device_agent import heartbeat_loop, live_logs_loop
 from homepot.agent.utils.command_poller import build_status_report
 from homepot.agent.utils.heartbeat import build_heartbeat_payload, utc_now_iso
+from homepot.agent.utils.retry_queue import RetryQueue
 from homepot.agent.utils.telemetry import (
     build_telemetry_payload,
     collect_pos_signals,
@@ -551,3 +552,73 @@ class TestLiveLogsLoop:
         report = build_status_report(dict(self.CONFIG))
         for key in ("cpu_usage", "memory_usage", "disk_usage", "uptime_seconds"):
             assert key in report, f"missing {key} in status report"
+
+
+class TestHeartbeatLoopSuspension:
+    """Suspension (423) pauses the loop; unpairement (403) still stops it."""
+
+    CONFIG = {
+        "device_id": "suspend-device",
+        "site_id": "site-suspend",
+        "backend_url": "https://backend.example.com",
+        "heartbeat_interval_seconds": 0,
+        "api_key": "secret",
+    }
+
+    def test_loop_survives_423_and_resumes_reporting(self, tmp_path) -> None:
+        """The loop keeps running through 423 and reports once resumed."""
+        responses = deque([423, 423, 200])
+        calls = []
+
+        async def _handler(request):
+            calls.append(request.url.path)
+            code = responses.popleft() if responses else 200
+            return httpx.Response(code, json={})
+
+        queue = RetryQueue(tmp_path / "queue.json")
+
+        async def _run():
+            transport = httpx.MockTransport(_handler)
+            async with httpx.AsyncClient(transport=transport) as client:
+                loop = asyncio.ensure_future(
+                    heartbeat_loop(client, dict(self.CONFIG), queue, None)
+                )
+                await asyncio.sleep(0.1)
+                loop.cancel()
+                try:
+                    await loop
+                except asyncio.CancelledError:
+                    pass
+
+        asyncio.run(_run())
+
+        # A terminal 403 would stop after the first request; 423 must not.
+        assert len(calls) >= 3, f"loop stopped on suspension after {len(calls)} call(s)"
+        assert queue.load() == [], "suspended heartbeats must not be queued for retry"
+
+    def test_loop_stops_on_403(self, tmp_path) -> None:
+        """An unpaired device (403) still terminates the loop immediately."""
+        calls = []
+
+        async def _handler(request):
+            calls.append(request.url.path)
+            return httpx.Response(403, json={"detail": "unpaired"})
+
+        async def _run():
+            transport = httpx.MockTransport(_handler)
+            async with httpx.AsyncClient(transport=transport) as client:
+                loop = asyncio.ensure_future(
+                    heartbeat_loop(
+                        client, dict(self.CONFIG), RetryQueue(tmp_path / "q.json"), None
+                    )
+                )
+                await asyncio.sleep(0.1)
+                loop.cancel()
+                try:
+                    await loop
+                except asyncio.CancelledError:
+                    pass
+
+        asyncio.run(_run())
+
+        assert len(calls) == 1, f"expected a single attempt, got {len(calls)}"

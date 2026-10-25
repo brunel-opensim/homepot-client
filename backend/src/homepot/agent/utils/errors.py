@@ -18,6 +18,11 @@ PERMANENT_STATUS_CODES = frozenset({401, 403, 404, 409})
 # or unpaired). These are returned by the backend's device-auth layer.
 DEVICE_TERMINAL_STATUS_CODES = frozenset({401, 403})
 
+# 423 Locked = the device is suspended. Suspension is reversible, so the agent
+# must pause temporarily and resume its loops automatically once the device is
+# resumed from the Dashboard — unlike 403, which means the credential is dead.
+SUSPENDED_STATUS_CODE = 423
+
 
 def is_permanent_status(status_code: int) -> bool:
     """Return ``True`` for a status that must never be retried."""
@@ -61,8 +66,25 @@ class DeviceRemovedError(PermanentFailureError):
         super().__init__(f"Device removed from backend (HTTP {status_code}) for {url}")
 
 
-def classify_status(url: str, status_code: int) -> Optional[PermanentFailureError]:
-    """Return a typed error for a permanent status, or ``None`` for transient."""
+class DeviceSuspendedError(Exception):
+    """The device is suspended (423 Locked); pause and retry after resume.
+
+    Distinct from :class:`DeviceRemovedError`: suspension is reversible. The
+    agent must keep its loops alive (backing off to the normal interval) and
+    automatically resume reporting once the device is resumed on the backend.
+    """
+
+    def __init__(self, url: str, status_code: int) -> None:
+        """Record the failing URL and HTTP status for diagnostics."""
+        self.url = url
+        self.status_code = status_code
+        super().__init__(f"Device suspended (HTTP {status_code}) for {url}")
+
+
+def classify_status(url: str, status_code: int) -> Optional[Exception]:
+    """Return a typed error for a non-retryable-until-resumed status."""
+    if status_code == SUSPENDED_STATUS_CODE:
+        return DeviceSuspendedError(url, status_code)
     if is_device_terminal_status(status_code):
         return DeviceRemovedError(url, status_code)
     if is_permanent_status(status_code):
