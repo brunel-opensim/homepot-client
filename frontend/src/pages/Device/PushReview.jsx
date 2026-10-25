@@ -74,6 +74,20 @@ const COMMAND_TEMPLATES = {
     },
     description: 'Download and install a new system image.',
   },
+  INSTALL_PROGRAM: {
+    label: 'Install Program',
+    action: 'install_program',
+    permission: 'root_access',
+    defaultData: { package: 'Notepad++.Notepad++', timeout_seconds: 300 },
+    description: 'Install a program on the Windows device via winget (silent, machine-wide).',
+  },
+  UNINSTALL_PROGRAM: {
+    label: 'Uninstall Program',
+    action: 'uninstall_program',
+    permission: 'root_access',
+    defaultData: { package: 'Notepad++.Notepad++', timeout_seconds: 300 },
+    description: 'Uninstall a program from the Windows device via winget (silent).',
+  },
   RUN_DIAGNOSTICS: {
     label: 'Run Diagnostics',
     action: 'health_check',
