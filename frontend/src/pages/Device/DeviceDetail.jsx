@@ -625,38 +625,42 @@ export default function Device() {
         { type: 'output', text: `Command queued (${commandId}) — waiting for device response...` },
       ]);
 
-      // Poll the command history until the device reports completion
-      let done = false;
-      for (let attempt = 0; attempt < 30 && !done; attempt++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        try {
-          const history = await api.devices.getCommands(id, 10);
-          const finished = history.find((c) => c.command_id === commandId);
-          if (finished && (finished.status === 'completed' || finished.status === 'failed')) {
-            done = true;
-            const res = finished.result || {};
-            const text =
-              res.message ||
-              res.stdout ||
-              (typeof res === 'string' ? res : JSON.stringify(res, null, 2));
-            setTerminalOutput((prev) => [
-              ...prev,
-              {
-                type: finished.status === 'completed' ? 'success' : 'error',
-                text: String(text),
-              },
-            ]);
-          }
-        } catch (pollErr) {
-          console.debug('Terminal poll skipped', pollErr);
-        }
-      }
-      if (!done) {
-        setTerminalOutput((prev) => [
-          ...prev,
-          { type: 'error', text: 'Timed out waiting for the device to respond.' },
-        ]);
-      }
+      // Stream the result via SSE instead of polling command history.
+      const streamUrl = `/api/v1/devices/device/${id}/commands/${commandId}/stream`;
+      await new Promise((resolve) => {
+        let settled = false;
+        let timeout;
+        const es = new EventSource(streamUrl);
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          if (timeout) clearTimeout(timeout);
+          es.close();
+          resolve();
+        };
+        timeout = setTimeout(() => {
+          setTerminalOutput((prev) => [
+            ...prev,
+            { type: 'error', text: 'Timed out waiting for the device to respond.' },
+          ]);
+          finish();
+        }, 60000);
+        es.addEventListener('result', (event) => {
+          const data = JSON.parse(event.data);
+          const res = data.result || {};
+          const text =
+            res.stdout ||
+            res.stderr ||
+            res.message ||
+            (typeof res === 'string' ? res : JSON.stringify(res, null, 2));
+          setTerminalOutput((prev) => [
+            ...prev,
+            { type: data.status === 'completed' ? 'success' : 'error', text: String(text) },
+          ]);
+          finish();
+        });
+        es.onerror = () => finish();
+      });
     } catch (err) {
       console.error('Failed to run remote command:', err);
       setTerminalOutput((prev) => [

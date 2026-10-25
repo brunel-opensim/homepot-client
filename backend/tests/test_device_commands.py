@@ -471,6 +471,40 @@ def test_command_history_unauthorized(client: TestClient) -> None:
     assert resp.status_code == 401
 
 
+def test_stream_command_result_yields_result(client: TestClient) -> None:
+    """The SSE stream yields the result once the command is terminal."""
+    ctx = _setup_site_and_device(client)
+    h = ctx["auth_headers"]
+    device_id = ctx["device_id"]
+
+    command_id = _queue_command(client, device_id, h, "ping")
+
+    # Mark the command completed directly in the DB.
+    db = homepot.database.SessionLocal()
+    try:
+        cmd = (
+            db.query(DeviceCommand)
+            .filter(DeviceCommand.command_id == command_id)
+            .first()
+        )
+        assert cmd is not None
+        cmd.status = CommandStatus.COMPLETED.value
+        cmd.result = {"message": "pong"}
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.get(
+        f"/api/v1/devices/device/{device_id}/commands/{command_id}/stream",
+        headers=h,
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    body = resp.text
+    assert "event: result" in body
+    assert "pong" in body
+
+
 def test_expire_stale_commands(client: TestClient) -> None:
     """expire_stale_commands marks old PENDING commands as EXPIRED."""
     ctx = _setup_site_and_device(client)

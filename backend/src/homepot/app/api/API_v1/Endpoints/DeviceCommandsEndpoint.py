@@ -1,10 +1,13 @@
 """API endpoints for managing device commands."""
 
+import asyncio
 from datetime import datetime, timezone
+import json
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, AsyncGenerator, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session as SASession
 
@@ -444,3 +447,60 @@ async def get_device_command_history(
         )
         for cmd in commands
     ]
+
+
+@router.get("/device/{device_id}/commands/{command_id}/stream")
+async def stream_command_result(
+    device_id: str,
+    command_id: str,
+    sync_db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> StreamingResponse:
+    """Stream a command's result over SSE once it reaches a terminal state.
+
+    The Remote Access shell subscribes here so command output appears the
+    moment the device reports it, instead of polling command history.
+    Requires viewer-level access on the device's site.
+    """
+    db_user = cast(
+        User, sync_db.query(User).filter(User.email == current_user["email"]).first()
+    )
+    db = await get_database_service()
+    device = await db.get_device_by_device_id(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    verify_device_belongs_to_user(
+        db_user, device, sync_db, minimum_role="viewer", unified_fleet_access=True
+    )
+
+    terminal = {
+        CommandStatus.COMPLETED.value,
+        CommandStatus.FAILED.value,
+        CommandStatus.EXPIRED.value,
+        CommandStatus.CANCELLED.value,
+    }
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        while True:
+            command = await db.get_command(command_id)
+            if command is None:
+                yield (
+                    "event: error\n"
+                    f"data: {json.dumps({'error': 'command not found'})}\n\n"
+                )
+                break
+            if command.status in terminal:
+                payload = {
+                    "command_id": command.command_id,
+                    "status": command.status,
+                    "result": command.result,
+                }
+                yield f"event: result\ndata: {json.dumps(payload, default=str)}\n\n"
+                break
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
