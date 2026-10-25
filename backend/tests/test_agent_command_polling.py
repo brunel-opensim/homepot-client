@@ -470,6 +470,192 @@ class TestFirmwareDownloadVerify:
         # The firmware keys are excluded from the per-key config loop.
         assert "url" not in result["result"]["results"]
 
+
+class TestProgramInstallUninstall:
+    """Tests for the winget install/uninstall commands."""
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    def test_install_program_builds_winget_install(self, elev, system):
+        """Installs via 'winget install' with the package id, elevated."""
+        system.return_value = "Windows"
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        elev.run_elevated.return_value = {
+            "ok": True,
+            "exit_code": 0,
+            "stdout": "Successfully installed",
+            "stderr": "",
+        }
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "install_program",
+                "payload": {"data": {"package": "Notepad++.Notepad++"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        script = elev.run_elevated.call_args.args[1]
+        assert "winget install" in script
+        assert "Notepad++.Notepad++" in script
+        assert "--silent" in script
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    def test_uninstall_program_builds_winget_uninstall(self, elev, system):
+        """uninstall_program runs 'winget uninstall' with the package id."""
+        system.return_value = "Windows"
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        elev.run_elevated.return_value = {
+            "ok": True,
+            "exit_code": 0,
+            "stdout": "Successfully uninstalled",
+            "stderr": "",
+        }
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "uninstall_program",
+                "payload": {"data": {"package": "Notepad++.Notepad++"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        script = elev.run_elevated.call_args.args[1]
+        assert "winget uninstall" in script
+        assert "Notepad++.Notepad++" in script
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    def test_install_program_requires_package(self, elev, system):
+        """A missing package id fails with a clear error."""
+        system.return_value = "Windows"
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "install_program",
+                "payload": {"data": {}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        assert "package" in result["result"]["error"]
+
+    @patch("homepot.agent.utils.command_poller.os.name", "posix")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    def test_install_program_rejected_on_non_windows(self, system):
+        """Winget is Windows-only, so non-Windows hosts are rejected."""
+        system.return_value = "Linux"
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "install_program",
+                "payload": {"data": {"package": "Notepad++.Notepad++"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        assert "Windows" in result["result"]["error"]
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    def test_install_program_reports_winget_failure(self, elev, system):
+        """A winget failure is surfaced as a failed command."""
+        system.return_value = "Windows"
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        elev.run_elevated.return_value = {"ok": False, "error": "winget failed"}
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "install_program",
+                "payload": {"data": {"package": "Notepad++.Notepad++"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        assert "winget failed" in result["result"]["error"]
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    def test_update_program_builds_winget_upgrade(self, elev, system):
+        """update_program runs 'winget upgrade' with the package id."""
+        system.return_value = "Windows"
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        elev.run_elevated.return_value = {
+            "ok": True,
+            "exit_code": 0,
+            "stdout": "ok",
+            "stderr": "",
+        }
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "update_program",
+                "payload": {"data": {"package": "Notepad++.Notepad++"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        script = elev.run_elevated.call_args.args[1]
+        assert "winget upgrade" in script
+        assert "Notepad++.Notepad++" in script
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    def test_upgrade_all_programs_needs_no_package(self, elev, system):
+        """upgrade_all_programs runs 'winget upgrade --all' with no package."""
+        system.return_value = "Windows"
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        elev.run_elevated.return_value = {
+            "ok": True,
+            "exit_code": 0,
+            "stdout": "ok",
+            "stderr": "",
+        }
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "upgrade_all_programs",
+                "payload": {"data": {}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        script = elev.run_elevated.call_args.args[1]
+        assert "winget upgrade --all" in script
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_list_installed_programs_runs_winget_list(self, run, system):
+        """list_installed_programs runs 'winget list' unprivileged."""
+        system.return_value = "Windows"
+        run.return_value.returncode = 0
+        run.return_value.stdout = "Notepad++\n"
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "list_installed_programs",
+                "payload": {},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0][0] == "winget"
+        assert "list" in run.call_args.args[0]
+
     @patch("homepot.agent.utils.telemetry.collect_system_telemetry")
     def test_health_check_reports_per_test_results(self, telemetry):
         """Health check reports pass/fail per requested test."""
