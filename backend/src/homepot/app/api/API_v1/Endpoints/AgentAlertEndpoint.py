@@ -25,6 +25,12 @@ router = APIRouter()
 
 DEFAULT_ALERT_LIMIT = 50
 
+# Cap the number of alerts of a single category surfaced at once. A flapping
+# condition (e.g. high network latency oscillating around its threshold) would
+# otherwise flood the User App Logs page with one entry per reading; keep only
+# the most recent few per category.
+MAX_ALERTS_PER_CATEGORY = 3
+
 
 def _iso(value: Any) -> Any:
     """Format a datetime as ISO, returning None for missing values."""
@@ -162,6 +168,17 @@ async def get_device_alerts(
             )
             alerts = result.scalars().all()
 
+        # Collapse bursts of repeated alerts (same category) to the most recent
+        # few, so a flapping condition doesn't fill the Logs page.
+        seen: Dict[str, int] = {}
+        deduped_alerts = []
+        for alert in alerts:
+            key = cast(str, alert.category) or cast(str, alert.title)
+            if seen.get(key, 0) >= MAX_ALERTS_PER_CATEGORY:
+                continue
+            seen[key] = seen.get(key, 0) + 1
+            deduped_alerts.append(alert)
+
         return _envelope(
             [
                 {
@@ -175,7 +192,7 @@ async def get_device_alerts(
                     "resolved_at": _iso(alert.resolved_at),
                     "resolved_by": alert.resolved_by,
                 }
-                for alert in alerts
+                for alert in deduped_alerts
             ]
         )
     except HTTPException:

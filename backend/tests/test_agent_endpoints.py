@@ -751,6 +751,37 @@ def test_alerts_returns_device_alerts(client: TestClient):
     assert data[0]["category"] == "hardware"
 
 
+def test_alerts_dedupe_same_category(client: TestClient):
+    """A burst of same-category alerts is collapsed to the most recent few."""
+    site = _create_site("site-alert-dedupe")
+    api_key = _create_device("alert-dedupe-device", int(site.id))
+    _grant_monitor("alert-dedupe-device")
+
+    for i in range(5):
+        posted = client.post(
+            "/api/v1/agent/alert",
+            json={
+                "device_id": "alert-dedupe-device",
+                "title": f"High Network Latency: {300 + i}ms",
+                "description": "latency",
+                "severity": "warning",
+                "category": "network",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            headers=_device_headers("alert-dedupe-device", api_key),
+        )
+        assert posted.status_code == 200
+
+    response = client.get(
+        "/api/v1/agent/alert-dedupe-device/alerts",
+        headers=_device_headers("alert-dedupe-device", api_key),
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert len(data) == 3
+    assert all(alert["category"] == "network" for alert in data)
+
+
 def test_alerts_requires_monitor_permission(client: TestClient):
     """Alerts reads require the Monitor tier."""
     site = _create_site("site-activity-alerts-monitor")
