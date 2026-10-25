@@ -40,7 +40,7 @@ These protections are real and should be preserved and built on:
 | Fail-closed command permissions | `command_poller.py` `fetch_device_permissions` / `_check_permission` | Backend unreachable → `None` → privileged commands refused; cached grants only after a prior successful fetch |
 | Graceful offline signal + server-side sweep | `send_final_offline_heartbeat`; `main.py` `_run_stale_device_detection_loop`; `_compute_connectivity` | Immediate OFFLINE on clean stop; otherwise `device_offline_threshold` (default 300s) |
 | Backend command expiry | `main.py` `_run_command_expiry_loop`; `database.py` `expire_stale_commands` | Stale `PENDING`/`SENT` commands expire after TTL (default 300s), so queues for dead devices drain |
-| Launch-at-login (packaged builds) | `user_app/electron/main.ts` `whenReady` | A reboot re-launches the app |
+| Launch-at-login (packaged builds) | `user_app/electron/main.ts` `whenReady` | A reboot re-launches the app, but only **after a user logs in** — it is a login item, not a boot-time service |
 | Renderer timeouts + cache | `api.ts` `fetchWithTimeout`; `telemetryCache.ts` | 15s abort; in-memory last-known snapshot for instant render |
 
 ## Stale devices (both directions)
@@ -275,6 +275,20 @@ Dashboard, so re-adding is a fresh enrolment:
    elevation installer (UAC prompt). Toggling Manage off/on is part of a safe
    Windows re-add: the elevation layer is torn down on revoke and reinstalled on
    grant.
+
+### Reboot / Shut Down resume
+
+`restart` and `shutdown` complete immediately (the agent reports
+`restart initiated` / `shutdown initiated`), but the agent only comes back once
+a user signs in — the app's Start-at-Login setting is a **login item**, so it
+fires *after* login, not at boot. On a PIN/password-protected device this leaves
+the device offline until a human logs in.
+
+For unattended recovery, enable **Windows auto-logon** on the device
+(`netplwiz` → uncheck "Users must enter a user name and password…", or
+Sysinternals `Autologon`). Running the agent as a Windows service (deferred in
+[ADR-0002](adr/0002-agent-supervision-and-lifetime.md)) would remove the login
+dependency entirely.
 
 ## Decisions
 
