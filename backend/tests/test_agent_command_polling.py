@@ -546,6 +546,7 @@ class TestProgramInstallUninstall:
         assert result["status"] == "failed"
         assert "package" in result["result"]["error"]
 
+    @patch("homepot.agent.utils.command_poller.os.name", "posix")
     @patch("homepot.agent.utils.command_poller.platform.system")
     def test_install_program_rejected_on_non_windows(self, system):
         """Winget is Windows-only, so non-Windows hosts are rejected."""
