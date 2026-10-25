@@ -26,15 +26,23 @@ const COMMAND_TEMPLATES = {
     action: 'run_command',
     permission: 'root_access',
     defaultData: { command: 'uname -a', timeout_seconds: 30 },
+    defaultDataByOS: {
+      windows: { command: 'systeminfo' },
+      macos: { command: 'sw_vers' },
+    },
     description:
-      'Run a shell command with root (sudo) privileges. Standard shell syntax is supported.',
+      'Run a command with elevated privileges using the target device\u2019s shell (PowerShell on Windows, sh on macOS/Linux).',
   },
   RUN_SCRIPT: {
     label: 'Run Script',
     action: 'run_script',
     permission: 'root_access',
     defaultData: { script: '#!/bin/sh\nid', timeout_seconds: 30 },
-    description: 'Run a POSIX shell script through standard input with root (sudo) privileges.',
+    defaultDataByOS: {
+      windows: { script: 'Get-Process | Select-Object -First 5 Name, Id, CPU' },
+    },
+    description:
+      'Run a script with elevated privileges using the target device\u2019s shell (PowerShell on Windows, POSIX sh on macOS/Linux).',
   },
   APPLY_CONFIG: {
     label: 'Apply Configuration',
@@ -52,11 +60,8 @@ const COMMAND_TEMPLATES = {
     label: 'Reboot System',
     action: 'restart',
     permission: 'root_access',
-    defaultData: {
-      delay_seconds: 10,
-      reason: 'Scheduled maintenance',
-    },
-    description: 'Reboot the system the User App runs on.',
+    defaultData: {},
+    description: 'Reboot the system the User App runs on. The reboot begins immediately.',
   },
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
@@ -109,19 +114,45 @@ const COMMAND_TEMPLATES = {
       max_depth: 3,
       include_sizes: true,
     },
-    description: 'Scan the system filesystem for files with root privileges.',
+    defaultDataByOS: {
+      windows: { path: 'C:\\ProgramData\\Homepot' },
+    },
+    description: 'Scan the system filesystem for files with elevated privileges.',
   },
   SHUT_DOWN: {
     label: 'Shut Down System',
     action: 'shutdown',
     permission: 'root_access',
-    defaultData: {
-      delay_seconds: 10,
-      reason: 'Maintenance complete',
-    },
-    description: 'Shut down the system the User App runs on.',
+    defaultData: {},
+    description: 'Shut down the system the User App runs on. The shutdown begins immediately.',
   },
 };
+
+// Map a device's os_details string to a canonical OS family, mirroring the
+// backend's homepot.app.schemas.os_capabilities.os_family so command payload
+// defaults can be tailored per-OS (e.g. `systeminfo` on Windows vs `uname -a`
+// on Linux).
+function osFamily(osDetails) {
+  if (!osDetails) return null;
+  const os = osDetails.toLowerCase();
+  if (['windows', 'win32', 'win64'].some((k) => os.includes(k))) return 'windows';
+  if (os.includes('android')) return 'android';
+  if (['ios', 'ipados', 'iphone os', 'ipad'].some((k) => os.includes(k))) return 'ios';
+  if (['linux', 'ubuntu', 'debian', 'fedora', 'centos', 'raspberry pi'].some((k) => os.includes(k)))
+    return 'linux';
+  if (['macos', 'mac os', 'darwin', 'os x', 'mac'].some((k) => os.includes(k))) return 'macos';
+  return null;
+}
+
+// Resolve the default command payload for a template, applying any OS-specific
+// overrides for the target device.
+function resolveDefaultData(templateKey, osDetails) {
+  const template = COMMAND_TEMPLATES[templateKey];
+  if (!template) return {};
+  const base = template.defaultData ?? {};
+  const override = template.defaultDataByOS?.[osFamily(osDetails)];
+  return override ? { ...base, ...override } : { ...base };
+}
 
 const PERMISSION_GROUPS = {
   monitor: {
@@ -314,14 +345,16 @@ export default function PushReview() {
     // Only reset if command type ACTUALLY changed
     if (prevCommand.current !== selectedCommand) {
       if (COMMAND_TEMPLATES[selectedCommand]) {
-        setCommandData(JSON.stringify(COMMAND_TEMPLATES[selectedCommand].defaultData, null, 2));
+        setCommandData(
+          JSON.stringify(resolveDefaultData(selectedCommand, device?.os_details), null, 2)
+        );
       } else {
         setCommandData('{}');
       }
       setJsonError(null);
       prevCommand.current = selectedCommand;
     }
-  }, [selectedCommand]); // Only dependency is selectedCommand
+  }, [selectedCommand, device?.os_details]);
 
   const handleDataChange = (value) => {
     setCommandData(value);

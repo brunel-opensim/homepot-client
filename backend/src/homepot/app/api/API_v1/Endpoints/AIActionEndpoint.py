@@ -17,6 +17,7 @@ import logging
 from typing import Any, Dict, List, Optional, Set, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as SASession
 
@@ -359,7 +360,10 @@ async def execute_action_plan(
     targets = _authorize_plan(db, db_user, plan)
 
     # Atomically claim the plan so two concurrent requests cannot both execute.
-    if not repo.claim_for_execution(str(plan.plan_id)):
+    # Run off the event loop: a blocking write here can wait on a SQLite lock
+    # held by a detached async writer (e.g. analytics) that needs this loop to
+    # commit, which would otherwise deadlock until the busy timeout.
+    if not await run_in_threadpool(repo.claim_for_execution, str(plan.plan_id)):
         db.refresh(plan)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
