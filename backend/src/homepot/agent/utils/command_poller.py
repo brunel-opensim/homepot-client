@@ -37,6 +37,7 @@ COMMAND_TYPES = frozenset(
         "list_processes",
         "list_connections",
         "scan_filesystem",
+        "run_command_unprivileged",
         "install_program",
         "uninstall_program",
         "list_installed_programs",
@@ -59,6 +60,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_processes": "process_monitoring",
     "list_connections": "network_monitoring",
     "scan_filesystem": "root_access",
+    "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
     "uninstall_program": "root_access",
     "list_installed_programs": "command_execution",
@@ -327,6 +329,53 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
     return {
         "status": "completed" if completed.returncode == 0 else "failed",
         "result": result,
+    }
+
+
+def _run_command_unprivileged(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Run a command in the device's own (unprivileged) context.
+
+    This is the Monitor-tier half of the technician "Remote Access" shell:
+    the command runs as the device user, without elevation, and is gated on
+    ``command_execution`` rather than ``root_access``. The elevated half is
+    ``run_command`` (Manage tier).
+    """
+    source = data.get("command")
+    if not isinstance(source, str) or not source.strip():
+        return {
+            "status": "failed",
+            "result": {"error": "A non-empty 'command' value is required"},
+        }
+    timeout_value = data.get("timeout_seconds", 30)
+    try:
+        timeout = max(1, min(int(timeout_value), MAX_COMMAND_TIMEOUT))
+    except (TypeError, ValueError):
+        timeout = 30
+
+    # No elevation: run through the target shell in the agent's own context.
+    if _is_windows_platform():
+        argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command", source]
+    else:
+        argv = ["/bin/sh", "-c", source]
+
+    try:
+        completed = subprocess.run(  # noqa: S603 - explicit argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"status": "failed", "result": {"error": str(exc)}}
+
+    return {
+        "status": "completed" if completed.returncode == 0 else "failed",
+        "result": {
+            "exit_code": completed.returncode,
+            "stdout": (completed.stdout or "")[-MAX_COMMAND_OUTPUT:],
+            "stderr": (completed.stderr or "")[-MAX_COMMAND_OUTPUT:],
+        },
     }
 
 
@@ -1198,6 +1247,9 @@ def process_command(
 
     if command_type == "update_config":
         return _apply_config(_command_data(command))
+
+    if command_type == "run_command_unprivileged":
+        return _run_command_unprivileged(_command_data(command))
 
     if command_type == "list_installed_programs":
         return _run_list_installed_programs()

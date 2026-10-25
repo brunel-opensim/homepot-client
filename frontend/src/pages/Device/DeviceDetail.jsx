@@ -512,13 +512,38 @@ export default function Device() {
         device_id: id,
       });
 
+      const elevated = device?.device_permissions?.root_access === true;
+      const unprivileged = device?.device_permissions?.command_execution === true;
+
       setIsTerminalOpen(true);
-      setTerminalOutput([
-        { type: 'info', text: `Connecting to ${device?.name || id}...` },
-        { type: 'success', text: 'Secure channel established (TLS 1.3)' },
-        { type: 'info', text: 'Welcome to Remote Shell v2.1.0' },
-        { type: 'info', text: 'Type "help" for available commands.' },
-      ]);
+      if (elevated) {
+        setTerminalOutput([
+          {
+            type: 'info',
+            text: `Connected to ${device?.name || id} — elevated shell (Manage device).`,
+          },
+          {
+            type: 'info',
+            text: 'Commands run with SYSTEM privileges. Type "help" for available commands.',
+          },
+        ]);
+      } else if (unprivileged) {
+        setTerminalOutput([
+          {
+            type: 'info',
+            text: `Connected to ${device?.name || id} — unprivileged shell (Monitor device).`,
+          },
+          {
+            type: 'info',
+            text: 'Commands run as the device user. Type "help" for available commands.',
+          },
+        ]);
+      } else {
+        setTerminalOutput([
+          { type: 'error', text: 'No shell access granted.' },
+          { type: 'info', text: 'Ask the device owner to grant Monitor or Manage device access.' },
+        ]);
+      }
     } catch (err) {
       console.error('Failed to initiate connection:', err);
     }
@@ -529,10 +554,13 @@ export default function Device() {
     if (!terminalInput.trim() || terminalBusy) return;
 
     const cmd = terminalInput.trim();
-    const promptText = `root@${device?.name?.toLowerCase().replace(/\s+/g, '-') || 'device'}:~# ${cmd}`;
+    const promptText = `${device?.name || 'device'} > ${cmd}`;
     setTerminalOutput((prev) => [...prev, { type: 'input', text: promptText }]);
     setTerminalInput('');
     setTerminalBusy(true);
+
+    const elevated = device?.device_permissions?.root_access === true;
+    const unprivileged = device?.device_permissions?.command_execution === true;
 
     // Client-side commands handled locally
     const local = cmd.toLowerCase();
@@ -579,9 +607,16 @@ export default function Device() {
       return;
     }
 
-    // Remote shell command via the device command pipeline
+    // Remote shell command via the device command pipeline (elevated or
+    // unprivileged, depending on the owner's grant).
+    if (!elevated && !unprivileged) {
+      setTerminalOutput((prev) => [...prev, { type: 'error', text: 'No shell access granted.' }]);
+      setTerminalBusy(false);
+      return;
+    }
     try {
-      const cmdResp = await api.devices.triggerAction(id, 'run_command', {
+      const commandType = elevated ? 'run_command' : 'run_command_unprivileged';
+      const cmdResp = await api.devices.triggerAction(id, commandType, {
         data: { command: cmd },
       });
       const commandId = cmdResp.command_id;

@@ -85,6 +85,7 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 |---|---|---|---|
 | `run_command` | `root_access` | Manage | always runs via `sudo` |
 | `run_script` | `root_access` | Manage | always runs via `sudo` |
+| `run_command_unprivileged` | `command_execution` | Monitor | shell command in the device user context (Remote Access) |
 | `scan_filesystem` | `root_access` | Manage | full filesystem scan |
 | `update_config` | `root_access` | Manage | config / firmware / settings |
 | `restart` | `root_access` | Manage | reboot the host system |
