@@ -1,5 +1,6 @@
 """Tests for command polling and push wake-up utilities."""
 
+import base64
 from datetime import datetime
 import os
 import sys
@@ -303,6 +304,55 @@ class TestProcessCommand:
         assert result["status"] == "completed"
         assert result["result"]["results"]["brightness"]["status"] == "failed"
         assert "no such device" in result["result"]["results"]["brightness"]["stderr"]
+
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_update_config_windows_volume_uses_powershell(self, run, system):
+        """Windows volume applies via a PowerShell -EncodedCommand argv."""
+        system.return_value = "Windows"
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "update_config",
+                "payload": {"data": {"volume": 50}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        argv = run.call_args.args[0]
+        assert argv[0] == "powershell"
+        assert argv[3] == "-EncodedCommand"
+        script = base64.b64decode(argv[4].encode("ascii")).decode("utf-16-le")
+        assert "waveOutSetVolume" in script
+        assert "[W]::Set(50)" in script
+        assert result["result"]["results"]["volume"]["status"] == "applied"
+
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_update_config_windows_brightness_uses_wmi(self, run, system):
+        """Windows brightness applies via the WmiSetBrightness WMI method."""
+        system.return_value = "Windows"
+        run.return_value.returncode = 0
+        run.return_value.stdout = ""
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "update_config",
+                "payload": {"data": {"brightness": 75}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        argv = run.call_args.args[0]
+        assert argv[0] == "powershell"
+        assert argv[3] == "-EncodedCommand"
+        script = base64.b64decode(argv[4].encode("ascii")).decode("utf-16-le")
+        assert "WmiSetBrightness(1, 75)" in script
+        assert result["result"]["results"]["brightness"]["status"] == "applied"
 
     def test_update_config_without_payload(self):
         """Update_config command with no payload returns empty applied_keys."""
