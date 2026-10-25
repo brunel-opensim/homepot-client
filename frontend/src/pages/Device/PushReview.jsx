@@ -60,11 +60,8 @@ const COMMAND_TEMPLATES = {
     label: 'Reboot System',
     action: 'restart',
     permission: 'root_access',
-    defaultData: {
-      delay_seconds: 10,
-      reason: 'Scheduled maintenance',
-    },
-    description: 'Reboot the system the User App runs on.',
+    defaultData: {},
+    description: 'Reboot the system the User App runs on. The reboot begins immediately.',
   },
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
@@ -126,11 +123,8 @@ const COMMAND_TEMPLATES = {
     label: 'Shut Down System',
     action: 'shutdown',
     permission: 'root_access',
-    defaultData: {
-      delay_seconds: 10,
-      reason: 'Maintenance complete',
-    },
-    description: 'Shut down the system the User App runs on.',
+    defaultData: {},
+    description: 'Shut down the system the User App runs on. The shutdown begins immediately.',
   },
 };
 
