@@ -38,6 +38,11 @@ COMMAND_TYPES = frozenset(
         "list_connections",
         "scan_filesystem",
         "run_command_unprivileged",
+        "install_program",
+        "uninstall_program",
+        "list_installed_programs",
+        "update_program",
+        "upgrade_all_programs",
     }
 )
 
@@ -56,6 +61,11 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_connections": "network_monitoring",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
+    "install_program": "root_access",
+    "uninstall_program": "root_access",
+    "list_installed_programs": "command_execution",
+    "update_program": "root_access",
+    "upgrade_all_programs": "root_access",
 }
 
 MAX_COMMAND_OUTPUT = 64 * 1024
@@ -1048,6 +1058,125 @@ def _system_control(command_type: str) -> Dict[str, Any]:
     }
 
 
+def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Install / uninstall / update a Windows program via winget, elevated.
+
+    ``command_type`` is one of ``install_program``, ``uninstall_program``,
+    ``update_program`` or ``upgrade_all_programs``; the target package is read
+    from ``data["package"]`` (a winget package id) except for
+    ``upgrade_all_programs``, which upgrades every installed package. Runs
+    through the scoped elevation helper so the winget operation executes with
+    SYSTEM privileges (winget is Windows-only).
+    """
+    if not _is_windows_platform():
+        return {
+            "status": "failed",
+            "result": {"error": "winget is only available on Windows"},
+        }
+    if not elevation_util.is_elevation_installed():
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    f"{command_type} requires the Manage elevation layer, which "
+                    "is not installed on this device. Grant 'Manage device' access."
+                )
+            },
+        }
+    if not elevation_util.is_provisioned():
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    f"{command_type} requires the Manage elevation layer, but its "
+                    "scheduled task is missing. Re-grant 'Manage device' access."
+                )
+            },
+        }
+
+    flags = "--silent --accept-package-agreements --accept-source-agreements"
+    if command_type == "upgrade_all_programs":
+        script = f"winget upgrade --all {flags}"
+    else:
+        package = data.get("package")
+        if not isinstance(package, str) or not package.strip():
+            return {
+                "status": "failed",
+                "result": {"error": "A 'package' value is required"},
+            }
+        if command_type == "install_program":
+            script = f"winget install -e --id {package} {flags}"
+        elif command_type == "uninstall_program":
+            script = f"winget uninstall -e --id {package} --silent"
+        else:  # update_program
+            script = f"winget upgrade -e --id {package} {flags}"
+
+    try:
+        timeout = max(
+            1, min(int(data.get("timeout_seconds", 300)), MAX_COMMAND_TIMEOUT)
+        )
+    except (TypeError, ValueError):
+        timeout = 300
+
+    outcome = elevation_util.run_elevated("exec", script, timeout)
+    if not outcome.get("ok"):
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    outcome.get("error")
+                    or outcome.get("stderr")
+                    or f"{command_type} failed"
+                ),
+                "exit_code": outcome.get("exit_code"),
+                "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+            },
+        }
+    return {
+        "status": "completed",
+        "result": {
+            "exit_code": outcome.get("exit_code", 0),
+            "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+            "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+        },
+    }
+
+
+def _run_list_installed_programs() -> Dict[str, Any]:
+    """List installed Windows programs via winget (read-only, unprivileged)."""
+    if not _is_windows_platform():
+        return {
+            "status": "failed",
+            "result": {"error": "winget is only available on Windows"},
+        }
+    try:
+        completed = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+            ["winget", "list", "--accept-source-agreements"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"status": "failed", "result": {"error": f"winget list failed: {exc}"}}
+    if completed.returncode != 0:
+        return {
+            "status": "failed",
+            "result": {
+                "error": (completed.stderr or completed.stdout or "winget list failed")[
+                    -MAX_COMMAND_OUTPUT:
+                ]
+            },
+        }
+    return {
+        "status": "completed",
+        "result": {
+            "stdout": (completed.stdout or "")[-MAX_COMMAND_OUTPUT:],
+            "stderr": (completed.stderr or "")[-MAX_COMMAND_OUTPUT:],
+        },
+    }
+
+
 def process_command(
     command: Dict[str, Any],
     permissions: Optional[Dict[str, bool]] = None,
@@ -1121,6 +1250,17 @@ def process_command(
 
     if command_type == "run_command_unprivileged":
         return _run_command_unprivileged(_command_data(command))
+
+    if command_type == "list_installed_programs":
+        return _run_list_installed_programs()
+
+    if command_type in {
+        "install_program",
+        "uninstall_program",
+        "update_program",
+        "upgrade_all_programs",
+    }:
+        return _run_winget_program(command_type, _command_data(command))
 
     if command_type in {"run_command", "run_script"}:
         return _execute_local(command, script=command_type == "run_script")
