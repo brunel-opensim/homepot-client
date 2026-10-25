@@ -681,11 +681,13 @@ class TestFirmwareDownloadVerify:
         assert result["status"] == "failed"
         assert "command_execution" in result["result"]["error"]
 
-    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch(
+        "homepot.agent.utils.command_poller._is_windows_platform",
+        return_value=False,
+    )
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_run_command_unprivileged_runs_locally(self, run, system):
+    def test_run_command_unprivileged_runs_locally(self, run, _is_windows):
         """Unprivileged commands run in the local shell without elevation."""
-        system.return_value = "Linux"
         run.return_value.returncode = 0
         run.return_value.stdout = "ok\n"
         run.return_value.stderr = ""
@@ -700,12 +702,13 @@ class TestFirmwareDownloadVerify:
         assert result["status"] == "completed"
         assert run.call_args.args[0] == ["/bin/sh", "-c", "whoami"]
 
-    @patch("homepot.agent.utils.command_poller.os.name", "nt")
-    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch(
+        "homepot.agent.utils.command_poller._is_windows_platform",
+        return_value=True,
+    )
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_run_command_unprivileged_windows_uses_powershell(self, run, system):
+    def test_run_command_unprivileged_windows_uses_powershell(self, run, _is_windows):
         """On Windows unprivileged commands run through PowerShell."""
-        system.return_value = "Windows"
         run.return_value.returncode = 0
         run.return_value.stdout = "ok\n"
         run.return_value.stderr = ""
