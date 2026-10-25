@@ -34,6 +34,13 @@ import {
   getStatusMeta,
 } from '@/utils/commandLifecycle';
 
+// Prefer the template label (payload.title, e.g. "Apply Configuration") over the
+// raw command_type, so commands that share a command_type ("update_config" →
+// "Update Config") keep their distinct titles.
+function commandTitle(cmd) {
+  return cmd?.payload?.title || formatCommandType(cmd?.command_type);
+}
+
 function StatusBadge({ status }) {
   const meta = getStatusMeta(status);
   return (
@@ -297,7 +304,7 @@ export default function DeviceHistory() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 min-w-0 flex-wrap">
                           <h3 className="text-sm font-medium text-white truncate min-w-0">
-                            {formatCommandType(cmd.command_type)}
+                            {commandTitle(cmd)}
                           </h3>
                           <StatusBadge status={cmd.status} />
                           <span className="font-mono text-[10px] text-slate-500">
@@ -392,9 +399,7 @@ export default function DeviceHistory() {
                   </div>
                   <div>
                     <span className="text-gray-500 block">Command Type</span>
-                    <span className="text-gray-300">
-                      {formatCommandType(selectedCommand.command_type)}
-                    </span>
+                    <span className="text-gray-300">{commandTitle(selectedCommand)}</span>
                   </div>
                   <div>
                     <span className="text-gray-500 block">Queued</span>
