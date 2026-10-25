@@ -19,6 +19,11 @@ import { ApiError } from '../services/api'
 
 type AppLogEntry = Awaited<ReturnType<NonNullable<Window['electronAPI']>['app']['getRecentLogs']>>[number]
 
+// The device emits a status report roughly every 30s, so a larger window is
+// just a wall of near-identical lines. The Logs page only surfaces the latest
+// few entries.
+const DEVICE_LOG_LIMIT = 5
+
 function formatTime(iso: string | null): string {
   if (!iso) return '—'
   try {
@@ -155,7 +160,7 @@ export default function Logs() {
     ])
     if (!deviceId || !apiKey) return
     try {
-      setDeviceLogs(await fetchDeviceLogs(deviceId, apiKey, 50))
+      setDeviceLogs(await fetchDeviceLogs(deviceId, apiKey, DEVICE_LOG_LIMIT))
       setDiagnosticsGated(false)
     } catch (err) {
       setDiagnosticsGated(err instanceof ApiError && err.status === 403)
