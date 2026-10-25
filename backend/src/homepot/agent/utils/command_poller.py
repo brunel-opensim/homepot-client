@@ -2,14 +2,18 @@
 
 import base64
 from datetime import datetime, timezone
+import hashlib
 import logging
 import os
 import platform
+import re
 import shlex
 import shutil
 import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 from typing import Any, Dict, List, Optional
+import urllib.parse
+import urllib.request
 
 import httpx
 import psutil
@@ -728,6 +732,80 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
     }
 
 
+# --- firmware (download + verify) -------------------------------------------
+
+
+FIRMWARE_DOWNLOAD_TIMEOUT = 60  # seconds
+FIRMWARE_MAX_BYTES = 100 * 1024 * 1024  # 100 MB
+
+
+def _parse_firmware_checksum(checksum: Any) -> Optional[str]:
+    """Return the lowercase sha256 hex from a 'sha256:<hex>' or plain-hex value.
+
+    Returns ``None`` for a missing or malformed checksum, which the caller
+    treats as "downloaded but unverified" rather than a hard failure.
+    """
+    if not isinstance(checksum, str):
+        return None
+    value = checksum.strip()
+    if value.lower().startswith("sha256:"):
+        value = value[7:]
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
+        return None
+    return value.lower()
+
+
+def _download_firmware(url: Any, checksum: Any, version: Any) -> Dict[str, Any]:
+    """Download a firmware artifact and verify its sha256 checksum.
+
+    Only downloads and verifies the bytes; flashing/applying the firmware is
+    device-specific and intentionally out of scope. The downloaded artifact is
+    discarded after verification.
+    """
+    if not isinstance(url, str) or not url.strip():
+        return {"status": "failed", "message": "firmware 'url' is required"}
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return {
+            "status": "failed",
+            "message": f"unsupported firmware URL scheme: {parsed.scheme}",
+        }
+    try:
+        with (
+            urllib.request.urlopen(  # noqa: S310 - scheme validated to http/https above
+                url, timeout=FIRMWARE_DOWNLOAD_TIMEOUT
+            ) as resp
+        ):
+            data = resp.read(FIRMWARE_MAX_BYTES + 1)
+    except Exception as exc:  # noqa: BLE001 - surface any download error
+        return {"status": "failed", "message": f"firmware download failed: {exc}"}
+    if len(data) > FIRMWARE_MAX_BYTES:
+        return {
+            "status": "failed",
+            "message": f"firmware exceeds the {FIRMWARE_MAX_BYTES}-byte size cap",
+        }
+    actual = hashlib.sha256(data).hexdigest()
+    expected = _parse_firmware_checksum(checksum)
+    if expected is not None and actual != expected:
+        return {
+            "status": "failed",
+            "message": "checksum mismatch",
+            "expected_sha256": expected,
+            "actual_sha256": actual,
+        }
+    return {
+        "status": "downloaded",
+        "version": version,
+        "size": len(data),
+        "sha256": actual,
+        "checksum_verified": expected is not None,
+        "message": (
+            "firmware downloaded and checksum verified (staged for review; "
+            "applying the firmware is device-specific and not performed here)"
+        ),
+    }
+
+
 def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Apply a config update; keys with a known OS action run it on the host."""
     new_config = payload if isinstance(payload, dict) else {}
@@ -736,6 +814,23 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
     applied_keys: List[str] = []
     results: Dict[str, Any] = {}
+
+    # Firmware update: url/checksum/version describe a single download+verify
+    # operation, not three independent config keys. Handle it as one unit and
+    # exclude those keys from the per-key config loop below.
+    if "url" in new_config:
+        applied_keys.append("firmware")
+        results["firmware"] = _download_firmware(
+            url=new_config.get("url"),
+            checksum=new_config.get("checksum"),
+            version=new_config.get("version"),
+        )
+        new_config = {
+            key: value
+            for key, value in new_config.items()
+            if key not in ("url", "checksum", "version")
+        }
+
     for key, value in new_config.items():
         applier = appliers.get(key)
         if applier is None:

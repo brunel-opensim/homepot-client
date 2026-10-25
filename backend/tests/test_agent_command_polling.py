@@ -2,6 +2,7 @@
 
 import base64
 from datetime import datetime
+import hashlib
 import os
 import sys
 from unittest.mock import patch
@@ -11,6 +12,8 @@ import pytest
 
 from homepot.agent.utils.command_poller import (
     COMMAND_TYPES,
+    _download_firmware,
+    _parse_firmware_checksum,
     _parse_lsof_connection,
     build_status_report,
     build_status_update_payload,
@@ -361,6 +364,110 @@ class TestProcessCommand:
         )
         assert result["status"] == "completed"
         assert result["result"]["applied_keys"] == []
+
+
+class TestFirmwareDownloadVerify:
+    """Tests for the firmware download + checksum-verify mechanism."""
+
+    @staticmethod
+    def _resp(data: bytes):
+        class _FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self, n=-1):
+                return data[:n] if n >= 0 else data
+
+        return _FakeResponse()
+
+    def test_parse_firmware_checksum_strips_prefix(self):
+        """A 'sha256:<hex>' checksum parses to the bare lowercase hex."""
+        assert _parse_firmware_checksum("sha256:" + "a" * 64) == "a" * 64
+
+    def test_parse_firmware_checksum_accepts_plain_hex(self):
+        """A bare hex checksum is accepted and lowercased."""
+        assert _parse_firmware_checksum("B" * 64) == "b" * 64
+
+    def test_parse_firmware_checksum_rejects_malformed(self):
+        """Malformed/missing checksums parse to None (unverified, not fatal)."""
+        assert _parse_firmware_checksum("sha256:...") is None
+        assert _parse_firmware_checksum("not-a-hex") is None
+        assert _parse_firmware_checksum(None) is None
+
+    @patch("homepot.agent.utils.command_poller.urllib.request.urlopen")
+    def test_download_verifies_checksum(self, urlopen):
+        """A matching checksum yields a downloaded + verified result."""
+        data = b"firmware-bytes"
+        expected = hashlib.sha256(data).hexdigest()
+        urlopen.return_value = self._resp(data)
+        result = _download_firmware(
+            "https://example.com/fw.bin", "sha256:" + expected, "2.4.0"
+        )
+        assert result["status"] == "downloaded"
+        assert result["checksum_verified"] is True
+        assert result["sha256"] == expected
+        assert result["size"] == len(data)
+        assert result["version"] == "2.4.0"
+
+    @patch("homepot.agent.utils.command_poller.urllib.request.urlopen")
+    def test_download_reports_checksum_mismatch(self, urlopen):
+        """A mismatching checksum fails with a clear integrity error."""
+        urlopen.return_value = self._resp(b"firmware-bytes")
+        result = _download_firmware(
+            "https://example.com/fw.bin", "sha256:" + "0" * 64, "2.4.0"
+        )
+        assert result["status"] == "failed"
+        assert "checksum mismatch" in result["message"]
+
+    @patch("homepot.agent.utils.command_poller.urllib.request.urlopen")
+    def test_download_without_checksum_is_unverified(self, urlopen):
+        """Download without a checksum succeeds but is flagged unverified."""
+        data = b"firmware-bytes"
+        urlopen.return_value = self._resp(data)
+        result = _download_firmware("https://example.com/fw.bin", None, "2.4.0")
+        assert result["status"] == "downloaded"
+        assert result["checksum_verified"] is False
+
+    def test_download_rejects_non_http_scheme(self):
+        """A non-http(s) URL is rejected before any network call."""
+        result = _download_firmware("file:///etc/passwd", None, None)
+        assert result["status"] == "failed"
+        assert "unsupported" in result["message"]
+
+    def test_download_requires_url(self):
+        """A missing URL fails cleanly."""
+        assert _download_firmware(None, None, None)["status"] == "failed"
+
+    @patch("homepot.agent.utils.command_poller.urllib.request.urlopen")
+    def test_apply_config_firmware_payload(self, urlopen):
+        """An update_config with url/checksum/version drives the firmware path."""
+        data = b"firmware"
+        expected = hashlib.sha256(data).hexdigest()
+        urlopen.return_value = self._resp(data)
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "update_config",
+                "payload": {
+                    "data": {
+                        "url": "https://example.com/fw.bin",
+                        "checksum": "sha256:" + expected,
+                        "version": "2.4.0",
+                    }
+                },
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert "firmware" in result["result"]["applied_keys"]
+        firmware = result["result"]["results"]["firmware"]
+        assert firmware["status"] == "downloaded"
+        assert firmware["checksum_verified"] is True
+        # The firmware keys are excluded from the per-key config loop.
+        assert "url" not in result["result"]["results"]
 
     @patch("homepot.agent.utils.telemetry.collect_system_telemetry")
     def test_health_check_reports_per_test_results(self, telemetry):
