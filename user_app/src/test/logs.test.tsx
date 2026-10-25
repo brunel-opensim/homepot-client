@@ -110,7 +110,7 @@ describe('Logs', () => {
     renderWithProviders(<Logs />)
     expect(await screen.findByText('Device Logs')).toBeInTheDocument()
     expect(await screen.findByText('WAN link flapping detected')).toBeInTheDocument()
-    expect(fetchDeviceLogs).toHaveBeenCalledWith('test-device', 'test-key', 50)
+    expect(fetchDeviceLogs).toHaveBeenCalledWith('test-device', 'test-key', 5)
   })
 
   it('renders the device audit trail', async () => {
