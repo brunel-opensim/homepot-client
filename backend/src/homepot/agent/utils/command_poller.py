@@ -1,5 +1,6 @@
 """Command polling and processing for the real device agent."""
 
+import base64
 from datetime import datetime, timezone
 import logging
 import os
@@ -640,6 +641,18 @@ def _run_scan_filesystem(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _powershell_argv(script: str) -> List[str]:
+    """Return a powershell.exe argv that runs *script* robustly.
+
+    Uses ``-EncodedCommand`` (UTF-16LE base64) so the script never has to
+    survive Windows command-line quoting, which mangles embedded double
+    quotes (e.g. the C# ``[DllImport("winmm.dll")]`` used by the volume
+    applier).
+    """
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    return ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded]
+
+
 # --- update_config (OS settings adapter) ------------------------------------
 
 
@@ -672,6 +685,43 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 f"set volume output volume {int(value)}",
             ],
         }
+    if platform_name == "windows":
+
+        def _win_volume(value: Any) -> List[str]:
+            # Windows has no built-in CLI to set the master volume, so call the
+            # waveOutSetVolume Win32 API through a tiny C# P/Invoke class.
+            # volume runs unprivileged (the agent's own process context).
+            pct = max(0, min(100, int(value)))
+            script = (
+                "Add-Type -TypeDefinition @'\n"
+                "using System;\n"
+                "using System.Runtime.InteropServices;\n"
+                "public static class W {\n"
+                '    [DllImport("winmm.dll")] public static extern int waveOutSetVolume(IntPtr h, uint v);\n'
+                "    public static int Set(int p) {\n"
+                "        p = Math.Max(0, Math.Min(100, p));\n"
+                "        uint v = (uint)(65535L * p / 100);\n"
+                "        return waveOutSetVolume(IntPtr.Zero, (v << 16) | v);\n"
+                "    }\n"
+                "}\n"
+                "'@\n"
+                f"[W]::Set({pct})\n"
+            )
+            return _powershell_argv(script)
+
+        def _win_brightness(value: Any) -> List[str]:
+            # WMI brightness requires the hardware + WmiSetBrightness support
+            # (present on laptops); desktops without it fail with a clear
+            # error rather than silently no-op'ing.
+            pct = max(0, min(100, int(value)))
+            script = (
+                "(Get-CimInstance -Namespace root/WMI "
+                "-ClassName WmiMonitorBrightnessMethods)"
+                f".WmiSetBrightness(1, {pct})"
+            )
+            return _powershell_argv(script)
+
+        return {"volume": _win_volume, "brightness": _win_brightness}
     return {
         "brightness": lambda value: ["brightnessctl", "set", f"{int(value)}%"],
         "volume": lambda value: ["amixer", "-q", "set", "Master", f"{int(value)}%"],
