@@ -668,6 +668,59 @@ class TestFirmwareDownloadVerify:
         assert result["status"] == "failed"
         assert "root_access" in result["result"]["error"]
 
+    def test_run_command_unprivileged_requires_command_execution(self):
+        """Unprivileged shell commands require the command_execution grant."""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command_unprivileged",
+                "payload": {"data": {"command": "whoami"}},
+            },
+            {**ALLOW_ALL, "command_execution": False},
+        )
+        assert result["status"] == "failed"
+        assert "command_execution" in result["result"]["error"]
+
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_run_command_unprivileged_runs_locally(self, run, system):
+        """Unprivileged commands run in the local shell without elevation."""
+        system.return_value = "Linux"
+        run.return_value.returncode = 0
+        run.return_value.stdout = "ok\n"
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command_unprivileged",
+                "payload": {"data": {"command": "whoami"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0] == ["/bin/sh", "-c", "whoami"]
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.subprocess.run")
+    def test_run_command_unprivileged_windows_uses_powershell(self, run, system):
+        """On Windows unprivileged commands run through PowerShell."""
+        system.return_value = "Windows"
+        run.return_value.returncode = 0
+        run.return_value.stdout = "ok\n"
+        run.return_value.stderr = ""
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "run_command_unprivileged",
+                "payload": {"data": {"command": "whoami"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert run.call_args.args[0][0] == "powershell"
+        assert run.call_args.args[0][-1] == "whoami"
+
     def test_scan_filesystem_requires_root_access(self):
         """Filesystem scans are denied without the root_access grant."""
         result = process_command(
