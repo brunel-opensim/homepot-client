@@ -42,6 +42,10 @@ class AgentRegisterRequest(BaseModel):
         None,
         description="Source identifier for the device — 'physical', 'emulator', or 'simulation'",
     )
+    agent_version: Optional[str] = Field(
+        None,
+        description="Version of the User App / agent running on the device (e.g. '0.3.13')",
+    )
 
     device_token: Optional[str] = Field(
         None,
