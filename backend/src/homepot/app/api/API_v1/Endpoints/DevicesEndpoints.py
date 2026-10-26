@@ -35,6 +35,7 @@ from homepot.canonical_ids import generate_device_id
 from homepot.client import HomepotClient
 from homepot.config import get_settings
 from homepot.database import get_database_service, get_db
+from homepot.error_logger import log_error
 from homepot.models import (
     AuditLog,
     CommandStatus,
@@ -1171,6 +1172,16 @@ async def suspend_device(
             event_metadata={"idempotency_key": payload.idempotency_key},
         )
 
+        await log_error(
+            category="lifecycle",
+            severity="info",
+            error_message=f"Device suspended by {current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=device_id,
+            endpoint="/devices/device/{device_id}/suspend",
+            context={"action": "suspend", "triggered_by": current_user["email"]},
+        )
+
         logger.info("Device suspended: %s by %s", device_id, current_user["email"])
 
         return {
@@ -1303,6 +1314,16 @@ async def resume_device(
                 "reason": payload.reason,
             },
             event_metadata={"idempotency_key": payload.idempotency_key},
+        )
+
+        await log_error(
+            category="lifecycle",
+            severity="info",
+            error_message=f"Device resumed by {current_user['email']}"
+            + (f" — {payload.reason}" if payload.reason else ""),
+            device_id=device_id,
+            endpoint="/devices/device/{device_id}/resume",
+            context={"action": "resume", "triggered_by": current_user["email"]},
         )
 
         logger.info("Device resumed: %s by %s", device_id, current_user["email"])
