@@ -310,6 +310,48 @@ def authenticate_device_credentials(
     return device
 
 
+async def authenticate_device_credentials_async(
+    session: Any, device_id: str, api_key: str
+) -> Device:
+    """Async variant of :func:`authenticate_device_credentials`.
+
+    Accepts an active async SQLAlchemy session so callers on the async request
+    path (e.g. ``DevicePermissionsEndpoint``) can avoid the sync connection
+    pool entirely.
+    """
+    if not device_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing X-Device-ID header",
+        )
+
+    result = await session.execute(select(Device).where(Device.device_id == device_id))
+    device = cast(Optional[Device], result.scalars().first())
+
+    if not device:
+        _reject_unknown_device(device_id, api_key)
+
+    device = cast(Device, device)
+
+    allowed_states = {LifecycleState.ACTIVE.value, LifecycleState.PENDING.value}
+    if device.lifecycle_state not in allowed_states:
+        _reject_inactive_lifecycle(device)
+
+    if not device.api_key_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Device has no API key configured",
+        )
+
+    if not verify_password(api_key, device.api_key_hash):  # type: ignore[arg-type]
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API Key",
+        )
+
+    return device
+
+
 async def get_current_device(
     api_key: str = Depends(api_key_header),
     device_id: str = Depends(device_id_header),
