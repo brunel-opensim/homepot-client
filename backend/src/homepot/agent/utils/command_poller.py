@@ -1159,7 +1159,7 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
 
     flags = "--silent --accept-package-agreements --accept-source-agreements"
     if command_type == "upgrade_all_programs":
-        script = f'"{winget_exe}" upgrade --all {flags} --scope machine'
+        script = f'& "{winget_exe}" upgrade --all {flags} --scope machine'
     else:
         package = data.get("package")
         if not isinstance(package, str) or not package.strip():
@@ -1168,13 +1168,17 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
                 "result": {"error": "A 'package' value is required"},
             }
         if command_type == "install_program":
-            script = f'"{winget_exe}" install -e --id {package} {flags} --scope machine'
+            script = (
+                f'& "{winget_exe}" install -e --id {package} {flags} --scope machine'
+            )
         elif command_type == "uninstall_program":
             script = (
-                f'"{winget_exe}" uninstall -e --id {package} --silent --scope machine'
+                f'& "{winget_exe}" uninstall -e --id {package} --silent --scope machine'
             )
         else:  # update_program
-            script = f'"{winget_exe}" upgrade -e --id {package} {flags} --scope machine'
+            script = (
+                f'& "{winget_exe}" upgrade -e --id {package} {flags} --scope machine'
+            )
 
     try:
         timeout = max(
