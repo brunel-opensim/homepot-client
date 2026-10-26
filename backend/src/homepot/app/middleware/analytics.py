@@ -70,6 +70,17 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
 
+        # Skip analytics logging for dashboard *read* traffic. The dashboard
+        # polls several endpoints every few seconds (metrics, logs, audit,
+        # jobs, commands, alerts, device status) and each poll used to write
+        # an api_request_logs row, which dominated write load. Mutations
+        # (POST/PUT/DELETE) are still logged for audit/usage purposes.
+        if request.method == "GET" and request.url.path.startswith(
+            ("/api/v1/devices/", "/api/v1/sites/", "/api/v1/jobs/")
+        ):
+            response = await call_next(request)
+            return response
+
         # Record start time
         start_time = time.time()
 
