@@ -18,9 +18,9 @@ class DatabaseSettings(BaseSettings):
         description="Database URL (PostgreSQL)",
     )
     echo_sql: bool = Field(default=False, description="Enable SQL query logging")
-    pool_size: int = Field(default=5, description="Database connection pool size")
+    pool_size: int = Field(default=15, description="Database connection pool size")
     max_overflow: int = Field(
-        default=10, description="Maximum connection pool overflow"
+        default=25, description="Maximum connection pool overflow"
     )
     api_request_log_retention_days: int = Field(
         default=30,
@@ -30,7 +30,7 @@ class DatabaseSettings(BaseSettings):
         ),
     )
     pool_timeout: int = Field(
-        default=30,
+        default=60,
         description="Seconds to wait for a pooled connection before timing out",
     )
     pool_recycle: int = Field(
