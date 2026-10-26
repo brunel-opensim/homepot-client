@@ -477,7 +477,9 @@ class TestProgramInstallUninstall:
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.elevation_util")
-    @patch("homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_install_program_builds_winget_install(self, resolve, elev, system):
         """Installs via 'winget install' with the package id, elevated."""
         system.return_value = "Windows"
@@ -506,7 +508,9 @@ class TestProgramInstallUninstall:
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.elevation_util")
-    @patch("homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_uninstall_program_builds_winget_uninstall(self, resolve, elev, system):
         """uninstall_program runs 'winget uninstall' with the package id."""
         system.return_value = "Windows"
@@ -534,7 +538,9 @@ class TestProgramInstallUninstall:
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.elevation_util")
-    @patch("homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_install_program_requires_package(self, resolve, elev, system):
         """A missing package id fails with a clear error."""
         system.return_value = "Windows"
@@ -568,7 +574,9 @@ class TestProgramInstallUninstall:
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.elevation_util")
-    @patch("homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_install_program_reports_winget_failure(self, resolve, elev, system):
         """A winget failure is surfaced as a failed command."""
         system.return_value = "Windows"
@@ -589,7 +597,9 @@ class TestProgramInstallUninstall:
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.elevation_util")
-    @patch("homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_update_program_builds_winget_upgrade(self, resolve, elev, system):
         """update_program runs 'winget upgrade' with the package id."""
         system.return_value = "Windows"
@@ -617,7 +627,9 @@ class TestProgramInstallUninstall:
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.elevation_util")
-    @patch("homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_upgrade_all_programs_needs_no_package(self, resolve, elev, system):
         """upgrade_all_programs runs 'winget upgrade --all' with no package."""
         system.return_value = "Windows"
@@ -644,7 +656,9 @@ class TestProgramInstallUninstall:
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    @patch("homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_list_installed_programs_runs_winget_list(self, resolve, run, system):
         """list_installed_programs runs 'winget list' unprivileged."""
         system.return_value = "Windows"
