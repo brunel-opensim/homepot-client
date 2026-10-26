@@ -1,5 +1,6 @@
 """Tests for the ``device_metrics`` retention cleanup."""
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -29,31 +30,26 @@ async def test_delete_old_device_metrics_only_removes_expired_rows():
     """Rows older than the retention window are deleted; recent rows survive."""
     db = await get_database_service()
 
-    # Create a site + device for the FK.
-    sync_db = __import__("homepot.database", fromlist=["SessionLocal"]).SessionLocal()
-    try:
+    suffix = uuid.uuid4().hex[:8]
+    async with db.get_session() as session:
         site = Site(
-            site_id="site-metrics-retention",
+            site_id=f"site-metrics-retention-{suffix}",
             name="Metrics Retention Site",
             location="Lab",
         )
-        sync_db.add(site)
-        sync_db.commit()
-        sync_db.refresh(site)
+        session.add(site)
+        await session.flush()
         device = Device(
-            device_id="metrics-retention-device",
+            device_id=f"metrics-retention-device-{suffix}",
             name="Metrics Retention Device",
             device_type="pos_terminal",
             site_id=site.id,
             is_active=True,
             lifecycle_state=LifecycleState.ACTIVE.value,
         )
-        sync_db.add(device)
-        sync_db.commit()
-        sync_db.refresh(device)
+        session.add(device)
+        await session.flush()
         device_pk = device.id
-    finally:
-        sync_db.close()
 
     old = _naive_utc(datetime.now(timezone.utc) - timedelta(days=60))
     recent = _naive_utc(datetime.now(timezone.utc) - timedelta(days=1))
