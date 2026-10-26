@@ -165,6 +165,6 @@ caches. Hold off on Redis until the cheaper wins are exhausted.
 | `DevicePermissionsEndpoint` async | PR #611 (open) |
 | Dashboard polling cadence reduction (2s → 5s) | Done (PR #613) |
 | Analytics skip for dashboard reads (GET) | Done (PR #613) |
-| `DeviceMetrics` retention policy | Proposed (not started) |
+| `DeviceMetrics` retention policy (30 days, trim loop) | Done (PR #614) |
 | `get_device` async migration | Proposed (not started) |
 | Redis deployment + cache wiring | Deferred (not needed yet) |
