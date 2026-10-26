@@ -15,6 +15,40 @@ logger = logging.getLogger(__name__)
 API_REQUEST_LOG_RETENTION_INTERVAL_SECONDS = 6 * 60 * 60  # every 6 hours
 
 
+#: How often (seconds) to attempt trimming old ``error_logs`` rows.
+ERROR_LOG_RETENTION_INTERVAL_SECONDS = 6 * 60 * 60  # every 6 hours
+
+
+async def run_error_log_retention_loop() -> None:
+    """Trim ``error_logs`` past the configured retention window.
+
+    ``error_logs`` stores device status reports (every 30 s) and is
+    high-volume; the User App only surfaces the latest few entries. This
+    loop trims rows older than the configured retention (default 7 days) in
+    bounded batches. A retention setting of 0 disables trimming.
+    """
+    from homepot.config import get_settings
+    from homepot.database import get_database_service
+
+    while True:
+        try:
+            retention_days = get_settings().database.error_log_retention_days
+            if retention_days and retention_days > 0:
+                db = await get_database_service()
+                deleted = await db.delete_old_error_logs(retention_days=retention_days)
+                if deleted:
+                    logger.info(
+                        "Trimmed %d stale error_logs row(s) (retention=%d days)",
+                        deleted,
+                        retention_days,
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning("Error log retention pass failed: %s", e)
+        await asyncio.sleep(ERROR_LOG_RETENTION_INTERVAL_SECONDS)
+
+
 async def run_api_request_log_retention_loop() -> None:
     """Trim ``api_request_logs`` past the configured retention window.
 
