@@ -1032,8 +1032,6 @@ export default function Device() {
                 />
               )}
 
-              <PeripheralsWidget peripherals={device?.peripherals} />
-
               <DirectConnectWidget
                 isOpen={isTerminalOpen}
                 onClose={() => setIsTerminalOpen(false)}
@@ -1045,6 +1043,8 @@ export default function Device() {
                 terminalBusy={terminalBusy}
                 deviceName={device?.name}
               />
+
+              <PeripheralsWidget peripherals={device?.peripherals} />
             </div>
           </div>
         </div>
