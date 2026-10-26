@@ -179,6 +179,7 @@ nav:
           - TimescaleDB Integration: timescaledb-integration.md
           - Metrics Validation: database-metrics-validation.md
       - Data Collection: analytics-data-collection.md
+      - Data Handling & DB Scaling: data-handling-and-db-scaling.md
 
   - Layer 5 - Edge Layer:
       - Device Management:
