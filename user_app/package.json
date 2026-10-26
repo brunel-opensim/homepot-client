@@ -46,6 +46,10 @@
       {
         "from": "electron/privileged",
         "to": "user_app/electron/privileged"
+      },
+      {
+        "from": "electron/tray-icon.png",
+        "to": "electron/tray-icon.png"
       }
     ],
     "publish": {
