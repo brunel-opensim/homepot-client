@@ -365,6 +365,7 @@ async def list_device(
                 device_list.append(
                     {
                         "site_id": device.site.site_id,
+                        "site_name": device.site.name if device.site else None,
                         "device_id": device.device_id,
                         "name": device.name,
                         "device_type": device.device_type,

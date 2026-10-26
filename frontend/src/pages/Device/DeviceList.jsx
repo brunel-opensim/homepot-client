@@ -33,6 +33,7 @@ export default function DeviceList() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [lifecycleFilter, setLifecycleFilter] = useState('');
+  const [siteFilter, setSiteFilter] = useState('');
 
   useEffect(() => {
     fetchDevices();
@@ -66,7 +67,11 @@ export default function DeviceList() {
       ? device.lifecycle_state?.toLowerCase() === lifecycleFilter.toLowerCase()
       : true;
 
-    return matchSearch && matchLifecycle;
+    const matchSite = siteFilter
+      ? (device.site_id || '') === siteFilter || (device.site_name || '') === siteFilter
+      : true;
+
+    return matchSearch && matchLifecycle && matchSite;
   });
 
   if (loading) {
@@ -122,6 +127,24 @@ export default function DeviceList() {
             <option value="active">Active</option>
             <option value="suspended">Suspended</option>
             <option value="unpaired">Unpaired</option>
+          </select>
+
+          {/* Site Filter */}
+          <select
+            className="bg-[#141a24] border border-[#1f2735] text-white w-full md:w-64 px-4 py-[10px] rounded-lg focus:outline-none focus:border-teal-500 transition-colors"
+            value={siteFilter}
+            onChange={(e) => setSiteFilter(e.target.value)}
+          >
+            <option value="">All Sites</option>
+            {Array.from(
+              new Map(
+                devices.filter((d) => d.site_id).map((d) => [d.site_id, d.site_name || d.site_id])
+              ).entries()
+            ).map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -179,7 +202,9 @@ export default function DeviceList() {
                     <Server size={14} />
                     Site
                   </span>
-                  <span className="text-gray-300">{device.site_id || 'Unassigned'}</span>
+                  <span className="text-gray-300">
+                    {device.site_name || device.site_id || 'Unassigned'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-sm text-gray-400">
                   <span className="flex items-center gap-2">
