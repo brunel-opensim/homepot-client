@@ -19,13 +19,14 @@ Related: `docs/database-guide.md`, `docs/server-deployment.md`
 | Heartbeat | 30 s | `Device` UPDATE (`last_heartbeat_at`, `status`) | async | 2/min/device |
 | Telemetry | 30 s | `DeviceMetrics` INSERT | async | 2/min/device |
 | Live Logs (status) | 30 s, deduped by signature | `ErrorLog` INSERT (only when metrics change) | async | ~1-2/hr/device in practice |
+| Background jobs (demo) | 120 s | `Job` INSERT + UPDATE (pending → completed) | async | ~30/hr/device (6 rotating activities) |
 | Alerts | on condition change | `ErrorLog` INSERT | async | rare |
 | Command status | on completion | `DeviceCommand` UPDATE | async | on demand |
 | Job updates | orchestrator-driven | `Job` UPDATE | async | on demand |
 | Permissions poll (User App) | 30 s | read only | sync (`get_db`) | no write, but holds a sync connection |
 | Heartbeat/telemetry/logs (analytics) | — | skipped by analytics middleware | — | `/api/v1/agent/*` is in `_SKIP_PATHS` |
 
-**Per device total: ~4 writes/min at steady state** (heartbeat + telemetry dominate).
+**Per device total: ~4 writes/min at steady state** (heartbeat + telemetry dominate), plus ~0.5 job writes/min from the demo background-job loop.
 
 ### Dashboard (per open tab)
 
@@ -167,4 +168,5 @@ caches. Hold off on Redis until the cheaper wins are exhausted.
 | Analytics skip for dashboard reads (GET) | Done (PR #613) |
 | `DeviceMetrics` retention policy (30 days, trim loop) | Done (PR #614) |
 | `get_device` async migration | Proposed (not started) |
+| Background job cadence tuning (120 s) | Not started — leave for demo visibility |
 | Redis deployment + cache wiring | Deferred (not needed yet) |
