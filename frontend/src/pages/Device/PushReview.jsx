@@ -209,6 +209,12 @@ const ACTION_TO_TEMPLATE = Object.fromEntries(
 
 function initialTemplate(action) {
   if (COMMAND_TEMPLATES[action]) return action;
+  // APPLY_CONFIG and UPDATE_FIRMWARE share the action "update_config"; the
+  // reverse lookup collapses them (UPDATE_FIRMWARE won the insertion order),
+  // which made reuse of an "Apply Configuration" command show the "Update
+  // Firmware" title. Default update_config to APPLY_CONFIG; callers that know
+  // the real template pass the template key directly.
+  if (action === 'update_config') return 'APPLY_CONFIG';
   return ACTION_TO_TEMPLATE[action] || 'APPLY_CONFIG';
 }
 

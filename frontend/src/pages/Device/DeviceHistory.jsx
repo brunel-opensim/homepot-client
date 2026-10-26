@@ -141,12 +141,39 @@ export default function DeviceHistory() {
   const handleReuse = (cmd) => {
     const data = cmd.payload?.data;
     if (!data || typeof data !== 'object') return;
+
+    // Preserve the original template identity. Both APPLY_CONFIG and
+    // UPDATE_FIRMWARE share the action "update_config", so falling back to
+    // command_type alone collapses every reuse to one of them (previously
+    // UPDATE_FIRMWARE), mismatching the data and the title. Prefer the
+    // stored template key, then infer from the title/data for older commands.
+    let templateKey = data.command;
+    if (!templateKey && cmd.command_type === 'update_config') {
+      const title = (cmd.payload?.title || '').toLowerCase();
+      if (
+        title.includes('firmware') ||
+        data.version != null ||
+        data.url != null ||
+        data.checksum != null
+      ) {
+        templateKey = 'UPDATE_FIRMWARE';
+      } else if (
+        title.includes('configuration') ||
+        'volume' in data ||
+        'brightness' in data ||
+        'kiosk_mode' in data ||
+        'maintenance_window' in data
+      ) {
+        templateKey = 'APPLY_CONFIG';
+      }
+    }
+
     const reuseData = { ...data };
     delete reuseData.timestamp;
     delete reuseData.command;
     navigate(`/device/${id}/push-review`, {
       state: {
-        initialCommand: cmd.command_type,
+        initialCommand: templateKey || cmd.command_type,
         initialData: reuseData,
       },
     });

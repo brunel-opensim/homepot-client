@@ -19,6 +19,7 @@ import React, { useState } from 'react';
 import OsIcon from '@/components/common/OsIcon';
 import api from '@/services/api';
 import CancelCommandDialog from '@/components/Devices/CancelCommandDialog';
+import { formatCommandType } from '@/utils/commandLifecycle';
 
 /* === Reusable UI Components === */
 export function Card({ children, className = '' }) {
@@ -823,8 +824,14 @@ export const CommandHistoryWidget = ({ device, history = [], onCancelCommand, on
                 StatusIcon = Loader2;
                 statusColor = 'text-blue-400';
               }
+              // Prefer the composed title (payload.title, e.g. "Apply Configuration")
+              // over the raw command_type, so commands sharing an action (e.g.
+              // update_config) keep their distinct labels in Push History.
               const title =
-                item.command_type || item.payload?.title || item.action_type || 'Push Command';
+                item.payload?.title ||
+                formatCommandType(item.command_type) ||
+                item.action_type ||
+                'Push Command';
               const label = statusMeta(item.status).label;
               const cancellable = item.status === 'pending' || item.status === 'sent';
 
