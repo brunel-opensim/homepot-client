@@ -35,6 +35,10 @@ _SKIP_PATHS = (
     "/favicon.ico",
     # Device/agent machine-to-machine reporting (30s cadence per device).
     "/api/v1/agent/",
+    # Agent command polling (60s cadence per device).
+    "/api/v1/devices/pending",
+    # Dashboard high-frequency AI reads (polled every few seconds).
+    "/api/v1/ai/anomalies",
     # API-level liveness used by load balancers and monitoring.
     "/api/v1/health",
     "/api/v1/metrics",

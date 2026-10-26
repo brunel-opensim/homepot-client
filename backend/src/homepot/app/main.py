@@ -181,6 +181,17 @@ async def start_api_request_log_retention() -> None:
 
 
 @app.on_event("startup")
+async def start_error_log_retention() -> None:
+    """Start the periodic ``error_logs`` retention trim."""
+    from homepot.app.maintenance import run_error_log_retention_loop
+
+    app.state.error_log_retention_task = asyncio.create_task(
+        run_error_log_retention_loop()
+    )
+    logging.getLogger(__name__).info("Error log retention task started")
+
+
+@app.on_event("startup")
 async def start_device_metrics_retention() -> None:
     """Start the periodic ``device_metrics`` retention trim.
 
@@ -221,6 +232,19 @@ async def stop_api_request_log_retention() -> None:
             pass
         app.state.api_request_log_retention_task = None
         logging.getLogger(__name__).info("AI execution reconcile task stopped")
+
+
+@app.on_event("shutdown")
+async def stop_error_log_retention() -> None:
+    """Cancel the ``error_logs`` retention loop on shutdown."""
+    task = getattr(app.state, "error_log_retention_task", None)
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        app.state.error_log_retention_task = None
 
 
 @app.on_event("shutdown")

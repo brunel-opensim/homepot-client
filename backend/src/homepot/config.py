@@ -29,6 +29,15 @@ class DatabaseSettings(BaseSettings):
             "background cleanup deletes them. Set to 0 to disable trimming."
         ),
     )
+    error_log_retention_days: int = Field(
+        default=7,
+        description=(
+            "Days to retain rows in error_logs before the periodic background "
+            "cleanup deletes them. Set to 0 to disable trimming. error_logs "
+            "stores device status reports (every 30s) and is high-volume; the "
+            "User App only surfaces the latest few entries."
+        ),
+    )
     pool_timeout: int = Field(
         default=60,
         description="Seconds to wait for a pooled connection before timing out",
