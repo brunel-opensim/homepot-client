@@ -182,6 +182,42 @@ def _is_windows_platform() -> bool:
     return os.name == "nt" or platform.system().lower() == "windows"
 
 
+def _resolve_winget_path() -> Optional[str]:
+    """Locate winget.exe in a way that works under the SYSTEM scheduled task.
+
+    winget ships as a per-user App Execution Alias under %LOCALAPPDATA%, which
+    does NOT resolve when the agent runs as SYSTEM through the elevation
+    scheduled task (that is exactly the context in which elevated winget
+    commands execute). Fall back to the real binary under WindowsApps, which
+    SYSTEM can read and execute.
+    """
+    import glob
+    import shutil
+
+    # 1. PATH lookup (works in the device-user context).
+    found = shutil.which("winget")
+    if found and os.path.isfile(found):
+        return found
+
+    # 2. Real binary under WindowsApps (works under SYSTEM).
+    candidates = glob.glob(
+        r"C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*\winget.exe"
+    )
+    if candidates:
+        candidates.sort()
+        return candidates[-1]
+
+    # 3. Newer builds ship a copy on PATH-adjacent locations.
+    for candidate in (
+        r"C:\Windows\System32\winget.exe",
+        r"C:\Windows\SysWOW64\winget.exe",
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+
+    return None
+
+
 def _shell_for_scripts() -> List[str]:
     """Return the argv for a script interpreter on the current platform."""
     if os.name == "nt" or platform.system().lower() == "windows":
@@ -1087,6 +1123,19 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             "status": "failed",
             "result": {"error": "winget is only available on Windows"},
         }
+
+    winget_exe = _resolve_winget_path()
+    if winget_exe is None:
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    "winget is not installed on this device. Install 'App "
+                    "Installer' from the Microsoft Store, then retry."
+                )
+            },
+        }
+
     if not elevation_util.is_elevation_installed():
         return {
             "status": "failed",
@@ -1110,7 +1159,7 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
 
     flags = "--silent --accept-package-agreements --accept-source-agreements"
     if command_type == "upgrade_all_programs":
-        script = f"winget upgrade --all {flags}"
+        script = f'"{winget_exe}" upgrade --all {flags} --scope machine'
     else:
         package = data.get("package")
         if not isinstance(package, str) or not package.strip():
@@ -1119,11 +1168,13 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
                 "result": {"error": "A 'package' value is required"},
             }
         if command_type == "install_program":
-            script = f"winget install -e --id {package} {flags}"
+            script = f'"{winget_exe}" install -e --id {package} {flags} --scope machine'
         elif command_type == "uninstall_program":
-            script = f"winget uninstall -e --id {package} --silent"
+            script = (
+                f'"{winget_exe}" uninstall -e --id {package} --silent --scope machine'
+            )
         else:  # update_program
-            script = f"winget upgrade -e --id {package} {flags}"
+            script = f'"{winget_exe}" upgrade -e --id {package} {flags} --scope machine'
 
     try:
         timeout = max(
@@ -1163,9 +1214,21 @@ def _run_list_installed_programs() -> Dict[str, Any]:
             "status": "failed",
             "result": {"error": "winget is only available on Windows"},
         }
+
+    winget_exe = _resolve_winget_path()
+    if winget_exe is None:
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    "winget is not installed on this device. Install 'App "
+                    "Installer' from the Microsoft Store, then retry."
+                )
+            },
+        }
     try:
         completed = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
-            ["winget", "list", "--accept-source-agreements"],
+            [winget_exe, "list", "--accept-source-agreements"],
             capture_output=True,
             text=True,
             timeout=120,
