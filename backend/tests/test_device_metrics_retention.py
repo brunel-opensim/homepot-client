@@ -32,7 +32,11 @@ async def test_delete_old_device_metrics_only_removes_expired_rows():
     # Create a site + device for the FK.
     sync_db = __import__("homepot.database", fromlist=["SessionLocal"]).SessionLocal()
     try:
-        site = Site(site_id="site-metrics-retention", name="Metrics Retention Site", location="Lab")
+        site = Site(
+            site_id="site-metrics-retention",
+            name="Metrics Retention Site",
+            location="Lab",
+        )
         sync_db.add(site)
         sync_db.commit()
         sync_db.refresh(site)
