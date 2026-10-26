@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 import jwt
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from homepot.app.auth_utils import (
@@ -19,7 +20,7 @@ from homepot.app.auth_utils import (
     SECRET_KEY,
     UserDict,
     api_key_header,
-    authenticate_device_credentials,
+    authenticate_device_credentials_async,
     device_id_header,
     get_current_device,
     require_user,
@@ -34,7 +35,7 @@ from homepot.app.schemas.permissions import (
     DevicePermissionsUpdate,
     derive_capabilities,
 )
-from homepot.database import get_db
+from homepot.database import get_database_service, get_db
 from homepot.models import AuditLog, Device, LifecycleState, User
 
 logger = logging.getLogger(__name__)
@@ -266,9 +267,8 @@ def admin_override_device_permissions(
     tags=["Devices"],
     response_model=Dict[str, Any],
 )
-def get_device_permissions(
+async def get_device_permissions(
     device_id: str,
-    db: Session = Depends(get_db),
     api_key: Optional[str] = Depends(api_key_header),
     device_id_header_val: Optional[str] = Depends(device_id_header),
     bearer_creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
@@ -284,49 +284,68 @@ def get_device_permissions(
     When both are present, device-credential auth takes precedence.
     """
     try:
-        device = db.query(Device).filter(Device.device_id == device_id).first()
-        if not device:
-            raise HTTPException(
-                status_code=404, detail=f"Device '{device_id}' not found"
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            result = await session.execute(
+                select(Device).where(Device.device_id == device_id)
             )
-
-        if api_key and device_id_header_val:
-            auth_device = authenticate_device_credentials(
-                db, device_id_header_val, api_key
-            )
-            if auth_device.device_id != device_id:
+            device = result.scalars().first()
+            if not device:
                 raise HTTPException(
-                    status_code=403,
-                    detail="Device can only read its own permissions",
+                    status_code=404, detail=f"Device '{device_id}' not found"
                 )
-        elif bearer_creds:
-            try:
-                payload = jwt.decode(
-                    bearer_creds.credentials, SECRET_KEY, algorithms=[ALGORITHM]
+
+            if api_key and device_id_header_val:
+                auth_device = await authenticate_device_credentials_async(
+                    session, device_id_header_val, api_key
                 )
-                email = payload.get("sub")
-                if not email:
+                if auth_device.device_id != device_id:
                     raise HTTPException(
-                        status_code=401, detail="Invalid token: no email"
+                        status_code=403,
+                        detail="Device can only read its own permissions",
                     )
-            except jwt.PyJWTError:
-                raise HTTPException(status_code=401, detail="Invalid or expired token")
-            db_user = cast(User, db.query(User).filter(User.email == email).first())
-            if not db_user:
-                raise HTTPException(status_code=403, detail="User not found")
-            verify_device_belongs_to_user(
-                db_user, device, db, minimum_role="operator", unified_fleet_access=True
-            )
-        else:
-            raise HTTPException(
-                status_code=401,
-                detail="Authentication required — provide device credentials or operator JWT",
-            )
+            elif bearer_creds:
+                try:
+                    payload = jwt.decode(
+                        bearer_creds.credentials, SECRET_KEY, algorithms=[ALGORITHM]
+                    )
+                    email = payload.get("sub")
+                    if not email:
+                        raise HTTPException(
+                            status_code=401, detail="Invalid token: no email"
+                        )
+                except jwt.PyJWTError:
+                    raise HTTPException(
+                        status_code=401, detail="Invalid or expired token"
+                    )
+                # Operator (bearer) path is infrequent; use a scoped sync session
+                # so the hot device-credential path never touches the sync pool.
+                from homepot.database import SessionLocal
 
-        perms = _normalise_permissions(device.device_permissions)
-        caps = _get_capabilities_dict(device)
+                sync_db = SessionLocal()
+                try:
+                    db_user = sync_db.query(User).filter(User.email == email).first()
+                    if not db_user:
+                        raise HTTPException(status_code=403, detail="User not found")
+                    verify_device_belongs_to_user(
+                        db_user,
+                        device,
+                        sync_db,
+                        minimum_role="operator",
+                        unified_fleet_access=True,
+                    )
+                finally:
+                    sync_db.close()
+            else:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Authentication required — provide device credentials or operator JWT",
+                )
 
-        return _build_response(device_id, perms, caps, "Permissions retrieved")
+            perms = _normalise_permissions(device.device_permissions)
+            caps = _get_capabilities_dict(device)
+
+            return _build_response(device_id, perms, caps, "Permissions retrieved")
     except HTTPException:
         raise
     except Exception as h:
