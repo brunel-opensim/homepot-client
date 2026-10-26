@@ -180,6 +180,22 @@ async def start_api_request_log_retention() -> None:
     logging.getLogger(__name__).info("API request log retention task started")
 
 
+@app.on_event("startup")
+async def start_device_metrics_retention() -> None:
+    """Start the periodic ``device_metrics`` retention trim.
+
+    Telemetry is written every 30 s per device, so the table grows unbounded.
+    This loop trims rows older than the configured retention window in the
+    background, in bounded batches.
+    """
+    from homepot.app.maintenance import run_device_metrics_retention_loop
+
+    app.state.device_metrics_retention_task = asyncio.create_task(
+        run_device_metrics_retention_loop()
+    )
+    logging.getLogger(__name__).info("Device metrics retention task started")
+
+
 @app.on_event("shutdown")
 async def stop_ai_execution_reconcile() -> None:
     """Cancel the AI action-execution reconcile loop on shutdown."""
@@ -205,6 +221,19 @@ async def stop_api_request_log_retention() -> None:
             pass
         app.state.api_request_log_retention_task = None
         logging.getLogger(__name__).info("AI execution reconcile task stopped")
+
+
+@app.on_event("shutdown")
+async def stop_device_metrics_retention() -> None:
+    """Cancel the ``device_metrics`` retention loop on shutdown."""
+    task = getattr(app.state, "device_metrics_retention_task", None)
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        app.state.device_metrics_retention_task = None
 
 
 @app.on_event("startup")
