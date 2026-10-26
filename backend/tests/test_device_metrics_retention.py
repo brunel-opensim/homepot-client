@@ -1,7 +1,7 @@
 """Tests for the ``device_metrics`` retention cleanup."""
 
-import uuid
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import pytest
 from sqlalchemy import select
