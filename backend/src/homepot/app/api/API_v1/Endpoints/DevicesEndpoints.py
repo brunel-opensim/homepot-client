@@ -395,6 +395,11 @@ async def list_device(
                             if device.config
                             else None
                         ),
+                        "agent_version": (
+                            device.config.get("agent_version")
+                            if device.config
+                            else None
+                        ),
                         "created_at": (
                             device.created_at.isoformat() if device.created_at else None
                         ),
@@ -554,6 +559,9 @@ async def get_device(
                 "enrollment_method": device.enrollment_method or "pre-provisioned",
                 "device_source": (
                     device.config.get("device_source") if device.config else None
+                ),
+                "agent_version": (
+                    device.config.get("agent_version") if device.config else None
                 ),
                 "push_channel": device.push_channel,
                 "push_token": device.push_token,
@@ -2027,6 +2035,7 @@ async def get_devices_by_site(
                 "active_alerts": alert_map.get(d.device_id, 0),
                 "enrollment_method": getattr(d, "enrollment_method", "pre-provisioned"),
                 "device_source": d.config.get("device_source") if d.config else None,
+                "agent_version": d.config.get("agent_version") if d.config else None,
                 "last_seen": d.last_seen.isoformat() if d.last_seen else None,
                 "last_heartbeat_at": (
                     d.last_heartbeat_at.isoformat() if d.last_heartbeat_at else None

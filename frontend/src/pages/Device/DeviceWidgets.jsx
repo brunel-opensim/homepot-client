@@ -543,7 +543,7 @@ export const DeviceInfoWidget = ({ device }) => (
           </span>
         ) : (
           <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
-            REAL
+            REAL{device?.agent_version ? ` v${device.agent_version}` : ''}
           </span>
         )}
       </div>

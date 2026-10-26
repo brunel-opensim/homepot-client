@@ -94,6 +94,15 @@ class AgentService:
                     updated_obj.config = existing_config
                     self.repository.save_device(updated)
 
+                if payload.agent_version:
+                    updated_obj = cast(Any, updated)
+                    existing_config = dict(
+                        cast(Dict[str, Any], updated_obj.config or {})
+                    )
+                    existing_config["agent_version"] = payload.agent_version
+                    updated_obj.config = existing_config
+                    self.repository.save_device(updated)
+
                 return {
                     "device_id": updated.device_id,
                     "site_id": updated.site.site_id if updated.site else None,
@@ -138,6 +147,11 @@ class AgentService:
             if is_emulator_dna:
                 existing_config = dict(cast(Dict[str, Any], created_obj.config or {}))
                 existing_config["device_source"] = "emulator"
+                created_obj.config = existing_config
+
+            if payload.agent_version:
+                existing_config = dict(cast(Dict[str, Any], created_obj.config or {}))
+                existing_config["agent_version"] = payload.agent_version
                 created_obj.config = existing_config
 
             if payload.device_token is not None:

@@ -1014,6 +1014,7 @@ function writeAgentConfig(): string | null {
     device_name: credentials.device_name ?? '',
     device_type: credentials.device_type ?? 'pos_terminal',
     os_details: credentials.device_os ?? os.platform(),
+    app_version: app.getVersion(),
     heartbeat_interval_seconds: 30,
     telemetry_interval_seconds: 30,
     command_poll_interval_seconds: 15,
