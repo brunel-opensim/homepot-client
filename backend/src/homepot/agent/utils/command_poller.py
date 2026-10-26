@@ -283,14 +283,20 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
                         ),
                         "exit_code": outcome.get("exit_code"),
                         "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+                        "truncated": len(outcome.get("stdout") or "")
+                        > MAX_COMMAND_OUTPUT,
                     },
                 }
+            _out = outcome.get("stdout") or ""
+            _err = outcome.get("stderr") or ""
             return {
                 "status": "completed",
                 "result": {
                     "exit_code": outcome.get("exit_code", 0),
-                    "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
-                    "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+                    "stdout": _out[-MAX_COMMAND_OUTPUT:],
+                    "stderr": _err[-MAX_COMMAND_OUTPUT:],
+                    "truncated": len(_out) > MAX_COMMAND_OUTPUT
+                    or len(_err) > MAX_COMMAND_OUTPUT,
                 },
             }
         elif script:
@@ -321,10 +327,14 @@ def _execute_local(command: Dict[str, Any], script: bool) -> Dict[str, Any]:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"status": "failed", "result": {"error": str(exc)}}
 
+    stdout = completed.stdout or ""
+    stderr = completed.stderr or ""
     result = {
         "exit_code": completed.returncode,
-        "stdout": completed.stdout[-MAX_COMMAND_OUTPUT:],
-        "stderr": completed.stderr[-MAX_COMMAND_OUTPUT:],
+        "stdout": stdout[-MAX_COMMAND_OUTPUT:],
+        "stderr": stderr[-MAX_COMMAND_OUTPUT:],
+        "truncated": len(stdout) > MAX_COMMAND_OUTPUT
+        or len(stderr) > MAX_COMMAND_OUTPUT,
     }
     return {
         "status": "completed" if completed.returncode == 0 else "failed",
@@ -369,12 +379,16 @@ def _run_command_unprivileged(data: Dict[str, Any]) -> Dict[str, Any]:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"status": "failed", "result": {"error": str(exc)}}
 
+    _uout = completed.stdout or ""
+    _uerr = completed.stderr or ""
     return {
         "status": "completed" if completed.returncode == 0 else "failed",
         "result": {
             "exit_code": completed.returncode,
-            "stdout": (completed.stdout or "")[-MAX_COMMAND_OUTPUT:],
-            "stderr": (completed.stderr or "")[-MAX_COMMAND_OUTPUT:],
+            "stdout": _uout[-MAX_COMMAND_OUTPUT:],
+            "stderr": _uerr[-MAX_COMMAND_OUTPUT:],
+            "truncated": len(_uout) > MAX_COMMAND_OUTPUT
+            or len(_uerr) > MAX_COMMAND_OUTPUT,
         },
     }
 

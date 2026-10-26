@@ -634,25 +634,38 @@ export default function Device() {
         timeout = setTimeout(() => {
           setTerminalOutput((prev) => [
             ...prev,
-            { type: 'error', text: 'Timed out waiting for the device to respond.' },
+            {
+              type: 'error',
+              text: 'Timed out waiting for the device to respond (5 min). The command may still be running on the device; check Command History for the result.',
+            },
           ]);
           finish();
-        }, 60000);
+        }, 300000);
         es.addEventListener('result', (event) => {
           const data = JSON.parse(event.data);
           const res = data.result || {};
-          const text =
-            res.stdout ||
+          let text =
+            res.error ||
             res.stderr ||
+            res.stdout ||
             res.message ||
             (typeof res === 'string' ? res : JSON.stringify(res, null, 2));
+          if (res.truncated) {
+            text = `${text}\n… (output truncated to ${Math.round((64 * 1024) / 1024)} KB)`;
+          }
           setTerminalOutput((prev) => [
             ...prev,
             { type: data.status === 'completed' ? 'success' : 'error', text: String(text) },
           ]);
           finish();
         });
-        es.onerror = () => finish();
+        es.onerror = () => {
+          setTerminalOutput((prev) => [
+            ...prev,
+            { type: 'error', text: 'Connection to the command stream was lost.' },
+          ]);
+          finish();
+        };
       });
     } catch (err) {
       console.error('Failed to run remote command:', err);
