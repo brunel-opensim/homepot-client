@@ -534,7 +534,7 @@ export default function SiteDetail() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
-                        REAL
+                        REAL{device.agent_version ? ` v${device.agent_version}` : ''}
                       </span>
                     )}
                   </td>
