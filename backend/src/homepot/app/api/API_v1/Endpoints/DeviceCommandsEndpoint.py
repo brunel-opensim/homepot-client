@@ -481,6 +481,9 @@ async def stream_command_result(
     }
 
     async def event_stream() -> AsyncGenerator[str, None]:
+        # Guard against a command that never reaches a terminal state (e.g. a
+        # dead agent): stop polling after ~5.5 minutes instead of forever.
+        deadline = asyncio.get_event_loop().time() + 330
         while True:
             command = await db.get_command(command_id)
             if command is None:
@@ -496,6 +499,12 @@ async def stream_command_result(
                     "result": command.result,
                 }
                 yield f"event: result\ndata: {json.dumps(payload, default=str)}\n\n"
+                break
+            if asyncio.get_event_loop().time() >= deadline:
+                yield (
+                    "event: error\n"
+                    f"data: {json.dumps({'error': 'timed out waiting for the device'})}\n\n"
+                )
                 break
             await asyncio.sleep(0.5)
 
