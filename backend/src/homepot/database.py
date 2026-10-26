@@ -1181,6 +1181,46 @@ class DatabaseService:
                 break
         return total_deleted
 
+    async def delete_old_device_metrics(
+        self,
+        retention_days: int = 30,
+        batch_size: int = 5000,
+        max_batches: int = 200,
+    ) -> int:
+        """Delete ``device_metrics`` rows older than ``retention_days``.
+
+        Telemetry is written every 30 s per device, so this table grows
+        unbounded and (with its device/timestamp index) makes every insert
+        slower over time. Rows are removed in bounded batches.
+
+        Returns the total number of rows deleted. A retention of 0 or less
+        disables trimming (returns 0).
+        """
+        if retention_days is None or retention_days <= 0:
+            return 0
+
+        from sqlalchemy import delete
+
+        cutoff = datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None
+        ) - datetime.timedelta(days=retention_days)
+        total_deleted = 0
+        for _ in range(max_batches):
+            async with self.get_session() as session:
+                subquery = (
+                    select(DeviceMetrics.id)
+                    .where(DeviceMetrics.timestamp < cutoff)
+                    .limit(batch_size)
+                )
+                result = await session.execute(
+                    delete(DeviceMetrics).where(DeviceMetrics.id.in_(subquery))
+                )
+                deleted = int(getattr(result, "rowcount", 0) or 0)
+            total_deleted += deleted
+            if deleted < batch_size:
+                break
+        return total_deleted
+
     # Health check operations
     async def create_health_check(
         self,

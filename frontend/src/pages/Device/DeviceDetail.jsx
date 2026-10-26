@@ -359,7 +359,7 @@ export default function Device() {
           setAlerts(mergeDeviceAlerts(alertsData, anomalyData, id));
         })
         .catch((err) => console.debug('Alerts poll skipped', err));
-    }, 2000);
+    }, 5000);
 
     // Refresh the device status fields (connectivity / lifecycle / health /
     // credential) periodically so the DEVICE INFO panel stays in sync when the

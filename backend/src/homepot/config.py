@@ -50,6 +50,15 @@ class DatabaseSettings(BaseSettings):
             "or an intermediate proxy (e.g. SSL drops) being handed out stale."
         ),
     )
+    device_metrics_retention_days: int = Field(
+        default=30,
+        description=(
+            "Days to retain rows in device_metrics before the periodic "
+            "background cleanup deletes them. Set to 0 to disable trimming. "
+            "Raw per-device telemetry is high-volume; trim or aggregate older "
+            "rows to keep the table and its indexes healthy."
+        ),
+    )
 
 
 class AuthSettings(BaseSettings):
