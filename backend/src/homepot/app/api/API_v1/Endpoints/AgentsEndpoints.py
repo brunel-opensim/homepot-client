@@ -159,6 +159,9 @@ async def list_agents() -> Dict[str, List[Dict]]:
                     "device_source": (
                         device.config.get("device_source") if device.config else None
                     ),
+                    "agent_version": (
+                        device.config.get("agent_version") if device.config else None
+                    ),
                     "last_seen": (
                         device.last_seen.isoformat() if device.last_seen else None
                     ),
