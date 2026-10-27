@@ -29,25 +29,67 @@ function formatHeartbeat(iso: string | null): string {
   }
 }
 
-// Lightweight "connecting" indicator: three dots that fill in sequence
-// (•  ••  •••  then restart) until the connection is established.
-function ConnectingDots() {
-  const [dots, setDots] = useState(0)
-  useEffect(() => {
-    const interval = setInterval(() => setDots((d) => (d + 1) % 4), 350)
-    return () => clearInterval(interval)
-  }, [])
+// Radar-ping "connecting" indicator: concentric rings expand outward from a
+// solid centre dot, like a sonar ping. Honest — it signals "searching" without
+// implying fake intermediate stages.
+function RadarPing() {
   return (
-    <span className="inline-flex items-center gap-1">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className={`h-1.5 w-1.5 rounded-full transition-opacity duration-300 ${
-            i < dots ? 'bg-amber-400 opacity-100' : 'bg-amber-400/30 opacity-40'
-          }`}
-        />
-      ))}
+    <span className="relative inline-flex h-5 w-5 items-center justify-center">
+      <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400/30 animate-ping" />
+      <span className="absolute inline-flex h-3 w-3 rounded-full bg-amber-400/40 animate-ping [animation-delay:300ms]" />
+      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
     </span>
+  )
+}
+
+// Real, honest connection checklist — each step lights up only when the
+// corresponding signal has actually arrived from the backend.
+function ConnectionChecklist({
+  deviceId,
+  status,
+  connectivity,
+}: {
+  deviceId: string | null
+  status: DeviceStatus | null
+  connectivity: string
+}) {
+  const steps = [
+    { label: 'Device enrolled', done: !!deviceId },
+    { label: 'Agent reporting', done: status !== null },
+    { label: 'First heartbeat', done: connectivity === 'online' },
+  ]
+  return (
+    <div className="px-5 pt-2">
+      <div className="rounded-xl border border-amber-900/60 bg-amber-950/40 p-3 space-y-1.5">
+        {steps.map((step) => (
+          <div key={step.label} className="flex items-center gap-2 text-xs">
+            <span
+              className={
+                step.done
+                  ? 'text-emerald-400 font-bold'
+                  : 'text-amber-400/60'
+              }
+            >
+              {step.done ? '✓' : '⋯'}
+            </span>
+            <span
+              className={
+                step.done
+                  ? 'text-slate-200'
+                  : 'text-slate-500'
+              }
+            >
+              {step.label}
+            </span>
+            {!step.done && step.label === 'First heartbeat' && (
+              <span className="ml-auto text-[10px] text-amber-400/70 animate-pulse">
+                waiting…
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -257,7 +299,7 @@ export default function HomeDashboard() {
           <div className={`w-full rounded-xl p-4 flex items-center gap-3 ${statusStyles.card}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 flex-shrink-0 ${statusStyles.circle}`}>
               <span className={`text-lg font-bold flex items-center ${statusStyles.text}`}>
-                {isConnecting ? <ConnectingDots /> : statusStyles.glyph}
+                {isConnecting ? <RadarPing /> : statusStyles.glyph}
               </span>
             </div>
             <div>
@@ -273,6 +315,14 @@ export default function HomeDashboard() {
             <div className={`ml-auto w-2 h-2 rounded-full flex-shrink-0 ${statusStyles.dot}`} />
           </div>
         </div>
+
+        {isConnecting && (
+          <ConnectionChecklist
+            deviceId={deviceId}
+            status={status}
+            connectivity={connectivity}
+          />
+        )}
 
         {/* Suspended banner */}
         {lifecycle === 'suspended' && (
