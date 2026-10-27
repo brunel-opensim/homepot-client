@@ -185,13 +185,22 @@ def test_next_job_outcome_always_completes() -> None:
 
 def test_firmware_version_returns_nonempty() -> None:
     """The firmware/OS version helper returns a non-empty string."""
-    assert rda._firmware_version().strip() != ""
+    rda.get_firmware_version.cache_clear()
+    try:
+        assert rda._firmware_version().strip() != ""
+    finally:
+        rda.get_firmware_version.cache_clear()
 
 
 def test_firmware_version_prefers_platform_version(monkeypatch) -> None:
-    """The helper returns platform.version() when it is available."""
+    """Non-Windows hosts fall back to platform.version() when available."""
+    rda.get_firmware_version.cache_clear()
+    monkeypatch.setattr(rda.platform, "system", lambda: "Linux")
     monkeypatch.setattr(rda.platform, "version", lambda: "10.0.26300")
-    assert rda._firmware_version() == "10.0.26300"
+    try:
+        assert rda._firmware_version() == "10.0.26300"
+    finally:
+        rda.get_firmware_version.cache_clear()
 
 
 def test_pending_commands_loop_wakes_on_push_event() -> None:

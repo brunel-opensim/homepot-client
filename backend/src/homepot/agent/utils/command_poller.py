@@ -20,6 +20,7 @@ import psutil
 
 from homepot.agent.utils import elevation as elevation_util
 from homepot.agent.utils.errors import classify_status
+from homepot.agent.utils.host_info import get_firmware_version
 
 logger = logging.getLogger(__name__)
 
@@ -1372,19 +1373,13 @@ def process_command(
 
 
 def _host_firmware_version() -> str:
-    """Return a best-effort OS/firmware version string for this host.
+    """Return the host firmware version (BIOS on Windows, OS build elsewhere).
 
     Mirrors the value the DNA registration reports so status snapshots do not
     show an empty firmware version just because it was never copied into the
     local agent config.
     """
-    try:
-        version = platform.version()
-        if version and version.strip():
-            return version.strip()
-    except Exception:  # noqa: BLE001 - best-effort
-        pass
-    return f"{platform.system()} {platform.release()}".strip()
+    return get_firmware_version()
 
 
 def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:

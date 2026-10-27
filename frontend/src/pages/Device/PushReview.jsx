@@ -68,11 +68,11 @@ const COMMAND_TEMPLATES = {
     permission: 'root_access',
     defaultData: {
       version: '2.4.0',
-      url: 'https://firmware.homepot.io/v2.4.0.bin',
-      checksum: 'sha256:...',
+      url: 'https://homepot.cabera.com/firmware/demo-firmware-2.4.0.bin',
+      checksum: 'sha256:a079d6bb4d884cc7571769ad5f6a79164324f93e894a68cfec88ae2ed6bf043e',
     },
     description:
-      'Download and verify a firmware artifact. Replace the placeholder URL and checksum with a reachable artifact before sending.',
+      'Download and verify the HomePot demo firmware artifact (hosted on the demo server). The artifact is staged and discarded; nothing is flashed. Replace the URL and checksum with a vendor artifact for real updates.',
   },
   INSTALL_PROGRAM: {
     label: 'Install Program',
