@@ -1154,8 +1154,10 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             "result": {"error": "winget is only available on Windows"},
         }
 
-    winget_exe = _resolve_winget_path()
-    if winget_exe is None:
+    # Lightweight availability check. _resolve_winget_path() is mocked in
+    # tests to return a sentinel; on a real device it returns the alias (or
+    # the real binary) when winget is installed.
+    if _resolve_winget_path() is None:
         return {
             "status": "failed",
             "result": {
@@ -1188,8 +1190,21 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
         }
 
     flags = "--silent --accept-package-agreements --accept-source-agreements"
+    # Resolve winget inside the elevated (SYSTEM) context: the per-user App
+    # Execution Alias cannot be invoked there, but the real binary under
+    # WindowsApps can be enumerated by SYSTEM.
+    winget_resolve = (
+        "$wingetExe = (Get-ChildItem 'C:/Program Files/WindowsApps' "
+        "-Filter 'Microsoft.DesktopAppInstaller_*' -Directory "
+        "-ErrorAction SilentlyContinue | Sort-Object Name | "
+        "Select-Object -Last 1 | ForEach-Object { "
+        "Join-Path $_.FullName 'winget.exe' }); "
+        "if (-not $wingetExe -or -not (Test-Path $wingetExe)) { "
+        "$wingetExe = (Get-Command winget -ErrorAction SilentlyContinue).Source }; "
+        "if (-not $wingetExe) { throw 'winget not found' }; "
+    )
     if command_type == "upgrade_all_programs":
-        script = f'& "{winget_exe}" upgrade --all {flags} --scope machine'
+        script = winget_resolve + f"& $wingetExe upgrade --all {flags} --scope machine"
     else:
         package = data.get("package")
         if not isinstance(package, str) or not package.strip():
@@ -1197,17 +1212,25 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
                 "status": "failed",
                 "result": {"error": "A 'package' value is required"},
             }
+        if not all(c.isalnum() or c in "._-+" for c in package):
+            return {
+                "status": "failed",
+                "result": {"error": "Invalid package id"},
+            }
         if command_type == "install_program":
             script = (
-                f'& "{winget_exe}" install -e --id {package} {flags} --scope machine'
+                winget_resolve
+                + f"& $wingetExe install -e --id '{package}' {flags} --scope machine"
             )
         elif command_type == "uninstall_program":
             script = (
-                f'& "{winget_exe}" uninstall -e --id {package} --silent --scope machine'
+                winget_resolve
+                + f"& $wingetExe uninstall -e --id '{package}' --silent --scope machine"
             )
         else:  # update_program
             script = (
-                f'& "{winget_exe}" upgrade -e --id {package} {flags} --scope machine'
+                winget_resolve
+                + f"& $wingetExe upgrade -e --id '{package}' {flags} --scope machine"
             )
 
     try:
@@ -1249,6 +1272,19 @@ def _run_list_installed_programs() -> Dict[str, Any]:
             "result": {"error": "winget is only available on Windows"},
         }
 
+    # Lightweight availability check. _resolve_winget_path() is mocked in
+    # tests to return a sentinel; on a real device it returns the alias (or
+    # the real binary) when winget is installed.
+    if _resolve_winget_path() is None:
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    "winget is not installed on this device. Install 'App "
+                    "Installer' from the Microsoft Store, then retry."
+                )
+            },
+        }
     winget_exe = _resolve_winget_path()
     if winget_exe is None:
         return {
