@@ -493,10 +493,50 @@ export default function DeviceHistory() {
                 {selectedCommand.result && (
                   <div>
                     <span className="text-gray-500 block mb-2 text-sm">Result</span>
-                    <div className="bg-black/50 rounded-md p-4 overflow-auto max-h-[200px]">
-                      <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
-                        {JSON.stringify(selectedCommand.result, null, 2)}
-                      </pre>
+                    <div className="bg-black/50 rounded-md p-4 overflow-auto max-h-[300px] space-y-2">
+                      {selectedCommand.result.exit_code != null && (
+                        <div className="text-xs text-slate-400">
+                          Exit code:{' '}
+                          <span
+                            className={
+                              selectedCommand.result.exit_code === 0
+                                ? 'text-green-400'
+                                : 'text-red-400'
+                            }
+                          >
+                            {selectedCommand.result.exit_code}
+                          </span>
+                          {selectedCommand.result.truncated && (
+                            <span className="text-amber-400 ml-2">(output truncated to 64 KB)</span>
+                          )}
+                        </div>
+                      )}
+                      {selectedCommand.result.stdout && (
+                        <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
+                          {String(selectedCommand.result.stdout)
+                            .replace(/\\r\\n/g, '\\n')
+                            .replace(/\\r/g, '\\n')}
+                        </pre>
+                      )}
+                      {selectedCommand.result.stderr && (
+                        <pre className="text-xs font-mono text-red-400 whitespace-pre-wrap break-words">
+                          {String(selectedCommand.result.stderr)
+                            .replace(/\\r\\n/g, '\\n')
+                            .replace(/\\r/g, '\\n')}
+                        </pre>
+                      )}
+                      {selectedCommand.result.message && !selectedCommand.result.stdout && (
+                        <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
+                          {selectedCommand.result.message}
+                        </pre>
+                      )}
+                      {!selectedCommand.result.stdout &&
+                        !selectedCommand.result.stderr &&
+                        !selectedCommand.result.message && (
+                          <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
+                            {JSON.stringify(selectedCommand.result, null, 2)}
+                          </pre>
+                        )}
                     </div>
                   </div>
                 )}
