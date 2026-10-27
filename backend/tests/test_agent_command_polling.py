@@ -312,14 +312,11 @@ class TestProcessCommand:
         assert result["result"]["results"]["brightness"]["status"] == "failed"
         assert "no such device" in result["result"]["results"]["brightness"]["stderr"]
 
+    @patch("homepot.agent.utils.command_poller._set_windows_volume_ctypes", return_value={"status": "applied", "message": "volume set to 50%"})
     @patch("homepot.agent.utils.command_poller.platform.system")
-    @patch("homepot.agent.utils.command_poller.subprocess.run")
-    def test_update_config_windows_volume_uses_powershell(self, run, system):
-        """Windows volume applies via a PowerShell -EncodedCommand argv."""
+    def test_update_config_windows_volume_uses_core_audio(self, system, set_vol):
+        """Windows volume applies via the in-process Core Audio (ctypes) helper."""
         system.return_value = "Windows"
-        run.return_value.returncode = 0
-        run.return_value.stdout = ""
-        run.return_value.stderr = ""
         result = process_command(
             {
                 "command_id": "c1",
@@ -329,12 +326,7 @@ class TestProcessCommand:
             ALLOW_ALL,
         )
         assert result["status"] == "completed"
-        argv = run.call_args.args[0]
-        assert argv[0] == "powershell"
-        assert argv[3] == "-EncodedCommand"
-        script = base64.b64decode(argv[4].encode("ascii")).decode("utf-16-le")
-        assert "waveOutSetVolume" in script
-        assert "[W]::Set(50)" in script
+        set_vol.assert_called_once_with(50)
         assert result["result"]["results"]["volume"]["status"] == "applied"
 
     @patch("homepot.agent.utils.command_poller.platform.system")
