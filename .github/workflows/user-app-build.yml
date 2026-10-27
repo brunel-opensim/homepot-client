@@ -272,6 +272,29 @@ jobs:
           done
           find "$priv_dir" -maxdepth 1 -type f
 
+      - name: Assert packaged app ships the tray icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The tray icon is loaded from extraResources at runtime; if it is
+          # missing the tray shows an empty (invisible) icon, as happened on
+          # Windows before this check existed.
+          case "${{ matrix.os }}" in
+            macos-latest)
+              app_dir="$(find release -maxdepth 3 -name 'HOMEPOT Agent.app' -type d | head -1)"
+              test -n "$app_dir"
+              icon="$app_dir/Contents/Resources/electron/tray-icon.png"
+              ;;
+            windows-latest)
+              icon="release/win-unpacked/resources/electron/tray-icon.png"
+              ;;
+            ubuntu-latest)
+              icon="release/linux-unpacked/resources/electron/tray-icon.png"
+              ;;
+          esac
+          test -f "$icon" || { echo "missing tray icon: $icon" >&2; exit 1; }
+          echo "ok: $icon"
+
       - name: Parse the packaged Windows elevation helpers
         if: matrix.os == 'windows-latest'
         shell: pwsh

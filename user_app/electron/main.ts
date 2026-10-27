@@ -440,11 +440,16 @@ app.on('second-instance', () => {
 })
 
 function getAssetPath(...segments: string[]): string {
-  const dir = __dirname
   if (process.env.VITE_DEV_SERVER_URL) {
     return path.join(process.cwd(), ...segments)
   }
-  return path.join(dir, ...segments)
+  // Packaged builds ship extraResources under process.resourcesPath, so check
+  // there first (this is where the tray icon and elevation helpers live).
+  if (app.isPackaged) {
+    const resPath = path.join(process.resourcesPath, ...segments)
+    if (fs.existsSync(resPath)) return resPath
+  }
+  return path.join(__dirname, ...segments)
 }
 
 let hiddenLoginLaunch = false
