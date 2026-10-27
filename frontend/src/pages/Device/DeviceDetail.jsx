@@ -610,6 +610,7 @@ export default function Device() {
     try {
       const commandType = elevated ? 'run_command' : 'run_command_unprivileged';
       const cmdResp = await api.devices.triggerAction(id, commandType, {
+        title: 'Remote Shell',
         data: { command: cmd },
       });
       const commandId = cmdResp.command_id;
