@@ -51,10 +51,9 @@ const COMMAND_TEMPLATES = {
     defaultData: {
       volume: 50,
       brightness: 75,
-      kiosk_mode: true,
-      maintenance_window: '02:00-04:00',
     },
-    description: 'Update system settings with root privileges.',
+    description:
+      'Update system settings with root privileges (master volume and screen brightness are applied on Windows/macOS/Linux).',
   },
   REBOOT_SYSTEM: {
     label: 'Reboot System',
@@ -72,7 +71,8 @@ const COMMAND_TEMPLATES = {
       url: 'https://firmware.homepot.io/v2.4.0.bin',
       checksum: 'sha256:...',
     },
-    description: 'Download and install a new system image.',
+    description:
+      'Download and verify a firmware artifact. Replace the placeholder URL and checksum with a reachable artifact before sending.',
   },
   INSTALL_PROGRAM: {
     label: 'Install Program',
@@ -115,9 +115,8 @@ const COMMAND_TEMPLATES = {
     permission: 'command_execution',
     defaultData: {
       tests: ['network', 'storage', 'memory'],
-      upload_logs: true,
     },
-    description: 'Execute self-tests and report status.',
+    description: 'Execute self-tests (network/storage/memory) and report pass/fail.',
   },
   LIST_PROCESSES: {
     label: 'List Processes',
@@ -416,6 +415,11 @@ export default function PushReview() {
   }
 
   const template = COMMAND_TEMPLATES[selectedCommand];
+  // Simulators expect the extra envelope keys (command/timestamp/config_url/
+  // config_version) inside `data`. Real devices treat them as unknown config
+  // keys, so only send them to simulated targets; otherwise every update_config
+  // result is padded with "no OS action defined" entries.
+  const isSimulator = device?.is_simulated === true || device?.device_source === 'emulator';
   const requiredPermissions = [template?.permission].filter(Boolean);
   const missingPermissions = requiredPermissions.filter(
     (permission) => !device?.device_permissions?.[permission]
@@ -433,8 +437,7 @@ export default function PushReview() {
     title: payloadConfig.title,
     body: payloadConfig.body,
     data: {
-      command: selectedCommand,
-      timestamp: new Date().toISOString(),
+      ...(isSimulator ? { command: selectedCommand, timestamp: new Date().toISOString() } : {}),
       ...parsedData,
     },
     priority: payloadConfig.priority,
@@ -449,14 +452,19 @@ export default function PushReview() {
     try {
       const action = template.action;
 
-      // Ensure data has required fields for the agent simulator
+      // Simulator-only envelope fields are added for emulated targets; real
+      // agents dispatch on `action` and ignore them.
       const finalPayload = {
         ...payloadPreview,
         action: action,
         data: {
           ...payloadPreview.data,
-          config_url: payloadPreview.data.url || 'https://config.homepot.io/v1/config.json',
-          config_version: payloadPreview.data.version || '1.0.1',
+          ...(isSimulator
+            ? {
+                config_url: payloadPreview.data.url || 'https://config.homepot.io/v1/config.json',
+                config_version: payloadPreview.data.version || '1.0.1',
+              }
+            : {}),
         },
       };
 

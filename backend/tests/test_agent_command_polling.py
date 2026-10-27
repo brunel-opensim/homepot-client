@@ -242,6 +242,10 @@ class TestProcessCommand:
         )
         assert result["status"] == "completed"
         assert set(result["result"]["applied_keys"]) == {"theme", "polling_rate"}
+        # Keys with no OS adapter are reported honestly instead of looking
+        # like they were applied.
+        assert result["result"]["results"]["theme"]["status"] == "unsupported"
+        assert result["result"]["results"]["polling_rate"]["status"] == "unsupported"
 
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.shutil.which")
@@ -469,6 +473,27 @@ class TestFirmwareDownloadVerify:
         assert firmware["checksum_verified"] is True
         # The firmware keys are excluded from the per-key config loop.
         assert "url" not in result["result"]["results"]
+
+    @patch("homepot.agent.utils.command_poller.urllib.request.urlopen")
+    def test_apply_config_firmware_failure_marks_command_failed(self, urlopen):
+        """A failed firmware download is a failed command, not a completed one."""
+        urlopen.side_effect = OSError("name resolution failed")
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "update_config",
+                "payload": {
+                    "data": {
+                        "url": "https://firmware.homepot.io/v2.4.0.bin",
+                        "checksum": "sha256:...",
+                        "version": "2.4.0",
+                    }
+                },
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        assert result["result"]["results"]["firmware"]["status"] == "failed"
 
 
 class TestProgramInstallUninstall:
@@ -1192,6 +1217,9 @@ class TestStatusRequest:
         assert isinstance(report["disk_usage"], float)
         assert "hostname" in report
         assert "timestamp" in report
+        # firmware_version comes from the host when the local agent config does
+        # not carry one (previously it was always an empty string).
+        assert report["firmware_version"]
 
 
 class TestPushWakeupListener:

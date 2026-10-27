@@ -971,7 +971,10 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         applier = appliers.get(key)
         if applier is None:
             applied_keys.append(key)
-            results[key] = {"status": "acknowledged", "message": "no OS action defined"}
+            results[key] = {
+                "status": "unsupported",
+                "message": "no OS action is defined for this key on this device",
+            }
             continue
         try:
             argv = applier(value)
@@ -995,10 +998,25 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             applied_keys.append(key)
             results[key] = {"status": "error", "message": str(exc)}
 
+    # A firmware update is the template's only real action. If the download
+    # failed and nothing else actually applied, report the command as failed
+    # instead of "completed" with a failed sub-result.
+    firmware = results.get("firmware")
+    applied = any(
+        result.get("status") in ("applied", "downloaded") for result in results.values()
+    )
+    status = "completed"
+    if firmware is not None and firmware.get("status") == "failed" and not applied:
+        status = "failed"
+
     return {
-        "status": "completed",
+        "status": status,
         "result": {
-            "message": "config update applied",
+            "message": (
+                "config update applied"
+                if status == "completed"
+                else "config update failed"
+            ),
             "applied_keys": applied_keys,
             "results": results,
         },
@@ -1353,6 +1371,22 @@ def process_command(
     }
 
 
+def _host_firmware_version() -> str:
+    """Return a best-effort OS/firmware version string for this host.
+
+    Mirrors the value the DNA registration reports so status snapshots do not
+    show an empty firmware version just because it was never copied into the
+    local agent config.
+    """
+    try:
+        version = platform.version()
+        if version and version.strip():
+            return version.strip()
+    except Exception:  # noqa: BLE001 - best-effort
+        pass
+    return f"{platform.system()} {platform.release()}".strip()
+
+
 def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
     """Build a live device status snapshot for a ``status_request`` command.
 
@@ -1375,7 +1409,7 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
         "hostname": socket.gethostname(),
         "os_details": config.get("os_details", ""),
         "local_ip": config.get("local_ip", ""),
-        "firmware_version": config.get("firmware_version", ""),
+        "firmware_version": config.get("firmware_version") or _host_firmware_version(),
         "uptime_seconds": collect_uptime_seconds(),
         "cpu_usage": metrics["cpu_usage"],
         "memory_usage": metrics["memory_usage"],
