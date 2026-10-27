@@ -1154,20 +1154,6 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             "result": {"error": "winget is only available on Windows"},
         }
 
-    # Lightweight availability check. _resolve_winget_path() is mocked in
-    # tests to return a sentinel; on a real device it returns the alias (or
-    # the real binary) when winget is installed.
-    if _resolve_winget_path() is None:
-        return {
-            "status": "failed",
-            "result": {
-                "error": (
-                    "winget is not installed on this device. Install 'App "
-                    "Installer' from the Microsoft Store, then retry."
-                )
-            },
-        }
-
     if not elevation_util.is_elevation_installed():
         return {
             "status": "failed",
