@@ -195,7 +195,11 @@ fi
 print_step "Setting up backend..."
 
 # Activate virtual environment
-if [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
+if [ -f "$REPO_ROOT/.venv/Scripts/activate" ]; then
+    print_info "Activating HOMEPOT virtual environment..."
+    source "$REPO_ROOT/.venv/Scripts/activate"
+    print_success "Virtual environment activated"
+elif [ -f "$REPO_ROOT/.venv/bin/activate" ]; then
     print_info "Activating HOMEPOT virtual environment..."
     source "$REPO_ROOT/.venv/bin/activate"
     print_success "Virtual environment activated"
@@ -274,7 +278,7 @@ fi
 # The application handles backend.log with rotation
 # --reload-dir watches the ai/ package (outside backend/) too, so edits to the
 # AI gates/context code trigger an auto-restart alongside backend changes.
-nohup bash -c "source $REPO_ROOT/.venv/bin/activate && ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION HOMEPOT_BACKEND_URL=$BACKEND_URL python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai" \
+nohup bash -c "if [ -f $REPO_ROOT/.venv/Scripts/activate ]; then source $REPO_ROOT/.venv/Scripts/activate; else source $REPO_ROOT/.venv/bin/activate; fi && ENABLE_AGENT_SIMULATION=$ENABLE_AGENT_SIMULATION HOMEPOT_BACKEND_URL=$BACKEND_URL python -m uvicorn homepot.app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src --reload-dir ../ai" \
      > "$REPO_ROOT/logs/backend.out" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$REPO_ROOT/logs/backend.pid"

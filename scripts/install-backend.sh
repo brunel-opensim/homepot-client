@@ -138,8 +138,12 @@ setup_venv() {
 
 # Install dependencies
 install_dependencies() {
-    # Activate venv
-    source "$VENV_NAME/bin/activate"
+    # Activate venv (Windows Git Bash uses Scripts/, Unix uses bin/)
+    if [ -f "$VENV_NAME/Scripts/activate" ]; then
+        source "$VENV_NAME/Scripts/activate"
+    else
+        source "$VENV_NAME/bin/activate"
+    fi
     
     log_info "Upgrading pip..."
     pip install --upgrade pip > /dev/null 2>&1 || log_warning "Failed to upgrade pip"
