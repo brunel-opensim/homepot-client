@@ -193,24 +193,25 @@ def _resolve_winget_path() -> Optional[str]:
     winget ships as a per-user App Execution Alias under %LOCALAPPDATA%, which
     does NOT resolve when the agent runs as SYSTEM through the elevation
     scheduled task (that is exactly the context in which elevated winget
-    commands execute). Fall back to the real binary under WindowsApps, which
-    SYSTEM can read and execute.
+    commands execute). Prefer the real binary under WindowsApps, which SYSTEM
+    can read and execute; fall back to the alias for the device-user context.
     """
     import glob
     import shutil
 
-    # 1. PATH lookup (works in the device-user context).
-    found = shutil.which("winget")
-    if found and os.path.isfile(found):
-        return found
-
-    # 2. Real binary under WindowsApps (works under SYSTEM).
+    # 1. Real binary under WindowsApps (works under SYSTEM).
     candidates = glob.glob(
         r"C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*\winget.exe"
     )
     if candidates:
         candidates.sort()
         return candidates[-1]
+
+    # 2. PATH lookup (App Execution Alias; works in the device-user context,
+    #    e.g. for the unprivileged list_installed_programs command).
+    found = shutil.which("winget")
+    if found and os.path.isfile(found):
+        return found
 
     # 3. Newer builds ship a copy on PATH-adjacent locations.
     for candidate in (
