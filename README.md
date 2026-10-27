@@ -46,6 +46,52 @@ We recommend running the project locally without Docker for the best development
 
 See [docs/getting-started.md](docs/getting-started.md) for full details.
 
+## Quick Start (Windows)
+
+Windows is supported via Git Bash (or MSYS2/Cygwin). The setup scripts are
+bash-based and assume a Unix-like shell; `sudo`/`systemctl` are not available
+on Windows, so PostgreSQL must be started through the Services app or `pg_ctl`.
+
+1. **Install prerequisites**:
+   - **Python 3.11+** (https://www.python.org/downloads/) — check "Add python.exe to PATH".
+   - **Node.js 22+** (https://nodejs.org/).
+   - **PostgreSQL 16+** (https://www.postgresql.org/download/windows/) — note the
+     superuser password you set for the `postgres` account.
+   - **Git Bash** (bundled with Git for Windows).
+
+2. **Start PostgreSQL** (if not already running):
+   - Open "Services" (`services.msc`) and start `postgresql-x64-<version>`, or
+   - From Git Bash: `pg_ctl -D "C:/Program Files/PostgreSQL/<version>/data" start`
+
+3. **Install backend + frontend dependencies**:
+   ```bash
+   chmod +x scripts/*.sh
+   ./scripts/install-backend.sh
+   ./scripts/setup-ollama.sh   # optional, for AI features
+   cd frontend && npm install && cd ..
+   ```
+
+4. **Initialize the database**:
+   ```bash
+   # Default: connects as the postgres superuser (password defaults to "postgres").
+   # Override with HOMEPOT_DB_ADMIN_PASSWORD if you chose a different one.
+   ./scripts/init-postgresql.sh
+
+   # Or use passwordless trust auth (configure pg_hba.conf first):
+   HOMEPOT_DB_AUTH=trust ./scripts/init-postgresql.sh
+   ```
+
+5. **Run**:
+   ```bash
+   ./scripts/start-dashboard.sh
+   ```
+
+> **Note**: `install-backend.sh` creates a `.venv` using `.venv/Scripts/` on
+> Windows (not `.venv/bin/`). The init script detects this automatically.
+> If `python3` is not found, use `python` (the scripts fall back to it).
+
+See [docs/getting-started.md](docs/getting-started.md) for full details.
+
 ## Three Test Integration Modes
 
 The system supports **three** device integration modes. **Test technicians must

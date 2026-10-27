@@ -50,6 +50,19 @@ fi
 
 # Check if PostgreSQL service is running
 start_postgres() {
+    # Windows (Git Bash / MSYS / Cygwin): no sudo/systemctl. The PostgreSQL
+    # service must be started from the Services app or via pg_ctl; we only
+    # check readiness here.
+    if [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "mingw"* || "$OSTYPE" == "cygwin"* ]]; then
+        if ! pg_isready -q 2>/dev/null; then
+            echo -e "${RED}Error: PostgreSQL is not accepting connections.${NC}"
+            echo "Start the PostgreSQL service first, e.g.:"
+            echo "  - Services app: start 'postgresql-x64-<version>'"
+            echo "  - or: pg_ctl -D "C:\\Program Files\\PostgreSQL\\<version>\\data" start"
+            exit 1
+        fi
+        return
+    fi
     if [[ "$OSTYPE" == "darwin"* ]]; then
         if ! pg_isready -q; then
              echo -e "${YELLOW}PostgreSQL service is not running. Starting via Homebrew...${NC}"
@@ -108,6 +121,17 @@ if [ "$DB_AUTH" = "trust" ]; then
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     # On macOS Homebrew, the login user is the admin
     PSQL_ADMIN="psql postgres"
+elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "mingw"* || "$OSTYPE" == "cygwin"* ]]; then
+    # On Windows there is no sudo; connect as the postgres superuser over
+    # localhost. Provide the superuser password via HOMEPOT_DB_ADMIN_PASSWORD
+    # (defaults to "postgres"); or set HOMEPOT_DB_AUTH=trust after configuring
+    # trust auth in pg_hba.conf.
+    if [ -n "${HOMEPOT_DB_ADMIN_PASSWORD:-}" ]; then
+        export PGPASSWORD="${HOMEPOT_DB_ADMIN_PASSWORD}"
+    elif [ -z "${PGPASSWORD:-}" ]; then
+        export PGPASSWORD="postgres"
+    fi
+    PSQL_ADMIN="psql -h localhost -U postgres"
 else
     # On Linux, switches to the postgres superuser
     PSQL_ADMIN="sudo -u postgres psql"
@@ -213,10 +237,14 @@ fi
 echo "Initializing database schema and admin user..."
 
 # Determine Python executable
-if [ -f ".venv/bin/python3" ]; then
+if [ -f ".venv/Scripts/python.exe" ]; then
+    PYTHON_CMD=".venv/Scripts/python.exe"
+elif [ -f ".venv/bin/python3" ]; then
     PYTHON_CMD=".venv/bin/python3"
-else
+elif command -v python3 &> /dev/null; then
     PYTHON_CMD="python3"
+else
+    PYTHON_CMD="python"
 fi
 
 # Run Python script to initialize the schema + default admin user only.

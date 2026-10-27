@@ -38,7 +38,11 @@ export DATABASE__URL="$HOMEPOT_DB_URL"
 
 # alembic lives in the repo venv (.venv/bin/alembic), which is NOT guaranteed
 # to be on PATH in a fresh shell, so reference it by absolute path.
-if [ -x "$REPO_ROOT/.venv/bin/alembic" ]; then
+if [ -x "$REPO_ROOT/.venv/Scripts/alembic.exe" ]; then
+  ALEMBIC="$REPO_ROOT/.venv/Scripts/alembic.exe"
+elif [ -x "$REPO_ROOT/.venv/Scripts/alembic" ]; then
+  ALEMBIC="$REPO_ROOT/.venv/Scripts/alembic"
+elif [ -x "$REPO_ROOT/.venv/bin/alembic" ]; then
   ALEMBIC="$REPO_ROOT/.venv/bin/alembic"
 elif command -v alembic >/dev/null 2>&1; then
   ALEMBIC="alembic"
