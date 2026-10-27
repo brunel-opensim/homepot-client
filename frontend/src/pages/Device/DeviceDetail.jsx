@@ -611,7 +611,7 @@ export default function Device() {
       const commandType = elevated ? 'run_command' : 'run_command_unprivileged';
       const cmdResp = await api.devices.triggerAction(id, commandType, {
         title: 'Remote Shell',
-        data: { command: cmd },
+        data: { command: cmd, timeout_seconds: 300 },
       });
       const commandId = cmdResp.command_id;
       setTerminalOutput((prev) => [
@@ -1056,6 +1056,7 @@ export default function Device() {
                 terminalEndRef={terminalEndRef}
                 terminalBusy={terminalBusy}
                 deviceName={device?.name}
+                elevated={device?.device_permissions?.root_access === true}
               />
 
               <PeripheralsWidget peripherals={device?.peripherals} />

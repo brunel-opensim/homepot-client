@@ -918,6 +918,7 @@ export const DirectConnectWidget = ({
   terminalEndRef,
   terminalBusy,
   deviceName,
+  elevated = false,
 }) => {
   if (!isOpen) return null;
 
@@ -968,7 +969,9 @@ export const DirectConnectWidget = ({
         className="border-t border-[#1e293b] bg-[#0f172a] p-2 flex items-center gap-2"
       >
         <span className="text-teal-500 font-mono text-sm whitespace-nowrap">
-          {`root@${deviceName?.toLowerCase().replace(/\s+/g, '-') || 'device'}:~#`}
+          {elevated
+            ? `root@${deviceName?.toLowerCase().replace(/\s+/g, '-') || 'device'}:~#`
+            : `user@${deviceName?.toLowerCase().replace(/\s+/g, '-') || 'device'}:~$`}
         </span>
         <input
           id="terminal-input"
