@@ -211,6 +211,19 @@ The command poller (`command_poller.py`) includes Windows-specific implementatio
 | `brightness` | Uses PowerShell `Get-WmiObject` + `WmiMonitorBrightnessMethods` |
 | `volume` | Uses PowerShell `New-Object -ComObject WScript.Shell` |
 
+### Remote Access (Direct Connect)
+
+The Dashboard's Direct Connect widget opens a remote terminal to the device.
+Each line typed is queued as `run_command` (Manage tier) or
+`run_command_unprivileged` (Monitor tier) and executed on the host:
+
+- `run_command` runs through the SYSTEM scheduled task (elevated).
+- `run_command_unprivileged` runs via `powershell -NoProfile -NonInteractive
+  -Command` in the agent's own context.
+
+See `docs/agent-permissions-trust-model.md` (Remote Access section) and
+`docs/pos-management.md` (Direct Connect) for tiers, limits and security.
+
 ### Device Recovery (Start at Login)
 
 Packaged builds of the User App register a **Windows startup entry**:

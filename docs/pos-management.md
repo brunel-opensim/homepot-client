@@ -127,11 +127,36 @@ The **Device Detail** page provides a comprehensive dashboard for managing indiv
 - **System Stats**: Live monitoring of CPU, Memory, and Disk usage.
 - **Device Information**: Detailed view of IP address, MAC address, firmware version, and last seen timestamp.
 
-#### Direct Connect (Remote Shell)
-Establish a secure, simulated remote shell session directly from the browser:
-- **Access**: Click the "Direct Connect" widget to open the terminal.
-- **Capabilities**: Execute commands like `status`, `reboot`, `logs`, and `help`.
-- **Security**: Simulated TLS 1.3 secure channel.
+#### Direct Connect (Remote Terminal)
+Open a remote terminal to the device directly from the Dashboard. Commands are
+executed on the device through the standard command pipeline (queue -> agent ->
+result) and streamed back over SSE, so output appears as soon as the command
+finishes.
+
+- **Access**: Click the "Direct Connect" widget on the Device Detail page to
+  open the terminal panel.
+- **Built-in commands** (handled locally in the browser): `help`, `clear`,
+  `exit`, `status` (routes through the real `status_request` command).
+- **Remote commands**: any other input is queued as `run_command` (Manage
+  tier) or `run_command_unprivileged` (Monitor tier), depending on the
+  technician's grants.
+- **Permission tiers**:
+  - **Manage device** (`root_access`) - elevated shell; commands run with
+    SYSTEM/root privileges. Prompt shows `root@<device>:~#`.
+  - **Monitor device** (`command_execution`) - unprivileged shell; commands run
+    as the device user. Prompt shows `user@<device>:~$`.
+  - Neither grant - "No shell access granted."
+- **Timeout**: each command is capped at 300 seconds (5 minutes); the terminal
+  waits up to 5 minutes for the result. Commands that exceed the cap are
+  reported as failed.
+- **Characteristics**: stateless (each command runs in a fresh process, so
+  `cd` and environment changes do not persist), output is delivered in one
+  batch when the command completes (not streamed line-by-line), and there is
+  no cancellation once a command is queued.
+- **Security**: commands are gated on the device's `device_permissions`
+  (re-checked by the agent before execution) and by operator-level site access
+  on the backend. Elevated commands run through the scoped `homepot-ctl`
+  helper on POSIX or the SYSTEM scheduled task on Windows.
 
 #### Device Actions
 Perform critical maintenance tasks with immediate feedback via toast notifications:

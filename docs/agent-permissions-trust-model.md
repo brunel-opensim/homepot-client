@@ -131,6 +131,33 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 Every permission key now gates at least one command, so a grant in the
 User App always enables something.
 
+### Remote Access (Direct Connect / Remote Terminal)
+
+The Dashboard's "Direct Connect" widget opens a remote terminal to the device.
+It is not an interactive shell: each line typed is queued as a command, executed
+in a fresh process on the device, and the result is streamed back over SSE.
+
+| Tier | Permission | Command type | Capabilities |
+|---|---|---|---|
+| Manage device | `root_access` | `run_command` | Elevated shell; commands run with SYSTEM/root privileges. |
+| Monitor device | `command_execution` | `run_command_unprivileged` | Unprivileged shell; commands run as the device user. |
+| Neither | — | — | "No shell access granted." |
+
+Built-in commands handled locally in the browser: `help`, `clear`, `exit`,
+`status` (routes through the real `status_request` command). Any other input
+is sent to the device.
+
+Characteristics and limits:
+- **Stateless**: each command runs in a fresh process; `cd` and environment
+  changes do not persist between commands.
+- **Timeout**: 300 seconds (5 minutes) per command.
+- **No cancellation**: once queued, a command runs to completion or its
+  timeout.
+- **Batch output**: results are delivered in one batch when the command
+  completes, not streamed line-by-line.
+- **Honest labeling**: the prompt reflects the actual privilege level
+  (`root@...:~#` for Manage, `user@...:~$` for Monitor).
+
 ### User App presentation (owner-facing)
 
 The User App presents permissions to the device owner as **two grouped
