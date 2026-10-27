@@ -312,7 +312,10 @@ class TestProcessCommand:
         assert result["result"]["results"]["brightness"]["status"] == "failed"
         assert "no such device" in result["result"]["results"]["brightness"]["stderr"]
 
-    @patch("homepot.agent.utils.command_poller._set_windows_volume_ctypes", return_value={"status": "applied", "message": "volume set to 50%"})
+    @patch(
+        "homepot.agent.utils.command_poller._set_windows_volume_ctypes",
+        return_value={"status": "applied", "message": "volume set to 50%"},
+    )
     @patch("homepot.agent.utils.command_poller.platform.system")
     def test_update_config_windows_volume_uses_core_audio(self, system, set_vol):
         """Windows volume applies via the in-process Core Audio (ctypes) helper."""
