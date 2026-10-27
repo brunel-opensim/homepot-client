@@ -863,6 +863,15 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "}\n"
                 "'@\n"
                 f"$rc = [B]::Set({pct})\n"
+                "if ($rc -ne 0) {\n"
+                "    # Fallback: WMI WmiMonitorBrightnessMethods works on many\n"
+                "    # panels where DDC/CI (dxva2) is unavailable.\n"
+                "    try {\n"
+                "        $wmi = Get-WmiObject -Namespace root/WMI `\n"
+                "            -Class WmiMonitorBrightnessMethods -ErrorAction Stop\n"
+                "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0 }\n"
+                "    } catch { }\n"
+                "}\n"
                 'if ($rc -ne 0) { throw "SetMonitorBrightness failed (rc=$rc)" }\n'
             )
             return _powershell_argv(script)
@@ -1004,15 +1013,12 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             applied_keys.append(key)
             results[key] = {"status": "error", "message": str(exc)}
 
-    # A firmware update is the template's only real action. If the download
-    # failed and nothing else actually applied, report the command as failed
-    # instead of "completed" with a failed sub-result.
-    firmware = results.get("firmware")
-    applied = any(
-        result.get("status") in ("applied", "downloaded") for result in results.values()
-    )
+    # Report the command as failed when any supported setting actually failed,
+    # so a partial success (e.g. volume applied but brightness failed) is not
+    # masked as "completed". Unsupported keys (no OS action defined) do not
+    # count as failures.
     status = "completed"
-    if firmware is not None and firmware.get("status") == "failed" and not applied:
+    if any(result.get("status") in ("failed", "error") for result in results.values()):
         status = "failed"
 
     return {
