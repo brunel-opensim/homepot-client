@@ -53,7 +53,7 @@ const COMMAND_TEMPLATES = {
       brightness: 75,
     },
     description:
-      'Update system settings with root privileges (master volume and screen brightness are applied on Windows/macOS/Linux).',
+      'Update system settings with root privileges. Volume uses the Windows legacy audio API (may not move the modern master slider on all systems); brightness uses DDC/CI with a WMI fallback and reports failure when the panel does not support software control.',
   },
   REBOOT_SYSTEM: {
     label: 'Reboot System',
