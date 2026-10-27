@@ -1,7 +1,7 @@
 {
   "name": "homepot-agent",
   "private": true,
-  "version": "0.3.16",
+  "version": "0.3.17",
   "description": "HOMEPOT Agent — desktop client for the HOMEPOT device management platform",
   "author": {
     "name": "HOMEPOT",
