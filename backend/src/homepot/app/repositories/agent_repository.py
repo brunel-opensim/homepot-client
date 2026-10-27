@@ -1,6 +1,6 @@
 """Repository layer for agent device and telemetry database operations."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterable, List, Optional, cast
 
 from sqlalchemy import desc, func, select
@@ -143,6 +143,14 @@ class AgentRepository:
             device_obj.firmware_version = firmware_version
         if peripherals is not None:
             device_obj.peripherals = peripherals
+        # Treat a successful registration as proof of connectivity: stamp the
+        # heartbeat so the device reports online immediately instead of waiting
+        # for the first heartbeat cycle.
+        now = datetime.now(timezone.utc)
+        device_obj.last_seen = now
+        device_obj.last_heartbeat_at = now
+        device_obj.status = ConnectivityState.ONLINE.value
+        device_obj.health_state = HealthState.HEALTHY.value
         self.db.add(device)
         self.db.commit()
         self.db.refresh(device)
