@@ -34,6 +34,27 @@ import {
   getStatusMeta,
 } from '@/utils/commandLifecycle';
 
+// Map a command_type back to the Push Review template key. Deriving the
+// template from command_type (instead of payload.data.command) matters for
+// Run Command, where data.command is the shell command ("systeminfo"), not the
+// template key — using it as the key made reuse fall back to Apply
+// Configuration and dropped the actual command.
+const COMMAND_TYPE_TO_TEMPLATE = {
+  run_command: 'RUN_COMMAND',
+  run_script: 'RUN_SCRIPT',
+  install_program: 'INSTALL_PROGRAM',
+  uninstall_program: 'UNINSTALL_PROGRAM',
+  update_program: 'UPDATE_PROGRAM',
+  upgrade_all_programs: 'UPGRADE_ALL_PROGRAMS',
+  list_installed_programs: 'LIST_INSTALLED_PROGRAMS',
+  list_processes: 'LIST_PROCESSES',
+  list_connections: 'LIST_CONNECTIONS',
+  scan_filesystem: 'SCAN_FILESYSTEM',
+  health_check: 'RUN_DIAGNOSTICS',
+  restart: 'REBOOT_SYSTEM',
+  shutdown: 'SHUT_DOWN',
+};
+
 // Prefer the template label (payload.title, e.g. "Apply Configuration") over the
 // raw command_type, so commands that share a command_type ("update_config" →
 // "Update Config") keep their distinct titles.
@@ -145,10 +166,10 @@ export default function DeviceHistory() {
     // Preserve the original template identity. Both APPLY_CONFIG and
     // UPDATE_FIRMWARE share the action "update_config", so falling back to
     // command_type alone collapses every reuse to one of them (previously
-    // UPDATE_FIRMWARE), mismatching the data and the title. Prefer the
-    // stored template key, then infer from the title/data for older commands.
-    let templateKey = data.command;
-    if (!templateKey && cmd.command_type === 'update_config') {
+    // UPDATE_FIRMWARE), mismatching the data and the title. Derive the key from
+    // command_type, then split the two update_config templates from their data.
+    let templateKey = COMMAND_TYPE_TO_TEMPLATE[cmd.command_type];
+    if (cmd.command_type === 'update_config') {
       const title = (cmd.payload?.title || '').toLowerCase();
       if (
         title.includes('firmware') ||
@@ -157,20 +178,18 @@ export default function DeviceHistory() {
         data.checksum != null
       ) {
         templateKey = 'UPDATE_FIRMWARE';
-      } else if (
-        title.includes('configuration') ||
-        'volume' in data ||
-        'brightness' in data ||
-        'kiosk_mode' in data ||
-        'maintenance_window' in data
-      ) {
+      } else {
         templateKey = 'APPLY_CONFIG';
       }
     }
 
     const reuseData = { ...data };
     delete reuseData.timestamp;
-    delete reuseData.command;
+    delete reuseData.config_url;
+    delete reuseData.config_version;
+    // For Run Command, data.command is the shell command to run, not the
+    // template key, so keep it for the reused form.
+    if (cmd.command_type !== 'run_command') delete reuseData.command;
     navigate(`/device/${id}/push-review`, {
       state: {
         initialCommand: templateKey || cmd.command_type,
