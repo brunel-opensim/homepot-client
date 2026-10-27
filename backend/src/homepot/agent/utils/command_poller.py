@@ -807,10 +807,10 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
     if platform_name == "windows":
 
         def _win_volume(value: Any) -> List[str]:
-            # Windows has no built-in CLI to set the master volume. Use the
+            # Windows has no built-in CLI to set the master volume, so call the
             # legacy waveOutSetVolume Win32 API through a tiny C# P/Invoke
-            # class. This affects the multimedia mixer volume; on modern
-            # Windows it may not move the master volume slider for all devices.
+            # class. This affects the multimedia mixer volume; on modern Windows
+            # it may not move the master volume slider for all devices.
             # volume runs unprivileged (the agent's own process context).
             pct = max(0, min(100, int(value)))
             script = (
