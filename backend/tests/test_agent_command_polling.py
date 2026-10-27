@@ -333,8 +333,8 @@ class TestProcessCommand:
         assert argv[0] == "powershell"
         assert argv[3] == "-EncodedCommand"
         script = base64.b64decode(argv[4].encode("ascii")).decode("utf-16-le")
-        assert "waveOutSetVolume" in script
-        assert "[W]::Set(50)" in script
+        assert "SetMasterVolumeLevelScalar" in script
+        assert "[V]::Set(50)" in script
         assert result["result"]["results"]["volume"]["status"] == "applied"
 
     @patch("homepot.agent.utils.command_poller.platform.system")
