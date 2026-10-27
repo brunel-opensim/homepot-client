@@ -286,7 +286,7 @@ class TestProcessCommand:
             },
             ALLOW_ALL,
         )
-        assert result["status"] == "completed"
+        assert result["status"] == "failed"
         assert run.call_count == 0
         brightness = result["result"]["results"]["brightness"]
         assert brightness["status"] == "failed"
@@ -308,7 +308,7 @@ class TestProcessCommand:
             },
             ALLOW_ALL,
         )
-        assert result["status"] == "completed"
+        assert result["status"] == "failed"
         assert result["result"]["results"]["brightness"]["status"] == "failed"
         assert "no such device" in result["result"]["results"]["brightness"]["stderr"]
 
