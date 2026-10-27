@@ -1154,20 +1154,6 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             "result": {"error": "winget is only available on Windows"},
         }
 
-    # Lightweight availability check. _resolve_winget_path() is mocked in
-    # tests to return a sentinel; on a real device it returns the alias (or
-    # the real binary) when winget is installed.
-    if _resolve_winget_path() is None:
-        return {
-            "status": "failed",
-            "result": {
-                "error": (
-                    "winget is not installed on this device. Install 'App "
-                    "Installer' from the Microsoft Store, then retry."
-                )
-            },
-        }
-
     if not elevation_util.is_elevation_installed():
         return {
             "status": "failed",
@@ -1196,12 +1182,13 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
     winget_resolve = (
         "$wingetExe = (Get-ChildItem 'C:/Program Files/WindowsApps' "
         "-Filter 'Microsoft.DesktopAppInstaller_*' -Directory "
-        "-ErrorAction SilentlyContinue | Sort-Object Name | "
-        "Select-Object -Last 1 | ForEach-Object { "
-        "Join-Path $_.FullName 'winget.exe' }); "
-        "if (-not $wingetExe -or -not (Test-Path $wingetExe)) { "
+        "-ErrorAction SilentlyContinue | "
+        "ForEach-Object { Join-Path $_.FullName 'winget.exe' } | "
+        "Where-Object { Test-Path $_ } | Sort-Object | Select-Object -Last 1); "
+        "if (-not $wingetExe) { "
         "$wingetExe = (Get-Command winget -ErrorAction SilentlyContinue).Source }; "
-        "if (-not $wingetExe) { throw 'winget not found' }; "
+        "if (-not $wingetExe -or -not (Test-Path $wingetExe)) { "
+        "throw 'winget not found' }; "
     )
     if command_type == "upgrade_all_programs":
         script = winget_resolve + f"& $wingetExe upgrade --all {flags} --scope machine"
