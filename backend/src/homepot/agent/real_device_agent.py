@@ -39,6 +39,7 @@ from homepot.agent.utils.errors import (
     classify_status,
 )
 from homepot.agent.utils.heartbeat import build_heartbeat_payload, utc_now_iso
+from homepot.agent.utils.host_info import get_firmware_version
 from homepot.agent.utils.hostname_encoding import idna_encode_url
 from homepot.agent.utils.local_ipc import (
     LocalAgentState,
@@ -705,20 +706,13 @@ def _pop_next_result(app: Any) -> tuple[Optional[str], Optional[Dict[str, Any]]]
 
 
 def _firmware_version() -> str:
-    """Return a best-effort firmware/OS version string for the host.
+    """Return the host's firmware version.
 
-    A general-purpose OS has no single "firmware" to report, so use the OS
-    build/kernel version (``platform.version()``) as the closest portable proxy
-    — this is the value ``systeminfo`` shows as "OS Version". Falls back to
-    ``<system> <release>`` when the version string is empty.
+    On Windows this is the BIOS/UEFI version. Other platforms fall back to the
+    OS build/kernel version because a general-purpose OS has no single firmware
+    value to report.
     """
-    try:
-        version = platform.version()
-        if version and version.strip():
-            return version.strip()
-    except Exception:  # noqa: BLE001 - best-effort
-        pass
-    return f"{platform.system()} {platform.release()}".strip()
+    return get_firmware_version()
 
 
 async def send_registration(

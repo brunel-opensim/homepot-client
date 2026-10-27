@@ -1,0 +1,10 @@
+HomePot demo firmware artifact
+==============================
+
+This file is not a real firmware image. It exists only so the "Update Firmware"
+command can exercise the download-and-checksum-verify path end to end on demo
+devices.
+
+Version: 2.4.0
+
+The agent verifies this file's sha256 and then discards it. Nothing is flashed.
