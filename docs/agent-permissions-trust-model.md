@@ -94,6 +94,8 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 | `uninstall_program` | `root_access` | Manage | uninstall a program via winget (Windows) |
 | `update_program` | `root_access` | Manage | update a program via winget (Windows) |
 | `upgrade_all_programs` | `root_access` | Manage | upgrade all programs via winget (Windows) |
+| `start_program` | `root_access` | Manage | launch a program on the host (Windows/macOS/Linux) |
+| `stop_program` | `root_access` | Manage | stop a process by name or PID (critical system processes protected) |
 | `health_check` | `command_execution` | Monitor | self-tests / diagnostics |
 | `list_processes` | `process_monitoring` | Monitor | view running processes |
 | `list_connections` | `network_monitoring` | Monitor | view network connections |
@@ -118,6 +120,8 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 | List Installed Programs | `list_installed_programs` | `command_execution` |
 | Update Program | `update_program` | `root_access` |
 | Upgrade All Programs | `upgrade_all_programs` | `root_access` |
+| Start Program | `start_program` | `root_access` |
+| Stop Program | `stop_program` | `root_access` |
 | Run Diagnostics | `health_check` | `command_execution` |
 | List Processes | `list_processes` | `process_monitoring` |
 | List Network Connections | `list_connections` | `network_monitoring` |

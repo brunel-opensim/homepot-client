@@ -44,6 +44,8 @@ const COMMAND_TYPE_TO_TEMPLATE = {
   run_script: 'RUN_SCRIPT',
   install_program: 'INSTALL_PROGRAM',
   uninstall_program: 'UNINSTALL_PROGRAM',
+  start_program: 'START_PROGRAM',
+  stop_program: 'STOP_PROGRAM',
   update_program: 'UPDATE_PROGRAM',
   upgrade_all_programs: 'UPGRADE_ALL_PROGRAMS',
   list_installed_programs: 'LIST_INSTALLED_PROGRAMS',

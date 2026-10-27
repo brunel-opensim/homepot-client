@@ -44,6 +44,8 @@ COMMAND_TYPES = frozenset(
         "list_installed_programs",
         "update_program",
         "upgrade_all_programs",
+        "start_program",
+        "stop_program",
     }
 )
 
@@ -67,6 +69,8 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_installed_programs": "command_execution",
     "update_program": "root_access",
     "upgrade_all_programs": "root_access",
+    "start_program": "root_access",
+    "stop_program": "root_access",
 }
 
 MAX_COMMAND_OUTPUT = 64 * 1024
@@ -1277,6 +1281,240 @@ def _run_list_installed_programs() -> Dict[str, Any]:
     }
 
 
+def _parse_program_args(value: Any) -> List[str]:
+    """Coerce an args value into a list of argv strings."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if isinstance(value, str):
+        try:
+            if platform.system() == "Windows":
+                return shlex.split(value, posix=False)
+            return shlex.split(value)
+        except ValueError:
+            return [value]
+    return [str(value)]
+
+
+_STOP_PROGRAM_DENYLIST = frozenset(
+    name.lower().removesuffix(".exe")
+    for name in (
+        "csrss",
+        "lsass",
+        "services",
+        "smss",
+        "svchost",
+        "wininit",
+        "winlogon",
+        "system",
+        "registry",
+        "explorer",
+    )
+)
+
+
+def _start_program(data: Dict[str, Any]) -> Dict[str, Any]:
+    path = data.get("path")
+    if not isinstance(path, str) or not path.strip():
+        for key in ("program", "name", "executable"):
+            candidate = data.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                path = candidate
+                break
+    if not isinstance(path, str) or not path.strip():
+        return {"status": "failed", "result": {"error": "'path' is required"}}
+    path = path.strip()
+
+    if "\x00" in path:
+        return {"status": "failed", "result": {"error": "invalid 'path'"}}
+
+    args = _parse_program_args(data.get("args", data.get("arguments")))
+
+    working_dir = data.get("working_dir", data.get("cwd"))
+    if working_dir is not None:
+        if not isinstance(working_dir, str):
+            return {
+                "status": "failed",
+                "result": {"error": "'working_dir' must be a string"},
+            }
+        working_dir = working_dir.strip() or None
+        if working_dir is not None and not os.path.isdir(working_dir):
+            return {
+                "status": "failed",
+                "result": {"error": "working directory does not exist: " + working_dir},
+            }
+
+    wait = bool(data.get("wait", False))
+    timeout_value = data.get("timeout_seconds", data.get("timeout"))
+    timeout = None
+    if timeout_value is not None:
+        try:
+            timeout = max(1, min(int(timeout_value), MAX_COMMAND_TIMEOUT))
+        except (TypeError, ValueError):
+            return {
+                "status": "failed",
+                "result": {"error": "timeout_seconds must be an integer"},
+            }
+
+    try:
+        proc = subprocess.Popen(  # noqa: S603, S607 - fixed argv, no shell
+            [path] + args,
+            cwd=working_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        return {"status": "failed", "result": {"error": "program not found: " + path}}
+    except Exception as exc:  # noqa: BLE001 - surface any launch error
+        return {
+            "status": "failed",
+            "result": {"error": "failed to start program: " + str(exc)},
+        }
+
+    if not wait:
+        return {
+            "status": "completed",
+            "result": {
+                "message": "program started",
+                "pid": proc.pid,
+                "path": path,
+            },
+        }
+
+    try:
+        proc.wait(timeout=timeout if timeout is not None else MAX_COMMAND_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "completed",
+            "result": {
+                "message": "program started (still running after timeout)",
+                "pid": proc.pid,
+                "path": path,
+                "timed_out": True,
+            },
+        }
+    return {
+        "status": "completed",
+        "result": {
+            "message": "program finished",
+            "pid": proc.pid,
+            "path": path,
+            "returncode": proc.returncode,
+        },
+    }
+
+
+def _stop_program(data: Dict[str, Any]) -> Dict[str, Any]:
+    force = bool(data.get("force", False))
+    pid_value = data.get("pid")
+
+    if pid_value is not None:
+        try:
+            pid = int(pid_value)
+        except (TypeError, ValueError):
+            return {"status": "failed", "result": {"error": "'pid' must be an integer"}}
+        if pid <= 0:
+            return {"status": "failed", "result": {"error": "'pid' must be positive"}}
+        try:
+            proc = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return {
+                "status": "completed",
+                "result": {"message": "process not running", "pid": pid, "killed": 0},
+            }
+        if proc.name().lower().removesuffix(".exe") in _STOP_PROGRAM_DENYLIST:
+            return {
+                "status": "failed",
+                "result": {
+                    "error": "refusing to stop critical system process: " + proc.name()
+                },
+            }
+        try:
+            if force:
+                proc.kill()
+            else:
+                proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except psutil.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+            return {
+                "status": "failed",
+                "result": {
+                    "error": "could not stop process " + str(pid) + ": " + str(exc)
+                },
+            }
+        except Exception as exc:  # noqa: BLE001 - surface any stop error
+            return {
+                "status": "failed",
+                "result": {
+                    "error": "could not stop process " + str(pid) + ": " + str(exc)
+                },
+            }
+        return {
+            "status": "completed",
+            "result": {"message": "process stopped", "pid": pid, "killed": 1},
+        }
+
+    name = data.get("name", data.get("process", data.get("program")))
+    if not isinstance(name, str) or not name.strip():
+        return {"status": "failed", "result": {"error": "'name' or 'pid' is required"}}
+    name = name.strip()
+    if any(ch in name for ch in ("/", "\\", "\x00")):
+        return {"status": "failed", "result": {"error": "invalid process name"}}
+    target = name.lower().removesuffix(".exe")
+    if target in _STOP_PROGRAM_DENYLIST:
+        return {
+            "status": "failed",
+            "result": {"error": "refusing to stop critical system process: " + name},
+        }
+
+    killed_pids = []
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            proc_name = (proc.info.get("name") or "").lower().removesuffix(".exe")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        if proc_name != target:
+            continue
+        if proc_name in _STOP_PROGRAM_DENYLIST:
+            continue
+        try:
+            if force:
+                proc.kill()
+            else:
+                proc.terminate()
+            killed_pids.append(proc.info["pid"])
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue  # noqa: S112
+        except Exception:  # noqa: BLE001, S112 - keep going on per-process errors
+            continue  # noqa: S112
+
+    for pid in killed_pids:
+        try:
+            psutil.Process(pid).wait(timeout=5)
+        except Exception:  # noqa: BLE001 - best-effort
+            pass
+
+    if not killed_pids:
+        return {
+            "status": "completed",
+            "result": {"message": "no matching process", "name": name, "killed": 0},
+        }
+    return {
+        "status": "completed",
+        "result": {
+            "message": "process stopped",
+            "name": name,
+            "killed": len(killed_pids),
+            "pids": killed_pids,
+        },
+    }
+
+
 def process_command(
     command: Dict[str, Any],
     permissions: Optional[Dict[str, bool]] = None,
@@ -1361,6 +1599,12 @@ def process_command(
         "upgrade_all_programs",
     }:
         return _run_winget_program(command_type, _command_data(command))
+
+    if command_type in {"start_program", "stop_program"}:
+        data = _command_data(command)
+        if command_type == "start_program":
+            return _start_program(data)
+        return _stop_program(data)
 
     if command_type in {"run_command", "run_script"}:
         return _execute_local(command, script=command_type == "run_script")

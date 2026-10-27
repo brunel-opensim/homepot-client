@@ -74,6 +74,28 @@ const COMMAND_TEMPLATES = {
     description:
       'Download and verify the HomePot demo firmware artifact (hosted on the demo server). The artifact is staged and discarded; nothing is flashed. Replace the URL and checksum with a vendor artifact for real updates.',
   },
+  START_PROGRAM: {
+    label: 'Start Program',
+    action: 'start_program',
+    permission: 'root_access',
+    defaultData: {
+      path: 'C:\\Program Files\\App\\app.exe',
+      args: [],
+    },
+    description:
+      'Launch a program on the device in the background. Provide an absolute path (or a name on PATH) and optional arguments.',
+  },
+  STOP_PROGRAM: {
+    label: 'Stop Program',
+    action: 'stop_program',
+    permission: 'root_access',
+    defaultData: {
+      name: 'app.exe',
+      force: false,
+    },
+    description:
+      'Stop a running process by name or PID. Set force to terminate immediately. Critical system processes are never stopped.',
+  },
   INSTALL_PROGRAM: {
     label: 'Install Program',
     action: 'install_program',
