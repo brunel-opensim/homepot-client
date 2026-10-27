@@ -50,6 +50,10 @@
       {
         "from": "electron/tray-icon.png",
         "to": "electron/tray-icon.png"
+      },
+      {
+        "from": "electron/tray-icon@2x.png",
+        "to": "electron/tray-icon@2x.png"
       }
     ],
     "publish": {
