@@ -144,6 +144,15 @@ class AgentService:
             created_obj = cast(Any, created)
             created_obj.capabilities = derive_capabilities(payload.os_details)
 
+            # A successful registration proves connectivity: stamp the heartbeat
+            # so the device reports online immediately instead of waiting for
+            # the first heartbeat cycle.
+            now = datetime.now(timezone.utc)
+            created_obj.last_seen = now
+            created_obj.last_heartbeat_at = now
+            created_obj.status = ConnectivityState.ONLINE.value
+            created_obj.health_state = HealthState.HEALTHY.value
+
             if is_emulator_dna:
                 existing_config = dict(cast(Dict[str, Any], created_obj.config or {}))
                 existing_config["device_source"] = "emulator"

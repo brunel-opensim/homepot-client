@@ -145,16 +145,33 @@ export default function HomeDashboard() {
       if (cached.metrics) setMetrics(cached.metrics)
     }
 
+    // Poll status aggressively right after mount so the CONNECTING -> ONLINE
+    // transition is noticed within ~2s instead of up to 30s; back off to 30s
+    // once the device reports online (or after 30s regardless).
+    const fastPollingRef = { current: true }
+    const statusIntervalRef = { current: null as ReturnType<typeof setInterval> | null }
+    const scheduleStatus = (delay: number) => {
+      if (statusIntervalRef.current) clearInterval(statusIntervalRef.current)
+      statusIntervalRef.current = setInterval(async () => {
+        await fetchStatus()
+      }, delay)
+    }
+
     fetchStatus()
     fetchMetrics()
     fetchHistory()
     fetchPermissionsData()
-    const statusInterval = setInterval(fetchStatus, 30000)
+    scheduleStatus(2000)
+    const statusSlowdown = setTimeout(() => {
+      fastPollingRef.current = false
+      scheduleStatus(30000)
+    }, 30000)
     const metricsInterval = setInterval(fetchMetrics, 15000)
     const historyInterval = setInterval(fetchHistory, 30000)
     const permissionsInterval = setInterval(fetchPermissionsData, 30000)
     return () => {
-      clearInterval(statusInterval)
+      if (statusIntervalRef.current) clearInterval(statusIntervalRef.current)
+      clearTimeout(statusSlowdown)
       clearInterval(metricsInterval)
       clearInterval(historyInterval)
       clearInterval(permissionsInterval)
