@@ -807,51 +807,26 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
     if platform_name == "windows":
 
         def _win_volume(value: Any) -> List[str]:
-            # Windows has no built-in CLI to set the master volume, so call the
-            # Core Audio IAudioEndpointVolume COM interface (the same API the
-            # system volume slider uses) through a tiny C# interop class.
+            # Windows has no built-in CLI to set the master volume. Use the
+            # legacy waveOutSetVolume Win32 API through a tiny C# P/Invoke
+            # class. This affects the multimedia mixer volume; on modern
+            # Windows it may not move the master volume slider for all devices.
             # volume runs unprivileged (the agent's own process context).
             pct = max(0, min(100, int(value)))
             script = (
                 "Add-Type -TypeDefinition @'\n"
                 "using System;\n"
                 "using System.Runtime.InteropServices;\n"
-                '[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]\n'
-                "public class MMDeviceEnumerator { }\n"
-                '[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),\n'
-                " InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\n"
-                "public interface IMMDeviceEnumerator {\n"
-                "    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppDevice);\n"
-                "}\n"
-                '[Guid("D666063F-1587-4E43-81F1-B948E807363F"),\n'
-                " InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\n"
-                "public interface IMMDevice {\n"
-                "    int Activate(ref Guid iid, int clsCtx,\n"
-                "        IntPtr activationParams, out IAudioEndpointVolume ppv);\n"
-                "}\n"
-                '[Guid("5CDF2C82-841E-4546-9722-0CF74078229A"),\n'
-                " InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\n"
-                "public interface IAudioEndpointVolume {\n"
-                "    int SetMasterVolumeLevelScalar(float fLevel, ref Guid pguidEventContext);\n"
-                "}\n"
-                "public static class V {\n"
+                "public static class W {\n"
+                '    [DllImport("winmm.dll")] public static extern int waveOutSetVolume(IntPtr h, uint v);\n'
                 "    public static int Set(int p) {\n"
                 "        p = Math.Max(0, Math.Min(100, p));\n"
-                "        var e = new MMDeviceEnumerator() as IMMDeviceEnumerator;\n"
-                "        IMMDevice d;\n"
-                "        int hr = e.GetDefaultAudioEndpoint(0, 1, out d);\n"
-                "        if (hr != 0) return hr;\n"
-                '        Guid iid = new Guid("5CDF2C82-841E-4546-9722-0CF74078229A");\n'
-                "        IAudioEndpointVolume v;\n"
-                "        hr = d.Activate(ref iid, 1, IntPtr.Zero, out v);\n"
-                "        if (hr != 0) return hr;\n"
-                "        Guid ctx = Guid.Empty;\n"
-                "        return v.SetMasterVolumeLevelScalar(p / 100.0f, ref ctx);\n"
+                "        uint v = (uint)(65535L * p / 100);\n"
+                "        return waveOutSetVolume(IntPtr.Zero, (v << 16) | v);\n"
                 "    }\n"
                 "}\n"
                 "'@\n"
-                f"$rc = [V]::Set({pct})\n"
-                'if ($rc -ne 0) { throw "SetMasterVolumeLevelScalar failed (rc=$rc)" }\n'
+                f"[W]::Set({pct})\n"
             )
             return _powershell_argv(script)
 
