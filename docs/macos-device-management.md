@@ -141,6 +141,20 @@ The command poller (`command_poller.py:589-609`) includes macOS-specific impleme
 | `brightness` | Uses Homebrew's `brightness` helper (`brew install brightness`) |
 | `volume` | Uses `osascript -e 'set volume output volume <value>'` |
 
+### Remote Access (Direct Connect)
+
+The Dashboard's Direct Connect widget opens a remote terminal to the device.
+Each line typed is queued as `run_command` (Manage tier) or
+`run_command_unprivileged` (Monitor tier) and executed on the host:
+
+- `run_command` runs through the scoped `homepot-ctl run exec` helper
+  (elevated).
+- `run_command_unprivileged` runs via `/bin/sh -c` in the agent's own
+  context.
+
+See `docs/agent-permissions-trust-model.md` (Remote Access section) and
+`docs/pos-management.md` (Direct Connect) for tiers, limits and security.
+
 ### Device Recovery (Start at Login)
 
 Packaged builds of the User App register a **macOS login item** (`real-device-transition.md:95-113`):

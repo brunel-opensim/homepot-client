@@ -167,9 +167,16 @@ for every command type. Status as of writing:
 | `list_processes` | Monitor | ✓ real |
 | `list_connections` | Monitor | ✓ real (incl. `lsof` fallback for macOS socket reads) |
 | `scan_filesystem` | Manage | ✓ real (gated on `root_access`) |
+| `install_program` | Manage | ✓ real — install via winget (Windows) |
+| `uninstall_program` | Manage | ✓ real — uninstall via winget (Windows) |
+| `update_program` | Manage | ✓ real — update via winget (Windows) |
+| `upgrade_all_programs` | Manage | ✓ real — upgrade all via winget (Windows) |
+| `list_installed_programs` | Monitor | ✓ real — list installed via winget (Windows) |
+| `start_program` | Manage | ✓ real — launch a process (Windows/macOS/Linux) |
+| `stop_program` | Manage | ✓ real — stop a process by name or PID (Windows/macOS/Linux) |
 
 The emulator (`pos_engine.py`) simulates the same set; the real agent executes
-all nine against the host (`command_poller.process_command`), with free-form
+all of them against the host (`command_poller.process_command`), with free-form
 `run_command`/`run_script` and power ops elevated through the scoped
 `homepot-ctl` helper.
 
@@ -177,9 +184,10 @@ all nine against the host (`command_poller.process_command`), with free-form
 
 Treat MDM as a **Phase 2 complement**, not a Phase 1 requirement:
 
-- The nine commands (diagnostics, monitoring, command/script execution,
-  config/firmware, reboot, shutdown) are all deliverable through app push +
-  polling and gated by the Monitor/Manage tiers we already built.
+- The full command set (diagnostics, monitoring, command/script execution,
+  config/firmware, reboot, shutdown, program management, process control) is
+  all deliverable through app push + polling and gated by the Monitor/Manage
+  tiers we already built.
 - MDM's unique value is **zero-touch enrollment** (provision the app without a
   human) and **OS-level control beyond sudo** (e.g. locked kiosk reboot,
   remote lock/wipe, managed settings on a device with no user session).
@@ -194,10 +202,10 @@ first; add MDM when the fleet needs managed enrollment or kiosk-locked control.
 Backend:
 
 - [x] Permission tiers + command→permission mapping (Monitor / Manage).
-- [x] Complete `process_command` execution for all nine command types, with
+- [x] Complete `process_command` execution for the full command set, with
       free-form `run_command`/`run_script` and `restart`/`shutdown` elevated
       through the scoped `homepot-ctl` helper on POSIX (and handled natively on
-      Windows).
+      Windows), plus program management and process control.
 - [x] Real `device_token` registration (store per-device token + channel on
       registration / status report).
 - [x] Wake-up sending: after queueing a `DeviceCommand`, the backend sends a
