@@ -445,29 +445,30 @@ export default function PushReview() {
     collapse_key: selectedCommand.toLowerCase(),
   };
 
+  // Build the payload once so the preview below is exactly what handleSend
+  // queues: the envelope, simulator-only fields, and the action/verb that
+  // selects the agent's Python branch (all templates with empty parameters
+  // still need this — e.g. SHUT_DOWN -> action "shutdown").
+  const finalPayload = {
+    ...payloadPreview,
+    action: template.action,
+    data: {
+      ...payloadPreview.data,
+      ...(isSimulator
+        ? {
+            config_url: payloadPreview.data.url || 'https://config.homepot.io/v1/config.json',
+            config_version: payloadPreview.data.version || '1.0.1',
+          }
+        : {}),
+    },
+  };
+
   const handleSend = async () => {
     if (jsonError) return;
     setSending(true);
 
     try {
       const action = template.action;
-
-      // Simulator-only envelope fields are added for emulated targets; real
-      // agents dispatch on `action` and ignore them.
-      const finalPayload = {
-        ...payloadPreview,
-        action: action,
-        data: {
-          ...payloadPreview.data,
-          ...(isSimulator
-            ? {
-                config_url: payloadPreview.data.url || 'https://config.homepot.io/v1/config.json',
-                config_version: payloadPreview.data.version || '1.0.1',
-              }
-            : {}),
-        },
-      };
-
       const response = await api.devices.triggerAction(id, action, finalPayload);
       const commandId = response.command_id;
       setTrackingCommandId(commandId);
@@ -723,14 +724,18 @@ export default function PushReview() {
 
               <div className="p-4 overflow-auto flex-1 min-h-0">
                 <pre className="font-mono text-xs text-blue-300 leading-relaxed">
-                  {JSON.stringify(payloadPreview, null, 2)}
+                  {JSON.stringify(
+                    { command_type: template.action, payload: finalPayload },
+                    null,
+                    2
+                  )}
                 </pre>
               </div>
 
               <div className="bg-[#0f172a]/50 px-4 py-3 border-t border-[#1e293b] shrink-0">
                 <p className="text-xs text-slate-500">
-                  This payload will be sent to the device via FCM/APNs. The device agent will
-                  intercept the <code>{selectedCommand}</code> command.
+                  This request is queued for the device. The agent switches on{' '}
+                  <code>command_type</code> and returns a JSON result.
                 </p>
               </div>
             </div>
