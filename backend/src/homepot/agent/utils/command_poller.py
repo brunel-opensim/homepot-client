@@ -775,6 +775,120 @@ def _powershell_argv(script: str) -> List[str]:
 # --- update_config (OS settings adapter) ------------------------------------
 
 
+def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
+    """Set the Windows master volume via the Core Audio COM API (ctypes).
+
+    Uses ctypes vtable calls instead of PowerShell COM interop, which does
+    not work in PowerShell's Add-Type context. Returns a result dict.
+    """
+    if not _is_windows_platform():
+        return {"status": "failed", "message": "volume control is Windows-only"}
+    try:
+        import ctypes
+
+        class _GUID(ctypes.Structure):
+            _fields_ = [
+                ("Data1", ctypes.c_ulong),
+                ("Data2", ctypes.c_ushort),
+                ("Data3", ctypes.c_ushort),
+                ("Data4", ctypes.c_ubyte * 8),
+            ]
+
+        def _make_guid(s: str) -> "_GUID":
+            parts = s.split("-")
+            g = _GUID()
+            g.Data1 = int(parts[0], 16)
+            g.Data2 = int(parts[1], 16)
+            g.Data3 = int(parts[2], 16)
+            b = bytes.fromhex(parts[3] + parts[4])
+            for i in range(8):
+                g.Data4[i] = b[i]
+            return g
+
+        ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
+        CLSCTX_INPROC_SERVER = 1
+        clsid = _make_guid("BCDE0395-E52F-467C-8E3D-C4579291692E")
+        iid_enum = _make_guid("A95664D2-9614-4F35-A746-DE8DB63617E6")
+
+        enumerator_ptr = ctypes.c_void_p(0)
+        hr = ole32.CoCreateInstance(
+            ctypes.byref(clsid),
+            None,
+            CLSCTX_INPROC_SERVER,
+            ctypes.byref(iid_enum),
+            ctypes.byref(enumerator_ptr),
+        )
+        if hr != 0:
+            return {"status": "failed", "message": f"CoCreateInstance failed (hr={hr})"}
+
+        # IMMDeviceEnumerator vtable: IUnknown(3) + EnumAudioEndpoints + GetDefaultAudioEndpoint
+        enum_vtable = ctypes.cast(enumerator_ptr, ctypes.POINTER(ctypes.c_void_p))[0]
+        enum_vtable = ctypes.cast(
+            enum_vtable, ctypes.POINTER(ctypes.c_void_p * 5)
+        ).contents
+        _FUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)  # type: ignore[attr-defined]
+        GDAE = _FUNCTYPE(
+            ctypes.c_long,
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.POINTER(ctypes.c_void_p),
+        )
+        get_default = GDAE(enum_vtable[4])  # type: ignore[arg-type]
+        dev_ptr = ctypes.c_void_p(0)
+        hr = get_default(enumerator_ptr, 0, 1, ctypes.byref(dev_ptr))
+        if hr != 0:
+            return {
+                "status": "failed",
+                "message": f"GetDefaultAudioEndpoint failed (hr={hr})",
+            }
+
+        # IMMDevice vtable: IUnknown(3) + Activate + GetId + GetState
+        iid_vol = _make_guid("5CDF2C82-841E-4546-9722-0CF74078229A")
+        dev_vtable = ctypes.cast(dev_ptr, ctypes.POINTER(ctypes.c_void_p))[0]
+        dev_vtable = ctypes.cast(
+            dev_vtable, ctypes.POINTER(ctypes.c_void_p * 4)
+        ).contents
+        _FUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)  # type: ignore[attr-defined]
+        ACT = _FUNCTYPE(
+            ctypes.c_long,
+            ctypes.c_void_p,
+            ctypes.POINTER(_GUID),
+            ctypes.c_uint,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_void_p),
+        )
+        activate = ACT(dev_vtable[3])  # type: ignore[arg-type]
+        vol_ptr = ctypes.c_void_p(0)
+        hr = activate(dev_ptr, ctypes.byref(iid_vol), 1, None, ctypes.byref(vol_ptr))
+        if hr != 0:
+            return {"status": "failed", "message": f"Activate failed (hr={hr})"}
+
+        # IAudioEndpointVolume vtable: IUnknown(3) + 4 methods + SetMasterVolumeLevelScalar (index 7)
+        vol_vtable = ctypes.cast(vol_ptr, ctypes.POINTER(ctypes.c_void_p))[0]
+        vol_vtable = ctypes.cast(
+            vol_vtable, ctypes.POINTER(ctypes.c_void_p * 8)
+        ).contents
+        _FUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)  # type: ignore[attr-defined]
+        SMVLS = _FUNCTYPE(
+            ctypes.c_long,
+            ctypes.c_void_p,
+            ctypes.c_float,
+            ctypes.POINTER(_GUID),
+        )
+        set_vol = SMVLS(vol_vtable[7])  # type: ignore[arg-type]
+        ctx = _make_guid("00000000-0000-0000-0000-000000000000")
+        hr = set_vol(vol_ptr, pct / 100.0, ctypes.byref(ctx))
+        if hr != 0:
+            return {
+                "status": "failed",
+                "message": f"SetMasterVolumeLevelScalar failed (hr={hr})",
+            }
+        return {"status": "applied", "message": f"volume set to {pct}%"}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "failed", "message": str(exc)}
+
+
 def _config_appliers(platform_name: str) -> Dict[str, Any]:
     """Return key -> argv builder for host settings that have a real OS action.
 
@@ -806,27 +920,12 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
         }
     if platform_name == "windows":
 
-        def _win_volume(value: Any) -> List[str]:
-            # Windows has no built-in CLI to set the master volume, so call the
-            # waveOutSetVolume Win32 API through a tiny C# P/Invoke class.
-            # volume runs unprivileged (the agent's own process context).
+        def _win_volume(value: Any) -> Any:
+            # Set the Windows master volume via the Core Audio COM API using
+            # ctypes (in-process, no PowerShell COM interop needed). Returns a
+            # direct result dict instead of an argv list.
             pct = max(0, min(100, int(value)))
-            script = (
-                "Add-Type -TypeDefinition @'\n"
-                "using System;\n"
-                "using System.Runtime.InteropServices;\n"
-                "public static class W {\n"
-                '    [DllImport("winmm.dll")] public static extern int waveOutSetVolume(IntPtr h, uint v);\n'
-                "    public static int Set(int p) {\n"
-                "        p = Math.Max(0, Math.Min(100, p));\n"
-                "        uint v = (uint)(65535L * p / 100);\n"
-                "        return waveOutSetVolume(IntPtr.Zero, (v << 16) | v);\n"
-                "    }\n"
-                "}\n"
-                "'@\n"
-                f"[W]::Set({pct})\n"
-            )
-            return _powershell_argv(script)
+            return _set_windows_volume_ctypes(pct)
 
         def _win_brightness(value: Any) -> List[str]:
             # Set brightness through the Monitor Configuration API
@@ -872,7 +971,8 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0 }\n"
                 "    } catch { }\n"
                 "}\n"
-                'if ($rc -ne 0) { throw "SetMonitorBrightness failed (rc=$rc)" }\n'
+                'if ($rc -ne 0) { throw "Brightness update failed (dxva2 rc=$rc; '
+                'WMI fallback also failed)" }\n'
             )
             return _powershell_argv(script)
 
@@ -992,7 +1092,14 @@ def _apply_config(payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             }
             continue
         try:
-            argv = applier(value)
+            applier_result = applier(value)
+            # An applier may return an argv list (run via subprocess) or a
+            # direct result dict (e.g. for OS settings implemented in-process).
+            if isinstance(applier_result, dict):
+                applied_keys.append(key)
+                results[key] = applier_result
+                continue
+            argv = applier_result
             if argv is None:
                 applied_keys.append(key)
                 results[key] = {
