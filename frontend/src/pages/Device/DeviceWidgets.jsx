@@ -620,6 +620,24 @@ export const DeviceInfoWidget = ({ device }) => (
           {device?.agent_restart_count != null ? device.agent_restart_count : 'N/A'}
         </span>
       </div>
+      {device?.task_health && (
+        <div className="flex justify-between">
+          <span className="text-slate-400">Task Health</span>
+          <span className="text-slate-200 text-xs mt-0.5">
+            {Object.entries(device.task_health)
+              .map(([k, v]) => `${k}: ${v ? 'OK' : 'STALE'}`)
+              .join(', ')}
+          </span>
+        </div>
+      )}
+      {device?.last_offline_reason && (
+        <div className="flex justify-between">
+          <span className="text-slate-400">Last Offline Reason</span>
+          <span className="text-slate-200 text-xs mt-0.5">
+            {device.last_offline_reason.replace(/_/g, ' ')}
+          </span>
+        </div>
+      )}
     </div>
   </Card>
 );

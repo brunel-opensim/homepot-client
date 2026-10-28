@@ -96,6 +96,10 @@ class AgentHeartbeatRequest(BaseModel):
         ge=0,
         description="Number of times the agent has restarted since boot",
     )
+    task_health: Optional[dict] = Field(
+        default=None,
+        description="Per-task health status (task name -> healthy bool)",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
