@@ -1359,54 +1359,52 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
 
 
 def _run_list_installed_programs() -> Dict[str, Any]:
-    """List installed Windows programs via winget (read-only, unprivileged)."""
+    """List installed Windows programs with their install locations.
+
+    Uses the registry (Add/Remove Programs) rather than ``winget list`` so the
+    output includes the install path, which is what technicians need to find
+    executables for Start/Stop Program. winget package ids are not included;
+    use ``winget list`` via Run Command when a package id is needed.
+    """
     if not _is_windows_platform():
         return {
             "status": "failed",
-            "result": {"error": "winget is only available on Windows"},
+            "result": {"error": "program listing is only available on Windows"},
         }
 
-    # Lightweight availability check. _resolve_winget_path() is mocked in
-    # tests to return a sentinel; on a real device it returns the alias (or
-    # the real binary) when winget is installed.
-    if _resolve_winget_path() is None:
-        return {
-            "status": "failed",
-            "result": {
-                "error": (
-                    "winget is not installed on this device. Install 'App "
-                    "Installer' from the Microsoft Store, then retry."
-                )
-            },
-        }
-    winget_exe = _resolve_winget_path()
-    if winget_exe is None:
-        return {
-            "status": "failed",
-            "result": {
-                "error": (
-                    "winget is not installed on this device. Install 'App "
-                    "Installer' from the Microsoft Store, then retry."
-                )
-            },
-        }
+    script = (
+        "$paths = @(\n"
+        "    'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',\n"
+        "    'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',\n"
+        "    'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'\n"
+        ");\n"
+        "Get-ItemProperty $paths -ErrorAction SilentlyContinue |\n"
+        "    Where-Object { $_.DisplayName -and $_.DisplayName.Trim() } |\n"
+        "    Select-Object @{N='Name';E={$_.DisplayName}},\n"
+        "                 @{N='Version';E={$_.DisplayVersion}},\n"
+        "                 @{N='Location';E={$_.InstallLocation}},\n"
+        "                 @{N='Publisher';E={$_.Publisher}} |\n"
+        "    Sort-Object Name |\n"
+        "    Format-Table -AutoSize -Wrap | Out-String -Width 4096\n"
+    )
+    argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
     try:
         completed = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
-            [winget_exe, "list", "--accept-source-agreements"],
+            argv,
             capture_output=True,
             text=True,
             timeout=120,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"status": "failed", "result": {"error": f"winget list failed: {exc}"}}
+        return {"status": "failed", "result": {"error": f"program list failed: {exc}"}}
     if completed.returncode != 0:
         return {
             "status": "failed",
             "result": {
-                "error": (completed.stderr or completed.stdout or "winget list failed")[
-                    -MAX_COMMAND_OUTPUT:
-                ]
+                "error": (
+                    completed.stderr or completed.stdout or "program list failed"
+                )[-MAX_COMMAND_OUTPUT:]
             },
         }
     return {
@@ -1416,39 +1414,6 @@ def _run_list_installed_programs() -> Dict[str, Any]:
             "stderr": (completed.stderr or "")[-MAX_COMMAND_OUTPUT:],
         },
     }
-
-
-def _parse_program_args(value: Any) -> List[str]:
-    """Coerce an args value into a list of argv strings."""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return [str(v) for v in value]
-    if isinstance(value, str):
-        try:
-            if platform.system() == "Windows":
-                return shlex.split(value, posix=False)
-            return shlex.split(value)
-        except ValueError:
-            return [value]
-    return [str(value)]
-
-
-_STOP_PROGRAM_DENYLIST = frozenset(
-    name.lower().removesuffix(".exe")
-    for name in (
-        "csrss",
-        "lsass",
-        "services",
-        "smss",
-        "svchost",
-        "wininit",
-        "winlogon",
-        "system",
-        "registry",
-        "explorer",
-    )
-)
 
 
 def _start_program(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -1540,6 +1505,39 @@ def _start_program(data: Dict[str, Any]) -> Dict[str, Any]:
             "returncode": proc.returncode,
         },
     }
+
+
+def _parse_program_args(value: Any) -> List[str]:
+    """Coerce an ``args`` value into a list of argv strings."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if isinstance(value, str):
+        try:
+            if platform.system() == "Windows":
+                return shlex.split(value, posix=False)
+            return shlex.split(value)
+        except ValueError:
+            return [value]
+    return [str(value)]
+
+
+_STOP_PROGRAM_DENYLIST = frozenset(
+    name.lower().removesuffix(".exe")
+    for name in (
+        "csrss",
+        "lsass",
+        "services",
+        "smss",
+        "svchost",
+        "wininit",
+        "winlogon",
+        "system",
+        "registry",
+        "explorer",
+    )
+)
 
 
 def _stop_program(data: Dict[str, Any]) -> Dict[str, Any]:

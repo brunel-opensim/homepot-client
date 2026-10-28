@@ -79,7 +79,7 @@ const COMMAND_TEMPLATES = {
     action: 'start_program',
     permission: 'root_access',
     defaultData: {
-      path: 'C:\\Program Files\\App\\app.exe',
+      path: 'notepad.exe',
       args: [],
     },
     description:
@@ -90,7 +90,7 @@ const COMMAND_TEMPLATES = {
     action: 'stop_program',
     permission: 'root_access',
     defaultData: {
-      name: 'app.exe',
+      name: 'notepad.exe',
       force: false,
     },
     description:
@@ -115,7 +115,8 @@ const COMMAND_TEMPLATES = {
     action: 'list_installed_programs',
     permission: 'command_execution',
     defaultData: {},
-    description: 'List the programs installed on the Windows device via winget.',
+    description:
+      'List the programs installed on the Windows device with their install locations (from the registry). Use the location to find executables for Start/Stop Program.',
   },
   UPDATE_PROGRAM: {
     label: 'Update Program',
