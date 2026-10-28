@@ -70,3 +70,64 @@ Telemetry and events produced by the agent are recorded with provenance
 snapshotted at write time (`real`, `controlled`, or `simulated`). See
 [Evidence Recording](provenance-and-outcomes.md) for the derivation rules and
 the command/configuration outcome fields.
+## Dashboard tabs and what they show
+
+The Device Details page in the Dashboard has several tabs. Understanding
+what each one tracks helps technicians diagnose issues.
+
+### Push History
+Shows **individual commands** sent to this device (via `DeviceCommand` records).
+Each entry includes the command type, payload, status (pending → sent →
+completed/failed), result (stdout/stderr/verification), and timestamps.
+
+**Source**: Agent polls `GET /api/v1/devices/pending`, executes, and reports
+via `PUT /api/v1/devices/{id}/commands/{cid}/status`.
+
+### Job History
+Shows **orchestrated operations** (via `Job` records). A Job is a site-level
+or device-targeted operation created by the orchestrator when a technician
+triggers an action on a site or device.
+
+**What counts as a Job today:**
+- POS payment config updates (site-wide or device-targeted)
+
+**What does NOT create a Job:**
+- Individual device commands (restart, update_config, install_program, etc.)
+  — these are tracked in Push History, not Job History
+- Background maintenance tasks — these were previously faked by the agent
+  but have been removed; real devices no longer create synthetic job records
+
+**Source**: Orchestrator creates jobs via `POST /api/v1/agent/jobs` when
+processing site-level operations. The agent does NOT create jobs on its own.
+
+### Live Logs
+Shows real-time device log lines (via `ErrorLog` records). The agent posts
+status snapshots every 30s (deduplicated) and structured events (command
+execution, connectivity issues, resource warnings) as they occur.
+
+**Source**: Agent posts to `POST /api/v1/agent/logs`.
+
+### Audit Trail
+Shows audit events (via `AuditLog` records): agent lifecycle (start/stop),
+permission changes, and other significant events.
+
+**Source**: Agent posts to `POST /api/v1/agent/audit`.
+
+### Key distinction: Job vs. DeviceCommand
+
+| | Job | DeviceCommand |
+|--|-----|---------------|
+| **Scope** | Site-wide (may target multiple devices) | Single device |
+| **Created by** | Orchestrator (technician triggers site action) | Agent or technician (individual command) |
+| **Tracks** | Overall operation status across devices | Single command execution |
+| **Shown in** | Job History tab | Push History tab |
+
+### Why Job History may show "No jobs"
+
+For real devices, Job History only shows orchestrator-created jobs (site-wide
+operations like POS config updates). If no such operations have targeted the
+device, the tab correctly shows "No jobs". Individual commands are tracked in
+Push History, not Job History.
+
+Simulators and emulators may still generate synthetic job records for demo
+visibility.
