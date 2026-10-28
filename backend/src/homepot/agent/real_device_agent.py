@@ -11,6 +11,7 @@ import signal
 import ssl
 import sys
 import threading
+import time
 from typing import Any, Dict, Optional, cast
 
 from fastapi import FastAPI
@@ -61,6 +62,42 @@ from homepot.agent.utils.telemetry import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Track agent process start time for uptime reporting
+_AGENT_START_TIME = time.monotonic()
+
+
+def _restart_count_file() -> Path:
+    """Return the path to the persisted restart counter file."""
+    try:
+        from homepot.agent.identity import identity_dir
+
+        return identity_dir() / ".agent_restart_count"
+    except Exception:
+        return Path.home() / ".homepot" / ".agent_restart_count"
+
+
+def _read_restart_count() -> int:
+    """Read the persisted restart counter, defaulting to 0."""
+    try:
+        path = _restart_count_file()
+        if path.exists():
+            return int(path.read_text().strip())
+    except (ValueError, OSError):
+        pass
+    return 0
+
+
+def _increment_restart_count() -> int:
+    """Increment and persist the restart counter. Returns the new value."""
+    count = _read_restart_count() + 1
+    try:
+        path = _restart_count_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(count))
+    except OSError:
+        pass
+    return count
 
 
 def load_agent_config() -> Dict[str, Any]:
@@ -888,6 +925,8 @@ async def heartbeat_loop(
                 config["device_id"],
                 site_id=config["site_id"],
                 status="ONLINE",
+                agent_uptime_seconds=int(time.monotonic() - _AGENT_START_TIME),
+                agent_restart_count=config.get("agent_restart_count"),
             )
             ok = await post_json(
                 client,
@@ -1413,6 +1452,10 @@ async def run_agent(
         an asyncio shutdown.
     """
     config = load_agent_config()
+
+    # Track agent restarts for health monitoring
+    restart_count = _increment_restart_count()
+    config["agent_restart_count"] = restart_count
 
     # Configure logging with optional file rotation
     log_kwargs = logging_config_from_config(config)

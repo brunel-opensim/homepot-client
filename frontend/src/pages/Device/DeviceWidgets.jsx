@@ -602,6 +602,24 @@ export const DeviceInfoWidget = ({ device }) => (
           {device?.last_heartbeat_at ? new Date(device.last_heartbeat_at).toLocaleString() : 'N/A'}
         </span>
       </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Agent Uptime</span>
+        <span className="text-slate-200 text-xs mt-0.5">
+          {device?.agent_uptime_seconds != null
+            ? device.agent_uptime_seconds >= 3600
+              ? `${Math.floor(device.agent_uptime_seconds / 3600)}h ${Math.floor((device.agent_uptime_seconds % 3600) / 60)}m`
+              : device.agent_uptime_seconds >= 60
+                ? `${Math.floor(device.agent_uptime_seconds / 60)}m ${device.agent_uptime_seconds % 60}s`
+                : `${device.agent_uptime_seconds}s`
+            : 'N/A'}
+        </span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-slate-400">Agent Restarts</span>
+        <span className="text-slate-200 text-xs mt-0.5">
+          {device?.agent_restart_count != null ? device.agent_restart_count : 'N/A'}
+        </span>
+      </div>
     </div>
   </Card>
 );
