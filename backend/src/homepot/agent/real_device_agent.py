@@ -464,6 +464,27 @@ async def pending_commands_loop(
             headers = get_auth_headers(config)
             fresh_perms = await fetch_device_permissions(client, config, headers)
             if fresh_perms is not None:
+                # Detect permission changes
+                if cached_permissions is not None and fresh_perms != cached_permissions:
+                    try:
+                        from homepot.agent.utils.event_reporter import (
+                            emit_audit_event,
+                        )
+
+                        changed = {
+                            k: (cached_permissions.get(k), fresh_perms.get(k))
+                            for k in set(cached_permissions) | set(fresh_perms)
+                            if cached_permissions.get(k) != fresh_perms.get(k)
+                        }
+                        await emit_audit_event(
+                            client,
+                            config,
+                            event_type="permission_changed",
+                            description=f"Device permissions changed: {changed}",
+                            metadata={"changes": changed},
+                        )
+                    except Exception:
+                        pass
                 cached_permissions = fresh_perms
                 # Keep the local OS elevation layer in step with the backend
                 # grants: provisioned while root_access is granted, torn down
@@ -550,6 +571,34 @@ async def pending_commands_loop(
                         }
                     else:
                         result = process_command(command, cached_permissions)
+                        # Emit command execution event to Live Logs
+                        try:
+                            from homepot.agent.utils.event_reporter import (
+                                emit_log_event,
+                            )
+
+                            cmd_type = command.get("command_type", "unknown")
+                            cmd_status = result.get("status", "unknown")
+                            level = (
+                                "error" if cmd_status in ("failed", "error") else "info"
+                            )
+                            await emit_log_event(
+                                client,
+                                config,
+                                level=level,
+                                category="command",
+                                message=(
+                                    f"Command {cmd_status}: {cmd_type} "
+                                    f"({str(cid)[:8]})"
+                                ),
+                                context={
+                                    "command_id": cid,
+                                    "command_type": cmd_type,
+                                    "status": cmd_status,
+                                },
+                            )
+                        except Exception:
+                            pass
                     ok = await update_command_status(
                         client,
                         config,
@@ -865,6 +914,20 @@ async def heartbeat_loop(
                         ipc_server.config.app,  # type: ignore[arg-type]
                         status="OFFLINE",
                     )
+                # Emit connectivity event
+                try:
+                    from homepot.agent.utils.event_reporter import emit_log_event
+
+                    await emit_log_event(
+                        client,
+                        config,
+                        level="warning",
+                        category="connectivity",
+                        message="Backend unreachable: heartbeat failed",
+                        context={"retry_queue_size": len(retry_queue)},
+                    )
+                except Exception:
+                    pass
         except DeviceSuspendedError as e:
             logger.info("Heartbeat paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
@@ -925,6 +988,36 @@ async def telemetry_loop(
                     ipc_server.config.app,  # type: ignore[arg-type]
                     last_telemetry=payload,
                 )
+            # Emit resource warning events when thresholds are exceeded
+            if ok:
+                try:
+                    from homepot.agent.utils.event_reporter import emit_log_event
+
+                    cpu = payload.get("cpu_usage", 0)
+                    mem = payload.get("memory_usage", 0)
+                    disk = payload.get("disk_usage", 0)
+                    warnings = []
+                    if cpu and cpu >= 90:
+                        warnings.append(f"CPU usage high: {cpu}%")
+                    if mem and mem >= 90:
+                        warnings.append(f"Memory usage high: {mem}%")
+                    if disk and disk >= 90:
+                        warnings.append(f"Disk usage high: {disk}%")
+                    if warnings:
+                        await emit_log_event(
+                            client,
+                            config,
+                            level="warning",
+                            category="resource",
+                            message="; ".join(warnings),
+                            context={
+                                "cpu_usage": cpu,
+                                "memory_usage": mem,
+                                "disk_usage": disk,
+                            },
+                        )
+                except Exception:
+                    pass
             if not ok:
                 retry_queue.enqueue({"url": url, "payload": payload})
         except DeviceSuspendedError as e:
@@ -1556,6 +1649,20 @@ async def run_agent(
             client, config, retry_queue, push_channel_uri=push_channel_uri
         )
 
+        # Emit agent lifecycle audit event
+        from homepot.agent.utils.event_reporter import emit_audit_event
+
+        await emit_audit_event(
+            client,
+            config,
+            event_type="agent_started",
+            description=f"Agent started (version {config.get('agent_version', 'unknown')})",
+            metadata={
+                "agent_version": config.get("agent_version"),
+                "os_details": config.get("os_details"),
+            },
+        )
+
         # Shared runtime state: telemetry_loop drops its latest snapshot here
         # so alerts_loop can evaluate genuine values without sampling the host
         # itself.
@@ -1614,6 +1721,20 @@ async def run_agent(
             logger.info("Agent tasks cancelled, shutting down…")
         except Exception as e:
             logger.error("Agent runtime error: %s", e, exc_info=True)
+
+        # Emit agent lifecycle audit event
+        try:
+            from homepot.agent.utils.event_reporter import emit_audit_event
+
+            await emit_audit_event(
+                client,
+                config,
+                event_type="agent_stopped",
+                description="Agent stopped gracefully",
+                metadata={"reason": "shutdown_signal"},
+            )
+        except Exception:
+            pass
 
         # Graceful shutdown: mark the device OFFLINE on the backend now.
         await send_final_offline_heartbeat(client, config)
