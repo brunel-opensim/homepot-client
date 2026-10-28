@@ -46,6 +46,7 @@ export default function DeviceInfo() {
   const { setIsProvisioned, setIsEmulatorRunning } = useApp()
   const [updateState, setUpdateState] = useState<UpdateState>({ kind: 'idle' })
   const [appVersion, setAppVersion] = useState('0.1.0')
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const [unpairStatus, setUnpairStatus] = useState<'idle' | 'disconnecting' | 'disconnected' | 'pending-revocation' | 'error'>('idle')
   const [unpairError, setUnpairError] = useState('')
@@ -164,6 +165,8 @@ export default function DeviceInfo() {
     }
     setUpdateState({ kind: 'checking' })
     const result = await window.electronAPI.app.checkForUpdates()
+    const seed = await window.electronAPI.app?.getUpdateState?.()
+    if (seed?.lastCheckedAt) setLastCheckedAt(seed.lastCheckedAt)
     if (result.status === 'disabled') setUpdateState({ kind: 'disabled', reason: result.message })
     else if (result.status === 'error') setUpdateState({ kind: 'error', message: result.message ?? 'Update check failed' })
     else if (result.mode === 'source' && result.status === 'available') {
@@ -199,19 +202,32 @@ export default function DeviceInfo() {
       if (!window.electronAPI) return
       try {
         unsubscribe = window.electronAPI.updates?.onStatus((payload) => {
-          const next = (payload as UpdateStatePayload).state
-          if (!cancelled) setUpdateState(next)
+          const p = payload as UpdateStatePayload
+          const next = p.state
+          if (!cancelled) {
+            setUpdateState(next)
+            if (p.lastCheckedAt) setLastCheckedAt(p.lastCheckedAt)
+          }
         })
         const seed = await window.electronAPI.app?.getUpdateState?.()
-        if (seed && !cancelled) setUpdateState(seed.state)
+        if (seed && !cancelled) {
+          setUpdateState(seed.state)
+          if (seed.lastCheckedAt) setLastCheckedAt(seed.lastCheckedAt)
+        }
       } catch {
         // Best-effort: without an update backend the view just shows the idle
         // "Check for Updates" state.
       }
     }
     setup()
+    // Auto-check once after a short delay so the user doesn't have to click
+    // manually; the main process also checks at 30s, so this is a fast-path.
+    const autoTimer = setTimeout(() => {
+      if (!cancelled) handleCheckUpdate()
+    }, 5000)
     return () => {
       cancelled = true
+      clearTimeout(autoTimer)
       unsubscribe?.()
     }
   }, [])
@@ -477,6 +493,11 @@ export default function DeviceInfo() {
             >
               <>↺  Check for Updates</>
             </button>
+          )}
+          {lastCheckedAt && (
+            <p className="text-slate-500 text-[10px] text-center mt-1">
+              Last checked: {new Date(lastCheckedAt).toLocaleString()}
+            </p>
           )}
         </div>
 
