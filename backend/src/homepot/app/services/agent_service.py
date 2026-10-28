@@ -204,6 +204,14 @@ class AgentService:
             updated = self.repository.update_last_heartbeat(
                 device, received_at, online=payload.online
             )
+            # Store agent health fields if provided
+            if payload.agent_uptime_seconds is not None:
+                cast(Any, updated).agent_uptime_seconds = payload.agent_uptime_seconds
+            if payload.agent_restart_count is not None:
+                cast(Any, updated).agent_restart_count = payload.agent_restart_count
+            self.repository.db.add(updated)
+            self.repository.db.commit()
+            self.repository.db.refresh(updated)
             return {
                 "device_id": updated.device_id,
                 "last_heartbeat_at": (
@@ -211,6 +219,8 @@ class AgentService:
                     if updated.last_heartbeat_at
                     else payload.timestamp.isoformat()
                 ),
+                "agent_uptime_seconds": updated.agent_uptime_seconds,
+                "agent_restart_count": updated.agent_restart_count,
             }
         except LookupError:
             raise

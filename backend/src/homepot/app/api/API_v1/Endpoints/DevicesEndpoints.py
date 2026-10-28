@@ -381,6 +381,8 @@ async def list_device(
                             if device.last_heartbeat_at
                             else None
                         ),
+                        "agent_uptime_seconds": device.agent_uptime_seconds,
+                        "agent_restart_count": device.agent_restart_count,
                         "credential_status": (
                             "active"
                             if any(c.is_active for c in (device.credentials or []))
@@ -536,6 +538,8 @@ async def get_device(
                     if device.last_heartbeat_at
                     else None
                 ),
+                "agent_uptime_seconds": device.agent_uptime_seconds,
+                "agent_restart_count": device.agent_restart_count,
                 "credential_status": (
                     "active"
                     if any(c.is_active for c in (device.credentials or []))

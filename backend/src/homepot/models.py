@@ -431,6 +431,8 @@ class Device(Base):
     firmware_version = Column(String(50), nullable=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)
     last_heartbeat_at = Column(DateTime(timezone=True), nullable=True)
+    agent_uptime_seconds = Column(Integer, nullable=True)
+    agent_restart_count = Column(Integer, nullable=True, default=0)
     peripherals = Column(JSON, nullable=True)  # Attached device hardware
 
     # Permissions

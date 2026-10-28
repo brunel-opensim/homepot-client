@@ -86,6 +86,16 @@ class AgentHeartbeatRequest(BaseModel):
             "online=false so the backend can mark the device OFFLINE immediately."
         ),
     )
+    agent_uptime_seconds: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Seconds since the agent process started (for crash detection)",
+    )
+    agent_restart_count: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Number of times the agent has restarted since boot",
+    )
 
     model_config = ConfigDict(
         json_schema_extra={
