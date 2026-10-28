@@ -209,6 +209,13 @@ class AgentService:
                 cast(Any, updated).agent_uptime_seconds = payload.agent_uptime_seconds
             if payload.agent_restart_count is not None:
                 cast(Any, updated).agent_restart_count = payload.agent_restart_count
+            if payload.task_health is not None:
+                if cast(Any, updated).config is None:
+                    cast(Any, updated).config = {}
+                cast(Any, updated).config = {
+                    **(cast(Any, updated).config or {}),
+                    "task_health": payload.task_health,
+                }
             self.repository.db.add(updated)
             self.repository.db.commit()
             self.repository.db.refresh(updated)

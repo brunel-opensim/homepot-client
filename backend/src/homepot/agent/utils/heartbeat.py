@@ -17,6 +17,7 @@ def build_heartbeat_payload(
     online: bool = True,
     agent_uptime_seconds: Optional[int] = None,
     agent_restart_count: Optional[int] = None,
+    task_health: Optional[Dict[str, bool]] = None,
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build a standardized heartbeat payload for backend submission."""
@@ -32,6 +33,8 @@ def build_heartbeat_payload(
         payload["agent_uptime_seconds"] = agent_uptime_seconds
     if agent_restart_count is not None:
         payload["agent_restart_count"] = agent_restart_count
+    if task_health is not None:
+        payload["task_health"] = task_health
     if extra:
         payload["extra"] = extra
     return payload

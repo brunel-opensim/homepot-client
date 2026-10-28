@@ -540,6 +540,9 @@ async def get_device(
                 ),
                 "agent_uptime_seconds": device.agent_uptime_seconds,
                 "agent_restart_count": device.agent_restart_count,
+                "task_health": (
+                    device.config.get("task_health") if device.config else None
+                ),
                 "credential_status": (
                     "active"
                     if any(c.is_active for c in (device.credentials or []))

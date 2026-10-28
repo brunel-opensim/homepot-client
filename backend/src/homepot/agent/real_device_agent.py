@@ -12,7 +12,7 @@ import ssl
 import sys
 import threading
 import time
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from fastapi import FastAPI
 import httpx
@@ -65,6 +65,34 @@ logger = logging.getLogger(__name__)
 
 # Track agent process start time for uptime reporting
 _AGENT_START_TIME = time.monotonic()
+
+# Track last successful activity per background task (for watchdog)
+_TASK_LAST_ACTIVITY: Dict[str, float] = {}
+
+
+def _record_task_activity(task_name: str) -> None:
+    """Record that a background task completed a successful cycle."""
+    _TASK_LAST_ACTIVITY[task_name] = time.monotonic()
+
+
+def _get_stale_tasks(threshold_multiplier: float = 2.0) -> List[str]:
+    """Return names of tasks that haven't completed in threshold_multiplier × their interval."""
+    # Default intervals (seconds) for each task
+    task_intervals: Dict[str, int] = {
+        "heartbeat": 30,
+        "telemetry": 30,
+        "live_logs": 30,
+        "retry_flush": 60,
+        "alerts": 30,
+        "command_poll": 60,
+    }
+    stale = []
+    now = time.monotonic()
+    for task_name, interval in task_intervals.items():
+        last = _TASK_LAST_ACTIVITY.get(task_name)
+        if last is not None and (now - last) > (interval * threshold_multiplier):
+            stale.append(task_name)
+    return stale
 
 
 def _restart_count_file() -> Path:
@@ -658,6 +686,7 @@ async def pending_commands_loop(
                         await _report_status_to_live_logs(
                             client, config, result["result"]
                         )
+            _record_task_activity("command_poll")
         except DeviceSuspendedError as e:
             logger.info("Pending commands paused: device suspended (%s)", e)
         except DeviceRemovedError as e:
@@ -738,11 +767,16 @@ async def _watchdog_loop(
     shutdown_event: asyncio.Event,
     interval: int = 10,
     _sd_notify: Any = None,  # injected by tests
+    client: Optional[httpx.AsyncClient] = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Periodically notify systemd that the agent is alive (``WATCHDOG=1``).
 
+    Also monitors background task health: if any task hasn't completed in
+    2x its expected interval, emits an audit event to the backend.
+
     When ``systemd`` is not available or the ``systemd`` Python module is not
-    installed this loop is a no-op.
+    installed this loop still performs task health monitoring.
     """
     sd_notify: Any = _sd_notify
     if sd_notify is None:
@@ -753,14 +787,41 @@ async def _watchdog_loop(
         except ImportError:
             pass
 
-    if sd_notify is None:
-        return
+    _reported_stale: set = set()
 
     while not shutdown_event.is_set():
         try:
-            sd_notify("WATCHDOG=1")
+            if sd_notify is not None:
+                sd_notify("WATCHDOG=1")
         except Exception as exc:
             logger.warning("systemd watchdog notification failed: %s", exc)
+
+        # Check task health and emit audit events for stale tasks
+        stale = _get_stale_tasks()
+        for task_name in stale:
+            if task_name not in _reported_stale:
+                _reported_stale.add(task_name)
+                logger.warning("Watchdog: task '%s' appears stuck", task_name)
+                if client is not None and config is not None:
+                    try:
+                        from homepot.agent.utils.event_reporter import (
+                            emit_audit_event,
+                        )
+
+                        await emit_audit_event(
+                            client,
+                            config,
+                            event_type="agent_watchdog_stale_task",
+                            description=f"Watchdog detected stale task: {task_name}",
+                            metadata={"task": task_name},
+                        )
+                    except Exception:
+                        pass
+        # Clear reported set for tasks that recovered
+        for task_name in list(_reported_stale):
+            if task_name not in stale:
+                _reported_stale.discard(task_name)
+
         await _wait_with_shutdown(interval, shutdown_event)
 
 
@@ -921,12 +982,19 @@ async def heartbeat_loop(
             #   "status": "ONLINE",
             #   "timestamp": "2026-04-13T12:00:00Z"
             # }
+            stale = set(_get_stale_tasks())
+            task_health = {
+                "heartbeat": "heartbeat" not in stale,
+                "telemetry": "telemetry" not in stale,
+                "command_poll": "command_poll" not in stale,
+            }
             payload = build_heartbeat_payload(
                 config["device_id"],
                 site_id=config["site_id"],
                 status="ONLINE",
                 agent_uptime_seconds=int(time.monotonic() - _AGENT_START_TIME),
                 agent_restart_count=config.get("agent_restart_count"),
+                task_health=task_health,
             )
             ok = await post_json(
                 client,
@@ -936,6 +1004,7 @@ async def heartbeat_loop(
                 submission_log=submission_log,
             )
             if ok:
+                _record_task_activity("heartbeat")
                 if ipc_server is not None:
                     update_local_agent_state(
                         ipc_server.config.app,  # type: ignore[arg-type]
@@ -1018,6 +1087,8 @@ async def telemetry_loop(
                 get_auth_headers(config),
                 submission_log=submission_log,
             )
+            if ok:
+                _record_task_activity("telemetry")
             if ok and ipc_server is not None:
                 update_local_agent_state(
                     ipc_server.config.app,  # type: ignore[arg-type]
@@ -1571,6 +1642,8 @@ async def run_agent(
                 _watchdog_loop(
                     shutdown_event,
                     int(config.get("watchdog_interval_seconds", 10)),
+                    client=client,
+                    config=config,
                 )
             ),
         ]
