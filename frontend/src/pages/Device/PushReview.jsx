@@ -115,7 +115,8 @@ const COMMAND_TEMPLATES = {
     action: 'list_installed_programs',
     permission: 'command_execution',
     defaultData: {},
-    description: 'List the programs installed on the Windows device via winget.',
+    description:
+      'List the programs installed on the Windows device with their install locations (from the registry). Use the location to find executables for Start/Stop Program.',
   },
   UPDATE_PROGRAM: {
     label: 'Update Program',

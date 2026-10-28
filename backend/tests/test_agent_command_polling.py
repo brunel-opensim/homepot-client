@@ -674,16 +674,14 @@ class TestProgramInstallUninstall:
         assert "upgrade --all" in script and "winget" in script
 
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller._is_windows_platform", return_value=True)
     @patch("homepot.agent.utils.command_poller.platform.system")
     @patch("homepot.agent.utils.command_poller.subprocess.run")
-    @patch(
-        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
-    )
-    def test_list_installed_programs_runs_winget_list(self, resolve, run, system):
-        """list_installed_programs runs 'winget list' unprivileged."""
+    def test_list_installed_programs_runs_registry_list(self, run, system, _is_win):
+        """list_installed_programs enumerates installed programs with locations."""
         system.return_value = "Windows"
         run.return_value.returncode = 0
-        run.return_value.stdout = "Notepad++\n"
+        run.return_value.stdout = "Name  Version  Location  Publisher\n"
         run.return_value.stderr = ""
         result = process_command(
             {
@@ -694,8 +692,8 @@ class TestProgramInstallUninstall:
             ALLOW_ALL,
         )
         assert result["status"] == "completed"
-        assert run.call_args.args[0][0] == "winget"
-        assert "list" in run.call_args.args[0]
+        assert run.call_args.args[0][0] == "powershell"
+        assert "InstallLocation" in run.call_args.args[0][4]
 
     @patch("homepot.agent.utils.telemetry.collect_system_telemetry")
     def test_health_check_reports_per_test_results(self, telemetry):
