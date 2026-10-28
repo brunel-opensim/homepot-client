@@ -872,11 +872,22 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
             return {"status": "failed", "message": f"Activate failed (hr={hr})"}
 
         # IAudioEndpointVolume vtable: IUnknown(3) + 4 methods + SetMasterVolumeLevelScalar (index 7)
+        # + GetMasterVolumeLevel (index 8) + GetMasterVolumeLevelScalar (index 9)
         vol_vtable = ctypes.cast(vol_ptr, ctypes.POINTER(ctypes.c_void_p))[0]
         vol_vtable = ctypes.cast(
-            vol_vtable, ctypes.POINTER(ctypes.c_void_p * 8)
+            vol_vtable, ctypes.POINTER(ctypes.c_void_p * 12)
         ).contents
         _FUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)  # type: ignore[attr-defined]
+        GMLVS = _FUNCTYPE(
+            ctypes.c_long,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_float),
+        )
+        get_vol = GMLVS(vol_vtable[9])  # type: ignore[arg-type]
+        before_float = ctypes.c_float()
+        hr_before = get_vol(vol_ptr, ctypes.byref(before_float))
+        before_pct = round(before_float.value * 100) if hr_before == 0 else None
+
         SMVLS = _FUNCTYPE(
             ctypes.c_long,
             ctypes.c_void_p,
@@ -891,7 +902,29 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
                 "status": "failed",
                 "message": f"SetMasterVolumeLevelScalar failed (hr={hr})",
             }
-        return {"status": "applied", "message": f"volume set to {pct}%"}
+
+        after_float = ctypes.c_float()
+        hr_after = get_vol(vol_ptr, ctypes.byref(after_float))
+        after_pct = round(after_float.value * 100) if hr_after == 0 else None
+
+        verified = after_pct is not None and after_pct == pct
+        status = "applied" if verified else "failed"
+        msg = (
+            f"volume set to {pct}%"
+            if verified
+            else f"volume set API succeeded but read-back shows {after_pct}% (target {pct}%)"
+        )
+
+        return {
+            "status": status,
+            "message": msg,
+            "verification": {
+                "before": before_pct,
+                "after": after_pct,
+                "target": pct,
+                "verified": verified,
+            },
+        }
     except Exception as exc:  # noqa: BLE001
         return {"status": "failed", "message": str(exc)}
 
@@ -934,7 +967,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
             pct = max(0, min(100, int(value)))
             return _set_windows_volume_ctypes(pct)
 
-        def _win_brightness(value: Any) -> List[str]:
+        def _win_brightness(value: Any) -> Dict[str, Any]:
             # Set brightness through the Monitor Configuration API
             # (dxva2.dll SetMonitorBrightness) rather than the WMI
             # WmiSetBrightness method, which is only wired up on Intel-graphics
@@ -943,6 +976,9 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
             # with a clear error instead of silently no-op'ing.
             pct = max(0, min(100, int(value)))
             script = (
+                "$before = (Get-WmiObject -Namespace root/WMI "
+                "-Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
+                'Write-Output "Brightness before: $before"\n'
                 "Add-Type -TypeDefinition @'\n"
                 "using System;\n"
                 "using System.Runtime.InteropServices;\n"
@@ -969,19 +1005,61 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "}\n"
                 "'@\n"
                 f"$rc = [B]::Set({pct})\n"
+                'Write-Output "dxva2 rc=$rc"\n'
                 "if ($rc -ne 0) {\n"
-                "    # Fallback: WMI WmiMonitorBrightnessMethods works on many\n"
-                "    # panels where DDC/CI (dxva2) is unavailable.\n"
                 "    try {\n"
                 "        $wmi = Get-WmiObject -Namespace root/WMI `\n"
                 "            -Class WmiMonitorBrightnessMethods -ErrorAction Stop\n"
-                "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0 }\n"
-                "    } catch { }\n"
+                "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0; "
+                "            Write-Output 'WMI: succeeded' }\n"
+                '    } catch { Write-Output "WMI: FAILED ($_ )" }\n'
                 "}\n"
+                "$after = (Get-WmiObject -Namespace root/WMI "
+                "    -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
                 'if ($rc -ne 0) { throw "Brightness update failed (dxva2 rc=$rc; '
                 'WMI fallback also failed)" }\n'
             )
-            return _powershell_argv(script)
+            argv = _powershell_argv(script)
+            outcome = _run_argv(argv)
+            before = None
+            after = None
+            for line in (outcome.get("stdout") or "").splitlines():
+                if line.startswith("Brightness before:"):
+                    try:
+                        before = int(line.split(":", 1)[1].strip())
+                    except (ValueError, IndexError):
+                        pass
+                elif line.startswith("Brightness after:"):
+                    try:
+                        after = int(line.split(":", 1)[1].strip())
+                    except (ValueError, IndexError):
+                        pass
+            verified = after is not None and after == pct
+            if not outcome["ok"]:
+                status = "failed"
+                msg = "brightness update failed (dxva2 and WMI fallback both failed)"
+            elif not verified:
+                status = "failed"
+                msg = (
+                    f"brightness set API succeeded but read-back shows "
+                    f"{after}% (target {pct}%)"
+                )
+            else:
+                status = "applied"
+                msg = f"brightness set to {pct}%"
+            return {
+                "status": status,
+                "message": msg,
+                "exit_code": outcome.get("exit_code"),
+                "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+                "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+                "verification": {
+                    "before": before,
+                    "after": after,
+                    "target": pct,
+                    "verified": verified,
+                },
+            }
 
         return {"volume": _win_volume, "brightness": _win_brightness}
     return {

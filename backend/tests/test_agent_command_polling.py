@@ -338,7 +338,7 @@ class TestProcessCommand:
         """Windows brightness applies via the dxva2 SetMonitorBrightness API."""
         system.return_value = "Windows"
         run.return_value.returncode = 0
-        run.return_value.stdout = ""
+        run.return_value.stdout = "Brightness before: 75\nBrightness after: 75\n"
         run.return_value.stderr = ""
         result = process_command(
             {
