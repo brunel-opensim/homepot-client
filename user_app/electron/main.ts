@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -94,6 +94,7 @@ type SourceUpdateInfo = {
 }
 
 let updateState: UpdateState = { kind: 'idle' }
+let lastCheckedAt: string | null = null
 
 // The app updates through electron-updater when packaged; when run from a git
 // checkout (the rollout model for managed machines) updates come from the repo
@@ -115,6 +116,7 @@ function sendUpdateStatus(): void {
     state: updateState,
     currentVersion: app.getVersion(),
     mode: updateMode(),
+    lastCheckedAt,
   }
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('app:update:status', payload)
@@ -138,12 +140,22 @@ function setupAutoUpdater(): void {
     updateState = { kind: 'available', version: info.version, channel: 'packaged' }
     sendUpdateStatus()
     recordAppEvent('info', 'updater', `Update available v${info.version}`)
+    try {
+      new Notification({
+        title: 'HOMEPOT Agent update available',
+        body: `Version ${info.version} is ready to download.`,
+      }).show()
+    } catch {
+      // Notifications may be unavailable on some platforms; ignore.
+    }
+    if (tray) tray.setToolTip(`HOMEPOT Agent — Update v${info.version} available`)
   })
 
   autoUpdater.on('update-not-available', () => {
     updateState = { kind: 'not-available' }
     sendUpdateStatus()
     recordAppEvent('info', 'updater', 'Update not available')
+    if (tray) tray.setToolTip('HOMEPOT Agent')
   })
 
   autoUpdater.on('download-progress', (progress) => {
@@ -155,6 +167,14 @@ function setupAutoUpdater(): void {
     updateState = { kind: 'downloaded', version: info.version }
     sendUpdateStatus()
     recordAppEvent('info', 'updater', `Update downloaded v${info.version}`)
+    try {
+      new Notification({
+        title: 'HOMEPOT Agent update ready',
+        body: `Version ${info.version} has been downloaded. Restart to finish installing.`,
+      }).show()
+    } catch {
+      // Notifications may be unavailable on some platforms; ignore.
+    }
   })
 
   autoUpdater.on('error', (err) => {
@@ -172,6 +192,81 @@ function recoverFromDownloadError(message: string): UpdateState {
     return { kind: 'idle' }
   }
   return { kind: 'error', message }
+}
+
+// --- Update check (shared by IPC handler and auto-check) ---------------------
+
+async function performUpdateCheck(): Promise<Record<string, unknown>> {
+  lastCheckedAt = new Date().toISOString()
+  const mode = updateMode()
+  const currentVersion = app.getVersion()
+
+  if (mode === 'source') {
+    updateState = { kind: 'checking', channel: 'source' }
+    sendUpdateStatus()
+    const info = await sourceUpdateInfo()
+    if (info.behindCount > 0) {
+      const version = info.latestTag ?? `+${info.behindCount} commit${info.behindCount === 1 ? '' : 's'}`
+      const detail = sourceDetail(info)
+      updateState = { kind: 'available', version, detail, channel: 'source' }
+      sendUpdateStatus()
+      recordAppEvent('info', 'updater', `Source update available (${detail})`)
+      return { mode, status: 'available', currentVersion, version, detail, info }
+    }
+    if (!info.fetchSucceeded) {
+      const message = info.error ?? 'Could not reach the update source'
+      updateState = { kind: 'error', message }
+      sendUpdateStatus()
+      return { mode, status: 'error', currentVersion, message, info }
+    }
+    const detail = `Up to date with origin/${info.branch}${info.dirty ? ' · working tree has uncommitted changes' : ''}`
+    updateState = { kind: 'not-available', detail }
+    sendUpdateStatus()
+    return { mode, status: 'not-available', currentVersion, detail, info }
+  }
+
+  setupAutoUpdater()
+  const usable = updaterConfigured()
+  if (!usable) {
+    const reason =
+      mode === 'none'
+        ? 'This build was neither installed from a package nor run from a source checkout'
+        : 'Automatic updates are not enabled for this build'
+    updateState = { kind: 'disabled', reason }
+    sendUpdateStatus()
+    return { mode, status: 'disabled', currentVersion, message: reason }
+  }
+  try {
+    updateState = { kind: 'checking', channel: 'packaged' }
+    sendUpdateStatus()
+    await autoUpdater.checkForUpdates()
+    sendUpdateStatus()
+    return { mode, status: 'checking', currentVersion }
+  } catch (err) {
+    const message = String(err instanceof Error ? err.message : err)
+    recordAppEvent('error', 'updater', `Update check failed: ${message}`)
+    updateState = { kind: 'error', message }
+    sendUpdateStatus()
+    return { mode, status: 'error', currentVersion, message }
+  }
+}
+
+async function runAutoUpdateCheck(): Promise<void> {
+  try {
+    await performUpdateCheck()
+  } catch (err) {
+    recordAppEvent('error', 'updater', `Auto update check failed: ${String(err)}`)
+  }
+}
+
+function scheduleAutoUpdateChecks(): void {
+  // First check 30s after launch (let the app settle), then every 4 hours.
+  setTimeout(() => {
+    void runAutoUpdateCheck()
+  }, 30000)
+  setInterval(() => {
+    void runAutoUpdateCheck()
+  }, 4 * 60 * 60 * 1000)
 }
 
 // --- Source (git) update helpers -------------------------------------------
@@ -728,56 +823,7 @@ function registerIpcHandlers() {
   // 'none' reports disabled with a reason instead of a silent dead end.
 
   ipcMain.handle('app:checkForUpdates', async () => {
-    const mode = updateMode()
-    const currentVersion = app.getVersion()
-
-    if (mode === 'source') {
-      updateState = { kind: 'checking', channel: 'source' }
-      sendUpdateStatus()
-      const info = await sourceUpdateInfo()
-      if (info.behindCount > 0) {
-        const version = info.latestTag ?? `+${info.behindCount} commit${info.behindCount === 1 ? '' : 's'}`
-        const detail = sourceDetail(info)
-        updateState = { kind: 'available', version, detail, channel: 'source' }
-        sendUpdateStatus()
-        recordAppEvent('info', 'updater', `Source update available (${detail})`)
-        return { mode, status: 'available', currentVersion, version, detail, info }
-      }
-      if (!info.fetchSucceeded) {
-        const message = info.error ?? 'Could not reach the update source'
-        updateState = { kind: 'error', message }
-        sendUpdateStatus()
-        return { mode, status: 'error', currentVersion, message, info }
-      }
-      const detail = `Up to date with origin/${info.branch}${info.dirty ? ' · working tree has uncommitted changes' : ''}`
-      updateState = { kind: 'not-available', detail }
-      sendUpdateStatus()
-      return { mode, status: 'not-available', currentVersion, detail, info }
-    }
-
-    setupAutoUpdater()
-    const usable = updaterConfigured()
-    if (!usable) {
-      const reason =
-        mode === 'none'
-          ? 'This build was neither installed from a package nor run from a source checkout'
-          : 'Automatic updates are not enabled for this build'
-      updateState = { kind: 'disabled', reason }
-      sendUpdateStatus()
-      return { mode, status: 'disabled', currentVersion, message: reason }
-    }
-    try {
-      updateState = { kind: 'checking', channel: 'packaged' }
-      sendUpdateStatus()
-      await autoUpdater.checkForUpdates()
-      return { mode, status: 'checking', currentVersion }
-    } catch (err) {
-      const message = String(err instanceof Error ? err.message : err)
-      recordAppEvent('error', 'updater', `Update check failed: ${message}`)
-      updateState = { kind: 'error', message }
-      sendUpdateStatus()
-      return { mode, status: 'error', currentVersion, message }
-    }
+    return performUpdateCheck()
   })
 
   ipcMain.handle('app:downloadUpdate', async () => {
@@ -801,7 +847,7 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('app:getUpdateState', () => {
-    return { state: updateState, currentVersion: app.getVersion(), mode: updateMode() }
+    return { state: updateState, currentVersion: app.getVersion(), mode: updateMode(), lastCheckedAt }
   })
 
   ipcMain.handle('app:getRecentLogs', (_event, requestedLimit = MAX_APP_LOG_ENTRIES) => {
@@ -1624,6 +1670,8 @@ app.whenReady().then(() => {
   startDeviceAgentIfProvisioned()
   createWindow()
   createTray()
+
+  scheduleAutoUpdateChecks()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

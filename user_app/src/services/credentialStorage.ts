@@ -135,6 +135,7 @@ export interface UpdateStatePayload {
   state: UpdateState
   currentVersion: string
   mode: BuildMode
+  lastCheckedAt?: string | null
 }
 
 export interface DeviceCredentials {
