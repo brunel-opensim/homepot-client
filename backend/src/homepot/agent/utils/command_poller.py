@@ -806,6 +806,13 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
             return g
 
         ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
+        # COM must be initialized on this thread before CoCreateInstance.
+        # CoInitialize returns S_OK (0) or S_FALSE (1) on success; ignore
+        # RPC_E_CHANGED_MODE (already initialized in a different mode).
+        try:
+            ole32.CoInitialize(None)
+        except OSError:
+            pass
         CLSCTX_INPROC_SERVER = 1
         clsid = _make_guid("BCDE0395-E52F-467C-8E3D-C4579291692E")
         iid_enum = _make_guid("A95664D2-9614-4F35-A746-DE8DB63617E6")
