@@ -298,6 +298,58 @@ Sysinternals `Autologon`). Running the agent as a Windows service (deferred in
 [ADR-0002](adr/0002-agent-supervision-and-lifetime.md)) would remove the login
 dependency entirely.
 
+## Device unresponsiveness detection
+
+When a device becomes unresponsive — loses internet, shuts down, crashes,
+or is force-killed by the owner — the Dashboard needs to become aware and
+report it. This section catalogues what is already detected and what gaps
+remain.
+
+### What the Dashboard already detects
+
+| Scenario | Detection mechanism | Latency | Dashboard shows |
+|----------|-------------------|---------|-----------------|
+| Graceful shutdown (agent sends `online=false`) | Final offline heartbeat | Immediate | Device marked OFFLINE |
+| Agent process crash (no heartbeat) | `last_heartbeat_at` timeout (5× interval = 150s) | ~2.5 min | Device marked offline |
+| Network partition (heartbeats stop) | Same timeout | ~2.5 min | Device marked offline |
+| Stale device sweep (backend) | `_run_stale_device_detection_loop` (300s default) | ~5 min | Connectivity state updated |
+| Command expiry | `_run_command_expiry_loop` (300s TTL) | ~5 min | Stale commands marked EXPIRED |
+| Device suspended (423 Locked) | Backend returns 423; agent pauses loops | Immediate | Device shows suspended state |
+
+### What the Dashboard cannot yet detect (gaps)
+
+| Gap | Description | Impact |
+|-----|-------------|--------|
+| **Hung agent (deadlock)** | Agent process is alive but not heartbeating. Looks identical to powered-off. | Dashboard marks "offline" after 150s but cannot distinguish hang from power loss. |
+| **Agent crash vs. network** | No heartbeat → could be crash, network, or power. No differentiation. | Technician cannot determine root cause from Dashboard alone. |
+| **Prolonged offline escalation** | Device offline for 5 min, 1 hour, or 24 hours — no automatic alert. | Offline devices can go unnoticed if nobody checks the Dashboard. |
+| **Force-kill / power loss** | No graceful shutdown → no `online=false`. Dashboard waits for timeout. | Same as crash — indistinguishable. |
+| **Agent restart count** | Watchdog restarts are logged locally only. Dashboard sees continuous heartbeats. | An unstable agent (crashing every 5 min) looks "online" to the Dashboard. |
+| **Command timeout** | A command in `SENT` status with no result stays `SENT` forever if device goes offline mid-execution. | Push History shows a command stuck in "sent" with no resolution. |
+| **"Last known good" state** | Dashboard shows `last_seen` but not *why* the device went offline or whether it will recover. | Technician must manually investigate. |
+
+### Recommended improvements (not yet implemented)
+
+| Phase | What | Effort | Value |
+|-------|------|--------|-------|
+| 1 | Add `agent_uptime_seconds` and `agent_restart_count` to heartbeat payload. Dashboard shows "last restart" and "uptime". | Small | Medium — answers "did the agent restart?" |
+| 2 | Command timeout: mark `SENT` commands as failed after N minutes if no result. | Small | High — prevents hanging commands |
+| 3 | Offline escalation: backend background task creates alerts for devices offline > 5 min / 1 hr / 24 hr. | Medium | High — proactive awareness |
+| 4 | Agent watchdog reporting: emit audit events when watchdog restarts tasks. | Medium | Medium — agent health visibility |
+| 5 | Offline reason classification: use uptime tracking to distinguish crash vs. network vs. power loss. | Larger | Medium — root cause analysis |
+
+### Existing provisions that help
+
+- **Alert system**: `Alert` model with severity levels and categories (hardware, network, software, security). Used by `alerts_loop` for threshold breaches.
+- **Live Logs**: Agent posts connectivity warnings ("Backend unreachable: heartbeat failed") and resource warnings. Dashboard polls every 2s.
+- **Audit Trail**: Agent posts lifecycle events (agent_started, agent_stopped, permission_changed).
+- **Retry queue**: Failed submissions are persisted to disk and retried with exponential backoff.
+- **Command expiry**: Stale `PENDING`/`SENT` commands expire after TTL (default 300s).
+
+### Key insight
+
+The Dashboard's current awareness is **passive** — it infers device state from the *absence* of heartbeats. A comprehensive solution would add **active probing** (ping the device, check if the agent responds), **escalation** (automatic alerts for prolonged offline), and **reason classification** (distinguish crash from network from power loss).
+
 ## Decisions
 
 The foundational decisions are recorded as ADRs; the rest are pending and will
