@@ -23,13 +23,13 @@ class TestStartProgram:
             "homepot.agent.utils.command_poller.subprocess.Popen",
             return_value=fake_proc,
         ) as popen:
-            result = _start_program({"path": "app.exe", "args": ["--flag"]})
+            result = _start_program({"path": "notepad.exe", "args": ["--flag"]})
         assert result["status"] == "completed"
         assert result["result"]["pid"] == 42
-        assert result["result"]["path"] == "app.exe"
+        assert result["result"]["path"] == "notepad.exe"
         assert result["result"].get("timed_out") is not True
         popen.assert_called_once()
-        assert popen.call_args.args[0] == ["app.exe", "--flag"]
+        assert popen.call_args.args[0] == ["notepad.exe", "--flag"]
 
     def test_not_found(self) -> None:
         """A missing executable fails with not found."""
@@ -51,7 +51,7 @@ class TestStartProgram:
             "homepot.agent.utils.command_poller.subprocess.Popen",
             return_value=fake_proc,
         ):
-            result = _start_program({"path": "app.exe", "wait": True})
+            result = _start_program({"path": "notepad.exe", "wait": True})
         assert result["status"] == "completed"
         assert result["result"]["returncode"] == 0
 
@@ -61,20 +61,20 @@ class TestStartProgram:
 
         fake_proc = MagicMock()
         fake_proc.pid = 7
-        fake_proc.wait.side_effect = _sp.TimeoutExpired(cmd="app.exe", timeout=1)
+        fake_proc.wait.side_effect = _sp.TimeoutExpired(cmd="notepad.exe", timeout=1)
         with patch(
             "homepot.agent.utils.command_poller.subprocess.Popen",
             return_value=fake_proc,
         ):
             result = _start_program(
-                {"path": "app.exe", "wait": True, "timeout_seconds": 1}
+                {"path": "notepad.exe", "wait": True, "timeout_seconds": 1}
             )
         assert result["status"] == "completed"
         assert result["result"].get("timed_out") is True
 
     def test_working_dir_validation(self) -> None:
         """A missing working directory fails the command."""
-        result = _start_program({"path": "app.exe", "working_dir": "/no/such/dir"})
+        result = _start_program({"path": "notepad.exe", "working_dir": "/no/such/dir"})
         assert result["status"] == "failed"
 
     def test_args_string_coercion(self) -> None:
@@ -85,8 +85,8 @@ class TestStartProgram:
             "homepot.agent.utils.command_poller.subprocess.Popen",
             return_value=fake_proc,
         ) as popen:
-            _start_program({"path": "app.exe", "args": "--flag value"})
-        assert popen.call_args.args[0] == ["app.exe", "--flag", "value"]
+            _start_program({"path": "notepad.exe", "args": "--flag value"})
+        assert popen.call_args.args[0] == ["notepad.exe", "--flag", "value"]
 
 
 class TestStopProgram:
@@ -99,7 +99,7 @@ class TestStopProgram:
     def test_stop_by_pid(self) -> None:
         """Stop by PID terminates the process and reports killed count."""
         fake_proc = MagicMock()
-        fake_proc.name.return_value = "app.exe"
+        fake_proc.name.return_value = "notepad.exe"
         fake_proc.wait.return_value = None
         with patch(
             "homepot.agent.utils.command_poller.psutil.Process", return_value=fake_proc
@@ -113,7 +113,7 @@ class TestStopProgram:
     def test_stop_by_pid_force(self) -> None:
         """Force stop uses kill instead of terminate."""
         fake_proc = MagicMock()
-        fake_proc.name.return_value = "app.exe"
+        fake_proc.name.return_value = "notepad.exe"
         fake_proc.wait.return_value = None
         with patch(
             "homepot.agent.utils.command_poller.psutil.Process", return_value=fake_proc
@@ -151,12 +151,12 @@ class TestStopProgram:
     def test_stop_by_name(self) -> None:
         """Stop by name kills matching processes and reports their PIDs."""
         fake_proc = MagicMock()
-        fake_proc.info = {"pid": 55, "name": "app.exe"}
+        fake_proc.info = {"pid": 55, "name": "notepad.exe"}
         with patch(
             "homepot.agent.utils.command_poller.psutil.process_iter",
             return_value=[fake_proc],
         ):
-            result = _stop_program({"name": "app"})
+            result = _stop_program({"name": "notepad"})
         assert result["status"] == "completed"
         assert result["result"]["killed"] == 1
         assert 55 in result["result"]["pids"]
