@@ -1466,7 +1466,10 @@ function removeDeviceLogs(kind: 'agent' | 'emulator'): number {
   if (!fs.existsSync(logsDir)) return 0
   let removed = 0
   for (const entry of fs.readdirSync(logsDir)) {
-    if (!entry.startsWith(`${kind}-`) || !entry.endsWith('.log')) continue
+    // Match both active logs (agent-foo.log) and rotated backups
+    // (agent-foo.log.1, agent-foo.log.2, …).
+    if (!entry.startsWith(`${kind}-`)) continue
+    if (!entry.endsWith('.log') && !/\.log\.\d+$/.test(entry)) continue
     try {
       fs.unlinkSync(path.join(logsDir, entry))
       removed += 1
@@ -1482,8 +1485,59 @@ function removeDeviceLogs(kind: 'agent' | 'emulator'): number {
  * output (telemetry, commands, wake-ups) is available on disk regardless of
  * where Electron's console goes. Falls back silently when not writable.
  */
+// Rotating file handler constants — mirror the Python agent's RotatingFileHandler
+// (10 MiB per file, 5 backups) so Electron-captured device logs don't grow
+// unbounded on disk.
+const DEVICE_LOG_MAX_BYTES = 10 * 1024 * 1024  // 10 MiB
+const DEVICE_LOG_BACKUP_COUNT = 5
+
+/**
+ * Rotate a device log file when it exceeds DEVICE_LOG_MAX_BYTES.
+ *
+ * Renames the current file to ``.1``, shifts existing backups (``.1`` → ``.2``,
+ * etc.), and deletes the oldest backup (``.5``).  Best-effort: any IO error
+ * is swallowed so logging never breaks the app.
+ */
+function rotateDeviceLog(logFile: string): void {
+  try {
+    const stat = fs.statSync(logFile)
+    if (stat.size < DEVICE_LOG_MAX_BYTES) return
+
+    // Delete the oldest backup
+    try { fs.unlinkSync(`${logFile}.${DEVICE_LOG_BACKUP_COUNT}`) } catch { /* ignore */ }
+
+    // Shift existing backups: .4 → .5, .3 → .4, …, .1 → .2
+    for (let i = DEVICE_LOG_BACKUP_COUNT - 1; i >= 1; i--) {
+      const src = `${logFile}.${i}`
+      const dst = `${logFile}.${i + 1}`
+      try {
+        if (fs.existsSync(src)) {
+          try { fs.unlinkSync(dst) } catch { /* ignore */ }
+          fs.renameSync(src, dst)
+        }
+      } catch {
+        // Best-effort; ignore individual rotation errors.
+      }
+    }
+
+    // Rotate current → .1
+    const backup1 = `${logFile}.1`
+    try { fs.unlinkSync(backup1) } catch { /* ignore */ }
+    fs.renameSync(logFile, backup1)
+  } catch {
+    // Best-effort; never break the app because of log rotation.
+  }
+}
+
+/**
+ * Persist device (emulator/agent) stdout+stderr to a per-device file so live
+ * output (telemetry, commands, wake-ups) is available on disk regardless of
+ * where Electron's console goes.  Rotates the file when it exceeds 10 MiB
+ * (5 backups).  Falls back silently when not writable.
+ */
 function appendDeviceLog(logFile: string, tag: string, line: string): void {
   try {
+    rotateDeviceLog(logFile)
     fs.appendFileSync(logFile, `[${new Date().toISOString()}] [${tag}] ${line}\n`)
   } catch {
     // Log file is best-effort; never break the app because of it.
