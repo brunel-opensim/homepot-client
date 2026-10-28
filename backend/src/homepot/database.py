@@ -1100,6 +1100,80 @@ class DatabaseService:
             await session.commit()
             return len(devices)
 
+    async def get_offline_escalation_candidates(
+        self,
+    ) -> List[Dict[str, Any]]:
+        """Return offline devices that need escalation alerts.
+
+        Returns a list of dicts with device_id, site_id, offline_minutes,
+        and the escalation tier (warning/high/critical) that applies.
+        Only returns devices that don't already have an active alert at
+        that tier.
+        """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        tiers = [
+            (5, "warning", "Device offline for 5+ minutes"),
+            (60, "high", "Device offline for 1+ hour"),
+            (1440, "critical", "Device offline for 24+ hours"),
+        ]
+        candidates: List[Dict[str, Any]] = []
+        async with self.get_session() as session:
+            # Find all offline devices with a last_heartbeat_at
+            result = await session.execute(
+                select(Device).where(
+                    Device.last_heartbeat_at.is_not(None),
+                )
+            )
+            devices = list(result.scalars().all())
+            for device in devices:
+                hb = device.last_heartbeat_at
+                if hb is None:
+                    continue
+                if hb.tzinfo is None:
+                    hb = hb.replace(tzinfo=datetime.timezone.utc)
+                offline_minutes = (now - hb).total_seconds() / 60.0
+                if offline_minutes < 5:
+                    continue
+                # Determine the highest applicable tier
+                applicable_tier = None
+                for minutes, severity, title in tiers:
+                    if offline_minutes >= minutes:
+                        applicable_tier = (minutes, severity, title)
+                if applicable_tier is None:
+                    continue
+                tier_minutes, tier_severity, tier_title = applicable_tier
+                # Check if an active alert already exists at this tier
+                from sqlalchemy import and_
+
+                existing = await session.execute(
+                    select(Alert).where(
+                        and_(
+                            Alert.device_id == device.device_id,
+                            Alert.category == "connectivity",
+                            Alert.severity == tier_severity,
+                            Alert.status == "active",
+                            Alert.title == tier_title,
+                        )
+                    )
+                )
+                if existing.scalars().first() is not None:
+                    continue
+                candidates.append(
+                    {
+                        "device_id": device.device_id,
+                        "site_id": device.site_id,
+                        "offline_minutes": round(offline_minutes, 1),
+                        "severity": tier_severity,
+                        "title": tier_title,
+                        "description": (
+                            f"Device has been offline for "
+                            f"{round(offline_minutes, 1)} minutes. "
+                            f"Last heartbeat: {hb.isoformat()}"
+                        ),
+                    }
+                )
+        return candidates
+
     async def delete_old_api_request_logs(
         self,
         retention_days: int = 30,

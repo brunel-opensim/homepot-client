@@ -49,6 +49,7 @@ _command_expiry_task: Optional[asyncio.Task[None]] = None
 _intent_expiry_task: Optional[asyncio.Task[None]] = None
 _stale_device_task: Optional[asyncio.Task[None]] = None
 _ai_execution_task: Optional[asyncio.Task[None]] = None
+_offline_escalation_task: Optional[asyncio.Task[None]] = None
 
 
 async def _run_command_expiry_loop() -> None:
@@ -95,11 +96,46 @@ async def _run_stale_device_detection_loop() -> None:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
+async def _run_offline_escalation_loop() -> None:
+    """Periodically create escalation alerts for devices offline too long.
+
+    Tiers:
+    - 5+ minutes offline  → warning alert
+    - 1+ hour offline     → high alert
+    - 24+ hours offline   → critical alert
+
+    Deduplicates by checking for existing active alerts at the same tier.
+    """
+    POLL_INTERVAL_SECONDS = 300  # 5 minutes
+    while True:
+        try:
+            db = await get_database_service()
+            candidates = await db.get_offline_escalation_candidates()
+            for c in candidates:
+                await db.create_alert(
+                    device_id=c["device_id"],
+                    title=c["title"],
+                    severity=c["severity"],
+                    category="connectivity",
+                    description=c["description"],
+                    site_id=c.get("site_id"),
+                )
+                logger.info(
+                    "Created %s offline escalation alert for device %s (%.1f min offline)",
+                    c["severity"],
+                    c["device_id"],
+                    c["offline_minutes"],
+                )
+        except Exception as e:
+            logger.error(f"Offline escalation error: {e}", exc_info=True)
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan events."""
     global client_instance, _command_expiry_task, _intent_expiry_task, _stale_device_task
-    global _ai_execution_task
+    global _ai_execution_task, _offline_escalation_task
 
     # Startup
     logger.info("Starting HOMEPOT Client application...")
@@ -123,6 +159,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start background stale-device detection task
     _stale_device_task = asyncio.create_task(_run_stale_device_detection_loop())
     logger.info("Stale device detection background task started")
+
+    # Start background offline escalation task
+    _offline_escalation_task = asyncio.create_task(_run_offline_escalation_loop())
+    logger.info("Offline escalation background task started")
 
     # Start background AI action-execution reconcile task (Phase 3)
     _ai_execution_task = asyncio.create_task(run_ai_execution_reconcile_loop())
@@ -243,6 +283,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             pass
         _stale_device_task = None
         logger.info("Stale device detection background task stopped")
+
+    # Cancel background offline escalation task
+    if _offline_escalation_task is not None:
+        _offline_escalation_task.cancel()
+        try:
+            await _offline_escalation_task
+        except asyncio.CancelledError:
+            pass
+        _offline_escalation_task = None
+        logger.info("Offline escalation background task stopped")
 
     # Cancel background AI execution reconcile task
     if _ai_execution_task is not None:
