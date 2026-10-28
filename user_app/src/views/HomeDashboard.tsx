@@ -199,23 +199,45 @@ export default function HomeDashboard() {
       }, delay)
     }
 
+    // Poll metrics aggressively right after mount too, so CPU/Memory/Disk/
+    // Network/Uptime appear within ~2s instead of up to 15s. Back off to 15s
+    // after 30s.
+    const metricsIntervalRef = { current: null as ReturnType<typeof setInterval> | null }
+    const scheduleMetrics = (delay: number) => {
+      if (metricsIntervalRef.current) clearInterval(metricsIntervalRef.current)
+      metricsIntervalRef.current = setInterval(fetchMetrics, delay)
+    }
+
     fetchStatus()
     fetchMetrics()
     fetchHistory()
     fetchPermissionsData()
     scheduleStatus(2000)
+    scheduleMetrics(2000)
     const statusSlowdown = setTimeout(() => {
       fastPollingRef.current = false
       scheduleStatus(30000)
     }, 30000)
-    const metricsInterval = setInterval(fetchMetrics, 15000)
-    const historyInterval = setInterval(fetchHistory, 30000)
+    const metricsSlowdown = setTimeout(() => {
+      scheduleMetrics(15000)
+    }, 30000)
+    const historyIntervalRef = { current: null as ReturnType<typeof setInterval> | null }
+    const scheduleHistory = (delay: number) => {
+      if (historyIntervalRef.current) clearInterval(historyIntervalRef.current)
+      historyIntervalRef.current = setInterval(fetchHistory, delay)
+    }
+    scheduleHistory(5000)
+    const historySlowdown = setTimeout(() => {
+      scheduleHistory(30000)
+    }, 30000)
     const permissionsInterval = setInterval(fetchPermissionsData, 30000)
     return () => {
       if (statusIntervalRef.current) clearInterval(statusIntervalRef.current)
+      if (metricsIntervalRef.current) clearInterval(metricsIntervalRef.current)
+      if (historyIntervalRef.current) clearInterval(historyIntervalRef.current)
       clearTimeout(statusSlowdown)
-      clearInterval(metricsInterval)
-      clearInterval(historyInterval)
+      clearTimeout(metricsSlowdown)
+      clearTimeout(historySlowdown)
       clearInterval(permissionsInterval)
     }
   }, [deviceId])
