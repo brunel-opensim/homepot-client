@@ -148,13 +148,25 @@ class TestGracefulShutdown:
             sd_notify.assert_called_once_with("WATCHDOG=1")
 
     @pytest.mark.asyncio
-    async def test_watchdog_loop_noop_without_systemd(self):
-        """_watchdog_loop returns immediately when no sd_notify is available."""
+    async def test_watchdog_loop_runs_without_systemd(self):
+        """_watchdog_loop keeps monitoring and shuts down without systemd."""
         from homepot.agent.real_device_agent import _watchdog_loop
 
         event = asyncio.Event()
-        await _watchdog_loop(event, interval=1, _sd_notify=None)
-        # If we get here without hanging, the noop path works
+
+        async def _fake_wait(*_a, **_kw):
+            event.set()
+
+        with (
+            patch.dict("sys.modules", {"systemd": None, "systemd.daemon": None}),
+            patch(
+                "homepot.agent.real_device_agent._wait_with_shutdown",
+                _fake_wait,
+            ),
+        ):
+            await _watchdog_loop(event, interval=1, _sd_notify=None)
+
+        assert event.is_set()
 
     @pytest.mark.asyncio
     async def test_shutdown_event_stops_watchdog_loop(self):
