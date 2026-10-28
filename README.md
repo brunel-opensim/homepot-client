@@ -364,6 +364,10 @@ For support and questions:
 2. **Security**: Follow our [Security Recommendations](CONTRIBUTING.md) for security-related matters
 3. **Consortium Channels**: Use official consortium communication channels for general inquiries
 
+## Publications
+
+- Ghorbani, M. et al. (2026). Trustworthy Data Foundations for AI-Driven Analytics in Distributed IoT: A Validation-First Methodology. In: Paszynski, M., Barnard, A.S., Zhang, Y.J. (eds) Computational Science – ICCS 2026 Workshops. ICCS 2026. Lecture Notes in Computer Science, vol 16788. Springer, Cham. https://doi.org/10.1007/978-3-032-29915-4_42
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
