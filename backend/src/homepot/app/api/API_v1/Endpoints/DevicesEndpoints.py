@@ -543,6 +543,9 @@ async def get_device(
                 "task_health": (
                     device.config.get("task_health") if device.config else None
                 ),
+                "last_offline_reason": (
+                    device.config.get("last_offline_reason") if device.config else None
+                ),
                 "credential_status": (
                     "active"
                     if any(c.is_active for c in (device.credentials or []))

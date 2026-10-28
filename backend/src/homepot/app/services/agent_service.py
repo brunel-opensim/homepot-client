@@ -201,6 +201,20 @@ class AgentService:
             # Server-authoritative receive time for connectivity; matches the
             # emulator path (agents.py), which already uses server `now`.
             received_at = _utc_now()
+
+            # Detect if device was previously offline (for reason classification)
+            was_offline = False
+            prev_heartbeat = device.last_heartbeat_at
+            prev_uptime = device.agent_uptime_seconds
+            prev_restart_count = device.agent_restart_count
+            if prev_heartbeat is not None:
+                hb = prev_heartbeat
+                if hb.tzinfo is None:
+                    hb = hb.replace(tzinfo=timezone.utc)
+                offline_seconds = (received_at - hb).total_seconds()
+                if offline_seconds > 120:  # 2 minutes = likely offline
+                    was_offline = True
+
             updated = self.repository.update_last_heartbeat(
                 device, received_at, online=payload.online
             )
@@ -209,12 +223,53 @@ class AgentService:
                 cast(Any, updated).agent_uptime_seconds = payload.agent_uptime_seconds
             if payload.agent_restart_count is not None:
                 cast(Any, updated).agent_restart_count = payload.agent_restart_count
+
+            # Classify offline reason when device comes back after being offline
+            offline_reason = None
+            if was_offline and payload.online:
+                new_uptime = payload.agent_uptime_seconds
+                new_restart = payload.agent_restart_count
+                uptime_reset = (
+                    new_uptime is not None
+                    and prev_uptime is not None
+                    and new_uptime < prev_uptime
+                )
+                restart_increased = (
+                    new_restart is not None
+                    and prev_restart_count is not None
+                    and new_restart > prev_restart_count
+                )
+                offline_duration = (
+                    (
+                        received_at - prev_heartbeat.replace(tzinfo=timezone.utc)
+                    ).total_seconds()
+                    if prev_heartbeat is not None
+                    else 0
+                )
+                if uptime_reset or restart_increased:
+                    if offline_duration < 300:
+                        offline_reason = "agent_crash"
+                    else:
+                        offline_reason = "power_loss"
+                else:
+                    offline_reason = "network_partition"
+
             if payload.task_health is not None:
                 if cast(Any, updated).config is None:
                     cast(Any, updated).config = {}
                 cast(Any, updated).config = {
                     **(cast(Any, updated).config or {}),
                     "task_health": payload.task_health,
+                }
+            if offline_reason is not None:
+                if cast(Any, updated).config is None:
+                    cast(Any, updated).config = {}
+                cast(Any, updated).config = {
+                    **(cast(Any, updated).config or {}),
+                    "last_offline_reason": offline_reason,
+                    "last_offline_at": (
+                        prev_heartbeat.isoformat() if prev_heartbeat else None
+                    ),
                 }
             self.repository.db.add(updated)
             self.repository.db.commit()
@@ -228,6 +283,7 @@ class AgentService:
                 ),
                 "agent_uptime_seconds": updated.agent_uptime_seconds,
                 "agent_restart_count": updated.agent_restart_count,
+                "offline_reason": offline_reason,
             }
         except LookupError:
             raise

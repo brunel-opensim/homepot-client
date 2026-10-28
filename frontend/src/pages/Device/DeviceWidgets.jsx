@@ -630,6 +630,14 @@ export const DeviceInfoWidget = ({ device }) => (
           </span>
         </div>
       )}
+      {device?.last_offline_reason && (
+        <div className="flex justify-between">
+          <span className="text-slate-400">Last Offline Reason</span>
+          <span className="text-slate-200 text-xs mt-0.5">
+            {device.last_offline_reason.replace(/_/g, ' ')}
+          </span>
+        </div>
+      )}
     </div>
   </Card>
 );
