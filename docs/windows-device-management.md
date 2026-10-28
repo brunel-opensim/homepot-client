@@ -330,3 +330,36 @@ Windows device management in HOMEPOT uses a hybrid push+polling architecture:
 - **No third-party push SDK** — Uses Microsoft's WNS for push delivery
 
 This architecture combines low latency (WNS push) with reliability (polling fallback) and secure, scoped elevation for privileged operations.
+
+---
+
+## File Locations on Windows Devices
+
+The HOMEPOT Agent on Windows uses three well-defined directories. This table
+is for transparency so technicians know where to find logs, data, and
+configuration.
+
+| Directory | Contents | Purpose |
+|-----------|----------|---------|
+| `%LOCALAPPDATA%\Programs\homepot-agent\` | Electron app binaries, bundled Python agent (`resources\bin\homepot-agent\`), app resources | Standard Windows application installation directory. Binaries live here and cannot be relocated. |
+| `%PROGRAMDATA%\Homepot\` | Agent runtime data (retry queue, submissions, allowlist, elevation helper scripts/results), **centralized logs** (`logs\agent.log`, `logs\agent-*.log`, `logs\emulator-*.log`) | System-wide data accessible by both the user context and SYSTEM (elevation). Shared data and all log files are centralized here. |
+| `%USERPROFILE%\.homepot\` | Agent identity, credentials, config | User-specific secrets (API keys, device ID, tokens). Isolated in the user profile for security. |
+
+### Log files
+
+All logs are centralized under `%PROGRAMDATA%\Homepot\logs\`:
+
+| File | Source | Description |
+|------|--------|-------------|
+| `logs\agent.log` | Python agent (rotating) | Main agent log (10 MiB per file, 5 backups) |
+| `logs\agent-<device-slug>.log` | Electron app | Per-device stdout/stderr captured by the Electron wrapper |
+| `logs\emulator-<instance>.log` | Electron app | Emulator stdout/stderr (dev/testing only) |
+| `app-events.json` | Electron app | Structured app event log (in `%APPDATA%\homepot-agent\`, standard Electron userData) |
+
+### Notes
+
+- The app installation directory (`%LOCALAPPDATA%\Programs\homepot-agent\`) is **not** used for data or logs — only for program binaries.
+- The Python agent's rotating log file defaults to `%PROGRAMDATA%\Homepot\logs\agent.log` on Windows (configurable via `log_file` in `agent-config.json`).
+- The Electron app redirects device logs (agent/emulator stdout) to `%PROGRAMDATA%\Homepot\logs\` instead of the install directory.
+- Elevation helper results and scripts live in `%PROGRAMDATA%\Homepot\` because the scheduled task runs as SYSTEM and needs a shared location.
+- Credentials and identity stay in `%USERPROFILE%\.homepot\` for per-user security isolation.

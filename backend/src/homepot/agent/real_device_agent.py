@@ -133,6 +133,20 @@ def load_agent_config() -> Dict[str, Any]:
         None,  # Inert until a data-source agreement and source validation exist
     )
     data.setdefault("submission_log_path", None)
+
+    # On Windows, default the rotating log file and submission log to the
+    # centralized ProgramData\\Homepot directory so logs are not scattered
+    # across the app installation directory.
+    if sys.platform == "win32":
+        _program_data = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        _log_dir = Path(_program_data) / "Homepot" / "logs"
+        if not data.get("log_file"):
+            data["log_file"] = str(_log_dir / "agent.log")
+        if not data.get("submission_log_path"):
+            data["submission_log_path"] = str(
+                Path(_program_data) / "Homepot" / "submissions.jsonl"
+            )
+
     return data
 
 

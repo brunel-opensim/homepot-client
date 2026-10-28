@@ -1421,9 +1421,25 @@ function killEmulator(): void {
  * Resolve a per-device log file under the repo's `logs/` dir, mirroring the
  * standalone launcher convention (`logs/emulator-<instance>.log`).
  */
+/**
+ * Resolve the centralized logs directory.
+ *
+ * On Windows, logs go to %PROGRAMDATA%\Homepot\logs so they live alongside
+ * the agent's runtime data (retry queue, submissions, elevation helper) instead
+ * of being scattered under the app installation directory.  On other platforms
+ * the repo's logs/ directory is used (dev-mode convenience).
+ */
+function getLogsDir(): string {
+  if (process.platform === 'win32') {
+    const programData = process.env.PROGRAMDATA || 'C:\\ProgramData'
+    return path.join(programData, 'Homepot', 'logs')
+  }
+  return path.join(getProjectRoot(), 'logs')
+}
+
 function deviceLogFile(slug: string, kind: 'emulator' | 'agent'): string {
   const safeSlug = slug.replace(/[\\/]/g, '_')
-  const logsDir = path.join(getProjectRoot(), 'logs')
+  const logsDir = getLogsDir()
   fs.mkdirSync(logsDir, { recursive: true })
   const logFile = path.join(logsDir, `${kind}-${safeSlug}.log`)
   try {
@@ -1446,7 +1462,7 @@ function deviceLogFile(slug: string, kind: 'emulator' | 'agent'): string {
  * written by deviceLogFile. Best-effort; returns the number removed.
  */
 function removeDeviceLogs(kind: 'agent' | 'emulator'): number {
-  const logsDir = path.join(getProjectRoot(), 'logs')
+  const logsDir = getLogsDir()
   if (!fs.existsSync(logsDir)) return 0
   let removed = 0
   for (const entry of fs.readdirSync(logsDir)) {
