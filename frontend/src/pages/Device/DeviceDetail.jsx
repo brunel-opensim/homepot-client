@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import {
   AlertsWidget,
   AuditWidget,
@@ -205,6 +206,7 @@ export default function Device() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
 
   const [device, setDevice] = useState(null);
   const [alerts, setAlerts] = useState([]);
@@ -460,7 +462,7 @@ export default function Device() {
       // Queue the command. Actions are tracked as device commands (Commands
       // tab) — not as orchestrated Jobs; creating a Job here would also fire a
       // spurious configuration-update push through the POS config pipeline.
-      await api.devices.triggerAction(id, actionKey);
+      await api.devices.triggerAction(id, actionKey, {}, user?.email);
 
       // Handle specific actions
       if (actionKey === 'status_request') {
@@ -589,7 +591,7 @@ export default function Device() {
     if (local === 'status') {
       // Route through the status_request command so the device reports live health
       try {
-        await api.devices.triggerAction(id, 'status_request', {});
+        await api.devices.triggerAction(id, 'status_request', {}, user?.email);
         setTerminalOutput((prev) => [
           ...prev,
           {
@@ -617,10 +619,15 @@ export default function Device() {
     }
     try {
       const commandType = elevated ? 'run_command' : 'run_command_unprivileged';
-      const cmdResp = await api.devices.triggerAction(id, commandType, {
-        title: 'Remote Shell',
-        data: { command: cmd, timeout_seconds: 300 },
-      });
+      const cmdResp = await api.devices.triggerAction(
+        id,
+        commandType,
+        {
+          title: 'Remote Shell',
+          data: { command: cmd, timeout_seconds: 300 },
+        },
+        user?.email
+      );
       const commandId = cmdResp.command_id;
       setTerminalOutput((prev) => [
         ...prev,

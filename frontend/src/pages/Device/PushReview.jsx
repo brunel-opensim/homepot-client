@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 // Predefined templates for common commands
 const COMMAND_TEMPLATES = {
@@ -329,6 +330,7 @@ function LifecycleTracker({ commandId, commandType, command, onViewHistory }) {
 export default function PushReview() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const location = useLocation();
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -492,7 +494,7 @@ export default function PushReview() {
 
     try {
       const action = template.action;
-      const response = await api.devices.triggerAction(id, action, finalPayload);
+      const response = await api.devices.triggerAction(id, action, finalPayload, user?.email);
       const commandId = response.command_id;
       setTrackingCommandId(commandId);
       setTrackingCommandType(action);
