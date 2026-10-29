@@ -175,6 +175,61 @@ device management across platforms. Use this template when testing real devices
 
 ---
 
+## How to submit test results
+
+Test engineers should submit completed test results via pull request for review.
+
+### Step 1: Copy the template
+
+```bash
+cp docs/device-testing-template.md docs/test-results/<platform>-<device-slug>-<date>.md
+```
+
+Naming convention: `<platform>-<device-slug>-<date>.md`
+- Platform: `windows10`, `windows11`, `macos`, `linux`, `android`
+- Device slug: lowercase device name (e.g., `brunel`, `getfudo`, `dealdio`)
+- Date: `YYYY-MM-DD`
+
+Examples:
+- `docs/test-results/windows11-brunel-2026-10-29.md`
+- `docs/test-results/windows10-getfudo-2026-10-29.md`
+- `docs/test-results/macos-brunel-2026-11-05.md`
+
+### Step 2: Fill in the template
+
+1. Fill in the **Test environment** table (Device ID, name, site, OS, agent version, etc.)
+2. For each test case, mark **Pass**, **Fail**, or **Blocked** in the Pass/Fail column
+3. Add notes for any failures or observations
+4. Fill in the **Test result summary** table at the end
+
+### Step 3: Submit via PR
+
+```bash
+git checkout -b test-results/<platform>-<device-slug>-<date>
+git add docs/test-results/<platform>-<device-slug>-<date>.md
+git commit -m "test: <Platform> <Device> device testing results"
+git push -u origin HEAD
+gh pr create --title "test: <Platform> <Device> device testing results" --body "..."
+```
+
+Or use the GitHub web UI:
+1. Navigate to the file in the repo
+2. Click "Edit" (pencil icon)
+3. Fill in the template
+4. Click "Commit changes" → "Create a new branch" → "Propose changes"
+5. Create the pull request
+
+### Step 4: Review process
+
+- Reviewers will comment on specific failed tests
+- Failed tests should include details: what was expected vs. what happened
+- Blocked tests should include the reason (e.g., "requires physical access")
+- PR is merged when testing is complete
+
+### PR template
+
+A PR template is available at `.github/PULL_REQUEST_TEMPLATE/test-result.md` for structured submissions.
+
 ## Test result summary
 
 | Section | Total | Pass | Fail | Blocked |
