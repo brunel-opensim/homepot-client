@@ -46,7 +46,9 @@ fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 command -v curl    >/dev/null || fail "curl is required"
 command -v python3 >/dev/null || fail "python3 is required"
 
-# Check the destination before downloading a gigabyte into it.
+# Ensure the destination exists (frontend rebuilds wipe it). Create it if
+# missing so the mirror does not fail after a clean frontend build.
+mkdir -p "$TARGET_DIR"
 [ -d "$TARGET_DIR" ] || fail "target directory does not exist: $TARGET_DIR"
 [ -w "$TARGET_DIR" ] || fail "target directory is not writable: $TARGET_DIR"
 
