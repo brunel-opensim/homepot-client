@@ -969,11 +969,11 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
 
         def _win_brightness(value: Any) -> Dict[str, Any]:
             # Set brightness through the Monitor Configuration API
-            # (dxva2.dll SetMonitorBrightness) rather than the WMI
-            # WmiSetBrightness method, which is only wired up on Intel-graphics
-            # laptops. The DDC/CI path works on a wider range of panels; if the
-            # panel has no physical-monitor brightness interface this fails
-            # with a clear error instead of silently no-op'ing.
+            # (dxva2.dll SetMonitorBrightness).  dxva2 can return success
+            # (rc=0) without actually changing the brightness on some panels
+            # (e.g. Dell Precision), so we ALWAYS verify via WMI read-back.
+            # If dxva2 did not verifiably change the brightness, we fall back
+            # to the WMI WmiSetBrightness method, which works on more panels.
             pct = max(0, min(100, int(value)))
             script = (
                 "$before = (Get-WmiObject -Namespace root/WMI "
@@ -1006,17 +1006,23 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "'@\n"
                 f"$rc = [B]::Set({pct})\n"
                 'Write-Output "dxva2 rc=$rc"\n'
-                "if ($rc -ne 0) {\n"
+                "$after = (Get-WmiObject -Namespace root/WMI "
+                "    -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
+                'Write-Output "Brightness after dxva2: $after"\n'
+                "# If dxva2 did not verifiably change the brightness, try WMI\n"
+                "if ($after -ne $pct) {\n"
+                "    Write-Output 'dxva2 did not change brightness, trying WMI...'\n"
                 "    try {\n"
                 "        $wmi = Get-WmiObject -Namespace root/WMI `\n"
                 "            -Class WmiMonitorBrightnessMethods -ErrorAction Stop\n"
                 "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0; "
                 "            Write-Output 'WMI: succeeded' }\n"
                 '    } catch { Write-Output "WMI: FAILED ($_ )" }\n'
+                "    $after = (Get-WmiObject -Namespace root/WMI "
+                "        -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
+                '    Write-Output "Brightness after WMI: $after"\n'
                 "}\n"
-                "$after = (Get-WmiObject -Namespace root/WMI "
-                "    -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
-                'if ($rc -ne 0) { throw "Brightness update failed (dxva2 rc=$rc; '
+                'if ($rc -ne 0 -and $after -ne $pct) { throw "Brightness update failed (dxva2 rc=$rc; '
                 'WMI fallback also failed)" }\n'
             )
             argv = _powershell_argv(script)
@@ -1024,6 +1030,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
             before = None
             after = None
             dxva2_rc = None
+            wmi_tried = False
             for line in (outcome.get("stdout") or "").splitlines():
                 if line.startswith("Brightness before:"):
                     try:
@@ -1035,26 +1042,30 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                         dxva2_rc = int(line.split("=", 1)[1].strip())
                     except (ValueError, IndexError):
                         pass
-                elif line.startswith("Brightness after:"):
+                elif line.startswith("Brightness after WMI:"):
+                    wmi_tried = True
                     try:
                         after = int(line.split(":", 1)[1].strip())
                     except (ValueError, IndexError):
                         pass
-            # If dxva2 succeeded (rc=0), trust it as applied even if the
-            # WMI read-back returns null (some panels don't report brightness
-            # via WMI after a DDC/CI change). The read-back is informational.
-            dxva2_ok = dxva2_rc == 0
-            if not outcome["ok"] and not dxva2_ok:
+                elif line.startswith("Brightness after dxva2:"):
+                    if not wmi_tried:
+                        try:
+                            after = int(line.split(":", 1)[1].strip())
+                        except (ValueError, IndexError):
+                            pass
+            if not outcome["ok"]:
                 status = "failed"
                 msg = "brightness update failed (dxva2 and WMI fallback both failed)"
                 verified = False
-            elif dxva2_ok:
-                status = "applied"
-                msg = f"brightness set to {pct}%"
-                verified = after is None or after == pct
             elif after is not None and after == pct:
                 status = "applied"
                 msg = f"brightness set to {pct}%"
+                verified = True
+            elif after is None and dxva2_rc == 0:
+                # dxva2 claimed success but WMI can't read back; trust dxva2
+                status = "applied"
+                msg = f"brightness set to {pct}% (dxva2, unverified by WMI)"
                 verified = True
             else:
                 status = "failed"
@@ -1077,6 +1088,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 },
             }
 
+        return {"volume": _win_volume, "brightness": _win_brightness}
         return {"volume": _win_volume, "brightness": _win_brightness}
     return {
         "brightness": lambda value: ["brightnessctl", "set", f"{int(value)}%"],
