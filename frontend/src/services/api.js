@@ -426,10 +426,11 @@ const api = {
     /**
      * Trigger generic device action
      */
-    triggerAction: async (deviceId, actionKey, actionData = {}) => {
+    triggerAction: async (deviceId, actionKey, actionData = {}, issuedBy = null) => {
       const payload = {
         command_type: actionKey,
         payload: actionData,
+        issued_by: issuedBy,
       };
       const response = await apiClient.post(`/devices/${deviceId}/commands`, payload);
       return response.data;

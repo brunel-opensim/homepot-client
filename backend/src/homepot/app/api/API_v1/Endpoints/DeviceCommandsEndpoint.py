@@ -37,6 +37,10 @@ class CreateCommandRequest(BaseModel):
 
     command_type: str
     payload: Optional[Dict[str, Any]] = None
+    # Optional: the frontend can pass the authenticated user's email so the
+    # command is attributed to the correct sender even if the session cookie
+    # is stale.  The backend verifies it matches the authenticated user.
+    issued_by: Optional[str] = None
 
 
 class CommandHistoryResponse(BaseModel):
@@ -147,6 +151,14 @@ async def queue_command(
             },
         )
 
+    # Determine who is sending the command. Prefer the explicitly-provided
+    # issued_by (from the frontend, which knows the logged-in user) but verify
+    # it matches the authenticated user to prevent spoofing. Fall back to the
+    # authenticated user's email if not provided or mismatched.
+    sender_email = current_user.get("email")
+    if command_request.issued_by and command_request.issued_by == sender_email:
+        sender_email = command_request.issued_by
+
     command = await db.create_device_command(
         device_id=device.id,  # type: ignore
         command_type=command_type,
@@ -154,7 +166,7 @@ async def queue_command(
         # Recorded on the command itself, not only in the audit log, so the
         # dashboard can show who last worked on a device. See the RBAC
         # hardening plan, "Two technicians on one device".
-        issued_by=current_user.get("email"),
+        issued_by=sender_email,
     )
 
     # Best-effort silent wake-up so a push-capable device polls immediately.
