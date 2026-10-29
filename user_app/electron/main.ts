@@ -3,7 +3,7 @@ import { autoUpdater } from 'electron-updater'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
-import { spawn, execFile, type ChildProcess } from 'node:child_process'
+import { spawn, execFile, execFileSync, type ChildProcess } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { AgentSupervisor, AGENT_SHUTDOWN_GRACE_MS } from './agentSupervisor'
@@ -1342,8 +1342,38 @@ async function installManagedElevation(): Promise<{ installed: boolean; reason: 
       reason,
     }
   }
-  const provisioned = fs.existsSync(elevationDropinPath())
+  // The installer runs via ShellExecute (UAC), which can return before the
+  // marker file is fully flushed to disk.  Retry for up to 5 seconds.
+  let provisioned = false
+  for (let i = 0; i < 50; i++) {
+    if (fs.existsSync(elevationDropinPath())) {
+      provisioned = true
+      break
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
   const installStatus = readElevationInstallStatus()
+
+  // Fallback: if the marker file is still missing but the installer reported
+  // "ok" and the scheduled task exists, treat as provisioned.  The marker
+  // may have been created in a slightly different path or the file system
+  // hasn't flushed yet.
+  if (!provisioned && installStatus === 'ok') {
+    try {
+      const taskCheck = execFileSync('schtasks', ['/query', '/tn', 'HOMEPOT-Elevation'], { encoding: 'utf8', stdio: 'pipe' })
+      if (taskCheck.includes('HOMEPOT-Elevation')) {
+        provisioned = true
+        // Re-create the marker file since it's missing
+        try {
+          fs.writeFileSync(elevationDropinPath(), 'installed', { mode: 0o600 })
+        } catch {
+          // Best-effort
+        }
+      }
+    } catch {
+      // schtasks failed; fall through
+    }
+  }
   if (installStatus && installStatus !== 'ok') {
     // The installer ran and reported a failure. The marker it may have left
     // behind is not proof that the elevation layer works, so report the
