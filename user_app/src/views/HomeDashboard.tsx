@@ -161,7 +161,7 @@ export default function HomeDashboard() {
       if (!dId || !aKey) return
       try {
         const samples = await fetchDeviceMetricsHistory(dId, aKey, 60)
-        setHistory(samples)
+        setHistory(Array.isArray(samples) ? samples : [])
       } catch {
         // silently degrade
       }
@@ -379,28 +379,46 @@ export default function HomeDashboard() {
         </div>
 
         {/* History charts */}
-        {history.length > 0 && (
-          <div className="px-5 pt-5">
-            <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-widest">History</p>
-            <div className="flex justify-around items-end">
-              <MetricsHistoryChart
-                label="CPU"
-                color="#10b981"
-                values={history.map((s) => s.cpu_percent)}
-              />
-              <MetricsHistoryChart
-                label="Memory"
-                color="#f59e0b"
-                values={history.map((s) => s.memory_percent)}
-              />
-              <MetricsHistoryChart
-                label="Disk"
-                color="#3b82f6"
-                values={history.map((s) => s.disk_percent)}
-              />
+        {(() => {
+          // Merge current metrics into history so the graph's last point
+          // matches the live reading.  Without this the graph lags behind
+          // the reading by up to one poll cycle and can look "empty" on first
+          // load because history arrives after metrics.
+          const mergedHistory = Array.isArray(history) ? [...history] : []
+          if (metrics && mergedHistory.length > 0) {
+            const last = mergedHistory[mergedHistory.length - 1]
+            // Only append if the current metric is newer than the last history sample
+            if (!last.timestamp || !metrics.timestamp || new Date(metrics.timestamp) > new Date(last.timestamp)) {
+              mergedHistory.push(metrics)
+            } else {
+              // Replace the last entry with the fresher metric
+              mergedHistory[mergedHistory.length - 1] = metrics
+            }
+          }
+          if (mergedHistory.length === 0) return null
+          return (
+            <div className="px-5 pt-5">
+              <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-widest">History</p>
+              <div className="flex justify-around items-end">
+                <MetricsHistoryChart
+                  label="CPU"
+                  color="#10b981"
+                  values={mergedHistory.map((s) => s.cpu_percent)}
+                />
+                <MetricsHistoryChart
+                  label="Memory"
+                  color="#f59e0b"
+                  values={mergedHistory.map((s) => s.memory_percent)}
+                />
+                <MetricsHistoryChart
+                  label="Disk"
+                  color="#3b82f6"
+                  values={mergedHistory.map((s) => s.disk_percent)}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Heartbeat */}
         <div className="px-5 pt-4 pb-5">
