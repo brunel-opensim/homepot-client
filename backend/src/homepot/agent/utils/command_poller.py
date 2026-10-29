@@ -1031,6 +1031,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
             after = None
             dxva2_rc = None
             wmi_tried = False
+            wmi_succeeded = False
             for line in (outcome.get("stdout") or "").splitlines():
                 if line.startswith("Brightness before:"):
                     try:
@@ -1042,6 +1043,8 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                         dxva2_rc = int(line.split("=", 1)[1].strip())
                     except (ValueError, IndexError):
                         pass
+                elif "WMI: succeeded" in line:
+                    wmi_succeeded = True
                 elif line.startswith("Brightness after WMI:"):
                     wmi_tried = True
                     try:
@@ -1054,18 +1057,21 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                             after = int(line.split(":", 1)[1].strip())
                         except (ValueError, IndexError):
                             pass
-            if not outcome["ok"]:
-                status = "failed"
-                msg = "brightness update failed (dxva2 and WMI fallback both failed)"
-                verified = False
+            # Determine status based on what actually worked:
+            # 1. If WMI fallback was tried and succeeded → trust WMI
+            # 2. If dxva2 rc=0 and read-back confirms → trust dxva2
+            # 3. If WMI succeeded but read-back is unreliable → trust WMI
+            if wmi_tried and wmi_succeeded:
+                status = "applied"
+                msg = f"brightness set to {pct}% (via WMI)"
+                verified = after is None or after == pct
+            elif dxva2_rc == 0 and (after is None or after == pct):
+                status = "applied"
+                msg = f"brightness set to {pct}% (via dxva2)"
+                verified = True
             elif after is not None and after == pct:
                 status = "applied"
                 msg = f"brightness set to {pct}%"
-                verified = True
-            elif after is None and dxva2_rc == 0:
-                # dxva2 claimed success but WMI can't read back; trust dxva2
-                status = "applied"
-                msg = f"brightness set to {pct}% (dxva2, unverified by WMI)"
                 verified = True
             else:
                 status = "failed"
