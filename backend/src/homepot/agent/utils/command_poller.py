@@ -1012,6 +1012,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 'Write-Output "Brightness after dxva2: $after"\n'
                 "# If dxva2 did not verifiably change the brightness, try WMI\n"
                 "if ($after -ne $pct) {\n"
+                "    Start-Sleep -Seconds 2\n"
                 "    Write-Output 'dxva2 did not change brightness, trying WMI...'\n"
                 "    try {\n"
                 "        $wmi = Get-WmiObject -Namespace root/WMI `\n"
