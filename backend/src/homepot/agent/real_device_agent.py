@@ -557,6 +557,7 @@ async def pending_commands_loop(
                 except Exception as e:
                     logger.warning("OS elevation sync failed: %s", e)
 
+            _record_task_activity("command_poll")
             data = await get_json(client, url, headers)
             commands = parse_pending_commands(data)
             for command in commands:
@@ -686,7 +687,6 @@ async def pending_commands_loop(
                         await _report_status_to_live_logs(
                             client, config, result["result"]
                         )
-            _record_task_activity("command_poll")
         except DeviceSuspendedError as e:
             logger.info("Pending commands paused: device suspended (%s)", e)
         except DeviceRemovedError as e:
@@ -975,6 +975,7 @@ async def heartbeat_loop(
     interval = int(config["heartbeat_interval_seconds"])
     while True:
         try:
+            _record_task_activity("heartbeat")
             # Payload sent to POST /api/v1/agent/heartbeat
             # {
             #   "device_id": "android-pos-001",
@@ -1004,7 +1005,6 @@ async def heartbeat_loop(
                 submission_log=submission_log,
             )
             if ok:
-                _record_task_activity("heartbeat")
                 if ipc_server is not None:
                     update_local_agent_state(
                         ipc_server.config.app,  # type: ignore[arg-type]
@@ -1056,6 +1056,7 @@ async def telemetry_loop(
     backend_url = str(config["backend_url"])
     while True:
         try:
+            _record_task_activity("telemetry")
             # Payload sent to POST /api/v1/agent/telemetry
             # {
             #   "device_id": "android-pos-001",
@@ -1087,8 +1088,6 @@ async def telemetry_loop(
                 get_auth_headers(config),
                 submission_log=submission_log,
             )
-            if ok:
-                _record_task_activity("telemetry")
             if ok and ipc_server is not None:
                 update_local_agent_state(
                     ipc_server.config.app,  # type: ignore[arg-type]
