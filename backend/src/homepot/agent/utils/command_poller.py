@@ -1023,10 +1023,16 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
             outcome = _run_argv(argv)
             before = None
             after = None
+            dxva2_rc = None
             for line in (outcome.get("stdout") or "").splitlines():
                 if line.startswith("Brightness before:"):
                     try:
                         before = int(line.split(":", 1)[1].strip())
+                    except (ValueError, IndexError):
+                        pass
+                elif line.startswith("dxva2 rc="):
+                    try:
+                        dxva2_rc = int(line.split("=", 1)[1].strip())
                     except (ValueError, IndexError):
                         pass
                 elif line.startswith("Brightness after:"):
@@ -1034,19 +1040,29 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                         after = int(line.split(":", 1)[1].strip())
                     except (ValueError, IndexError):
                         pass
-            verified = after is not None and after == pct
-            if not outcome["ok"]:
+            # If dxva2 succeeded (rc=0), trust it as applied even if the
+            # WMI read-back returns null (some panels don't report brightness
+            # via WMI after a DDC/CI change). The read-back is informational.
+            dxva2_ok = dxva2_rc == 0
+            if not outcome["ok"] and not dxva2_ok:
                 status = "failed"
                 msg = "brightness update failed (dxva2 and WMI fallback both failed)"
-            elif not verified:
+                verified = False
+            elif dxva2_ok:
+                status = "applied"
+                msg = f"brightness set to {pct}%"
+                verified = after is None or after == pct
+            elif after is not None and after == pct:
+                status = "applied"
+                msg = f"brightness set to {pct}%"
+                verified = True
+            else:
                 status = "failed"
                 msg = (
                     f"brightness set API succeeded but read-back shows "
                     f"{after}% (target {pct}%)"
                 )
-            else:
-                status = "applied"
-                msg = f"brightness set to {pct}%"
+                verified = False
             return {
                 "status": status,
                 "message": msg,
