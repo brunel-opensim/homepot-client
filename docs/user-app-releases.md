@@ -201,3 +201,40 @@ visible at `/build-info.json`
 | `v0.3.2` | Latest. First release carrying blockmaps and `checksums.json`. |
 | `v0.3.1` | Has `checksums.json`, no blockmaps. Never mirrored. |
 | `v0.3.0` | Predates `checksums.json`; existed as two byte-sets. Superseded. |
+
+---
+
+## 10. Auto-update behavior (end-user experience)
+
+The packaged User App checks for updates automatically. This section documents
+the behavior so technicians know what to expect.
+
+### Check schedule
+- **First check**: 30 seconds after app launch (lets the app settle)
+- **Periodic check**: every 4 hours thereafter
+- **Manual check**: technician can trigger via Settings → "Check for Updates"
+
+### Update flow
+1. **Checking**: App queries GitHub releases for a newer version
+2. **Update available**: OS notification shown ("HOMEPOT Agent update available — Version X is ready to download"). Tray tooltip changes to "HOMEPOT Agent — Update v{version} available"
+3. **Download**: User clicks "Download" in Settings; progress shown as percentage
+4. **Downloaded**: OS notification shown ("HOMEPOT Agent update ready — Version X has been downloaded. Restart to finish installing.")
+5. **Install**: User clicks "Restart to Install" → app quits, installer runs, app relaunches
+
+### Update modes
+| Mode | Channel | Notes |
+|------|---------|-------|
+| Packaged app | GitHub releases (electron-updater) | Reads `latest.yml` / `latest-mac.yml` / `latest-linux.yml` |
+| Source checkout (dev) | Git (`git fetch` + `git rev-parse`) | Shows commits behind `origin/main` |
+| Neither | Disabled | Reports "Automatic updates are not enabled for this build" |
+
+### What the Dashboard technician sees
+- **Settings page**: "Last checked" timestamp + current version
+- **Tray icon tooltip**: Changes to show update availability
+- **OS notifications**: Native toast when update available and when downloaded
+
+### Important notes
+- Updates are **manual install** — the app downloads but does not install automatically. The user must click "Restart to Install".
+- The auto-updater only sees **published** releases (not drafts). Drafts are held back until a technician promotes them.
+- The agent binary inside the app is updated as part of the app update — no separate agent update needed.
+- On Windows, the NSIS installer runs silently and replaces the app in `%LOCALAPPDATA%\Programs\homepot-agent\`.
