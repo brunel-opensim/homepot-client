@@ -861,6 +861,13 @@ When new code is merged to `main`, follow this sequence on the server:
    cd frontend && npm run build && cd ..
    ```
 
+   > **Important:** `npm run build` empties the `dist/` directory, which deletes
+   > the `downloads/` folder. After every frontend rebuild, re-run the mirror:
+   > ```bash
+   > mkdir -p frontend/dist/downloads
+   > ~/bin/mirror-downloads.sh v0.3.24   # use the current release version
+   > ```
+
 6. **Restart the backend** (demouser has passwordless sudo for this):
    ```bash
    sudo /usr/bin/systemctl stop homepot-api
