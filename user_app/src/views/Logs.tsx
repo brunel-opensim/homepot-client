@@ -200,7 +200,7 @@ export default function Logs() {
     ])
     if (!deviceId || !apiKey) return
     try {
-      setCommandHistory(await fetchDeviceCommandHistory(deviceId, apiKey, 50))
+      setCommandHistory(await fetchDeviceCommandHistory(deviceId, apiKey, 10))
       setCommandHistoryGated(false)
     } catch (err) {
       // A 403 means Manage (root_access) has not been granted for this device.

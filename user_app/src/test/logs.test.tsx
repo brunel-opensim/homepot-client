@@ -146,7 +146,7 @@ describe('Logs', () => {
     renderWithProviders(<Logs />)
     expect(await screen.findByText('Command History')).toBeInTheDocument()
     expect(await screen.findByText('Restart')).toBeInTheDocument()
-    expect(fetchDeviceCommandHistory).toHaveBeenCalledWith('test-device', 'test-key', 50)
+    expect(fetchDeviceCommandHistory).toHaveBeenCalledWith('test-device', 'test-key', 10)
   })
 
   it('hints that command history requires the Manage permission when gated', async () => {
