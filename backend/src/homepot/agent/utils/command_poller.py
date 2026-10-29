@@ -1006,6 +1006,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "'@\n"
                 f"$rc = [B]::Set({pct})\n"
                 'Write-Output "dxva2 rc=$rc"\n'
+                "Start-Sleep -Milliseconds 500\n"
                 "$after = (Get-WmiObject -Namespace root/WMI "
                 "    -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
                 'Write-Output "Brightness after dxva2: $after"\n'
@@ -1018,6 +1019,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0; "
                 "            Write-Output 'WMI: succeeded' }\n"
                 '    } catch { Write-Output "WMI: FAILED ($_ )" }\n'
+                "    Start-Sleep -Milliseconds 500\n"
                 "    $after = (Get-WmiObject -Namespace root/WMI "
                 "        -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
                 '    Write-Output "Brightness after WMI: $after"\n'
