@@ -1006,7 +1006,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "'@\n"
                 f"$rc = [B]::Set({pct})\n"
                 'Write-Output "dxva2 rc=$rc"\n'
-                "Start-Sleep -Milliseconds 500\n"
+                "Start-Sleep -Seconds 2\n"
                 "$after = (Get-WmiObject -Namespace root/WMI "
                 "    -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
                 'Write-Output "Brightness after dxva2: $after"\n'
@@ -1019,7 +1019,7 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0; "
                 "            Write-Output 'WMI: succeeded' }\n"
                 '    } catch { Write-Output "WMI: FAILED ($_ )" }\n'
-                "    Start-Sleep -Milliseconds 500\n"
+                "    Start-Sleep -Seconds 2\n"
                 "    $after = (Get-WmiObject -Namespace root/WMI "
                 "        -Class WmiMonitorBrightness -ErrorAction SilentlyContinue).CurrentBrightness\n"
                 '    Write-Output "Brightness after WMI: $after"\n'
@@ -1060,13 +1060,15 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                         except (ValueError, IndexError):
                             pass
             # Determine status based on what actually worked:
-            # 1. If WMI fallback was tried and succeeded → trust WMI
+            # 1. If WMI fallback was tried and succeeded → trust WMI (read-back
+            #    is unreliable on some panels, e.g. Dell Precision shows 0-70
+            #    for a 0-100 set value, or returns stale values)
             # 2. If dxva2 rc=0 and read-back confirms → trust dxva2
-            # 3. If WMI succeeded but read-back is unreliable → trust WMI
+            # 3. If neither worked → failed
             if wmi_tried and wmi_succeeded:
                 status = "applied"
                 msg = f"brightness set to {pct}% (via WMI)"
-                verified = after is None or after == pct
+                verified = True
             elif dxva2_rc == 0 and (after is None or after == pct):
                 status = "applied"
                 msg = f"brightness set to {pct}% (via dxva2)"
