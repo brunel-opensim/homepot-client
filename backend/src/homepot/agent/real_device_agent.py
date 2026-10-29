@@ -1593,9 +1593,9 @@ async def run_agent(
             client,
             config,
             event_type="agent_started",
-            description=f"Agent started (version {config.get('agent_version', 'unknown')})",
+            description=f"Agent started (version {config.get('app_version', 'unknown')})",
             metadata={
-                "agent_version": config.get("agent_version"),
+                "agent_version": config.get("app_version"),
                 "os_details": config.get("os_details"),
             },
         )
