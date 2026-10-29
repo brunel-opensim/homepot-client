@@ -530,9 +530,59 @@ export default function DeviceHistory() {
                           {selectedCommand.result.message}
                         </pre>
                       )}
+                      {selectedCommand.result.results && (
+                        <div className="mt-2 space-y-2">
+                          {Object.entries(selectedCommand.result.results).map(([key, val]) => (
+                            <div key={key} className="border border-[#1f2735] rounded p-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-slate-300 uppercase">
+                                  {key}
+                                </span>
+                                <span
+                                  className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${
+                                    val?.status === 'applied'
+                                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                      : val?.status === 'failed'
+                                        ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                                        : 'bg-slate-500/20 text-slate-400 border-slate-500/30'
+                                  }`}
+                                >
+                                  {val?.status || 'unknown'}
+                                </span>
+                              </div>
+                              {val?.message && (
+                                <div className="text-xs text-slate-400">{val.message}</div>
+                              )}
+                              {val?.verification && (
+                                <div className="text-[10px] text-slate-500 font-mono mt-1">
+                                  before: {val.verification.before ?? 'N/A'} → after:{' '}
+                                  {val.verification.after ?? 'N/A'} (target:{' '}
+                                  {val.verification.target})
+                                  {val.verification.verified ? ' ✓' : ' ✗'}
+                                </div>
+                              )}
+                              {val?.stdout && (
+                                <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words mt-1">
+                                  {String(val.stdout)
+                                    .replace(/\\r\\n/g, '\\n')
+                                    .replace(/\\r/g, '\\n')}
+                                </pre>
+                              )}
+                              {val?.stderr && (
+                                <pre className="text-xs font-mono text-red-400 whitespace-pre-wrap break-words mt-1">
+                                  {String(val.stderr)
+                                    .replace(/\\r\\n/g, '\\n')
+                                    .replace(/\\r/g, '\\n')}
+                                </pre>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {!selectedCommand.result.stdout &&
                         !selectedCommand.result.stderr &&
-                        !selectedCommand.result.message && (
+                        !selectedCommand.result.message &&
+                        !selectedCommand.result.results && (
                           <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                             {JSON.stringify(selectedCommand.result, null, 2)}
                           </pre>

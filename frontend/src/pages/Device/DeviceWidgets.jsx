@@ -419,13 +419,30 @@ export const AuditWidget = ({ audit }) => {
   );
 };
 
-export const LogsWidget = ({ logs }) => (
+export const LogsWidget = ({ logs, taskHealth }) => (
   <Card>
     <div className="flex items-center justify-between mb-3">
       <h3 className="text-sm text-slate-300 font-medium">LIVE LOGS</h3>
       <span className="text-[10px] text-slate-500 font-mono">LATEST {logs.length} EVENTS</span>
     </div>
     <div className="border-t border-[#1f2735] mb-2"></div>
+    {taskHealth && (
+      <div className="flex items-center gap-2 mb-2 text-xs">
+        <span className="text-slate-400">Task Health:</span>
+        {Object.entries(taskHealth).map(([k, v]) => (
+          <span
+            key={k}
+            className={`px-1.5 py-0.5 rounded border ${
+              v
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                : 'bg-red-500/20 text-red-400 border-red-500/30'
+            }`}
+          >
+            {k}: {v ? 'OK' : 'STALE'}
+          </span>
+        ))}
+      </div>
+    )}
     <div className="space-y-3 text-sm max-h-[300px] overflow-y-auto custom-scrollbar">
       {logs.map((l, i) => {
         const isError = l.severity === 'error' || l.severity === 'critical';
@@ -591,12 +608,6 @@ export const DeviceInfoWidget = ({ device }) => (
         <span className="text-teal-400">{device?.site_name || device?.site_id || 'N/A'}</span>
       </div>
       <div className="flex justify-between">
-        <span className="text-slate-400">Last Seen</span>
-        <span className="text-slate-200 text-xs mt-0.5">
-          {device?.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
-        </span>
-      </div>
-      <div className="flex justify-between">
         <span className="text-slate-400">Heartbeat</span>
         <span className="text-slate-200 text-xs mt-0.5">
           {device?.last_heartbeat_at ? new Date(device.last_heartbeat_at).toLocaleString() : 'N/A'}
@@ -620,16 +631,6 @@ export const DeviceInfoWidget = ({ device }) => (
           {device?.agent_restart_count != null ? device.agent_restart_count : 'N/A'}
         </span>
       </div>
-      {device?.task_health && (
-        <div className="flex justify-between">
-          <span className="text-slate-400">Task Health</span>
-          <span className="text-slate-200 text-xs mt-0.5">
-            {Object.entries(device.task_health)
-              .map(([k, v]) => `${k}: ${v ? 'OK' : 'STALE'}`)
-              .join(', ')}
-          </span>
-        </div>
-      )}
       {device?.last_offline_reason && (
         <div className="flex justify-between">
           <span className="text-slate-400">Last Offline Reason</span>

@@ -1012,7 +1012,9 @@ export default function Device() {
                 </div>
 
                 <div className="p-4 flex-1 overflow-auto">
-                  {activeTab === 'logs' && <LogsWidget logs={errorLogs} />}
+                  {activeTab === 'logs' && (
+                    <LogsWidget logs={errorLogs} taskHealth={device?.task_health} />
+                  )}
                   {activeTab === 'audit' && <AuditWidget audit={auditLogs} />}
                   {activeTab === 'jobs' && <JobHistoryWidget jobs={jobHistory} />}
                   {activeTab === 'alerts' && <AlertsWidget alerts={alerts} />}
