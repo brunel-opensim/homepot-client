@@ -820,6 +820,63 @@ the real run (it types the database name to confirm):
 ./scripts/upgrade-db.sh
 ```
 
+> **Important:** Always run migrations *before* restarting the backend after a
+> sync. The app bootstraps its base schema via SQLAlchemy `create_all()` at
+> startup, but additive migrations (new columns, tables) must be applied
+> explicitly. Skipping this step causes `ProgrammingError: column X does not
+> exist` and makes all device/site queries fail.
+
+### Deploy sync process (after merging PRs)
+
+When new code is merged to `main`, follow this sequence on the server:
+
+1. **Stash server-only config drift** (e.g. `ai/config.yaml` with
+   `keep_alive: "24h"`):
+   ```bash
+   cd /var/www/homepot.cabera.com
+   git stash
+   ```
+
+2. **Pull latest code**:
+   ```bash
+   git pull origin main
+   ```
+
+3. **Restore server-only config**:
+   ```bash
+   git stash pop
+   ```
+
+4. **Run database migrations** (required when new columns/tables are added):
+   ```bash
+   bash scripts/upgrade-db.sh
+   ```
+   This script resolves the database URL from `backend/.env` (including
+   remote/split-host setups) and applies any pending Alembic migrations.
+   It handles fresh `create_all`-bootstrapped databases and already-migrated
+   databases gracefully.
+
+5. **Rebuild the frontend** (when frontend files changed):
+   ```bash
+   cd frontend && npm run build && cd ..
+   ```
+
+6. **Restart the backend** (demouser has passwordless sudo for this):
+   ```bash
+   sudo /usr/bin/systemctl stop homepot-api
+   sudo /usr/bin/systemctl start homepot-api
+   ```
+
+7. **Verify**:
+   ```bash
+   curl -s http://localhost:8000/health
+   # Should return {"status":"ok"}
+   ```
+
+> **Note:** `sudo systemctl restart homepot-api` is NOT in the passwordless
+> sudoers list. Use `stop` + `start` instead. The `restart` command requires
+> a password.
+
 ### Query Database
 
 ```bash
@@ -998,6 +1055,30 @@ journalctl -u ollama -n 50 --no-pager
 
 # Pull/re-check the model
 ./scripts/setup-ollama.sh
+```
+
+### API Returns 500 Errors with "column X does not exist"
+
+This happens when the code references new database columns that haven't been
+migrated yet (e.g. after syncing new code that adds model fields).
+
+```bash
+# Run pending migrations
+cd /var/www/homepot.cabera.com
+bash scripts/upgrade-db.sh
+
+# Restart the backend
+sudo /usr/bin/systemctl stop homepot-api
+sudo /usr/bin/systemctl start homepot-api
+```
+
+Verify the migration applied:
+```bash
+cd /var/www/homepot.cabera.com/backend
+source .env
+export PYTHONPATH=/var/www/homepot.cabera.com/backend/src
+alembic current
+# Should show the latest revision (head)
 ```
 
 ### API Returns 500 Errors
