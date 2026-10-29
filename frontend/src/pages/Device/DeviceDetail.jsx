@@ -301,6 +301,14 @@ export default function Device() {
 
     // Poll for live metrics every 2 seconds matching the agent loop
     const pollInterval = setInterval(() => {
+      // 0. Re-fetch device record (agent version may change after an update)
+      api.devices
+        .getDeviceById(id)
+        .then((freshDevice) => {
+          if (freshDevice) setDevice(freshDevice);
+        })
+        .catch((err) => console.debug('Device poll skipped', err));
+
       // 1. Fetch Metrics
       api.devices
         .getMetrics(id, 20)
