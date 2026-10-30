@@ -52,7 +52,7 @@ memory:
   collection_name: "device_logs"
   embedding_model: "all-MiniLM-L6-v2"   # informational; ChromaDB's default embedder
   distance_metric: "cosine"             # "cosine" (0..2) or "l2"
-  n_results: 5                          # max memories recalled per query
+  n_results: 3                          # max memories recalled per query (reduced for latency)
   # Relevance cutoff on the vector distance (lower = more similar). Memories
   # farther than this are not injected. Set to null to disable the cutoff and
   # always return the top `n_results`.
@@ -85,7 +85,7 @@ docs:
   # query; 4 x 800 injects ~1,730 (~430 tokens) and measured ~17-22s less prompt
   # eval live. Fewer chunks does make "list everything" answers less exhaustive
   # - see docs/ai-doc-retrieval.md ("Cost").
-  n_results: 4                          # max doc chunks injected per query
+  n_results: 3                          # max doc chunks injected per query (reduced for latency)
   # Cosine distance for a relevant MiniLM match is typically <0.9; unrelated
   # chunks sit near 1.0. Raise toward 1.0 to widen recall, lower to tighten.
   max_distance: 0.9
@@ -93,9 +93,9 @@ docs:
   # characters of overlap. Smaller chunks cost fewer tokens each and embed more
   # precisely, and together with `n_results` they bound the block above.
   # Changing any indexing setting rebuilds the index (see _index_version).
-  chunk_size: 800                       # characters per chunk (~200 tokens)
+  chunk_size: 600                       # characters per chunk (~150 tokens, reduced for latency)
   chunk_overlap: 150                    # overlap between split windows
-  max_chunks_per_doc: 60                # bound one doc's contribution
+  max_chunks_per_doc: 40                # bound one doc's contribution (reduced for latency)
   max_file_bytes: 2000000               # skip unreasonably large files
 
 # Read-only repository access for the AI (Tier B grounding; ai/repo_tools.py).

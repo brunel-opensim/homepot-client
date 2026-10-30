@@ -1152,7 +1152,9 @@ async def _query_ai_impl(
         async with db_service.get_session() as session:
             # Get Sites with active Devices only (archived/unpaired/retired
             # devices must not be visible to the AI).
-            result = await session.execute(select(Site).where(Site.is_active.is_(True)))
+            result = await session.execute(
+                select(Site).where(Site.is_active.is_(True)).limit(10)
+            )
             sites = result.scalars().all()
             site_ids = [s.id for s in sites]
             devices_by_site: dict = {}
@@ -1188,7 +1190,7 @@ async def _query_ai_impl(
             )
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
-                site_devices = devices_by_site.get(site.id, [])
+                site_devices = devices_by_site.get(site.id, [])[:10]
                 if site_devices:
                     site_context += "  Devices:\n"
                     for d in site_devices:
@@ -1218,7 +1220,7 @@ async def _query_ai_impl(
                     Alert.status == "active",
                     Alert.device_id.in_(active_device_ids),
                 )
-                .limit(20)
+                .limit(10)
             )
             active_alerts = alerts_result.scalars().all()
 
