@@ -875,7 +875,7 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
         # + GetMasterVolumeLevel (index 8) + GetMasterVolumeLevelScalar (index 9)
         vol_vtable = ctypes.cast(vol_ptr, ctypes.POINTER(ctypes.c_void_p))[0]
         vol_vtable = ctypes.cast(
-            vol_vtable, ctypes.POINTER(ctypes.c_void_p * 12)
+            vol_vtable, ctypes.POINTER(ctypes.c_void_p * 16)
         ).contents
         _FUNCTYPE = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)  # type: ignore[attr-defined]
         GMLVS = _FUNCTYPE(
@@ -887,6 +887,17 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
         before_float = ctypes.c_float()
         hr_before = get_vol(vol_ptr, ctypes.byref(before_float))
         before_pct = round(before_float.value * 100) if hr_before == 0 else None
+
+        # Check if the device is currently muted (SetMute is at vtable index 14)
+        GMUTE = _FUNCTYPE(
+            ctypes.c_long,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_int),
+        )
+        get_mute = GMUTE(vol_vtable[15])  # type: ignore[arg-type]
+        mute_before = ctypes.c_int()
+        hr_mute_before = get_mute(vol_ptr, ctypes.byref(mute_before))
+        was_muted = bool(mute_before.value) if hr_mute_before == 0 else False
 
         SMVLS = _FUNCTYPE(
             ctypes.c_long,
@@ -903,17 +914,43 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
                 "message": f"SetMasterVolumeLevelScalar failed (hr={hr})",
             }
 
+        # Unmute if the device was muted, so the volume change is audible.
+        # SetMute is at vtable index 14.
+        SMUTE = _FUNCTYPE(
+            ctypes.c_long,
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.POINTER(_GUID),
+        )
+        set_mute = SMUTE(vol_vtable[14])  # type: ignore[arg-type]
+        if was_muted:
+            hr_unmute = set_mute(vol_ptr, 0, ctypes.byref(ctx))
+            if hr_unmute != 0:
+                logger.warning("SetMute(FALSE) failed (hr=%s)", hr_unmute)
+
         after_float = ctypes.c_float()
         hr_after = get_vol(vol_ptr, ctypes.byref(after_float))
         after_pct = round(after_float.value * 100) if hr_after == 0 else None
 
-        verified = after_pct is not None and after_pct == pct
+        # Check mute state after
+        mute_after = ctypes.c_int()
+        hr_mute_after = get_mute(vol_ptr, ctypes.byref(mute_after))
+        is_muted_after = bool(mute_after.value) if hr_mute_after == 0 else False
+
+        verified = after_pct is not None and after_pct == pct and not is_muted_after
         status = "applied" if verified else "failed"
-        msg = (
-            f"volume set to {pct}%"
-            if verified
-            else f"volume set API succeeded but read-back shows {after_pct}% (target {pct}%)"
-        )
+        if was_muted and not is_muted_after:
+            msg = f"volume set to {pct}% (was muted, now unmuted)"
+        elif was_muted and is_muted_after:
+            msg = f"volume set to {pct}% but device is still muted"
+            status = "failed"
+            verified = False
+        else:
+            msg = (
+                f"volume set to {pct}%"
+                if verified
+                else f"volume set API succeeded but read-back shows {after_pct}% (target {pct}%)"
+            )
 
         return {
             "status": status,
@@ -923,6 +960,8 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
                 "after": after_pct,
                 "target": pct,
                 "verified": verified,
+                "was_muted": was_muted,
+                "is_muted_after": is_muted_after,
             },
         }
     except Exception as exc:  # noqa: BLE001
