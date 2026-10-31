@@ -109,10 +109,53 @@ task is running by looking for `API request log retention task started` in
 ### Credentials (gitignored, deploy-only)
 
 - `backend/.env` → `DATABASE__URL` used by the app and the reset scripts.
+  Owned by `homepot:homepot` with `640` permissions (read-only for `demouser`).
+- `backend/.env.local` → Developer overrides (API keys, etc.). Owned by
+  `demouser:homepot` with `664` permissions. `demouser` can write, `homepot`
+  can read. Loaded by pydantic-settings **after** `.env`, so values here
+  override `.env`. Both files are gitignored.
 - `scripts/seed-users.env` → account set applied by
   `scripts/seed-users.sh` after a reset (3 dev accounts: `maziar` Admin,
   `gowtham` Technician, `robin` Technician, shared dev password). Google SSO
   env vars are not configured.
+
+### Hybrid .env approach (dev vs production)
+
+For environments where the deploy user (`demouser`) needs to modify secrets
+(e.g. API keys for external LLM providers) without sudo access:
+
+1. **Production secrets** go in `backend/.env` (managed by server admin).
+   - Permissions: `640` (`homepot:homepot`)
+   - Only the `homepot` service user and `homepot` group can read.
+
+2. **Developer overrides** go in `backend/.env.local` (managed by `demouser`).
+   - Permissions: `664` (`demouser:homepot`)
+   - `demouser` can write, `homepot` can read.
+   - Values here override `.env` (loaded second by pydantic-settings).
+
+**Setup for demouser:**
+```bash
+# Create the file (one-time)
+touch /var/www/homepot.cabera.com/backend/.env.local
+chgrp homepot /var/www/homepot.cabera.com/backend/.env.local
+chmod 664 /var/www/homepot.cabera.com/backend/.env.local
+
+# Add API keys (no sudo needed)
+echo 'OPENAI_API_KEY=sk-proj-...' >> /var/www/homepot.cabera.com/backend/.env.local
+echo 'ANTHROPIC_API_KEY=sk-ant-...' >> /var/www/homepot.cabera.com/backend/.env.local
+
+# Restart the backend to pick up the new env vars
+sudo /usr/bin/systemctl stop homepot-api
+sudo /usr/bin/systemctl start homepot-api
+```
+
+**Production considerations:**
+- `.env.local` is gitignored and should never be committed.
+- In production, prefer storing secrets in `.env` managed by the server admin.
+- The hybrid approach is for development/demo environments where the deploy
+  user needs self-service secret management.
+- The AI provider module also reads from `.env.local` as a fallback, so
+  keys are available even if pydantic-settings hasn't loaded them yet.
 
 ### LLM (Ollama)
 

@@ -301,7 +301,6 @@ class AnthropicProvider(LLMProvider):
             kwargs: Dict[str, Any] = {
                 "model": self.model,
                 "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
                 "messages": [{"role": "user", "content": full_prompt}],
             }
             if system_prompt:
@@ -338,7 +337,6 @@ class AnthropicProvider(LLMProvider):
             kwargs: Dict[str, Any] = {
                 "model": self.model,
                 "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
                 "messages": messages,
                 "tools": ant_tools if ant_tools else None,
             }
