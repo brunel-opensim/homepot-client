@@ -262,7 +262,7 @@ class AnthropicProvider(LLMProvider):
         import anthropic
 
         ext = self.llm_config.get("external", {}).get("anthropic", {})
-        self.model = ext.get("model", "claude-3-5-haiku-20241022")
+        self.model = ext.get("model", "claude-haiku-4-5-20251001")
         api_key = os.environ.get(ext.get("api_key_env", "ANTHROPIC_API_KEY"), "")
         if not api_key:
             from .provider import get_api_key
