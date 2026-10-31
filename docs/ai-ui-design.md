@@ -55,15 +55,18 @@ The workspace is the primary surface for multi-turn investigations and follows
 the reference image's overall composition:
 
 ```text
-┌ AI identity / provider status / clear conversation ────────────────┐
-│                                                                    │
-│                 Scrollable conversation canvas                    │
-│                                                                    │
-├────────────────────────────────────────────────────────────────────┤
-│ Multi-line prompt composer                                         │
-│ [Mode] [Provider] [optional menu]                    [Send / Stop]  │
-│ Safety note                              Enter / Shift+Enter hint   │
-└────────────────────────────────────────────────────────────────────┘
+┌ AI identity / provider status / clear conversation ──────────────────┐
+│                                                                      │
+│                 Scrollable conversation canvas                       │
+│                                                                      │
+│                                                                      │
+│                                                                      │ 
+│                                                                      │
+├──────────────────────────────────────────────────────────────────────┤
+│ Multi-line prompt composer                                           │
+│ [Mode] [Provider] [optional menu]                    [Send / Stop]   │
+│ Note                                     Enter / Shift+Enter hint    │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 - Use the majority of the available height for the conversation canvas.
