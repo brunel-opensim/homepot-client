@@ -534,17 +534,30 @@ export default function AskAIWidget() {
         </CardTitle>
         <div className="flex items-center gap-2">
           {llmProvider && (
-            <select
-              value={llmProvider.current || 'ollama'}
-              onChange={(e) => handleSwitchProvider(e.target.value)}
-              disabled={llmSwitching}
-              className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
-              title="Switch LLM provider"
-            >
-              <option value="ollama">Local (Ollama)</option>
-              <option value="openai">OpenAI (GPT-4o-mini)</option>
-              <option value="anthropic">Anthropic (Claude Haiku)</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={llmProvider.current || 'ollama'}
+                onChange={(e) => handleSwitchProvider(e.target.value)}
+                disabled={llmSwitching}
+                className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+                title="Switch LLM provider"
+              >
+                <option value="ollama">Local (Ollama)</option>
+                <option value="openai">
+                  OpenAI
+                  {llmProvider.available?.find((p) => p.name === 'openai')?.has_api_key
+                    ? ''
+                    : ' (no key)'}
+                </option>
+                <option value="anthropic">
+                  Anthropic
+                  {llmProvider.available?.find((p) => p.name === 'anthropic')?.has_api_key
+                    ? ''
+                    : ' (no key)'}
+                </option>
+              </select>
+              {llmSwitching && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
+            </div>
           )}
           {(response || query) && (
             <Button

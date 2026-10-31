@@ -856,6 +856,13 @@ const api = {
       const response = await apiClient.put(`/ai/provider?provider=${encodeURIComponent(provider)}`);
       return response.data;
     },
+
+    setProviderKey: async (provider, apiKey) => {
+      const response = await apiClient.put(
+        `/ai/provider/key?provider=${encodeURIComponent(provider)}&api_key=${encodeURIComponent(apiKey)}`
+      );
+      return response.data;
+    },
   },
 
   // AI action-delegation proposals (Phase 2). Technicians review and

@@ -13,6 +13,7 @@ Usage:
 import json
 import logging
 import os
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +51,66 @@ def set_provider(provider: str) -> bool:
     if provider not in _VALID_PROVIDERS:
         return False
     try:
+        data = {}
+        if os.path.exists(_PROVIDER_FILE):
+            with open(_PROVIDER_FILE, "r") as f:
+                data = json.load(f)
+        data["provider"] = provider
         with open(_PROVIDER_FILE, "w") as f:
-            json.dump({"provider": provider}, f)
+            json.dump(data, f)
         logger.info("LLM provider switched to: %s", provider)
         return True
     except OSError as e:
         logger.error("Failed to write provider preference: %s", e)
+        return False
+
+
+def get_api_key(provider: str) -> Optional[str]:
+    """Get the API key for a provider from env or provider.json."""
+    import os
+
+    ext_config = {}
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+        with open(config_path, "r") as f:
+            import yaml
+
+            config = yaml.safe_load(f)
+            ext_config = config.get("llm", {}).get("external", {}).get(provider, {})
+    except Exception:
+        pass
+
+    env_var = ext_config.get("api_key_env", "")
+    if env_var:
+        key = os.environ.get(env_var)
+        if key:
+            return key
+
+    # Fall back to provider.json
+    try:
+        if os.path.exists(_PROVIDER_FILE):
+            with open(_PROVIDER_FILE, "r") as f:
+                data = json.load(f)
+            keys = data.get("api_keys", {})
+            if provider in keys:
+                return str(keys[provider])
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+def set_api_key(provider: str, api_key: str) -> bool:
+    """Store an API key for a provider in provider.json."""
+    try:
+        data = {}
+        if os.path.exists(_PROVIDER_FILE):
+            with open(_PROVIDER_FILE, "r") as f:
+                data = json.load(f)
+        data.setdefault("api_keys", {})[provider] = api_key
+        with open(_PROVIDER_FILE, "w") as f:
+            json.dump(data, f)
+        return True
+    except OSError:
         return False
 
 
@@ -64,5 +119,8 @@ def get_provider_info() -> dict:
     current = get_provider()
     available = []
     for p in ["ollama", "openai", "anthropic"]:
-        available.append({"name": p, "active": p == current})
+        entry = {"name": p, "active": p == current}
+        if p in ("openai", "anthropic"):
+            entry["has_api_key"] = bool(get_api_key(p))
+        available.append(entry)
     return {"current": current, "available": available}
