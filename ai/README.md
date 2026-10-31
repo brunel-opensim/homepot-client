@@ -377,3 +377,84 @@ We have a **System Verification Suite** that demonstrates the full AI pipeline. 
     *   It will feed this real data into the AI pipeline.
     *   The LLM will provide an assessment based on the actual metrics found.
 
+
+## Switching LLM Providers
+
+The AI system supports three LLM providers. The active provider is selected
+via `llm.provider` in `ai/config.yaml` (or the backend's `ai/config.yaml`).
+
+### Ollama (local, default)
+
+```yaml
+llm:
+  provider: "ollama"
+  model: "llama3.2"
+  base_url: "http://localhost:11434"
+```
+
+Requires Ollama running locally. Best for production (data stays on-premise).
+
+### OpenAI
+
+```yaml
+llm:
+  provider: "openai"
+  external:
+    openai:
+      model: "gpt-4o-mini"       # or gpt-4o, gpt-4-turbo
+      api_key_env: "OPENAI_API_KEY"
+      base_url: "https://api.openai.com/v1"
+```
+
+Set the API key as an environment variable:
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+Get an API key from: https://platform.openai.com/api-keys
+
+### Anthropic
+
+```yaml
+llm:
+  provider: "anthropic"
+  external:
+    anthropic:
+      model: "claude-3-5-haiku-20241022"  # or claude-3-5-sonnet-20241022
+      api_key_env: "ANTHROPIC_API_KEY"
+      base_url: "https://api.anthropic.com"
+```
+
+Set the API key as an environment variable:
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+Get an API key from: https://console.anthropic.com/settings/keys
+
+### Performance comparison
+
+| Provider | Model | Latency (typical) | Cost (per 1M tokens) |
+|----------|-------|-------------------|---------------------|
+| Ollama (local) | llama3.2 4B | ~180s (CPU) | Free |
+| OpenAI | gpt-4o-mini | ~2-5s | $0.15 input / $0.60 output |
+| Anthropic | claude-3-5-haiku | ~2-5s | $0.80 input / $4.00 output |
+
+### For demo sessions
+
+Switch to an external provider for faster responses:
+```bash
+# On the server
+export OPENAI_API_KEY="sk-..."
+# Edit ai/config.yaml: provider: "openai"
+sudo systemctl restart homepot-api
+```
+
+### For production (real devices)
+
+Use Ollama for data privacy (no data leaves the server):
+```yaml
+llm:
+  provider: "ollama"
+  model: "llama3.2"
+```
