@@ -3,7 +3,7 @@
 > **Status:** Experimental
 > **Base URL:** `/api/v1/ai`
 
-The AI Service provides intelligent analysis and natural-language querying for the HOMEPOT Client. It uses a local LLM (Ollama) with Vector Memory (ChromaDB) for data privacy, and wraps every chat answer in a [trust & validation-gate envelope](ai-validation-gates.md) so confidence is always surfaced.
+The AI Service provides intelligent analysis and natural-language querying for the HOMEPOT Client. It runs against a local LLM (Ollama) by default, or an external provider (OpenAI, Anthropic) when selected — see [LLM Providers](ai-llm-providers.md). Long-term memory uses Vector Memory (ChromaDB) for data privacy, and every chat answer is wrapped in a [trust & validation-gate envelope](ai-validation-gates.md) so confidence is always surfaced.
 
 ---
 
@@ -172,7 +172,65 @@ Static capability/status report for the AI service.
 
 ---
 
-## Authentication
+## 8. LLM Provider
+
+Inspect and switch the active LLM provider. See
+[LLM Providers](ai-llm-providers.md) for the full guide.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/ai/provider` | Any authenticated user | Current provider, model, health, options |
+| `PUT` | `/api/v1/ai/provider?provider=<name>` | **Admin** | Switch the active provider |
+| `PUT` | `/api/v1/ai/provider/key?provider=<name>&api_key=<key>` | **Admin** | Store an API key for a provider |
+
+Valid provider names: `ollama`, `openai`, `anthropic`.
+
+### Example — inspect
+
+```http
+GET /api/v1/ai/provider
+```
+
+```json
+{
+  "status": "success",
+  "data": {
+    "current": "openai",
+    "available": [
+      {"name": "ollama", "active": false},
+      {"name": "openai", "active": true, "has_api_key": true},
+      {"name": "anthropic", "active": false, "has_api_key": true}
+    ],
+    "healthy": true,
+    "model": "gpt-4o-mini"
+  }
+}
+```
+
+### Example — switch
+
+```http
+PUT /api/v1/ai/provider?provider=anthropic
+```
+
+Switching resets the AI service singleton, so the new provider takes effect
+immediately. A non-admin caller receives `403 Admin role required`.
+
+### Example — store a key
+
+```http
+PUT /api/v1/ai/provider/key?provider=openai&api_key=sk-...
+```
 
 !!! warning
-    As of the current implementation, the `/api/v1/ai/*` endpoints do **not** enforce authentication or per-site/tenant authorization. They are intended to be reached from within the Dashboard, which is itself unauthenticated at the API layer. Adding `Depends(require_user())` and site/tenant scoping to these routes is a tracked improvement.
+    Keys stored through this endpoint are written in plaintext to
+    `ai/provider.json`. Prefer `.env.local` for managed deployments. See
+    [API keys and secret management](ai-llm-providers.md#api-keys-and-secret-management).
+
+---
+
+## Authentication
+
+All `/api/v1/ai/*` endpoints require an authenticated user (`require_user()`,
+enforced at the router). Provider switching and key storage additionally require
+the **Admin** role; a non-admin caller receives `403 Admin role required`.

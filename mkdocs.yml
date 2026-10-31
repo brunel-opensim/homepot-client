@@ -119,6 +119,7 @@ nav:
           - Overview: adr/overview.md
           - ADR-0001 Command Delivery Semantics: adr/0001-command-delivery-semantics.md
           - ADR-0002 Agent Supervision & Lifetime: adr/0002-agent-supervision-and-lifetime.md
+          - ADR-0003 Pluggable LLM Providers: adr/0003-llm-provider-abstraction.md
       - Getting Started:
           - Quick Start: getting-started.md
           - Running Locally: running-locally.md
@@ -159,6 +160,7 @@ nav:
           - Trust & Validation Gates: ai-validation-gates.md
           - Anomaly Detection: anomaly-detection.md
           - Infrastructure: ai-infrastructure.md
+          - LLM Providers: ai-llm-providers.md
           - Memory (Short & Long-Term): ai-memory.md
           - Memory Inspection: ai-memory-inspection.md
           - Concurrency & Load: ai-concurrency.md

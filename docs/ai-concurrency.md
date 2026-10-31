@@ -214,6 +214,25 @@ Ollama where callers get no feedback.
 The gate is created lazily from this config on the first AI request
 (`get_ai_gate()`), so changing it requires an API restart.
 
+### External providers (OpenAI, Anthropic)
+
+The gate is **provider-agnostic** — the same `max_concurrent` and
+`queue_timeout_seconds` apply to every provider, and the gate is built once from
+config, not rebuilt when the provider is switched.
+
+That means a setting tuned for Ollama also throttles cloud providers:
+
+- `max_concurrent: 1` is correct for a single local Ollama slot, but it also
+  serialises fast cloud calls. If you run demos on OpenAI/Anthropic with several
+  concurrent users, raise `max_concurrent` (e.g. 4–8) and keep
+  `queue_timeout_seconds` generous.
+- Changing the value still requires an API restart, even when the provider
+  itself can be switched at runtime without one.
+
+Provider-aware concurrency (different limits per provider) is a planned
+follow-up; until then, pick a value that is safe for the provider you run most.
+See [LLM Providers](ai-llm-providers.md#provider-specific-tuning).
+
 ### Raising Ollama's parallelism
 
 Setting `OLLAMA_NUM_PARALLEL=2` (systemd override for `ollama`) allows two

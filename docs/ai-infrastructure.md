@@ -6,6 +6,12 @@
 > **Duration:** 5-8 weeks  
 > **Status:** Planning Complete - Ready for Implementation
 
+!!! note "As-built update (2026-10-31)"
+    This page is the original Ollama-only infrastructure plan and is kept for
+    history. The implementation is now **provider-pluggable** (Ollama, OpenAI,
+    Anthropic; runtime selection). For current behaviour see
+    [LLM Providers](ai-llm-providers.md).
+
 ## Table of Contents
 
 1. [Overview](#overview)

@@ -9,6 +9,8 @@ llm:
   # For demo sessions with limited server resources, use "openai" or
   # "anthropic" for faster responses. For production with real devices,
   # use "ollama" for data privacy.
+  # NOTE: a runtime preference in ai/provider.json overrides this value (see
+  # ai/provider.py). The Dashboard provider dropdown writes that file.
   provider: "ollama"
 
   # The active model is read here. A 4 GiB GPU like the Quadro P620 tops out
@@ -43,8 +45,7 @@ llm:
   num_predict: 120  # reduced from 160 for latency
   # How long Ollama keeps the model resident after a request (Ollama's own
   # default is 5m). A long value avoids the cold-load cost on sparse queries.
-  # How long Ollama keeps the model resident after a request (Ollama's own
-  # default is 5m). A long value avoids the cold-load cost on sparse queries.
+  # Ollama-only; ignored by external providers.
   keep_alive: "30m"
   # Application-level concurrency gate (see docs/ai-concurrency.md). Ollama
   # serves generations through a small number of inference slots

@@ -11,6 +11,13 @@ scoped for multi-tenant safety, and how to configure them.
 | **Recall** | Last 5 messages, verbatim | Semantic similarity + scope filter |
 | **Code** | `AIEndpoint.query_ai` | `ai/device_memory.py` |
 
+!!! note "Provider-independent"
+    Memory is assembled in the backend and injected into the prompt *before* the
+    LLM is called. It behaves identically for Ollama, OpenAI and Anthropic: the
+    long-term store is embedded locally with ChromaDB's default
+    `all-MiniLM-L6-v2` model, so switching the answer provider does not change
+    recall quality. See [LLM Providers](ai-llm-providers.md#memory-behaviour-provider-independent).
+
 ---
 
 ## Short-term memory (conversation)
@@ -32,6 +39,11 @@ if request.history:
 Short-term memory is **stateless on the server**: nothing is stored, and the
 client is responsible for sending history back. This keeps the request path
 simple and avoids storing transcripts.
+
+!!! note "Dashboard coverage"
+    The API accepts `history`, but the Dashboard's `AskAIWidget` does not yet
+    send it, so short-term memory is effectively empty in the UI today.
+    Long-term memory works regardless.
 
 !!! note "Cost"
     On the CPU-only host every history token is re-evaluated on each turn
@@ -131,7 +143,7 @@ memory:
   collection_name: "device_logs"
   embedding_model: "all-MiniLM-L6-v2"   # informational; ChromaDB's default embedder
   distance_metric: "cosine"             # "cosine" or "l2"
-  n_results: 5                          # max memories recalled per query
+  n_results: 3                          # max memories recalled per query
   max_distance: 0.9                     # relevance cutoff (metric-specific); null = off
   retention_days: 90                    # prune older than this; null = keep
   answer_digest_chars: 500              # how much of each answer to store
