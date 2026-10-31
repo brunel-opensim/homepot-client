@@ -18,6 +18,7 @@ import {
   ListChecks,
   BookOpen,
   FileText,
+  Maximize2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
@@ -40,6 +41,14 @@ const AI_MODES = [
     label: 'Diagnostic',
     title: 'Investigate live system state through the validation gates',
   },
+];
+
+// Suggested prompts shown in the empty state (workspace) and compact empty state.
+const SUGGESTED_PROMPTS = [
+  'How are devices performing today?',
+  'What is currently offline?',
+  'How do I enroll a device?',
+  'Show recent anomalies',
 ];
 
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
@@ -262,7 +271,13 @@ function GateReplay({ trust, onDone }) {
  *   workspace. Both share all state, handlers and API calls.
  * @param {string} [props.className] - Extra classes for the outer container.
  */
-export default function AskAIWidget({ variant = 'compact', className = '' }) {
+export default function AskAIWidget({
+  variant = 'compact',
+  className = '',
+  onOpenWorkspace = () => {
+    if (typeof window !== 'undefined') window.location.assign('/ai-workspace');
+  },
+}) {
   const isWorkspace = variant === 'workspace';
   const { user } = useAuth();
   // Load initial state from localStorage if available to persist context on refresh/navigation
@@ -290,6 +305,16 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const [sources, setSources] = useState(() => {
     try {
       const stored = localStorage.getItem('homepot_ai_sources');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  // Conversation history (short-term memory). Persisted so the workspace can
+  // resume a thread; sent to the backend as `history` (last 5 turns).
+  const [messages, setMessages] = useState(() => {
+    try {
+      const stored = localStorage.getItem('homepot_ai_thread');
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
@@ -394,12 +419,21 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     }
   }, [sources]);
 
+  useEffect(() => {
+    if (messages && messages.length) {
+      localStorage.setItem('homepot_ai_thread', JSON.stringify(messages));
+    } else {
+      localStorage.removeItem('homepot_ai_thread');
+    }
+  }, [messages]);
+
   const clearHistory = () => {
     setQuery('');
     setResponse(null);
     setTrust(null);
     setRouting(null);
     setSources([]);
+    setMessages([]);
     setTrustExpanded(false);
     setReplaying(false);
     setError(null);
@@ -409,6 +443,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
     localStorage.removeItem('homepot_ai_sources');
+    localStorage.removeItem('homepot_ai_thread');
   };
 
   const handleCopy = () => {
@@ -500,7 +535,18 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
       // `auto` is sent as null so the backend default (heuristics) applies.
       const modeArg = mode === 'auto' ? null : mode;
-      const result = await api.ai.query(query, null, userRole, modeArg, controller.signal, queryId);
+      // Short-term memory: send the last few turns so the backend can keep
+      // the conversation context. Capped to the backend's last-5 limit.
+      const historyPayload = messages.slice(-5);
+      const result = await api.ai.query(
+        query,
+        null,
+        userRole,
+        modeArg,
+        controller.signal,
+        queryId,
+        historyPayload
+      );
       // The backend returns { response, timestamp, trust, routing, sources } --
       // trust is the validation envelope's gate-by-gate outcome (see
       // ai/gates/envelope.py), routing reports how the intent was resolved
@@ -510,6 +556,19 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       setTrust(result.trust || null);
       setRouting(result.routing || null);
       setSources(result.sources || []);
+      // Commit this turn to the conversation thread (only on success, so
+      // cancelled/failed queries do not pollute short-term memory).
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: query },
+        {
+          role: 'assistant',
+          content: result.response,
+          trust: result.trust || null,
+          routing: result.routing || null,
+          sources: result.sources || [],
+        },
+      ]);
       // Show an animated gate replay before revealing the response,
       // so the technician sees the validation chain in action.
       if (result.trust?.gates?.length) {
@@ -544,8 +603,25 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
+          {llmProvider?.healthy === false && (
+            <span
+              className="inline-block w-2 h-2 rounded-full bg-red-500"
+              title="Provider unhealthy"
+            />
+          )}
         </CardTitle>
         <div className="flex items-center gap-2">
+          {!isWorkspace && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onOpenWorkspace}
+              className="h-8 px-2 text-xs text-gray-400 hover:text-purple-400"
+              title="Open full AI workspace"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
+          )}
           {llmProvider && (
             <div className="flex items-center gap-2">
               <select
@@ -600,17 +676,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   take a couple of minutes.
                 </span>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCancel}
-                className="mt-1 h-7 gap-1.5 text-xs"
-                title="Stop this query (Esc)"
-              >
-                <Square className="w-3 h-3" />
-                Stop
-              </Button>
             </div>
           ) : cancelled ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-gray-500">
@@ -681,34 +746,71 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 italic text-center gap-2">
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center gap-2 px-2">
               <Sparkles className="w-8 h-8 opacity-20" />
-              <p>Ask about system status, anomalies, or maintenance recommendations...</p>
+              <p className="text-sm italic">
+                Ask about system status, anomalies, or maintenance recommendations...
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5 mt-2 not-italic">
+                {SUGGESTED_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setQuery(p)}
+                    className="text-[11px] px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
         {/* Input Area */}
         <div className="flex flex-col gap-2">
-          <form onSubmit={handleAsk} className="flex gap-2">
-            <input
-              type="text"
-              spellCheck="true"
-              lang="en"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g., How is our system performing today?"
-              className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-              disabled={loading}
-            />
+          <form onSubmit={handleAsk} className="flex gap-2 items-end">
+            {isWorkspace ? (
+              <textarea
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (query.trim() && !loading) {
+                      handleAsk(e);
+                    }
+                  }
+                }}
+                placeholder="Ask about your fleet, devices, or how to do something..."
+                rows={2}
+                disabled={loading}
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all resize-none"
+              />
+            ) : (
+              <input
+                type="text"
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="e.g., How is our system performing today?"
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                disabled={loading}
+              />
+            )}
             <Button
-              type="submit"
-              disabled={loading || !query.trim()}
+              type={loading ? 'button' : 'submit'}
+              onClick={loading ? handleCancel : undefined}
+              disabled={!loading && !query.trim()}
               size="icon"
-              aria-label="Send"
+              aria-label={loading ? 'Stop' : 'Send'}
+              title={loading ? 'Stop (Esc)' : 'Send'}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              <Send className="w-4 h-4" />
+              {loading ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
             </Button>
           </form>
 
@@ -741,6 +843,12 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
             </div>
           </div>
         </div>
+        {isWorkspace && (
+          <div className="px-1 pt-1 text-[11px] text-gray-500 dark:text-gray-400 text-center">
+            Answers are advisory. Device actions require separate review.
+            <span className="ml-2 hidden sm:inline">Enter to send · Shift+Enter for new line</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
