@@ -161,6 +161,7 @@ nav:
           - Anomaly Detection: anomaly-detection.md
           - Infrastructure: ai-infrastructure.md
           - LLM Providers: ai-llm-providers.md
+          - UI Design (Proposed): ai-ui-design.md
           - Memory (Short & Long-Term): ai-memory.md
           - Memory Inspection: ai-memory-inspection.md
           - Concurrency & Load: ai-concurrency.md
