@@ -36,11 +36,14 @@ visibly part of the Dashboard rather than competing with its monitored-resource
 and status panels.
 
 - Show a clear **AI Assistant** identity and current provider/health information
-  when available.
+  when available. For non-admin users, show provider/model status as read-only;
+  hide the provider switcher.
 - Provide a concise prompt field and a small set of suggested prompts.
 - Show a compact answer preview or latest exchange when space permits.
 - Provide an **Open AI Workspace** action for longer investigations.
-- Carry the current draft or conversation into the workspace when opening it.
+- Carry the current draft into the workspace immediately. Carry the visible
+  conversation too, once conversation history is actually wired and persisted
+  (see [AI Memory](ai-memory.md)); until then, carry the draft only.
 - Only display site, device, or fleet context when that context is actually
   supplied to the AI request.
 
@@ -76,7 +79,8 @@ the reference image's overall composition:
 - Display user and assistant messages as distinct turns.
 - Opening the workspace from the Dashboard preserves the draft or thread.
 - The exact route and navigation placement are implementation decisions; the
-  proposed navigation label is **AI Workspace**.
+  proposed navigation label is **AI Workspace**. A suggested route is
+  `/ai-workspace`.
 
 ## Composer controls
 
@@ -93,8 +97,9 @@ to HomePot's actual capabilities rather than copying the labels literally.
 
 Do not add a command-execution menu to the chat until its actions, permissions,
 confirmation, and result reporting are implemented and documented. AI action
-proposals are reviewed through the separate [AI Action Proposals](ai-api-reference.md#8-llm-provider)
-workflow (see [AI Delegation Plan — Review UI](ai-delegation-plan.md#review-ui-ai-proposals)); a chat answer alone is not an approval or an execution.
+proposals are reviewed through the separate
+[AI Delegation Plan — Review UI](ai-delegation-plan.md#review-ui-ai-proposals);
+a chat answer alone is not an approval or an execution.
 
 ## Send / Stop button behavior
 
