@@ -431,11 +431,8 @@ export default function Dashboard() {
           <div className="flex-none">
             <Card className="bg-[#080A0A] border border-secondary shrink-0">
               <CardContent className="p-2">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xs font-semibold text-white shrink-0">Active Alerts</h2>
-                  <div className="flex-1 min-w-0">
-                    <ActiveAlertsTicker alerts={alerts} />
-                  </div>
+                <div className="w-full min-w-0">
+                  <ActiveAlertsTicker alerts={alerts} />
                 </div>
               </CardContent>
             </Card>
