@@ -166,6 +166,10 @@ class OpenAIProvider(LLMProvider):
         ext = self.llm_config.get("external", {}).get("openai", {})
         self.model = ext.get("model", "gpt-4o-mini")
         api_key = os.environ.get(ext.get("api_key_env", "OPENAI_API_KEY"), "")
+        if not api_key:
+            from .provider import get_api_key
+
+            api_key = get_api_key("openai") or ""
         base_url = ext.get("base_url", "https://api.openai.com/v1")
         self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         self.temperature = float(self.llm_config.get("temperature", 0.7))
@@ -260,6 +264,10 @@ class AnthropicProvider(LLMProvider):
         ext = self.llm_config.get("external", {}).get("anthropic", {})
         self.model = ext.get("model", "claude-3-5-haiku-20241022")
         api_key = os.environ.get(ext.get("api_key_env", "ANTHROPIC_API_KEY"), "")
+        if not api_key:
+            from .provider import get_api_key
+
+            api_key = get_api_key("anthropic") or ""
         self.client = anthropic.Anthropic(api_key=api_key)
         self.temperature = float(self.llm_config.get("temperature", 0.7))
         self.max_tokens = int(self.llm_config.get("num_predict", 160))

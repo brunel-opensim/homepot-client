@@ -288,6 +288,45 @@ async def set_llm_provider(
     return {"status": "success", "message": f"Switched to {provider}", "data": info}
 
 
+@router.put("/provider/key", tags=["AI Chat"])
+async def set_llm_api_key(
+    provider: str,
+    api_key: str,
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Store an API key for an LLM provider. Requires admin role."""
+    from ai.provider import get_provider, get_provider_info, set_api_key
+
+    if current_user.get("role") != "Admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    if provider not in ("openai", "anthropic"):
+        raise HTTPException(
+            status_code=400, detail="Provider must be openai or anthropic"
+        )
+
+    if not set_api_key(provider, api_key):
+        raise HTTPException(status_code=500, detail="Failed to store API key")
+
+    # If this is the active provider, reset the singleton
+    if get_provider() == provider:
+        _ai_services["llm"] = None
+
+    info = get_provider_info()
+    try:
+        llm, _, _ = get_ai_services()
+        info["healthy"] = llm.check_health()
+        info["model"] = llm.model
+    except Exception:
+        info["healthy"] = False
+        info["model"] = "unknown"
+    return {
+        "status": "success",
+        "message": f"API key stored for {provider}",
+        "data": info,
+    }
+
+
 # ==================== Analytics Endpoints ====================
 
 
