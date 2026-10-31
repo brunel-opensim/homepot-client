@@ -6,7 +6,7 @@ import api from '@/services/api';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
-import StatusStrip from '@/components/Dashboard/StatusStrip';
+import AlertsStrip from '@/components/Dashboard/AlertsStrip';
 import WorldMapImage from '@/assets/images/world-map.png';
 import { MAX_AUTO_MONITORED_CARDS, buildMonitoredBoard } from '@/utils/dashboardBoard';
 
@@ -275,7 +275,7 @@ export default function Dashboard() {
     <div className="h-full bg-black text-gray-200 p-2 flex flex-col overflow-hidden rounded-2xl shadow-xl border border-gray-800">
       {/* Summary Stats */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2 shrink-0">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2 shrink-0">
           <Card className="bg-[#080A0A] border border-gray-800">
             <CardContent className="p-2 text-center">
               <p className="text-xs text-gray-400">Total Devices</p>
@@ -306,11 +306,41 @@ export default function Dashboard() {
               </p>
             </CardContent>
           </Card>
+
+          {/* System Pulse (compact) */}
+          <Card className="bg-[#080A0A] border border-gray-800">
+            <CardContent className="p-2">
+              <p className="text-xs text-gray-400 text-center mb-1">System Pulse</p>
+              <div className="flex justify-center space-x-1 mb-1">
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const activeCount = Math.ceil((systemPulse.load_score || 0) / 10);
+                  const isActive = i < activeCount;
+                  let colorClass = 'bg-gray-800';
+                  if (isActive) {
+                    if (i < 6) colorClass = 'bg-green-500';
+                    else if (i < 8) colorClass = 'bg-yellow-500';
+                    else colorClass = 'bg-red-500';
+                  }
+                  return (
+                    <span
+                      key={i}
+                      className={`w-2 h-2 rounded-full ${colorClass} ${isActive ? 'scale-110' : ''}`}
+                    />
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-gray-400 font-mono text-center truncate">
+                Load {systemPulse.load_score || 0}%{' · '}
+                CPU {Math.round(systemPulse.cpu_percent || 0)}%{' · '}
+                Mem {Math.round(systemPulse.memory_percent || 0)}%
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* Compact status strip (Pulse + Alerts) — frees the right column for AI */}
-      <StatusStrip systemPulse={systemPulse} alerts={alerts} />
+      {/* Active Alerts strip (Pulse moved into summary row) */}
+      <AlertsStrip alerts={alerts} />
 
       {/* Main Content: Two columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0 overflow-hidden">
