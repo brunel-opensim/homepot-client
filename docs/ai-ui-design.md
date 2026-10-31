@@ -98,11 +98,36 @@ to HomePot's actual capabilities rather than copying the labels literally.
 
 | Reference control | Proposed HomePot control | Behavior and constraints |
 |---|---|---|
-| Task | **Mode** | Auto, Knowledge, Diagnostic. Keep Auto as the default; selecting a mode is an explicit user override. |
+| Task | **Mode** | Auto, Knowledge, Diagnostic. Keep Auto as the default; selecting a mode is an explicit user override. See [Mode behavior](#mode-behavior). |
 | Agent | Omit initially | There is no independent agent selector in the current Dashboard assistant. Add one only when users can choose between real agents. |
 | Model | **Provider** | Ollama, OpenAI, or Anthropic. Show the configured model name/status where available; provider switching remains Admin-only. See [LLM Providers](ai-llm-providers.md). |
 | Commands | **Suggested prompts** or omit | Use for inserting a prompt template only. Do not imply that it executes a device command. Link to proposal review separately if that is useful. |
 | Send | **Send / Stop** | Reuse one button and one footprint; behavior is specified below. |
+
+## Mode behavior
+
+The existing intent modes (`frontend/src/utils` documentation and
+`docs/ai-query-routing.md`) define how a question is handled. The UI exposes
+them as a **Mode** control in the composer on both surfaces.
+
+| Mode | Backend behavior | UI treatment |
+|---|---|---|
+| **Auto** (default) | Backend heuristics resolve the path (knowledge vs. diagnostic). | Send `mode: "auto"` (or omit). Show the resolved mode from `routing.resolved` in the answer. |
+| **Knowledge** | Documentation-grounded answer; no validation gates run. | Send `mode: "knowledge"`. Show a Knowledge indicator and the real retrieved documentation sources. Hide the trust/gate UI. |
+| **Diagnostic** | Live system investigation through the validation gates. | Send `mode: "diagnostic"`. Show the trust summary and expandable gate details with the answer. |
+
+Rules:
+
+- Only the technician selects the mode; the LLM never chooses it.
+- The UI must reflect the *resolved* mode (`routing.resolved`), not just the
+  requested one, so a user who picked Auto sees whether it was treated as
+  knowledge or diagnostic.
+- Persist the last selection per session (e.g. `homepot_ai_mode`), as the
+  current widget already does.
+- Mode is user-facing on both Dashboard and workspace; keep the control compact
+  and consistent between the two surfaces.
+- Knowledge answers must not show a trust score or gate chain; diagnostic
+  answers must not claim documentation grounding unless sources are present.
 
 Do not add a command-execution menu to the chat until its actions, permissions,
 confirmation, and result reporting are implemented and documented. AI action
@@ -201,7 +226,9 @@ as complete based only on text in a chat response.
   while a query is running.
 - Stop uses the existing query cancellation flow and does not falsely report
   server confirmation.
-- Mode and provider controls use accurate names and respect permissions.
+- Mode and provider controls use accurate names and respect permissions. Mode
+  selection persists per session and the resolved mode is shown with each
+  answer.
 - Knowledge sources and diagnostic trust details remain visible and accurate.
 - No control suggests arbitrary commands or device changes unless the
   corresponding capability and review flow are implemented.
