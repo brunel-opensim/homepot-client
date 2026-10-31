@@ -39,6 +39,9 @@ and status panels.
   when available. For non-admin users, show provider/model status as read-only;
   hide the provider switcher.
 - Provide a concise prompt field and a small set of suggested prompts.
+  Suggested prompts should be short, task-relevant questions, for example:
+  "How are devices performing today?", "What is offline?", "How do I enroll a
+  device?", "Show recent anomalies."
 - Show a compact answer preview or latest exchange when space permits.
 - Provide an **Open AI Workspace** action for longer investigations.
 - Carry the current draft into the workspace immediately. Carry the visible
@@ -75,12 +78,18 @@ the reference image's overall composition:
 - Use the majority of the available height for the conversation canvas.
 - Keep the composer anchored at the bottom while the conversation scrolls.
 - Include a useful empty state with a short introduction and suggested prompts;
-  do not leave the canvas as a large blank area.
+  do not leave the canvas as a large blank area. Suggested empty-state copy:
+  "Ask about system status, anomalies, maintenance, or how to perform a task.
+  Answers are advisory; device actions require separate review."
 - Display user and assistant messages as distinct turns.
 - Opening the workspace from the Dashboard preserves the draft or thread.
 - The exact route and navigation placement are implementation decisions; the
   proposed navigation label is **AI Workspace**. A suggested route is
   `/ai-workspace`.
+- **Persistence:** store the draft under a dedicated key (for example
+  `homepot_ai_draft`) and the visible thread under `homepot_ai_thread`. Clear
+  both on an explicit "New conversation" action. Do not silently mix an old
+  thread with a new provider or mode selection without confirmation.
 
 ## Composer controls
 
@@ -171,7 +180,13 @@ as complete based only on text in a chat response.
 - Keep text and controls legible against the dark background; provide visible
   keyboard focus and adequate contrast.
 - At narrow widths, wrap or stack Mode/Provider/menu controls rather than
-  compressing labels into unreadable buttons.
+  compressing labels into unreadable buttons. On mobile, collapse the control
+  row behind a compact "Options" affordance if needed, but keep Send/Stop
+  visible.
+- The workspace should follow the application theme by default (light/dark),
+  while preserving the mockup's strong primary-action hierarchy in both. If a
+  dedicated dark workspace is preferred, document that as an explicit product
+  decision before implementation.
 - Keep the keyboard hint visible when space permits: **Enter to send ·
   Shift+Enter for new line**. On mobile, rely on clear accessible labels instead
   of desktop-only shortcut instructions.
