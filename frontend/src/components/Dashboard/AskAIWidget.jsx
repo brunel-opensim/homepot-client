@@ -42,6 +42,14 @@ const AI_MODES = [
   },
 ];
 
+// Suggested prompts shown in the empty state (workspace) and compact empty state.
+const SUGGESTED_PROMPTS = [
+  'How are devices performing today?',
+  'What is currently offline?',
+  'How do I enroll a device?',
+  'Show recent anomalies',
+];
+
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
 // Covers all five canonical modes plus grounded. Falls back to mode_1
 // (status-only / least trusted) styling for any unknown mode id.
@@ -546,7 +554,13 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       setMessages((prev) => [
         ...prev,
         { role: 'user', content: query },
-        { role: 'assistant', content: result.response },
+        {
+          role: 'assistant',
+          content: result.response,
+          trust: result.trust || null,
+          routing: result.routing || null,
+          sources: result.sources || [],
+        },
       ]);
       // Show an animated gate replay before revealing the response,
       // so the technician sees the validation chain in action.
@@ -638,17 +652,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   take a couple of minutes.
                 </span>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCancel}
-                className="mt-1 h-7 gap-1.5 text-xs"
-                title="Stop this query (Esc)"
-              >
-                <Square className="w-3 h-3" />
-                Stop
-              </Button>
             </div>
           ) : cancelled ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-gray-500">
@@ -728,25 +731,48 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
 
         {/* Input Area */}
         <div className="flex flex-col gap-2">
-          <form onSubmit={handleAsk} className="flex gap-2">
-            <input
-              type="text"
-              spellCheck="true"
-              lang="en"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g., How is our system performing today?"
-              className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-              disabled={loading}
-            />
+          <form onSubmit={handleAsk} className="flex gap-2 items-end">
+            {isWorkspace ? (
+              <textarea
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (query.trim() && !loading) {
+                      handleAsk(e);
+                    }
+                  }
+                }}
+                placeholder="Ask about your fleet, devices, or how to do something..."
+                rows={2}
+                disabled={loading}
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all resize-none"
+              />
+            ) : (
+              <input
+                type="text"
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="e.g., How is our system performing today?"
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                disabled={loading}
+              />
+            )}
             <Button
-              type="submit"
-              disabled={loading || !query.trim()}
+              type={loading ? 'button' : 'submit'}
+              onClick={loading ? handleCancel : undefined}
+              disabled={!loading && !query.trim()}
               size="icon"
-              aria-label="Send"
+              aria-label={loading ? 'Stop' : 'Send'}
+              title={loading ? 'Stop (Esc)' : 'Send'}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              <Send className="w-4 h-4" />
+              {loading ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
             </Button>
           </form>
 
@@ -779,6 +805,12 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
             </div>
           </div>
         </div>
+        {isWorkspace && (
+          <div className="px-1 pt-1 text-[11px] text-gray-500 dark:text-gray-400 text-center">
+            Answers are advisory. Device actions require separate review.
+            <span className="ml-2 hidden sm:inline">Enter to send · Shift+Enter for new line</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
