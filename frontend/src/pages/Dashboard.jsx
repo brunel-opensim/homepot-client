@@ -6,7 +6,7 @@ import api from '@/services/api';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
-import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
+import StatusStrip from '@/components/Dashboard/StatusStrip';
 import WorldMapImage from '@/assets/images/world-map.png';
 import { MAX_AUTO_MONITORED_CARDS, buildMonitoredBoard } from '@/utils/dashboardBoard';
 
@@ -309,6 +309,9 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Compact status strip (Pulse + Alerts) — frees the right column for AI */}
+      <StatusStrip systemPulse={systemPulse} alerts={alerts} />
+
       {/* Main Content: Two columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0 overflow-hidden">
         {/* Left Column: Connected Sites */}
@@ -396,125 +399,8 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {/* Right Column: Heartbeat, Active Alerts, AI Assistant */}
+        {/* Right Column: AI Assistant (Pulse/Alerts moved to StatusStrip above) */}
         <div className="flex flex-col gap-2 h-full min-h-0 overflow-hidden pr-1">
-          {/* CPU Usage removed to give more space to AI Assistant */}
-
-          <div className="flex-none">
-            <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
-              <CardContent className="p-3">
-                <h2 className="text-sm font-semibold text-white mb-1">System Pulse</h2>
-                <div className="flex space-x-2">
-                  {Array.from({ length: 10 }).map((_, i) => {
-                    // Calculate if this circle should be active based on load_score
-                    // i=0 -> 10%, i=1 -> 20%, ..., i=9 -> 100%
-                    // We light up if load_score is "close" to this threshold or higher
-                    // e.g. load=12 -> i=0 (10%) is active, i=1 (20%) is inactive
-                    // Using Math.ceil(load / 10) logic:
-                    // load=1-10 -> 1 circle
-                    // load=11-20 -> 2 circles
-                    const activeCount = Math.ceil((systemPulse.load_score || 0) / 10);
-                    const isActive = i < activeCount;
-
-                    // Equalizer Color Logic
-                    let colorClass = 'bg-gray-800';
-                    if (isActive) {
-                      if (i < 6) {
-                        // 10% - 60%: Green
-                        colorClass = 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
-                      } else if (i < 8) {
-                        // 70% - 80%: Yellow/Orange
-                        colorClass = 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]';
-                      } else {
-                        // 90% - 100%: Red
-                        colorClass = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]';
-                      }
-                    }
-
-                    return (
-                      <span
-                        key={i}
-                        className={`w-3 h-3 rounded-full transition-all duration-300 ${colorClass} ${isActive ? 'scale-110' : 'scale-100'}`}
-                      ></span>
-                    );
-                  })}
-                </div>
-                <div className="flex flex-col mt-1">
-                  <p className="text-[10px] text-gray-400 flex justify-between w-full font-mono">
-                    <span>
-                      Load:{' '}
-                      <span
-                        className={
-                          systemPulse.load_score >= 90
-                            ? 'text-red-400 font-bold'
-                            : systemPulse.load_score >= 70
-                              ? 'text-yellow-400'
-                              : 'text-green-400'
-                        }
-                      >
-                        {systemPulse.load_score}%
-                      </span>
-                    </span>
-                    <span className="text-gray-700">|</span>
-                    <span>
-                      Jobs:{' '}
-                      <span
-                        className={
-                          systemPulse.active_jobs > 5
-                            ? 'text-red-400 font-bold'
-                            : systemPulse.active_jobs > 0
-                              ? 'text-yellow-400'
-                              : 'text-green-400'
-                        }
-                      >
-                        {systemPulse.active_jobs > 0 ? systemPulse.active_jobs : 'IDLE'}
-                      </span>
-                    </span>
-                    <span className="text-gray-700">|</span>
-                    <span>
-                      CPU:{' '}
-                      <span
-                        className={
-                          (systemPulse.cpu_percent || 0) >= 90
-                            ? 'text-red-400 font-bold'
-                            : (systemPulse.cpu_percent || 0) >= 70
-                              ? 'text-yellow-400'
-                              : 'text-green-400'
-                        }
-                      >
-                        {Math.round(systemPulse.cpu_percent || 0)}%
-                      </span>
-                    </span>
-                    <span className="text-gray-700">|</span>
-                    <span>
-                      Mem:{' '}
-                      <span
-                        className={
-                          (systemPulse.memory_percent || 0) >= 90
-                            ? 'text-red-400 font-bold'
-                            : (systemPulse.memory_percent || 0) >= 70
-                              ? 'text-yellow-400'
-                              : 'text-green-400'
-                        }
-                      >
-                        {Math.round(systemPulse.memory_percent || 0)}%
-                      </span>
-                    </span>
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="flex-none">
-            <Card className="relative bg-[#080A0A] border border-secondary bg-no-repeat bg-center bg-cover shrink-0">
-              <CardContent className="p-3">
-                <h2 className="text-sm font-semibold text-white mb-1">Active Alerts</h2>
-                <ActiveAlertsTicker alerts={alerts} />
-              </CardContent>
-            </Card>
-          </div>
-
           {/* AI Assistant Widget */}
           <div className="flex-1 min-h-0 overflow-hidden">
             <AskAIWidget />
