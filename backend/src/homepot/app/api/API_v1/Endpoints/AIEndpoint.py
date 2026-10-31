@@ -235,6 +235,59 @@ class AIQueryCancelRequest(BaseModel):
     )
 
 
+# ==================== LLM Provider Endpoints ====================
+
+
+@router.get("/provider", tags=["AI Chat"])
+async def get_llm_provider(
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Return the currently active LLM provider and available options."""
+    from ai.provider import get_provider_info
+
+    info = get_provider_info()
+    # Check health of current provider
+    try:
+        llm, _, _ = get_ai_services()
+        info["healthy"] = llm.check_health()
+        info["model"] = llm.model
+    except Exception:
+        info["healthy"] = False
+        info["model"] = "unknown"
+    return {"status": "success", "data": info}
+
+
+@router.put("/provider", tags=["AI Chat"])
+async def set_llm_provider(
+    provider: str,
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Switch the active LLM provider. Requires admin role."""
+    from ai.provider import get_provider_info, set_provider
+
+    if current_user.get("role") != "Admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    if not set_provider(provider):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid provider: {provider}. Use: ollama, openai, anthropic",
+        )
+
+    # Reset the LLM service singleton so the new provider takes effect
+    _ai_services["llm"] = None
+
+    info = get_provider_info()
+    try:
+        llm, _, _ = get_ai_services()
+        info["healthy"] = llm.check_health()
+        info["model"] = llm.model
+    except Exception:
+        info["healthy"] = False
+        info["model"] = "unknown"
+    return {"status": "success", "message": f"Switched to {provider}", "data": info}
+
+
 # ==================== Analytics Endpoints ====================
 
 

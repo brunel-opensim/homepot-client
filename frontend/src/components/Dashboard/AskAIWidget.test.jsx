@@ -6,7 +6,18 @@ import AskAIWidget from './AskAIWidget';
 import api from '@/services/api';
 
 vi.mock('@/services/api', () => ({
-  default: { ai: { query: vi.fn(), cancel: vi.fn() } },
+  default: {
+    ai: {
+      query: vi.fn(),
+      cancel: vi.fn(),
+      getProvider: vi
+        .fn()
+        .mockResolvedValue({ data: { current: 'ollama', healthy: true, model: 'llama3.2' } }),
+      setProvider: vi
+        .fn()
+        .mockResolvedValue({ data: { current: 'ollama', healthy: true, model: 'llama3.2' } }),
+    },
+  },
 }));
 
 vi.mock('@/hooks/useAuth', () => ({

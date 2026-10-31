@@ -33,6 +33,12 @@ class LLMService:
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
 
+        # Override provider from runtime preference file
+        from .provider import get_provider
+
+        runtime_provider = get_provider()
+        self.config.setdefault("llm", {})["provider"] = runtime_provider
+
         self.provider = create_llm_provider(self.config)
         self.model = (
             self.provider.model if hasattr(self.provider, "model") else "unknown"
