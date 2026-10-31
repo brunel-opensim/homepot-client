@@ -18,6 +18,7 @@ import {
   ListChecks,
   BookOpen,
   FileText,
+  Maximize2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
@@ -270,7 +271,13 @@ function GateReplay({ trust, onDone }) {
  *   workspace. Both share all state, handlers and API calls.
  * @param {string} [props.className] - Extra classes for the outer container.
  */
-export default function AskAIWidget({ variant = 'compact', className = '' }) {
+export default function AskAIWidget({
+  variant = 'compact',
+  className = '',
+  onOpenWorkspace = () => {
+    if (typeof window !== 'undefined') window.location.assign('/ai-workspace');
+  },
+}) {
   const isWorkspace = variant === 'workspace';
   const { user } = useAuth();
   // Load initial state from localStorage if available to persist context on refresh/navigation
@@ -596,8 +603,25 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
+          {llmProvider?.healthy === false && (
+            <span
+              className="inline-block w-2 h-2 rounded-full bg-red-500"
+              title="Provider unhealthy"
+            />
+          )}
         </CardTitle>
         <div className="flex items-center gap-2">
+          {!isWorkspace && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onOpenWorkspace}
+              className="h-8 px-2 text-xs text-gray-400 hover:text-purple-400"
+              title="Open full AI workspace"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
+          )}
           {llmProvider && (
             <div className="flex items-center gap-2">
               <select
@@ -722,9 +746,23 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 italic text-center gap-2">
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center gap-2 px-2">
               <Sparkles className="w-8 h-8 opacity-20" />
-              <p>Ask about system status, anomalies, or maintenance recommendations...</p>
+              <p className="text-sm italic">
+                Ask about system status, anomalies, or maintenance recommendations...
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5 mt-2 not-italic">
+                {SUGGESTED_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setQuery(p)}
+                    className="text-[11px] px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
