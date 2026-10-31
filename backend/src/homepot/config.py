@@ -242,7 +242,10 @@ class Settings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Load .env first, then .env.local for developer overrides.
+        # .env.local is gitignored and allows demouser to override
+        # secrets (e.g. API keys) without sudo access to .env.
+        env_file=(".env", ".env.local"),
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         case_sensitive=False,

@@ -86,6 +86,25 @@ def get_api_key(provider: str) -> Optional[str]:
         if key:
             return key
 
+    # Fall back to .env.local file (for dev environments where demouser
+    # cannot write to .env)
+    try:
+        for candidate in [
+            ".env.local",
+            "backend/.env.local",
+            "/var/www/homepot.cabera.com/backend/.env.local",
+        ]:
+            if os.path.exists(candidate):
+                with open(candidate, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            if k.strip() == env_var and v.strip():
+                                return v.strip()
+    except OSError:
+        pass
+
     # Fall back to provider.json
     try:
         if os.path.exists(_PROVIDER_FILE):
