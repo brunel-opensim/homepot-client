@@ -288,6 +288,23 @@ export default function AskAIWidget() {
   const [loading, setLoading] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
+  // LLM provider state
+  const [llmProvider, setLlmProvider] = useState(null);
+  const [llmSwitching, setLlmSwitching] = useState(false);
+
+  // Fetch current LLM provider on mount
+  useEffect(() => {
+    api.ai
+      .getProvider()
+      .then((res) => {
+        if (res?.data) {
+          setLlmProvider(res.data);
+        }
+      })
+      .catch(() => {
+        // Silently ignore - provider selector is optional
+      });
+  }, []);
   const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
   const [slowHint, setSlowHint] = useState(false);
   const [cancelled, setCancelled] = useState(false);
@@ -318,6 +335,20 @@ export default function AskAIWidget() {
         .catch(() => setCancelConfirmed(false));
     }
     abortRef.current?.abort();
+  }, []);
+
+  const handleSwitchProvider = useCallback(async (provider) => {
+    setLlmSwitching(true);
+    try {
+      const res = await api.ai.setProvider(provider);
+      if (res?.data) {
+        setLlmProvider(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to switch LLM provider:', err);
+    } finally {
+      setLlmSwitching(false);
+    }
   }, []);
 
   // Persist query and response to localStorage whenever they change
@@ -501,17 +532,32 @@ export default function AskAIWidget() {
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
         </CardTitle>
-        {(response || query) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearHistory}
-            className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 transition-colors"
-            title="Clear AI Context"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {llmProvider && (
+            <select
+              value={llmProvider.current || 'ollama'}
+              onChange={(e) => handleSwitchProvider(e.target.value)}
+              disabled={llmSwitching}
+              className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+              title="Switch LLM provider"
+            >
+              <option value="ollama">Local (Ollama)</option>
+              <option value="openai">OpenAI (GPT-4o-mini)</option>
+              <option value="anthropic">Anthropic (Claude Haiku)</option>
+            </select>
+          )}
+          {(response || query) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearHistory}
+              className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 transition-colors"
+              title="Clear AI Context"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
         {/* Response Area */}

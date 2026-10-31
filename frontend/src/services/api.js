@@ -840,6 +840,22 @@ const api = {
       const response = await apiClient.get('/ai/anomalies');
       return response.data;
     },
+
+    /**
+     * Get the currently active LLM provider
+     */
+    getProvider: async () => {
+      const response = await apiClient.get('/ai/provider');
+      return response.data;
+    },
+
+    /**
+     * Switch the active LLM provider (admin only)
+     */
+    setProvider: async (provider) => {
+      const response = await apiClient.put(`/ai/provider?provider=${encodeURIComponent(provider)}`);
+      return response.data;
+    },
   },
 
   // AI action-delegation proposals (Phase 2). Technicians review and
