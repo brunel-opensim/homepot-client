@@ -6,7 +6,7 @@ import api from '@/services/api';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '@/components/Dashboard/MetricCard';
 import AskAIWidget from '@/components/Dashboard/AskAIWidget';
-import AlertsStrip from '@/components/Dashboard/AlertsStrip';
+import ActiveAlertsTicker from '@/components/Dashboard/ActiveAlertsTicker';
 import WorldMapImage from '@/assets/images/world-map.png';
 import { MAX_AUTO_MONITORED_CARDS, buildMonitoredBoard } from '@/utils/dashboardBoard';
 
@@ -339,9 +339,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Active Alerts strip (Pulse moved into summary row) */}
-      <AlertsStrip alerts={alerts} />
-
       {/* Main Content: Two columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0 overflow-hidden">
         {/* Left Column: Connected Sites */}
@@ -431,6 +428,19 @@ export default function Dashboard() {
 
         {/* Right Column: AI Assistant (Pulse/Alerts moved to StatusStrip above) */}
         <div className="flex flex-col gap-2 h-full min-h-0 overflow-hidden pr-1">
+          <div className="flex-none">
+            <Card className="bg-[#080A0A] border border-secondary shrink-0">
+              <CardContent className="p-2">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs font-semibold text-white shrink-0">Active Alerts</h2>
+                  <div className="flex-1 min-w-0">
+                    <ActiveAlertsTicker alerts={alerts} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* AI Assistant Widget */}
           <div className="flex-1 min-h-0 overflow-hidden">
             <AskAIWidget />
