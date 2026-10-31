@@ -40,7 +40,7 @@ llm:
   # answer (~110-140 tokens) finish rather than being cut mid-list, while
   # still bounding the worst case (~37s of generation; see
   # docs/server-deployment.md). Answers longer than this end with "…".
-  num_predict: 160
+  num_predict: 120  # reduced from 160 for latency
   # How long Ollama keeps the model resident after a request (Ollama's own
   # default is 5m). A long value avoids the cold-load cost on sparse queries.
   # How long Ollama keeps the model resident after a request (Ollama's own
