@@ -11,6 +11,7 @@ short and standalone; the cross-cutting analysis lives in
 | --- | --- | --- |
 | [ADR-0001](0001-command-delivery-semantics.md) | Command Delivery Semantics (at-most-once vs at-least-once) | Proposed |
 | [ADR-0002](0002-agent-supervision-and-lifetime.md) | Agent Supervision & Lifetime | Proposed |
+| [ADR-0003](0003-llm-provider-abstraction.md) | Pluggable LLM Providers (Local + External) | Accepted |
 
 ## Status definitions
 

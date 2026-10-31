@@ -267,6 +267,9 @@ android/
 *.sqlite3
 *.db-journal
 ai/data/
+# Runtime LLM provider preference + any API keys written via PUT /ai/provider/key.
+# Plaintext secrets must never be committed.
+ai/provider.json
 
 # UQ — campaign working directories and runtime-generated plots (recreated on each run)
 uq/study1_anomaly/campaign_anomaly_uq/

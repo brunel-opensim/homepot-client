@@ -380,81 +380,63 @@ We have a **System Verification Suite** that demonstrates the full AI pipeline. 
 
 ## Switching LLM Providers
 
-The AI system supports three LLM providers. The active provider is selected
-via `llm.provider` in `ai/config.yaml` (or the backend's `ai/config.yaml`).
+The AI supports a local **Ollama** model (default) or an external **OpenAI** or
+**Anthropic** provider. The published guide is
+[docs/ai-llm-providers.md](../docs/ai-llm-providers.md); this section is a quick
+reference.
 
-### Ollama (local, default)
+The active provider is resolved at runtime (`ai/provider.py`):
 
-```yaml
-llm:
-  provider: "ollama"
-  model: "llama3.2"
-  base_url: "http://localhost:11434"
+1. `ai/provider.json` → `{"provider": "<name>"}` (set by the Dashboard or API)
+2. `ai/config.yaml` → `llm.provider`
+3. `"ollama"` fallback
+
+Switch from the Dashboard AI widget (Admin only) or the API — no restart needed:
+
+```http
+GET  /api/v1/ai/provider
+PUT  /api/v1/ai/provider?provider=openai
+PUT  /api/v1/ai/provider/key?provider=openai&api_key=sk-...
 ```
 
-Requires Ollama running locally. Best for production (data stays on-premise).
-
-### OpenAI
+### Configuration
 
 ```yaml
 llm:
-  provider: "openai"
+  provider: "ollama"            # "ollama" | "openai" | "anthropic"
+  model: "llama3.2"            # Ollama model
   external:
     openai:
-      model: "gpt-4o-mini"       # or gpt-4o, gpt-4-turbo
+      model: "gpt-4o-mini"
       api_key_env: "OPENAI_API_KEY"
       base_url: "https://api.openai.com/v1"
-```
-
-Set the API key as an environment variable:
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-Get an API key from: https://platform.openai.com/api-keys
-
-### Anthropic
-
-```yaml
-llm:
-  provider: "anthropic"
-  external:
     anthropic:
-      model: "claude-3-5-haiku-20241022"  # or claude-3-5-sonnet-20241022
+      model: "claude-haiku-4-5-20251001"
       api_key_env: "ANTHROPIC_API_KEY"
       base_url: "https://api.anthropic.com"
 ```
 
-Set the API key as an environment variable:
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
+API keys are read from the environment variable named by `api_key_env`, then
+`.env.local`, then `ai/provider.json`. In deployment, put keys in
+`backend/.env.local` and restart the API — see
+[Server Deployment](../docs/server-deployment.md#hybrid-env-approach-dev-vs-production).
 
-Get an API key from: https://console.anthropic.com/settings/keys
+### Performance (reference host)
 
-### Performance comparison
+| Provider | Model | Latency (typical) | Cost |
+|----------|-------|-------------------|------|
+| Ollama (local) | llama3.2 4B | ~100–180 s (CPU) | Free |
+| OpenAI | gpt-4o-mini | ~2–5 s | Pay per token |
+| Anthropic | claude-haiku-4-5 | ~2–5 s | Pay per token |
 
-| Provider | Model | Latency (typical) | Cost (per 1M tokens) |
-|----------|-------|-------------------|---------------------|
-| Ollama (local) | llama3.2 4B | ~180s (CPU) | Free |
-| OpenAI | gpt-4o-mini | ~2-5s | $0.15 input / $0.60 output |
-| Anthropic | claude-3-5-haiku | ~2-5s | $0.80 input / $4.00 output |
+### For demos vs production
 
-### For demo sessions
+- **Demos/reviews:** switch to OpenAI or Anthropic from the Dashboard for
+  second-level responses.
+- **Production with real devices:** stay on Ollama — prompts, device status and
+  memory never leave the host.
 
-Switch to an external provider for faster responses:
-```bash
-# On the server
-export OPENAI_API_KEY="sk-..."
-# Edit ai/config.yaml: provider: "openai"
-sudo systemctl restart homepot-api
-```
-
-### For production (real devices)
-
-Use Ollama for data privacy (no data leaves the server):
-```yaml
-llm:
-  provider: "ollama"
-  model: "llama3.2"
-```
+> **Note — tuning is shared by default:** `num_predict` (output cap),
+> `max_concurrent` and memory recall depth are currently uniform across
+> providers. Per-provider tuning is documented as **planned** in
+> [LLM Providers](../docs/ai-llm-providers.md#provider-specific-tuning).

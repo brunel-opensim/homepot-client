@@ -157,6 +157,9 @@ sudo /usr/bin/systemctl start homepot-api
 - The AI provider module also reads from `.env.local` as a fallback, so
   keys are available even if pydantic-settings hasn't loaded them yet.
 
+For provider selection, key precedence and troubleshooting, see
+[LLM Providers](ai-llm-providers.md#api-keys-and-secret-management).
+
 ### LLM (Ollama)
 
 - `ollama` **0.40.4** installed and running as a systemd unit
