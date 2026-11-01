@@ -592,6 +592,33 @@ def get_ai_services() -> Any:
 _ai_gates: dict[str, AIConcurrencyGate] = {}
 
 
+def _select_history(history: list, max_messages: int = 5, max_tokens: int = 0) -> tuple:
+    """Select a bounded subset of conversation history.
+
+    Returns ``(recent, older)`` where ``recent`` is the list of messages to
+    inject verbatim (bounded by *max_messages* and *max_tokens*) and ``older``
+    holds the turns that fell outside the budget. Token counts are estimated
+    as ``chars // 4``.
+    """
+    if not history:
+        return [], []
+    cleaned = list(history)
+    recent: list = []
+    total_tokens = 0
+    for msg in reversed(cleaned):
+        est = (
+            len(str(getattr(msg, "role", ""))) + len(str(getattr(msg, "content", "")))
+        ) // 4 + 4
+        if max_tokens > 0 and total_tokens + est > max_tokens:
+            break
+        if len(recent) >= max_messages:
+            break
+        recent.insert(0, msg)
+        total_tokens += est
+    older = cleaned[: len(cleaned) - len(recent)]
+    return recent, older
+
+
 async def _publish_investigation_event(
     request: AIQueryRequest, event: str, data: Optional[dict] = None
 ) -> None:
@@ -1190,17 +1217,53 @@ async def _query_ai_impl(
             request, "run_started", {"query": request.query}
         )
 
-        # 1. Build Short-Term Context (Conversation History)
+        # 1. Build Short-Term Context (Conversation History).
+        # Bounded context policy (Stage 6): select recent turns within a
+        # configured message/token budget; older turns are summarised (or
+        # dropped) so the prompt stays within the model's window. The full
+        # transcript is stored separately (investigation_messages) and is
+        # never replaced by this selection. History is informational only and
+        # never overrides live validation/authorisation.
         short_term_context = ""
+        _llm_cfg = getattr(llm, "config", {}) or {}
+        _hist_cfg = (_llm_cfg.get("llm", {}) or {}).get("history", {}) or {}
+        _max_hist_msgs = int(_hist_cfg.get("max_messages", 5))
+        _max_hist_tokens = int(_hist_cfg.get("max_tokens", 0))
+        _summarise_older = bool(_hist_cfg.get("summarise_older", False))
+
         if request.history:
-            short_term_context = "\n[CONVERSATION HISTORY]\n"
-            short_term_context += "\n".join(
-                [
-                    f"{_sanitize_ai_input(msg.role, 'history-role')}: "
-                    f"{_sanitize_ai_input(msg.content, 'history')}"
-                    for msg in request.history[-5:]
-                ]
+            _recent, _older = _select_history(
+                request.history, _max_hist_msgs, _max_hist_tokens
             )
+            _parts = []
+            if _older:
+                if _summarise_older:
+                    _summary = " ".join(
+                        _sanitize_ai_input(m.content, "history")[:120] for m in _older
+                    )
+                    _parts.append(
+                        "[EARLIER CONVERSATION SUMMARY]\n"
+                        f"{len(_older)} earlier turn(s) (summarised, "
+                        f"not current state): {_summary}"
+                    )
+                else:
+                    _parts.append(
+                        f"[EARLIER CONVERSATION: {len(_older)} prior turn(s) "
+                        f"omitted; only the most recent {_max_hist_msgs} are "
+                        f"shown. History is not current device state.]"
+                    )
+            if _recent:
+                _parts.append("[CONVERSATION HISTORY — prior turns, not current state]")
+                _parts.append(
+                    "\n".join(
+                        [
+                            f"{_sanitize_ai_input(m.role, 'history-role')}: "
+                            f"{_sanitize_ai_input(m.content, 'history')}"
+                            for m in _recent
+                        ]
+                    )
+                )
+            short_term_context = "\n".join(_parts)
 
         # 2. Determine the caller's long-term memory scope (RBAC-aware) and
         # recall scoped memories. Admins recall across all memories; everyone
