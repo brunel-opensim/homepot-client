@@ -213,6 +213,12 @@ class AIQueryRequest(BaseModel):
             "forces the operational gated path."
         ),
     )
+    session_id: Optional[str] = Field(
+        None, description="Investigation session id for event streaming"
+    )
+    run_id: Optional[str] = Field(
+        None, description="Investigation run id for event streaming"
+    )
     query_id: Optional[str] = Field(
         default=None,
         max_length=64,
@@ -586,6 +592,29 @@ def get_ai_services() -> Any:
 _ai_gates: dict[str, AIConcurrencyGate] = {}
 
 
+async def _publish_investigation_event(
+    request: AIQueryRequest, event: str, data: Optional[dict] = None
+) -> None:
+    """Best-effort publish to the investigation event bus.
+
+    No-op when the request is not tied to an investigation session/run, so
+    existing callers (and tests) are unaffected.
+    """
+    if not request.session_id or not request.run_id:
+        return
+    try:
+        from homepot.app.events.investigation_events import get_event_bus
+
+        await get_event_bus().publish(
+            session_id=request.session_id,
+            run_id=request.run_id,
+            event=event,
+            data=data or {},
+        )
+    except Exception:
+        pass
+
+
 def get_ai_gate(llm: Any) -> AIConcurrencyGate:
     """Return the AI concurrency gate for the active provider."""
     llm_cfg = (getattr(llm, "config", {}) or {}).get("llm", {}) or {}
@@ -947,6 +976,11 @@ async def _answer_knowledge(
     # answer nobody will read.
     abandon_reason = await _abandon_reason(http_request, cancel_token)
     if abandon_reason:
+        await _publish_investigation_event(
+            request,
+            "cancelled",
+            {"reason": abandon_reason, "stage": "before_generation"},
+        )
         await _audit_cancelled_query(
             request,
             current_user,
@@ -1018,6 +1052,11 @@ async def _answer_knowledge(
     # docs/ai-memory.md), so this only suppresses the success audit entry.
     abandon_reason = await _abandon_reason(http_request, cancel_token)
     if abandon_reason:
+        await _publish_investigation_event(
+            request,
+            "cancelled",
+            {"reason": abandon_reason, "stage": "before_generation"},
+        )
         await _audit_cancelled_query(
             request,
             current_user,
@@ -1146,6 +1185,10 @@ async def _query_ai_impl(
         llm, knowledge, memory = get_ai_services()
         # ContextBuilder is lightweight
         context_builder = ContextBuilder()
+
+        await _publish_investigation_event(
+            request, "run_started", {"query": request.query}
+        )
 
         # 1. Build Short-Term Context (Conversation History)
         short_term_context = ""
@@ -1412,6 +1455,10 @@ async def _query_ai_impl(
             except Exception as e:
                 logger.warning("Failed to build enriched context: %s", e)
 
+            await _publish_investigation_event(
+                request, "context_ready", {"context_len": len(full_context)}
+            )
+
             # 5. Validation-First Gates: Gate A -> B -> C (see ai/gates)
             # AI inference is a downstream consumer of the operational data
             # (paper Sec. 4). Gates no longer block inference outright --
@@ -1455,6 +1502,17 @@ async def _query_ai_impl(
             else:
                 envelope = build_envelope_from_config()
                 trust = await envelope.run(gate_context)
+
+            await _publish_investigation_event(
+                request,
+                "gates_complete",
+                {
+                    "trust_mode": getattr(trust, "trust_mode", None),
+                    "trust_score": getattr(trust, "trust_score", None),
+                    "failed_gate": getattr(trust, "failed_gate", None),
+                    "actionable": getattr(trust, "actionable", None),
+                },
+            )
 
             # 6. AI Insights: surface the SAME anomaly/failure signals a
             # technician would see elsewhere in the product, so the LLM's
@@ -1698,6 +1756,9 @@ async def _query_ai_impl(
             # query, and the caller's memory scope is passed in so memory-reading
             # tools only recall what this user may see.
             gate = get_ai_gate(llm)
+            await _publish_investigation_event(
+                request, "llm_started", {"mode": "agentic"}
+            )
             try:
                 agent_result = await run_agent(
                     query=request.query,
@@ -1735,6 +1796,9 @@ async def _query_ai_impl(
             }
         else:
             # Direct mode: single LLM call (existing behavior).
+            await _publish_investigation_event(
+                request, "llm_started", {"mode": "direct"}
+            )
             response = await _generate_direct(
                 llm,
                 request.query,
@@ -1749,6 +1813,10 @@ async def _query_ai_impl(
         # reaches the user.
         response = _strip_answer_markup(response)
 
+        await _publish_investigation_event(
+            request, "llm_complete", {"response_len": len(response or "")}
+        )
+
         # Cancel check (2/2): the answer was abandoned, so it must not become
         # remembered truth. Skipping this leaves no memory record, and no
         # proposal, for a query the technician rejected. The generation itself
@@ -1756,6 +1824,9 @@ async def _query_ai_impl(
         # "esc" stops having side effects.
         abandon_reason = await _abandon_reason(http_request, cancel_token)
         if abandon_reason:
+            await _publish_investigation_event(
+                request, "cancelled", {"reason": abandon_reason}
+            )
             await _audit_cancelled_query(
                 request,
                 current_user,
@@ -1849,6 +1920,9 @@ async def _query_ai_impl(
                         "is_actionable": bool(trust.is_actionable),
                     },
                 )
+                await _publish_investigation_event(
+                    request, "memory_written", {"digest_chars": digest_chars}
+                )
         except Exception:
             logger.warning("Failed to persist AI memory", exc_info=True)
 
@@ -1896,6 +1970,17 @@ async def _query_ai_impl(
         except Exception:
             logger.warning("Failed to persist AI audit event", exc_info=True)
 
+        await _publish_investigation_event(
+            request,
+            "completed",
+            {
+                "response": response,
+                "trust_mode": getattr(trust, "trust_mode", None),
+                "trust_score": getattr(trust, "trust_score", None),
+                "routing": routing_info,
+            },
+        )
+
         return {
             "response": response,
             "timestamp": datetime.utcnow().isoformat(),
@@ -1906,9 +1991,13 @@ async def _query_ai_impl(
         }
     except HTTPException:
         # Preserve deliberate status codes (e.g. 503 when the AI gate is full).
+        await _publish_investigation_event(
+            request, "failed", {"reason": "http_exception"}
+        )
         raise
     except Exception as e:
         logger.error(f"AI query failed: {e}", exc_info=True)
+        await _publish_investigation_event(request, "failed", {"reason": str(e)})
         raise HTTPException(status_code=500, detail=str(e))
 
 
