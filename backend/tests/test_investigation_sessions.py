@@ -27,6 +27,7 @@ from homepot.models import Base, User  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
+    """Test mock db url."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
@@ -85,9 +86,10 @@ def _client():
 
 
 def test_create_and_list_session():
+    """Test create and list session."""
     db = homepot.database.SessionLocal()
     try:
-        u = _make_user(db, "a@example.com")
+        _make_user(db, "a@example.com")
     finally:
         db.close()
 
@@ -108,6 +110,7 @@ def test_create_and_list_session():
 
 
 def test_session_isolation():
+    """Test session isolation."""
     db = homepot.database.SessionLocal()
     try:
         _make_user(db, "a@example.com")
@@ -134,6 +137,7 @@ def test_session_isolation():
 
 
 def test_resume_session():
+    """Test resume session."""
     db = homepot.database.SessionLocal()
     try:
         _make_user(db, "a@example.com")
@@ -167,6 +171,7 @@ def test_resume_session():
 
 
 def test_archive_session():
+    """Test archive session."""
     db = homepot.database.SessionLocal()
     try:
         _make_user(db, "a@example.com")
@@ -202,6 +207,7 @@ def test_archive_session():
 
 
 def test_message_ordering():
+    """Test message ordering."""
     db = homepot.database.SessionLocal()
     try:
         _make_user(db, "a@example.com")
@@ -231,6 +237,7 @@ def test_message_ordering():
 
 
 def test_run_lifecycle():
+    """Test run lifecycle."""
     db = homepot.database.SessionLocal()
     try:
         _make_user(db, "a@example.com")

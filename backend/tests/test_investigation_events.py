@@ -1,7 +1,5 @@
 """Tests for the investigation event bus (Stage 3 Phase A)."""
 
-import asyncio
-
 import pytest
 
 from homepot.app.events.investigation_events import InvestigationEventBus
@@ -9,6 +7,7 @@ from homepot.app.events.investigation_events import InvestigationEventBus
 
 @pytest.mark.asyncio
 async def test_publish_and_replay():
+    """Test publish and replay."""
     bus = InvestigationEventBus()
     await bus.publish("s1", "r1", "run_started", {"x": 1})
     await bus.publish("s1", "r1", "completed", {"ok": True})
@@ -31,6 +30,7 @@ async def test_publish_and_replay():
 
 @pytest.mark.asyncio
 async def test_event_ids_monotonic():
+    """Test event ids monotonic."""
     bus = InvestigationEventBus()
     e1 = await bus.publish("s1", "r1", "run_started", {})
     e2 = await bus.publish("s1", "r1", "completed", {})
@@ -40,6 +40,7 @@ async def test_event_ids_monotonic():
 
 @pytest.mark.asyncio
 async def test_terminal_marks_stream_end():
+    """Test terminal marks stream end."""
     bus = InvestigationEventBus()
     await bus.publish("s1", "r1", "run_started", {})
     await bus.publish("s1", "r1", "completed", {})
@@ -52,6 +53,7 @@ async def test_terminal_marks_stream_end():
 
 @pytest.mark.asyncio
 async def test_separate_runs_isolated():
+    """Test separate runs isolated."""
     bus = InvestigationEventBus()
     await bus.publish("s1", "r1", "run_started", {})
     await bus.publish("s1", "r1", "completed", {})
