@@ -338,6 +338,69 @@ describe('AskAIWidget cancelling a query in flight', () => {
   });
 });
 
+describe('AskAIWidget Stage F (UI regression)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.ai.getProvider.mockResolvedValue({
+      data: { current: 'ollama', healthy: true, model: 'llama3.2' },
+    });
+    api.ai.cancel.mockResolvedValue({ cancelled: true });
+    localStorage.clear();
+  });
+
+  it('renders per-turn metadata (resolved mode) for diagnostic answers', async () => {
+    api.ai.query.mockResolvedValue(diagnosticResult);
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+    await user.type(screen.getByRole('textbox'), 'What is the system status?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByText('Status Only');
+    // resolved-mode metadata line is rendered for diagnostic answers
+    expect(screen.getAllByText(/diagnostic/i).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders a Details control for diagnostic answers', async () => {
+    api.ai.query.mockResolvedValue(diagnosticResult);
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+    await user.type(screen.getByRole('textbox'), 'What is the system status?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByText('Status Only');
+    expect(screen.getByText('Details')).toBeInTheDocument();
+  });
+
+  it('renders suggested prompts in the empty state', () => {
+    render(<AskAIWidget />);
+    expect(
+      screen.getByRole('button', { name: /How are devices performing today\?/i })
+    ).toBeInTheDocument();
+  });
+
+  it('clears the active thread without calling a delete API', async () => {
+    api.ai.query.mockResolvedValue(diagnosticResult);
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+    await user.type(screen.getByRole('textbox'), 'What is the system status?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByText('Status Only');
+    // clear
+    const clearBtn = screen.getByTitle('New conversation (keeps prior transcripts)');
+    await user.click(clearBtn);
+    // empty state returns
+    expect(await screen.findByText(/Ask about system status/i)).toBeInTheDocument();
+    // no delete endpoint was called (api has no delete method in mock)
+    expect(api.ai.cancel).not.toHaveBeenCalled();
+  });
+
+  it('workspace variant renders empty state with safety footer', () => {
+    render(<AskAIWidget variant="workspace" />);
+    expect(
+      screen.getByText(/Ask about your fleet, devices, or how to do something/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Answers are advisory/i)).toBeInTheDocument();
+  });
+});
+
 describe('AskAIWidget workspace variant', () => {
   beforeEach(() => {
     vi.clearAllMocks();
