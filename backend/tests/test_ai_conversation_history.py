@@ -65,7 +65,11 @@ def test_query_injects_conversation_history():
     from unittest.mock import AsyncMock, MagicMock, patch
 
     mock_llm = MagicMock()
-    mock_llm.config = {"llm": {"history": {"max_messages": 5, "max_tokens": 0, "summarise_older": False}}}
+    mock_llm.config = {
+        "llm": {
+            "history": {"max_messages": 5, "max_tokens": 0, "summarise_older": False}
+        }
+    }
     mock_knowledge = MagicMock()
     mock_knowledge.get_system_prompt.return_value = "sys"
     mock_knowledge.get_knowledge_prompt.return_value = "knowledge"
