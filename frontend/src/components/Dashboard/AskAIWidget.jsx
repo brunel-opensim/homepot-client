@@ -295,6 +295,16 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       return [];
     }
   });
+  // Conversation history (short-term memory). Persisted so a thread can be
+  // resumed; sent to the backend as `history` (last 5 turns).
+  const [messages, setMessages] = useState(() => {
+    try {
+      const stored = localStorage.getItem('homepot_ai_thread');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
@@ -394,12 +404,21 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     }
   }, [sources]);
 
+  useEffect(() => {
+    if (messages && messages.length) {
+      localStorage.setItem('homepot_ai_thread', JSON.stringify(messages));
+    } else {
+      localStorage.removeItem('homepot_ai_thread');
+    }
+  }, [messages]);
+
   const clearHistory = () => {
     setQuery('');
     setResponse(null);
     setTrust(null);
     setRouting(null);
     setSources([]);
+    setMessages([]);
     setTrustExpanded(false);
     setReplaying(false);
     setError(null);
@@ -409,6 +428,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
     localStorage.removeItem('homepot_ai_sources');
+    localStorage.removeItem('homepot_ai_thread');
   };
 
   const handleCopy = () => {
@@ -500,7 +520,18 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
       // `auto` is sent as null so the backend default (heuristics) applies.
       const modeArg = mode === 'auto' ? null : mode;
-      const result = await api.ai.query(query, null, userRole, modeArg, controller.signal, queryId);
+      // Short-term memory: send the last few turns so the backend can keep
+      // the conversation context. Capped to the backend's last-5 limit.
+      const historyPayload = messages.slice(-5).map((m) => ({ role: m.role, content: m.content }));
+      const result = await api.ai.query(
+        query,
+        null,
+        userRole,
+        modeArg,
+        controller.signal,
+        queryId,
+        historyPayload
+      );
       // The backend returns { response, timestamp, trust, routing, sources } --
       // trust is the validation envelope's gate-by-gate outcome (see
       // ai/gates/envelope.py), routing reports how the intent was resolved
@@ -510,6 +541,19 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       setTrust(result.trust || null);
       setRouting(result.routing || null);
       setSources(result.sources || []);
+      // Commit this turn to the conversation thread (only on success, so
+      // cancelled/failed queries do not pollute short-term memory).
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: query },
+        {
+          role: 'assistant',
+          content: result.response,
+          trust: result.trust || null,
+          routing: result.routing || null,
+          sources: result.sources || [],
+        },
+      ]);
       // Show an animated gate replay before revealing the response,
       // so the technician sees the validation chain in action.
       if (result.trust?.gates?.length) {

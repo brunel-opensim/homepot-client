@@ -795,7 +795,15 @@ const api = {
      * @param {string} [queryId] - Client-generated id for this query, sent back
      *   to `api.ai.cancel` if the technician presses Stop/Esc.
      */
-    query: async (query, deviceId = null, role = null, mode = null, signal, queryId = null) => {
+    query: async (
+      query,
+      deviceId = null,
+      role = null,
+      mode = null,
+      signal,
+      queryId = null,
+      history = null
+    ) => {
       const payload = { query };
       if (deviceId) {
         payload.device_id = deviceId;
@@ -808,6 +816,9 @@ const api = {
       }
       if (queryId) {
         payload.query_id = queryId;
+      }
+      if (history && history.length) {
+        payload.history = history;
       }
       // AI inference (local LLM, CPU) can take well over a minute, and cold
       // model loads longer still -- use the AI-specific timeout.
