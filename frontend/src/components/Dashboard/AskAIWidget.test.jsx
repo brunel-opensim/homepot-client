@@ -97,7 +97,9 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       null,
       expect.any(AbortSignal),
       expect.any(String),
-      []
+      [],
+      null,
+      null
     );
   });
 
@@ -117,7 +119,9 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'knowledge',
       expect.any(AbortSignal),
       expect.any(String),
-      []
+      [],
+      null,
+      null
     );
     expect(localStorage.getItem('homepot_ai_mode')).toBe('knowledge');
   });
@@ -138,7 +142,9 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'diagnostic',
       expect.any(AbortSignal),
       expect.any(String),
-      []
+      [],
+      null,
+      null
     );
   });
 
