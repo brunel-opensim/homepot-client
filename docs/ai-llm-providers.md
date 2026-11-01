@@ -12,7 +12,7 @@ is active.
 | **Data leaves server** | No | Yes | Yes |
 | **Typical latency** | ~100–180 s (CPU-only host) | ~2–5 s | ~2–5 s |
 | **Cost** | Free (hardware) | Pay per token | Pay per token |
-| **Default** | ✅ | – | – |
+| **Default** | ✓ | – | – |
 
 !!! tip "When to use which"
     Use **Ollama** for production and any real device data: prompts never leave
@@ -240,9 +240,9 @@ ones that apply to it.
 | `context_budget` | caps enriched context (chars) | same | same | Shared default 2000; overridable via `external.<provider>.context_budget` |
 | `num_predict` | `num_predict` | `max_tokens` | `max_tokens` | Caps **output** for all; overridable via `external.<provider>.num_predict` |
 | `memory_n_results` | recalled memories | same | same | Shared default 3; overridable via `external.<provider>.memory_n_results` |
-| `temperature` | ✅ | ✅ | not sent | Installed Anthropic SDK rejects it |
-| `keep_alive` | ✅ | ignored | ignored | Keeps local model resident (Ollama only) |
-| `max_concurrent` | ✅ | ✅ | ✅ | Overridable via `external.<provider>.max_concurrent`; per-provider gate |
+| `temperature` | ✓ | ✓ | not sent | Installed Anthropic SDK rejects it |
+| `keep_alive` | ✓ | ignored | ignored | Keeps local model resident (Ollama only) |
+| `max_concurrent` | ✓ | ✓ | ✓ | Overridable via `external.<provider>.max_concurrent`; per-provider gate |
 
 !!! note "Planned (not implemented yet)"
     The following tuning is proposed but **not** in the code today. It is
