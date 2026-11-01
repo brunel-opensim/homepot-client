@@ -273,6 +273,7 @@ function GateReplay({ trust, onDone }) {
 export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const isWorkspace = variant === 'workspace';
   const { user } = useAuth();
+  const isAdmin = user?.role === 'Admin' || !!user?.isAdmin;
   // Load initial state from localStorage if available to persist context on refresh/navigation
   const [query, setQuery] = useState(() => localStorage.getItem('homepot_ai_query') || '');
   const [response, setResponse] = useState(
@@ -618,32 +619,39 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               <Maximize2 className="w-4 h-4" />
             </Button>
           )}
-          {llmProvider && (
-            <div className="flex items-center gap-2">
-              <select
-                value={llmProvider.current || 'ollama'}
-                onChange={(e) => handleSwitchProvider(e.target.value)}
-                disabled={llmSwitching}
-                className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
-                title="Switch LLM provider"
-              >
-                <option value="ollama">Local (Ollama)</option>
-                <option value="openai">
-                  OpenAI
-                  {llmProvider.available?.find((p) => p.name === 'openai')?.has_api_key
-                    ? ''
-                    : ' (no key)'}
-                </option>
-                <option value="anthropic">
-                  Anthropic
-                  {llmProvider.available?.find((p) => p.name === 'anthropic')?.has_api_key
-                    ? ''
-                    : ' (no key)'}
-                </option>
-              </select>
-              {llmSwitching && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
-            </div>
-          )}
+          {llmProvider &&
+            (isAdmin ? (
+              <div className="flex items-center gap-2">
+                <select
+                  value={llmProvider.current || 'ollama'}
+                  onChange={(e) => handleSwitchProvider(e.target.value)}
+                  disabled={llmSwitching}
+                  className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+                  title="Switch LLM provider (admin only)"
+                  aria-label="Switch LLM provider"
+                >
+                  <option value="ollama">Local (Ollama)</option>
+                  <option value="openai">
+                    OpenAI
+                    {llmProvider.available?.find((p) => p.name === 'openai')?.has_api_key
+                      ? ''
+                      : ' (no key)'}
+                  </option>
+                  <option value="anthropic">
+                    Anthropic
+                    {llmProvider.available?.find((p) => p.name === 'anthropic')?.has_api_key
+                      ? ''
+                      : ' (no key)'}
+                  </option>
+                </select>
+                {llmSwitching && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400" title="LLM provider (read-only)">
+                {llmProvider.current || 'ollama'}
+                {llmProvider.model ? ` · ${llmProvider.model}` : ''}
+              </span>
+            ))}
           {(response || query) && (
             <Button
               variant="ghost"
@@ -659,7 +667,10 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
         {/* Response Area */}
-        <div className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800">
+        <div
+          className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800"
+          aria-live="polite"
+        >
           {isWorkspace ? (
             <>
               {messages.length === 0 && !loading && !error && !cancelled ? (
@@ -829,11 +840,22 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   )}
                 </>
               ) : (
-                <TrustBanner
-                  trust={trust}
-                  expanded={trustExpanded}
-                  onToggle={() => setTrustExpanded((v) => !v)}
-                />
+                <>
+                  {routing?.resolved === 'diagnostic' && (
+                    <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Diagnostic</span>
+                      <span className="font-normal text-indigo-500/80 dark:text-indigo-400/70">
+                        — validated through gates
+                      </span>
+                    </div>
+                  )}
+                  <TrustBanner
+                    trust={trust}
+                    expanded={trustExpanded}
+                    onToggle={() => setTrustExpanded((v) => !v)}
+                  />
+                </>
               )}
               <div className="sticky top-0 float-right z-10">
                 <Button
