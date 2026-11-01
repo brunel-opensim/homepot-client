@@ -5,14 +5,13 @@ with owner + site/device scoping and per-operation authorisation.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as SASession
-from typing import AsyncGenerator
 
 from homepot.app.api.API_v1.Endpoints.AIActionEndpoint import _get_db_user
 from homepot.app.auth_utils import get_accessible_site_ids, require_user
