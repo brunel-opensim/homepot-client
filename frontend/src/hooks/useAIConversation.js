@@ -3,6 +3,7 @@ import api from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { aiErrorMessage, isCancel } from '@/utils/aiErrorMessage';
 import { newQueryId } from '@/utils/aiQueryId';
+import { useRunEvents } from '@/hooks/useRunEvents';
 
 // Intent modes the technician can pick (docs/ai-query-routing.md §6.1).
 export const AI_MODES = [
@@ -64,9 +65,15 @@ export function useAIConversation(variant = 'compact') {
   const [llmProvider, setLlmProvider] = useState(null);
   const [llmSwitching, setLlmSwitching] = useState(false);
   const [messages, setMessages] = useState(() => loadStored('homepot_ai_thread', [], true));
+  // Active investigation session/run for SSE event streaming.
+  const [sessionId, setSessionId] = useState(() => loadStored('homepot_ai_session', null));
+  const [runId, setRunId] = useState(null);
 
   const abortRef = useRef(null);
   const queryIdRef = useRef(null);
+
+  // SSE event stream for the active run (no-op when sessionId/runId are null).
+  const runEvents = useRunEvents(sessionId, runId);
 
   // Persist draft/response/trust/mode/sources/thread
   useEffect(() => {
@@ -98,6 +105,11 @@ export function useAIConversation(variant = 'compact') {
       localStorage.setItem('homepot_ai_thread', JSON.stringify(messages));
     else localStorage.removeItem('homepot_ai_thread');
   }, [messages]);
+
+  useEffect(() => {
+    if (sessionId) localStorage.setItem('homepot_ai_session', sessionId);
+    else localStorage.removeItem('homepot_ai_session');
+  }, [sessionId]);
 
   // Fetch provider on mount
   useEffect(() => {
@@ -142,6 +154,8 @@ export function useAIConversation(variant = 'compact') {
     setSources([]);
     setProposal(null);
     setMessages([]);
+    setSessionId(null);
+    setRunId(null);
     setTrustExpanded(false);
     setReplaying(false);
     setError(null);
@@ -162,10 +176,30 @@ export function useAIConversation(variant = 'compact') {
     setTimeout(() => setCopied(false), 2000);
   }, [response]);
 
-  // Loading message rotation
+  // SSE-driven progress messages (replaces timer narration when a run is active).
+  useEffect(() => {
+    const ev = runEvents.latest;
+    if (!ev) return;
+    const type = ev.type || ev.data?.event;
+    const map = {
+      run_started: 'Starting investigation...',
+      context_ready: 'Gathering context and evidence...',
+      gates_complete: 'Validating data through gate chain...',
+      llm_started: 'Generating answer...',
+      llm_complete: 'Finalizing response...',
+      memory_written: 'Storing memory...',
+    };
+    if (map[type]) setLoadingMessage(map[type]);
+  }, [runEvents.latest]);
+
+  // Loading message rotation (fallback when no SSE events)
   useEffect(() => {
     let interval;
     let slowTimer;
+    // Skip timer-driven narration when SSE events are driving progress.
+    if (loading && runEvents.events.length > 0) {
+      return () => {};
+    }
     if (loading) {
       const gateMessages = [
         'Reviewing conversation history...',
@@ -200,7 +234,7 @@ export function useAIConversation(variant = 'compact') {
       clearInterval(interval);
       clearTimeout(slowTimer);
     };
-  }, [loading, mode]);
+  }, [loading, mode, runEvents.events.length]);
 
   // Esc aborts
   useEffect(() => {
@@ -229,9 +263,32 @@ export function useAIConversation(variant = 'compact') {
       abortRef.current = controller;
       const queryId = newQueryId();
       queryIdRef.current = queryId;
+      let activeSessionId = sessionId;
+      let activeRunId = null;
+      const investigations = api.investigations;
       try {
         const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
         const modeArg = mode === 'auto' ? null : mode;
+        if (investigations) {
+          if (!activeSessionId) {
+            try {
+              const created = await investigations.create(null, null, null);
+              activeSessionId = created?.data?.session_id || null;
+              if (activeSessionId) setSessionId(activeSessionId);
+            } catch (e) {
+              console.warn('Failed to create investigation session:', e);
+            }
+          }
+          if (activeSessionId) {
+            try {
+              const runRes = await investigations.createRun(activeSessionId, null, 'running');
+              activeRunId = runRes?.data?.run_id || null;
+              if (activeRunId) setRunId(activeRunId);
+            } catch (e) {
+              console.warn('Failed to create investigation run:', e);
+            }
+          }
+        }
         const historyPayload = messages
           .slice(-5)
           .map((m) => ({ role: m.role, content: m.content }));
@@ -242,7 +299,9 @@ export function useAIConversation(variant = 'compact') {
           modeArg,
           controller.signal,
           queryId,
-          historyPayload
+          historyPayload,
+          activeSessionId,
+          activeRunId
         );
         setResponse(result.response);
         setTrust(result.trust || null);
@@ -262,12 +321,30 @@ export function useAIConversation(variant = 'compact') {
             proposal: result.proposal || null,
           },
         ]);
+        if (activeRunId && investigations) {
+          investigations
+            .updateRun(activeSessionId, activeRunId, { status: 'completed' })
+            .catch(() => {});
+        }
       } catch (err) {
         if (isCancel(err)) {
           setCancelled(true);
+          if (activeRunId && investigations) {
+            investigations
+              .updateRun(activeSessionId, activeRunId, { status: 'cancelled' })
+              .catch(() => {});
+          }
         } else {
           console.error('AI Query failed:', err);
           setError(aiErrorMessage(err));
+          if (activeRunId && investigations) {
+            investigations
+              .updateRun(activeSessionId, activeRunId, {
+                status: 'failed',
+                error: aiErrorMessage(err),
+              })
+              .catch(() => {});
+          }
         }
       } finally {
         abortRef.current = null;
@@ -275,7 +352,7 @@ export function useAIConversation(variant = 'compact') {
         setLoading(false);
       }
     },
-    [query, mode, user, messages]
+    [query, mode, user, messages, sessionId]
   );
 
   // Cancel in-flight request on unmount so navigation doesn't leave an orphan.

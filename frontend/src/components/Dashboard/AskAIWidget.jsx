@@ -173,7 +173,7 @@ function GateReplay({ trust, onDone }) {
     <div className="flex flex-col items-center justify-center h-full gap-3">
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
         <ListChecks className="w-3.5 h-3.5" />
-        <span>Validating data through gate chain...</span>
+        <span>Replaying validation gate chain...</span>
       </div>
       <div className="space-y-1.5 text-xs">
         {gates.slice(0, Math.min(idx, total)).map((g, i) => (
