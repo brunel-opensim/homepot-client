@@ -156,6 +156,10 @@ async def list_action_plans(
     plan_status: Optional[str] = Query(
         None, alias="status", description="Filter by plan status"
     ),
+    session_id: Optional[str] = Query(
+        None, description="Filter by investigation session id"
+    ),
+    run_id: Optional[str] = Query(None, description="Filter by investigation run id"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: UserDict = Depends(require_user()),
@@ -167,6 +171,8 @@ async def list_action_plans(
     plans = repo.list_plans(
         statuses={plan_status} if plan_status else None,
         accessible_device_ids=_accessible_device_ids(db, db_user),
+        session_id=session_id,
+        run_id=run_id,
         limit=limit,
         offset=offset,
     )

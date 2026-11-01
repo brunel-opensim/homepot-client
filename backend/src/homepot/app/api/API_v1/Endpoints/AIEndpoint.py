@@ -1856,6 +1856,9 @@ async def _query_ai_impl(
                         reversible=all_reversible(agent_result.proposals),
                         trust=trust,
                         created_by=current_user.get("email"),
+                        source_query_id=request.query_id,
+                        investigation_session_id=request.session_id,
+                        investigation_run_id=request.run_id,
                         # The trust envelope already vetted the answer, so the
                         # plan is promoted straight to awaiting a technician
                         # (Phase 2). See docs/ai-delegation-plan.md section 6.

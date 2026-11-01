@@ -38,6 +38,9 @@ class AIActionRepository:
         risk_tier: Optional[str] = None,
         reversible: bool = False,
         source_query_id: Optional[str] = None,
+        investigation_session_id: Optional[str] = None,
+        investigation_run_id: Optional[str] = None,
+        investigation_message_id: Optional[str] = None,
         trust: Optional[Any] = None,
         created_by: Optional[str] = None,
         provenance: str = "ai_proposed",
@@ -51,6 +54,9 @@ class AIActionRepository:
         """
         plan = AIActionPlan(
             source_query_id=source_query_id,
+            investigation_session_id=investigation_session_id,
+            investigation_run_id=investigation_run_id,
+            investigation_message_id=investigation_message_id,
             trust_mode=getattr(getattr(trust, "trust_mode", None), "label", None),
             trust_score=(float(trust.trust_score) if trust is not None else None),
             passed_gates=(list(trust.passed_gate_ids) if trust is not None else None),
@@ -109,6 +115,8 @@ class AIActionRepository:
         *,
         statuses: Optional[Iterable[str]] = None,
         accessible_device_ids: Optional[Iterable[str]] = None,
+        session_id: Optional[str] = None,
+        run_id: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> List[AIActionPlan]:
@@ -126,6 +134,11 @@ class AIActionRepository:
             if not status_list:
                 return []
             stmt = stmt.where(AIActionPlan.status.in_(status_list))
+
+        if session_id is not None:
+            stmt = stmt.where(AIActionPlan.investigation_session_id == session_id)
+        if run_id is not None:
+            stmt = stmt.where(AIActionPlan.investigation_run_id == run_id)
 
         if accessible_device_ids is not None:
             device_ids = list(accessible_device_ids)

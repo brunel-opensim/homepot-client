@@ -52,6 +52,7 @@ export function useAIConversation(variant = 'compact') {
   const [mode, setMode] = useState(() => loadStored('homepot_ai_mode', 'auto'));
   const [routing, setRouting] = useState(null);
   const [sources, setSources] = useState(() => loadStored('homepot_ai_sources', [], true));
+  const [proposal, setProposal] = useState(() => loadStored('homepot_ai_proposal', null, true));
   const [loading, setLoading] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
@@ -87,6 +88,11 @@ export function useAIConversation(variant = 'compact') {
       localStorage.setItem('homepot_ai_sources', JSON.stringify(sources));
     else localStorage.removeItem('homepot_ai_sources');
   }, [sources]);
+
+  useEffect(() => {
+    if (proposal) localStorage.setItem('homepot_ai_proposal', JSON.stringify(proposal));
+    else localStorage.removeItem('homepot_ai_proposal');
+  }, [proposal]);
   useEffect(() => {
     if (messages && messages.length)
       localStorage.setItem('homepot_ai_thread', JSON.stringify(messages));
@@ -134,6 +140,7 @@ export function useAIConversation(variant = 'compact') {
     setTrust(null);
     setRouting(null);
     setSources([]);
+    setProposal(null);
     setMessages([]);
     setTrustExpanded(false);
     setReplaying(false);
@@ -144,6 +151,7 @@ export function useAIConversation(variant = 'compact') {
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
     localStorage.removeItem('homepot_ai_sources');
+    localStorage.removeItem('homepot_ai_proposal');
     localStorage.removeItem('homepot_ai_thread');
   }, []);
 
@@ -240,6 +248,7 @@ export function useAIConversation(variant = 'compact') {
         setTrust(result.trust || null);
         setRouting(result.routing || null);
         setSources(result.sources || []);
+        setProposal(result.proposal || null);
         if (result.trust?.gates?.length) setReplaying(true);
         setMessages((prev) => [
           ...prev,
@@ -250,6 +259,7 @@ export function useAIConversation(variant = 'compact') {
             trust: result.trust || null,
             routing: result.routing || null,
             sources: result.sources || [],
+            proposal: result.proposal || null,
           },
         ]);
       } catch (err) {
@@ -280,6 +290,51 @@ export function useAIConversation(variant = 'compact') {
   }, []);
 
   const isAdmin = user?.role === 'Admin' || !!user?.isAdmin;
+
+  // Poll proposal status for any plan referenced in the thread, so the inline
+  // cards reflect approval/execution outcomes. Stops once all are terminal.
+  useEffect(() => {
+    const planIds = messages.map((m) => m?.proposal?.plan_id).filter(Boolean);
+    if (planIds.length === 0) return undefined;
+    const terminal = new Set(['succeeded', 'failed', 'rejected', 'rolled_back', 'expired']);
+    let cancelled = false;
+    const poll = async () => {
+      for (const pid of planIds) {
+        try {
+          const res = await api.aiProposals.get(pid);
+          const plan = res?.data || res;
+          if (!plan || cancelled) return;
+          const newStatus = plan.status;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m?.proposal?.plan_id === pid
+                ? {
+                    ...m,
+                    proposal: {
+                      ...m.proposal,
+                      status: newStatus,
+                      risk_tier: plan.risk_tier || m.proposal.risk_tier,
+                    },
+                  }
+                : m
+            )
+          );
+        } catch {
+          // ignore
+        }
+      }
+    };
+    const allTerminal = messages.every(
+      (m) => !m?.proposal?.plan_id || terminal.has(m.proposal.status)
+    );
+    if (allTerminal) return undefined;
+    const id = setInterval(poll, 5000);
+    poll();
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [messages]);
   const isKnowledge = routing?.resolved === 'knowledge' || trust?.trust_mode === 'informational';
 
   return {
@@ -295,6 +350,7 @@ export function useAIConversation(variant = 'compact') {
     setMode,
     routing,
     sources,
+    proposal,
     loading,
     replaying,
     error,

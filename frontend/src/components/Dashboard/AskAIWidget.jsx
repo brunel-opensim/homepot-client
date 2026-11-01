@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAIConversation, AI_MODES } from '@/hooks/useAIConversation';
+import ProposalCard from '@/components/Dashboard/ProposalCard';
 
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
 const TRUST_MODE_STYLES = {
@@ -373,6 +374,9 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                         <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-200">
                           <ReactMarkdown>{m.content}</ReactMarkdown>
                         </div>
+                        {m.role === 'assistant' && m.proposal && (
+                          <ProposalCard proposal={m.proposal} />
+                        )}
                       </div>
                     </div>
                   ))}
@@ -504,6 +508,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 pr-0">
                 <ReactMarkdown>{c.response}</ReactMarkdown>
               </div>
+              {c.proposal && <ProposalCard proposal={c.proposal} />}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 italic text-center gap-2">
