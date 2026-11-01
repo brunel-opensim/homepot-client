@@ -1381,7 +1381,7 @@ async def _query_ai_impl(
                     _llm_cfg = getattr(llm, "config", None)
                     if isinstance(_llm_cfg, dict):
                         budget = int(
-                            (_llm_cfg.get("llm") or {}).get("context_budget", 4000)
+                            (_llm_cfg.get("llm") or {}).get("context_budget", 2000)
                         )
                     else:
                         budget = 4000
