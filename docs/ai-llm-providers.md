@@ -237,11 +237,12 @@ ones that apply to it.
 | Setting | Ollama | OpenAI | Anthropic | Notes |
 |---|---|---|---|---|
 | `context_window` | `num_ctx` | model default | model default | Ollama truncates first; fleet summary is restated at the end of the context to survive truncation |
-| `context_budget` | caps enriched context (chars) | same | same | Shared; default 4000 chars. Raise for cloud to receive full detail; lowers Ollama confusion. |
-| `num_predict` | `num_predict` | `max_tokens` | `max_tokens` | Caps **output** for all |
+| `context_budget` | caps enriched context (chars) | same | same | Shared default 2000; overridable via `external.<provider>.context_budget` |
+| `num_predict` | `num_predict` | `max_tokens` | `max_tokens` | Caps **output** for all; overridable via `external.<provider>.num_predict` |
+| `memory_n_results` | recalled memories | same | same | Shared default 3; overridable via `external.<provider>.memory_n_results` |
 | `temperature` | ✅ | ✅ | not sent | Installed Anthropic SDK rejects it |
-| `keep_alive` | ✅ | ignored | ignored | Keeps local model resident |
-| `max_concurrent` / `queue_timeout_seconds` | ✅ | ✅ | ✅ | Shared gate, provider-agnostic |
+| `keep_alive` | ✅ | ignored | ignored | Keeps local model resident (Ollama only) |
+| `max_concurrent` | ✅ | ✅ | ✅ | Overridable via `external.<provider>.max_concurrent`; per-provider gate |
 
 !!! note "Planned (not implemented yet)"
     The following tuning is proposed but **not** in the code today. It is

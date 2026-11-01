@@ -23,14 +23,26 @@ llm:
   # External provider settings (used when provider is "openai" or "anthropic").
   # API keys are read from environment variables, not stored here.
   external:
+    # Per-provider overrides. Any key omitted here falls back to the shared
+    # top-level value above, so Ollama and the cloud providers start from the
+    # same baseline (fair comparison). Raise these for external providers to
+    # unlock their larger windows / faster inference.
     openai:
       model: "gpt-4o-mini"
       api_key_env: "OPENAI_API_KEY"
       base_url: "https://api.openai.com/v1"
+      # context_budget: 6000   # chars of enriched context (default 2000)
+      # num_predict: 512       # output token cap (default 120)
+      # max_concurrent: 4      # concurrency (default 1)
+      # memory_n_results: 5    # recalled memories (default 3)
     anthropic:
       model: "claude-haiku-4-5-20251001"
       api_key_env: "ANTHROPIC_API_KEY"
       base_url: "https://api.anthropic.com"
+      # context_budget: 6000
+      # num_predict: 512
+      # max_concurrent: 4
+      # memory_n_results: 5
   base_url: "http://localhost:11434"
   temperature: 0.7
   # The static system prompt is ~3.8k tokens; the request also appends live
