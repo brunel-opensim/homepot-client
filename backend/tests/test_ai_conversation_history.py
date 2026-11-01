@@ -4,22 +4,15 @@ Verifies that the backend injects client-supplied history into the prompt and
 that the bounded context policy selects recent turns.
 """
 
-import asyncio
 import os
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from fastapi.testclient import TestClient
-import pytest
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
-from homepot.app.api.API_v1.Endpoints import AIEndpoint  # noqa: E402
 from homepot.app.api.API_v1.Endpoints.AIEndpoint import _select_history  # noqa: E402
-from homepot.config import reload_settings  # noqa: E402
 
 
 def _authorize_ai_query(app) -> None:
@@ -56,6 +49,7 @@ def test_select_history_token_budget():
 
 
 def test_select_history_empty():
+    """_select_history returns empty lists for empty history."""
     recent, older = _select_history([], max_messages=5, max_tokens=0)
     assert recent == [] and older == []
 
