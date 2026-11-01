@@ -214,6 +214,26 @@ function GateReplay({ trust, onDone }) {
 
 export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const c = useAIConversation(variant);
+  const scrollRef = useRef(null);
+  const stickToBottomRef = useRef(true);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      stickToBottomRef.current = nearBottom;
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [c.messages, c.loading, c.response, c.error]);
   const { isWorkspace } = c;
 
   const isAdmin = c.isAdmin;
@@ -298,6 +318,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
         {/* Response Area */}
         <div
+          ref={scrollRef}
           className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800"
           aria-live="polite"
         >
@@ -374,6 +395,22 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                         <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-200">
                           <ReactMarkdown>{m.content}</ReactMarkdown>
                         </div>
+                        {m.role === 'assistant' && (
+                          <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500 flex-wrap">
+                            {m.routing?.resolved && (
+                              <span className="capitalize">{m.routing.resolved}</span>
+                            )}
+                            {m.provider && (
+                              <span>
+                                · {m.provider}
+                                {m.model ? ` / ${m.model}` : ''}
+                              </span>
+                            )}
+                            {m.elapsedMs != null && (
+                              <span>· {Math.round(m.elapsedMs / 1000)} s</span>
+                            )}
+                          </div>
+                        )}
                         {m.role === 'assistant' && m.proposal && (
                           <ProposalCard proposal={m.proposal} />
                         )}
@@ -507,6 +544,15 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               </div>
               <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 pr-0">
                 <ReactMarkdown>{c.response}</ReactMarkdown>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500 flex-wrap">
+                {c.routing?.resolved && <span className="capitalize">{c.routing.resolved}</span>}
+                {c.llmProvider?.current && (
+                  <span>
+                    · {c.llmProvider.current}
+                    {c.llmProvider.model ? ` / ${c.llmProvider.model}` : ''}
+                  </span>
+                )}
               </div>
               {c.proposal && <ProposalCard proposal={c.proposal} />}
             </div>

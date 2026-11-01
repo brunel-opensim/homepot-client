@@ -263,6 +263,7 @@ export function useAIConversation(variant = 'compact') {
       abortRef.current = controller;
       const queryId = newQueryId();
       queryIdRef.current = queryId;
+      const startedAt = Date.now();
       let activeSessionId = sessionId;
       let activeRunId = null;
       const investigations = api.investigations;
@@ -319,6 +320,9 @@ export function useAIConversation(variant = 'compact') {
             routing: result.routing || null,
             sources: result.sources || [],
             proposal: result.proposal || null,
+            provider: llmProvider?.current || null,
+            model: llmProvider?.model || null,
+            elapsedMs: Date.now() - startedAt,
           },
         ]);
         if (activeRunId && investigations) {
@@ -352,7 +356,7 @@ export function useAIConversation(variant = 'compact') {
         setLoading(false);
       }
     },
-    [query, mode, user, messages, sessionId]
+    [query, mode, user, messages, sessionId, llmProvider]
   );
 
   // Cancel in-flight request on unmount so navigation doesn't leave an orphan.
