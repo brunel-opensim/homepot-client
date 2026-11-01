@@ -33,13 +33,32 @@ def _has_table(table: str) -> bool:
 
 
 def upgrade() -> None:
+    """Create the investigation tables if they do not already exist."""
     if not _has_table("investigation_sessions"):
         op.create_table(
             "investigation_sessions",
             sa.Column("id", sa.Integer(), primary_key=True, index=True),
-            sa.Column("session_id", sa.String(length=36), nullable=False, unique=True, index=True),
-            sa.Column("owner_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False, index=True),
-            sa.Column("site_id", sa.Integer(), sa.ForeignKey("sites.id"), nullable=True, index=True),
+            sa.Column(
+                "session_id",
+                sa.String(length=36),
+                nullable=False,
+                unique=True,
+                index=True,
+            ),
+            sa.Column(
+                "owner_user_id",
+                sa.Integer(),
+                sa.ForeignKey("users.id"),
+                nullable=False,
+                index=True,
+            ),
+            sa.Column(
+                "site_id",
+                sa.Integer(),
+                sa.ForeignKey("sites.id"),
+                nullable=True,
+                index=True,
+            ),
             sa.Column("device_id", sa.String(length=50), nullable=True, index=True),
             sa.Column("title", sa.String(length=200), nullable=True),
             sa.Column("status", sa.String(length=20), nullable=False, index=True),
@@ -52,8 +71,20 @@ def upgrade() -> None:
         op.create_table(
             "investigation_messages",
             sa.Column("id", sa.Integer(), primary_key=True, index=True),
-            sa.Column("message_id", sa.String(length=36), nullable=False, unique=True, index=True),
-            sa.Column("session_id", sa.Integer(), sa.ForeignKey("investigation_sessions.id"), nullable=False, index=True),
+            sa.Column(
+                "message_id",
+                sa.String(length=36),
+                nullable=False,
+                unique=True,
+                index=True,
+            ),
+            sa.Column(
+                "session_id",
+                sa.Integer(),
+                sa.ForeignKey("investigation_sessions.id"),
+                nullable=False,
+                index=True,
+            ),
             sa.Column("role", sa.String(length=20), nullable=False),
             sa.Column("content", sa.Text(), nullable=False),
             sa.Column("sequence", sa.Integer(), nullable=False, index=True),
@@ -67,9 +98,23 @@ def upgrade() -> None:
         op.create_table(
             "investigation_runs",
             sa.Column("id", sa.Integer(), primary_key=True, index=True),
-            sa.Column("run_id", sa.String(length=36), nullable=False, unique=True, index=True),
-            sa.Column("session_id", sa.Integer(), sa.ForeignKey("investigation_sessions.id"), nullable=False, index=True),
-            sa.Column("message_id", sa.Integer(), sa.ForeignKey("investigation_messages.id"), nullable=True, index=True),
+            sa.Column(
+                "run_id", sa.String(length=36), nullable=False, unique=True, index=True
+            ),
+            sa.Column(
+                "session_id",
+                sa.Integer(),
+                sa.ForeignKey("investigation_sessions.id"),
+                nullable=False,
+                index=True,
+            ),
+            sa.Column(
+                "message_id",
+                sa.Integer(),
+                sa.ForeignKey("investigation_messages.id"),
+                nullable=True,
+                index=True,
+            ),
             sa.Column("status", sa.String(length=20), nullable=False, index=True),
             sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -78,6 +123,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop the investigation tables if they exist."""
     for t in ("investigation_runs", "investigation_messages", "investigation_sessions"):
         if _has_table(t):
             op.drop_table(t)

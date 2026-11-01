@@ -4,14 +4,15 @@ Stage 2 of the investigation workflow: persistent sessions, messages and runs
 with owner + site/device scoping and per-operation authorisation.
 """
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as SASession
 
+from homepot.app.api.API_v1.Endpoints.AIActionEndpoint import _get_db_user
 from homepot.app.auth_utils import get_accessible_site_ids, require_user
 from homepot.app.schemas.schemas import UserDict
 from homepot.database import get_db
@@ -21,7 +22,6 @@ from homepot.models import (
     InvestigationSession,
     User,
 )
-from homepot.app.api.API_v1.Endpoints.AIActionEndpoint import _get_db_user
 
 router = APIRouter(dependencies=[Depends(require_user())])
 
