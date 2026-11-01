@@ -44,7 +44,7 @@ class LLMService:
             self.provider.model if hasattr(self.provider, "model") else "unknown"
         )
         self.base_url = getattr(self.provider, "base_url", "")
-        self.keep_alive = self.config.get("llm", {}).get("keep_alive", "30m")
+        self.keep_alive = self.config.get("llm", {}).get("keep_alive", "24h")
 
         logger.info(
             "LLM Service initialized with provider: %s, model: %s",
