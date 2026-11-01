@@ -1374,6 +1374,22 @@ async def _query_ai_impl(
                     session=session,
                 )
                 if enriched:
+                    # Cap the enriched context to a configurable budget so
+                    # small-window models (Ollama, num_ctx=8192) are not
+                    # overwhelmed. Cloud models can raise `context_budget`
+                    # in ai/config.yaml to receive the full detail.
+                    _llm_cfg = getattr(llm, "config", None)
+                    if isinstance(_llm_cfg, dict):
+                        budget = int(
+                            (_llm_cfg.get("llm") or {}).get("context_budget", 4000)
+                        )
+                    else:
+                        budget = 4000
+                    if budget > 0 and len(enriched) > budget:
+                        enriched = (
+                            enriched[:budget].rsplit("\n", 1)[0]
+                            + "\n… (trimmed to context budget)"
+                        )
                     full_context += f"\n{enriched}"
             except Exception as e:
                 logger.warning("Failed to build enriched context: %s", e)
@@ -1610,11 +1626,13 @@ async def _query_ai_impl(
         # copy survives regardless of truncation direction. See
         # docs/ai-llm-providers.md for the provider-specific context limits.
         full_context += (
-            "\n[CURRENT SYSTEM STATUS — SUMMARY]\n"
+            "\n[CURRENT SYSTEM STATUS — SUMMARY (report these exact numbers)]\n"
             f"Total Sites: {len(sites)}\n"
             f"Total Active Devices: {len(all_active_devices)}\n"
             f"Online Devices: {online_count}\n"
             f"Healthy Devices: {healthy_count}\n"
+            "Do not contradict these counts. If they say 3 sites and 3 devices, "
+            "report 3 sites and 3 devices.\n"
         )
 
         # Per-request size diagnostic. Every token in this dynamic context is
