@@ -291,7 +291,7 @@ Generate at process start, and/or via a build step whose output is committed and
 diffable. Deterministic, no LLM, no per-query cost.
 
 **Tier C — retrieve docs (+ selected generated references) instead of fixed
-excerpts. — ✅ implemented (v1)**
+excerpts. — ✓ implemented (v1)**
 A ChromaDB index over the docs (`ai/doc_retriever.py`) chunks the corpus and
 retrieves the top-k relevant chunks for the query, attaching **citations** (real
 `docs/…` paths). This replaces "first 500 chars of 5 files" with query-relevant
