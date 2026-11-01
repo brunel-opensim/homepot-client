@@ -52,6 +52,7 @@ export function useAIConversation(variant = 'compact') {
   const [mode, setMode] = useState(() => loadStored('homepot_ai_mode', 'auto'));
   const [routing, setRouting] = useState(null);
   const [sources, setSources] = useState(() => loadStored('homepot_ai_sources', [], true));
+  const [proposal, setProposal] = useState(() => loadStored('homepot_ai_proposal', null, true));
   const [loading, setLoading] = useState(false);
   const [replaying, setReplaying] = useState(false);
   const [error, setError] = useState(null);
@@ -87,6 +88,11 @@ export function useAIConversation(variant = 'compact') {
       localStorage.setItem('homepot_ai_sources', JSON.stringify(sources));
     else localStorage.removeItem('homepot_ai_sources');
   }, [sources]);
+
+  useEffect(() => {
+    if (proposal) localStorage.setItem('homepot_ai_proposal', JSON.stringify(proposal));
+    else localStorage.removeItem('homepot_ai_proposal');
+  }, [proposal]);
   useEffect(() => {
     if (messages && messages.length)
       localStorage.setItem('homepot_ai_thread', JSON.stringify(messages));
@@ -134,6 +140,7 @@ export function useAIConversation(variant = 'compact') {
     setTrust(null);
     setRouting(null);
     setSources([]);
+    setProposal(null);
     setMessages([]);
     setTrustExpanded(false);
     setReplaying(false);
@@ -144,6 +151,7 @@ export function useAIConversation(variant = 'compact') {
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
     localStorage.removeItem('homepot_ai_sources');
+    localStorage.removeItem('homepot_ai_proposal');
     localStorage.removeItem('homepot_ai_thread');
   }, []);
 
@@ -240,6 +248,7 @@ export function useAIConversation(variant = 'compact') {
         setTrust(result.trust || null);
         setRouting(result.routing || null);
         setSources(result.sources || []);
+        setProposal(result.proposal || null);
         if (result.trust?.gates?.length) setReplaying(true);
         setMessages((prev) => [
           ...prev,
@@ -250,6 +259,7 @@ export function useAIConversation(variant = 'compact') {
             trust: result.trust || null,
             routing: result.routing || null,
             sources: result.sources || [],
+            proposal: result.proposal || null,
           },
         ]);
       } catch (err) {
@@ -295,6 +305,7 @@ export function useAIConversation(variant = 'compact') {
     setMode,
     routing,
     sources,
+    proposal,
     loading,
     replaying,
     error,
