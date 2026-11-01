@@ -18,6 +18,7 @@ import {
   ListChecks,
   BookOpen,
   FileText,
+  Maximize2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
@@ -595,8 +596,28 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
+          {llmProvider?.healthy === false && (
+            <span
+              className="inline-block w-2 h-2 rounded-full bg-red-500"
+              title="Provider unhealthy"
+            />
+          )}
         </CardTitle>
         <div className="flex items-center gap-2">
+          {!isWorkspace && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (typeof window !== 'undefined') window.location.assign('/ai-workspace');
+              }}
+              className="h-8 px-2 text-xs text-gray-400 hover:text-purple-400"
+              title="Open full AI workspace"
+              aria-label="Open AI workspace"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
+          )}
           {llmProvider && (
             <div className="flex items-center gap-2">
               <select
