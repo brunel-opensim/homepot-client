@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as SASession
+from typing import AsyncGenerator
 
 from homepot.app.api.API_v1.Endpoints.AIActionEndpoint import _get_db_user
 from homepot.app.auth_utils import get_accessible_site_ids, require_user
@@ -139,6 +141,23 @@ async def create_session(
     db.add(sess)
     db.commit()
     db.refresh(sess)
+
+    try:
+        from homepot.app.events.investigation_events import get_event_bus
+
+        await get_event_bus().publish(
+            session_id=str(sess.session_id),
+            run_id=str(sess.session_id),
+            event="session_created",
+            data={
+                "owner_user_id": sess.owner_user_id,
+                "site_id": sess.site_id,
+                "device_id": sess.device_id,
+            },
+        )
+    except Exception:
+        pass
+
     return {"status": "success", "data": _serialize_session(sess)}
 
 
@@ -283,6 +302,19 @@ async def add_message(
     sess.updated_at = _utc_now()  # type: ignore[assignment]
     db.commit()
     db.refresh(msg)
+
+    try:
+        from homepot.app.events.investigation_events import get_event_bus
+
+        await get_event_bus().publish(
+            session_id=str(sess.session_id),
+            run_id=str(msg.message_id),
+            event="message_added",
+            data={"role": msg.role, "sequence": msg.sequence},
+        )
+    except Exception:
+        pass
+
     return {"status": "success", "data": _serialize_message(msg)}
 
 
@@ -341,6 +373,20 @@ async def create_run(
     db.add(run)
     db.commit()
     db.refresh(run)
+
+    # Publish a run-lifecycle event for SSE subscribers.
+    try:
+        from homepot.app.events.investigation_events import get_event_bus
+
+        await get_event_bus().publish(
+            session_id=str(sess.session_id),
+            run_id=str(run.run_id),
+            event="run_queued" if run.status == "pending" else "run_started",
+            data={"status": run.status},
+        )
+    except Exception:
+        pass
+
     return {"status": "success", "data": _serialize_run(run)}
 
 
@@ -383,7 +429,83 @@ async def update_run(
         run.error = body.error  # type: ignore[assignment]
     db.commit()
     db.refresh(run)
+
+    # Publish a terminal or progress event for SSE subscribers.
+    try:
+        from homepot.app.events.investigation_events import get_event_bus
+
+        if body.status in ("completed", "cancelled", "failed"):
+            event_name = (
+                "completed"
+                if body.status == "completed"
+                else "cancelled" if body.status == "cancelled" else "failed"
+            )
+            await get_event_bus().publish(
+                session_id=str(sess.session_id),
+                run_id=str(run.run_id),
+                event=event_name,
+                data={"status": run.status, "error": run.error},
+            )
+        elif body.status in ("running",):
+            await get_event_bus().publish(
+                session_id=str(sess.session_id),
+                run_id=str(run.run_id),
+                event="run_started",
+                data={"status": run.status},
+            )
+    except Exception:
+        pass
+
     return {"status": "success", "data": _serialize_run(run)}
+
+
+@router.get("/{session_id}/runs/{run_id}/events", tags=["Investigations"])
+async def stream_run_events(
+    session_id: str,
+    run_id: str,
+    last_event_id: Optional[int] = Header(None, alias="Last-Event-ID"),
+    db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> StreamingResponse:
+    """Stream a run's activity over Server-Sent Events.
+
+    Reconnection is supported via the standard ``Last-Event-ID`` header: missed
+    events are replayed from the in-memory buffer before live streaming
+    resumes. Events are identified by (session, run, sequence) so a reconnect
+    never duplicates a message.
+
+    Requires viewer-level access on the session (owner or admin).
+    """
+    db_user = _get_db_user(db, current_user)
+    sess = _get_session(db, session_id)
+    _authorize_session(db, db_user, sess)
+    run = (
+        db.query(InvestigationRun)
+        .filter(
+            InvestigationRun.run_id == run_id,
+            InvestigationRun.session_id == sess.id,
+        )
+        .first()
+    )
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    from homepot.app.events.investigation_events import get_event_bus
+
+    bus = get_event_bus()
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        try:
+            async for chunk in bus.subscribe(session_id, run_id, last_event_id):
+                yield chunk
+        except Exception as e:  # pragma: no cover - defensive
+            yield f'event: error\ndata: {{"error": "{str(e)}"}}\n\n'
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ---------------------------------------------------------------------------
