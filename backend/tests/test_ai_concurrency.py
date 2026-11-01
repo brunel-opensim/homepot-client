@@ -129,7 +129,7 @@ def test_get_ai_gate_reads_llm_config(monkeypatch):
     """The endpoint helper builds the gate from the LLM config block."""
     from homepot.app.api.API_v1.Endpoints import AIEndpoint
 
-    monkeypatch.setattr(AIEndpoint, "_ai_gate", None)
+    monkeypatch.setattr(AIEndpoint, "_ai_gates", {})
 
     class FakeLLM:
         config = {"llm": {"max_concurrent": 3, "queue_timeout_seconds": 12}}
@@ -139,14 +139,12 @@ def test_get_ai_gate_reads_llm_config(monkeypatch):
     assert gate.max_concurrent == 3
     assert gate.queue_timeout_seconds == 12.0
 
-    monkeypatch.setattr(AIEndpoint, "_ai_gate", None)
-
 
 def test_get_ai_gate_defaults_to_single_slot(monkeypatch):
     """Missing config falls back to a single slot and no timeout."""
     from homepot.app.api.API_v1.Endpoints import AIEndpoint
 
-    monkeypatch.setattr(AIEndpoint, "_ai_gate", None)
+    monkeypatch.setattr(AIEndpoint, "_ai_gates", {})
 
     class FakeLLM:
         config = {}
@@ -155,5 +153,3 @@ def test_get_ai_gate_defaults_to_single_slot(monkeypatch):
 
     assert gate.max_concurrent == 1
     assert gate.queue_timeout_seconds is None
-
-    monkeypatch.setattr(AIEndpoint, "_ai_gate", None)
