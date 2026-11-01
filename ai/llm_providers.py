@@ -57,7 +57,7 @@ class OllamaProvider(LLMProvider):
 
         self.model = self.llm_config.get("model", "llama3.2")
         self.base_url = self.llm_config.get("base_url", "http://localhost:11434")
-        self.keep_alive = self.llm_config.get("keep_alive", "30m")
+        self.keep_alive = self.llm_config.get("keep_alive", "24h")
         self.client = ollama.Client(host=self.base_url)
         logger.info("Ollama provider initialized with model: %s", self.model)
 

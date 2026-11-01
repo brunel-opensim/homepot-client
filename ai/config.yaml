@@ -64,7 +64,7 @@ llm:
   # How long Ollama keeps the model resident after a request (Ollama's own
   # default is 5m). A long value avoids the cold-load cost on sparse queries.
   # Ollama-only; ignored by external providers.
-  keep_alive: "30m"
+  keep_alive: "24h"
   # Application-level concurrency gate (see docs/ai-concurrency.md). Ollama
   # serves generations through a small number of inference slots
   # (OLLAMA_NUM_PARALLEL; unset => a single slot), so concurrent answers queue
