@@ -4,6 +4,7 @@ Provides REST API access to AI-powered analytics, predictions, and recommendatio
 """
 
 import asyncio
+import uuid
 from datetime import datetime, timezone
 import logging
 import os
@@ -1212,12 +1213,69 @@ async def _query_ai_impl(
         llm, knowledge, memory = get_ai_services()
         # ContextBuilder is lightweight
         context_builder = ContextBuilder()
+        sources: List[str] = []
 
         await _publish_investigation_event(
             request, "run_started", {"query": request.query}
         )
 
-        # 1. Build Short-Term Context (Conversation History).
+        # 1. Resolve authoritative conversation history.
+        # When a session_id is provided, the backend-held transcript
+        # (investigation_messages) is authoritative; client-supplied history
+        # is a fallback for legacy callers. This prevents stale browser
+        # storage from overriding the server record (Stage 6).
+        effective_history: list = request.history or []
+        _session_obj = None
+        if request.session_id:
+            try:
+                from homepot.models import InvestigationSession, InvestigationMessage
+
+                _session_obj = (
+                    db.query(InvestigationSession)
+                    .filter(InvestigationSession.session_id == request.session_id)
+                    .first()
+                )
+                if _session_obj is not None:
+                    # Authorisation re-check on every use.
+                    db_user = (
+                        db.query(User)
+                        .filter(User.email == current_user.get("email"))
+                        .first()
+                    )
+                    if db_user is None:
+                        raise HTTPException(status_code=403, detail="User not found")
+                    if (
+                        not db_user.is_admin
+                        and _session_obj.owner_user_id != db_user.id
+                    ):
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Not the session owner",
+                        )
+                    if _session_obj.site_id is not None and not db_user.is_admin:
+                        accessible = get_accessible_site_ids(db_user, db)
+                        if (
+                            accessible is not None
+                            and _session_obj.site_id not in accessible
+                        ):
+                            raise HTTPException(
+                                status_code=403,
+                                detail="No access to this site",
+                            )
+                    db_msgs = (
+                        db.query(InvestigationMessage)
+                        .filter(InvestigationMessage.session_id == _session_obj.id)
+                        .order_by(InvestigationMessage.sequence)
+                        .all()
+                    )
+                    if db_msgs:
+                        effective_history = db_msgs
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning("Failed to load session history: %s", e)
+
+        # 1b. Build Short-Term Context (Conversation History).
         # Bounded context policy (Stage 6): select recent turns within a
         # configured message/token budget; older turns are summarised (or
         # dropped) so the prompt stays within the model's window. The full
@@ -1231,9 +1289,9 @@ async def _query_ai_impl(
         _max_hist_tokens = int(_hist_cfg.get("max_tokens", 0))
         _summarise_older = bool(_hist_cfg.get("summarise_older", False))
 
-        if request.history:
+        if effective_history:
             _recent, _older = _select_history(
-                request.history, _max_hist_msgs, _max_hist_tokens
+                effective_history, _max_hist_msgs, _max_hist_tokens
             )
             _parts = []
             if _older:
@@ -1299,7 +1357,7 @@ async def _query_ai_impl(
             request.query,
             requested=request.mode,
             device_id=request.device_id,
-            history=request.history,
+            history=effective_history,
             enabled=routing_enabled(),
         )
         routing_info = {
@@ -1988,6 +2046,50 @@ async def _query_ai_impl(
                 )
         except Exception:
             logger.warning("Failed to persist AI memory", exc_info=True)
+
+        # 5c. Persist this turn to the backend-owned investigation transcript
+        # (Stage 6) so the server is the authoritative record. Best-effort.
+        if request.session_id and _session_obj is not None and response:
+            try:
+                from homepot.models import InvestigationMessage
+
+                last = (
+                    db.query(InvestigationMessage)
+                    .filter(InvestigationMessage.session_id == _session_obj.id)
+                    .order_by(InvestigationMessage.sequence.desc())
+                    .first()
+                )
+                seq = (last.sequence + 1) if last else 1
+                user_msg = InvestigationMessage(
+                    message_id=str(uuid.uuid4()),
+                    session_id=_session_obj.id,
+                    role="user",
+                    content=request.query,
+                    sequence=seq,
+                    created_at=datetime.now(timezone.utc),
+                )
+                db.add(user_msg)
+                db.flush()
+                asst_msg = InvestigationMessage(
+                    message_id=str(uuid.uuid4()),
+                    session_id=_session_obj.id,
+                    role="assistant",
+                    content=response,
+                    sequence=seq + 1,
+                    trust=trust.to_dict() if hasattr(trust, "to_dict") else None,
+                    routing=routing_info,
+                    sources=sources if sources else None,
+                    created_at=datetime.now(timezone.utc),
+                )
+                db.add(asst_msg)
+                _session_obj.last_message_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+                _session_obj.updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+                db.commit()
+            except Exception:
+                logger.warning(
+                    "Failed to persist investigation transcript", exc_info=True
+                )
+                db.rollback()
 
         logger.info(
             "AI query done | device_id=%s | mode=%s | score=%.2f | actionable=%s",
