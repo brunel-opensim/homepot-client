@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -20,8 +20,9 @@ vi.mock('@/services/api', () => ({
   },
 }));
 
+let mockUser = { role: 'Admin' };
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({ user: { role: 'Admin' } }),
+  useAuth: () => ({ user: mockUser }),
 }));
 
 function modeGroup() {
@@ -95,7 +96,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'Admin',
       null,
       expect.any(AbortSignal),
-      expect.any(String)
+      expect.any(String),
+      []
     );
   });
 
@@ -114,7 +116,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'Admin',
       'knowledge',
       expect.any(AbortSignal),
-      expect.any(String)
+      expect.any(String),
+      []
     );
     expect(localStorage.getItem('homepot_ai_mode')).toBe('knowledge');
   });
@@ -134,7 +137,8 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'Admin',
       'diagnostic',
       expect.any(AbortSignal),
-      expect.any(String)
+      expect.any(String),
+      []
     );
   });
 
@@ -325,5 +329,116 @@ describe('AskAIWidget cancelling a query in flight', () => {
 
     expect(await screen.findByText(/may have finished server-side/i)).toBeInTheDocument();
     expect(screen.queryByText(/nothing was saved/i)).toBeNull();
+  });
+});
+
+describe('AskAIWidget workspace variant', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.ai.getProvider.mockResolvedValue({
+      data: { current: 'ollama', healthy: true, model: 'llama3.2' },
+    });
+    api.ai.cancel.mockResolvedValue({ cancelled: true });
+    localStorage.clear();
+  });
+
+  it('renders the empty state with suggested prompts', () => {
+    render(<AskAIWidget variant="workspace" />);
+    expect(
+      screen.getByText(/Ask about your fleet, devices, or how to do something/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /How are devices performing today\?/i })
+    ).toBeInTheDocument();
+  });
+
+  it('renders the safety footer', () => {
+    render(<AskAIWidget variant="workspace" />);
+    expect(screen.getByText(/Answers are advisory/i)).toBeInTheDocument();
+  });
+
+  it('shows the multi-line composer', () => {
+    render(<AskAIWidget variant="workspace" />);
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+  });
+});
+
+describe('AskAIWidget non-admin provider display', () => {
+  beforeEach(() => {
+    mockUser = { role: 'Client' };
+    vi.clearAllMocks();
+    api.ai.getProvider.mockResolvedValue({
+      data: { current: 'ollama', healthy: true, model: 'llama3.2' },
+    });
+    api.ai.cancel.mockResolvedValue({ cancelled: true });
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    mockUser = { role: 'Admin' };
+  });
+
+  it('shows provider status as read-only instead of the switcher', async () => {
+    render(<AskAIWidget />);
+    expect(screen.queryByTitle('Switch LLM provider (admin only)')).toBeNull();
+    expect(await screen.findByText(/ollama/i)).toBeInTheDocument();
+  });
+});
+
+describe('AskAIWidget conversation history forwarding', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.ai.getProvider.mockResolvedValue({
+      data: { current: 'ollama', healthy: true, model: 'llama3.2' },
+    });
+    api.ai.cancel.mockResolvedValue({ cancelled: true });
+    localStorage.clear();
+  });
+
+  it('sends prior turns as history on the second query', async () => {
+    api.ai.query.mockResolvedValue({
+      response: 'first answer',
+      trust: null,
+      routing: { resolved: 'diagnostic' },
+      sources: [],
+    });
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+    await user.type(screen.getByRole('textbox'), 'first question');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByText('first answer');
+
+    api.ai.query.mockResolvedValue({
+      response: 'second answer',
+      trust: null,
+      routing: { resolved: 'diagnostic' },
+      sources: [],
+    });
+    await user.type(screen.getByRole('textbox'), 'second question');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    const calls = api.ai.query.mock.calls;
+    expect(calls.length).toBe(2);
+    const secondCallHistory = calls[1][6];
+    expect(secondCallHistory).toEqual([
+      { role: 'user', content: 'first question' },
+      { role: 'assistant', content: 'first answer' },
+    ]);
+  });
+});
+
+describe('AskAIWidget open workspace handoff', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.ai.getProvider.mockResolvedValue({
+      data: { current: 'ollama', healthy: true, model: 'llama3.2' },
+    });
+    api.ai.cancel.mockResolvedValue({ cancelled: true });
+    localStorage.clear();
+  });
+
+  it('renders an Open AI Workspace button', () => {
+    render(<AskAIWidget />);
+    expect(screen.getByTitle('Open full AI workspace')).toBeInTheDocument();
   });
 });

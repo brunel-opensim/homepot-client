@@ -18,6 +18,7 @@ import {
   ListChecks,
   BookOpen,
   FileText,
+  Maximize2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import api from '@/services/api';
@@ -40,6 +41,13 @@ const AI_MODES = [
     label: 'Diagnostic',
     title: 'Investigate live system state through the validation gates',
   },
+];
+
+const SUGGESTED_PROMPTS = [
+  'How are devices performing today?',
+  'What is currently offline?',
+  'How do I enroll a device?',
+  'Show recent anomalies',
 ];
 
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
@@ -265,6 +273,7 @@ function GateReplay({ trust, onDone }) {
 export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const isWorkspace = variant === 'workspace';
   const { user } = useAuth();
+  const isAdmin = user?.role === 'Admin' || !!user?.isAdmin;
   // Load initial state from localStorage if available to persist context on refresh/navigation
   const [query, setQuery] = useState(() => localStorage.getItem('homepot_ai_query') || '');
   const [response, setResponse] = useState(
@@ -290,6 +299,16 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const [sources, setSources] = useState(() => {
     try {
       const stored = localStorage.getItem('homepot_ai_sources');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  // Conversation history (short-term memory). Persisted so a thread can be
+  // resumed; sent to the backend as `history` (last 5 turns).
+  const [messages, setMessages] = useState(() => {
+    try {
+      const stored = localStorage.getItem('homepot_ai_thread');
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
@@ -394,12 +413,21 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     }
   }, [sources]);
 
+  useEffect(() => {
+    if (messages && messages.length) {
+      localStorage.setItem('homepot_ai_thread', JSON.stringify(messages));
+    } else {
+      localStorage.removeItem('homepot_ai_thread');
+    }
+  }, [messages]);
+
   const clearHistory = () => {
     setQuery('');
     setResponse(null);
     setTrust(null);
     setRouting(null);
     setSources([]);
+    setMessages([]);
     setTrustExpanded(false);
     setReplaying(false);
     setError(null);
@@ -409,6 +437,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     localStorage.removeItem('homepot_ai_response');
     localStorage.removeItem('homepot_ai_trust');
     localStorage.removeItem('homepot_ai_sources');
+    localStorage.removeItem('homepot_ai_thread');
   };
 
   const handleCopy = () => {
@@ -500,7 +529,18 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
       // `auto` is sent as null so the backend default (heuristics) applies.
       const modeArg = mode === 'auto' ? null : mode;
-      const result = await api.ai.query(query, null, userRole, modeArg, controller.signal, queryId);
+      // Short-term memory: send the last few turns so the backend can keep
+      // the conversation context. Capped to the backend's last-5 limit.
+      const historyPayload = messages.slice(-5).map((m) => ({ role: m.role, content: m.content }));
+      const result = await api.ai.query(
+        query,
+        null,
+        userRole,
+        modeArg,
+        controller.signal,
+        queryId,
+        historyPayload
+      );
       // The backend returns { response, timestamp, trust, routing, sources } --
       // trust is the validation envelope's gate-by-gate outcome (see
       // ai/gates/envelope.py), routing reports how the intent was resolved
@@ -510,6 +550,19 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       setTrust(result.trust || null);
       setRouting(result.routing || null);
       setSources(result.sources || []);
+      // Commit this turn to the conversation thread (only on success, so
+      // cancelled/failed queries do not pollute short-term memory).
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: query },
+        {
+          role: 'assistant',
+          content: result.response,
+          trust: result.trust || null,
+          routing: result.routing || null,
+          sources: result.sources || [],
+        },
+      ]);
       // Show an animated gate replay before revealing the response,
       // so the technician sees the validation chain in action.
       if (result.trust?.gates?.length) {
@@ -544,34 +597,61 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
+          {llmProvider?.healthy === false && (
+            <span
+              className="inline-block w-2 h-2 rounded-full bg-red-500"
+              title="Provider unhealthy"
+            />
+          )}
         </CardTitle>
         <div className="flex items-center gap-2">
-          {llmProvider && (
-            <div className="flex items-center gap-2">
-              <select
-                value={llmProvider.current || 'ollama'}
-                onChange={(e) => handleSwitchProvider(e.target.value)}
-                disabled={llmSwitching}
-                className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
-                title="Switch LLM provider"
-              >
-                <option value="ollama">Local (Ollama)</option>
-                <option value="openai">
-                  OpenAI
-                  {llmProvider.available?.find((p) => p.name === 'openai')?.has_api_key
-                    ? ''
-                    : ' (no key)'}
-                </option>
-                <option value="anthropic">
-                  Anthropic
-                  {llmProvider.available?.find((p) => p.name === 'anthropic')?.has_api_key
-                    ? ''
-                    : ' (no key)'}
-                </option>
-              </select>
-              {llmSwitching && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
-            </div>
+          {!isWorkspace && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (typeof window !== 'undefined') window.location.assign('/ai-workspace');
+              }}
+              className="h-8 px-2 text-xs text-gray-400 hover:text-purple-400"
+              title="Open full AI workspace"
+              aria-label="Open AI workspace"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </Button>
           )}
+          {llmProvider &&
+            (isAdmin ? (
+              <div className="flex items-center gap-2">
+                <select
+                  value={llmProvider.current || 'ollama'}
+                  onChange={(e) => handleSwitchProvider(e.target.value)}
+                  disabled={llmSwitching}
+                  className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
+                  title="Switch LLM provider (admin only)"
+                  aria-label="Switch LLM provider"
+                >
+                  <option value="ollama">Local (Ollama)</option>
+                  <option value="openai">
+                    OpenAI
+                    {llmProvider.available?.find((p) => p.name === 'openai')?.has_api_key
+                      ? ''
+                      : ' (no key)'}
+                  </option>
+                  <option value="anthropic">
+                    Anthropic
+                    {llmProvider.available?.find((p) => p.name === 'anthropic')?.has_api_key
+                      ? ''
+                      : ' (no key)'}
+                  </option>
+                </select>
+                {llmSwitching && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400" title="LLM provider (read-only)">
+                {llmProvider.current || 'ollama'}
+                {llmProvider.model ? ` · ${llmProvider.model}` : ''}
+              </span>
+            ))}
           {(response || query) && (
             <Button
               variant="ghost"
@@ -587,8 +667,120 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
         {/* Response Area */}
-        <div className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800">
-          {loading ? (
+        <div
+          className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800"
+          aria-live="polite"
+        >
+          {isWorkspace ? (
+            <>
+              {messages.length === 0 && !loading && !error && !cancelled ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center gap-3 px-4">
+                  <Sparkles className="w-10 h-10 opacity-20" />
+                  <p className="text-sm font-medium text-gray-300">
+                    Ask about your fleet, devices, or how to do something.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-2">
+                    {SUGGESTED_PROMPTS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setQuery(p)}
+                        className="text-xs px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((m, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-lg px-3 py-2 ${
+                          m.role === 'user'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'
+                        }`}
+                      >
+                        {m.role === 'assistant' &&
+                          (m.routing?.resolved === 'knowledge' ||
+                            m.trust?.trust_mode === 'informational') && (
+                            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>Knowledge</span>
+                            </div>
+                          )}
+                        {m.role === 'assistant' && m.sources && m.sources.length > 0 && (
+                          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                            {m.sources.map((src) => (
+                              <span
+                                key={src}
+                                title={`Retrieved source: ${src}`}
+                                className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                              >
+                                <FileText className="w-3 h-3 shrink-0" />
+                                {src}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {m.role === 'assistant' &&
+                          m.trust &&
+                          m.trust.trust_mode !== 'informational' && (
+                            <TrustBanner
+                              trust={m.trust}
+                              expanded={trustExpanded}
+                              onToggle={() => setTrustExpanded((v) => !v)}
+                            />
+                          )}
+                        <div className="prose prose-sm max-w-none">
+                          <ReactMarkdown>{m.content}</ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {loading && (
+                <div className="flex flex-col items-center justify-center py-4 text-gray-500 gap-2 text-center px-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+                  <span className="text-xs animate-pulse transition-all duration-300">
+                    {loadingMessage}
+                  </span>
+                  {slowHint && (
+                    <span className="text-[10px] text-gray-400 max-w-[18rem]">
+                      Still working — the model runs on CPU, and the first question after a break
+                      can take a couple of minutes.
+                    </span>
+                  )}
+                </div>
+              )}
+              {error && (
+                <div className="flex flex-col items-center justify-center py-4 gap-2 text-center px-4 text-red-500">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="font-medium">The assistant couldn&apos;t answer that</span>
+                  </div>
+                  <p className="text-xs text-red-400/90 max-w-xs">{error}</p>
+                </div>
+              )}
+              {cancelled && (
+                <div className="flex flex-col items-center justify-center py-4 gap-2 text-center px-4 text-gray-500">
+                  <Square className="w-4 h-4" />
+                  <span className="font-medium">Query cancelled</span>
+                  <p className="text-xs text-gray-400 max-w-xs">
+                    {cancelConfirmed
+                      ? 'Nothing was saved — the abandoned answer is discarded rather than stored in memory.'
+                      : 'Stopped on this page. The answer may have finished server-side before the cancel arrived.'}
+                  </p>
+                </div>
+              )}
+            </>
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2 text-center px-4">
               <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
               <span className="text-xs animate-pulse transition-all duration-300">
@@ -600,17 +792,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   take a couple of minutes.
                 </span>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCancel}
-                className="mt-1 h-7 gap-1.5 text-xs"
-                title="Stop this query (Esc)"
-              >
-                <Square className="w-3 h-3" />
-                Stop
-              </Button>
             </div>
           ) : cancelled ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-gray-500">
@@ -659,11 +840,22 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   )}
                 </>
               ) : (
-                <TrustBanner
-                  trust={trust}
-                  expanded={trustExpanded}
-                  onToggle={() => setTrustExpanded((v) => !v)}
-                />
+                <>
+                  {routing?.resolved === 'diagnostic' && (
+                    <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Diagnostic</span>
+                      <span className="font-normal text-indigo-500/80 dark:text-indigo-400/70">
+                        — validated through gates
+                      </span>
+                    </div>
+                  )}
+                  <TrustBanner
+                    trust={trust}
+                    expanded={trustExpanded}
+                    onToggle={() => setTrustExpanded((v) => !v)}
+                  />
+                </>
               )}
               <div className="sticky top-0 float-right z-10">
                 <Button
@@ -684,31 +876,65 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
             <div className="flex flex-col items-center justify-center h-full text-gray-400 italic text-center gap-2">
               <Sparkles className="w-8 h-8 opacity-20" />
               <p>Ask about system status, anomalies, or maintenance recommendations...</p>
+              <div className="flex flex-wrap justify-center gap-1.5 mt-2 not-italic">
+                {SUGGESTED_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setQuery(p)}
+                    className="text-[11px] px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
-
         {/* Input Area */}
         <div className="flex flex-col gap-2">
-          <form onSubmit={handleAsk} className="flex gap-2">
-            <input
-              type="text"
-              spellCheck="true"
-              lang="en"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g., How is our system performing today?"
-              className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-              disabled={loading}
-            />
+          <form onSubmit={handleAsk} className="flex gap-2 items-end">
+            {isWorkspace ? (
+              <textarea
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (query.trim() && !loading) {
+                      handleAsk(e);
+                    }
+                  }
+                }}
+                placeholder="Ask about your fleet, devices, or how to do something..."
+                rows={2}
+                disabled={loading}
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all resize-none"
+              />
+            ) : (
+              <input
+                type="text"
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="e.g., How is our system performing today?"
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                disabled={loading}
+              />
+            )}
             <Button
-              type="submit"
-              disabled={loading || !query.trim()}
+              type={loading ? 'button' : 'submit'}
+              onClick={loading ? handleCancel : undefined}
+              disabled={!loading && !query.trim()}
               size="icon"
-              aria-label="Send"
+              aria-label={loading ? 'Stop' : 'Send'}
+              title={loading ? 'Stop (Esc)' : 'Send'}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              <Send className="w-4 h-4" />
+              {loading ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
             </Button>
           </form>
 
@@ -741,6 +967,12 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
             </div>
           </div>
         </div>
+        {isWorkspace && (
+          <div className="px-1 pt-1 text-[11px] text-gray-500 dark:text-gray-400 text-center">
+            Answers are advisory. Device actions require separate review.
+            <span className="ml-2 hidden sm:inline">Enter to send · Shift+Enter for new line</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
