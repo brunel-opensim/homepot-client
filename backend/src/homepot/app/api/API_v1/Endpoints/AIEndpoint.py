@@ -4,13 +4,13 @@ Provides REST API access to AI-powered analytics, predictions, and recommendatio
 """
 
 import asyncio
-import uuid
 from datetime import datetime, timezone
 import logging
 import os
 import re
 import sys
 from typing import Any, Dict, List, Literal, Optional, cast
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -1228,7 +1228,7 @@ async def _query_ai_impl(
         _session_obj = None
         if request.session_id:
             try:
-                from homepot.models import InvestigationSession, InvestigationMessage
+                from homepot.models import InvestigationMessage, InvestigationSession
 
                 _session_obj = (
                     db.query(InvestigationSession)
