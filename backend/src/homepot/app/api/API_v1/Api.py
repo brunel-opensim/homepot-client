@@ -30,6 +30,7 @@ from .Endpoints import (
     DeviceSimulatorEndpoint,
     EnrolmentIntentsEndpoint,
     HealthEndpoint,
+    InvestigationEndpoint,
     JobsEndpoints,
     KPIExportEndpoint,
     PushNotificationEndpoint,
@@ -109,6 +110,9 @@ api_v1_router.include_router(
 )
 api_v1_router.include_router(
     AIActionEndpoint.router, prefix="/ai", tags=["AI Action Delegation"]
+)
+api_v1_router.include_router(
+    InvestigationEndpoint.router, prefix="/investigations", tags=["Investigations"]
 )
 api_v1_router.include_router(KPIExportEndpoint.router, prefix="/kpi", tags=["KPI"])
 

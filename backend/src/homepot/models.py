@@ -807,6 +807,100 @@ class DeviceLifecycleEvent(Base):
     epoch = relationship("LifecycleEpoch")
 
 
+class InvestigationSession(Base):
+    """A technician's investigation (conversation) session.
+
+    Backend-owned: the server is the authoritative store for messages, runs,
+    and outcomes. Browser storage may keep a draft or a selected session id,
+    but the conversation record lives here so it survives refreshes, device
+    changes, and backend restarts.
+    """
+
+    __tablename__ = "investigation_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(36), unique=True, index=True, nullable=False)
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # Explicit site/device scope. NULL means "no specific scope" (admin/global).
+    site_id = Column(Integer, ForeignKey("sites.id"), nullable=True, index=True)
+    device_id = Column(String(50), nullable=True, index=True)
+
+    title = Column(String(200), nullable=True)
+    status = Column(String(20), nullable=False, default="active", index=True)
+
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    last_message_at = Column(DateTime(timezone=True), nullable=True)
+
+    owner = relationship("User")
+    site = relationship("Site")
+    messages = relationship(
+        "InvestigationMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="InvestigationMessage.sequence",
+    )
+    runs = relationship(
+        "InvestigationRun",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+
+
+class InvestigationMessage(Base):
+    """A single message in an investigation session."""
+
+    __tablename__ = "investigation_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(String(36), unique=True, index=True, nullable=False)
+    session_id = Column(
+        Integer, ForeignKey("investigation_sessions.id"), nullable=False, index=True
+    )
+
+    role = Column(String(20), nullable=False)  # "user" | "assistant"
+    content = Column(Text, nullable=False)
+    sequence = Column(Integer, nullable=False, index=True)
+
+    # Evidence / validation metadata (assistant turns only).
+    trust = Column(JSON, nullable=True)
+    routing = Column(JSON, nullable=True)
+    sources = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    session = relationship("InvestigationSession", back_populates="messages")
+
+
+class InvestigationRun(Base):
+    """One unit of work triggered by a single submitted message.
+
+    A run tracks the lifecycle of answering one user message: pending ->
+    running -> completed / cancelled / failed. Run outcomes are persisted so
+    an investigation can be resumed and its history inspected.
+    """
+
+    __tablename__ = "investigation_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(String(36), unique=True, index=True, nullable=False)
+    session_id = Column(
+        Integer, ForeignKey("investigation_sessions.id"), nullable=False, index=True
+    )
+    # The user message that triggered this run (nullable for legacy rows).
+    message_id = Column(
+        Integer, ForeignKey("investigation_messages.id"), nullable=True, index=True
+    )
+
+    status = Column(String(20), nullable=False, default="pending", index=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    error = Column(Text, nullable=True)
+
+    session = relationship("InvestigationSession", back_populates="runs")
+    message = relationship("InvestigationMessage")
+
+
 # Database engine and session configuration
 def create_database_engine(database_url: str = "sqlite:///./homepot.db") -> Engine:
     """Create database engine with appropriate configuration."""
