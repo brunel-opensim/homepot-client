@@ -13,7 +13,7 @@ Usage:
 import json
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,60 @@ def set_api_key(provider: str, api_key: str) -> bool:
         return True
     except OSError:
         return False
+
+
+def _load_config() -> dict:
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "config.yaml")) as f:
+            import yaml
+
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return {}
+
+
+def get_external_config(
+    provider: Optional[str] = None, config: Optional[dict] = None
+) -> dict:
+    """Return the external-provider config block for *provider* (or the active one)."""
+    if config is None:
+        config = _load_config()
+    if provider is None:
+        provider = get_provider()
+    if provider == "ollama":
+        return {}
+    return (config.get("llm", {}).get("external", {}) or {}).get(provider, {}) or {}
+
+
+def get_llm_setting(
+    key: str,
+    default: Any = None,
+    provider: Optional[str] = None,
+    config: Optional[dict] = None,
+) -> Any:
+    """Read a setting, checking per-provider override first, then shared.
+
+    Looks up ``key`` in the active (or given) provider's ``external`` block,
+    then in the top-level ``llm`` block, then in ``memory`` (nested under
+    ``llm`` or top-level). Returns *default* when not found.
+    """
+    if config is None:
+        config = _load_config()
+    if provider is None:
+        provider = get_provider()
+    ext = get_external_config(provider, config)
+    if key in ext:
+        return ext[key]
+    llm = config.get("llm", {}) or {}
+    if key in llm:
+        return llm[key]
+    mem = llm.get("memory", {}) or {}
+    if key in ("memory_n_results", "n_results") and "n_results" in mem:
+        return mem["n_results"]
+    top_mem = config.get("memory", {}) or {}
+    if key in ("memory_n_results", "n_results") and "n_results" in top_mem:
+        return top_mem["n_results"]
+    return default
 
 
 def get_provider_info() -> dict:

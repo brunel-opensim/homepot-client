@@ -173,7 +173,9 @@ class OpenAIProvider(LLMProvider):
         base_url = ext.get("base_url", "https://api.openai.com/v1")
         self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         self.temperature = float(self.llm_config.get("temperature", 0.7))
-        self.max_tokens = int(self.llm_config.get("num_predict", 160))
+        self.max_tokens = int(
+            ext.get("num_predict", self.llm_config.get("num_predict", 160))
+        )
         logger.info("OpenAI provider initialized with model: %s", self.model)
 
     def check_health(self) -> bool:
@@ -269,7 +271,9 @@ class AnthropicProvider(LLMProvider):
 
             api_key = get_api_key("anthropic") or ""
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.max_tokens = int(self.llm_config.get("num_predict", 160))
+        self.max_tokens = int(
+            ext.get("num_predict", self.llm_config.get("num_predict", 160))
+        )
         logger.info("Anthropic provider initialized with model: %s", self.model)
 
     def check_health(self) -> bool:

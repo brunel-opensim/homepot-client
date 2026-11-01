@@ -581,19 +581,26 @@ def get_ai_services() -> Any:
 # Process-wide gate that caps concurrent generations (see utils/ai_gate.py).
 # Built lazily from the LLM config on first use so tests that patch
 # get_ai_services still control it.
-_ai_gate: Optional[AIConcurrencyGate] = None
+# Per-provider gates so Ollama (single slot) and cloud (several slots) do not
+# share one semaphore sized for the weakest provider. Built lazily per provider.
+_ai_gates: dict[str, AIConcurrencyGate] = {}
 
 
 def get_ai_gate(llm: Any) -> AIConcurrencyGate:
-    """Return the shared AI concurrency gate, built from the LLM config."""
-    global _ai_gate
-    if _ai_gate is None:
-        llm_cfg = (getattr(llm, "config", {}) or {}).get("llm", {}) or {}
-        _ai_gate = AIConcurrencyGate(
-            max_concurrent=llm_cfg.get("max_concurrent", 1),
-            queue_timeout_seconds=llm_cfg.get("queue_timeout_seconds"),
+    """Return the AI concurrency gate for the active provider."""
+    llm_cfg = (getattr(llm, "config", {}) or {}).get("llm", {}) or {}
+    provider = llm_cfg.get("provider") or "ollama"
+    if provider not in _ai_gates:
+        ext_cfg = (llm_cfg.get("external") or {}).get(provider, {}) or {}
+        max_concurrent = ext_cfg.get("max_concurrent", llm_cfg.get("max_concurrent", 1))
+        queue_timeout = ext_cfg.get(
+            "queue_timeout_seconds", llm_cfg.get("queue_timeout_seconds")
         )
-    return _ai_gate
+        _ai_gates[provider] = AIConcurrencyGate(
+            max_concurrent=max_concurrent,
+            queue_timeout_seconds=queue_timeout,
+        )
+    return _ai_gates[provider]
 
 
 # Documentation retriever for the knowledge path (Tier C grounding). Built
@@ -1215,8 +1222,15 @@ async def _query_ai_impl(
                 )
 
                 # Get Similar Memories (scope-filtered + relevance-thresholded)
+                # Per-provider recall depth (see ai/provider.py). Falls back to
+                # the shared `memory.n_results` when no override is set.
+                from ai.provider import get_llm_setting
+
+                _n_results = get_llm_setting("memory_n_results", None)
+                if _n_results is None:
+                    _n_results = get_llm_setting("n_results", 3)
                 similar_memories = memory.query_similar(
-                    request.query, scope=memory_scope
+                    request.query, scope=memory_scope, n_results=int(_n_results)
                 )
                 if similar_memories:
                     long_term_context += "\n[RELEVANT MEMORIES]\n"
@@ -1380,11 +1394,15 @@ async def _query_ai_impl(
                     # in ai/config.yaml to receive the full detail.
                     _llm_cfg = getattr(llm, "config", None)
                     if isinstance(_llm_cfg, dict):
-                        budget = int(
-                            (_llm_cfg.get("llm") or {}).get("context_budget", 2000)
-                        )
+                        _llm = _llm_cfg.get("llm") or {}
+                        _provider = _llm.get("provider") or "ollama"
+                        _ext = (_llm.get("external") or {}).get(_provider, {}) or {}
+                        if "context_budget" in _ext:
+                            budget = int(_ext["context_budget"])
+                        else:
+                            budget = int(_llm.get("context_budget", 2000))
                     else:
-                        budget = 4000
+                        budget = 2000
                     if budget > 0 and len(enriched) > budget:
                         enriched = (
                             enriched[:budget].rsplit("\n", 1)[0]
