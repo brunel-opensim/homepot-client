@@ -378,6 +378,12 @@ class AIActionPlan(Base):
     # Link back to the AI query / audit event that produced the proposal.
     source_query_id = Column(String(36), nullable=True)
 
+    # Link to the investigation session/run/message that produced the proposal
+    # (Stage 5). Nullable: proposals can exist without an investigation.
+    investigation_session_id = Column(String(36), nullable=True, index=True)
+    investigation_run_id = Column(String(36), nullable=True, index=True)
+    investigation_message_id = Column(String(36), nullable=True, index=True)
+
     # Trust envelope snapshot (from EnvelopeResult in ai/gates/envelope.py).
     trust_mode = Column(String(50), nullable=True)
     trust_score = Column(Float, nullable=True)
@@ -420,6 +426,8 @@ class AIActionPlan(Base):
         Index("idx_ai_action_plan_status", "status"),
         Index("idx_ai_action_plan_risk_tier", "risk_tier"),
         Index("idx_ai_action_plan_source_query", "source_query_id"),
+        Index("idx_ai_action_plan_session", "investigation_session_id"),
+        Index("idx_ai_action_plan_run", "investigation_run_id"),
     )
 
 
