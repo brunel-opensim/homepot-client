@@ -223,9 +223,10 @@ is called. **Switching providers changes the generator, not the memory.**
   provider, so no provider sees memories the caller may not.
 
 !!! note "Short-term memory is client-supplied"
-    The API accepts `history`, but the Dashboard's `AskAIWidget` does not
-    currently send it, so short-term memory is effectively empty in the UI today.
-    Long-term memory works regardless. See [AI Memory](ai-memory.md).
+    The API accepts `history` and the Dashboard's `AskAIWidget` now sends prior
+    turns (capped to the backend's last 5), so short-term memory works in both
+    the compact assistant and the AI workspace. Long-term memory works
+    regardless. See [AI Memory](ai-memory.md).
 
 ---
 
@@ -279,8 +280,9 @@ providers would further improve richness and throughput without affecting Ollama
 
 !!! note "Provider-specific overrides"
     The settings above use shared defaults unless an override is set under
-    `llm.external.<provider>`. Dashboard conversation history is not yet wired
-    into the AI widget, so short-term memory is unavailable there.
+    `llm.external.<provider>`. Conversation history is now wired into the AI
+    widget, so short-term memory is available in both the compact assistant
+    and the AI workspace.
 
 ---
 
@@ -362,7 +364,6 @@ the configured provider.
 ## Limitations and roadmap
 
 - **Secrets in `ai/provider.json`** are plaintext (mitigated by `.gitignore`).
-- **Short-term memory** is not wired into the Dashboard widget.
 - **Model IDs drift** — external defaults may need updating as vendors retire
   models.
 - **Data residency** — external providers receive the full assembled prompt

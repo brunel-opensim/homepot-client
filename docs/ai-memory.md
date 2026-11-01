@@ -41,8 +41,10 @@ client is responsible for sending history back. This keeps the request path
 simple and avoids storing transcripts.
 
 !!! note "Dashboard coverage"
-    The API accepts `history`, but the Dashboard's `AskAIWidget` does not yet
-    send it, so short-term memory is effectively empty in the UI today.
+    The API accepts `history` and the Dashboard's `AskAIWidget` now sends the
+    prior turns (capped to the backend's last 5), so short-term memory works
+    in both the compact assistant and the AI workspace. The compact view shows
+    only the latest answer; the workspace renders the full thread.
     Long-term memory works regardless.
 
 !!! note "Cost"
