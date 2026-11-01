@@ -27,9 +27,15 @@ def _has_column(table: str, column: str) -> bool:
 
 
 def upgrade() -> None:
-    for col in ("investigation_session_id", "investigation_run_id", "investigation_message_id"):
+    for col in (
+        "investigation_session_id",
+        "investigation_run_id",
+        "investigation_message_id",
+    ):
         if not _has_column("ai_action_plan", col):
-            op.add_column("ai_action_plan", sa.Column(col, sa.String(length=36), nullable=True))
+            op.add_column(
+                "ai_action_plan", sa.Column(col, sa.String(length=36), nullable=True)
+            )
     # Indexes
     inspector = sa.inspect(op.get_bind())
     if "ai_action_plan" in inspector.get_table_names():
@@ -43,6 +49,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    for col in ("investigation_session_id", "investigation_run_id", "investigation_message_id"):
+    for col in (
+        "investigation_session_id",
+        "investigation_run_id",
+        "investigation_message_id",
+    ):
         if _has_column("ai_action_plan", col):
             op.drop_column("ai_action_plan", col)
