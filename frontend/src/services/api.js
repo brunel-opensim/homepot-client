@@ -802,7 +802,9 @@ const api = {
       mode = null,
       signal,
       queryId = null,
-      history = null
+      history = null,
+      sessionId = null,
+      runId = null
     ) => {
       const payload = { query };
       if (deviceId) {
@@ -819,6 +821,12 @@ const api = {
       }
       if (history && history.length) {
         payload.history = history;
+      }
+      if (sessionId) {
+        payload.session_id = sessionId;
+      }
+      if (runId) {
+        payload.run_id = runId;
       }
       // AI inference (local LLM, CPU) can take well over a minute, and cold
       // model loads longer still -- use the AI-specific timeout.
@@ -874,6 +882,70 @@ const api = {
       );
       return response.data;
     },
+  },
+
+  // Investigation sessions (backend-owned AI investigations).
+  investigations: {
+    create: async (title = null, siteId = null, deviceId = null) => {
+      const response = await apiClient.post('/investigations', {
+        title,
+        site_id: siteId,
+        device_id: deviceId,
+      });
+      return response.data;
+    },
+    list: async (includeArchived = false, limit = 50, offset = 0) => {
+      const response = await apiClient.get('/investigations', {
+        params: { include_archived: includeArchived, limit, offset },
+      });
+      return response.data;
+    },
+    get: async (sessionId) => {
+      const response = await apiClient.get(`/investigations/${encodeURIComponent(sessionId)}`);
+      return response.data;
+    },
+    resume: async (sessionId) => {
+      const response = await apiClient.post(
+        `/investigations/${encodeURIComponent(sessionId)}/resume`
+      );
+      return response.data;
+    },
+    update: async (sessionId, { title, status } = {}) => {
+      const response = await apiClient.patch(`/investigations/${encodeURIComponent(sessionId)}`, {
+        title,
+        status,
+      });
+      return response.data;
+    },
+    addMessage: async (sessionId, { role, content, trust, routing, sources } = {}) => {
+      const response = await apiClient.post(
+        `/investigations/${encodeURIComponent(sessionId)}/messages`,
+        { role, content, trust, routing, sources }
+      );
+      return response.data;
+    },
+    listMessages: async (sessionId) => {
+      const response = await apiClient.get(
+        `/investigations/${encodeURIComponent(sessionId)}/messages`
+      );
+      return response.data;
+    },
+    createRun: async (sessionId, messageId = null, status = 'pending') => {
+      const response = await apiClient.post(
+        `/investigations/${encodeURIComponent(sessionId)}/runs`,
+        { message_id: messageId, status }
+      );
+      return response.data;
+    },
+    updateRun: async (sessionId, runId, { status, error } = {}) => {
+      const response = await apiClient.patch(
+        `/investigations/${encodeURIComponent(sessionId)}/runs/${encodeURIComponent(runId)}`,
+        { status, error }
+      );
+      return response.data;
+    },
+    eventsUrl: (sessionId, runId) =>
+      `/api/v1/investigations/${encodeURIComponent(sessionId)}/runs/${encodeURIComponent(runId)}/events`,
   },
 
   // AI action-delegation proposals (Phase 2). Technicians review and
