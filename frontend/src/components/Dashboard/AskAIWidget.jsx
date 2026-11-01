@@ -42,6 +42,13 @@ const AI_MODES = [
   },
 ];
 
+const SUGGESTED_PROMPTS = [
+  'How are devices performing today?',
+  'What is currently offline?',
+  'How do I enroll a device?',
+  'Show recent anomalies',
+];
+
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
 // Covers all five canonical modes plus grounded. Falls back to mode_1
 // (status-only / least trusted) styling for any unknown mode id.
@@ -632,7 +639,116 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
         {/* Response Area */}
         <div className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800">
-          {loading ? (
+          {isWorkspace ? (
+            <>
+              {messages.length === 0 && !loading && !error && !cancelled ? (
+                <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center gap-3 px-4">
+                  <Sparkles className="w-10 h-10 opacity-20" />
+                  <p className="text-sm font-medium text-gray-300">
+                    Ask about your fleet, devices, or how to do something.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-2">
+                    {SUGGESTED_PROMPTS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setQuery(p)}
+                        className="text-xs px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {messages.map((m, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-lg px-3 py-2 ${
+                          m.role === 'user'
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'
+                        }`}
+                      >
+                        {m.role === 'assistant' &&
+                          (m.routing?.resolved === 'knowledge' ||
+                            m.trust?.trust_mode === 'informational') && (
+                            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>Knowledge</span>
+                            </div>
+                          )}
+                        {m.role === 'assistant' && m.sources && m.sources.length > 0 && (
+                          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                            {m.sources.map((src) => (
+                              <span
+                                key={src}
+                                title={`Retrieved source: ${src}`}
+                                className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                              >
+                                <FileText className="w-3 h-3 shrink-0" />
+                                {src}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {m.role === 'assistant' &&
+                          m.trust &&
+                          m.trust.trust_mode !== 'informational' && (
+                            <TrustBanner
+                              trust={m.trust}
+                              expanded={trustExpanded}
+                              onToggle={() => setTrustExpanded((v) => !v)}
+                            />
+                          )}
+                        <div className="prose prose-sm max-w-none">
+                          <ReactMarkdown>{m.content}</ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {loading && (
+                <div className="flex flex-col items-center justify-center py-4 text-gray-500 gap-2 text-center px-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+                  <span className="text-xs animate-pulse transition-all duration-300">
+                    {loadingMessage}
+                  </span>
+                  {slowHint && (
+                    <span className="text-[10px] text-gray-400 max-w-[18rem]">
+                      Still working — the model runs on CPU, and the first question after a break
+                      can take a couple of minutes.
+                    </span>
+                  )}
+                </div>
+              )}
+              {error && (
+                <div className="flex flex-col items-center justify-center py-4 gap-2 text-center px-4 text-red-500">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="font-medium">The assistant couldn&apos;t answer that</span>
+                  </div>
+                  <p className="text-xs text-red-400/90 max-w-xs">{error}</p>
+                </div>
+              )}
+              {cancelled && (
+                <div className="flex flex-col items-center justify-center py-4 gap-2 text-center px-4 text-gray-500">
+                  <Square className="w-4 h-4" />
+                  <span className="font-medium">Query cancelled</span>
+                  <p className="text-xs text-gray-400 max-w-xs">
+                    {cancelConfirmed
+                      ? 'Nothing was saved — the abandoned answer is discarded rather than stored in memory.'
+                      : 'Stopped on this page. The answer may have finished server-side before the cancel arrived.'}
+                  </p>
+                </div>
+              )}
+            </>
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2 text-center px-4">
               <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
               <span className="text-xs animate-pulse transition-all duration-300">
@@ -644,17 +760,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   take a couple of minutes.
                 </span>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCancel}
-                className="mt-1 h-7 gap-1.5 text-xs"
-                title="Stop this query (Esc)"
-              >
-                <Square className="w-3 h-3" />
-                Stop
-              </Button>
             </div>
           ) : cancelled ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-gray-500">
@@ -728,31 +833,65 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
             <div className="flex flex-col items-center justify-center h-full text-gray-400 italic text-center gap-2">
               <Sparkles className="w-8 h-8 opacity-20" />
               <p>Ask about system status, anomalies, or maintenance recommendations...</p>
+              <div className="flex flex-wrap justify-center gap-1.5 mt-2 not-italic">
+                {SUGGESTED_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setQuery(p)}
+                    className="text-[11px] px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
-
         {/* Input Area */}
         <div className="flex flex-col gap-2">
-          <form onSubmit={handleAsk} className="flex gap-2">
-            <input
-              type="text"
-              spellCheck="true"
-              lang="en"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g., How is our system performing today?"
-              className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-              disabled={loading}
-            />
+          <form onSubmit={handleAsk} className="flex gap-2 items-end">
+            {isWorkspace ? (
+              <textarea
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (query.trim() && !loading) {
+                      handleAsk(e);
+                    }
+                  }
+                }}
+                placeholder="Ask about your fleet, devices, or how to do something..."
+                rows={2}
+                disabled={loading}
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all resize-none"
+              />
+            ) : (
+              <input
+                type="text"
+                spellCheck="true"
+                lang="en"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="e.g., How is our system performing today?"
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                disabled={loading}
+              />
+            )}
             <Button
-              type="submit"
-              disabled={loading || !query.trim()}
+              type={loading ? 'button' : 'submit'}
+              onClick={loading ? handleCancel : undefined}
+              disabled={!loading && !query.trim()}
               size="icon"
-              aria-label="Send"
+              aria-label={loading ? 'Stop' : 'Send'}
+              title={loading ? 'Stop (Esc)' : 'Send'}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              <Send className="w-4 h-4" />
+              {loading ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
             </Button>
           </form>
 
@@ -785,6 +924,12 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
             </div>
           </div>
         </div>
+        {isWorkspace && (
+          <div className="px-1 pt-1 text-[11px] text-gray-500 dark:text-gray-400 text-center">
+            Answers are advisory. Device actions require separate review.
+            <span className="ml-2 hidden sm:inline">Enter to send · Shift+Enter for new line</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
