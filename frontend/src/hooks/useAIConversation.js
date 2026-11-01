@@ -147,6 +147,9 @@ export function useAIConversation(variant = 'compact') {
   }, []);
 
   const clearHistory = useCallback(() => {
+    // Start a new conversation in the UI without deleting prior transcripts:
+    // backend-held investigation sessions/messages remain intact and can be
+    // reopened later. Only the locally active thread/draft is reset.
     setQuery('');
     setResponse(null);
     setTrust(null);
@@ -167,6 +170,7 @@ export function useAIConversation(variant = 'compact') {
     localStorage.removeItem('homepot_ai_sources');
     localStorage.removeItem('homepot_ai_proposal');
     localStorage.removeItem('homepot_ai_thread');
+    localStorage.removeItem('homepot_ai_session');
   }, []);
 
   const handleCopy = useCallback(() => {
@@ -263,6 +267,7 @@ export function useAIConversation(variant = 'compact') {
       abortRef.current = controller;
       const queryId = newQueryId();
       queryIdRef.current = queryId;
+      const startedAt = Date.now();
       let activeSessionId = sessionId;
       let activeRunId = null;
       const investigations = api.investigations;
@@ -319,6 +324,9 @@ export function useAIConversation(variant = 'compact') {
             routing: result.routing || null,
             sources: result.sources || [],
             proposal: result.proposal || null,
+            provider: llmProvider?.current || null,
+            model: llmProvider?.model || null,
+            elapsedMs: Date.now() - startedAt,
           },
         ]);
         if (activeRunId && investigations) {
@@ -352,7 +360,7 @@ export function useAIConversation(variant = 'compact') {
         setLoading(false);
       }
     },
-    [query, mode, user, messages, sessionId]
+    [query, mode, user, messages, sessionId, llmProvider]
   );
 
   // Cancel in-flight request on unmount so navigation doesn't leave an orphan.

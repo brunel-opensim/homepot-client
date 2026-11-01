@@ -214,16 +214,38 @@ function GateReplay({ trust, onDone }) {
 
 export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const c = useAIConversation(variant);
+  const scrollRef = useRef(null);
+  const stickToBottomRef = useRef(true);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      stickToBottomRef.current = nearBottom;
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [c.messages, c.loading, c.response, c.error]);
   const { isWorkspace } = c;
 
   const isAdmin = c.isAdmin;
 
   return (
     <Card
-      className={`h-full flex flex-col ${isWorkspace ? '' : 'shadow-md'} ${className}`.trim()}
+      className={`h-full flex flex-col ${isWorkspace ? 'bg-[#0c1423] border-[#2a3548] rounded-xl overflow-hidden' : 'shadow-md'} ${className}`.trim()}
       data-variant={variant}
     >
-      <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+      <CardHeader
+        className={`pb-3 flex flex-row items-center justify-between space-y-0 ${isWorkspace ? 'border-b border-[#243044] px-5 py-3' : ''}`.trim()}
+      >
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
@@ -288,7 +310,8 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               size="sm"
               onClick={c.clearHistory}
               className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 transition-colors"
-              title="Clear AI Context"
+              title="New conversation (keeps prior transcripts)"
+              aria-label="New conversation"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -298,7 +321,8 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
       <CardContent className="flex-1 flex flex-col gap-4 min-h-0">
         {/* Response Area */}
         <div
-          className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800"
+          ref={scrollRef}
+          className={`flex-1 min-h-0 text-sm overflow-y-auto ${isWorkspace ? 'px-6 py-6 bg-[#0c1423]' : 'bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-100 dark:border-gray-800'}`}
           aria-live="polite"
         >
           {isWorkspace ? (
@@ -330,8 +354,15 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                       className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-lg px-3 py-2 ${m.role === 'user' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'}`}
+                        className={`max-w-[85%] rounded-lg px-3 py-2 ${m.role === 'user' ? (isWorkspace ? 'border-l-2 border-[#7864b2] bg-[#131e30] text-[#e4eaf4] pl-3' : 'bg-purple-600 text-white') : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'}`}
                       >
+                        {isWorkspace && (
+                          <div
+                            className={`text-xs mb-1 font-medium ${m.role === 'user' ? 'text-[#9baac1]' : 'text-[#bda8ec]'}`}
+                          >
+                            {m.role === 'user' ? 'You' : 'HOMEPOT AI'}
+                          </div>
+                        )}
                         {m.role === 'assistant' &&
                           (m.routing?.resolved === 'knowledge' ||
                             m.trust?.trust_mode === 'informational') && (
@@ -348,32 +379,58 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                               <span>Diagnostic</span>
                             </div>
                           )}
-                        {m.role === 'assistant' && m.sources && m.sources.length > 0 && (
-                          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                            {m.sources.map((src) => (
-                              <span
-                                key={src}
-                                title={`Retrieved source: ${src}`}
-                                className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
-                              >
-                                <FileText className="w-3 h-3 shrink-0" />
-                                {src}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {m.role === 'assistant' &&
-                          m.trust &&
-                          m.trust.trust_mode !== 'informational' && (
-                            <TrustBanner
-                              trust={m.trust}
-                              expanded={c.trustExpanded}
-                              onToggle={() => c.setTrustExpanded((v) => !v)}
-                            />
-                          )}
                         <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-200">
                           <ReactMarkdown>{m.content}</ReactMarkdown>
                         </div>
+                        {m.role === 'assistant' && (
+                          <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500 flex-wrap">
+                            {m.routing?.resolved && (
+                              <span className="capitalize">{m.routing.resolved}</span>
+                            )}
+                            {m.provider && (
+                              <span>
+                                · {m.provider}
+                                {m.model ? ` / ${m.model}` : ''}
+                              </span>
+                            )}
+                            {m.elapsedMs != null && (
+                              <span>· {Math.round(m.elapsedMs / 1000)} s</span>
+                            )}
+                          </div>
+                        )}
+                        {m.role === 'assistant' && (m.trust || (m.sources && m.sources.length)) && (
+                          <details className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            <summary className="cursor-pointer select-none py-1 hover:text-gray-700 dark:hover:text-gray-200">
+                              Details
+                            </summary>
+                            <div className="pl-3 border-l border-gray-200 dark:border-gray-700 mt-2 space-y-2">
+                              {m.sources && m.sources.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-medium text-gray-600 dark:text-gray-300">
+                                    Evidence:
+                                  </span>
+                                  {m.sources.map((src) => (
+                                    <span
+                                      key={src}
+                                      title={`Retrieved source: ${src}`}
+                                      className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                                    >
+                                      <FileText className="w-3 h-3 shrink-0" />
+                                      {src}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {m.trust && m.trust.trust_mode !== 'informational' && (
+                                <TrustBanner
+                                  trust={m.trust}
+                                  expanded={c.trustExpanded}
+                                  onToggle={() => c.setTrustExpanded((v) => !v)}
+                                />
+                              )}
+                            </div>
+                          </details>
+                        )}
                         {m.role === 'assistant' && m.proposal && (
                           <ProposalCard proposal={m.proposal} />
                         )}
@@ -461,20 +518,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                       — answered from documentation
                     </span>
                   </div>
-                  {c.sources.length > 0 && (
-                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                      {c.sources.map((src) => (
-                        <span
-                          key={src}
-                          title={`Retrieved source: ${src}`}
-                          className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
-                        >
-                          <FileText className="w-3 h-3 shrink-0" />
-                          {src}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </>
               ) : (
                 <>
@@ -487,11 +530,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                       </span>
                     </div>
                   )}
-                  <TrustBanner
-                    trust={c.trust}
-                    expanded={c.trustExpanded}
-                    onToggle={() => c.setTrustExpanded((v) => !v)}
-                  />
                 </>
               )}
               <div className="sticky top-0 float-right z-10">
@@ -508,6 +546,48 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 pr-0">
                 <ReactMarkdown>{c.response}</ReactMarkdown>
               </div>
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500 flex-wrap">
+                {c.routing?.resolved && <span className="capitalize">{c.routing.resolved}</span>}
+                {c.llmProvider?.current && (
+                  <span>
+                    · {c.llmProvider.current}
+                    {c.llmProvider.model ? ` / ${c.llmProvider.model}` : ''}
+                  </span>
+                )}
+              </div>
+              {(c.trust || (c.sources && c.sources.length)) && (
+                <details className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  <summary className="cursor-pointer select-none py-1 hover:text-gray-700 dark:hover:text-gray-200">
+                    Details
+                  </summary>
+                  <div className="pl-3 border-l border-gray-200 dark:border-gray-700 mt-2 space-y-2">
+                    {c.sources && c.sources.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-medium text-gray-600 dark:text-gray-300">
+                          Evidence:
+                        </span>
+                        {c.sources.map((src) => (
+                          <span
+                            key={src}
+                            title={`Retrieved source: ${src}`}
+                            className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                          >
+                            <FileText className="w-3 h-3 shrink-0" />
+                            {src}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {c.trust && c.trust.trust_mode !== 'informational' && (
+                      <TrustBanner
+                        trust={c.trust}
+                        expanded={c.trustExpanded}
+                        onToggle={() => c.setTrustExpanded((v) => !v)}
+                      />
+                    )}
+                  </div>
+                </details>
+              )}
               {c.proposal && <ProposalCard proposal={c.proposal} />}
             </div>
           ) : (
@@ -531,7 +611,9 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         </div>
 
         {/* Input Area */}
-        <div className="flex flex-col gap-2">
+        <div
+          className={`flex flex-col gap-2 ${isWorkspace ? 'mx-3 mb-3 p-3 bg-[#141f32] border border-[#35415a] rounded-xl' : ''}`.trim()}
+        >
           <form onSubmit={c.handleAsk} className="flex gap-2 items-end">
             {isWorkspace ? (
               <textarea
