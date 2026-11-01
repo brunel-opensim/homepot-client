@@ -369,29 +369,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                               <span>Diagnostic</span>
                             </div>
                           )}
-                        {m.role === 'assistant' && m.sources && m.sources.length > 0 && (
-                          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                            {m.sources.map((src) => (
-                              <span
-                                key={src}
-                                title={`Retrieved source: ${src}`}
-                                className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
-                              >
-                                <FileText className="w-3 h-3 shrink-0" />
-                                {src}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {m.role === 'assistant' &&
-                          m.trust &&
-                          m.trust.trust_mode !== 'informational' && (
-                            <TrustBanner
-                              trust={m.trust}
-                              expanded={c.trustExpanded}
-                              onToggle={() => c.setTrustExpanded((v) => !v)}
-                            />
-                          )}
                         <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-200">
                           <ReactMarkdown>{m.content}</ReactMarkdown>
                         </div>
@@ -410,6 +387,39 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                               <span>· {Math.round(m.elapsedMs / 1000)} s</span>
                             )}
                           </div>
+                        )}
+                        {m.role === 'assistant' && (m.trust || (m.sources && m.sources.length)) && (
+                          <details className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            <summary className="cursor-pointer select-none py-1 hover:text-gray-700 dark:hover:text-gray-200">
+                              Details
+                            </summary>
+                            <div className="pl-3 border-l border-gray-200 dark:border-gray-700 mt-2 space-y-2">
+                              {m.sources && m.sources.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-medium text-gray-600 dark:text-gray-300">
+                                    Evidence:
+                                  </span>
+                                  {m.sources.map((src) => (
+                                    <span
+                                      key={src}
+                                      title={`Retrieved source: ${src}`}
+                                      className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                                    >
+                                      <FileText className="w-3 h-3 shrink-0" />
+                                      {src}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {m.trust && m.trust.trust_mode !== 'informational' && (
+                                <TrustBanner
+                                  trust={m.trust}
+                                  expanded={c.trustExpanded}
+                                  onToggle={() => c.setTrustExpanded((v) => !v)}
+                                />
+                              )}
+                            </div>
+                          </details>
                         )}
                         {m.role === 'assistant' && m.proposal && (
                           <ProposalCard proposal={m.proposal} />
@@ -498,20 +508,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                       — answered from documentation
                     </span>
                   </div>
-                  {c.sources.length > 0 && (
-                    <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                      {c.sources.map((src) => (
-                        <span
-                          key={src}
-                          title={`Retrieved source: ${src}`}
-                          className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
-                        >
-                          <FileText className="w-3 h-3 shrink-0" />
-                          {src}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </>
               ) : (
                 <>
@@ -524,11 +520,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                       </span>
                     </div>
                   )}
-                  <TrustBanner
-                    trust={c.trust}
-                    expanded={c.trustExpanded}
-                    onToggle={() => c.setTrustExpanded((v) => !v)}
-                  />
                 </>
               )}
               <div className="sticky top-0 float-right z-10">
@@ -554,6 +545,39 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   </span>
                 )}
               </div>
+              {(c.trust || (c.sources && c.sources.length)) && (
+                <details className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  <summary className="cursor-pointer select-none py-1 hover:text-gray-700 dark:hover:text-gray-200">
+                    Details
+                  </summary>
+                  <div className="pl-3 border-l border-gray-200 dark:border-gray-700 mt-2 space-y-2">
+                    {c.sources && c.sources.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-medium text-gray-600 dark:text-gray-300">
+                          Evidence:
+                        </span>
+                        {c.sources.map((src) => (
+                          <span
+                            key={src}
+                            title={`Retrieved source: ${src}`}
+                            className="inline-flex items-center gap-1 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                          >
+                            <FileText className="w-3 h-3 shrink-0" />
+                            {src}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {c.trust && c.trust.trust_mode !== 'informational' && (
+                      <TrustBanner
+                        trust={c.trust}
+                        expanded={c.trustExpanded}
+                        onToggle={() => c.setTrustExpanded((v) => !v)}
+                      />
+                    )}
+                  </div>
+                </details>
+              )}
               {c.proposal && <ProposalCard proposal={c.proposal} />}
             </div>
           ) : (
