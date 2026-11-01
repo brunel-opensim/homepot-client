@@ -253,7 +253,17 @@ function GateReplay({ trust, onDone }) {
   );
 }
 
-export default function AskAIWidget() {
+/**
+ * AskAIWidget
+ *
+ * @param {object} props
+ * @param {'compact'|'workspace'} [props.variant='compact'] - Layout variant.
+ *   `compact` is the Dashboard assistant; `workspace` is the full-height AI
+ *   workspace. Both share all state, handlers and API calls.
+ * @param {string} [props.className] - Extra classes for the outer container.
+ */
+export default function AskAIWidget({ variant = 'compact', className = '' }) {
+  const isWorkspace = variant === 'workspace';
   const { user } = useAuth();
   // Load initial state from localStorage if available to persist context on refresh/navigation
   const [query, setQuery] = useState(() => localStorage.getItem('homepot_ai_query') || '');
@@ -526,7 +536,10 @@ export default function AskAIWidget() {
   const isKnowledge = routing?.resolved === 'knowledge' || trust?.trust_mode === 'informational';
 
   return (
-    <Card className="h-full flex flex-col shadow-md">
+    <Card
+      className={`h-full flex flex-col ${isWorkspace ? '' : 'shadow-md'} ${className}`.trim()}
+      data-variant={variant}
+    >
       <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
