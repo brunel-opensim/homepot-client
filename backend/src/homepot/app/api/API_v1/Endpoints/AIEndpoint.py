@@ -1394,6 +1394,7 @@ async def _query_ai_impl(
                     # in ai/config.yaml to receive the full detail.
                     _llm_cfg = getattr(llm, "config", None)
                     if isinstance(_llm_cfg, dict):
+<<<<<<< HEAD
                         _llm = _llm_cfg.get("llm") or {}
                         _provider = _llm.get("provider") or "ollama"
                         _ext = (_llm.get("external") or {}).get(_provider, {}) or {}
@@ -1401,6 +1402,11 @@ async def _query_ai_impl(
                             budget = int(_ext["context_budget"])
                         else:
                             budget = int(_llm.get("context_budget", 2000))
+=======
+                        budget = int(
+                            (_llm_cfg.get("llm") or {}).get("context_budget", 2000)
+                        )
+>>>>>>> origin/main
                     else:
                         budget = 2000
                     if budget > 0 and len(enriched) > budget:
