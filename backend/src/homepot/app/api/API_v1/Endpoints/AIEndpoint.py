@@ -1602,6 +1602,21 @@ async def _query_ai_impl(
                 "[END PER-DEVICE TRUST DIGEST]\n"
             )
 
+        # Protect the fleet summary against context truncation in small-window
+        # models (e.g. Ollama, num_ctx=8192). The full [CURRENT SYSTEM
+        # STATUS] block sits at the top of the context and can be dropped when
+        # the assembled prompt exceeds the window; restate the headline counts
+        # here, at the very end (adjacent to the question), so at least one
+        # copy survives regardless of truncation direction. See
+        # docs/ai-llm-providers.md for the provider-specific context limits.
+        full_context += (
+            "\n[CURRENT SYSTEM STATUS — SUMMARY]\n"
+            f"Total Sites: {len(sites)}\n"
+            f"Total Active Devices: {len(all_active_devices)}\n"
+            f"Online Devices: {online_count}\n"
+            f"Healthy Devices: {healthy_count}\n"
+        )
+
         # Per-request size diagnostic. Every token in this dynamic context is
         # re-evaluated by the CPU on each query (~22 tok/s), unlike the cached
         # system prompt, so this breakdown is what guides trimming.
