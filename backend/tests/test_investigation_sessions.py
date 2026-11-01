@@ -41,7 +41,9 @@ def mock_db_url(monkeypatch):
             pass
         homepot.database._db_service = None
 
-    engine = create_engine(db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+    engine = create_engine(
+        db_url, connect_args={"check_same_thread": False}, pool_pre_ping=True
+    )
     Base.metadata.create_all(bind=engine)
     monkeypatch.setattr(homepot.database, "sync_engine", engine)
     monkeypatch.setattr(homepot.database, "SessionLocal", sessionmaker(bind=engine))
@@ -58,8 +60,12 @@ def _make_user(db, email, *, is_admin=False):
         hashed_password=hash_password("pass"),
         is_admin=is_admin,
         role="Admin" if is_admin else "Client",
-        created_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
-        updated_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ),
+        updated_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ),
     )
     db.add(user)
     db.commit()
@@ -86,7 +92,11 @@ def test_create_and_list_session():
         db.close()
 
     client = _client()
-    r = client.post("/api/v1/investigations", json={"title": "t1"}, headers=_headers("a@example.com"))
+    r = client.post(
+        "/api/v1/investigations",
+        json={"title": "t1"},
+        headers=_headers("a@example.com"),
+    )
     assert r.status_code == 200
     sid = r.json()["data"]["session_id"]
     assert sid
@@ -106,7 +116,11 @@ def test_session_isolation():
         db.close()
 
     client = _client()
-    r = client.post("/api/v1/investigations", json={"title": "a's"}, headers=_headers("a@example.com"))
+    r = client.post(
+        "/api/v1/investigations",
+        json={"title": "a's"},
+        headers=_headers("a@example.com"),
+    )
     sid = r.json()["data"]["session_id"]
 
     # b cannot read a's session
@@ -127,15 +141,25 @@ def test_resume_session():
         db.close()
 
     client = _client()
-    r = client.post("/api/v1/investigations", json={"title": "resume"}, headers=_headers("a@example.com"))
+    r = client.post(
+        "/api/v1/investigations",
+        json={"title": "resume"},
+        headers=_headers("a@example.com"),
+    )
     sid = r.json()["data"]["session_id"]
 
     # add a message
-    r = client.post(f"/api/v1/investigations/{sid}/messages", json={"role": "user", "content": "hello"}, headers=_headers("a@example.com"))
+    r = client.post(
+        f"/api/v1/investigations/{sid}/messages",
+        json={"role": "user", "content": "hello"},
+        headers=_headers("a@example.com"),
+    )
     assert r.status_code == 200
 
     # resume
-    r = client.post(f"/api/v1/investigations/{sid}/resume", headers=_headers("a@example.com"))
+    r = client.post(
+        f"/api/v1/investigations/{sid}/resume", headers=_headers("a@example.com")
+    )
     assert r.status_code == 200
     msgs = r.json()["data"]["messages"]
     assert len(msgs) == 1
@@ -150,10 +174,18 @@ def test_archive_session():
         db.close()
 
     client = _client()
-    r = client.post("/api/v1/investigations", json={"title": "arch"}, headers=_headers("a@example.com"))
+    r = client.post(
+        "/api/v1/investigations",
+        json={"title": "arch"},
+        headers=_headers("a@example.com"),
+    )
     sid = r.json()["data"]["session_id"]
 
-    r = client.patch(f"/api/v1/investigations/{sid}", json={"status": "archived"}, headers=_headers("a@example.com"))
+    r = client.patch(
+        f"/api/v1/investigations/{sid}",
+        json={"status": "archived"},
+        headers=_headers("a@example.com"),
+    )
     assert r.status_code == 200
     assert r.json()["data"]["status"] == "archived"
 
@@ -162,7 +194,10 @@ def test_archive_session():
     assert not any(s["session_id"] == sid for s in r.json()["data"]["sessions"])
 
     # included with include_archived
-    r = client.get("/api/v1/investigations?include_archived=true", headers=_headers("a@example.com"))
+    r = client.get(
+        "/api/v1/investigations?include_archived=true",
+        headers=_headers("a@example.com"),
+    )
     assert any(s["session_id"] == sid for s in r.json()["data"]["sessions"])
 
 
@@ -174,13 +209,23 @@ def test_message_ordering():
         db.close()
 
     client = _client()
-    r = client.post("/api/v1/investigations", json={"title": "msgs"}, headers=_headers("a@example.com"))
+    r = client.post(
+        "/api/v1/investigations",
+        json={"title": "msgs"},
+        headers=_headers("a@example.com"),
+    )
     sid = r.json()["data"]["session_id"]
 
     for i in range(3):
-        client.post(f"/api/v1/investigations/{sid}/messages", json={"role": "user", "content": f"msg{i}"}, headers=_headers("a@example.com"))
+        client.post(
+            f"/api/v1/investigations/{sid}/messages",
+            json={"role": "user", "content": f"msg{i}"},
+            headers=_headers("a@example.com"),
+        )
 
-    r = client.get(f"/api/v1/investigations/{sid}/messages", headers=_headers("a@example.com"))
+    r = client.get(
+        f"/api/v1/investigations/{sid}/messages", headers=_headers("a@example.com")
+    )
     msgs = r.json()["data"]["messages"]
     assert [m["content"] for m in msgs] == ["msg0", "msg1", "msg2"]
 
@@ -193,19 +238,35 @@ def test_run_lifecycle():
         db.close()
 
     client = _client()
-    r = client.post("/api/v1/investigations", json={"title": "run"}, headers=_headers("a@example.com"))
+    r = client.post(
+        "/api/v1/investigations",
+        json={"title": "run"},
+        headers=_headers("a@example.com"),
+    )
     sid = r.json()["data"]["session_id"]
 
-    r = client.post(f"/api/v1/investigations/{sid}/runs", json={"status": "running"}, headers=_headers("a@example.com"))
+    r = client.post(
+        f"/api/v1/investigations/{sid}/runs",
+        json={"status": "running"},
+        headers=_headers("a@example.com"),
+    )
     assert r.status_code == 200
     run_id = r.json()["data"]["run_id"]
     assert r.json()["data"]["status"] == "running"
 
-    r = client.patch(f"/api/v1/investigations/{sid}/runs/{run_id}", json={"status": "completed"}, headers=_headers("a@example.com"))
+    r = client.patch(
+        f"/api/v1/investigations/{sid}/runs/{run_id}",
+        json={"status": "completed"},
+        headers=_headers("a@example.com"),
+    )
     assert r.status_code == 200
     assert r.json()["data"]["status"] == "completed"
     assert r.json()["data"]["completed_at"] is not None
 
     # invalid status rejected
-    r = client.patch(f"/api/v1/investigations/{sid}/runs/{run_id}", json={"status": "bogus"}, headers=_headers("a@example.com"))
+    r = client.patch(
+        f"/api/v1/investigations/{sid}/runs/{run_id}",
+        json={"status": "bogus"},
+        headers=_headers("a@example.com"),
+    )
     assert r.status_code == 400
