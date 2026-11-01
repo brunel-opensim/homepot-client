@@ -290,6 +290,51 @@ export function useAIConversation(variant = 'compact') {
   }, []);
 
   const isAdmin = user?.role === 'Admin' || !!user?.isAdmin;
+
+  // Poll proposal status for any plan referenced in the thread, so the inline
+  // cards reflect approval/execution outcomes. Stops once all are terminal.
+  useEffect(() => {
+    const planIds = messages.map((m) => m?.proposal?.plan_id).filter(Boolean);
+    if (planIds.length === 0) return undefined;
+    const terminal = new Set(['succeeded', 'failed', 'rejected', 'rolled_back', 'expired']);
+    let cancelled = false;
+    const poll = async () => {
+      for (const pid of planIds) {
+        try {
+          const res = await api.aiProposals.get(pid);
+          const plan = res?.data || res;
+          if (!plan || cancelled) return;
+          const newStatus = plan.status;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m?.proposal?.plan_id === pid
+                ? {
+                    ...m,
+                    proposal: {
+                      ...m.proposal,
+                      status: newStatus,
+                      risk_tier: plan.risk_tier || m.proposal.risk_tier,
+                    },
+                  }
+                : m
+            )
+          );
+        } catch {
+          // ignore
+        }
+      }
+    };
+    const allTerminal = messages.every(
+      (m) => !m?.proposal?.plan_id || terminal.has(m.proposal.status)
+    );
+    if (allTerminal) return undefined;
+    const id = setInterval(poll, 5000);
+    poll();
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [messages]);
   const isKnowledge = routing?.resolved === 'knowledge' || trust?.trust_mode === 'informational';
 
   return {
