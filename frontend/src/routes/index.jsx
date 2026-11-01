@@ -32,7 +32,6 @@ const DataCollection = lazy(() => import('../pages/DataCollection'));
 const Downloads = lazy(() => import('../pages/Downloads'));
 const EnrolmentIntentsList = lazy(() => import('../pages/EnrolmentIntents/EnrolmentIntentsList'));
 const AIProposalsList = lazy(() => import('../pages/AIProposals/AIProposalsList'));
-const AIWorkspace = lazy(() => import('../pages/AIWorkspace'));
 
 export default function RoutesIndex() {
   return (
@@ -75,7 +74,6 @@ export default function RoutesIndex() {
           <Route path="/agents" element={<Agents />} />
           <Route path="downloads" element={<Downloads />} />
           <Route path="ai-proposals" element={<AIProposalsList />} />
-          <Route path="ai-workspace" element={<AIWorkspace />} />
 
           {/* If you want / (root after login) to go to /dashboard */}
           <Route index element={<Navigate to="dashboard" replace />} />

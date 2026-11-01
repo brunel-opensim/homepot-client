@@ -440,7 +440,7 @@ export default function Dashboard() {
 
           {/* AI Assistant Widget */}
           <div className="flex-1 min-h-0 overflow-hidden">
-            <AskAIWidget />
+            <AskAIWidget variant="workspace" />
           </div>
         </div>
       </div>
