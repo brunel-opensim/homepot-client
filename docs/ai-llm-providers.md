@@ -270,38 +270,17 @@ providers would further improve richness and throughput without affecting Ollama
 | Setting | Ollama | OpenAI | Anthropic | Notes |
 |---|---|---|---|---|
 | `context_window` | `num_ctx` | model default | model default | Ollama truncates first; fleet summary is restated at the end of the context to survive truncation |
-<<<<<<< HEAD
 | `context_budget` | caps enriched context (chars) | same | same | Shared default 2000; overridable via `external.<provider>.context_budget` |
 | `num_predict` | `num_predict` | `max_tokens` | `max_tokens` | Caps **output** for all; overridable via `external.<provider>.num_predict` |
 | `memory_n_results` | recalled memories | same | same | Shared default 3; overridable via `external.<provider>.memory_n_results` |
-=======
-| `context_budget` | caps enriched context (chars) | same | same | Shared; default 2000 chars. Raise for cloud to receive full detail; lowers Ollama confusion. |
-| `num_predict` | `num_predict` | `max_tokens` | `max_tokens` | Caps **output** for all |
->>>>>>> origin/main
 | `temperature` | ✅ | ✅ | not sent | Installed Anthropic SDK rejects it |
 | `keep_alive` | ✅ | ignored | ignored | Keeps local model resident (Ollama only) |
 | `max_concurrent` | ✅ | ✅ | ✅ | Overridable via `external.<provider>.max_concurrent`; per-provider gate |
 
-!!! note "Partially implemented"
-    `context_budget` is now implemented (see the table above) and caps the
-    enriched context to a configurable number of characters. The remaining
-    tuning is proposed but **not** in the code today:
-
-    - **Per-provider output cap.** `num_predict: 120` is tuned for CPU speed but
-      also caps OpenAI/Anthropic to ~120 output tokens. A per-provider
-      `max_tokens` (e.g. 512–1024 for cloud) would give complete answers.
-    - **Provider-aware concurrency.** `max_concurrent: 1` exists because Ollama
-      has one inference slot; it also serialises fast cloud calls. Cloud could
-      safely run 4–8 concurrent generations.
-    - **Provider-aware recall depth.** `memory.n_results: 3` is conservative for
-      Ollama's 8K window; cloud could recall more.
-    - **Per-provider context budget.** `context_budget` is currently a single
-      shared value. Per-provider overrides (e.g. higher for cloud) would let
-      external models receive the full detail without changing Ollama's cap.
-    - **Dashboard conversation history.** Send the last few turns so short-term
-      memory works in the UI.
-
-    Until then, the current values apply uniformly to every provider.
+!!! note "Provider-specific overrides"
+    The settings above use shared defaults unless an override is set under
+    `llm.external.<provider>`. Dashboard conversation history is not yet wired
+    into the AI widget, so short-term memory is unavailable there.
 
 ---
 
@@ -383,9 +362,6 @@ the configured provider.
 ## Limitations and roadmap
 
 - **Secrets in `ai/provider.json`** are plaintext (mitigated by `.gitignore`).
-- **Per-provider tuning** (output cap, concurrency, recall depth) is not yet
-  implemented; `context_budget` is the first such knob. See the
-  [Partially implemented](#provider-specific-tuning) note.
 - **Short-term memory** is not wired into the Dashboard widget.
 - **Model IDs drift** — external defaults may need updating as vendors retire
   models.
