@@ -7,7 +7,7 @@
  */
 
 // Service Worker version - increment to force update
-const SW_VERSION = 'v1.2.0';
+const SW_VERSION = 'v1.3.0';
 const CACHE_NAME = `homepot-cache-${SW_VERSION}`;
 
 // Shared device_id helper (single source of truth, also used by the main app)
@@ -219,42 +219,58 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Fetch event - cache-first strategy for static assets
+// Fetch event - network-first for the app shell (index.html / navigations) so
+// deploys are immediately visible; cache-first for hashed static assets.
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
     return;
   }
-  
+
   // Skip API calls - always fetch from network
   if (event.request.url.includes('/api/')) {
     return;
   }
-  
+
+  const isNavigation =
+    event.request.mode === 'navigate' ||
+    event.request.destination === 'document';
+
+  if (isNavigation) {
+    // Network-first: always try the network so the latest index.html (with
+    // the newest bundle hashes) is served. Fall back to cache only offline.
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((c) => c || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  // Cache-first for hashed static assets (JS/CSS/images).
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
-      
+
       return fetch(event.request).then((response) => {
-        // Don't cache non-successful responses
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-        
-        // Clone the response
         const responseToCache = response.clone();
-        
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
         });
-        
         return response;
       }).catch((error) => {
         console.error('[SW] Fetch failed:', error);
-        
-        // Return a custom offline page if available
         return caches.match('/offline.html').then((offlineResponse) => {
           return offlineResponse || new Response('Offline', { status: 503 });
         });
