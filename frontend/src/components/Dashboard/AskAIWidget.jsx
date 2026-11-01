@@ -18,7 +18,6 @@ import {
   ListChecks,
   BookOpen,
   FileText,
-  Maximize2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAIConversation, AI_MODES } from '@/hooks/useAIConversation';
@@ -257,20 +256,6 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
           )}
         </CardTitle>
         <div className="flex items-center gap-2">
-          {!isWorkspace && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (typeof window !== 'undefined') window.location.assign('/ai-workspace');
-              }}
-              className="h-8 px-2 text-xs text-gray-400 hover:text-purple-400"
-              title="Open full AI workspace"
-              aria-label="Open AI workspace"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </Button>
-          )}
           {c.llmProvider &&
             (isAdmin ? (
               <div className="flex items-center gap-2">

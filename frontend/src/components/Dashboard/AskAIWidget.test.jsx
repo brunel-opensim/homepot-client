@@ -496,7 +496,7 @@ describe('AskAIWidget conversation history forwarding', () => {
   });
 });
 
-describe('AskAIWidget open workspace handoff', () => {
+describe('AskAIWidget embedded workspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.ai.getProvider.mockResolvedValue({
@@ -506,8 +506,8 @@ describe('AskAIWidget open workspace handoff', () => {
     localStorage.clear();
   });
 
-  it('renders an Open AI Workspace button', () => {
-    render(<AskAIWidget />);
-    expect(screen.getByTitle('Open full AI workspace')).toBeInTheDocument();
+  it('renders the workspace variant without a separate open-workspace button', () => {
+    render(<AskAIWidget variant="workspace" />);
+    expect(screen.queryByTitle('Open full AI workspace')).toBeNull();
   });
 });
