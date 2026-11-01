@@ -237,6 +237,7 @@ ones that apply to it.
 | Setting | Ollama | OpenAI | Anthropic | Notes |
 |---|---|---|---|---|
 | `context_window` | `num_ctx` | model default | model default | Ollama truncates first; fleet summary is restated at the end of the context to survive truncation |
+| `context_budget` | caps enriched context (chars) | same | same | Shared; default 4000 chars. Raise for cloud to receive full detail; lowers Ollama confusion. |
 | `num_predict` | `num_predict` | `max_tokens` | `max_tokens` | Caps **output** for all |
 | `temperature` | ✅ | ✅ | not sent | Installed Anthropic SDK rejects it |
 | `keep_alive` | ✅ | ignored | ignored | Keeps local model resident |
