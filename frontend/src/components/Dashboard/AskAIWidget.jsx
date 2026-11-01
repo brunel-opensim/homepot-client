@@ -240,10 +240,12 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
 
   return (
     <Card
-      className={`h-full flex flex-col ${isWorkspace ? '' : 'shadow-md'} ${className}`.trim()}
+      className={`h-full flex flex-col ${isWorkspace ? 'bg-[#0c1423] border-[#2a3548] rounded-xl overflow-hidden' : 'shadow-md'} ${className}`.trim()}
       data-variant={variant}
     >
-      <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+      <CardHeader
+        className={`pb-3 flex flex-row items-center justify-between space-y-0 ${isWorkspace ? 'border-b border-[#243044] px-5 py-3' : ''}`.trim()}
+      >
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
@@ -319,7 +321,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         {/* Response Area */}
         <div
           ref={scrollRef}
-          className="flex-1 min-h-0 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 text-sm overflow-y-auto border border-gray-100 dark:border-gray-800"
+          className={`flex-1 min-h-0 text-sm overflow-y-auto ${isWorkspace ? 'px-6 py-6 bg-[#0c1423]' : 'bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-100 dark:border-gray-800'}`}
           aria-live="polite"
         >
           {isWorkspace ? (
@@ -351,8 +353,15 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                       className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-lg px-3 py-2 ${m.role === 'user' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'}`}
+                        className={`max-w-[85%] rounded-lg px-3 py-2 ${m.role === 'user' ? (isWorkspace ? 'border-l-2 border-[#7864b2] bg-[#131e30] text-[#e4eaf4] pl-3' : 'bg-purple-600 text-white') : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'}`}
                       >
+                        {isWorkspace && (
+                          <div
+                            className={`text-xs mb-1 font-medium ${m.role === 'user' ? 'text-[#9baac1]' : 'text-[#bda8ec]'}`}
+                          >
+                            {m.role === 'user' ? 'You' : 'HOMEPOT AI'}
+                          </div>
+                        )}
                         {m.role === 'assistant' &&
                           (m.routing?.resolved === 'knowledge' ||
                             m.trust?.trust_mode === 'informational') && (
@@ -601,7 +610,9 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         </div>
 
         {/* Input Area */}
-        <div className="flex flex-col gap-2">
+        <div
+          className={`flex flex-col gap-2 ${isWorkspace ? 'mx-3 mb-3 p-3 bg-[#141f32] border border-[#35415a] rounded-xl' : ''}`.trim()}
+        >
           <form onSubmit={c.handleAsk} className="flex gap-2 items-end">
             {isWorkspace ? (
               <textarea
