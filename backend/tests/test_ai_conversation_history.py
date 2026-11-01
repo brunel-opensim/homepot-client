@@ -9,8 +9,8 @@ import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
@@ -108,6 +108,7 @@ def test_query_injects_conversation_history():
         ),
     ):
         from fastapi.testclient import TestClient
+
         from homepot.app.main import app
 
         _authorize_ai_query(app)
