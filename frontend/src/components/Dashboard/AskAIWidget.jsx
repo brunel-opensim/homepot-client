@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,38 +21,9 @@ import {
   Maximize2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import api from '@/services/api';
-import { useAuth } from '@/hooks/useAuth';
-import { aiErrorMessage, isCancel } from '@/utils/aiErrorMessage';
-import { newQueryId } from '@/utils/aiQueryId';
-
-// Intent modes the technician can pick (docs/ai-query-routing.md §6.1).
-// `auto` (default) lets the backend heuristics resolve the mode; the explicit
-// choices override them. The LLM never chooses the mode.
-const AI_MODES = [
-  { id: 'auto', label: 'Auto', title: 'Let the assistant decide (recommended)' },
-  {
-    id: 'knowledge',
-    label: 'Knowledge',
-    title: 'Answer how-to / definition questions from documentation',
-  },
-  {
-    id: 'diagnostic',
-    label: 'Diagnostic',
-    title: 'Investigate live system state through the validation gates',
-  },
-];
-
-const SUGGESTED_PROMPTS = [
-  'How are devices performing today?',
-  'What is currently offline?',
-  'How do I enroll a device?',
-  'Show recent anomalies',
-];
+import { useAIConversation, AI_MODES } from '@/hooks/useAIConversation';
 
 // Visual treatment per backend trust mode (ai/gates/base.py Mode instances).
-// Covers all five canonical modes plus grounded. Falls back to mode_1
-// (status-only / least trusted) styling for any unknown mode id.
 const TRUST_MODE_STYLES = {
   grounded: {
     icon: ShieldCheck,
@@ -97,22 +68,14 @@ const TRUST_MODE_STYLES = {
     chipPass: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
   },
 };
+const TRUST_MODE_STYLES_LOCAL = TRUST_MODE_STYLES;
 
-/**
- * Technician-facing summary of the validation envelope (Gate A -> B -> C...)
- * behind a given AI response: which gates passed/failed, the resulting trust
- * mode, and an overall trust score -- so a recommendation is never presented
- * without first showing how much confidence to place in it.
- */
 function TrustBanner({ trust, expanded, onToggle }) {
   if (!trust) return null;
-  const style = TRUST_MODE_STYLES[trust.trust_mode] || TRUST_MODE_STYLES.mode_1;
+  const style = TRUST_MODE_STYLES_LOCAL[trust.trust_mode] || TRUST_MODE_STYLES_LOCAL.mode_1;
   const Icon = style.icon;
   const scorePct = Math.round((trust.trust_score ?? 0) * 100);
-  // De-duplicate gate ids (Gate C can appear twice: pre- and post-insight
-  // re-validation) for a clean row of chips.
   const gateIds = [...new Set((trust.gates || []).map((g) => g.gate_id))];
-
   return (
     <div className={`mb-3 rounded-lg border ${style.border} ${style.bg} text-xs overflow-hidden`}>
       <button
@@ -144,9 +107,7 @@ function TrustBanner({ trust, expanded, onToggle }) {
           Trust {scorePct}%
         </span>
         <ChevronDown
-          className={`w-3.5 h-3.5 text-gray-400 transition-transform shrink-0 ${
-            expanded ? 'rotate-180' : ''
-          }`}
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`}
         />
       </button>
       {expanded && (
@@ -179,20 +140,13 @@ function TrustBanner({ trust, expanded, onToggle }) {
   );
 }
 
-/**
- * Animated replay of the validation gate chain shown after the response
- * arrives. Each gate appears sequentially with a check/cross icon so the
- * technician sees the same A → B → C → D → E order the backend evaluated.
- */
 function GateReplay({ trust, onDone }) {
   const [idx, setIdx] = useState(0);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
-
   const gates = trust?.gates || [];
   const total = gates.length;
   const done = idx > total;
-
   useEffect(() => {
     if (total === 0) {
       onDoneRef.current?.();
@@ -206,18 +160,14 @@ function GateReplay({ trust, onDone }) {
     );
     return () => clearTimeout(t);
   }, [idx, total]);
-
   useEffect(() => {
     if (done && total > 0) {
       const t = setTimeout(() => onDoneRef.current?.(), 700);
       return () => clearTimeout(t);
     }
   }, [done, total]);
-
   if (total === 0) return null;
-
   const scorePct = Math.round((trust?.trust_score ?? 0) * 100);
-
   return (
     <div className="flex flex-col items-center justify-center h-full gap-3">
       <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
@@ -261,332 +211,11 @@ function GateReplay({ trust, onDone }) {
   );
 }
 
-/**
- * AskAIWidget
- *
- * @param {object} props
- * @param {'compact'|'workspace'} [props.variant='compact'] - Layout variant.
- *   `compact` is the Dashboard assistant; `workspace` is the full-height AI
- *   workspace. Both share all state, handlers and API calls.
- * @param {string} [props.className] - Extra classes for the outer container.
- */
 export default function AskAIWidget({ variant = 'compact', className = '' }) {
-  const isWorkspace = variant === 'workspace';
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin' || !!user?.isAdmin;
-  // Load initial state from localStorage if available to persist context on refresh/navigation
-  const [query, setQuery] = useState(() => localStorage.getItem('homepot_ai_query') || '');
-  const [response, setResponse] = useState(
-    () => localStorage.getItem('homepot_ai_response') || null
-  );
-  const [trust, setTrust] = useState(() => {
-    try {
-      const stored = localStorage.getItem('homepot_ai_trust');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [trustExpanded, setTrustExpanded] = useState(false);
-  // Selected intent mode; remembered per session (docs/ai-query-routing.md §6.1).
-  const [mode, setMode] = useState(() => localStorage.getItem('homepot_ai_mode') || 'auto');
-  // How the backend actually resolved the query (routing.resolved) -- drives
-  // whether we show the gate/trust UI or a documentation "Knowledge" chip.
-  const [routing, setRouting] = useState(null);
-  // Real documentation files the backend retrieved to ground a knowledge answer
-  // (docs/ai-query-routing.md §8.1). These are actual repo paths, not file
-  // names the model invented.
-  const [sources, setSources] = useState(() => {
-    try {
-      const stored = localStorage.getItem('homepot_ai_sources');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-  // Conversation history (short-term memory). Persisted so a thread can be
-  // resumed; sent to the backend as `history` (last 5 turns).
-  const [messages, setMessages] = useState(() => {
-    try {
-      const stored = localStorage.getItem('homepot_ai_thread');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [loading, setLoading] = useState(false);
-  const [replaying, setReplaying] = useState(false);
-  const [error, setError] = useState(null);
-  // LLM provider state
-  const [llmProvider, setLlmProvider] = useState(null);
-  const [llmSwitching, setLlmSwitching] = useState(false);
+  const c = useAIConversation(variant);
+  const { isWorkspace } = c;
 
-  // Fetch current LLM provider on mount
-  useEffect(() => {
-    api.ai
-      .getProvider()
-      .then((res) => {
-        if (res?.data) {
-          setLlmProvider(res.data);
-        }
-      })
-      .catch(() => {
-        // Silently ignore - provider selector is optional
-      });
-  }, []);
-  const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
-  const [slowHint, setSlowHint] = useState(false);
-  const [cancelled, setCancelled] = useState(false);
-  // Whether the server confirmed the cancel: true only when it had an in-flight
-  // query to discard, so the panel never claims something it cannot know.
-  const [cancelConfirmed, setCancelConfirmed] = useState(false);
-  const [copied, setCopied] = useState(false);
-  // Holds the in-flight query's AbortController so Stop/Esc can abandon it.
-  const abortRef = useRef(null);
-  // The id of the query in flight, so Stop/Esc can name it to the server.
-  const queryIdRef = useRef(null);
-
-  const handleGateReplayDone = useCallback(() => {
-    setReplaying(false);
-  }, []);
-
-  // Abandon the query in flight. Aborting stops this page waiting; telling the
-  // server which query to abandon is what makes it discard the answer instead of
-  // remembering it. The report is best-effort -- if it fails the page still
-  // stops, it just cannot claim the answer was discarded
-  // (docs/ai-concurrency.md).
-  const handleCancel = useCallback(() => {
-    const queryId = queryIdRef.current;
-    if (queryId) {
-      api.ai
-        .cancel(queryId)
-        .then((result) => setCancelConfirmed(result?.cancelled === true))
-        .catch(() => setCancelConfirmed(false));
-    }
-    abortRef.current?.abort();
-  }, []);
-
-  const handleSwitchProvider = useCallback(async (provider) => {
-    setLlmSwitching(true);
-    try {
-      const res = await api.ai.setProvider(provider);
-      if (res?.data) {
-        setLlmProvider(res.data);
-      }
-    } catch (err) {
-      console.error('Failed to switch LLM provider:', err);
-    } finally {
-      setLlmSwitching(false);
-    }
-  }, []);
-
-  // Persist query and response to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('homepot_ai_query', query);
-  }, [query]);
-
-  useEffect(() => {
-    if (response) {
-      localStorage.setItem('homepot_ai_response', response);
-    } else {
-      localStorage.removeItem('homepot_ai_response');
-    }
-  }, [response]);
-
-  useEffect(() => {
-    if (trust) {
-      localStorage.setItem('homepot_ai_trust', JSON.stringify(trust));
-    } else {
-      localStorage.removeItem('homepot_ai_trust');
-    }
-  }, [trust]);
-
-  useEffect(() => {
-    localStorage.setItem('homepot_ai_mode', mode);
-  }, [mode]);
-
-  useEffect(() => {
-    if (sources && sources.length) {
-      localStorage.setItem('homepot_ai_sources', JSON.stringify(sources));
-    } else {
-      localStorage.removeItem('homepot_ai_sources');
-    }
-  }, [sources]);
-
-  useEffect(() => {
-    if (messages && messages.length) {
-      localStorage.setItem('homepot_ai_thread', JSON.stringify(messages));
-    } else {
-      localStorage.removeItem('homepot_ai_thread');
-    }
-  }, [messages]);
-
-  const clearHistory = () => {
-    setQuery('');
-    setResponse(null);
-    setTrust(null);
-    setRouting(null);
-    setSources([]);
-    setMessages([]);
-    setTrustExpanded(false);
-    setReplaying(false);
-    setError(null);
-    setCancelled(false);
-    setCancelConfirmed(false);
-    localStorage.removeItem('homepot_ai_query');
-    localStorage.removeItem('homepot_ai_response');
-    localStorage.removeItem('homepot_ai_trust');
-    localStorage.removeItem('homepot_ai_sources');
-    localStorage.removeItem('homepot_ai_thread');
-  };
-
-  const handleCopy = () => {
-    if (!response) return;
-    navigator.clipboard.writeText(response);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  useEffect(() => {
-    let interval;
-    let slowTimer;
-    if (loading) {
-      const gateMessages = [
-        'Reviewing conversation history...',
-        'Running Gate A: Contract & Infrastructure...',
-        'Accessing long-term memory & vector store...',
-        'Running Gate B: Data Integrity...',
-        'Scanning active sites & devices...',
-        'Running Gate C: Context Readiness...',
-        'Analyzing push notification metrics...',
-        'Running Gate D: Permission & Capability...',
-        'Checking for system anomalies...',
-        'Running Gate E: Lifecycle Integrity...',
-        'Synthesizing insights...',
-      ];
-      // Knowledge queries skip the gates, so the gate narration would be
-      // misleading (docs/ai-query-routing.md §7).
-      const knowledgeMessages = [
-        'Searching documentation...',
-        'Reviewing product guides & SOPs...',
-        'Gathering relevant references...',
-        'Synthesizing an answer...',
-      ];
-      const messages = mode === 'knowledge' ? knowledgeMessages : gateMessages;
-      let i = 0;
-      setLoadingMessage(messages[0]);
-      setSlowHint(false);
-      // The model runs on CPU and a cold load can take a couple of minutes;
-      // after 90s say so rather than letting the user think it has stalled.
-      slowTimer = setTimeout(() => setSlowHint(true), 90000);
-      interval = setInterval(() => {
-        i = i + 1;
-        if (i < messages.length) {
-          setLoadingMessage(messages[i]);
-        }
-      }, 1500); // Change message every 1.5 seconds
-    }
-    return () => {
-      clearInterval(interval);
-      clearTimeout(slowTimer);
-    };
-  }, [loading, mode]);
-
-  // Esc aborts a query that is taking too long, same as the Stop button.
-  useEffect(() => {
-    if (!loading) return undefined;
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        handleCancel();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [loading, handleCancel]);
-
-  const handleAsk = async (e) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    setCancelled(false);
-    setCancelConfirmed(false);
-    setResponse(null);
-    setTrust(null);
-    setRouting(null);
-    setSources([]);
-    setTrustExpanded(false);
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-    // Every query carries an id so Stop/Esc can name exactly which one to
-    // abandon server-side (see api.ai.cancel).
-    const queryId = newQueryId();
-    queryIdRef.current = queryId;
-
-    try {
-      const userRole = user?.role || (user?.isAdmin ? 'Admin' : 'Client');
-      // `auto` is sent as null so the backend default (heuristics) applies.
-      const modeArg = mode === 'auto' ? null : mode;
-      // Short-term memory: send the last few turns so the backend can keep
-      // the conversation context. Capped to the backend's last-5 limit.
-      const historyPayload = messages.slice(-5).map((m) => ({ role: m.role, content: m.content }));
-      const result = await api.ai.query(
-        query,
-        null,
-        userRole,
-        modeArg,
-        controller.signal,
-        queryId,
-        historyPayload
-      );
-      // The backend returns { response, timestamp, trust, routing, sources } --
-      // trust is the validation envelope's gate-by-gate outcome (see
-      // ai/gates/envelope.py), routing reports how the intent was resolved
-      // (knowledge vs diagnostic), and sources lists the real doc files a
-      // knowledge answer was grounded in.
-      setResponse(result.response);
-      setTrust(result.trust || null);
-      setRouting(result.routing || null);
-      setSources(result.sources || []);
-      // Commit this turn to the conversation thread (only on success, so
-      // cancelled/failed queries do not pollute short-term memory).
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: query },
-        {
-          role: 'assistant',
-          content: result.response,
-          trust: result.trust || null,
-          routing: result.routing || null,
-          sources: result.sources || [],
-        },
-      ]);
-      // Show an animated gate replay before revealing the response,
-      // so the technician sees the validation chain in action.
-      if (result.trust?.gates?.length) {
-        setReplaying(true);
-      }
-    } catch (err) {
-      if (isCancel(err)) {
-        // A deliberate Stop/Esc: not a failure, so it does not get an error
-        // message. The server discards the abandoned answer (no memory write).
-        setCancelled(true);
-      } else {
-        console.error('AI Query failed:', err);
-        setError(aiErrorMessage(err));
-      }
-    } finally {
-      abortRef.current = null;
-      queryIdRef.current = null;
-      setLoading(false);
-    }
-  };
-
-  // The backend marks documentation answers with an informational trust (no
-  // gates ran), so we surface a "Knowledge" chip instead of the gate UI.
-  const isKnowledge = routing?.resolved === 'knowledge' || trust?.trust_mode === 'informational';
+  const isAdmin = c.isAdmin;
 
   return (
     <Card
@@ -597,7 +226,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         <CardTitle className="flex items-center gap-2 text-lg font-medium">
           <Sparkles className="w-5 h-5 text-purple-600" />
           System Diagnostics AI
-          {llmProvider?.healthy === false && (
+          {c.llmProvider?.healthy === false && (
             <span
               className="inline-block w-2 h-2 rounded-full bg-red-500"
               title="Provider unhealthy"
@@ -619,13 +248,13 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               <Maximize2 className="w-4 h-4" />
             </Button>
           )}
-          {llmProvider &&
+          {c.llmProvider &&
             (isAdmin ? (
               <div className="flex items-center gap-2">
                 <select
-                  value={llmProvider.current || 'ollama'}
-                  onChange={(e) => handleSwitchProvider(e.target.value)}
-                  disabled={llmSwitching}
+                  value={c.llmProvider.current || 'ollama'}
+                  onChange={(e) => c.handleSwitchProvider(e.target.value)}
+                  disabled={c.llmSwitching}
                   className="text-xs bg-slate-800 text-slate-300 border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-indigo-500"
                   title="Switch LLM provider (admin only)"
                   aria-label="Switch LLM provider"
@@ -633,30 +262,30 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   <option value="ollama">Local (Ollama)</option>
                   <option value="openai">
                     OpenAI
-                    {llmProvider.available?.find((p) => p.name === 'openai')?.has_api_key
+                    {c.llmProvider.available?.find((p) => p.name === 'openai')?.has_api_key
                       ? ''
                       : ' (no key)'}
                   </option>
                   <option value="anthropic">
                     Anthropic
-                    {llmProvider.available?.find((p) => p.name === 'anthropic')?.has_api_key
+                    {c.llmProvider.available?.find((p) => p.name === 'anthropic')?.has_api_key
                       ? ''
                       : ' (no key)'}
                   </option>
                 </select>
-                {llmSwitching && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
+                {c.llmSwitching && <Loader2 className="w-3 h-3 animate-spin text-slate-400" />}
               </div>
             ) : (
               <span className="text-xs text-slate-400" title="LLM provider (read-only)">
-                {llmProvider.current || 'ollama'}
-                {llmProvider.model ? ` · ${llmProvider.model}` : ''}
+                {c.llmProvider.current || 'ollama'}
+                {c.llmProvider.model ? ` · ${c.llmProvider.model}` : ''}
               </span>
             ))}
-          {(response || query) && (
+          {(c.response || c.query) && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={clearHistory}
+              onClick={c.clearHistory}
               className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 transition-colors"
               title="Clear AI Context"
             >
@@ -673,18 +302,18 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         >
           {isWorkspace ? (
             <>
-              {messages.length === 0 && !loading && !error && !cancelled ? (
+              {c.messages.length === 0 && !c.loading && !c.error && !c.cancelled ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 text-center gap-3 px-4">
                   <Sparkles className="w-10 h-10 opacity-20" />
                   <p className="text-sm font-medium text-gray-300">
                     Ask about your fleet, devices, or how to do something.
                   </p>
                   <div className="flex flex-wrap justify-center gap-2 mt-2">
-                    {SUGGESTED_PROMPTS.map((p) => (
+                    {c.suggestedPrompts.map((p) => (
                       <button
                         key={p}
                         type="button"
-                        onClick={() => setQuery(p)}
+                        onClick={() => c.setQuery(p)}
                         className="text-xs px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                       >
                         {p}
@@ -694,17 +323,13 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {messages.map((m, idx) => (
+                  {c.messages.map((m, idx) => (
                     <div
                       key={idx}
                       className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-lg px-3 py-2 ${
-                          m.role === 'user'
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'
-                        }`}
+                        className={`max-w-[85%] rounded-lg px-3 py-2 ${m.role === 'user' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700'}`}
                       >
                         {m.role === 'assistant' &&
                           (m.routing?.resolved === 'knowledge' ||
@@ -712,6 +337,14 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
                               <BookOpen className="w-3.5 h-3.5" />
                               <span>Knowledge</span>
+                            </div>
+                          )}
+                        {m.role === 'assistant' &&
+                          m.routing?.resolved === 'diagnostic' &&
+                          m.trust?.trust_mode !== 'informational' && (
+                            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                              <ShieldAlert className="w-3.5 h-3.5" />
+                              <span>Diagnostic</span>
                             </div>
                           )}
                         {m.role === 'assistant' && m.sources && m.sources.length > 0 && (
@@ -733,11 +366,11 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                           m.trust.trust_mode !== 'informational' && (
                             <TrustBanner
                               trust={m.trust}
-                              expanded={trustExpanded}
-                              onToggle={() => setTrustExpanded((v) => !v)}
+                              expanded={c.trustExpanded}
+                              onToggle={() => c.setTrustExpanded((v) => !v)}
                             />
                           )}
-                        <div className="prose prose-sm max-w-none">
+                        <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-200">
                           <ReactMarkdown>{m.content}</ReactMarkdown>
                         </div>
                       </div>
@@ -745,13 +378,13 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   ))}
                 </div>
               )}
-              {loading && (
+              {c.loading && (
                 <div className="flex flex-col items-center justify-center py-4 text-gray-500 gap-2 text-center px-4">
                   <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
                   <span className="text-xs animate-pulse transition-all duration-300">
-                    {loadingMessage}
+                    {c.loadingMessage}
                   </span>
-                  {slowHint && (
+                  {c.slowHint && (
                     <span className="text-[10px] text-gray-400 max-w-[18rem]">
                       Still working — the model runs on CPU, and the first question after a break
                       can take a couple of minutes.
@@ -759,63 +392,63 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   )}
                 </div>
               )}
-              {error && (
+              {c.error && (
                 <div className="flex flex-col items-center justify-center py-4 gap-2 text-center px-4 text-red-500">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span className="font-medium">The assistant couldn&apos;t answer that</span>
                   </div>
-                  <p className="text-xs text-red-400/90 max-w-xs">{error}</p>
+                  <p className="text-xs text-red-400/90 max-w-xs">{c.error}</p>
                 </div>
               )}
-              {cancelled && (
+              {c.cancelled && (
                 <div className="flex flex-col items-center justify-center py-4 gap-2 text-center px-4 text-gray-500">
                   <Square className="w-4 h-4" />
                   <span className="font-medium">Query cancelled</span>
                   <p className="text-xs text-gray-400 max-w-xs">
-                    {cancelConfirmed
+                    {c.cancelConfirmed
                       ? 'Nothing was saved — the abandoned answer is discarded rather than stored in memory.'
                       : 'Stopped on this page. The answer may have finished server-side before the cancel arrived.'}
                   </p>
                 </div>
               )}
             </>
-          ) : loading ? (
+          ) : c.loading ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2 text-center px-4">
               <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
               <span className="text-xs animate-pulse transition-all duration-300">
-                {loadingMessage}
+                {c.loadingMessage}
               </span>
-              {slowHint && (
+              {c.slowHint && (
                 <span className="text-[10px] text-gray-400 max-w-[18rem]">
                   Still working — the model runs on CPU, and the first question after a break can
                   take a couple of minutes.
                 </span>
               )}
             </div>
-          ) : cancelled ? (
+          ) : c.cancelled ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-gray-500">
               <Square className="w-4 h-4" />
               <span className="font-medium">Query cancelled</span>
               <p className="text-xs text-gray-400 max-w-xs">
-                {cancelConfirmed
+                {c.cancelConfirmed
                   ? 'Nothing was saved — the abandoned answer is discarded rather than stored in memory.'
                   : 'Stopped on this page. The answer may have finished server-side before the cancel arrived.'}
               </p>
             </div>
-          ) : error ? (
+          ) : c.error ? (
             <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4 text-red-500">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span className="font-medium">The assistant couldn&apos;t answer that</span>
               </div>
-              <p className="text-xs text-red-400/90 max-w-xs">{error}</p>
+              <p className="text-xs text-red-400/90 max-w-xs">{c.error}</p>
             </div>
-          ) : replaying ? (
-            <GateReplay trust={trust} onDone={handleGateReplayDone} />
-          ) : response ? (
+          ) : c.replaying ? (
+            <GateReplay trust={c.trust} onDone={c.handleGateReplayDone} />
+          ) : c.response ? (
             <div className="relative group min-h-full">
-              {isKnowledge ? (
+              {c.isKnowledge ? (
                 <>
                   <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-purple-50 dark:bg-purple-950/30 px-2.5 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
                     <BookOpen className="w-3.5 h-3.5" />
@@ -824,9 +457,9 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                       — answered from documentation
                     </span>
                   </div>
-                  {sources.length > 0 && (
+                  {c.sources.length > 0 && (
                     <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                      {sources.map((src) => (
+                      {c.sources.map((src) => (
                         <span
                           key={src}
                           title={`Retrieved source: ${src}`}
@@ -841,7 +474,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                 </>
               ) : (
                 <>
-                  {routing?.resolved === 'diagnostic' && (
+                  {c.routing?.resolved === 'diagnostic' && (
                     <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">
                       <ShieldAlert className="w-3.5 h-3.5" />
                       <span>Diagnostic</span>
@@ -851,9 +484,9 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                     </div>
                   )}
                   <TrustBanner
-                    trust={trust}
-                    expanded={trustExpanded}
-                    onToggle={() => setTrustExpanded((v) => !v)}
+                    trust={c.trust}
+                    expanded={c.trustExpanded}
+                    onToggle={() => c.setTrustExpanded((v) => !v)}
                   />
                 </>
               )}
@@ -862,14 +495,14 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 text-gray-400 hover:text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-transparent bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 dark:border-gray-800"
-                  onClick={handleCopy}
+                  onClick={c.handleCopy}
                   title="Copy to clipboard"
                 >
-                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {c.copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                 </Button>
               </div>
               <div className="prose prose-sm max-w-none text-gray-700 dark:text-gray-300 pr-0">
-                <ReactMarkdown>{response}</ReactMarkdown>
+                <ReactMarkdown>{c.response}</ReactMarkdown>
               </div>
             </div>
           ) : (
@@ -877,11 +510,11 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               <Sparkles className="w-8 h-8 opacity-20" />
               <p>Ask about system status, anomalies, or maintenance recommendations...</p>
               <div className="flex flex-wrap justify-center gap-1.5 mt-2 not-italic">
-                {SUGGESTED_PROMPTS.map((p) => (
+                {c.suggestedPrompts.map((p) => (
                   <button
                     key={p}
                     type="button"
-                    onClick={() => setQuery(p)}
+                    onClick={() => c.setQuery(p)}
                     className="text-[11px] px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
                     {p}
@@ -891,26 +524,25 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
             </div>
           )}
         </div>
+
         {/* Input Area */}
         <div className="flex flex-col gap-2">
-          <form onSubmit={handleAsk} className="flex gap-2 items-end">
+          <form onSubmit={c.handleAsk} className="flex gap-2 items-end">
             {isWorkspace ? (
               <textarea
                 spellCheck="true"
                 lang="en"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={c.query}
+                onChange={(e) => c.setQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    if (query.trim() && !loading) {
-                      handleAsk(e);
-                    }
+                    if (c.query.trim() && !c.loading) c.handleAsk(e);
                   }
                 }}
                 placeholder="Ask about your fleet, devices, or how to do something..."
                 rows={2}
-                disabled={loading}
+                disabled={c.loading}
                 className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all resize-none"
               />
             ) : (
@@ -918,28 +550,27 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                 type="text"
                 spellCheck="true"
                 lang="en"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={c.query}
+                onChange={(e) => c.setQuery(e.target.value)}
                 placeholder="e.g., How is our system performing today?"
                 className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-                disabled={loading}
+                disabled={c.loading}
               />
             )}
             <Button
-              type={loading ? 'button' : 'submit'}
-              onClick={loading ? handleCancel : undefined}
-              disabled={!loading && !query.trim()}
+              type={c.loading ? 'button' : 'submit'}
+              onClick={c.loading ? c.handleCancel : undefined}
+              disabled={!c.loading && !c.query.trim()}
               size="icon"
-              aria-label={loading ? 'Stop' : 'Send'}
-              title={loading ? 'Stop (Esc)' : 'Send'}
+              aria-label={c.loading ? 'Stop' : 'Send'}
+              title={c.loading ? 'Stop (Esc)' : 'Send'}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              {loading ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              {c.loading ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
             </Button>
           </form>
 
-          {/* Mode selector (docs/ai-query-routing.md §6.1). Auto lets the
-              backend heuristics decide; the technician can force a path. */}
+          {/* Mode selector */}
           <div className="flex items-center gap-2 text-xs">
             <span className="text-gray-500 dark:text-gray-400">Mode:</span>
             <div
@@ -947,19 +578,15 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               aria-label="AI query mode"
               className="inline-flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden"
             >
-              {AI_MODES.map((m) => (
+              {c.aiModes.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   title={m.title}
-                  onClick={() => setMode(m.id)}
-                  disabled={loading}
-                  aria-pressed={mode === m.id}
-                  className={`px-2.5 py-1 transition-colors disabled:opacity-50 ${
-                    mode === m.id
-                      ? 'bg-purple-600 text-white'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
+                  onClick={() => c.setMode(m.id)}
+                  disabled={c.loading}
+                  aria-pressed={c.mode === m.id}
+                  className={`px-2.5 py-1 transition-colors disabled:opacity-50 ${c.mode === m.id ? 'bg-purple-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                 >
                   {m.label}
                 </button>
