@@ -7,7 +7,7 @@
  */
 
 // Service Worker version - increment to force update
-const SW_VERSION = 'v1.1.0';
+const SW_VERSION = 'v1.2.0';
 const CACHE_NAME = `homepot-cache-${SW_VERSION}`;
 
 // Shared device_id helper (single source of truth, also used by the main app)
