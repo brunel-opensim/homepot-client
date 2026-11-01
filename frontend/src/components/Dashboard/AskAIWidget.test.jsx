@@ -95,8 +95,7 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'Admin',
       null,
       expect.any(AbortSignal),
-      expect.any(String),
-      []
+      expect.any(String)
     );
   });
 
@@ -115,8 +114,7 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'Admin',
       'knowledge',
       expect.any(AbortSignal),
-      expect.any(String),
-      []
+      expect.any(String)
     );
     expect(localStorage.getItem('homepot_ai_mode')).toBe('knowledge');
   });
@@ -136,8 +134,7 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       'Admin',
       'diagnostic',
       expect.any(AbortSignal),
-      expect.any(String),
-      []
+      expect.any(String)
     );
   });
 
