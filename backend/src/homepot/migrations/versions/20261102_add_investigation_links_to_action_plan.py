@@ -27,6 +27,7 @@ def _has_column(table: str, column: str) -> bool:
 
 
 def upgrade() -> None:
+    """Add investigation references and indexes to action plans."""
     for col in (
         "investigation_session_id",
         "investigation_run_id",
@@ -49,6 +50,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove investigation references from action plans."""
     for col in (
         "investigation_session_id",
         "investigation_run_id",
