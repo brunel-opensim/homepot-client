@@ -310,7 +310,8 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               size="sm"
               onClick={c.clearHistory}
               className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 transition-colors"
-              title="Clear AI Context"
+              title="New conversation (keeps prior transcripts)"
+              aria-label="New conversation"
             >
               <Trash2 className="w-4 h-4" />
             </Button>

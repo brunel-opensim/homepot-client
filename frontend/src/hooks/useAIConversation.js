@@ -147,6 +147,9 @@ export function useAIConversation(variant = 'compact') {
   }, []);
 
   const clearHistory = useCallback(() => {
+    // Start a new conversation in the UI without deleting prior transcripts:
+    // backend-held investigation sessions/messages remain intact and can be
+    // reopened later. Only the locally active thread/draft is reset.
     setQuery('');
     setResponse(null);
     setTrust(null);
@@ -167,6 +170,7 @@ export function useAIConversation(variant = 'compact') {
     localStorage.removeItem('homepot_ai_sources');
     localStorage.removeItem('homepot_ai_proposal');
     localStorage.removeItem('homepot_ai_thread');
+    localStorage.removeItem('homepot_ai_session');
   }, []);
 
   const handleCopy = useCallback(() => {
