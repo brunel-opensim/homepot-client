@@ -1283,7 +1283,8 @@ async def _query_ai_impl(
         if not request.device_id and effective_history:
             try:
                 import re as _re
-                from homepot.canonical_ids import _ID_CHARS, _GROUP_LENGTH
+
+                from homepot.canonical_ids import _GROUP_LENGTH, _ID_CHARS
 
                 _search_pat = _re.compile(
                     rf"DEVICE-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
