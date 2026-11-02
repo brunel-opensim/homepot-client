@@ -20,11 +20,11 @@ Standardized device management testing report for HOMEPOT across platforms.
 
 ## Prerequisites
 
-- [✔️] Device enrolled and showing as "online" in Dashboard
-- [✔️] Agent reports version (not "REAL") in Device Details → Source
-- [✔️] Firmware version populated in Device Details
-- [✔️] Peripherals (printers) listed if applicable
-- [✔️] "Manage device" permission granted (root_access)
+- [✓] Device enrolled and showing as "online" in Dashboard
+- [✓] Agent reports version (not "REAL") in Device Details → Source
+- [✓] Firmware version populated in Device Details
+- [✓] Peripherals (printers) listed if applicable
+- [✓] "Manage device" permission granted (root_access)
 
 ---
 
