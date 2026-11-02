@@ -272,7 +272,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-full bg-black text-gray-200 p-2 flex flex-col overflow-hidden rounded-2xl shadow-xl border border-gray-800">
+    <div className="h-full min-h-0 min-w-0 bg-black text-gray-200 p-2 flex flex-col overflow-y-auto lg:overflow-hidden rounded-2xl shadow-xl border border-gray-800">
       {/* Summary Stats */}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2 shrink-0">
@@ -340,9 +340,9 @@ export default function Dashboard() {
       )}
 
       {/* Main Content: Two columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 flex-1 min-h-0 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 shrink-0 lg:shrink lg:flex-1 lg:min-h-0 lg:overflow-hidden">
         {/* Left Column: Connected Sites */}
-        <Card className="col-span-2 relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover h-full flex flex-col overflow-hidden">
+        <Card className="col-span-1 lg:col-span-2 min-w-0 h-[min(50dvh,28rem)] lg:h-full relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover flex flex-col overflow-hidden">
           {/* Overlay for opacity */}
           <div className="absolute inset-0 bg-black/40 rounded-xl z-0"></div>
 
@@ -427,19 +427,19 @@ export default function Dashboard() {
         </Card>
 
         {/* Right Column: AI Assistant (Pulse/Alerts moved to StatusStrip above) */}
-        <div className="flex flex-col gap-2 h-full min-h-0 overflow-hidden pr-1">
+        <div className="flex flex-col gap-2 h-[max(28rem,75dvh)] lg:h-full min-h-0 min-w-0 overflow-hidden lg:pr-1">
           <div className="flex-none">
             <Card className="bg-[#080A0A] border border-secondary shrink-0">
-              <CardContent className="p-2">
+              <CardContent className="p-1">
                 <div className="w-full min-w-0">
-                  <ActiveAlertsTicker alerts={alerts} />
+                  <ActiveAlertsTicker alerts={alerts} compact />
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* AI Assistant Widget */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
             <AskAIWidget variant="workspace" />
           </div>
         </div>

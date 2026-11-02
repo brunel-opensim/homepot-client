@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 
-const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
+const ActiveAlertsTicker = ({ alerts: rawAlerts = [], compact = false }) => {
   const [snoozedAlerts, setSnoozedAlerts] = useState(() => {
     const saved = localStorage.getItem('snoozedAlerts');
     try {
@@ -153,9 +153,11 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
 
   if (!alerts || alerts.length === 0) {
     return (
-      <div className="flex items-center justify-center h-12 text-green-400 gap-2 bg-green-500/5 rounded-lg border border-green-500/20">
+      <div
+        className={`flex items-center justify-center ${compact ? 'h-8' : 'h-12'} text-green-400 gap-2 bg-green-500/5 rounded-lg border border-green-500/20`}
+      >
         <CheckCircle2 className="w-4 h-4" />
-        <span className="text-sm font-medium">All systems normal</span>
+        <span className={`${compact ? 'text-xs' : 'text-sm'} font-medium`}>All systems normal</span>
       </div>
     );
   }
@@ -170,7 +172,7 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
     >
       {/* Main Ticker Card */}
       <div
-        className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-300 ${styles.borderClass} ${currentAlert?.device_id && !currentAlert.device_id.startsWith('mock-') ? 'cursor-pointer hover:bg-opacity-20' : ''}`}
+        className={`flex items-center justify-between ${compact ? 'h-8 px-2' : 'p-3'} rounded-lg border transition-all duration-300 ${styles.borderClass} ${currentAlert?.device_id && !currentAlert.device_id.startsWith('mock-') ? 'cursor-pointer hover:bg-opacity-20' : ''}`}
         onClick={() => {
           if (currentAlert?.device_id && !currentAlert.device_id.startsWith('mock-')) {
             navigate(`/device/${currentAlert.device_id}`);
@@ -182,13 +184,17 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
 
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`text-sm font-semibold truncate ${styles.textClass}`}>
+              <span
+                className={`${compact ? 'text-xs' : 'text-sm'} font-semibold truncate ${styles.textClass}`}
+                title={currentAlert?.message}
+              >
                 {currentAlert?.id && (
                   <span className="mr-1 opacity-70 border border-current px-1 rounded font-mono">
                     #{currentAlert.id}
                   </span>
                 )}
-                {currentAlert?.message?.split(':')[0] || 'Alert'}
+                {(compact ? currentAlert?.message : currentAlert?.message?.split(':')[0]) ||
+                  'Alert'}
               </span>
               <span className="text-xs text-gray-500 shrink-0">
                 {currentAlert?.timestamp
@@ -199,7 +205,7 @@ const ActiveAlertsTicker = ({ alerts: rawAlerts = [] }) => {
                   : ''}
               </span>
             </div>
-            <span className="text-xs text-gray-400 truncate">
+            <span className={`${compact ? 'hidden' : ''} text-xs text-gray-400 truncate`}>
               {currentAlert?.message?.split(':').slice(1).join(':') || ''}
             </span>
           </div>

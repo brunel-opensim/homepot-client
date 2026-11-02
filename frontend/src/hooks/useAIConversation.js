@@ -196,49 +196,14 @@ export function useAIConversation(variant = 'compact') {
     if (map[type]) setLoadingMessage(map[type]);
   }, [runEvents.latest]);
 
-  // Loading message rotation (fallback when no SSE events)
+  // A neutral fallback until real backend events arrive. A timer cannot tell
+  // whether a particular gate or retrieval operation has actually happened.
   useEffect(() => {
-    let interval;
-    let slowTimer;
-    // Skip timer-driven narration when SSE events are driving progress.
-    if (loading && runEvents.events.length > 0) {
-      return () => {};
-    }
-    if (loading) {
-      const gateMessages = [
-        'Reviewing conversation history...',
-        'Running Gate A: Contract & Infrastructure...',
-        'Accessing long-term memory & vector store...',
-        'Running Gate B: Data Integrity...',
-        'Scanning active sites & devices...',
-        'Running Gate C: Context Readiness...',
-        'Analyzing push notification metrics...',
-        'Running Gate D: Permission & Capability...',
-        'Checking for system anomalies...',
-        'Running Gate E: Lifecycle Integrity...',
-        'Synthesizing insights...',
-      ];
-      const knowledgeMessages = [
-        'Searching documentation...',
-        'Reviewing product guides & SOPs...',
-        'Gathering relevant references...',
-        'Synthesizing an answer...',
-      ];
-      const messages = mode === 'knowledge' ? knowledgeMessages : gateMessages;
-      let i = 0;
-      setLoadingMessage(messages[0]);
-      setSlowHint(false);
-      slowTimer = setTimeout(() => setSlowHint(true), 90000);
-      interval = setInterval(() => {
-        i = i + 1;
-        if (i < messages.length) setLoadingMessage(messages[i]);
-      }, 1500);
-    }
-    return () => {
-      clearInterval(interval);
-      clearTimeout(slowTimer);
-    };
-  }, [loading, mode, runEvents.events.length]);
+    if (!loading) return undefined;
+    setSlowHint(false);
+    const slowTimer = setTimeout(() => setSlowHint(true), 90000);
+    return () => clearTimeout(slowTimer);
+  }, [loading]);
 
   // Esc aborts
   useEffect(() => {
@@ -253,8 +218,9 @@ export function useAIConversation(variant = 'compact') {
   const handleAsk = useCallback(
     async (e) => {
       if (e && e.preventDefault) e.preventDefault();
-      if (!query.trim()) return;
+      if (!query.trim() || loading) return;
       setLoading(true);
+      setLoadingMessage('Waiting for the assistant...');
       setError(null);
       setCancelled(false);
       setCancelConfirmed(false);
@@ -329,6 +295,7 @@ export function useAIConversation(variant = 'compact') {
             elapsedMs: Date.now() - startedAt,
           },
         ]);
+        setQuery('');
         if (activeRunId && investigations) {
           investigations
             .updateRun(activeSessionId, activeRunId, { status: 'completed' })
@@ -360,7 +327,7 @@ export function useAIConversation(variant = 'compact') {
         setLoading(false);
       }
     },
-    [query, mode, user, messages, sessionId, llmProvider]
+    [query, mode, user, messages, sessionId, llmProvider, loading]
   );
 
   // Cancel in-flight request on unmount so navigation doesn't leave an orphan.

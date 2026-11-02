@@ -26,7 +26,7 @@ vi.mock('@/hooks/useAuth', () => ({
 }));
 
 function modeGroup() {
-  return screen.getByRole('group', { name: /ai query mode/i });
+  return screen.getByRole('combobox', { name: /ai query mode/i });
 }
 
 const knowledgeResult = {
@@ -76,10 +76,7 @@ beforeEach(() => {
 describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
   it('defaults to Auto', () => {
     render(<AskAIWidget />);
-    expect(within(modeGroup()).getByRole('button', { name: 'Auto' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
+    expect(modeGroup()).toHaveValue('auto');
   });
 
   it('sends an Auto query with no mode override', async () => {
@@ -108,7 +105,7 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
     const user = userEvent.setup();
     render(<AskAIWidget />);
 
-    await user.click(within(modeGroup()).getByRole('button', { name: 'Knowledge' }));
+    await user.selectOptions(modeGroup(), 'knowledge');
     await user.type(screen.getByRole('textbox'), 'How do I enroll a device?');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
@@ -131,7 +128,7 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
     const user = userEvent.setup();
     render(<AskAIWidget />);
 
-    await user.click(within(modeGroup()).getByRole('button', { name: 'Diagnostic' }));
+    await user.selectOptions(modeGroup(), 'diagnostic');
     await user.type(screen.getByRole('textbox'), 'How do I enroll a device?');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
@@ -156,7 +153,7 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
     await user.type(screen.getByRole('textbox'), 'How do I enroll a device?');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
-    expect(await screen.findByText(/answered from documentation/i)).toBeInTheDocument();
+    expect(await screen.findByText('Knowledge')).toBeInTheDocument();
     // The informational trust must not be rendered as a gate banner.
     expect(screen.queryByText('Informational')).toBeNull();
   });
@@ -395,9 +392,9 @@ describe('AskAIWidget Stage F (UI regression)', () => {
   it('workspace variant renders empty state with safety footer', () => {
     render(<AskAIWidget variant="workspace" />);
     expect(
-      screen.getByText(/Ask about your fleet, devices, or how to do something/i)
+      screen.getByText(/Ask about system status, anomalies, or how to perform a task/i)
     ).toBeInTheDocument();
-    expect(screen.getByText(/Answers are advisory/i)).toBeInTheDocument();
+    expect(screen.getByText(/Device actions require review/i)).toBeInTheDocument();
   });
 });
 
@@ -414,7 +411,7 @@ describe('AskAIWidget workspace variant', () => {
   it('renders the empty state with suggested prompts', () => {
     render(<AskAIWidget variant="workspace" />);
     expect(
-      screen.getByText(/Ask about your fleet, devices, or how to do something/i)
+      screen.getByText(/Ask about system status, anomalies, or how to perform a task/i)
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /How are devices performing today\?/i })
@@ -423,7 +420,7 @@ describe('AskAIWidget workspace variant', () => {
 
   it('renders the safety footer', () => {
     render(<AskAIWidget variant="workspace" />);
-    expect(screen.getByText(/Answers are advisory/i)).toBeInTheDocument();
+    expect(screen.getByText(/Device actions require review/i)).toBeInTheDocument();
   });
 
   it('shows the multi-line composer', () => {
@@ -509,5 +506,79 @@ describe('AskAIWidget embedded workspace', () => {
   it('renders the workspace variant without a separate open-workspace button', () => {
     render(<AskAIWidget variant="workspace" />);
     expect(screen.queryByTitle('Open full AI workspace')).toBeNull();
+  });
+});
+
+describe('Dashboard conversation layout interactions', () => {
+  it('keeps earlier turns visible while the next query is pending', async () => {
+    api.ai.query.mockResolvedValueOnce(knowledgeResult).mockImplementationOnce(
+      (query, device, role, mode, signal) =>
+        new Promise((resolve, reject) => {
+          signal.addEventListener('abort', () => reject({ code: 'ERR_CANCELED' }));
+        })
+    );
+    const user = userEvent.setup();
+    render(<AskAIWidget variant="workspace" />);
+    await user.type(screen.getByRole('textbox'), 'First question');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByText(knowledgeResult.response);
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    await user.type(screen.getByRole('textbox'), 'Follow-up');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(screen.getByText(knowledgeResult.response)).toBeVisible();
+    expect(screen.getByText('First question')).toBeVisible();
+    expect(
+      within(screen.getByRole('region', { name: 'Conversation' })).getByText('Follow-up')
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    await screen.findByText('Query cancelled');
+  });
+
+  it('puts response evidence inside independently expandable Details', async () => {
+    localStorage.setItem(
+      'homepot_ai_thread',
+      JSON.stringify([
+        { role: 'assistant', content: 'First reply', sources: ['first.md'] },
+        { role: 'assistant', content: 'Second reply', sources: ['second.md'] },
+      ])
+    );
+    const user = userEvent.setup();
+    render(<AskAIWidget variant="workspace" />);
+    const first = screen.getByText('first.md').closest('details');
+    const second = screen.getByText('second.md').closest('details');
+    expect(first).not.toHaveAttribute('open');
+    await user.click(first.querySelector('summary'));
+    expect(first).toHaveAttribute('open');
+    expect(second).not.toHaveAttribute('open');
+  });
+
+  it('renders Markdown tables and copyable code within the transcript', () => {
+    localStorage.setItem(
+      'homepot_ai_thread',
+      JSON.stringify([
+        {
+          role: 'assistant',
+          content:
+            '| Device | State |\n| --- | --- |\n| KDS | Offline |\n\n```sh\nhealth-check KDS\n```',
+        },
+      ])
+    );
+    render(<AskAIWidget variant="workspace" />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy response' })).toBeInTheDocument();
+  });
+
+  it('keeps a newline on Shift+Enter and does not submit during IME composition', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    const user = userEvent.setup();
+    render(<AskAIWidget variant="workspace" />);
+    const input = screen.getByRole('textbox');
+    await user.type(input, 'First line');
+    await user.keyboard('{Shift>}{Enter}{/Shift}Second line');
+    expect(input).toHaveValue('First line\nSecond line');
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true, keyCode: 229 });
+    expect(api.ai.query).not.toHaveBeenCalled();
   });
 });
