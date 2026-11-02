@@ -10,10 +10,10 @@ Standardized device management testing report for HOMEPOT across platforms.
 | **Device Name** | Dealdio Device 001 |
 | **Site** | `SITE-TTD2-4CFB` |
 | **OS** | Windows 11 Pro 64-bit |
-| **Agent Version** | `v0.3.28` |
+| **Agent Version** | `v0.3.29` |
 | **Firmware Version** | `1.39.0` |
 | **Tester** | Gowtham Raj |
-| **Date** | 2026-10-30 |
+| **Date** | 2026-11-02 |
 | **Dashboard URL** | https://homepot.cabera.com |
 
 ---
@@ -33,7 +33,7 @@ Standardized device management testing report for HOMEPOT across platforms.
 | # | Test | Expected | Pass/Fail | Notes |
 |---|------|----------|-----------|-------|
 | 1.1 | Device shows as "online" in Dashboard | Green indicator, last_seen recent | **Pass** | Verified |
-| 1.2 | Device Details → Source shows agent version (not "REAL") | 0.3.28 | **Pass** | Displays `0.3.28` |
+| 1.2 | Device Details → Source shows agent version (not "REAL") | 0.3.29 | **Pass** | Displays `0.3.29` |
 | 1.3 | Device Details → Firmware shows BIOS version | 1.39.0 | **Pass** | Displays `1.39.0` |
 | 1.4 | Site Details → Associated Devices shows device with Source | Version displayed | **Pass** | Version displayed correctly |
 | 1.5 | Agents page shows device with Mode = version | Version displayed | **Pass** | Mode shows version |
