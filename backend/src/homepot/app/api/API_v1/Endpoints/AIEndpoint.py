@@ -1506,7 +1506,10 @@ async def _query_ai_impl(
                         f"  Description: {alert.description}\n\n"
                     )
             else:
-                site_context += "No active alerts.\n"
+                # Omit the "No active alerts." line: a 4B model can latch onto
+                # the negation and report the fleet as inactive. The absence of
+                # alert records is already implied by the (empty) alert list.
+                pass
 
             # Get Job Context if relevant
             job_context = await context_builder.get_job_context(session=session)
