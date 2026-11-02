@@ -1275,6 +1275,35 @@ async def _query_ai_impl(
             except Exception as e:
                 logger.warning("Failed to load session history: %s", e)
 
+        # 1a. Carry device context forward from conversation history when the
+        # caller did not supply an explicit device_id. This lets follow-up
+        # questions ("What has already been tried?") reuse the device from an
+        # earlier turn instead of losing focus. The most recent device id
+        # mentioned in history wins.
+        if not request.device_id and effective_history:
+            try:
+                import re as _re
+
+                from homepot.canonical_ids import _GROUP_LENGTH, _ID_CHARS
+
+                _search_pat = _re.compile(
+                    rf"DEVICE-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
+                    rf"-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
+                    rf"-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
+                )
+                for msg in reversed(effective_history):
+                    content = getattr(msg, "content", None) or ""
+                    matches = _search_pat.findall(str(content))
+                    if matches:
+                        request.device_id = matches[-1]
+                        logger.info(
+                            "Carried device_id=%s forward from conversation history",
+                            request.device_id,
+                        )
+                        break
+            except Exception as e:
+                logger.warning("Failed to carry device context: %s", e)
+
         # 1b. Build Short-Term Context (Conversation History).
         # Bounded context policy (Stage 6): select recent turns within a
         # configured message/token budget; older turns are summarised (or
