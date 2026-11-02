@@ -191,5 +191,3 @@ the tester and recorded below.
 |------|------|------|
 | Tester | Maziar Ghorbani | 2026-11-02 |
 | Reviewer | | |
-EOF
-echo "done"

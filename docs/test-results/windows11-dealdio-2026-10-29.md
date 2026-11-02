@@ -190,5 +190,3 @@ device management across platforms. Use this template when testing real devices
 | 9. Auto-Update | 5 | | | |
 | 10. Logs & Files | 5 | | | |
 | **Total** | **66** | | | |
-EOF
-echo "done"
