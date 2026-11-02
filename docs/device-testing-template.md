@@ -245,5 +245,3 @@ A PR template is available at `.github/PULL_REQUEST_TEMPLATE/test-result.md` for
 | 9. Auto-Update | 5 | | | |
 | 10. Logs & Files | 5 | | | |
 | **Total** | **66** | | | |
-EOF
-echo "done"
