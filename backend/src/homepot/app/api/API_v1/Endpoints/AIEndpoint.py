@@ -1564,9 +1564,9 @@ async def _query_ai_impl(
                         if "context_budget" in _ext:
                             budget = int(_ext["context_budget"])
                         else:
-                            budget = int(_llm.get("context_budget", 1500))
+                            budget = int(_llm.get("context_budget", 1000))
                     else:
-                        budget = 1500
+                        budget = 1000
                     if budget > 0 and len(enriched) > budget:
                         enriched = (
                             enriched[:budget].rsplit("\n", 1)[0]
