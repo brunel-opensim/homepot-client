@@ -1,13 +1,44 @@
-# AI Interface Design (Proposed)
+# AI Interface Design
 
-**Status:** Proposed design for developer review<br>
+**Status:** Dashboard conversation layout implemented; broader capabilities remain subject to their implementation documentation<br>
 **Scope:** Dashboard AI assistant and dedicated AI workspace<br>
 **Design reference:** OpenCode-style chat composer shown in the supplied mockup
 
-This document translates the mockup into a HomePot UI direction. It is a design
-handoff, not a claim that the described experience is implemented. The goal is
+This document translates the mockup into a HomePot UI direction. Sections below
+include design goals as well as implementation notes. The goal is
 to provide a quick AI entry point on the Dashboard and a larger workspace for
 longer investigations, without creating two assistants with different behavior.
+
+## Implemented Dashboard layout
+
+The Dashboard embeds `AskAIWidget` as a continuous conversation in its right
+column. The widget uses its parent's available width and height, with a compact
+header, one independently scrolling transcript, and a non-growing composer and
+footer. It does not hardcode the reference's 548px width or 940px height.
+
+- The header shows HOMEPOT AI, provider health when supplied, and New conversation.
+  Starting a new conversation preserves backend transcripts and is disabled
+  during an active query.
+- Both widget variants render the same left-aligned thread. Historical replies
+  remain visible during a follow-up request. Device context stays in the
+  conversation, with no extra device panels or chips.
+- Each reply has its own metadata, Copy action, and independently expandable
+  Details for evidence and validation. Existing proposal cards remain inline
+  and retain their established review flow.
+- The composer has a bounded multiline input, Mode, permission-controlled
+  Provider selection, and one Send/Stop action. Enter sends, Shift+Enter inserts
+  a newline, and IME composition does not trigger submission.
+- Markdown lists, headings, fenced code with Copy, and GFM tables are supported.
+  Wide code and tables scroll within their content region.
+- Progress uses actual run events when received; the fallback only says the
+  assistant is being awaited, without inventing gate activity.
+- At desktop widths the Dashboard grid allocates remaining height through
+  `flex-1 min-h-0`. Below `lg`, the panels stack in a vertically scrollable
+  Dashboard, with usable bounded heights for resources and the assistant.
+  The Alerts ticker has a compact Dashboard presentation.
+
+Styling is scoped in `frontend/src/components/Dashboard/AskAIWidget.css`;
+conversation API/session handling remains in `useAIConversation`.
 
 ## Design principles
 
@@ -42,18 +73,15 @@ and status panels.
   Suggested prompts should be short, task-relevant questions, for example:
   "How are devices performing today?", "What is offline?", "How do I enroll a
   device?", "Show recent anomalies."
-- Show a compact answer preview or latest exchange when space permits.
-- Provide an **Open AI Workspace** action for longer investigations.
-- Carry the current draft into the workspace immediately. Carry the visible
-  conversation too, once conversation history is actually wired and persisted
-  (see [AI Memory](ai-memory.md)); until then, carry the draft only.
+- Show the continuous conversation in the Dashboard panel.
+- Reuse the same rendering components if a separate expanded workspace is
+  introduced. Preserve the active thread and draft when switching surfaces.
 - Only display site, device, or fleet context when that context is actually
   supplied to the AI request.
 
 The current `AskAIWidget` is rendered in the Dashboard's right column below
-System Pulse and Active Alerts (`frontend/src/pages/Dashboard.jsx`). The compact
-surface should respect that constrained space and offer a clear path to the
-larger workspace.
+Active Alerts (`frontend/src/pages/Dashboard.jsx`). System Pulse is in the
+summary strip. The conversation layout respects this constrained column width.
 
 ### Dedicated AI workspace
 
