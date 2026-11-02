@@ -268,6 +268,30 @@ External models are already more accurate and ~50× faster with the same config.
 Raising `context_budget`, `num_predict`, and `max_concurrent` for cloud
 providers would further improve richness and throughput without affecting Ollama.
 
+### Known limitation: Ollama comprehension with complex context
+
+Ollama (`llama3.2`, 4B, CPU-only) **cannot reliably follow complex,
+multi-block context** even when it fits within `num_ctx` (8,192 tokens). In
+testing, Ollama consistently reported "inactive / no devices" for a fleet
+that has 3 sites and 3 devices, despite the fleet summary being present at
+both ends of the context with an explicit instruction to report those exact
+numbers. The same query on OpenAI and Anthropic produced correct, detailed
+answers.
+
+Root cause: the 4B model's comprehension degrades with varied, multi-block
+context (site listing, alerts, memory recalls, enriched blocks, trust digest).
+It latches onto negations ("No active alerts", "No recent push notifications")
+and ignores affirmative counts.
+
+Mitigations attempted (context_budget reduction to 1000 chars, fleet summary
+at the end with strong instruction, removing misleading "No active alerts"
+line) did not resolve the issue.
+
+**Recommendation:** Use Ollama for simple, single-device queries and data
+privacy. Use OpenAI or Anthropic for accurate fleet-wide summaries and
+complex diagnostics. This is a model-capability limitation, not a
+configuration issue.
+
 | Setting | Ollama | OpenAI | Anthropic | Notes |
 |---|---|---|---|---|
 | `context_window` | `num_ctx` | model default | model default | Ollama truncates first; fleet summary is restated at the end of the context to survive truncation |
@@ -369,6 +393,12 @@ the configured provider.
 - **Data residency** — external providers receive the full assembled prompt
   (device status, alerts, memory). Do not use them with sensitive production
   data.
+- **Ollama accuracy** — `llama3.2` (4B, CPU) cannot reliably follow complex,
+  multi-block context even when it fits in `num_ctx`. It may report
+  "inactive / no devices" for a populated fleet. Use cloud providers for
+  accurate fleet-wide summaries. See the
+  [Known limitation](#known-limitation-ollama-comprehension-with-complex-context)
+  note above.
 
 Related: [AI Memory](ai-memory.md) · [AI Concurrency](ai-concurrency.md) ·
 [AI API Reference](ai-api-reference.md) ·
