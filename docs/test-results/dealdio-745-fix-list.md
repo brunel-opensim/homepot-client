@@ -14,22 +14,22 @@
 
 ## 2. Code fixes (backend agent)
 
-### 2.1 Volume read-back tolerance
-- [ ] **File:** `backend/src/homepot/agent/utils/command_poller.py` → `_set_windows_volume_ctypes()`
-- [ ] **Issue:** `verified = after_pct is not None and after_pct == pct and not is_muted_after` uses exact equality. Hardware rounding can produce 49 or 51 instead of 50.
-- [ ] **Fix:** Use tolerance-based comparison: `abs(after_pct - pct) <= 1` instead of `after_pct == pct`.
+### 2.1 Volume read-back tolerance ✅ DONE
+- [x] **File:** `backend/src/homepot/agent/utils/command_poller.py` → `_set_windows_volume_ctypes()`
+- [x] **Issue:** `verified = after_pct is not None and after_pct == pct and not is_muted_after` uses exact equality. Hardware rounding can produce 49 or 51 instead of 50.
+- [x] **Fix:** Use tolerance-based comparison: `abs(after_pct - pct) <= 1` instead of `after_pct == pct`.
 - [ ] **Tests:** Add unit test with mocked read-back values (49, 50, 51) to verify tolerance works.
 
-### 2.2 Brightness 0/100 edge cases
-- [ ] **File:** `backend/src/homepot/agent/utils/command_poller.py` → `_win_brightness()`
-- [ ] **Issue:** WMI `SetBrightness` may reject 0 or 100 on some panels (minimum often 1, maximum often 99).
-- [ ] **Fix:** Clamp input to 1-99 range before calling WMI, or document as a hardware limitation.
+### 2.2 Brightness 0/100 edge cases ✅ DONE
+- [x] **File:** `backend/src/homepot/agent/utils/command_poller.py` → `_win_brightness()`
+- [x] **Issue:** WMI `SetBrightness` may reject 0 or 100 on some panels (minimum often 1, maximum often 99).
+- [x] **Fix:** Clamp WMI call to 1-99 range: `$wmiPct = [Math]::Max(1, [Math]::Min(99, $pct))`.
 - [ ] **Tests:** Add unit test for brightness 0 and 100 edge cases.
 
-### 2.3 Brightness verification trust
-- [ ] **File:** `backend/src/homepot/agent/utils/command_poller.py` → `_win_brightness()`
-- [ ] **Issue:** When WMI fallback is tried and succeeds, `verified = True` is set. But if WMI is NOT tried (dxva2 rc=0 but read-back doesn't match), `verified = False`. The status logic should trust WMI success more aggressively.
-- [ ] **Fix:** If WMI `WmiSetBrightness` call succeeds (no exception), set `verified = True` regardless of read-back (consistent with existing comment about Dell Precision panels).
+### 2.3 Brightness verification trust ✅ ALREADY IMPLEMENTED
+- [x] **File:** `backend/src/homepot/agent/utils/command_poller.py` → `_win_brightness()`
+- [x] **Issue:** When WMI fallback is tried and succeeds, `verified = True` is set.
+- [x] **Fix:** Already implemented — `if wmi_tried and wmi_succeeded: verified = True`.
 - [ ] **Tests:** Add unit test for WMI success with mismatched read-back.
 
 ## 3. Test methodology (tester re-verification)
