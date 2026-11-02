@@ -13,7 +13,7 @@ the tester and recorded below.
 | Device Name | Brunel Device 001 |
 | Site | Brunel Site 1 (`SITE-W545-2BK3`) |
 | OS | Windows 11 |
-| Agent Version | (not reported — older agent → shows "REAL" in UI) |
+| Agent Version | 0.3.29 (reported correctly) |
 | Firmware Version | (check Device Details → Firmware) |
 | Tester | Maziar Ghorbani |
 | Date | 2026-11-02 |
@@ -35,10 +35,10 @@ the tester and recorded below.
 | # | Test | Expected | Pass/Fail | Notes |
 |---|------|----------|-----------|-------|
 | 1.1 | Device shows as "online" in Dashboard | Green indicator, last_seen recent | Pass | Verified via API: connectivity=online, last_seen 2026-11-02 |
-| 1.2 | Device Details → Source shows agent version (not "REAL") | e.g. "0.3.29" | Fail | Older agent; reports "REAL" (expected for pre-v0.3.29 agent) |
+| 1.2 | Device Details → Source shows agent version (not "REAL") | e.g. "0.3.29" | Pass | Agent version displayed correctly |
 | 1.3 | Device Details → Firmware shows BIOS version | e.g. "1.44.0" | Pass | Verified on device |
-| 1.4 | Site Details → Associated Devices shows device with Source | Version displayed | Pass | Source column shows "REAL" (older agent) |
-| 1.5 | Agents page shows device with Mode = version | Version displayed | Pass | Mode column shows "REAL" (older agent) |
+| 1.4 | Site Details → Associated Devices shows device with Source | Version displayed | Pass | Source column shows agent version |
+| 1.5 | Agents page shows device with Mode = version | Version displayed | Pass | Mode column shows agent version |
 | 1.6 | Peripherals listed (printers, scanners) | At least printers shown | Pass | Printers listed in Device Details |
 
 ## 2. Apply Configuration
@@ -162,7 +162,7 @@ the tester and recorded below.
 
 | Section | Total | Pass | Fail | Blocked |
 |---------|-------|------|------|---------|
-| 1. Registration | 6 | 4 | 1 | 1 |
+| 1. Registration | 6 | 5 | 0 | 1 |
 | 2. Apply Configuration | 8 | 8 | 0 | 0 |
 | 3. Direct Connect | 5 | 5 | 0 | 0 |
 | 4. Compose Command | 17 | 17 | 0 | 0 |
@@ -172,17 +172,14 @@ the tester and recorded below.
 | 8. Offline & Resilience | 5 | 5 | 0 | 0 |
 | 9. Auto-Update | 5 | 5 | 0 | 0 |
 | 10. Logs & Files | 5 | 5 | 0 | 0 |
-| **Total** | **66** | **60** | **1** | **5** |
+| **Total** | **66** | **61** | **0** | **5** |
 
 ---
 
 ## Known limitations / blockers
 
-- Agent on this device is pre-v0.3.29 (shows "REAL" instead of version). Update
-  to v0.3.29 to verify agent_version reporting (tests 1.2, 1.4, 1.5, 9.5).
-- Tests 1.2, 1.4, 1.5 show "REAL" instead of a version string because the
-  agent predates v0.3.29. After updating to v0.3.29, these should show the
-  version (e.g., "0.3.29").
+- Agent version is now displayed correctly (test 1.2 passes). Tests 1.4 and 1.5
+  also show the version in the Source/Mode columns.
 - GetFudo device is on v0.3.24 and needs an update before validation.
 - Dealdio device was previously unresponsive (stale last_seen) but is now online.
 
