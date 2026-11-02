@@ -1564,9 +1564,9 @@ async def _query_ai_impl(
                         if "context_budget" in _ext:
                             budget = int(_ext["context_budget"])
                         else:
-                            budget = int(_llm.get("context_budget", 2000))
+                            budget = int(_llm.get("context_budget", 1500))
                     else:
-                        budget = 2000
+                        budget = 1500
                     if budget > 0 and len(enriched) > budget:
                         enriched = (
                             enriched[:budget].rsplit("\n", 1)[0]
@@ -1823,13 +1823,16 @@ async def _query_ai_impl(
         # copy survives regardless of truncation direction. See
         # docs/ai-llm-providers.md for the provider-specific context limits.
         full_context += (
-            "\n[CURRENT SYSTEM STATUS — SUMMARY (report these exact numbers)]\n"
+            "\n\n========== FLEET STATUS (AUTHORITATIVE) ==========\n"
             f"Total Sites: {len(sites)}\n"
             f"Total Active Devices: {len(all_active_devices)}\n"
             f"Online Devices: {online_count}\n"
             f"Healthy Devices: {healthy_count}\n"
-            "Do not contradict these counts. If they say 3 sites and 3 devices, "
-            "report 3 sites and 3 devices.\n"
+            f"Offline Devices: {len(all_active_devices) - online_count}\n"
+            'RULE: Report the numbers above verbatim. Do NOT say "0 sites", '
+            '"no devices", "inactive", or "dormant". The fleet has '
+            "the counts shown above.\n"
+            "=================================================\n"
         )
 
         # Per-request size diagnostic. Every token in this dynamic context is
