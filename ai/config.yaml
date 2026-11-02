@@ -54,7 +54,7 @@ llm:
   # (Ollama, num_ctx=8192) are not overwhelmed; raise for cloud providers
   # with large windows. Same context building for all; only the amount fed
   # in is configurable. 0 = no cap.
-  context_budget: 1500
+  context_budget: 1000
   # Bounded short-term context policy (Stage 6). Recent turns are injected
   # verbatim; older turns are summarised or dropped so the prompt stays
   # within the model's window. The full transcript is stored separately
