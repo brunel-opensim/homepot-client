@@ -47,6 +47,34 @@ simple and avoids storing transcripts.
     only the latest answer; the workspace renders the full thread.
     Long-term memory works regardless.
 
+### Multi-turn behaviour
+
+A follow-up question ("What has already been tried?") reuses the conversation
+history so the technician does not need to restate the device or context. The
+backend:
+
+1. Loads the prior turns (client-supplied or from the backend-held transcript
+   when a `session_id` is provided).
+2. Applies a bounded context policy (`llm.history.max_messages`,
+   `max_tokens`, `summarise_older`) so the prompt stays within the model's
+   window.
+3. Carries forward a `device_id` inferred from the history when the follow-up
+   does not specify one, so device-specific context is retained.
+4. Re-runs validation gates on **live** data — historical conversation content
+   never overrides current device status or authorisation.
+
+### Limitations
+
+- **Ollama comprehension:** `llama3.2` (4B, CPU) may not reliably use prior
+  context for follow-ups — same comprehension limitation as complex fleet
+  queries. Use cloud providers for accurate multi-turn investigations.
+- **Context window:** with `num_ctx: 8192`, 5 turns of history + full context
+  + system prompt leave limited headroom for output. Keep conversations short
+  or raise `context_window` (RAM permitting).
+- **Device inference:** device context is carried forward by regex-matching
+  `DEVICE-XXXX-XXXX-XXXX` in prior turns. If the first question did not
+  mention a device ID, follow-ups are fleet-wide.
+
 !!! note "Cost"
     On the CPU-only host every history token is re-evaluated on each turn
     (~22 tok/s). Keep client history short; it is capped at 5 turns but not by
