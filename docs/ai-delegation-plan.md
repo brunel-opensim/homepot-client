@@ -600,6 +600,135 @@ as-built reference.
 
 ---
 
+## 17. Multi-step task delegation — gaps and roadmap
+
+> **Status:** Design only. Phases 0–3 (§ 5.1) are single-step and
+> human-driven: one action per plan, one approval, one execution. This section
+> documents the gap to **multi-step task delegation** — where the AI proposes a
+> complete workflow (investigate → diagnose → act → verify), executes it step
+> by step after approval, and adapts based on intermediate results — and the
+> phased roadmap to get there.
+
+### 17.1 What "multi-step task delegation" means
+
+Today the AI can propose **one action** (e.g. `update_config` or `restart`) on
+**one device**. A technician approves it, the executor runs it, and the verifier
+checks the outcome. This is a single-step, single-device, fire-and-forget
+action.
+
+Multi-step task delegation means the AI proposes a **task** — a directed graph
+of steps with dependencies — and the system executes it autonomously within the
+approved scope, verifying each step before proceeding to the next. Examples:
+
+- "Device X has high CPU → check processes → if a runaway process is found, kill
+  it → verify CPU drops → if not resolved, restart the device → verify recovery"
+- "Fleet-wide config rollout → update 5 devices in maintenance window → verify
+  each → rollback any that fail"
+- "Diagnose offline device → check network → if network is fine, check agent
+  health → if agent crashed, restart agent → verify reconnection"
+
+### 17.2 What already exists (Phases 0–3)
+
+| Capability | Location | Reuse for multi-step |
+|---|---|---|
+| Proposal tool + registry | `ai/tools.py`, `ai/actions.py` | Registry declares capabilities; needs expansion (§ 17.4) |
+| Trust envelope + gates A–E | `ai/gates/envelope.py` | Gates run once per query; need per-step coverage (§ 17.5) |
+| Agentic ReAct loop | `ai/agent.py` (5 iter, 60 s) | Planning mode needs to be added (§ 17.4) |
+| Action plan + steps (DB) | `AnalyticsModel.py`, migration `20261016` | `ai_action_step` has `preconditions`/`postconditions`/`seq` but they are **never evaluated** |
+| Policy engine | `ai_ops/policy.py` | Re-checks live data; needs inter-step precondition evaluation |
+| Executor | `ai_ops/executor.py` | Dispatches all steps in one pass; needs dependency-aware sequential dispatch |
+| Verifier + reconcile | `ai_ops/verifier.py`, `reconcile.py` | Advances steps; needs step-gating (step N waits for step N-1) |
+| Rollback | `ai_ops/rollback.py` | Undoes reversible steps; needs per-step rollback, not all-or-nothing |
+| Investigation sessions | `InvestigationEndpoint.py`, `investigation_events.py` | Status-only runs; no step list or checkpoint |
+| Outcome store | `ai_outcome` table | Records one outcome per plan; no per-step outcomes |
+| Audit trail | `homepot/audit.py` | Covers proposals; needs per-step audit events |
+| RBAC | `roles.py`, `auth_utils.py` | Approval scoped by device membership; tools need per-device RBAC |
+
+### 17.3 Gaps
+
+| # | Gap | Current state | Impact on delegation |
+|---|-----|--------------|----------------------|
+| G1 | **Task model beyond single query** — no durable, resumable multi-step task with dependencies | `InvestigationRun` is status-only (pending/running/completed); `ai_action_plan` has `seq` but no dependency edges | Cannot orchestrate "investigate → propose → execute → verify" as one unit |
+| G2 | **Sequential/conditional execution** — steps dispatched together, no dependency edges or preconditions | `executor.py` loops over all steps and queues commands in one pass; `preconditions`/`postconditions` columns exist but are never evaluated | Out-of-order or unsafe execution; partial failures not handled gracefully |
+| G3 | **Action registry breadth** — only 2 T2 device actions (`update_config`, `restart`) | `ai/actions.py` declares only 2 capabilities | Cannot express verification, health checks, fleet actions, or T3 disruptive actions |
+| G4 | **Gate coverage on tools/steps** — gates run once per query; tool I/O and per-step state unvalidated | `build_envelope` runs once on assembled context; tool outputs fed directly to LLM | Untrusted intermediate data; unsafe autonomy |
+| G5 | **Per-device RBAC in tools** — tools accept any `device_id` | `ai/tools.py` functions accept `device_id` without checking caller scope | Authorization bypass risk in delegated tasks |
+| G6 | **Outcome-driven feedback** — outcomes recorded but not consumed by memory/prompts/analytics | `AIActionOutcome` written but not read back | No learning; autonomy cannot be earned |
+| G7 | **Reliability metrics + autonomy controller** — Phase 4 is design-only | `analytics_service.py` has no per-action-type reliability; no autonomy controller exists | No empirical trust; all actions require approval |
+| G8 | **Durability of runs** — in-memory event bus, no checkpointing | `investigation_events.py` uses in-memory per-run replay buffer + live queues | Long-running multi-step tasks lost on process restart |
+| G9 | **Scheduling/maintenance windows** — computed but unused | `analytics_service.py::get_optimal_scheduling_windows` exists but executor ignores `SiteOperatingSchedule` | Cannot defer tasks to safe windows |
+| G10 | **Mid-execution checkpoints / cancellation** — all-or-nothing approval; no cancel of executing plan | No `cancel_task` API; no checkpoint after each step | Poor operator control over long-running tasks |
+| G11 | **Agent depth** — 5 iterations / 60 s, no plan-and-execute mode | `MAX_ITERATIONS=5`, `TOTAL_TIMEOUT_SECONDS=60` | Complex tasks truncated on CPU host |
+| G12 | **Plan status query tool** — agent cannot await its own proposed action's outcome | No tool to query plan status or await an action outcome | Cannot close the delegation loop |
+
+### 17.4 Roadmap
+
+#### Phase A — Task model & orchestration (foundation)
+
+**Goal:** A durable, resumable multi-step task that links investigation runs → plans → outcomes.
+
+1. **Task graph model** — Add a `Task` (or extend `InvestigationRun`) with an ordered step list, dependency edges, and per-step status. Persist to DB (not in-memory). Reuse `ai_action_step.seq` and add `depends_on_step_id`.
+2. **Dependency-aware sequential execution** — Executor dispatches step N only after step N-1 succeeds. Evaluate `preconditions`/`postconditions` (columns exist but unused).
+3. **Mid-flight checkpoints & cancellation** — Add `cancel_task` API. Save checkpoint after each step so a restart resumes mid-flight.
+4. **Per-step approval gates** — Allow "approve step 1, review, then approve step 2" instead of all-or-nothing.
+
+#### Phase B — Broader action registry & tooling
+
+**Goal:** The AI can express richer multi-step tasks.
+
+5. **Expand action registry** — Add T1 (read-only: `health_check`, `list_processes`, `scan_filesystem`), T3 (disruptive: `restart_service`, `rollback_config`), fleet-wide actions, and verification steps.
+6. **Plan status query tool** — Let the agent query "did my proposed action succeed?" and close the delegation loop.
+7. **Plan-and-execute agent mode** — First draft a plan (no tool calls), then execute steps sequentially. Separate planning from execution.
+8. **Per-device RBAC in tools** — Enforce `verify_device_belongs_to_user` inside each tool, not just at the endpoint.
+9. **Gate coverage on tool I/O** — Run Gate B (data integrity) on tool outputs before feeding back to the LLM.
+
+#### Phase C — Scheduling & safety
+
+**Goal:** Tasks run at the right time with proper guardrails.
+
+10. **Maintenance window integration** — Executor checks `SiteOperatingSchedule` before dispatching disruptive steps.
+11. **Dry-run / simulation preview** — Before approval, show "what would happen" using the simulator for non-destructive validation.
+12. **Idempotency keys** — Prevent duplicate execution on retry.
+13. **Retry policy** — Per-step retry with backoff; on failure, try alternative or escalate (not just rollback everything).
+
+#### Phase D — Outcome-driven autonomy (Phase 4 extension)
+
+**Goal:** Earn autonomy through measured reliability.
+
+14. **Reliability metrics** — Per-action-type: proposal acceptance rate, execution success, verified improvement, rollback effectiveness. Store in DB.
+15. **Confidence calibration** — Compare trust score vs. actual success rate. Adjust autonomy thresholds.
+16. **Autonomy controller** — Level 0 (suggest) → Level 1 (propose, human approves) → Level 2 (execute if trust ≥ threshold) → Level 3 (auto-execute for proven-safe actions).
+17. **Feedback to memory/prompts** — Feed outcomes back into long-term memory so the AI learns from past successes/failures.
+18. **Analytics dashboard** — Expose reliability metrics to operators so they can see what the AI is doing and how well.
+
+#### Phase E — Depth & scale
+
+**Goal:** Handle complex, multi-device tasks.
+
+19. **Parallel tool calls** — Correlate across devices faster.
+20. **Extended agent timeout / deeper iterations** — For complex tasks on CPU hosts (or use cloud providers for planning).
+21. **Cross-session task aggregation** — "Show me all tasks I've delegated and their status."
+
+### 17.5 Recommended starting point
+
+Given the current foundation, the highest-impact next steps are:
+
+1. **Phase A (G1–G4)** — This is the core gap. Without a durable task graph, nothing else matters. The `InvestigationRun` model and event bus exist but lack step-level detail. `ai_action_step.preconditions`/`postconditions` columns exist but are never evaluated.
+2. **Phase B (G3, G12)** — Expanding the action registry and adding a plan-status query tool closes the delegation loop. The agent can propose → execute → check outcome.
+3. **Phase D (G6, G7)** — Even without full autonomy, measuring reliability is essential for deciding what to delegate.
+
+### 17.6 What you can do today (no new code)
+
+The system already supports a **manual delegation loop**:
+1. Ask AI: "Device X has high CPU — what should I do?" → AI proposes `update_config` or `restart`
+2. Approve the proposal → Executor queues the command
+3. Verify the outcome → Check device metrics after
+4. If it worked, the memory system records it for future reference
+
+The gap is that this is **single-step and human-driven**. The roadmap above turns it into **multi-step and semi-autonomous**.
+
+---
+
 ## 16. References
 
 - [Agentic AI](ai-agentic.md) — ReAct loop, tools, and the future-expansion
