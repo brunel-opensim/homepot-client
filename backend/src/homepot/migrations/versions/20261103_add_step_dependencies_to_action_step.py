@@ -92,7 +92,9 @@ def downgrade() -> None:
     if "ai_action_step" in inspector.get_table_names():
         fks = {fk.get("name") for fk in inspector.get_foreign_keys("ai_action_step")}
         if "fk_ai_action_step_depends_on" in fks:
-            op.drop_constraint("fk_ai_action_step_depends_on", "ai_action_step", type_="foreignkey")
+            op.drop_constraint(
+                "fk_ai_action_step_depends_on", "ai_action_step", type_="foreignkey"
+            )
 
     for col in (
         "depends_on_step_id",
