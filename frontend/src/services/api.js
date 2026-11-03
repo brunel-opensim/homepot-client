@@ -882,6 +882,43 @@ const api = {
       );
       return response.data;
     },
+
+    /**
+     * Cross-session task aggregation for AI action plans (Phase E).
+     * Returns plan counts by status over a rolling window plus recent plans.
+     * @param {number} [days=30] - Aggregation window in days.
+     * @param {string} [createdBy] - Optional creator filter (e.g. user id).
+     */
+    getPlanSummary: async (days = 30, createdBy = null) => {
+      const params = { days };
+      if (createdBy) {
+        params.created_by = createdBy;
+      }
+      const response = await apiClient.get('/ai/action-plans/summary', { params });
+      return response.data;
+    },
+
+    /**
+     * Per-action-type AI delegation reliability metrics (Phase D/E).
+     * @param {number} [days=30] - Metrics window in days.
+     * @param {string} [actionType] - Optional action-type filter.
+     */
+    getReliability: async (days = 30, actionType = null) => {
+      const params = { days };
+      if (actionType) {
+        params.action_type = actionType;
+      }
+      const response = await apiClient.get('/ai/reliability', { params });
+      return response.data;
+    },
+
+    /**
+     * Current autonomy levels per action type (Phase D).
+     */
+    getAutonomy: async () => {
+      const response = await apiClient.get('/ai/autonomy');
+      return response.data;
+    },
   },
 
   // Investigation sessions (backend-owned AI investigations).

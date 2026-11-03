@@ -14,19 +14,8 @@ import api, { apiHelpers } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Toast } from '@/components/ui/Toast';
-
-const STATUS_META = {
-  proposed: { label: 'Proposed', color: 'bg-gray-500/10 text-gray-400' },
-  pending_approval: { label: 'Pending Approval', color: 'bg-yellow-500/10 text-yellow-400' },
-  blocked: { label: 'Blocked', color: 'bg-red-500/10 text-red-400' },
-  approved: { label: 'Approved', color: 'bg-green-500/10 text-green-400' },
-  rejected: { label: 'Rejected', color: 'bg-red-500/10 text-red-400' },
-  executing: { label: 'Executing', color: 'bg-blue-500/10 text-blue-400' },
-  succeeded: { label: 'Succeeded', color: 'bg-green-500/10 text-green-400' },
-  failed: { label: 'Failed', color: 'bg-red-500/10 text-red-400' },
-  rolled_back: { label: 'Rolled Back', color: 'bg-purple-500/10 text-purple-400' },
-  expired: { label: 'Expired', color: 'bg-gray-500/10 text-gray-400' },
-};
+import AIStatusBadge from './AIStatusBadge';
+import AIReliabilityPanel from './AIReliabilityPanel';
 
 const STATUS_FILTERS = [
   { value: 'pending_approval', label: 'Pending Approval' },
@@ -39,17 +28,6 @@ const STATUS_FILTERS = [
   { value: 'rejected', label: 'Rejected' },
   { value: 'blocked', label: 'Blocked' },
 ];
-
-function StatusBadge({ status }) {
-  const meta = STATUS_META[status] || STATUS_META.proposed;
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${meta.color}`}
-    >
-      {meta.label}
-    </span>
-  );
-}
 
 export default function AIProposalsList() {
   const [plans, setPlans] = useState([]);
@@ -188,6 +166,11 @@ export default function AIProposalsList() {
           </div>
         </div>
 
+        {/* Phase E: reliability + cross-session task aggregation overview */}
+        <div className="shrink-0 mb-4">
+          <AIReliabilityPanel />
+        </div>
+
         <div className="flex-1 min-h-0 overflow-y-auto">
           {loading ? (
             <div className="flex justify-center items-center h-64">
@@ -240,7 +223,7 @@ function PlanCard({ plan, busy, onApprove, onReject, onExecute }) {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={plan.status} />
+            <AIStatusBadge status={plan.status} />
             <span className="inline-flex items-center gap-1 text-xs text-gray-400">
               <ShieldAlert className="h-3.5 w-3.5" />
               {plan.risk_tier}
