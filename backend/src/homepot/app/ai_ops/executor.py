@@ -48,11 +48,16 @@ def applied_config(step: Any) -> Dict[str, Any]:
 def command_payload(step: Any) -> Optional[Dict[str, Any]]:
     """Map a plan step to the device-command payload, or ``None``.
 
-    ``update_config`` payloads are nested under ``data`` to match
-    ``command_poller._command_data``; ``restart`` carries no payload.
+    ``update_config`` and ``rollback_config`` payloads are nested under ``data``
+    to match ``command_poller._command_data``; ``restart`` carries no payload;
+    ``restart_service`` wraps the service name in a ``run_command`` payload.
     """
-    if step.action == "update_config":
+    if step.action in ("update_config", "rollback_config"):
         return {"data": applied_config(step)}
+    if step.action == "restart_service":
+        params = step.params or {}
+        service_name = params.get("service_name", "")
+        return {"data": {"command": f"systemctl restart {service_name}"}}
     return None
 
 
@@ -63,7 +68,7 @@ def rollback_snapshot(step: Any, device: Optional[Device]) -> Optional[Dict[str,
     mapping supplied in the proposal, then the values stored on the device's
     configuration for the keys being changed.
     """
-    if step.action != "update_config":
+    if step.action not in ("update_config", "rollback_config"):
         return None
 
     params = step.params or {}

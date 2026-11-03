@@ -10,13 +10,14 @@ See docs/ai-agentic.md for the full architecture.
 import contextvars
 import json
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.actions import ActionProposal, validate_proposal
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory, MemoryScope
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,82 @@ def get_tool_proposal_sink() -> Optional[List[ActionProposal]]:
 
 
 # ---------------------------------------------------------------------------
+# User scope (RBAC) — per-run ContextVar
+# ---------------------------------------------------------------------------
+# Tracks the authenticated user's accessible device IDs and minimum role for
+# the current agent run.  Tools use this to enforce per-device RBAC instead
+# of accepting any device_id blindly.
+
+_tool_user_scope: contextvars.ContextVar[Optional[Dict[str, Any]]] = (
+    contextvars.ContextVar("tool_user_scope", default=None)
+)
+
+
+def set_tool_user_scope(scope: Optional[Dict[str, Any]]) -> contextvars.Token:
+    """Bind the caller's user scope for the current agent run."""
+    return _tool_user_scope.set(scope)
+
+
+def reset_tool_user_scope(token: contextvars.Token) -> None:
+    """Reset the user scope ContextVar."""
+    _tool_user_scope.reset(token)
+
+
+def get_tool_user_scope() -> Optional[Dict[str, Any]]:
+    """Return the active user scope, or ``None`` if not bound."""
+    return _tool_user_scope.get()
+
+
+async def _check_device_access(
+    device_id: str, minimum_role: str = "viewer"
+) -> Optional[str]:
+    """Verify the caller has access to ``device_id``.
+
+    Returns ``None`` if access is granted, or an error message string if denied.
+    When no user scope is bound (e.g. tests, direct calls), access is allowed
+    for backward compatibility.
+    """
+    scope = get_tool_user_scope()
+    if scope is None:
+        return None  # no scope bound → allow (backward compat)
+
+    accessible = scope.get("accessible_device_ids")
+    accessible_sites = scope.get("accessible_site_ids")
+    if accessible is not None and device_id not in accessible:
+        # Fall back to site-level check
+        if accessible_sites is not None:
+            try:
+                from homepot.database import SessionLocal
+                from homepot.models import Device as DeviceModel
+
+                db = SessionLocal()
+                try:
+                    device = (
+                        db.query(DeviceModel)
+                        .filter(DeviceModel.device_id == device_id)
+                        .first()
+                    )
+                    if device is not None and device.site_id not in accessible_sites:
+                        return f"Access denied: device '{device_id}' is outside your scope."
+                finally:
+                    db.close()
+            except Exception:
+                pass  # On error, fall through
+        else:
+            return f"Access denied: device '{device_id}' is outside your scope."
+
+    # Role check
+    user_role = scope.get("role", "viewer")
+    role_rank = {"viewer": 0, "operator": 1, "admin": 2}
+    if role_rank.get(user_role, 0) < role_rank.get(minimum_role, 0):
+        return (
+            f"Access denied: '{minimum_role}' role required for device "
+            f"'{device_id}', you have '{user_role}'."
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Helper to resolve device_id → device_int_id (integer PK)
 # ---------------------------------------------------------------------------
 
@@ -114,6 +191,9 @@ async def get_device_status(device_id: str) -> str:
         state, health state, lifecycle state, firmware, OS, and IP address.
     """
     try:
+        access_error = await _check_device_access(device_id, "viewer")
+        if access_error:
+            return access_error
         context = await ContextBuilder.get_metadata_context(device_id=device_id)
         if not context:
             return f"No device found with ID '{device_id}'."
@@ -392,7 +472,7 @@ async def get_alerts(severity: Optional[str] = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def propose_device_action(
+async def propose_device_action(
     action: str,
     target_device_id: str,
     rationale: str,
@@ -406,7 +486,10 @@ def propose_device_action(
     action was performed — always tell the user it is pending approval.
 
     Args:
-        action: The proposed action. Must be one of 'update_config' or 'restart'.
+        action: The proposed action. Must be one of the registered actions:
+            'health_check', 'list_processes', 'scan_filesystem' (T1 read-only),
+            'update_config', 'restart', 'rollback_config' (T2 reversible),
+            'restart_service' (T3 disruptive).
         target_device_id: The device identifier the action applies to.
         rationale: Why the action is recommended, citing the evidence you
                 observed (metrics, errors, config history).
@@ -418,6 +501,11 @@ def propose_device_action(
         A confirmation that the proposal was recorded (not executed), or an
         error explaining why it was rejected.
     """
+    # RBAC: verify the caller has access to the target device.
+    access_error = await _check_device_access(target_device_id, "operator")
+    if access_error:
+        return access_error
+
     parsed: dict = {}
     if params:
         try:
@@ -461,6 +549,71 @@ def propose_device_action(
 
 
 # ---------------------------------------------------------------------------
+# Tool 10: get_action_plan_status
+# ---------------------------------------------------------------------------
+
+
+async def get_action_plan_status(plan_id: str) -> str:
+    """Query the status and outcome of an AI action plan.
+
+    Use this to check whether a previously proposed action has been approved,
+    executed, succeeded, failed, or rolled back. Returns the plan's current
+    status, step-level details, and outcome (if terminal).
+
+    Args:
+        plan_id: The plan identifier (UUID) returned when the proposal was
+                 recorded.
+
+    Returns:
+        A JSON string with the plan status, steps, and outcome.
+    """
+    try:
+        from homepot.app.repositories.ai_action_repository import AIActionRepository
+        from homepot.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            repo = AIActionRepository(db)
+            plan = repo.get_plan(plan_id)
+            if plan is None:
+                return f"Plan '{plan_id}' not found."
+
+            steps_info = []
+            for step in plan.steps:
+                steps_info.append(
+                    {
+                        "seq": step.seq,
+                        "action": step.action,
+                        "target_device_id": step.target_device_id,
+                        "status": step.status,
+                        "error": getattr(step, "error", None),
+                    }
+                )
+
+            outcome_info = None
+            if plan.outcome is not None:
+                outcome_info = {
+                    "verified": plan.outcome.verified,
+                    "rolled_back": plan.outcome.rolled_back,
+                    "error": plan.outcome.error,
+                }
+
+            result = {
+                "plan_id": plan.plan_id,
+                "status": plan.status,
+                "risk_tier": plan.risk_tier,
+                "steps": steps_info,
+                "outcome": outcome_info,
+            }
+            return json.dumps(result, default=str)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error("get_action_plan_status failed for %s: %s", plan_id, e)
+        return f"Error querying plan '{plan_id}': {e}"
+
+
+# ---------------------------------------------------------------------------
 # Tool registry for the agent loop
 # ---------------------------------------------------------------------------
 
@@ -474,7 +627,8 @@ TOOL_REGISTRY = {
     "search_similar_incidents": (search_similar_incidents, False),
     "get_fleet_summary": (get_fleet_summary, True),
     "get_alerts": (get_alerts, True),
-    "propose_device_action": (propose_device_action, False),
+    "propose_device_action": (propose_device_action, True),
+    "get_action_plan_status": (get_action_plan_status, True),
 }
 
 # Tool functions list for Ollama SDK (auto-generates JSON schema)
@@ -488,4 +642,5 @@ TOOL_FUNCTIONS = [
     get_fleet_summary,
     get_alerts,
     propose_device_action,
+    get_action_plan_status,
 ]

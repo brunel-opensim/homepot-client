@@ -42,6 +42,45 @@ class ActionSpec:
 # The single source of truth for what the AI may propose. Keep this small and
 # explicit; every entry is a promise about risk, reversibility and permission.
 ACTION_REGISTRY: Dict[str, ActionSpec] = {
+    # --- T1: Read-only (no state mutation) ---
+    "health_check": ActionSpec(
+        name="health_check",
+        command_type="health_check",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="viewer",
+        description=(
+            "Run a health check on a device (CPU, memory, disk, network). "
+            "Read-only; no state change. Can be used as a verification step."
+        ),
+        required_params=(),
+    ),
+    "list_processes": ActionSpec(
+        name="list_processes",
+        command_type="list_processes",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="process_monitoring",
+        min_role="viewer",
+        description=(
+            "List running processes on a device. Read-only; no state change."
+        ),
+        required_params=(),
+    ),
+    "scan_filesystem": ActionSpec(
+        name="scan_filesystem",
+        command_type="scan_filesystem",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="root_access",
+        min_role="operator",
+        description=(
+            "Scan the filesystem of a device. Read-only; no state change."
+        ),
+        required_params=(),
+    ),
+    # --- T2: Reversible ---
     "update_config": ActionSpec(
         name="update_config",
         command_type="update_config",
@@ -67,6 +106,33 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
             "requires the owner's root_access grant."
         ),
         required_params=(),
+    ),
+    "rollback_config": ActionSpec(
+        name="rollback_config",
+        command_type="update_config",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="root_access",
+        min_role="operator",
+        description=(
+            "Roll back a previous configuration change using the snapshotted "
+            "previous values. Reversible; requires root_access."
+        ),
+        required_params=("config",),
+    ),
+    # --- T3: Disruptive ---
+    "restart_service": ActionSpec(
+        name="restart_service",
+        command_type="run_command",
+        risk_tier="T3",
+        reversible=False,
+        required_permission="root_access",
+        min_role="operator",
+        description=(
+            "Restart a named OS service on a device. Disruptive; may cause "
+            "brief service interruption. Requires root_access."
+        ),
+        required_params=("service_name",),
     ),
 }
 

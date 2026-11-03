@@ -22,8 +22,10 @@ from ai.tools import (
     TOOL_REGISTRY,
     reset_tool_memory_scope,
     reset_tool_proposal_sink,
+    reset_tool_user_scope,
     set_tool_memory_scope,
     set_tool_proposal_sink,
+    set_tool_user_scope,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,6 +145,15 @@ async def _execute_tool(
         return f"Tool {tool_name} failed: {e}"
 
     result_str = str(result)
+
+    # Lightweight integrity check on tool output (Gate B style): warn the LLM
+    # if the result is empty or looks like an error, so it can decide whether
+    # to trust or re-query.  This does not block the result — it annotates it.
+    if not result_str or result_str.strip() == "":
+        result_str = "[DATA INTEGRITY: empty result — verify source]"
+    elif result_str.startswith("Error") or result_str.startswith("Access denied"):
+        result_str = f"[DATA INTEGRITY: tool reported an error] {result_str}"
+
     if len(result_str) > TOOL_RESULT_MAX_CHARS:
         result_str = result_str[:TOOL_RESULT_MAX_CHARS] + "... (truncated)"
     return result_str
@@ -188,6 +199,7 @@ async def run_agent(
     max_iterations: int = MAX_ITERATIONS,
     gate: Optional[Any] = None,
     memory_scope: Optional[Any] = None,
+    user_scope: Optional[Dict[str, Any]] = None,
     tools: Optional[List[Any]] = None,
     system_prompt: Optional[str] = None,
     include_repo_tools: bool = False,
@@ -210,6 +222,8 @@ async def run_agent(
         memory_scope: Optional :class:`ai.device_memory.MemoryScope` bound to
             this run so memory-reading tools recall only what the caller may
             see.
+        user_scope: Optional dict with ``accessible_device_ids`` and ``role``
+            for per-device RBAC enforcement in tools.
         tools: Explicit tool-function list to offer. When ``None`` the default
             device tools (:data:`ai.tools.TOOL_FUNCTIONS`) are used; pass a
             restricted list (e.g. only the read-only repository tools) to run
@@ -270,6 +284,7 @@ async def run_agent(
 
     scope_token = set_tool_memory_scope(memory_scope)
     sink_token = set_tool_proposal_sink(proposals)
+    user_scope_token = set_tool_user_scope(user_scope)
     try:
         for iteration in range(max_iterations):
             # Check total timeout
@@ -389,6 +404,7 @@ async def run_agent(
     finally:
         reset_tool_memory_scope(scope_token)
         reset_tool_proposal_sink(sink_token)
+        reset_tool_user_scope(user_scope_token)
 
     total_ms = int((time.monotonic() - start_time) * 1000)
 
