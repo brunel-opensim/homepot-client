@@ -66,7 +66,6 @@ from ai.repo_tools import (  # noqa: E402
     set_repo_source_sink,
 )
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
-
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
 from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.app.repositories.ai_action_repository import (  # noqa: E402
