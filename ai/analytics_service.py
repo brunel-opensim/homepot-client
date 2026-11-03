@@ -701,17 +701,24 @@ class AIAnalyticsService:
                     }
 
                 for plan in plans:
-                    score = plan.trust_score
-                    if score is None:
-                        score = 0.5
-                    score = max(0.0, min(1.0, float(score)))
-                    idx = min(buckets - 1, int(score / step))
+                    raw_score = plan.trust_score
+                    if raw_score is None:
+                        numeric_score = 0.5
+                    else:
+                        numeric_score = float(raw_score)
+                    if numeric_score < 0.0:
+                        numeric_score = 0.0
+                    elif numeric_score > 1.0:
+                        numeric_score = 1.0
+                    idx = int(numeric_score / step)
+                    if idx > buckets - 1:
+                        idx = buckets - 1
                     lo = round(idx * step, 4)
                     hi = round((idx + 1) * step, 4)
                     key = f"{lo:.2f}-{hi:.2f}"
                     band = bands[key]
                     band["plans"] += 1
-                    band["trust_sum"] += score
+                    band["trust_sum"] += numeric_score
                     if plan.status == "succeeded":
                         band["succeeded"] += 1
                     elif plan.status in ("failed", "rolled_back"):
