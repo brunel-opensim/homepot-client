@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session as SASession
 
 from homepot.app.ai_ops.policy import PolicyResult, evaluate_plan
 from homepot.app.ai_ops.registry import get_action_spec
-from homepot.app.models.AnalyticsModel import AIActionStep
+from homepot.app.models.AnalyticsModel import AIActionStep, utc_now
 from homepot.database import get_database_service
 from homepot.models import Device
 
@@ -80,40 +80,153 @@ def rollback_snapshot(step: Any, device: Optional[Device]) -> Optional[Dict[str,
     return None
 
 
+def _is_step_ready(step: Any, plan: Any) -> bool:
+    """Check if a step is ready to be dispatched.
+
+    A step is ready when:
+    - Its status is ``pending`` (or ``approved`` for per-step gates)
+    - All its dependencies have status ``done``
+    - It has not already been queued/running/done
+    """
+    if step.status not in ("pending", "approved"):
+        return False
+    deps = getattr(step, "depends_on", None)
+    if deps is not None:
+        # Single dependency (linear chain)
+        if deps.status != "done":
+            return False
+    # Check depends_on_step_id for steps not loaded with relationship
+    dep_id = getattr(step, "depends_on_step_id", None)
+    if dep_id is not None and deps is None:
+        # Need to check via plan steps
+        dep_step = next((s for s in plan.steps if s.step_id == dep_id), None)
+        if dep_step is not None and dep_step.status != "done":
+            return False
+    return True
+
+
+async def _dispatch_step(
+    db: SASession,
+    step: Any,
+    plan: Any,
+    actor: str,
+    db_service: Any,
+) -> bool:
+    """Dispatch a single ready step. Returns True if dispatched."""
+    spec = get_action_spec(step.action)
+    if spec is None:
+        return False
+
+    device = db.query(Device).filter(Device.device_id == step.target_device_id).first()
+    if device is None:
+        return False
+
+    # Idempotency: skip if already has a command_id
+    if step.command_id is not None:
+        return False
+
+    command = await db_service.create_device_command(
+        device_id=device.id,
+        command_type=spec.command_type,
+        payload=command_payload(step),
+        issued_by=f"ai:{actor}",
+    )
+
+    snapshot = rollback_snapshot(step, device)
+
+    values: Dict[str, Any] = {
+        "status": STEP_QUEUED,
+        "command_id": command.command_id,
+        "started_at": utc_now(),
+    }
+    if snapshot is not None:
+        values["rollback_params"] = snapshot
+
+    db.execute(
+        update(AIActionStep)
+        .where(AIActionStep.step_id == step.step_id)
+        .values(**values)
+    )
+    db.commit()
+    return True
+
+
+async def dispatch_ready_steps(
+    db: SASession,
+    plan: Any,
+    actor: str,
+    db_service: Any = None,
+) -> int:
+    """Dispatch all ready steps in a plan. Returns count of newly dispatched.
+
+    A step is ready when its dependencies are all ``done`` and its status is
+    ``pending``/``approved``. This is called by the executor (initial dispatch)
+    and by the reconcile loop (progression after a step completes).
+
+    Idempotent: steps already queued/running/done are skipped.
+    """
+    if db_service is None:
+        db_service = await get_database_service()
+
+    dispatched = 0
+    # Evaluate dependencies against the current plan state.
+    for step in plan.steps:
+        if not _is_step_ready(step, plan):
+            continue
+        # Per-step policy check
+        from homepot.app.ai_ops.policy import evaluate_step
+
+        step_policy = evaluate_step(db, step, plan=plan)
+        if not step_policy.allowed:
+            step.status = "failed"
+            step.error = "; ".join(step_policy.reasons) or "policy blocked"
+            step.completed_at = utc_now()
+            db.commit()
+            continue
+
+        # Per-step approval gate
+        if getattr(step, "approval_required", False) and step.status != "approved":
+            step.status = "awaiting_approval"
+            db.commit()
+            continue
+
+        ok = await _dispatch_step(db, step, plan, actor, db_service)
+        if ok:
+            dispatched += 1
+
+    db.expire_all()
+    return dispatched
+
+
 async def start_execution(
     db: SASession,
     plan: Any,
     actor: str,
     db_service: Any = None,
 ) -> Tuple[Any, PolicyResult]:
-    """Run policy then queue one device command per step of an approved plan.
+    """Run policy then dispatch ready (root) steps of an approved plan.
 
     A blocked plan is recorded as ``blocked`` (nothing queued); an allowed plan
-    moves to ``executing`` with every step ``queued``. The sync session's read
-    transaction is closed *before* the async command path is entered, so a
-    command insert never contends with a lock held by this session.
+    moves to ``executing`` with only its root steps ``queued``. Dependent steps
+    remain ``pending`` until their dependencies complete. The reconcile loop
+    drives further progression via ``dispatch_ready_steps``.
+
+    The sync session's read transaction is closed *before* the async command
+    path is entered, so a command insert never contends with a lock held by
+    this session.
     """
     policy = evaluate_plan(db, plan)
 
-    # Capture everything needed for the async command path as plain data, then
-    # end the read transaction so we do not hold a lock across the inserts.
-    queued_steps = []
-    for step in plan.steps:
-        spec = get_action_spec(step.action)
-        device = (
-            db.query(Device).filter(Device.device_id == step.target_device_id).first()
-        )
-        queued_steps.append(
-            {
-                "step_id": step.step_id,
-                "command_type": spec.command_type if spec else None,
-                "device_pk": device.id if device is not None else None,
-                "payload": command_payload(step),
-                "snapshot": rollback_snapshot(step, device),
-            }
-        )
-
     if not policy.allowed:
+        plan.status = "blocked"
+        db.commit()
+        return plan, policy
+
+    # Validate dependency graph (no cycles, no missing targets)
+    from homepot.app.ai_ops.policy import validate_dependencies
+
+    dep_errors = validate_dependencies(plan)
+    if dep_errors:
         plan.status = "blocked"
         db.commit()
         return plan, policy
@@ -124,27 +237,7 @@ async def start_execution(
     if db_service is None:
         db_service = await get_database_service()
 
-    for item in queued_steps:
-        if item["command_type"] is None or item["device_pk"] is None:
-            continue
-        command = await db_service.create_device_command(
-            device_id=item["device_pk"],
-            command_type=item["command_type"],
-            payload=item["payload"],
-            issued_by=f"ai:{actor}",
-        )
-        values: Dict[str, Any] = {
-            "status": STEP_QUEUED,
-            "command_id": command.command_id,
-        }
-        if item["snapshot"] is not None:
-            values["rollback_params"] = item["snapshot"]
-        db.execute(
-            update(AIActionStep)
-            .where(AIActionStep.step_id == item["step_id"])
-            .values(**values)
-        )
-        db.commit()
+    await dispatch_ready_steps(db, plan, actor, db_service)
 
     db.expire_all()
     return plan, policy

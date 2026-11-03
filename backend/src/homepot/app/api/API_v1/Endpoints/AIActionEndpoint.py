@@ -73,6 +73,21 @@ def _serialize_plan(plan: AIActionPlan) -> Dict[str, Any]:
                 "target_device_id": step.target_device_id,
                 "params": step.params,
                 "status": step.status,
+                "depends_on_step_id": getattr(step, "depends_on_step_id", None),
+                "result": getattr(step, "result", None),
+                "error": getattr(step, "error", None),
+                "started_at": (
+                    step.started_at.isoformat()
+                    if getattr(step, "started_at", None)
+                    else None
+                ),
+                "completed_at": (
+                    step.completed_at.isoformat()
+                    if getattr(step, "completed_at", None)
+                    else None
+                ),
+                "approval_required": getattr(step, "approval_required", False),
+                "command_id": getattr(step, "command_id", None),
             }
             for step in plan.steps
         ],
@@ -311,6 +326,49 @@ async def reject_action_plan(
 ) -> Dict[str, Any]:
     """Reject an AI action plan, recording the actor and reason."""
     return await _decide(plan_id, "rejected", payload, current_user, db)
+
+
+@router.post("/action-plans/{plan_id}/cancel", tags=["AI Action Delegation"])
+async def cancel_action_plan(
+    plan_id: str,
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Cancel an executing AI action plan.
+
+    Moves an ``executing`` plan to ``cancelled`` and prevents further step
+    dispatch. Already-queued commands are not recalled, but their results will
+    be ignored by the reconcile loop.
+    """
+    db_user = _get_db_user(db, current_user)
+    repo = AIActionRepository(db)
+    plan = repo.get_plan(plan_id)
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
+        )
+
+    targets = _authorize_plan(db, db_user, plan)
+
+    if plan.status not in ("executing", "approved", "pending_approval"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Plan is '{plan.status}' and cannot be cancelled "
+                "(only executing/approved/pending plans cancel)"
+            ),
+        )
+
+    plan.status = "cancelled"  # type: ignore[assignment]
+    db.commit()
+
+    logger.info(
+        "AI plan cancelled | plan=%s | actor=%s | devices=%s",
+        plan.plan_id,
+        current_user.get("email"),
+        targets,
+    )
+    return _serialize_plan(plan)
 
 
 async def _log_execution(

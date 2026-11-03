@@ -110,6 +110,60 @@ class AIActionRepository:
             select(AIActionPlan).where(AIActionPlan.plan_id == plan_id)
         ).scalar_one_or_none()
 
+    def get_ready_steps(self, plan_id: str) -> List[AIActionStep]:
+        """Return steps that are ready to be dispatched.
+
+        A step is ready when its status is ``pending`` or ``approved`` and all
+        its dependencies (via ``depends_on_step_id``) have status ``done``.
+        """
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            return []
+        ready = []
+        step_map = {s.step_id: s for s in plan.steps}
+        for step in plan.steps:
+            if step.status not in ("pending", "approved"):
+                continue
+            dep_id = getattr(step, "depends_on_step_id", None)
+            if dep_id is not None:
+                dep = step_map.get(dep_id)
+                if dep is None or dep.status != "done":
+                    continue
+            ready.append(step)
+        return ready
+
+    def claim_step_for_dispatch(self, step_id: str) -> bool:
+        """Atomically move a ``pending`` step to ``queued``.
+
+        Returns ``True`` only for the caller that won the race.
+        """
+        result = self.db.execute(
+            update(AIActionStep)
+            .where(
+                AIActionStep.step_id == step_id,
+                AIActionStep.status.in_(["pending", "approved"]),
+            )
+            .values(status="queued")
+        )
+        self.db.commit()
+        return cast(int, getattr(result, "rowcount", 0)) == 1
+
+    def cancel_plan(self, plan_id: str) -> bool:
+        """Cancel an executing/approved/pending plan.
+
+        Returns ``True`` if the plan was cancelled.
+        """
+        result = self.db.execute(
+            update(AIActionPlan)
+            .where(
+                AIActionPlan.plan_id == plan_id,
+                AIActionPlan.status.in_(["executing", "approved", "pending_approval"]),
+            )
+            .values(status="cancelled")
+        )
+        self.db.commit()
+        return cast(int, getattr(result, "rowcount", 0)) == 1
+
     def list_plans(
         self,
         *,
