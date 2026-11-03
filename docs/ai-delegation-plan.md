@@ -1,7 +1,9 @@
 # AI Task Delegation — Approval-Gated Device Actions
 
-> **Status:** Level 2 (approval-gated) — **Phases 0–3 implemented and deployed**;
-> Phase 4 (expanded action set + autonomy controller) is design-only.
+> **Status:** Level 2 (approval-gated) — **Phases 0–3, Phase 4, and the § 17
+> multi-step roadmap (Phases A–E) are implemented and deployed**. **§ 17.7** is
+> the as-built completion matrix; three roadmap items remain open: per-step
+> approval gates, per-step retry backoff, and confidence calibration.
 > **Goal:** the AI proposes a complete device-management action (or batch); a
 > technician reviews and approves it; the system executes deterministically; the
 > result is verified and recorded; measured reliability expands what the AI may
@@ -12,8 +14,9 @@
 > proposal layer, trust-gated capture, the review page, the approval API, and the
 > deterministic executor with verification and rollback. **§ 5.1** is the
 > as-built reference (pipeline, file paths, endpoints, how to try it); § 6–§ 11
-> are the original design rationale; § 13 tracks phase status; Phase 4 is still
-> design-only. This document extends the "Future Expansion" items already listed
+> are the original design rationale; § 13 tracks phase status; **§ 17.7** tracks
+> the multi-step delegation roadmap (Phases A–E). This document extends the
+> "Future Expansion" items already listed
 > in [Agentic AI](ai-agentic.md) — *Tool proposal validation* and
 > *Human-in-the-loop: technician can approve/reject the agent's proposed
 > actions* — into a concrete design.
@@ -333,7 +336,7 @@ Terminal: `succeeded`, `failed`, `rolled_back`, `rejected`, `expired`, `blocked`
 | **Reconcile loop** | `ai_ops/reconcile.py` | Background driver (10 s); started/cancelled by `homepot/app/main.py` |
 | **API** | `backend/src/homepot/app/api/API_v1/Endpoints/AIActionEndpoint.py` (under `/api/v1/ai`) | `GET /action-plans`, `GET /action-plans/{id}`, `POST /action-plans/{id}/approve`, `/reject`, `/execute` |
 | **Data model** | `AnalyticsModel.py` + migration `20261016_add_ai_action_tables` | `ai_action_plan`, `ai_action_step`, `ai_approval`, `ai_outcome` |
-| **Metrics** | *pending* — extend `ai/analytics_service.py` | Reliability + confidence calibration per action type (Phase 4) |
+| **Metrics** | `ai/analytics_service.py`, `ai_ops/autonomy.py` | Per-action-type reliability from `ai_outcome` (Phase 4/14) + autonomy ladder (Phase D/16); confidence calibration still open (§ 17.7) |
 | **UI** | `frontend/src/pages/AIProposals/AIProposalsList.jsx` | Review queue: status, target(s), rationale, risk, steps, approve/reject/execute, outcome |
 
 Design rule: the executor must **reuse `DeviceCommandsEndpoint` /
@@ -509,7 +512,8 @@ sample size and success bar agreed up front.
 also builds it via `Base.metadata.create_all`); tests are in
 `backend/tests/test_ai_action_models.py`. No endpoint or agent touched these
 tables at Phase 0 — **capture wiring landed with the producers in Phases 1–3**
-(see § 5.1); reliability metrics remain for Phase 4.
+(see § 5.1); reliability metrics and the autonomy controller landed with Phase 4
+(§ 17.7).
 
 Phases 0–2 are ordinary backend/DB/UI work; only phases 1 and 3 touch the AI.
 That is why this goal is achievable.
@@ -570,6 +574,18 @@ and wired it into the served app, guarded by the
 fix and the hardening work merged in PRs #503–#508 and are deployed; § 5.1 is the
 as-built reference.
 
+**Phase 4 status: implemented (metrics + autonomy scaffolding).**
+`ai/analytics_service.py::get_ai_action_reliability` computes per-action-type
+proposal acceptance, execution success, verified improvement, and rollback
+rates from `ai_outcome`/`ai_action_plan`; `homepot.app.ai_ops.autonomy.py`
+defines the level 0–3 ladder (level 2 at ≥ 50 samples / ≥ 98 % success, level 3
+at ≥ 200 samples / ≥ 99.5 % plus a proven rollback); outcomes feed long-term
+device memory (`_record_outcome` → `DeviceMemory`); and the AI Proposals page
+gained the reliability/task-aggregation panel (`AIReliabilityPanel`). Known
+limits are tracked in § 17.7: the autonomy controller is not yet hydrated from
+reliability or consulted before execution, and confidence calibration is not
+implemented.
+
 ---
 
 ## 14. Open decisions (need sign-off before Phase 1)
@@ -602,12 +618,13 @@ as-built reference.
 
 ## 17. Multi-step task delegation — gaps and roadmap
 
-> **Status:** Design only. Phases 0–3 (§ 5.1) are single-step and
-> human-driven: one action per plan, one approval, one execution. This section
-> documents the gap to **multi-step task delegation** — where the AI proposes a
-> complete workflow (investigate → diagnose → act → verify), executes it step
-> by step after approval, and adapts based on intermediate results — and the
-> phased roadmap to get there.
+> **Status:** Phases A–E implemented and deployed — see **§ 17.7** for the
+> as-built completion matrix and the items that remain open. Before Phase A,
+> Phases 0–3 (§ 5.1) were single-step and human-driven: one action per plan, one
+> approval, one execution. This section documents the gap to **multi-step task
+> delegation** — where the AI proposes a complete workflow (investigate →
+> diagnose → act → verify), executes it step by step after approval, and adapts
+> based on intermediate results — and the phased roadmap that closed it.
 
 ### 17.1 What "multi-step task delegation" means
 
@@ -629,6 +646,10 @@ approved scope, verifying each step before proceeding to the next. Examples:
 
 ### 17.2 What already exists (Phases 0–3)
 
+> **Baseline snapshot.** This table records what existed *before* Phase A. The
+> "need …" entries in the third column were the work Phases A–E set out to do;
+> see § 17.7 for what landed.
+
 | Capability | Location | Reuse for multi-step |
 |---|---|---|
 | Proposal tool + registry | `ai/tools.py`, `ai/actions.py` | Registry declares capabilities; needs expansion (§ 17.4) |
@@ -645,6 +666,11 @@ approved scope, verifying each step before proceeding to the next. Examples:
 | RBAC | `roles.py`, `auth_utils.py` | Approval scoped by device membership; tools need per-device RBAC |
 
 ### 17.3 Gaps
+
+> **Pre-implementation snapshot.** G1–G12 drove Phases A–E. Closed by the
+> implementation: G1, G2, G5, G6, G8–G10, G12. Partially closed: G3 (no
+> fleet-wide actions), G4 (lightweight integrity annotation only), G7 (autonomy
+> controller not wired), G11 (configurable but defaults unchanged). See § 17.7.
 
 | # | Gap | Current state | Impact on delegation |
 |---|-----|--------------|----------------------|
@@ -711,6 +737,9 @@ approved scope, verifying each step before proceeding to the next. Examples:
 
 ### 17.5 Recommended starting point
 
+> **Historical (pre-Phase-A).** All three starting points below have since
+> landed; § 17.7 records the remaining work.
+
 Given the current foundation, the highest-impact next steps are:
 
 1. **Phase A (G1–G4)** — This is the core gap. Without a durable task graph, nothing else matters. The `InvestigationRun` model and event bus exist but lack step-level detail. `ai_action_step.preconditions`/`postconditions` columns exist but are never evaluated.
@@ -725,7 +754,63 @@ The system already supports a **manual delegation loop**:
 3. Verify the outcome → Check device metrics after
 4. If it worked, the memory system records it for future reference
 
-The gap is that this is **single-step and human-driven**. The roadmap above turns it into **multi-step and semi-autonomous**.
+The manual loop remains the safe default; Phases A–E add the multi-step,
+dependency-aware path described in § 17.7, with approval still required unless an
+action type earns autonomy.
+
+### 17.7 Implementation status (as built, November 2026)
+
+Phases A–E are merged and deployed (PRs #751–#757). This matrix maps every
+roadmap item to its as-built location. Legend: ✅ implemented · ⚠️ partial ·
+❌ not implemented.
+
+| # | Item | Status | Where |
+|---|---|---|---|
+| A1 | Task graph model (`depends_on_step_id`) | ✅ | migration `20261103_add_step_dependencies_to_action_step`; `AIActionStep` model |
+| A2 | Dependency-aware execution + pre/postconditions | ✅ | `ai_ops/executor.py` (`_is_step_ready`, `dispatch_ready_steps`), `ai_ops/policy.py` (`_evaluate_preconditions`), `ai_ops/verifier.py` (`_evaluate_postconditions`) |
+| A3 | Checkpoints & cancellation | ✅ | `POST /ai/action-plans/{id}/cancel`; step state in DB + `ai_ops/reconcile.py` resumes `executing` plans |
+| A4 | Per-step approval gates | ❌ | `ai_action_step.approval_required` and the `executor.py` gate exist, but nothing sets the flag and there is no step-level approve API/UI — a gated step would wait forever |
+| B5 | Registry breadth | ⚠️ | `ai/actions.py`: T1 `health_check`/`list_processes`/`scan_filesystem`, T2 `rollback_config`, T3 `restart_service`; **no fleet-wide actions** |
+| B6 | Plan status query tool | ✅ | `ai/tools.py::get_action_plan_status` |
+| B7 | Plan-and-execute agent mode | ✅ | `ai/agent.py` (`plan_and_execute`, `_parse_plan`) |
+| B8 | Per-device RBAC in tools | ✅ | `ai/tools.py::_check_device_access` |
+| B9 | Gate B on tool I/O | ⚠️ | `ai/agent.py` annotates empty/error tool output; the full `DataIntegrityGate` is not applied |
+| C10 | Maintenance-window integration | ✅ | `ai_ops/policy.py::is_maintenance_window`; deferred steps re-checked in `verifier.py` |
+| C11 | Dry-run / simulation preview | ⚠️ | `POST /ai/action-plans/{id}/dry-run`; no UI control and no simulator integration |
+| C12 | Idempotency keys | ✅ | `ai_action_step.idempotency_key` → `create_device_command`; migration `20261103_add_idempotency_to_device_command` |
+| C13 | Retry with backoff | ❌ | `retry_count`/`max_retries`/`next_retry_at` plumbing exists, but steps are created with `max_retries=0` and no future `next_retry_at` is scheduled — retries never fire; no alternative/escalation |
+| D14 | Reliability metrics | ✅ | `ai/analytics_service.py::get_ai_action_reliability` |
+| D15 | Confidence calibration | ❌ | Not implemented; gate constants remain paper-informed |
+| D16 | Autonomy controller | ⚠️ | `ai_ops/autonomy.py` (levels 0–3); not hydrated from reliability and not consulted before execution, so `GET /ai/autonomy` returns `{}` |
+| D17 | Outcome feedback to memory | ✅ | `ai_ops/verifier.py::_record_outcome` → `DeviceMemory` |
+| D18 | Analytics dashboard | ✅ | `frontend/src/pages/AIProposals/AIReliabilityPanel.jsx` |
+| E19 | Parallel tool calls | ✅ | `ai/agent.py` (`asyncio.gather`) |
+| E20 | Extended timeout / deeper iterations | ⚠️ | Configurable via `ai/config.yaml` `agent:` and `run_agent` params; shipped defaults remain 5 iterations / 60 s |
+| E21 | Cross-session task aggregation | ✅ | `GET /ai/action-plans/summary`, `AIActionRepository.plan_summary`, UI panel |
+
+**Remaining work:**
+
+1. **A4 per-step approval** — add
+   `POST /action-plans/{id}/steps/{step_id}/approve` (+ UI), or remove the
+   dormant `approval_required` path and document per-plan approval only.
+2. **C13 retry** — set a non-zero `max_retries` when plans are created, schedule
+   a future `next_retry_at` (exponential backoff), and define the
+   alternative/escalation path.
+3. **D16 autonomy wiring** — hydrate the controller from
+   `get_ai_action_reliability` at startup/refresh and consult
+   `check_autonomy()` in the approve/execute path.
+4. **D15 calibration** — compare `AIActionPlan.trust_score` with the observed
+   success rate and adjust thresholds.
+5. **B5 fleet actions** — add fleet-scoped actions to `ai/actions.py`.
+6. **B9/C11** — apply the real `DataIntegrityGate` to tool output; surface
+   dry-run in the UI and wire the simulator.
+
+**Test coverage.** Phases A–E shipped with **no new backend tests** (only minor
+edits to `test_ai_execution.py`/`test_ai_agent.py`); the only new tests are the
+four frontend `AIReliabilityPanel` tests. A follow-up test suite should cover:
+dependency ordering and cycle rejection, preconditions/postconditions,
+maintenance-window deferral, retry/backoff, idempotency, autonomy thresholds,
+reliability/summary endpoints, cancel, dry-run, plan-and-execute, and tool RBAC.
 
 ---
 
