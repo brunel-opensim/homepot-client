@@ -206,6 +206,13 @@ class AIQueryRequest(BaseModel):
         default=False,
         description="Enable agentic tool-calling mode for multi-step investigation",
     )
+    plan_and_execute: bool = Field(
+        default=False,
+        description=(
+            "Enable plan-and-execute mode: the AI first drafts a JSON plan of "
+            "tool calls, then executes them sequentially. Requires agentic=True."
+        ),
+    )
     mode: Literal["auto", "knowledge", "diagnostic"] = Field(
         default="auto",
         description=(
@@ -1934,6 +1941,7 @@ async def _query_ai_impl(
                     memory_scope=memory_scope,
                     user_scope=_user_scope,
                     include_repo_tools=code_access_enabled(),
+                    plan_and_execute=request.plan_and_execute,
                 )
             except AIBusyError:
                 raise _ai_busy_http_exception(gate)

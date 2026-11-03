@@ -9,7 +9,9 @@ See docs/ai-agentic.md for the full architecture.
 
 import asyncio
 from dataclasses import dataclass, field
+import json
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -36,7 +38,63 @@ logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 5
 TOTAL_TIMEOUT_SECONDS = 60
+PLANNING_TIMEOUT_SECONDS = 30
+EXECUTION_TIMEOUT_SECONDS = 60
 TOOL_RESULT_MAX_CHARS = 1500
+
+
+def _parse_plan(text: str, allowed_tool_names: set) -> Optional[List[Dict[str, Any]]]:
+    if not text:
+        return None
+    fenced = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if fenced:
+        text = fenced.group(1)
+    text = text.strip()
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        obj_match = re.search(r"\{.*\}", text, re.DOTALL)
+        arr_match = re.search(r"\[.*\]", text, re.DOTALL)
+        if obj_match:
+            try:
+                data = json.loads(obj_match.group(0))
+            except (json.JSONDecodeError, ValueError):
+                return None
+        elif arr_match:
+            try:
+                data = json.loads(arr_match.group(0))
+            except (json.JSONDecodeError, ValueError):
+                return None
+        else:
+            return None
+    if isinstance(data, list):
+        steps_raw = data
+    elif isinstance(data, dict):
+        steps_raw = data.get("steps", data.get("plan", []))  # type: ignore[assignment]
+        if not isinstance(steps_raw, list):
+            if "tool" in data:
+                steps_raw = [data]
+            else:
+                return None
+    else:
+        return None
+    if not steps_raw:
+        return None
+    steps = []
+    for item in steps_raw:
+        if not isinstance(item, dict):
+            continue
+        tool_name = item.get("tool") or item.get("name") or item.get("function")
+        if not tool_name or not isinstance(tool_name, str):
+            continue
+        if tool_name not in allowed_tool_names:
+            continue
+        args = item.get("args") or item.get("arguments") or item.get("parameters") or {}
+        if not isinstance(args, dict):
+            args = {}
+        steps.append({"tool": tool_name, "args": args})
+    return steps if steps else None
+
 
 AGENT_SYSTEM_PROMPT = """\
 You are the HOMEPOT System Diagnostics AI with agentic tool-calling capabilities.
@@ -201,6 +259,9 @@ async def run_agent(
     memory_scope: Optional[Any] = None,
     user_scope: Optional[Dict[str, Any]] = None,
     tools: Optional[List[Any]] = None,
+    plan_and_execute: bool = False,
+    planning_timeout: Optional[int] = None,
+    execution_timeout: Optional[int] = None,
     system_prompt: Optional[str] = None,
     include_repo_tools: bool = False,
     max_tool_bytes: Optional[int] = None,
@@ -285,6 +346,158 @@ async def run_agent(
     scope_token = set_tool_memory_scope(memory_scope)
     sink_token = set_tool_proposal_sink(proposals)
     user_scope_token = set_tool_user_scope(user_scope)
+
+    # Plan-and-execute mode: separate planning from execution
+    if plan_and_execute:
+        _planning_timeout = (
+            planning_timeout
+            if planning_timeout is not None
+            else PLANNING_TIMEOUT_SECONDS
+        )
+        _execution_timeout = (
+            execution_timeout
+            if execution_timeout is not None
+            else EXECUTION_TIMEOUT_SECONDS
+        )
+
+        # Planning phase: LLM with no tools
+        elapsed = time.monotonic() - start_time
+        plan_steps = None
+        if elapsed <= _planning_timeout:
+            planning_messages = list(messages)
+            planning_instruction = (
+                "Before taking any action, produce a JSON plan of the tool "
+                "calls you intend to make. Output ONLY a JSON object with a "
+                '"steps" array. Each step must have "tool" (tool name) and '
+                '"args" (arguments dict). Example: '
+                '{"steps": [{"tool": "get_device_status", "args": '
+                '{"device_id": "DEV-001"}}]}. Do not call any tools yet.'
+            )
+            planning_messages.append({"role": "user", "content": planning_instruction})
+            try:
+                plan_response = await _generate_with_gate(
+                    llm, planning_messages, [], gate
+                )
+                plan_text = getattr(plan_response, "content", None) or ""
+                plan_steps = _parse_plan(plan_text, allowed_tool_names)
+            except AIBusyError:
+                raise
+            except Exception as e:
+                logger.error("Planning failed: %s", e)
+                plan_steps = None
+
+        # Reset proposals for execution phase
+        proposals.clear()
+
+        # Execution phase
+        if plan_steps:
+            # Bind proposal sink for execution
+            reset_tool_proposal_sink(sink_token)
+            sink_token = set_tool_proposal_sink(proposals)
+
+            for step in plan_steps:
+                elapsed = time.monotonic() - start_time
+                if elapsed > _execution_timeout:
+                    logger.warning("Execution timeout after %.1fs", elapsed)
+                    break
+
+                tool_name = step["tool"]
+                tool_args = step["args"]
+
+                result_str = await _execute_tool(
+                    tool_name, tool_args, allowed_tool_names
+                )
+                tools_called.append(
+                    ToolCallRecord(
+                        tool_name=tool_name,
+                        iteration=0,
+                        arguments=tool_args,
+                        result_preview=result_str[:200],
+                    )
+                )
+
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": tool_args,
+                                }
+                            }
+                        ],
+                    }
+                )
+                messages.append({"role": "tool", "content": result_str})
+
+                if result_str.startswith("Error") or result_str.startswith(
+                    "Access denied"
+                ):
+                    logger.warning("Step %s failed: %s", tool_name, result_str)
+                    break
+                if result_str.startswith("Tool ") and "failed" in result_str.lower():
+                    logger.warning("Step %s failed: %s", tool_name, result_str)
+                    break
+
+                if max_tool_bytes is not None:
+                    tool_bytes_used += len(result_str)
+                    if tool_bytes_used > max_tool_bytes:
+                        logger.warning("Tool byte budget exhausted")
+                        break
+
+        # Force final answer
+        if not last_response_text:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Based on the investigation above, "
+                        "provide your final answer."
+                    ),
+                }
+            )
+            try:
+                response = await _generate_with_gate(
+                    llm, messages, tool_functions, gate
+                )
+                content = getattr(response, "content", None)
+                if content:
+                    last_response_text = content
+            except AIBusyError:
+                fell_back_to_direct = True
+            except Exception as e:
+                logger.error("Final answer generation failed: %s", e)
+                fell_back_to_direct = True
+
+        if not last_response_text:
+            fell_back_to_direct = True
+            last_response_text = (
+                "I was unable to complete the investigation. "
+                "Please try a more specific question."
+            )
+
+        # Reset scopes and return early
+        reset_tool_memory_scope(scope_token)
+        reset_tool_proposal_sink(sink_token)
+        reset_tool_user_scope(user_scope_token)
+        scope_token = scope_token  # keep for finally (no-op reset)
+        # Mark as consumed so finally doesn't double-reset
+        scope_token = None  # type: ignore[assignment]
+        sink_token = None  # type: ignore[assignment]
+        user_scope_token = None  # type: ignore[assignment]
+
+        total_ms = int((time.monotonic() - start_time) * 1000)
+        return AgentResult(
+            response=last_response_text,
+            iterations=len(tools_called),
+            tools_called=tools_called,
+            total_duration_ms=total_ms,
+            fell_back_to_direct=fell_back_to_direct,
+            proposals=proposals,
+        )
+
     try:
         for iteration in range(max_iterations):
             # Check total timeout
@@ -402,9 +615,12 @@ async def run_agent(
                 # endpoint falls back to a direct answer.
                 fell_back_to_direct = True
     finally:
-        reset_tool_memory_scope(scope_token)
-        reset_tool_proposal_sink(sink_token)
-        reset_tool_user_scope(user_scope_token)
+        if scope_token is not None:
+            reset_tool_memory_scope(scope_token)
+        if sink_token is not None:
+            reset_tool_proposal_sink(sink_token)
+        if user_scope_token is not None:
+            reset_tool_user_scope(user_scope_token)
 
     total_ms = int((time.monotonic() - start_time) * 1000)
 
