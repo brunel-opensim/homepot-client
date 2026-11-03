@@ -8,8 +8,6 @@ Revises: 20261103_add_idempotency_to_device_command
 Create Date: 2026-11-03
 """
 
-from typing import Any
-
 from alembic import op
 import sqlalchemy as sa
 
@@ -30,24 +28,26 @@ depends_on = None
 
 def upgrade() -> None:
     """Add retry metadata to ai_action_step."""
-    columns = [
-        ("retry_count", sa.Integer(), False),
-        ("max_retries", sa.Integer(), False),
-        ("next_retry_at", sa.DateTime(), True),
-        ("last_error", sa.Text(), True),
-    ]
-    for col_name, col_type, nullable in columns:
-        if not _has_column("ai_action_step", col_name):
-            kwargs: dict[str, Any] = {"nullable": nullable}
-            if not nullable:
-                if col_name == "retry_count":
-                    kwargs["server_default"] = "0"
-                elif col_name == "max_retries":
-                    kwargs["server_default"] = "0"
-            op.add_column(
-                "ai_action_step",
-                sa.Column(col_name, col_type, **kwargs),
-            )
+    if not _has_column("ai_action_step", "retry_count"):
+        op.add_column(
+            "ai_action_step",
+            sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0"),
+        )
+    if not _has_column("ai_action_step", "max_retries"):
+        op.add_column(
+            "ai_action_step",
+            sa.Column("max_retries", sa.Integer(), nullable=False, server_default="0"),
+        )
+    if not _has_column("ai_action_step", "next_retry_at"):
+        op.add_column(
+            "ai_action_step",
+            sa.Column("next_retry_at", sa.DateTime(), nullable=True),
+        )
+    if not _has_column("ai_action_step", "last_error"):
+        op.add_column(
+            "ai_action_step",
+            sa.Column("last_error", sa.Text(), nullable=True),
+        )
 
 
 def downgrade() -> None:
