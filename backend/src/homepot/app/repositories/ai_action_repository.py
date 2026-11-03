@@ -11,7 +11,7 @@ with ``action``/``target_device_id``/``params``/``rationale``/``risk_tier``/
 any backend context.
 """
 
-from typing import Any, Iterable, List, Optional, cast
+from typing import Any, Dict, Iterable, List, Optional, cast
 import uuid
 
 from sqlalchemy import select, update
@@ -165,6 +165,61 @@ class AIActionRepository:
         )
         self.db.commit()
         return cast(int, getattr(result, "rowcount", 0)) == 1
+
+    def plan_summary(
+        self,
+        *,
+        accessible_device_ids: Optional[Iterable[str]] = None,
+        created_by: Optional[str] = None,
+        days: int = 30,
+    ) -> Dict[str, Any]:
+        """Aggregate plan counts by status for cross-session task overview.
+
+        Returns counts per status, total plans, and recent plan list.
+        """
+        from datetime import datetime, timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+        stmt = select(AIActionPlan).where(AIActionPlan.created_at >= cutoff)
+
+        if accessible_device_ids is not None:
+            device_ids = list(accessible_device_ids)
+            if not device_ids:
+                return {"total": 0, "by_status": {}, "recent": []}
+            scoped = select(AIActionStep.plan_id).where(
+                AIActionStep.target_device_id.in_(device_ids)
+            )
+            stmt = stmt.where(AIActionPlan.plan_id.in_(scoped))
+
+        if created_by is not None:
+            stmt = stmt.where(AIActionPlan.created_by == created_by)
+
+        plans = list(self.db.execute(stmt).scalars().all())
+
+        by_status: Dict[str, int] = {}
+        for plan in plans:
+            status_val = str(plan.status)
+            by_status[status_val] = by_status.get(status_val, 0) + 1
+
+        recent = [
+            {
+                "plan_id": p.plan_id,
+                "status": p.status,
+                "risk_tier": p.risk_tier,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+                "created_by": p.created_by,
+                "step_count": len(p.steps),
+            }
+            for p in sorted(plans, key=lambda x: x.created_at, reverse=True)[:10]
+        ]
+
+        return {
+            "total": len(plans),
+            "by_status": by_status,
+            "recent": recent,
+            "period_days": days,
+        }
 
     def list_plans(
         self,
