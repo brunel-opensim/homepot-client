@@ -557,6 +557,109 @@ class AIAnalyticsService:
             return {"site_id": site_id, "status": "error", "message": str(e)}
 
     @staticmethod
+    async def get_ai_action_reliability(
+        action_type: Optional[str] = None,
+        days: int = 30,
+    ) -> Dict[str, Any]:
+        """Compute per-action-type reliability metrics from AIActionOutcome.
+
+        Returns proposal acceptance rate, execution success rate, verified
+        improvement rate, and rollback effectiveness for each action type.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                from sqlalchemy import select
+
+                from homepot.app.models.AnalyticsModel import (
+                    AIActionPlan,
+                )
+
+                cutoff = datetime.utcnow() - timedelta(days=days)
+
+                plans_stmt = select(AIActionPlan).where(
+                    AIActionPlan.created_at >= cutoff
+                )
+                plans_result = await session.execute(plans_stmt)
+                plans = plans_result.scalars().all()
+
+                stats: Dict[str, Dict[str, Any]] = {}
+                for plan in plans:
+                    for step in plan.steps:
+                        at = step.action
+                        if action_type is not None and at != action_type:
+                            continue
+                        if at not in stats:
+                            stats[at] = {
+                                "proposed": 0,
+                                "approved": 0,
+                                "rejected": 0,
+                                "executed": 0,
+                                "succeeded": 0,
+                                "failed": 0,
+                                "rolled_back": 0,
+                                "verified_improvement": 0,
+                            }
+                        stats[at]["proposed"] += 1
+
+                    for approval in plan.approvals:
+                        for step in plan.steps:
+                            at = step.action
+                            if action_type is not None and at != action_type:
+                                continue
+                            if approval.decision == "approved":
+                                stats[at]["approved"] += 1
+                            elif approval.decision == "rejected":
+                                stats[at]["rejected"] += 1
+
+                    if plan.outcome is not None:
+                        outcome = plan.outcome
+                        for step in plan.steps:
+                            at = step.action
+                            if action_type is not None and at != action_type:
+                                continue
+                            if plan.status in (
+                                "executing",
+                                "succeeded",
+                                "failed",
+                                "rolled_back",
+                            ):
+                                stats[at]["executed"] += 1
+                            if plan.status == "succeeded":
+                                stats[at]["succeeded"] += 1
+                            if plan.status == "failed":
+                                stats[at]["failed"] += 1
+                            if outcome.rolled_back:
+                                stats[at]["rolled_back"] += 1
+                            if outcome.verified:
+                                stats[at]["verified_improvement"] += 1
+
+                result: Dict[str, Any] = {}
+                for at, s in stats.items():
+                    proposed = s["proposed"] or 1
+                    executed = s["executed"] or 1
+                    result[at] = {
+                        "counts": s,
+                        "rates": {
+                            "proposal_acceptance": round(s["approved"] / proposed, 4),
+                            "execution_success": round(s["succeeded"] / executed, 4),
+                            "verified_improvement": round(
+                                s["verified_improvement"] / executed, 4
+                            ),
+                            "rollback_rate": round(s["rolled_back"] / executed, 4),
+                        },
+                    }
+
+                return {
+                    "period_days": days,
+                    "action_types": result,
+                    "total_plans": len(plans),
+                }
+        except Exception as e:
+            logger.error("Failed to compute AI action reliability: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    @staticmethod
     async def get_error_frequency_analysis(
         device_id: str,
         days: int = 7,

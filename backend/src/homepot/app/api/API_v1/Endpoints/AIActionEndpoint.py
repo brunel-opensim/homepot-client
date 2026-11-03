@@ -152,6 +152,41 @@ async def get_action_plan_summary(
     )
 
 
+@router.get("/reliability", tags=["AI Action Delegation"])
+async def get_ai_reliability(
+    days: int = 30,
+    action_type: Optional[str] = None,
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Return per-action-type reliability metrics for AI delegation."""
+    from ai.analytics_service import AIAnalyticsService
+
+    return await AIAnalyticsService.get_ai_action_reliability(
+        action_type=action_type, days=days
+    )
+
+
+@router.get("/autonomy", tags=["AI Action Delegation"])
+async def get_autonomy_levels(
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Return current autonomy levels for all action types."""
+    from homepot.app.ai_ops.autonomy import get_autonomy_controller
+
+    controller = get_autonomy_controller()
+    levels = controller.all_levels()
+    return {
+        action_type: {
+            "level": level.level,
+            "sample_count": level.sample_count,
+            "success_rate": level.success_rate,
+            "rollback_proven": level.rollback_proven,
+            "last_updated": level.last_updated,
+        }
+        for action_type, level in levels.items()
+    }
+
+
 def _get_db_user(db: SASession, current_user: UserDict) -> User:
     """Load the ORM user for the authenticated caller."""
     db_user = cast(

@@ -15,7 +15,7 @@ empirical evidence that later autonomy decisions are earned from.
 """
 
 import logging
-from typing import Any, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy.orm import Session as SASession
 
@@ -386,6 +386,37 @@ def _first_device(db: SASession, plan: Any) -> Optional[Device]:
     return None
 
 
+def _capture_metrics_after(db: SASession, plan: Any) -> Optional[Dict[str, Any]]:
+    """Capture current device metrics for outcome tracking."""
+    try:
+        from homepot.app.models.AnalyticsModel import DeviceMetrics as DM
+        from homepot.models import Device as Dev
+
+        device_ids = {s.target_device_id for s in plan.steps if s.target_device_id}
+        metrics_after: dict = {}
+        for did in device_ids:
+            dev = db.query(Dev).filter(Dev.device_id == did).first()
+            if dev is not None:
+                latest = (
+                    db.query(DM)
+                    .filter(DM.device_id == dev.id)
+                    .order_by(DM.timestamp.desc())
+                    .first()
+                )
+                if latest is not None:
+                    metrics_after[did] = {
+                        "cpu_percent": latest.cpu_percent,
+                        "memory_percent": latest.memory_percent,
+                        "disk_percent": latest.disk_percent,
+                        "timestamp": (
+                            latest.timestamp.isoformat() if latest.timestamp else None
+                        ),
+                    }
+        return metrics_after if metrics_after else None
+    except Exception:
+        return None
+
+
 def _record_outcome(
     db: SASession,
     plan: Any,
@@ -408,4 +439,51 @@ def _record_outcome(
     outcome.rolled_back = rolled_back
     outcome.rollback_success = rollback_success
     outcome.error = error
+
+    # Capture metrics_before from plan evidence (stored by executor)
+    evidence = plan.evidence if isinstance(plan.evidence, dict) else {}
+    metrics_before = evidence.get("_metrics_before")
+    if metrics_before and outcome.metrics_before is None:
+        outcome.metrics_before = metrics_before
+
+    # Capture metrics_after
+    if outcome.metrics_after is None:
+        metrics_after = _capture_metrics_after(db, plan)
+        if metrics_after:
+            outcome.metrics_after = metrics_after
+
+    # Feed outcome back into long-term memory (Phase D, item 17).
+    try:
+        from ai.device_memory import DeviceMemory, MemoryScope
+
+        device_ids = {s.target_device_id for s in plan.steps if s.target_device_id}
+        for did in device_ids:
+            scope = MemoryScope(device_id=did)
+            memory = DeviceMemory()
+            status = (
+                "succeeded"
+                if verified
+                else ("rolled_back" if rolled_back else "failed")
+            )
+            text = (
+                f"AI action plan {plan.plan_id} ({plan.risk_tier}): "
+                f"status={status}, verified={verified}, "
+                f"rolled_back={rolled_back}, "
+                f"actions={[s.action for s in plan.steps]}, "
+                f"error={error or 'none'}"
+            )
+            memory.remember(
+                text,
+                scope=scope,
+                extra_metadata={
+                    "source": "ai_outcome",
+                    "plan_id": plan.plan_id,
+                    "verified": verified,
+                    "rolled_back": rolled_back,
+                    "risk_tier": plan.risk_tier,
+                },
+            )
+    except Exception:
+        pass  # Non-critical; don't block outcome recording
+
     return cast(AIActionOutcome, outcome)
