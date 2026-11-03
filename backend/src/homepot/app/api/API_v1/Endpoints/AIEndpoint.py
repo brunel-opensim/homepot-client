@@ -38,6 +38,7 @@ from ai.actions import all_reversible, max_risk_tier  # noqa: E402
 from ai.agent import run_agent  # noqa: E402
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
+from ai.config import load_ai_config  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_memory import DeviceMemory, MemoryScope  # noqa: E402
 from ai.device_resolver import DeviceResolver  # noqa: E402
@@ -1931,6 +1932,13 @@ async def _query_ai_impl(
                 "accessible_device_ids": None,
             }
 
+            # Read agent depth settings from config (Phase E, item 20).
+            _agent_cfg = load_ai_config().get("agent", {}) or {}
+            _max_iterations = _agent_cfg.get("max_iterations", 5)
+            _total_timeout = _agent_cfg.get("total_timeout_seconds", 60)
+            _planning_timeout = _agent_cfg.get("planning_timeout_seconds", 30)
+            _execution_timeout = _agent_cfg.get("execution_timeout_seconds", 60)
+
             try:
                 agent_result = await run_agent(
                     query=request.query,
@@ -1942,6 +1950,10 @@ async def _query_ai_impl(
                     user_scope=_user_scope,
                     include_repo_tools=code_access_enabled(),
                     plan_and_execute=request.plan_and_execute,
+                    max_iterations=_max_iterations,
+                    planning_timeout=_planning_timeout,
+                    execution_timeout=_execution_timeout,
+                    total_timeout=_total_timeout,
                 )
             except AIBusyError:
                 raise _ai_busy_http_exception(gate)

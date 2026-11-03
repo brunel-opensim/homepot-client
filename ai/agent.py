@@ -13,7 +13,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ai.actions import ActionProposal
 from ai.exceptions import AIBusyError
@@ -262,6 +262,7 @@ async def run_agent(
     plan_and_execute: bool = False,
     planning_timeout: Optional[int] = None,
     execution_timeout: Optional[int] = None,
+    total_timeout: Optional[int] = None,
     system_prompt: Optional[str] = None,
     include_repo_tools: bool = False,
     max_tool_bytes: Optional[int] = None,
@@ -501,8 +502,11 @@ async def run_agent(
     try:
         for iteration in range(max_iterations):
             # Check total timeout
+            _total_timeout = (
+                total_timeout if total_timeout is not None else TOTAL_TIMEOUT_SECONDS
+            )
             elapsed = time.monotonic() - start_time
-            if elapsed > TOTAL_TIMEOUT_SECONDS:
+            if elapsed > _total_timeout:
                 logger.warning(
                     "Agent loop timeout after %.1fs at iteration %d",
                     elapsed,
@@ -539,31 +543,53 @@ async def run_agent(
                 break
 
             # Execute each tool call
-            for call in response.message.tool_calls:
-                tool_name = call.function.name
-                arguments = dict(call.function.arguments)
+            tool_calls_list = response.message.tool_calls
+            # Normalize arguments: OpenAI returns JSON strings
+            normalized_calls = []
+            for call in tool_calls_list:
+                args = call.function.arguments
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except (json.JSONDecodeError, ValueError):
+                        args = {}
+                if not isinstance(args, dict):
+                    args = {}
+                normalized_calls.append((call, args))
 
-                # Record the call
+            # Execute tools in parallel when possible
+            async def _exec_one(
+                call: Any, args: Dict[str, Any]
+            ) -> Tuple[str, Dict[str, Any], str, Any]:
+                tool_name = call.function.name
                 record = ToolCallRecord(
                     tool_name=tool_name,
                     iteration=iteration + 1,
-                    arguments=arguments,
+                    arguments=args,
                 )
                 tools_called.append(record)
-
-                # Execute tool
-                result = await _execute_tool(tool_name, arguments, allowed_tool_names)
-                tool_bytes_used += len(result)
-
-                # Update record with result preview
+                result = await _execute_tool(tool_name, args, allowed_tool_names)
                 record.result_preview = result[:200]
-
                 logger.info(
                     "Agent tool call: %s(%s) -> %d chars",
                     tool_name,
-                    arguments,
+                    args,
                     len(result),
                 )
+                return tool_name, args, result, call
+
+            # Run all tool calls in parallel
+            exec_results = await asyncio.gather(
+                *[_exec_one(c, a) for c, a in normalized_calls],
+                return_exceptions=True,
+            )
+
+            for res in cast(List[Any], exec_results):
+                if isinstance(res, Exception):
+                    logger.error("Tool execution failed: %s", res)
+                    continue
+                tool_name, args, result, call = res
+                tool_bytes_used += len(result)
 
                 # Feed result back as tool message
                 messages.append(
@@ -574,8 +600,7 @@ async def run_agent(
                     }
                 )
 
-            # Stop offering tools once the per-run byte budget is spent; the
-            # forced-answer step below then wraps up with what we have.
+            # Stop offering tools once the per-run byte budget is spent
             if max_tool_bytes is not None and tool_bytes_used >= max_tool_bytes:
                 logger.info(
                     "Agent tool byte budget reached (%d >= %d); forcing answer",
@@ -583,7 +608,6 @@ async def run_agent(
                     max_tool_bytes,
                 )
                 break
-
         # If we exhausted iterations without a final answer, ask for one
         if not last_response_text:
             messages.append(

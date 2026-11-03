@@ -130,6 +130,28 @@ def _serialize_plan(plan: AIActionPlan) -> Dict[str, Any]:
     }
 
 
+@router.get("/action-plans/summary", tags=["AI Action Delegation"])
+async def get_action_plan_summary(
+    days: int = 30,
+    created_by: Optional[str] = None,
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Return cross-session task aggregation (counts by status + recent plans)."""
+    db_user = _get_db_user(db, current_user)
+    repo = AIActionRepository(db)
+
+    accessible = None
+    if not db_user.is_admin:
+        accessible = _accessible_device_ids(db, db_user)
+
+    return repo.plan_summary(
+        accessible_device_ids=accessible,
+        created_by=created_by,
+        days=days,
+    )
+
+
 @router.get("/reliability", tags=["AI Action Delegation"])
 async def get_ai_reliability(
     days: int = 30,

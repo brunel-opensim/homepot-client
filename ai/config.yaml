@@ -4,6 +4,14 @@ app:
   host: "0.0.0.0"
   port: 8001
 
+agent:
+  # ReAct loop settings for the agentic investigation path.
+  max_iterations: 5            # max tool-calling rounds per query
+  total_timeout_seconds: 60    # hard cap for the entire run
+  planning_timeout_seconds: 30  # planning phase timeout (plan-and-execute mode)
+  execution_timeout_seconds: 60 # execution phase timeout (plan-and-execute mode)
+  tool_result_max_chars: 1500   # max chars per tool result fed back to the LLM
+
 llm:
   # Provider selection: "ollama" (local), "openai", or "anthropic".
   # For demo sessions with limited server resources, use "openai" or
