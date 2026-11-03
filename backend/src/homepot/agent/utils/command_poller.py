@@ -937,7 +937,11 @@ def _set_windows_volume_ctypes(pct: int) -> Dict[str, Any]:
         hr_mute_after = get_mute(vol_ptr, ctypes.byref(mute_after))
         is_muted_after = bool(mute_after.value) if hr_mute_after == 0 else False
 
-        verified = after_pct is not None and after_pct == pct and not is_muted_after
+        # Use tolerance (±1%) for read-back comparison — hardware rounding
+        # can produce 49 or 51 instead of 50 on some audio drivers.
+        verified = (
+            after_pct is not None and abs(after_pct - pct) <= 1 and not is_muted_after
+        )
         status = "applied" if verified else "failed"
         if was_muted and not is_muted_after:
             msg = f"volume set to {pct}% (was muted, now unmuted)"
@@ -1056,7 +1060,8 @@ def _config_appliers(platform_name: str) -> Dict[str, Any]:
                 "    try {\n"
                 "        $wmi = Get-WmiObject -Namespace root/WMI `\n"
                 "            -Class WmiMonitorBrightnessMethods -ErrorAction Stop\n"
-                "        if ($wmi) { $wmi.WmiSetBrightness(1, [byte]$pct); $rc = 0; "
+                "        if ($wmi) { $wmiPct = [Math]::Max(1, [Math]::Min(99, $pct)); "
+                "$wmi.WmiSetBrightness(1, [byte]$wmiPct); $rc = 0; "
                 "            Write-Output 'WMI: succeeded' }\n"
                 '    } catch { Write-Output "WMI: FAILED ($_ )" }\n'
                 "    Start-Sleep -Seconds 2\n"
