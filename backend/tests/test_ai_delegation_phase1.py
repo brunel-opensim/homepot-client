@@ -16,6 +16,10 @@ workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
+import pytest  # noqa: E402
+from sqlalchemy import create_engine, select  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
 from ai.actions import (  # noqa: E402
     ACTION_REGISTRY,
     ActionProposal,
@@ -29,10 +33,6 @@ from ai.tools import (  # noqa: E402
     reset_tool_proposal_sink,
     set_tool_proposal_sink,
 )
-import pytest  # noqa: E402
-from sqlalchemy import create_engine, select  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-
 from homepot.app.models.AnalyticsModel import AIActionPlan, AIActionStep  # noqa: E402
 from homepot.app.repositories.ai_action_repository import (  # noqa: E402
     AIActionRepository,
@@ -44,13 +44,27 @@ from homepot.models import Base  # noqa: E402
 # ── Action registry tests ────────────────────────────────────────────────────
 
 
-def test_registry_declares_only_t2_actions():
-    """v1 deliberately exposes only reversible T2 actions."""
-    assert set(ACTION_REGISTRY) == {"update_config", "restart"}
-    for spec in ACTION_REGISTRY.values():
-        assert spec.risk_tier == "T2"
-        assert spec.reversible is True
-        assert spec.required_permission == "root_access"
+def test_registry_declares_expected_actions():
+    """Registry declares T1/T2/T3 actions with correct risk tiers."""
+    expected = {
+        "health_check",
+        "list_processes",
+        "scan_filesystem",
+        "update_config",
+        "restart",
+        "rollback_config",
+        "restart_service",
+    }
+    assert set(ACTION_REGISTRY) == expected
+    # T1 read-only actions
+    for name in ("health_check", "list_processes", "scan_filesystem"):
+        assert ACTION_REGISTRY[name].risk_tier == "T1"
+    # T2 reversible actions
+    for name in ("update_config", "restart", "rollback_config"):
+        assert ACTION_REGISTRY[name].risk_tier == "T2"
+        assert ACTION_REGISTRY[name].reversible is True
+    # T3 disruptive action
+    assert ACTION_REGISTRY["restart_service"].risk_tier == "T3"
 
 
 def test_validate_proposal_accepts_known_action():
@@ -98,12 +112,13 @@ def test_max_risk_tier_and_all_reversible():
 # ── propose_device_action tool tests ─────────────────────────────────────────
 
 
-def test_tool_captures_validated_proposal_in_sink():
+@pytest.mark.asyncio
+async def test_tool_captures_validated_proposal_in_sink():
     """The tool appends a validated proposal to the bound sink."""
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
-        result = propose_device_action(
+        result = await propose_device_action(
             action="update_config",
             target_device_id="POS-001",
             rationale="config drift",
@@ -119,24 +134,26 @@ def test_tool_captures_validated_proposal_in_sink():
         reset_tool_proposal_sink(token)
 
 
-def test_tool_rejects_unknown_action():
+@pytest.mark.asyncio
+async def test_tool_rejects_unknown_action():
     """The tool refuses to record an action outside the registry."""
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
-        result = propose_device_action("shutdown", "POS-001", "nuke it")
+        result = await propose_device_action("shutdown", "POS-001", "nuke it")
         assert "rejected" in result.lower()
         assert sink == []
     finally:
         reset_tool_proposal_sink(token)
 
 
-def test_tool_rejects_invalid_json_params():
+@pytest.mark.asyncio
+async def test_tool_rejects_invalid_json_params():
     """Non-JSON params are rejected, not silently dropped."""
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
-        result = propose_device_action(
+        result = await propose_device_action(
             "update_config", "POS-001", "why", params="not json"
         )
         assert "Invalid params" in result
@@ -145,10 +162,11 @@ def test_tool_rejects_invalid_json_params():
         reset_tool_proposal_sink(token)
 
 
-def test_tool_without_sink_does_not_crash():
+@pytest.mark.asyncio
+async def test_tool_without_sink_does_not_crash():
     """Calling the tool with no active sink reports nothing was recorded."""
     assert get_tool_proposal_sink() is None
-    result = propose_device_action("restart", "POS-001", "stuck")
+    result = await propose_device_action("restart", "POS-001", "stuck")
     assert "no proposal sink" in result
 
 
