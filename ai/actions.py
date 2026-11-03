@@ -63,9 +63,7 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="process_monitoring",
         min_role="viewer",
-        description=(
-            "List running processes on a device. Read-only; no state change."
-        ),
+        description=("List running processes on a device. Read-only; no state change."),
         required_params=(),
     ),
     "scan_filesystem": ActionSpec(
@@ -75,9 +73,7 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="root_access",
         min_role="operator",
-        description=(
-            "Scan the filesystem of a device. Read-only; no state change."
-        ),
+        description=("Scan the filesystem of a device. Read-only; no state change."),
         required_params=(),
     ),
     # --- T2: Reversible ---
