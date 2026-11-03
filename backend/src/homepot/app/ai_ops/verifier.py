@@ -104,9 +104,18 @@ async def _reconcile_executing(db: SASession, plan: Any, db_service: Any = None)
 
     for step in plan.steps:
         if not step.command_id:
-            # Step hasn't been dispatched yet (pending dependency or approval)
-            if step.status in ("pending", "approved", "awaiting_approval"):
+            # Step hasn't been dispatched yet (pending dependency, approval, or deferred)
+            if step.status in ("pending", "approved", "awaiting_approval", "deferred"):
                 all_done = False
+            # Re-check deferred steps (maintenance window may have opened)
+            if step.status == "deferred":
+                from homepot.app.ai_ops.policy import evaluate_step
+
+                step_policy = evaluate_step(db, step, plan=plan)
+                if step_policy.allowed:
+                    step.status = "pending"
+                    step.error = None
+                    db.commit()
             continue
         command = await db_service.get_command(step.command_id)
         status = _status_value(command)
@@ -136,6 +145,45 @@ async def _reconcile_executing(db: SASession, plan: Any, db_service: Any = None)
                     step.completed_at = utc_now()
 
         if step.status == "failed":
+            # Determine if this is a per-key failure (command completed but
+            # individual config keys failed) vs a transport-level failure
+            # (command status was failed/expired/cancelled). Only retry
+            # transport-level failures; per-key failures are not transient.
+            is_transport_failure = (
+                status in ("failed", "expired", "cancelled")
+                if status is not None
+                else False
+            )
+
+            # Check if we can retry (only transport-level failures)
+            retry_count = getattr(step, "retry_count", 0)
+            if retry_count is None:
+                retry_count = 0
+            max_retries = getattr(step, "max_retries", 0)
+            if max_retries is None:
+                max_retries = 0
+            next_retry_at = getattr(step, "next_retry_at", None)
+
+            if is_transport_failure and retry_count < max_retries:
+                now = utc_now()
+                if next_retry_at is None or now >= next_retry_at:
+                    # Retry: reset step for re-dispatch
+                    step.retry_count = retry_count + 1
+                    step.last_error = step.error
+                    step.status = "pending"
+                    step.command_id = None
+                    step.error = None
+                    step.next_retry_at = None
+                    db.commit()
+                    logger.info(
+                        "Retrying step %s (attempt %d/%d)",
+                        step.step_id,
+                        retry_count + 1,
+                        max_retries,
+                    )
+                    all_done = False
+                    continue
+            # Retries exhausted, not a transport failure, or backoff not elapsed
             any_failed = True
             # Block transitive dependents
             _block_dependents(plan, step.step_id)
@@ -168,7 +216,13 @@ async def _reconcile_executing(db: SASession, plan: Any, db_service: Any = None)
 
     # all_done only when no step is pending/queued/running/awaiting_approval
     for step in plan.steps:
-        if step.status in ("pending", "queued", "running", "awaiting_approval"):
+        if step.status in (
+            "pending",
+            "queued",
+            "running",
+            "awaiting_approval",
+            "deferred",
+        ):
             all_done = False
             break
 

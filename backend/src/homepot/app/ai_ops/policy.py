@@ -17,12 +17,14 @@ A blocked plan is recorded as such (``status='blocked'``) and never executed.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session as SASession
 
 from homepot.app.ai_ops.registry import get_action_spec
-from homepot.models import Device, LifecycleState
+from homepot.app.models.AnalyticsModel import SiteOperatingSchedule
+from homepot.models import Device, LifecycleState, Site
 
 MAX_DEVICES_PER_PLAN = 5
 ALLOWED_RISK_TIERS: Tuple[str, ...] = ("T1", "T2", "T3")
@@ -48,6 +50,32 @@ def _lifecycle_value(device: Device) -> Any:
 def _permissions(device: Device) -> Dict[str, bool]:
     perms = device.device_permissions
     return perms if isinstance(perms, dict) else {}
+
+
+def is_maintenance_window(db: SASession, device: Device) -> bool:
+    """Check if the device's site is currently in a maintenance window.
+
+    Returns True if the site has is_maintenance_window=True for today's
+    day of week. Returns False if no schedule exists or it's not a
+    maintenance window.
+    """
+    if device.site_id is None:
+        return False
+    try:
+        today = datetime.now(timezone.utc).weekday()
+        schedule = (
+            db.query(SiteOperatingSchedule)
+            .filter(
+                SiteOperatingSchedule.site_id == device.site_id,
+                SiteOperatingSchedule.day_of_week == today,
+            )
+            .first()
+        )
+        if schedule is None:
+            return False
+        return bool(schedule.is_maintenance_window)
+    except Exception:
+        return False
 
 
 def evaluate_plan(
@@ -165,6 +193,15 @@ def evaluate_step(
     # Evaluate preconditions if present
     precond_errors = _evaluate_preconditions(step, db, device)
     reasons.extend(precond_errors)
+
+    # Maintenance window check for disruptive (T3) actions
+    spec = get_action_spec(step.action)
+    if spec is not None and spec.risk_tier == "T3":
+        if not is_maintenance_window(db, device):
+            reasons.append(
+                f"Device '{device_id}' site is not in a maintenance window; "
+                f"disruptive action '{step.action}' deferred."
+            )
 
     return PolicyResult(allowed=not reasons, reasons=reasons)
 

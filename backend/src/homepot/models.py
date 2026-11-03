@@ -604,6 +604,11 @@ class DeviceCommand(Base):
     # existed have no actor, and an empty queue is not an error.
     issued_by = Column(String(255), nullable=True, index=True)
 
+    # Idempotency key for duplicate prevention (Phase C, Item 12).
+    # If a command with the same (device_id, idempotency_key) already exists,
+    # the new insert is skipped and the existing command is returned.
+    idempotency_key = Column(String(36), nullable=True, index=True)
+
     created_at = Column(DateTime(timezone=True), default=utc_now)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)

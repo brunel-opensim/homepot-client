@@ -12,6 +12,7 @@ any backend context.
 """
 
 from typing import Any, Iterable, List, Optional, cast
+import uuid
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -78,6 +79,7 @@ class AIActionRepository:
                     target_device_id=proposal.target_device_id,
                     params=proposal.params or {},
                     status="pending",
+                    idempotency_key=str(uuid.uuid4()),
                 )
             )
 

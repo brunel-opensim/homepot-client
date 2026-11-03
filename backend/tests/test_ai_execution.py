@@ -84,6 +84,7 @@ class FakeCommandService:
         command_type: str,
         payload: Optional[Dict[str, Any]] = None,
         issued_by: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> SimpleNamespace:
         """Record and return a fake device command."""
         command = SimpleNamespace(
@@ -94,6 +95,7 @@ class FakeCommandService:
             issued_by=issued_by,
             status="pending",
             result=None,
+            idempotency_key=idempotency_key,
         )
         self.created.append(command)
         self.commands[command.command_id] = command
