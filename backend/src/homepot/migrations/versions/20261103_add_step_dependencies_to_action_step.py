@@ -16,6 +16,7 @@ Create Date: 2026-11-03
 
 from alembic import op
 import sqlalchemy as sa
+from typing import Any
 
 revision = "20261103_add_step_dependencies_to_action_step"
 down_revision = "20261102_add_investigation_links_to_action_plan"
@@ -52,7 +53,7 @@ def upgrade() -> None:
     ]
     for col_name, col_type, nullable in columns:
         if not _has_column("ai_action_step", col_name):
-            kwargs = {"nullable": nullable}
+            kwargs: dict[str, Any] = {"nullable": nullable}
             if col_name == "approval_required":
                 kwargs["server_default"] = sa.text("false")
             op.add_column(
