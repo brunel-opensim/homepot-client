@@ -919,6 +919,11 @@ const api = {
       const response = await apiClient.get('/ai/autonomy');
       return response.data;
     },
+
+    getCalibration: async (days = 30) => {
+      const response = await apiClient.get('/ai/calibration', { params: { days } });
+      return response.data;
+    },
   },
 
   // Investigation sessions (backend-owned AI investigations).
