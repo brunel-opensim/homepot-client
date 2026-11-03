@@ -14,9 +14,10 @@ Revises: 20261102_add_investigation_links_to_action_plan
 Create Date: 2026-11-03
 """
 
+from typing import Any
+
 from alembic import op
 import sqlalchemy as sa
-from typing import Any
 
 revision = "20261103_add_step_dependencies_to_action_step"
 down_revision = "20261102_add_investigation_links_to_action_plan"
