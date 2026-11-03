@@ -761,32 +761,32 @@ action type earns autonomy.
 ### 17.7 Implementation status (as built, November 2026)
 
 Phases A–E are merged and deployed (PRs #751–#757). This matrix maps every
-roadmap item to its as-built location. Legend: ✅ implemented · ⚠️ partial ·
-❌ not implemented.
+roadmap item to its as-built location. Legend: **Done** = implemented,
+**Partial** = partially implemented, **Open** = not implemented.
 
 | # | Item | Status | Where |
 |---|---|---|---|
-| A1 | Task graph model (`depends_on_step_id`) | ✅ | migration `20261103_add_step_dependencies_to_action_step`; `AIActionStep` model |
-| A2 | Dependency-aware execution + pre/postconditions | ✅ | `ai_ops/executor.py` (`_is_step_ready`, `dispatch_ready_steps`), `ai_ops/policy.py` (`_evaluate_preconditions`), `ai_ops/verifier.py` (`_evaluate_postconditions`) |
-| A3 | Checkpoints & cancellation | ✅ | `POST /ai/action-plans/{id}/cancel`; step state in DB + `ai_ops/reconcile.py` resumes `executing` plans |
-| A4 | Per-step approval gates | ❌ | `ai_action_step.approval_required` and the `executor.py` gate exist, but nothing sets the flag and there is no step-level approve API/UI — a gated step would wait forever |
-| B5 | Registry breadth | ⚠️ | `ai/actions.py`: T1 `health_check`/`list_processes`/`scan_filesystem`, T2 `rollback_config`, T3 `restart_service`; **no fleet-wide actions** |
-| B6 | Plan status query tool | ✅ | `ai/tools.py::get_action_plan_status` |
-| B7 | Plan-and-execute agent mode | ✅ | `ai/agent.py` (`plan_and_execute`, `_parse_plan`) |
-| B8 | Per-device RBAC in tools | ✅ | `ai/tools.py::_check_device_access` |
-| B9 | Gate B on tool I/O | ⚠️ | `ai/agent.py` annotates empty/error tool output; the full `DataIntegrityGate` is not applied |
-| C10 | Maintenance-window integration | ✅ | `ai_ops/policy.py::is_maintenance_window`; deferred steps re-checked in `verifier.py` |
-| C11 | Dry-run / simulation preview | ⚠️ | `POST /ai/action-plans/{id}/dry-run`; no UI control and no simulator integration |
-| C12 | Idempotency keys | ✅ | `ai_action_step.idempotency_key` → `create_device_command`; migration `20261103_add_idempotency_to_device_command` |
-| C13 | Retry with backoff | ❌ | `retry_count`/`max_retries`/`next_retry_at` plumbing exists, but steps are created with `max_retries=0` and no future `next_retry_at` is scheduled — retries never fire; no alternative/escalation |
-| D14 | Reliability metrics | ✅ | `ai/analytics_service.py::get_ai_action_reliability` |
-| D15 | Confidence calibration | ❌ | Not implemented; gate constants remain paper-informed |
-| D16 | Autonomy controller | ⚠️ | `ai_ops/autonomy.py` (levels 0–3); not hydrated from reliability and not consulted before execution, so `GET /ai/autonomy` returns `{}` |
-| D17 | Outcome feedback to memory | ✅ | `ai_ops/verifier.py::_record_outcome` → `DeviceMemory` |
-| D18 | Analytics dashboard | ✅ | `frontend/src/pages/AIProposals/AIReliabilityPanel.jsx` |
-| E19 | Parallel tool calls | ✅ | `ai/agent.py` (`asyncio.gather`) |
-| E20 | Extended timeout / deeper iterations | ⚠️ | Configurable via `ai/config.yaml` `agent:` and `run_agent` params; shipped defaults remain 5 iterations / 60 s |
-| E21 | Cross-session task aggregation | ✅ | `GET /ai/action-plans/summary`, `AIActionRepository.plan_summary`, UI panel |
+| A1 | Task graph model (`depends_on_step_id`) | Done | migration `20261103_add_step_dependencies_to_action_step`; `AIActionStep` model |
+| A2 | Dependency-aware execution + pre/postconditions | Done | `ai_ops/executor.py` (`_is_step_ready`, `dispatch_ready_steps`), `ai_ops/policy.py` (`_evaluate_preconditions`), `ai_ops/verifier.py` (`_evaluate_postconditions`) |
+| A3 | Checkpoints & cancellation | Done | `POST /ai/action-plans/{id}/cancel`; step state in DB + `ai_ops/reconcile.py` resumes `executing` plans |
+| A4 | Per-step approval gates | Open | `ai_action_step.approval_required` and the `executor.py` gate exist, but nothing sets the flag and there is no step-level approve API/UI — a gated step would wait forever |
+| B5 | Registry breadth | Partial | `ai/actions.py`: T1 `health_check`/`list_processes`/`scan_filesystem`, T2 `rollback_config`, T3 `restart_service`; **no fleet-wide actions** |
+| B6 | Plan status query tool | Done | `ai/tools.py::get_action_plan_status` |
+| B7 | Plan-and-execute agent mode | Done | `ai/agent.py` (`plan_and_execute`, `_parse_plan`) |
+| B8 | Per-device RBAC in tools | Done | `ai/tools.py::_check_device_access` |
+| B9 | Gate B on tool I/O | Partial | `ai/agent.py` annotates empty/error tool output; the full `DataIntegrityGate` is not applied |
+| C10 | Maintenance-window integration | Done | `ai_ops/policy.py::is_maintenance_window`; deferred steps re-checked in `verifier.py` |
+| C11 | Dry-run / simulation preview | Partial | `POST /ai/action-plans/{id}/dry-run`; no UI control and no simulator integration |
+| C12 | Idempotency keys | Done | `ai_action_step.idempotency_key` → `create_device_command`; migration `20261103_add_idempotency_to_device_command` |
+| C13 | Retry with backoff | Open | `retry_count`/`max_retries`/`next_retry_at` plumbing exists, but steps are created with `max_retries=0` and no future `next_retry_at` is scheduled — retries never fire; no alternative/escalation |
+| D14 | Reliability metrics | Done | `ai/analytics_service.py::get_ai_action_reliability` |
+| D15 | Confidence calibration | Open | Not implemented; gate constants remain paper-informed |
+| D16 | Autonomy controller | Partial | `ai_ops/autonomy.py` (levels 0–3); not hydrated from reliability and not consulted before execution, so `GET /ai/autonomy` returns `{}` |
+| D17 | Outcome feedback to memory | Done | `ai_ops/verifier.py::_record_outcome` → `DeviceMemory` |
+| D18 | Analytics dashboard | Done | `frontend/src/pages/AIProposals/AIReliabilityPanel.jsx` |
+| E19 | Parallel tool calls | Done | `ai/agent.py` (`asyncio.gather`) |
+| E20 | Extended timeout / deeper iterations | Partial | Configurable via `ai/config.yaml` `agent:` and `run_agent` params; shipped defaults remain 5 iterations / 60 s |
+| E21 | Cross-session task aggregation | Done | `GET /ai/action-plans/summary`, `AIActionRepository.plan_summary`, UI panel |
 
 **Remaining work:**
 
