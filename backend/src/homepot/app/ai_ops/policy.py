@@ -25,7 +25,7 @@ from homepot.app.ai_ops.registry import get_action_spec
 from homepot.models import Device, LifecycleState
 
 MAX_DEVICES_PER_PLAN = 5
-ALLOWED_RISK_TIERS: Tuple[str, ...] = ("T1", "T2")
+ALLOWED_RISK_TIERS: Tuple[str, ...] = ("T1", "T2", "T3")
 
 # Sentinel so a missing device (``None``) is cached and not re-queried.
 _MISSING: Any = object()

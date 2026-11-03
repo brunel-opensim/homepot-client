@@ -1915,6 +1915,15 @@ async def _query_ai_impl(
             await _publish_investigation_event(
                 request, "llm_started", {"mode": "agentic"}
             )
+            # Build user scope for per-device RBAC in tools.
+            _user_scope: Optional[Dict[str, Any]] = {
+                "role": current_user.get("role", "viewer"),
+                "accessible_site_ids": (
+                    list(site_scope) if site_scope is not None else None
+                ),
+                "accessible_device_ids": None,
+            }
+
             try:
                 agent_result = await run_agent(
                     query=request.query,
@@ -1923,6 +1932,7 @@ async def _query_ai_impl(
                     device_id=request.device_id,
                     gate=gate,
                     memory_scope=memory_scope,
+                    user_scope=_user_scope,
                     include_repo_tools=code_access_enabled(),
                 )
             except AIBusyError:
