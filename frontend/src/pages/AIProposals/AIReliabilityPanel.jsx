@@ -31,31 +31,44 @@ export default function AIReliabilityPanel() {
   const [autonomy, setAutonomy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({});
 
   const fetchAll = useCallback(async () => {
     try {
-      setError(null);
       const [summaryData, reliabilityData, autonomyData] = await Promise.allSettled([
         api.ai.getPlanSummary(30, null),
         api.ai.getReliability(30, null),
         api.ai.getAutonomy(),
       ]);
+
+      const nextErrors = {};
+
       if (summaryData.status === 'fulfilled') {
         setSummary(summaryData.value);
+      } else {
+        nextErrors.summary = apiHelpers.formatError(summaryData.reason);
       }
+
       if (reliabilityData.status === 'fulfilled') {
-        setReliability(reliabilityData.value);
+        // The backend reports internal failures as HTTP 200 with
+        // { status: 'error', message } rather than a rejected request.
+        if (reliabilityData.value?.status === 'error') {
+          nextErrors.reliability =
+            reliabilityData.value?.message || 'Reliability metrics unavailable.';
+        } else {
+          setReliability(reliabilityData.value);
+        }
+      } else {
+        nextErrors.reliability = apiHelpers.formatError(reliabilityData.reason);
       }
+
       if (autonomyData.status === 'fulfilled') {
         setAutonomy(autonomyData.value);
+      } else {
+        nextErrors.autonomy = apiHelpers.formatError(autonomyData.reason);
       }
-      const rejected = [summaryData, reliabilityData, autonomyData].find(
-        (r) => r.status === 'rejected'
-      );
-      if (rejected) {
-        setError(apiHelpers.formatError(rejected.reason));
-      }
+
+      setErrors(nextErrors);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -112,9 +125,20 @@ export default function AIReliabilityPanel() {
         </Button>
       </div>
 
-      {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+      {Object.keys(errors).length > 0 && (
+        <div className="mt-3 text-sm text-yellow-400">
+          <p>Some AI metrics could not be loaded:</p>
+          <ul className="list-disc list-inside">
+            {Object.entries(errors).map(([section, message]) => (
+              <li key={section}>
+                {section}: {message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-      {!error && summary && (
+      {summary && (
         <>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="rounded-lg border border-border bg-[#0b0e13] p-3">
@@ -140,10 +164,6 @@ export default function AIReliabilityPanel() {
               </div>
             </div>
           </div>
-
-          {!summary.recent?.length && (
-            <p className="mt-4 text-sm text-gray-500">No delegated tasks in this window.</p>
-          )}
 
           {summary.recent?.length > 0 && (
             <div className="mt-4">
@@ -172,7 +192,7 @@ export default function AIReliabilityPanel() {
         </>
       )}
 
-      {!error && (
+      {reliability && (
         <div className="mt-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
             <Sparkles className="h-3.5 w-3.5" />
@@ -221,7 +241,7 @@ export default function AIReliabilityPanel() {
         </div>
       )}
 
-      {!error && autonomy && Object.keys(autonomy).length > 0 && (
+      {autonomy && Object.keys(autonomy).length > 0 && (
         <div className="mt-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Autonomy levels</p>
           <div className="flex flex-wrap gap-2">
