@@ -1055,6 +1055,14 @@ const api = {
       const response = await apiClient.post(`/ai/action-plans/${planId}/execute`);
       return response.data;
     },
+
+    /**
+     * Dry-run an action plan (non-destructive preview). No commands are queued.
+     */
+    dryRun: async (planId) => {
+      const response = await apiClient.post(`/ai/action-plans/${planId}/dry-run`);
+      return response.data;
+    },
   },
 };
 
