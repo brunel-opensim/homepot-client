@@ -19,8 +19,8 @@ from typing import Any, Optional, cast
 
 from sqlalchemy.orm import Session as SASession
 
-from homepot.app.ai_ops.rollback import ROLLBACK_COMMAND_KEY, begin_rollback
 from homepot.app.ai_ops.executor import dispatch_ready_steps
+from homepot.app.ai_ops.rollback import ROLLBACK_COMMAND_KEY, begin_rollback
 from homepot.app.models.AnalyticsModel import AIActionOutcome, utc_now
 from homepot.database import get_database_service
 from homepot.models import Device, derive_provenance
