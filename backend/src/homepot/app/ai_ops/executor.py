@@ -235,6 +235,39 @@ async def start_execution(
         db.commit()
         return plan, policy
 
+    # Capture metrics_before snapshot for outcome tracking (Phase D).
+    try:
+        from homepot.app.models.AnalyticsModel import DeviceMetrics as DM
+        from homepot.models import Device as Dev
+
+        device_ids = {s.target_device_id for s in plan.steps if s.target_device_id}
+        metrics_before: dict = {}
+        for did in device_ids:
+            dev = db.query(Dev).filter(Dev.device_id == did).first()
+            if dev is not None:
+                latest = (
+                    db.query(DM)
+                    .filter(DM.device_id == dev.id)
+                    .order_by(DM.timestamp.desc())
+                    .first()
+                )
+                if latest is not None:
+                    metrics_before[did] = {
+                        "cpu_percent": latest.cpu_percent,
+                        "memory_percent": latest.memory_percent,
+                        "disk_percent": latest.disk_percent,
+                        "timestamp": (
+                            latest.timestamp.isoformat() if latest.timestamp else None
+                        ),
+                    }
+        if metrics_before:
+            # Persist in plan evidence so the verifier can read it back
+            evidence = plan.evidence if isinstance(plan.evidence, dict) else {}
+            evidence["_metrics_before"] = metrics_before
+            plan.evidence = evidence
+    except Exception:
+        pass  # Non-critical; don't block execution
+
     # Validate dependency graph (no cycles, no missing targets)
     from homepot.app.ai_ops.policy import validate_dependencies
 
