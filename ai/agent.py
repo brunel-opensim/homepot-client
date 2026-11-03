@@ -13,7 +13,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ai.actions import ActionProposal
 from ai.exceptions import AIBusyError
@@ -558,7 +558,9 @@ async def run_agent(
                 normalized_calls.append((call, args))
 
             # Execute tools in parallel when possible
-            async def _exec_one(call, args):
+            async def _exec_one(
+                call: Any, args: Dict[str, Any]
+            ) -> Tuple[str, Dict[str, Any], str, Any]:
                 tool_name = call.function.name
                 record = ToolCallRecord(
                     tool_name=tool_name,
@@ -582,7 +584,7 @@ async def run_agent(
                 return_exceptions=True,
             )
 
-            for res in exec_results:
+            for res in cast(List[Any], exec_results):
                 if isinstance(res, Exception):
                     logger.error("Tool execution failed: %s", res)
                     continue
