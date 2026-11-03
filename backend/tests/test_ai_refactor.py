@@ -15,6 +15,7 @@ if workspace_root not in sys.path:
 from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_resolver import DeviceResolver  # noqa: E402
 from ai.prompts import PromptManager  # noqa: E402
+
 from homepot.models import AuditLog, HealthCheck  # noqa: E402
 
 
