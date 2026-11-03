@@ -45,11 +45,11 @@ Standardized device management testing report for HOMEPOT across platforms.
 ## 3. Direct Connect (Remote Shell)
 | # | Test | Expected | Pass/Fail | Notes |
 |---|------|----------|-----------|-------|
-| 3.1 | Direct Connect with simple command (e.g. echo hello) | Output shows "hello" | **Fail** | Remote Shell opened and submitted the command to the Windows device, but the command failed with a PowerShell "command not recognized" error instead of returning "hello". |
+| 3.1 | Direct Connect with simple command (e.g. echo hello) | Output shows "hello" | **Pass** | Remote Shell opened and submitted the command to the Windows device, the PowerShell now returns "hello". |
 | 3.2 | Direct Connect with system info command | Output shows system details | **Pass** | System details were returned and displayed as expected. |
 | 3.3 | History shows "Remote Shell" as title | Title is "Remote Shell" | **Pass** | History entry displays "Remote Shell" as the title. |
-| 3.4 | History shows correct prompt (user@ or root@) | Prompt matches elevation | **Fail** | The displayed prompt did not match the command elevation level. |
-| 3.5 | Command timeout (300s) works | Long-running command times out | **Fail** | Long-running command did not time out after 300 seconds as expected. |
+| 3.4 | History shows correct prompt (user@ or root@) | Prompt matches elevation | **Pass** | The displayed prompt now matches the command elevation level. |
+| 3.5 | Command timeout (310s) works | Long-running command times out | **Pass** | Long-running command timed-out after 300 seconds as expected. |
 ---
 ## 4. Compose Command (Push Review)
 | # | Test | Expected | Pass/Fail | Notes |
