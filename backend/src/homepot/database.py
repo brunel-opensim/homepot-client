@@ -948,11 +948,31 @@ class DatabaseService:
         command_type: str,
         payload: Optional[Dict[str, Any]] = None,
         issued_by: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
     ) -> DeviceCommand:
-        """Create a new device command, recording who issued it."""
+        """Create a new device command, recording who issued it.
+
+        If ``idempotency_key`` is provided and a command with the same
+        (device_id, idempotency_key) already exists, the existing command
+        is returned instead of creating a duplicate.
+        """
         import uuid
 
+        from sqlalchemy import select
+
         async with self.get_session() as session:
+            # Idempotency check: return existing command if key matches
+            if idempotency_key is not None:
+                existing = await session.execute(
+                    select(DeviceCommand).where(
+                        DeviceCommand.device_id == device_id,
+                        DeviceCommand.idempotency_key == idempotency_key,
+                    )
+                )
+                existing_cmd = existing.scalar_one_or_none()
+                if existing_cmd is not None:
+                    return existing_cmd
+
             command = DeviceCommand(
                 command_id=str(uuid.uuid4()),
                 device_id=device_id,
@@ -960,6 +980,7 @@ class DatabaseService:
                 payload=payload,
                 status=CommandStatus.PENDING,
                 issued_by=issued_by,
+                idempotency_key=idempotency_key,
             )
             session.add(command)
             await session.commit()

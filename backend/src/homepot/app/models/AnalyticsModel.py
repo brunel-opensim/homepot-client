@@ -475,6 +475,12 @@ class AIActionStep(Base):
     # Idempotency key to prevent duplicate dispatch on retry.
     idempotency_key = Column(String(36), nullable=True, unique=True)
 
+    # Phase C: Retry policy (Item 13).
+    retry_count = Column(Integer, nullable=False, default=0)
+    max_retries = Column(Integer, nullable=False, default=0)
+    next_retry_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+
     status = Column(String(20), nullable=False, default="pending")
     command_id = Column(String(36), nullable=True)  # links to device_commands
 

@@ -88,6 +88,15 @@ def _serialize_plan(plan: AIActionPlan) -> Dict[str, Any]:
                 ),
                 "approval_required": getattr(step, "approval_required", False),
                 "command_id": getattr(step, "command_id", None),
+                "retry_count": getattr(step, "retry_count", 0),
+                "max_retries": getattr(step, "max_retries", 3),
+                "next_retry_at": (
+                    step.next_retry_at.isoformat()
+                    if getattr(step, "next_retry_at", None)
+                    else None
+                ),
+                "last_error": getattr(step, "last_error", None),
+                "idempotency_key": getattr(step, "idempotency_key", None),
             }
             for step in plan.steps
         ],
@@ -369,6 +378,72 @@ async def cancel_action_plan(
         targets,
     )
     return _serialize_plan(plan)
+
+
+@router.post("/action-plans/{plan_id}/dry-run", tags=["AI Action Delegation"])
+async def dry_run_action_plan(
+    plan_id: str,
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Dry-run an AI action plan (non-destructive preview).
+
+    Re-runs policy checks and computes predicted outcomes for each step
+    without queueing any commands. Returns policy reasons and per-step
+    predicted changes.
+    """
+    db_user = _get_db_user(db, current_user)
+    repo = AIActionRepository(db)
+    plan = repo.get_plan(plan_id)
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
+        )
+
+    _authorize_plan(db, db_user, plan)
+
+    from homepot.app.ai_ops.executor import applied_config
+    from homepot.app.ai_ops.policy import evaluate_plan, evaluate_step
+
+    policy = evaluate_plan(db, plan)
+
+    step_previews = []
+    for step in plan.steps:
+        step_policy = evaluate_step(db, step, plan=plan)
+        preview: Dict[str, Any] = {
+            "seq": step.seq,
+            "action": step.action,
+            "target_device_id": step.target_device_id,
+            "policy_allowed": step_policy.allowed,
+            "policy_reasons": step_policy.reasons,
+        }
+        # Compute predicted change
+        if step.action in ("update_config", "rollback_config"):
+            config = applied_config(step)
+            preview["predicted_change"] = {
+                "config_keys": list(config.keys()),
+                "values": config,
+            }
+        elif step.action == "restart":
+            preview["predicted_change"] = {"action": "device restart"}
+        elif step.action == "restart_service":
+            params = step.params or {}
+            preview["predicted_change"] = {
+                "action": f"restart service: {params.get('service_name', 'unknown')}"
+            }
+        elif step.action in ("health_check", "list_processes", "scan_filesystem"):
+            preview["predicted_change"] = {"action": f"read-only: {step.action}"}
+        else:
+            preview["predicted_change"] = {"action": step.action}
+
+        step_previews.append(preview)
+
+    return {
+        "plan_id": plan.plan_id,
+        "policy": {"allowed": policy.allowed, "reasons": policy.reasons},
+        "steps": step_previews,
+        "dry_run": True,
+    }
 
 
 async def _log_execution(

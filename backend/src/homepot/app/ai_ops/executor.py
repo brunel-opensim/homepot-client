@@ -135,6 +135,7 @@ async def _dispatch_step(
         command_type=spec.command_type,
         payload=command_payload(step),
         issued_by=f"ai:{actor}",
+        idempotency_key=getattr(step, "idempotency_key", None),
     )
 
     snapshot = rollback_snapshot(step, device)
@@ -183,9 +184,16 @@ async def dispatch_ready_steps(
 
         step_policy = evaluate_step(db, step, plan=plan)
         if not step_policy.allowed:
-            step.status = "failed"
-            step.error = "; ".join(step_policy.reasons) or "policy blocked"
-            step.completed_at = utc_now()
+            # Check if this is a deferral (maintenance window) vs a hard failure
+            reasons_text = "; ".join(step_policy.reasons) or "policy blocked"
+            if "maintenance window" in reasons_text.lower():
+                step.status = "deferred"
+                step.error = reasons_text
+                # Don't set completed_at — step will be retried when window opens
+            else:
+                step.status = "failed"
+                step.error = reasons_text
+                step.completed_at = utc_now()
             db.commit()
             continue
 
