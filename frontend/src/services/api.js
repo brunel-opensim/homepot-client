@@ -1020,6 +1020,18 @@ const api = {
     },
 
     /**
+     * Approve one step that carries its own human gate (Phase A item 4).
+     * Plan-level approval is still required; this releases a single
+     * `approval_required` step and dispatches it when it is ready.
+     */
+    approveStep: async (planId, stepId, reason = null) => {
+      const response = await apiClient.post(`/ai/action-plans/${planId}/steps/${stepId}/approve`, {
+        reason,
+      });
+      return response.data;
+    },
+
+    /**
      * Reject an action plan.
      */
     reject: async (planId, reason = null) => {

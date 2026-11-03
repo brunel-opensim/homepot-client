@@ -77,6 +77,29 @@ export default function AIProposalsList() {
     }
   };
 
+  const handleApproveStep = async (planId, step) => {
+    if (
+      !window.confirm(
+        `Approve step ${step.seq + 1} (${step.action} → ${step.target_device_id})? ` +
+          'Later steps still need their own approval.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setBusyPlan(planId);
+      await api.aiProposals.approveStep(planId, step.step_id);
+      setToast({ type: 'success', message: `Step ${step.seq + 1} approved.` });
+      fetchPlans();
+    } catch (err) {
+      console.error('Failed to approve step:', err);
+      setToast({ type: 'error', message: apiHelpers.formatError(err) });
+    } finally {
+      setBusyPlan(null);
+    }
+  };
+
   const handleExecute = async (planId) => {
     if (
       !window.confirm(
@@ -195,6 +218,7 @@ export default function AIProposalsList() {
                   onApprove={() => handleDecide(plan.plan_id, 'approve')}
                   onReject={() => handleDecide(plan.plan_id, 'reject')}
                   onExecute={() => handleExecute(plan.plan_id)}
+                  onApproveStep={(step) => handleApproveStep(plan.plan_id, step)}
                 />
               ))}
             </div>
@@ -211,7 +235,7 @@ function pendingApprovalCount(plans) {
   return plans.filter((plan) => plan.status === 'pending_approval').length;
 }
 
-function PlanCard({ plan, busy, onApprove, onReject, onExecute }) {
+function PlanCard({ plan, busy, onApprove, onReject, onExecute, onApproveStep }) {
   const reviewable = plan.status === 'pending_approval';
   const executable = plan.status === 'approved';
   const targets = [...new Set((plan.steps || []).map((step) => step.target_device_id))].filter(
@@ -241,12 +265,24 @@ function PlanCard({ plan, busy, onApprove, onReject, onExecute }) {
             {(plan.steps || []).map((step) => (
               <div
                 key={`${plan.plan_id}-${step.seq}`}
-                className="flex items-center gap-2 text-xs text-gray-400"
+                className="flex flex-wrap items-center gap-2 text-xs text-gray-400"
               >
                 <Cpu className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
                 <span className="font-mono text-gray-200">{step.action}</span>
                 <span className="text-gray-500">→</span>
                 <span className="font-mono text-gray-300 truncate">{step.target_device_id}</span>
+                {step.status !== 'pending' && <AIStatusBadge status={step.status} />}
+                {step.status === 'awaiting_approval' && (
+                  <Button
+                    size="sm"
+                    onClick={() => onApproveStep(step)}
+                    disabled={busy}
+                    className="h-6 px-2 text-xs bg-teal-600 text-white hover:bg-teal-700"
+                  >
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Approve step
+                  </Button>
+                )}
               </div>
             ))}
           </div>

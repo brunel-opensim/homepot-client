@@ -21,7 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as SASession
 
-from homepot.app.ai_ops.executor import start_execution
+from homepot.app.ai_ops.executor import dispatch_ready_steps, start_execution
 from homepot.app.auth_utils import (
     get_accessible_site_ids,
     require_user,
@@ -68,6 +68,7 @@ def _serialize_plan(plan: AIActionPlan) -> Dict[str, Any]:
         "evidence": plan.evidence,
         "steps": [
             {
+                "step_id": step.step_id,
                 "seq": step.seq,
                 "action": step.action,
                 "target_device_id": step.target_device_id,
@@ -392,6 +393,120 @@ async def reject_action_plan(
 ) -> Dict[str, Any]:
     """Reject an AI action plan, recording the actor and reason."""
     return await _decide(plan_id, "rejected", payload, current_user, db)
+
+
+async def _log_step_approval(
+    current_user: UserDict,
+    plan: AIActionPlan,
+    step: Any,
+    targets: List[str],
+    reason: Optional[str],
+) -> None:
+    """Best-effort audit of a per-step approval; never breaks the request."""
+    try:
+        audit = get_audit_logger()
+        await audit.log_event(
+            event_type=AuditEventType.AI_STEP_APPROVED,
+            description=(
+                f"AI step approved | plan={plan.plan_id} | step={step.step_id} | "
+                f"action={step.action} | device={step.target_device_id}"
+            ),
+            user_id=current_user.get("user_id"),
+            event_metadata={
+                "plan_id": plan.plan_id,
+                "step_id": step.step_id,
+                "action": step.action,
+                "target_device_id": step.target_device_id,
+                "risk_tier": plan.risk_tier,
+                "target_devices": targets,
+                "actor": current_user.get("email"),
+                "reason": reason,
+            },
+        )
+    except Exception:
+        logger.warning("Failed to audit AI step approval", exc_info=True)
+
+
+@router.post(
+    "/action-plans/{plan_id}/steps/{step_id}/approve",
+    tags=["AI Action Delegation"],
+)
+async def approve_action_step(
+    plan_id: str,
+    step_id: str,
+    payload: DecisionRequest,
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Approve one step that carries its own human gate (Phase A item 4).
+
+    Steps the plan marked ``approval_required`` (disruptive actions by default)
+    pause after plan approval until an operator releases them individually.
+    Approving while the plan is executing re-dispatches the step immediately
+    when its dependencies are complete; approving before execution simply
+    pre-clears the gate.
+    """
+    db_user = _get_db_user(db, current_user)
+    repo = AIActionRepository(db)
+    plan = repo.get_plan(plan_id)
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
+        )
+
+    # Scope first, so a caller outside the step's site cannot act on it.
+    targets = _authorize_plan(db, db_user, plan)
+
+    step = next((s for s in plan.steps if s.step_id == step_id), None)
+    if step is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Step not found"
+        )
+
+    if not getattr(step, "approval_required", False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Step does not require per-step approval",
+        )
+    if plan.status not in ("approved", "executing"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Plan is '{plan.status}' and its steps can no longer be "
+                "approved (only 'approved' or 'executing' plans)"
+            ),
+        )
+    if step.status in ("done", "queued", "running", "failed", "skipped"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Step is '{step.status}' and can no longer be approved",
+        )
+
+    if step.status != "approved":
+        step.status = "approved"
+        step.error = None
+        db.commit()
+
+    await _log_step_approval(current_user, plan, step, targets, payload.reason)
+
+    if plan.status == "executing":
+        # Release the step now rather than waiting for the next reconcile tick.
+        try:
+            await dispatch_ready_steps(db, plan, str(current_user.get("email")))
+        except Exception:
+            logger.warning(
+                "Step approved but immediate dispatch failed; reconcile will retry",
+                exc_info=True,
+            )
+
+    db.refresh(plan)
+    logger.info(
+        "AI step approved | plan=%s | step=%s | actor=%s",
+        plan.plan_id,
+        step.step_id,
+        current_user.get("email"),
+    )
+    return _serialize_plan(plan)
 
 
 @router.post("/action-plans/{plan_id}/cancel", tags=["AI Action Delegation"])
