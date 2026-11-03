@@ -452,6 +452,29 @@ class AIActionStep(Base):
     postconditions = Column(JSON, nullable=True)
     rollback_params = Column(JSON, nullable=True)
 
+    # Phase A: dependency-aware sequential execution.
+    # depends_on_step_id points to the step that must complete (done) before
+    # this step can be dispatched.  NULL means the step is a root (can run
+    # immediately).  Multiple dependencies are not supported in v1; a join
+    # table can be added later for full DAG support.
+    depends_on_step_id = Column(
+        String(36),
+        ForeignKey("ai_action_step.step_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Per-step result tracking (previously only command_id carried progress).
+    result = Column(JSON, nullable=True)  # step execution result
+    error = Column(Text, nullable=True)  # step error message
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Per-step approval gate (Phase A item 4).
+    approval_required = Column(Boolean, nullable=False, default=False)
+
+    # Idempotency key to prevent duplicate dispatch on retry.
+    idempotency_key = Column(String(36), nullable=True, unique=True)
+
     status = Column(String(20), nullable=False, default="pending")
     command_id = Column(String(36), nullable=True)  # links to device_commands
 
@@ -460,6 +483,13 @@ class AIActionStep(Base):
 
     # Relationships
     plan = relationship("AIActionPlan", back_populates="steps")
+    # Self-referential: the step this one depends on.
+    depends_on = relationship(
+        "AIActionStep",
+        remote_side="AIActionStep.step_id",
+        foreign_keys="AIActionStep.depends_on_step_id",
+        uselist=False,
+    )
 
     __table_args__ = (
         UniqueConstraint("step_id", name="uq_ai_action_step_step_id"),
