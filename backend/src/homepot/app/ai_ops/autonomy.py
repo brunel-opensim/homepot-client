@@ -137,6 +137,51 @@ class AutonomyController:
         return dict(self._levels)
 
 
+async def hydrate_autonomy_from_reliability(
+    days: int = 30,
+    controller: Optional[AutonomyController] = None,
+) -> AutonomyController:
+    """Hydrate an :class:`AutonomyController` from measured reliability.
+
+    The controller is otherwise an in-memory singleton that starts empty, so
+    ``/ai/autonomy`` reported ``{}`` even after thousands of runs. This pulls
+    per-action-type sample counts, success rates and rollback evidence from
+    ``AIAnalyticsService`` and updates each level accordingly.
+    """
+    if controller is None:
+        controller = get_autonomy_controller()
+    try:
+        from ai.analytics_service import AIAnalyticsService
+
+        metrics = await AIAnalyticsService.get_ai_action_reliability(days=days)
+    except Exception:
+        logger.warning("Could not hydrate autonomy from reliability", exc_info=True)
+        return controller
+
+    if not isinstance(metrics, dict) or metrics.get("status") == "error":
+        return controller
+
+    action_types = metrics.get("action_types", {}) or {}
+    for action_type, data in action_types.items():
+        counts = (data or {}).get("counts", {}) or {}
+        rates = (data or {}).get("rates", {}) or {}
+        sample_count = int(counts.get("executed", 0) or 0)
+        success_rate = float(rates.get("execution_success", 0.0) or 0.0)
+        rollback_proven = int(counts.get("rolled_back", 0) or 0) > 0
+        try:
+            controller.update_level(
+                action_type,
+                sample_count=sample_count,
+                success_rate=success_rate,
+                rollback_proven=rollback_proven,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to update autonomy for %s", action_type, exc_info=True
+            )
+    return controller
+
+
 # Singleton instance
 _controller: Optional[AutonomyController] = None
 
