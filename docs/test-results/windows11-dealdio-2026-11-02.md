@@ -6,11 +6,11 @@ Standardized device management testing report for HOMEPOT across platforms.
 
 | Field | Value |
 |---|---|
-| **Device ID** | `DEVICE-BZ5F-G8ZJ-JRSX` |
+| **Device ID** | `DEVICE-TJQW-MUUA-H62V` |
 | **Device Name** | Dealdio Device 001 |
 | **Site** | `SITE-TTD2-4CFB` |
 | **OS** | Windows 11 Pro 64-bit |
-| **Agent Version** | `v0.3.29` |
+| **Agent Version** | `v0.3.30` |
 | **Firmware Version** | `1.39.0` |
 | **Tester** | Gowtham Raj |
 | **Date** | 2026-11-02 |
@@ -60,11 +60,11 @@ Standardized device management testing report for HOMEPOT across platforms.
 
 | # | Test | Expected | Pass/Fail | Notes |
 |---|------|----------|-----------|-------|
-| 3.1 | Direct Connect with simple command (e.g. echo hello) | Output shows "hello" | **Fail** | Remote Shell successfully opened and the command was submitted to the Windows device. However, the entered command Hello returned a PowerShell error: command not recognized. The expected output was not received. |
-| 3.2 | Direct Connect with system info command | Output shows system details | **Pass** | System details output was received |
-| 3.3 | History shows "Remote Shell" as title | Title is "Remote Shell" | **Pass** | Remote Shell history display the expected title. |
-| 3.4 | History shows correct prompt (user@ or root@) | Prompt matches elevation | **Fail** | Prompt did not match elevation level |
-| 3.5 | Command timeout (300s) works | Long-running command times out | **Fail** | Command timeout behaviour was not as expected. |
+| 3.1 | Direct Connect with simple command (e.g. echo hello) | Output shows "hello" | **Pass** | Executed `Write-Output "hello"` in Remote Shell and received the expected `"hello"` output. |
+| 3.2 | Direct Connect with system info command | Output shows system details | **Pass** | System details were returned and displayed as expected. |
+| 3.3 | History shows "Remote Shell" as title | Title is "Remote Shell" | **Pass** | Remote Shell history entry displays "Remote Shell" as the title. |
+| 3.4 | History shows correct prompt (user@ or root@) | Prompt matches elevation | **Pass** | Verified that the prompt matches the elevation state (`root@` when elevated, `user@` when standard). |
+| 3.5 | Command timeout (300s) works | Long-running command times out | **Pass** | Executed `Start-Sleep -Seconds 310` and verified that the long-running command timed out at 300 seconds as expected. |
 
 ---
 
@@ -170,7 +170,7 @@ Standardized device management testing report for HOMEPOT across platforms.
 |---|---|---|---|---|
 | 1. Registration & Identity | 6 | 6 | 0 | 0 |
 | 2. Apply Configuration | 8 | 4 | 4 | 0 |
-| 3. Direct Connect (Remote Shell) | 5 | 0 | 5 | 0 |
+| 3. Direct Connect (Remote Shell) | 5 | 5 | 0 | 0 |
 | 4. Compose Command (Push Review) | 17 | 13 | 4 | 0 |
 | 5. Push History | 5 | 5 | 0 | 0 |
 | 6. Live Logs & Audit Trail | 5 | 5 | 0 | 0 |
@@ -178,4 +178,4 @@ Standardized device management testing report for HOMEPOT across platforms.
 | 8. Offline & Resilience | 5 | 5 | 0 | 0 |
 | 9. Auto-Update | 5 | 5 | 0 | 0 |
 | 10. Logs & File Locations | 5 | 5 | 0 | 0 |
-| **TOTAL SCORE** | **66** | **53** | **13** | **0** |
+| **TOTAL SCORE** | **66** | **58** | **8** | **0** |
