@@ -8,8 +8,6 @@ Revises: 20261103_add_step_dependencies_to_action_step
 Create Date: 2026-11-03
 """
 
-from typing import Any
-
 from alembic import op
 import sqlalchemy as sa
 
@@ -37,6 +35,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Add idempotency_key to device_commands."""
     if not _has_column("device_commands", "idempotency_key"):
         op.add_column(
             "device_commands",
@@ -52,6 +51,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove idempotency_key from device_commands."""
     if _has_index("device_commands", "idx_device_command_idempotency"):
         op.drop_index("idx_device_command_idempotency", table_name="device_commands")
     if _has_column("device_commands", "idempotency_key"):

@@ -29,6 +29,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Add retry metadata to ai_action_step."""
     columns = [
         ("retry_count", sa.Integer(), False),
         ("max_retries", sa.Integer(), False),
@@ -50,6 +51,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove retry metadata from ai_action_step."""
     for col in ("retry_count", "max_retries", "next_retry_at", "last_error"):
         if _has_column("ai_action_step", col):
             op.drop_column("ai_action_step", col)

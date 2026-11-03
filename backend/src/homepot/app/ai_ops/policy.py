@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session as SASession
 
 from homepot.app.ai_ops.registry import get_action_spec
 from homepot.app.models.AnalyticsModel import SiteOperatingSchedule
-from homepot.models import Device, LifecycleState, Site
+from homepot.models import Device, LifecycleState
 
 MAX_DEVICES_PER_PLAN = 5
 ALLOWED_RISK_TIERS: Tuple[str, ...] = ("T1", "T2", "T3")
