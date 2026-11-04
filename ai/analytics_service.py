@@ -7,6 +7,7 @@ for ML models and predictive features.
 from datetime import datetime, timedelta
 import logging
 from typing import Any, Dict, Optional
+from typing import cast as typing_cast
 
 from sqlalchemy import String, and_, case, cast, func, select
 
@@ -701,10 +702,11 @@ class AIAnalyticsService:
                     }
 
                 for plan in plans:
-                    score = plan.trust_score
-                    if score is None:
-                        score = 0.5
-                    score = max(0.0, min(1.0, float(score)))
+                    trust_score = plan.trust_score
+                    score: float = (
+                        0.5 if trust_score is None else typing_cast(float, trust_score)
+                    )
+                    score = max(0.0, min(1.0, score))
                     idx = min(buckets - 1, int(score / step))
                     lo = round(idx * step, 4)
                     hi = round((idx + 1) * step, 4)
