@@ -50,17 +50,45 @@ def test_registry_declares_expected_actions():
         "health_check",
         "list_processes",
         "scan_filesystem",
+        "list_installed_programs",
+        "list_connections",
         "update_config",
         "restart",
         "rollback_config",
+        "start_program",
+        "stop_program",
+        "install_program",
+        "uninstall_program",
+        "update_program",
+        "run_command_unprivileged",
         "restart_service",
+        "shutdown",
+        "upgrade_all_programs",
+        "run_command",
+        "run_script",
     }
     assert set(ACTION_REGISTRY) == expected
     # T1 read-only actions
-    for name in ("health_check", "list_processes", "scan_filesystem"):
+    for name in (
+        "health_check",
+        "list_processes",
+        "scan_filesystem",
+        "list_installed_programs",
+        "list_connections",
+    ):
         assert ACTION_REGISTRY[name].risk_tier == "T1"
     # T2 reversible actions
-    for name in ("update_config", "restart", "rollback_config"):
+    for name in (
+        "update_config",
+        "restart",
+        "rollback_config",
+        "start_program",
+        "stop_program",
+        "install_program",
+        "uninstall_program",
+        "update_program",
+        "run_command_unprivileged",
+    ):
         assert ACTION_REGISTRY[name].risk_tier == "T2"
         assert ACTION_REGISTRY[name].reversible is True
     # T3 disruptive action
@@ -76,7 +104,7 @@ def test_validate_proposal_accepts_known_action():
 
 def test_validate_proposal_rejects_unknown_action():
     """An action not in the registry is rejected (no invented capabilities)."""
-    spec, error = validate_proposal("shutdown", "POS-001", {})
+    spec, error = validate_proposal("totally_made_up", "POS-001", {})
     assert spec is None
     assert "Unknown action" in error
 
@@ -140,7 +168,7 @@ async def test_tool_rejects_unknown_action():
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
-        result = await propose_device_action("shutdown", "POS-001", "nuke it")
+        result = await propose_device_action("totally_made_up", "POS-001", "nuke it")
         assert "rejected" in result.lower()
         assert sink == []
     finally:
