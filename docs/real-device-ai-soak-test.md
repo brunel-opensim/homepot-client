@@ -1,9 +1,9 @@
 # AI delegation soak test — Brunel Device 001
 
-This document is the runbook for the first real-device validation of the AI
-delegation stack. It targets one enrolled device so we can accumulate real
-`AIActionOutcome` rows, exercise retry/rollback on real latency, and earn the
-first autonomy levels without risking a fleet.
+This document is the runbook for a **fast (1–2 day)** real-device validation of
+the AI delegation stack on a single device. The goal is to prove that the AI
+can be **delegated a task, execute the underlying device command, verify the
+result, and report success back** — without a human clicking Execute.
 
 Device under test: **Brunel Device 001** at site **Brunel Site**.
 
@@ -19,26 +19,47 @@ Device under test: **Brunel Device 001** at site **Brunel Site**.
 - [ ] A baseline `Apply Configuration` (volume/brightness) has succeeded on
       the device at least once, so rollback has something to undo.
 
-## Soak sequence (run over 1–2 weeks)
+## Delegated commands (management controls)
 
-Run each scenario at least 5 times, spacing runs so the reconcile loop
-(10 s) and retry backoff (30 s / 60 s) are exercised. Record results in
-the table at the bottom.
+The AI can be delegated the following device-management commands. Each becomes
+a proposal that is approved, executed, verified, and reported back:
 
-### S1 — Read-only proposal (health_check)
+| Command | Action | Tier | What it does |
+|---------|--------|------|--------------|
+| Check device health | `health_check` | T1 (read-only) | CPU, memory, disk, network, OS info |
+| List running processes | `list_processes` | T1 (read-only) | Process list with PIDs |
+| Scan filesystem | `scan_filesystem` | T1 (read-only) | Directory listing |
+| Apply configuration | `update_config` | T2 (reversible) | Set volume, brightness, log level, etc. |
+| Restart device | `restart` | T2 (reversible) | Reboot the device |
+| Roll back config | `rollback_config` | T2 (reversible) | Restore previous config |
+| Restart a service | `restart_service` | T3 (disruptive) | Restart a named service |
+| Fleet health check | `health_check` (via `propose_fleet_action`) | T1 | Same check across a site/fleet |
+
+The technician delegates by asking in natural language, e.g.:
+- "Check the health of Brunel Device 001 and tell me if anything is wrong."
+- "Set brightness to 30 on Brunel Device 001 and confirm it worked."
+- "Restart Brunel Device 001 and report back when it's online again."
+- "Run a health check on all devices at Brunel Site."
+
+## Soak sequence (run over 1–2 days)
+
+Run each scenario 2–3 times. Record results in the table at the bottom.
+
+### S1 — Read-only command (health_check)
 
 1. Ask the AI: "Check the health of Brunel Device 001."
 2. Expect a proposal with `health_check` (T1, no approval required).
-3. Approve the plan, then Execute.
+3. Approve the plan, then Execute (or use `execute-and-wait` once available).
 4. Verify the plan reaches `succeeded` with `outcome.verified = true`.
-5. Confirm `/api/v1/ai/reliability` shows a `health_check` row.
+5. Confirm the AI reports the health result back to you.
 
-### S2 — Reversible config change (update_config)
+### S2 — Configuration command (update_config)
 
 1. Ask: "Set brightness to 30 on Brunel Device 001."
 2. Expect a proposal with `update_config` (T2).
 3. Approve, Execute, verify the device brightness actually changes.
-4. Confirm rollback snapshot captured (`rollback_params` present on the step).
+4. Confirm the AI reports "brightness set to 30, verified" (or failure).
+5. Verify rollback snapshot captured (`rollback_params` present on the step).
 
 ### S3 — Rollback drill
 
@@ -67,22 +88,29 @@ the table at the bottom.
 1. On any pending plan, click "Dry run" and confirm the policy result and
    predicted changes are shown without queueing a command.
 
-### S7 — Fleet proposal
+### S7 — Fleet command
 
 1. Ask: "Run a health check on all devices at Brunel Site."
-2. Expect one `health_check` proposal per active device (via
-   `propose_fleet_action`).
+2. Expect one `health_check` proposal per active device.
 3. Approve and execute; verify each step is tracked independently.
 
-## Success criteria (before moving to Phase 2)
+### S8 — Delegate and report (end-to-end)
 
-- [ ] At least 20 completed plans with `outcome.verified = true` across
+1. Ask the AI: "Set brightness to 50 on Brunel Device 001 and tell me
+   whether it worked."
+2. The AI should propose, and once approved and executed, report the verified
+   result (success or failure) back in the conversation.
+3. This is the core delegation loop: delegate → execute → verify → report.
+
+## Success criteria (end of day 2)
+
+- [ ] At least 5 completed plans with `outcome.verified = true` across
       `health_check` and `update_config`.
 - [ ] At least 1 successful rollback drill (S3).
 - [ ] At least 1 retry observed end-to-end (S4).
 - [ ] No plan left stuck in `executing` beyond one reconcile cycle (10 s).
 - [ ] `/api/v1/ai/autonomy` shows `health_check` at Level 1 or above.
-- [ ] `/api/v1/ai/calibration` returns non-empty bands.
+- [ ] S8 (delegate and report) works end-to-end at least once.
 
 ## Recording template
 
@@ -90,14 +118,13 @@ the table at the bottom.
 |-----|----------|---------|--------|-------|-----|--------|------------------|-------|
 | 1 | S1 | | Brunel Device 001 | | | | | |
 | 2 | S2 | | Brunel Device 001 | | | | | |
-| 3 | S3 | | Brunel Device 001 | | | | | |
+| 3 | S8 | | Brunel Device 001 | | | | | |
 
 ## After the soak test
 
-Once the success criteria are met, proceed to **Phase 2: agent loop closure**
-(see `docs/ai-delegation-plan.md` §17.4 item 6 and the roadmap in the
-delegation discussion). The agent will use `get_action_plan_status` to check
-its own proposals and report verified results back to the technician without
-a manual Execute click.
+Once the success criteria are met, proceed to **Phase 3: background execution
+runner** (see `docs/ai-delegation-plan.md` §17.4). The runner auto-executes
+approved plans whose autonomy level permits it, removing the manual Execute
+click and enabling true "delegate and forget" operation.
 PYEOF
 echo written
