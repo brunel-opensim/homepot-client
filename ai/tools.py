@@ -184,8 +184,8 @@ async def _gate_b_note(device_id: str) -> str:
     try:
         from datetime import datetime
 
-        from homepot.database import get_database_service
         from homepot.app.models.AnalyticsModel import DeviceMetrics
+        from homepot.database import get_database_service
 
         db_service = await get_database_service()
         async with db_service.get_session() as session:
