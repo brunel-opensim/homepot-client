@@ -20,10 +20,6 @@ from homepot.app.ai_ops.autonomy import (  # noqa: E402
     hydrate_autonomy_from_reliability,
 )
 from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
-from homepot.app.models.AnalyticsModel import (  # noqa: E402,F401
-    AIActionOutcome,
-)
-from homepot.app.repositories import ai_action_repository  # noqa: E402, F401
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, Device, Site, User  # noqa: E402
@@ -74,7 +70,7 @@ CALIBRATION = {
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
-    """Use a temporary SQLite database for each test."""
+    """Provide an isolated SQLite database for each test."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
