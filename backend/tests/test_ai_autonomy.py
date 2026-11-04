@@ -21,6 +21,7 @@ from homepot.app.ai_ops.autonomy import (  # noqa: E402
     get_autonomy_controller,
     hydrate_autonomy_from_reliability,
 )
+from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
 from homepot.app.models.AnalyticsModel import (  # noqa: E402
     AIActionOutcome,
 )
@@ -28,8 +29,6 @@ from homepot.app.repositories import ai_action_repository  # noqa: E402
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, Device, Site, User  # noqa: E402
-from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
-
 
 REL_METRICS = {
     "period_days": 30,
