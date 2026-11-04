@@ -16,11 +16,10 @@ import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
+from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, User  # noqa: E402
-from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
-
 
 CALIBRATION = {
     "period_days": 30,
@@ -102,9 +101,9 @@ def test_calibration_endpoint_returns_bands(client: TestClient, monkeypatch):
 
 
 def test_calibrate_direct():
-    import homepot.app.ai_ops  # noqa
-
     # Smoke: the analytics function exists and is callable.
     from ai.analytics_service import AIAnalyticsService
+
+    import homepot.app.ai_ops  # noqa
 
     assert hasattr(AIAnalyticsService, "get_confidence_calibration")
