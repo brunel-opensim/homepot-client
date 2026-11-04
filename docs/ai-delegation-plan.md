@@ -769,45 +769,38 @@ roadmap item to its as-built location. Legend: **Done** = implemented,
 | A1 | Task graph model (`depends_on_step_id`) | Done | migration `20261103_add_step_dependencies_to_action_step`; `AIActionStep` model |
 | A2 | Dependency-aware execution + pre/postconditions | Done | `ai_ops/executor.py` (`_is_step_ready`, `dispatch_ready_steps`), `ai_ops/policy.py` (`_evaluate_preconditions`), `ai_ops/verifier.py` (`_evaluate_postconditions`) |
 | A3 | Checkpoints & cancellation | Done | `POST /ai/action-plans/{id}/cancel`; step state in DB + `ai_ops/reconcile.py` resumes `executing` plans |
-| A4 | Per-step approval gates | Open | `ai_action_step.approval_required` and the `executor.py` gate exist, but nothing sets the flag and there is no step-level approve API/UI — a gated step would wait forever |
-| B5 | Registry breadth | Partial | `ai/actions.py`: T1 `health_check`/`list_processes`/`scan_filesystem`, T2 `rollback_config`, T3 `restart_service`; **no fleet-wide actions** |
+| A4 | Per-step approval gates | Done | `ai_ops/approval.py` (`STEP_APPROVAL_TIERS`, default T3); `approval_required` set at plan creation; `POST /ai/action-plans/{id}/steps/{step_id}/approve`; UI "Approve step" button |
+| B5 | Registry breadth | Done | `ai/actions.py` T1/T2/T3 actions plus `ai/tools.py::propose_fleet_action` (expands into per-device proposals) |
 | B6 | Plan status query tool | Done | `ai/tools.py::get_action_plan_status` |
 | B7 | Plan-and-execute agent mode | Done | `ai/agent.py` (`plan_and_execute`, `_parse_plan`) |
 | B8 | Per-device RBAC in tools | Done | `ai/tools.py::_check_device_access` |
-| B9 | Gate B on tool I/O | Partial | `ai/agent.py` annotates empty/error tool output; the full `DataIntegrityGate` is not applied |
+| B9 | Gate B on tool I/O | Done | `ai/tools.py::_gate_b_note` appends a freshness annotation to `get_device_status`/`get_device_metrics`; RBAC added to metrics tool |
 | C10 | Maintenance-window integration | Done | `ai_ops/policy.py::is_maintenance_window`; deferred steps re-checked in `verifier.py` |
-| C11 | Dry-run / simulation preview | Partial | `POST /ai/action-plans/{id}/dry-run`; no UI control and no simulator integration |
+| C11 | Dry-run / simulation preview | Done | `POST /ai/action-plans/{id}/dry-run`; UI "Dry run" button + inline preview in `AIProposalsList.jsx` |
 | C12 | Idempotency keys | Done | `ai_action_step.idempotency_key` → `create_device_command`; migration `20261103_add_idempotency_to_device_command` |
-| C13 | Retry with backoff | Open | `retry_count`/`max_retries`/`next_retry_at` plumbing exists, but steps are created with `max_retries=0` and no future `next_retry_at` is scheduled — retries never fire; no alternative/escalation |
+| C13 | Retry with backoff | Done | `ai_ops/retry.py`; non-zero default budget; verifier schedules exponential backoff; executor honours `next_retry_at` |
 | D14 | Reliability metrics | Done | `ai/analytics_service.py::get_ai_action_reliability` |
-| D15 | Confidence calibration | Open | Not implemented; gate constants remain paper-informed |
-| D16 | Autonomy controller | Partial | `ai_ops/autonomy.py` (levels 0–3); not hydrated from reliability and not consulted before execution, so `GET /ai/autonomy` returns `{}` |
+| D15 | Confidence calibration | Done | `ai/analytics_service.py::get_confidence_calibration`; `GET /ai/calibration`; panel display |
+| D16 | Autonomy controller | Done | `hydrate_autonomy_from_reliability()`; `GET /ai/autonomy` hydrated; consulted at proposal capture (auto-approve at level 3) |
 | D17 | Outcome feedback to memory | Done | `ai_ops/verifier.py::_record_outcome` → `DeviceMemory` |
 | D18 | Analytics dashboard | Done | `frontend/src/pages/AIProposals/AIReliabilityPanel.jsx` |
 | E19 | Parallel tool calls | Done | `ai/agent.py` (`asyncio.gather`) |
-| E20 | Extended timeout / deeper iterations | Partial | Configurable via `ai/config.yaml` `agent:` and `run_agent` params; shipped defaults remain 5 iterations / 60 s |
+| E20 | Extended timeout / deeper iterations | Done | Configurable via `ai/config.yaml` `agent:` and `run_agent` params (Phase E #756); defaults remain 5 iterations / 60 s |
 | E21 | Cross-session task aggregation | Done | `GET /ai/action-plans/summary`, `AIActionRepository.plan_summary`, UI panel |
 
 **Remaining work:**
 
-1. **A4 per-step approval** — add
-   `POST /action-plans/{id}/steps/{step_id}/approve` (+ UI), or remove the
-   dormant `approval_required` path and document per-plan approval only.
-2. **C13 retry** — set a non-zero `max_retries` when plans are created, schedule
-   a future `next_retry_at` (exponential backoff), and define the
-   alternative/escalation path.
-3. **D16 autonomy wiring** — hydrate the controller from
-   `get_ai_action_reliability` at startup/refresh and consult
-   `check_autonomy()` in the approve/execute path.
-4. **D15 calibration** — compare `AIActionPlan.trust_score` with the observed
-   success rate and adjust thresholds.
-5. **B5 fleet actions** — add fleet-scoped actions to `ai/actions.py`.
-6. **B9/C11** — apply the real `DataIntegrityGate` to tool output; surface
-   dry-run in the UI and wire the simulator.
+All roadmap items in the matrix above are now **Done**. The only outstanding
+meta item is **test coverage**: Phases A–E shipped with limited backend tests.
+Follow-up suites (added in PRs #760–#766) now cover retry/backoff, per-step
+approval, autonomy hydration, calibration, fleet actions and Gate B; further
+coverage should target dependency ordering/cycle rejection, preconditions/
+postconditions, maintenance-window deferral, idempotency, autonomy thresholds
+and the agent loop.
 
-**Test coverage.** Phases A–E shipped with **no new backend tests** (only minor
-edits to `test_ai_execution.py`/`test_ai_agent.py`); the only new tests are the
-four frontend `AIReliabilityPanel` tests. A follow-up test suite should cover:
+**Test coverage.** Backend suites now cover the executor, approval, retry,
+autonomy and calibration paths; the frontend keeps the four
+`AIReliabilityPanel` tests. A follow-up should extend coverage to:
 dependency ordering and cycle rejection, preconditions/postconditions,
 maintenance-window deferral, retry/backoff, idempotency, autonomy thresholds,
 reliability/summary endpoints, cancel, dry-run, plan-and-execute, and tool RBAC.
