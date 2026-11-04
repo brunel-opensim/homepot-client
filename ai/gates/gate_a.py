@@ -97,6 +97,10 @@ class ContractInfrastructureGate(Gate):
                 await session.execute(stmt)
             except Exception as exc:
                 failures.append(f"{table}: {exc}")
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
 
         if failures:
             return CheckResult(

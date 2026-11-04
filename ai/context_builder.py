@@ -424,7 +424,11 @@ class ContextBuilder:
         stmt = select(DeviceStateHistory).order_by(DeviceStateHistory.timestamp.desc())
 
         if device_id:
-            stmt = stmt.where(DeviceStateHistory.device_id == device_id)
+            dev_stmt = select(Device.id).where(Device.device_id == device_id)
+            dev_result = await session.execute(dev_stmt)
+            dev_pk = dev_result.scalar_one_or_none()
+            if dev_pk:
+                stmt = stmt.where(DeviceStateHistory.device_id == dev_pk)
 
         stmt = stmt.limit(limit)
 
