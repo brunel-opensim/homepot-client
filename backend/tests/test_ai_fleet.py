@@ -48,9 +48,18 @@ def mock_db_url(monkeypatch):
     monkeypatch.setattr(homepot.database, "sync_engine", engine)
     monkeypatch.setattr(homepot.database, "SessionLocal", sessionmaker(bind=engine))
     yield
+    if homepot.database._db_service is not None:
+        try:
+            asyncio.run(homepot.database._db_service.close())
+        except Exception:
+            pass
+        homepot.database._db_service = None
     engine.dispose()
     if os.path.exists(path):
-        os.unlink(path)
+        try:
+            os.unlink(path)
+        except PermissionError:
+            pass
 
 
 def test_fleet_action_is_registered():
