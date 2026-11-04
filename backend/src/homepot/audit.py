@@ -77,6 +77,7 @@ class AuditEventType(str, Enum):
     AI_PROPOSAL_CREATED = "ai_proposal_created"
     AI_PROPOSAL_APPROVED = "ai_proposal_approved"
     AI_PROPOSAL_REJECTED = "ai_proposal_rejected"
+    AI_STEP_APPROVED = "ai_step_approved"
     # AI action-delegation execution lifecycle (Phase 3).
     AI_EXECUTION_STARTED = "ai_execution_started"
     AI_EXECUTION_BLOCKED = "ai_execution_blocked"

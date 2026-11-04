@@ -17,6 +17,7 @@ import uuid
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from homepot.app.ai_ops.approval import requires_step_approval
 from homepot.app.ai_ops.retry import DEFAULT_MAX_RETRIES
 from homepot.app.models.AnalyticsModel import (
     AIActionApproval,
@@ -81,6 +82,9 @@ class AIActionRepository:
                     params=proposal.params or {},
                     status="pending",
                     idempotency_key=str(uuid.uuid4()),
+                    approval_required=requires_step_approval(
+                        getattr(proposal, "risk_tier", "")
+                    ),
                     max_retries=DEFAULT_MAX_RETRIES,
                 )
             )

@@ -11,6 +11,17 @@ const STATUS_META = {
   failed: { label: 'Failed', color: 'bg-red-500/10 text-red-400' },
   rolled_back: { label: 'Rolled Back', color: 'bg-purple-500/10 text-purple-400' },
   expired: { label: 'Expired', color: 'bg-gray-500/10 text-gray-400' },
+  // Per-step statuses (Phase A dependency-aware plans).
+  pending: { label: 'Pending', color: 'bg-gray-500/10 text-gray-400' },
+  queued: { label: 'Queued', color: 'bg-blue-500/10 text-blue-400' },
+  running: { label: 'Running', color: 'bg-blue-500/10 text-blue-400' },
+  done: { label: 'Done', color: 'bg-green-500/10 text-green-400' },
+  skipped: { label: 'Skipped', color: 'bg-gray-500/10 text-gray-400' },
+  awaiting_approval: {
+    label: 'Awaiting Approval',
+    color: 'bg-yellow-500/10 text-yellow-400',
+  },
+  deferred: { label: 'Deferred', color: 'bg-orange-500/10 text-orange-400' },
 };
 
 export default function AIStatusBadge({ status }) {

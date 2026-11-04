@@ -114,16 +114,23 @@ def _seed(db):
     }
 
 
-def _make_plan(db, device_id, *, created_by="ai@deleg.test"):
+def _make_plan(
+    db,
+    device_id,
+    *,
+    created_by="ai@deleg.test",
+    risk_tier="T2",
+    status="pending_approval",
+):
     proposals = [
-        ActionProposal("restart", device_id, {}, "device unresponsive", "T2", True)
+        ActionProposal("restart", device_id, {}, "device unresponsive", risk_tier, True)
     ]
     return ai_action_repository.AIActionRepository(db).create_plan(
         proposals,
-        risk_tier="T2",
+        risk_tier=risk_tier,
         reversible=True,
         created_by=created_by,
-        status="pending_approval",
+        status=status,
     )
 
 
@@ -339,3 +346,116 @@ def test_unknown_plan_is_404(client: TestClient):
         headers=_headers(admin_email),
     )
     assert resp.status_code == 404
+
+
+# --------------------------------------------------------------------------
+# Per-step approval gate (Phase A, item 4)
+# --------------------------------------------------------------------------
+
+
+def test_create_plan_marks_disruptive_step_for_approval():
+    """Only risk tiers configured for step gating set approval_required."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        t2_plan = _make_plan(db, "POS-A", risk_tier="T2")
+        t3_plan = _make_plan(db, "POS-A", risk_tier="T3")
+
+        assert t2_plan.steps[0].approval_required is False
+        assert t3_plan.steps[0].approval_required is True
+    finally:
+        db.close()
+
+
+def test_member_can_approve_a_step_gate(client: TestClient):
+    """A scoped operator can release an individual step."""
+    db = homepot.database.SessionLocal()
+    try:
+        seed = _seed(db)
+        plan = _make_plan(db, "POS-A", risk_tier="T3", status="approved")
+        plan_id = plan.plan_id
+        step_id = plan.steps[0].step_id
+        tech_a_email = seed["tech_a"].email
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/ai/action-plans/{plan_id}/steps/{step_id}/approve",
+        json={"reason": "reviewed step 1"},
+        headers=_headers(tech_a_email),
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["steps"][0]["status"] == "approved"
+
+    db = homepot.database.SessionLocal()
+    try:
+        plan = db.execute(
+            select(AIActionPlan).where(AIActionPlan.plan_id == plan_id)
+        ).scalar_one()
+        assert plan.steps[0].status == "approved"
+    finally:
+        db.close()
+
+
+def test_step_approval_is_scoped(client: TestClient):
+    """A technician outside the step's site cannot approve it."""
+    db = homepot.database.SessionLocal()
+    try:
+        seed = _seed(db)
+        plan = _make_plan(db, "POS-A", risk_tier="T3", status="approved")
+        plan_id = plan.plan_id
+        step_id = plan.steps[0].step_id
+        tech_none_email = seed["tech_none"].email
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/ai/action-plans/{plan_id}/steps/{step_id}/approve",
+        json={},
+        headers=_headers(tech_none_email),
+    )
+    assert resp.status_code == 403
+
+
+def test_step_approval_requires_a_gated_step(client: TestClient):
+    """Steps without approval_required reject the request."""
+    db = homepot.database.SessionLocal()
+    try:
+        seed = _seed(db)
+        plan = _make_plan(db, "POS-A", risk_tier="T2", status="approved")
+        plan_id = plan.plan_id
+        step_id = plan.steps[0].step_id
+        tech_a_email = seed["tech_a"].email
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/ai/action-plans/{plan_id}/steps/{step_id}/approve",
+        json={},
+        headers=_headers(tech_a_email),
+    )
+    assert resp.status_code == 409
+    assert "does not require" in resp.json()["detail"]
+
+
+def test_step_approval_requires_an_approved_plan(client: TestClient):
+    """A plan that has not passed plan-level approval cannot release steps."""
+    db = homepot.database.SessionLocal()
+    try:
+        seed = _seed(db)
+        plan = _make_plan(db, "POS-A", risk_tier="T3")
+        plan_id = plan.plan_id
+        step_id = plan.steps[0].step_id
+        tech_a_email = seed["tech_a"].email
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/ai/action-plans/{plan_id}/steps/{step_id}/approve",
+        json={},
+        headers=_headers(tech_a_email),
+    )
+    assert resp.status_code == 409
+    assert "can no longer be approved" in resp.json()["detail"]
