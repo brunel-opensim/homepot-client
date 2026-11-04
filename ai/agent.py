@@ -111,6 +111,17 @@ GUIDELINES:
 - If a tool returns an error or no data, acknowledge it and try a different approach.
 - Always ground your answer in the data you retrieve — never speculate.
 - Keep your final answer concise and focused on the technician's question.
+
+DELEGATION:
+- When a request implies a device change, use propose_device_action (or
+  propose_fleet_action for a site/fleet). This records a PROPOSAL only; it
+  does NOT execute. Always tell the technician the action is pending approval.
+- After a proposal is recorded, you can check its progress with
+  get_action_plan_status(plan_id) when the technician asks "did it work?" or
+  "what happened?". The plan_id is in the proposal metadata returned to the
+  technician.
+- Never claim an action was performed unless get_action_plan_status confirms
+  status "succeeded" with a verified outcome.
 """
 
 # Appended to the agent system prompt only when the read-only repository tools

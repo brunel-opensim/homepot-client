@@ -12,11 +12,12 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ai.actions import ActionProposal, validate_proposal
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory, MemoryScope
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -587,7 +588,9 @@ async def propose_device_action(
         f"(risk {spec.risk_tier}, reversible={spec.reversible}). "
         "This is a PROPOSAL only — it has NOT been executed and requires "
         "technician approval. In your final answer, state clearly that the "
-        "action is pending approval and must not be assumed to have happened."
+        "action is pending approval and must not be assumed to have happened. "
+        "The technician can later ask whether it succeeded; use "
+        "get_action_plan_status with the plan_id from the proposal metadata."
     )
 
 
