@@ -58,7 +58,8 @@ def test_fleet_action_is_registered():
     assert "propose_fleet_action" in TOOL_REGISTRY
 
 
-def test_propose_fleet_action_records_per_device_proposals():
+@pytest.mark.asyncio
+async def test_propose_fleet_action_records_per_device_proposals():
     """Fleet action expands into per-device proposals."""
     import homepot.database
 
@@ -84,10 +85,8 @@ def test_propose_fleet_action_records_per_device_proposals():
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
-        result = asyncio.run(
-            propose_fleet_action(
-                action="health_check", site_id="site-a", rationale="routine"
-            )
+        result = await propose_fleet_action(
+            action="health_check", site_id="site-a", rationale="routine"
         )
     finally:
         from ai.tools import reset_tool_proposal_sink
