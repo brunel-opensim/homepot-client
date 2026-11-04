@@ -37,9 +37,9 @@ from ai.tools import (  # noqa: E402
 # ── Tool registry tests ──────────────────────────────────────────────────────
 
 
-def test_tool_registry_has_all_ten_tools():
-    """Tool registry should contain exactly 10 tools."""
-    assert len(TOOL_REGISTRY) == 10
+def test_tool_registry_has_all_eleven_tools():
+    """Tool registry should contain exactly 11 tools."""
+    assert len(TOOL_REGISTRY) == 11
 
 
 def test_tool_registry_names():
@@ -54,6 +54,7 @@ def test_tool_registry_names():
         "get_fleet_summary",
         "get_alerts",
         "propose_device_action",
+        "propose_fleet_action",
         "get_action_plan_status",
     }
     assert set(TOOL_REGISTRY.keys()) == expected

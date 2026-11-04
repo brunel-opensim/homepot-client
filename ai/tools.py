@@ -548,6 +548,140 @@ async def propose_device_action(
 
 
 # ---------------------------------------------------------------------------
+# Tool 9b: propose_fleet_action (B5)
+# ---------------------------------------------------------------------------
+
+
+async def propose_fleet_action(
+    action: str,
+    site_id: str = "all",
+    rationale: str = "",
+    params: Optional[str] = None,
+) -> str:
+    """Propose the same device action across a fleet of devices at once.
+
+    Expands into one per-device proposal (each still requires its own
+    technician approval). Use this instead of calling propose_device_action
+    repeatedly when the user asks for an action on a site or the whole fleet.
+
+    Args:
+        action: The proposed action (same allowed set as propose_device_action).
+        site_id: Business site id to target, or "all" (default) for every
+            active device.
+        rationale: Why the action is recommended.
+        params: Optional JSON object string of action parameters.
+
+    Returns:
+        A summary of how many proposals were recorded, or an error.
+    """
+    try:
+        from homepot.database import get_database_service
+        from homepot.models import Device, Site
+
+        parsed: dict = {}
+        if params:
+            try:
+                parsed = json.loads(params)
+            except (TypeError, ValueError):
+                return (
+                    f"Invalid params for '{action}': expected a JSON object string, "
+                    f"got {params!r}."
+                )
+            if not isinstance(parsed, dict):
+                return f"Invalid params for '{action}': expected a JSON object."
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            if site_id and site_id.strip().lower() not in ("", "all", "*"):
+                site = (
+                    await session.execute(
+                        select(Site).where(Site.site_id == site_id.strip())
+                    )
+                ).scalar_one_or_none()
+                if site is None:
+                    return f"Site not found: {site_id!r}."
+                devices = (
+                    (
+                        await session.execute(
+                            select(Device).where(
+                                Device.site_id == site.id, Device.is_active.is_(True)
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            else:
+                devices = (
+                    (
+                        await session.execute(
+                            select(Device).where(Device.is_active.is_(True))
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+
+        if not devices:
+            return "No active devices matched the requested scope."
+
+        # RBAC: caller must have operator access to every target device.
+        denied: list[str] = []
+        for d in devices:
+            err = await _check_device_access(str(d.device_id), "operator")
+            if err:
+                denied.append(str(d.device_id))
+        if denied:
+            return (
+                "Access denied for device(s): "
+                + ", ".join(denied)
+                + ". Fleet proposal aborted."
+            )
+
+        from ai.actions import validate_proposal
+
+        sink = get_tool_proposal_sink()
+        if sink is None:
+            return (
+                f"Validated scope ({len(devices)} device(s)) but no proposal sink "
+                "is active; nothing was recorded."
+            )
+
+        recorded = 0
+        rejected: list[str] = []
+        for d in devices:
+            spec, error = validate_proposal(action, str(d.device_id), parsed)
+            if error or spec is None:
+                rejected.append(f"{d.device_id}: {error}")
+                continue
+            proposal = ActionProposal(
+                action=spec.name,
+                target_device_id=str(d.device_id).strip(),
+                params=parsed,
+                rationale=rationale or "",
+                risk_tier=spec.risk_tier,
+                reversible=spec.reversible,
+            )
+            sink.append(proposal)
+            recorded += 1
+
+        parts = [
+            f"Recorded {recorded} fleet proposal(s) for '{action}' "
+            f"across {len(devices)} device(s).",
+        ]
+        if rejected:
+            parts.append("Rejected: " + "; ".join(rejected))
+        parts.append(
+            "These are PROPOSALS only — they have NOT been executed and require "
+            "technician approval."
+        )
+        return " ".join(parts)
+    except Exception as e:
+        logger.error("propose_fleet_action failed: %s", e)
+        return f"Error proposing fleet action '{action}': {e}"
+
+
+# ---------------------------------------------------------------------------
 # Tool 10: get_action_plan_status
 # ---------------------------------------------------------------------------
 
@@ -627,6 +761,7 @@ TOOL_REGISTRY = {
     "get_fleet_summary": (get_fleet_summary, True),
     "get_alerts": (get_alerts, True),
     "propose_device_action": (propose_device_action, True),
+    "propose_fleet_action": (propose_fleet_action, True),
     "get_action_plan_status": (get_action_plan_status, True),
 }
 
@@ -641,5 +776,6 @@ TOOL_FUNCTIONS = [
     get_fleet_summary,
     get_alerts,
     propose_device_action,
+    propose_fleet_action,
     get_action_plan_status,
 ]
