@@ -95,6 +95,10 @@ def _is_step_ready(step: Any, plan: Any) -> bool:
     """
     if step.status not in ("pending", "approved"):
         return False
+    # A step waiting out its retry backoff is not ready yet.
+    next_retry_at = getattr(step, "next_retry_at", None)
+    if next_retry_at is not None and next_retry_at > utc_now():
+        return False
     deps = getattr(step, "depends_on", None)
     if deps is not None:
         # Single dependency (linear chain)
@@ -144,6 +148,8 @@ async def _dispatch_step(
         "status": STEP_QUEUED,
         "command_id": command.command_id,
         "started_at": utc_now(),
+        # A re-dispatch ends the current backoff window.
+        "next_retry_at": None,
     }
     if snapshot is not None:
         values["rollback_params"] = snapshot

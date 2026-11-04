@@ -14,12 +14,14 @@ Every terminal plan gets exactly one :class:`AIActionOutcome` row: this is the
 empirical evidence that later autonomy decisions are earned from.
 """
 
+from datetime import timedelta
 import logging
 from typing import Any, Dict, Optional, cast
 
 from sqlalchemy.orm import Session as SASession
 
 from homepot.app.ai_ops.executor import dispatch_ready_steps
+from homepot.app.ai_ops.retry import backoff_seconds
 from homepot.app.ai_ops.rollback import ROLLBACK_COMMAND_KEY, begin_rollback
 from homepot.app.models.AnalyticsModel import AIActionOutcome, utc_now
 from homepot.database import get_database_service
@@ -145,45 +147,45 @@ async def _reconcile_executing(db: SASession, plan: Any, db_service: Any = None)
                     step.completed_at = utc_now()
 
         if step.status == "failed":
-            # Determine if this is a per-key failure (command completed but
-            # individual config keys failed) vs a transport-level failure
-            # (command status was failed/expired/cancelled). Only retry
-            # transport-level failures; per-key failures are not transient.
+            # Per-key failures inside a completed command are deterministic and
+            # must roll back. Only transport-level failures are retried.
             is_transport_failure = (
                 status in ("failed", "expired", "cancelled")
                 if status is not None
                 else False
             )
 
-            # Check if we can retry (only transport-level failures)
-            retry_count = getattr(step, "retry_count", 0)
-            if retry_count is None:
-                retry_count = 0
-            max_retries = getattr(step, "max_retries", 0)
-            if max_retries is None:
-                max_retries = 0
+            retry_count = getattr(step, "retry_count", 0) or 0
+            max_retries = getattr(step, "max_retries", 0) or 0
             next_retry_at = getattr(step, "next_retry_at", None)
 
             if is_transport_failure and retry_count < max_retries:
                 now = utc_now()
-                if next_retry_at is None or now >= next_retry_at:
-                    # Retry: reset step for re-dispatch
-                    step.retry_count = retry_count + 1
-                    step.last_error = step.error
-                    step.status = "pending"
-                    step.command_id = None
-                    step.error = None
-                    step.next_retry_at = None
-                    db.commit()
-                    logger.info(
-                        "Retrying step %s (attempt %d/%d)",
-                        step.step_id,
-                        retry_count + 1,
-                        max_retries,
-                    )
+                if next_retry_at is not None and now < next_retry_at:
+                    # Backoff window still open: wait for the next reconcile.
                     all_done = False
                     continue
-            # Retries exhausted, not a transport failure, or backoff not elapsed
+                # Schedule the retry; dispatch_ready_steps re-queues it once
+                # the backoff window elapses.
+                delay = backoff_seconds(retry_count)
+                step.retry_count = retry_count + 1
+                step.last_error = step.error
+                step.status = "pending"
+                step.command_id = None
+                step.error = None
+                step.next_retry_at = now + timedelta(seconds=delay)
+                db.commit()
+                logger.info(
+                    "Step %s failed (transport); retry %d/%d in %ds",
+                    step.step_id,
+                    retry_count + 1,
+                    max_retries,
+                    delay,
+                )
+                all_done = False
+                continue
+
+            # Retries exhausted, or a deterministic failure: fail and roll back.
             any_failed = True
             # Block transitive dependents
             _block_dependents(plan, step.step_id)

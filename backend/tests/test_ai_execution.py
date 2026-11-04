@@ -7,7 +7,7 @@ state machine is fully deterministic and needs no live device.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 import sys
 from types import SimpleNamespace
@@ -26,10 +26,16 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from homepot.app.ai_ops.executor import start_execution  # noqa: E402
 from homepot.app.ai_ops.policy import evaluate_plan  # noqa: E402
+from homepot.app.ai_ops.retry import (  # noqa: E402
+    BACKOFF_BASE_SECONDS,
+    BACKOFF_MAX_SECONDS,
+    DEFAULT_MAX_RETRIES,
+    backoff_seconds,
+)
 from homepot.app.ai_ops.rollback import begin_rollback  # noqa: E402
 from homepot.app.ai_ops.verifier import reconcile_plan  # noqa: E402
 from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
-from homepot.app.models.AnalyticsModel import AIActionOutcome  # noqa: E402
+from homepot.app.models.AnalyticsModel import AIActionOutcome, utc_now  # noqa: E402
 from homepot.app.repositories.ai_action_repository import (  # noqa: E402
     AIActionRepository,
 )
@@ -374,6 +380,8 @@ def test_reconcile_hard_failure_without_rollback_fails():
     try:
         _seed(db)
         plan, fake = _queue_plan(db, "POS-A", action="restart")
+        plan.steps[0].max_retries = 0
+        db.commit()
         fake.commands[plan.steps[0].command_id].status = "failed"
 
         assert asyncio.run(reconcile_plan(db, plan, db_service=fake)) == "failed"
@@ -391,6 +399,8 @@ def test_reconcile_rollback_command_failure_marks_failed():
         plan, fake = _queue_plan(
             db, "POS-A", action="update_config", params={"config": {"brightness": 80}}
         )
+        plan.steps[0].max_retries = 0
+        db.commit()
         fake.commands[plan.steps[0].command_id].status = "failed"
         asyncio.run(reconcile_plan(db, plan, db_service=fake))
 
@@ -652,3 +662,132 @@ def test_served_app_starts_ai_reconcile_loop():
         assert not task.done()
 
     assert getattr(served_app.state, "ai_execution_task", None) is None
+
+
+# --------------------------------------------------------------------------
+# Retry with backoff (Phase C, roadmap item 13)
+# --------------------------------------------------------------------------
+
+
+def test_new_steps_get_the_default_retry_budget():
+    """The repository gives every new step a non-zero retry budget."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan = _make_plan(db, "POS-A")
+
+        step = plan.steps[0]
+        assert step.max_retries == DEFAULT_MAX_RETRIES
+        assert step.retry_count == 0
+        assert step.next_retry_at is None
+    finally:
+        db.close()
+
+
+def test_backoff_is_exponential_and_capped():
+    """Backoff doubles per retry and is capped by the configured maximum."""
+    assert backoff_seconds(0) == BACKOFF_BASE_SECONDS
+    assert backoff_seconds(1) == min(BACKOFF_BASE_SECONDS * 2, BACKOFF_MAX_SECONDS)
+    assert backoff_seconds(2) == min(BACKOFF_BASE_SECONDS * 4, BACKOFF_MAX_SECONDS)
+    assert backoff_seconds(99) == BACKOFF_MAX_SECONDS
+
+
+def test_transport_failure_schedules_a_backoff_retry():
+    """A failed command is re-queued after a backoff window, not failed."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(db, "POS-A", action="restart")
+        step = plan.steps[0]
+        fake.commands[step.command_id].status = "failed"
+
+        status = asyncio.run(reconcile_plan(db, plan, db_service=fake))
+
+        assert status == "executing"
+        assert plan.status == "executing"
+        assert plan.outcome is None
+        assert step.status == "pending"
+        assert step.command_id is None
+        assert step.retry_count == 1
+        assert step.next_retry_at is not None
+        assert step.next_retry_at > utc_now()
+    finally:
+        db.close()
+
+
+def test_no_redispatch_while_backoff_is_active():
+    """The executor honours ``next_retry_at`` instead of hammering the device."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(db, "POS-A", action="restart")
+        step = plan.steps[0]
+        fake.commands[step.command_id].status = "failed"
+        asyncio.run(reconcile_plan(db, plan, db_service=fake))
+        queued = len(fake.created)
+
+        asyncio.run(reconcile_plan(db, plan, db_service=fake))
+
+        assert len(fake.created) == queued
+        assert step.command_id is None
+        assert step.retry_count == 1
+        assert step.next_retry_at is not None
+    finally:
+        db.close()
+
+
+def test_retry_is_redispatched_once_backoff_elapses():
+    """After the backoff window the step is queued again with a new command."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(db, "POS-A", action="restart")
+        step = plan.steps[0]
+        fake.commands[step.command_id].status = "failed"
+        asyncio.run(reconcile_plan(db, plan, db_service=fake))
+        queued = len(fake.created)
+
+        step.next_retry_at = utc_now() - timedelta(seconds=1)
+        db.commit()
+
+        asyncio.run(reconcile_plan(db, plan, db_service=fake))
+
+        assert len(fake.created) == queued + 1
+        assert step.status == "queued"
+        assert step.command_id is not None
+        assert step.next_retry_at is None
+    finally:
+        db.close()
+
+
+def test_retries_exhausted_then_plan_fails():
+    """Once the retry budget is spent a transport failure is terminal."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(db, "POS-A", action="restart")
+        step = plan.steps[0]
+        step.max_retries = 1
+        db.commit()
+
+        # Attempt 1 fails -> retry 1 is scheduled.
+        fake.commands[step.command_id].status = "failed"
+        asyncio.run(reconcile_plan(db, plan, db_service=fake))
+        assert step.retry_count == 1
+        assert step.next_retry_at is not None
+
+        # Let the window elapse, then re-dispatch.
+        step.next_retry_at = utc_now() - timedelta(seconds=1)
+        db.commit()
+        asyncio.run(reconcile_plan(db, plan, db_service=fake))
+        assert step.command_id is not None
+
+        # Attempt 2 fails -> retries are exhausted -> plan failed.
+        fake.commands[step.command_id].status = "failed"
+        status = asyncio.run(reconcile_plan(db, plan, db_service=fake))
+
+        assert status == "failed"
+        assert plan.outcome is not None
+        assert plan.outcome.verified is False
+    finally:
+        db.close()
