@@ -619,8 +619,32 @@ async def dry_run_action_plan(
             preview["predicted_change"] = {
                 "action": f"restart service: {params.get('service_name', 'unknown')}"
             }
-        elif step.action in ("health_check", "list_processes", "scan_filesystem"):
+        elif step.action in (
+            "health_check",
+            "list_processes",
+            "scan_filesystem",
+            "list_installed_programs",
+            "list_connections",
+        ):
             preview["predicted_change"] = {"action": f"read-only: {step.action}"}
+        elif step.action in (
+            "start_program",
+            "stop_program",
+            "install_program",
+            "uninstall_program",
+            "update_program",
+        ):
+            params = step.params or {}
+            preview["predicted_change"] = {
+                "action": f"{step.action}: {params.get('program_name', 'unknown')}"
+            }
+        elif step.action in ("run_command", "run_command_unprivileged", "run_script"):
+            params = step.params or {}
+            preview["predicted_change"] = {
+                "action": f"run: {params.get('command', '')[:80]}"
+            }
+        elif step.action in ("shutdown", "upgrade_all_programs"):
+            preview["predicted_change"] = {"action": step.action}
         else:
             preview["predicted_change"] = {"action": step.action}
 

@@ -58,6 +58,10 @@ def command_payload(step: Any) -> Optional[Dict[str, Any]]:
         params = step.params or {}
         service_name = params.get("service_name", "")
         return {"data": {"command": f"systemctl restart {service_name}"}}
+    # Compose-command actions: forward their params as the device-command data.
+    params = step.params or {}
+    if params:
+        return {"data": dict(params)}
     return None
 
 

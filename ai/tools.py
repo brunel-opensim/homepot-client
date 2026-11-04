@@ -12,11 +12,12 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ai.actions import ActionProposal, validate_proposal
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory, MemoryScope
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -530,9 +531,13 @@ async def propose_device_action(
 
     Args:
         action: The proposed action. Must be one of the registered actions:
-            'health_check', 'list_processes', 'scan_filesystem' (T1 read-only),
-            'update_config', 'restart', 'rollback_config' (T2 reversible),
-            'restart_service' (T3 disruptive).
+            'health_check', 'list_processes', 'scan_filesystem',
+            'list_installed_programs', 'list_connections' (T1 read-only),
+            'update_config', 'restart', 'rollback_config', 'start_program',
+            'stop_program', 'install_program', 'uninstall_program',
+            'update_program', 'run_command_unprivileged' (T2 reversible),
+            'restart_service', 'shutdown', 'upgrade_all_programs',
+            'run_command', 'run_script' (T3 disruptive).
         target_device_id: The device identifier the action applies to.
         rationale: Why the action is recommended, citing the evidence you
                 observed (metrics, errors, config history).
