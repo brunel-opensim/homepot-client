@@ -187,6 +187,41 @@ def get_llm_setting(
     return default
 
 
+def validate_provider_secrets() -> dict:
+    """Validate that the active provider has a usable secret.
+
+    Returns a dict with ``ok`` (bool) and ``message``. Logs a clear error when
+    a cloud provider is selected but has no API key, so misconfiguration is
+    visible at startup instead of failing mid-query. Non-blocking: callers
+    should log, not raise.
+    """
+    current = get_provider()
+    if current == "ollama":
+        logger.info("LLM provider is local (ollama); no secret required.")
+        return {"ok": True, "provider": current, "message": "local provider"}
+    key = get_api_key(current)
+    if not key:
+        logger.error(
+            "LLM provider is selected but has no API key. "
+            "Set the configured env var, store a key via PUT /ai/provider/key, "
+            "or switch back to ollama. Cloud queries will fail until resolved."
+        )
+        return {
+            "ok": False,
+            "provider": current,
+            "message": "missing or placeholder key",
+        }
+    if key.lower() in {"", "changeme", "your-api-key", "sk-..."}:
+        logger.error("LLM provider API key looks like a placeholder.")
+        return {
+            "ok": False,
+            "provider": current,
+            "message": "missing or placeholder key",
+        }
+    logger.info("LLM provider '%s' has a configured API key.", current)
+    return {"ok": True, "provider": current, "message": "secret present"}
+
+
 def get_provider_info() -> dict:
     """Return provider info including available providers and their status."""
     current = get_provider()
