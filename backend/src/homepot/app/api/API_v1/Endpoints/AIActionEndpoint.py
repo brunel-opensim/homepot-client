@@ -172,9 +172,13 @@ async def get_autonomy_levels(
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
     """Return current autonomy levels for all action types."""
-    from homepot.app.ai_ops.autonomy import get_autonomy_controller
+    from homepot.app.ai_ops.autonomy import (
+        hydrate_autonomy_from_reliability,
+    )
 
-    controller = get_autonomy_controller()
+    # Hydrate from measured reliability so the report reflects real outcomes
+    # instead of an empty in-memory singleton.
+    controller = await hydrate_autonomy_from_reliability(days=30)
     levels = controller.all_levels()
     return {
         action_type: {
