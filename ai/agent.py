@@ -603,10 +603,12 @@ async def run_agent(
                 tool_bytes_used += len(result)
 
                 # Feed result back as tool message
+                _call_id = getattr(call, "id", None)
                 messages.append(
                     {
                         "role": "tool",
                         "tool_name": tool_name,
+                        "tool_call_id": _call_id,
                         "content": result,
                     }
                 )

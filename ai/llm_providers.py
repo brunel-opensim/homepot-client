@@ -13,6 +13,7 @@ Usage:
 import logging
 import os
 from typing import Any, Dict, List, Optional
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -225,13 +226,72 @@ class OpenAIProvider(LLMProvider):
         for t in tools:
             if isinstance(t, dict) and "function" in t:
                 oai_tools.append(t)
+            elif callable(t):
+                oai_tools.append(_function_to_tool_schema(t))
             else:
                 oai_tools.append({"type": "function", "function": t})
+
+        # Normalize messages (common/Ollama-style -> OpenAI format)
+        norm_messages = []
+        for m in messages:
+            if (
+                isinstance(m, dict)
+                and m.get("role") == "assistant"
+                and m.get("tool_calls")
+            ):
+                tc_list = []
+                for tc in m["tool_calls"]:
+                    fn = getattr(tc, "function", None)
+                    if fn is None and isinstance(tc, dict):
+                        fn = tc.get("function", {})
+                    name = (
+                        getattr(fn, "name", None)
+                        if not isinstance(fn, dict)
+                        else fn.get("name")
+                    )
+                    args = (
+                        getattr(fn, "arguments", None)
+                        if not isinstance(fn, dict)
+                        else fn.get("arguments")
+                    )
+                    cid = (
+                        getattr(tc, "id", None)
+                        if not isinstance(tc, dict)
+                        else tc.get("id")
+                    )
+                    if isinstance(args, (dict, list)):
+                        import json as _json
+
+                        args = _json.dumps(args)
+                    tc_list.append(
+                        {
+                            "id": cid or str(uuid.uuid4()),
+                            "type": "function",
+                            "function": {"name": name, "arguments": args or "{}"},
+                        }
+                    )
+                norm_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": m.get("content") or None,
+                        "tool_calls": tc_list,
+                    }
+                )
+            elif isinstance(m, dict) and m.get("role") == "tool":
+                norm_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": m.get("tool_call_id") or str(uuid.uuid4()),
+                        "content": m.get("content", ""),
+                    }
+                )
+            else:
+                norm_messages.append(m)
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,  # type: ignore[arg-type]
+                messages=norm_messages,  # type: ignore[arg-type]
                 tools=oai_tools if oai_tools else None,  # type: ignore[arg-type]
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
@@ -241,12 +301,11 @@ class OpenAIProvider(LLMProvider):
             tool_calls = None
             if msg.tool_calls:
                 tool_calls = [
-                    {
-                        "function": {
-                            "name": tc.function.name,  # type: ignore[union-attr]
-                            "arguments": tc.function.arguments,  # type: ignore[union-attr]
-                        }
-                    }
+                    _ToolCall(
+                        name=tc.function.name,  # type: ignore[union-attr]
+                        arguments=tc.function.arguments,  # type: ignore[union-attr]
+                        call_id=getattr(tc, "id", None),
+                    )
                     for tc in msg.tool_calls
                 ]
             return _ToolResponse(content=msg.content or "", tool_calls=tool_calls)
@@ -333,6 +392,16 @@ class AnthropicProvider(LLMProvider):
                         "input_schema": fn.get("parameters", {}),
                     }
                 )
+            elif callable(t):
+                schema = _function_to_tool_schema(t)
+                fn = schema["function"]
+                ant_tools.append(
+                    {
+                        "name": fn.get("name", ""),
+                        "description": fn.get("description", ""),
+                        "input_schema": fn.get("parameters", {}),
+                    }
+                )
             else:
                 ant_tools.append(t)
 
@@ -343,17 +412,100 @@ class AnthropicProvider(LLMProvider):
                 "messages": messages,
                 "tools": ant_tools if ant_tools else None,
             }
-            # Extract system message if present
+            # Convert common/Ollama-style messages to Anthropic format
             system_msg = None
-            filtered_msgs = []
+            ant_messages = []
+            # Collect tool results into a pending user message
+            pending_tool_results: list = []
+
+            def flush_tool_results() -> None:
+                nonlocal pending_tool_results
+                if pending_tool_results:
+                    ant_messages.append(
+                        {"role": "user", "content": list(pending_tool_results)}
+                    )
+                    pending_tool_results = []
+
             for m in messages:
-                if m.get("role") == "system":
+                if not isinstance(m, dict):
+                    continue
+                role = m.get("role")
+                if role == "system":
                     system_msg = m.get("content", "")
+                    continue
+                if role == "assistant":
+                    flush_tool_results()
+                    content_blocks = []
+                    text = m.get("content")
+                    if text:
+                        content_blocks.append({"type": "text", "text": text})
+                    for tc in m.get("tool_calls") or []:
+                        fn = getattr(tc, "function", None)
+                        if fn is None and isinstance(tc, dict):
+                            fn = tc.get("function", {})
+                        name = (
+                            getattr(fn, "name", None)
+                            if not isinstance(fn, dict)
+                            else fn.get("name")
+                        )
+                        args = (
+                            getattr(fn, "arguments", None)
+                            if not isinstance(fn, dict)
+                            else fn.get("arguments")
+                        )
+                        cid = (
+                            getattr(tc, "id", None)
+                            if not isinstance(tc, dict)
+                            else tc.get("id")
+                        )
+                        if isinstance(args, str):
+                            try:
+                                import json as _json
+
+                                args = _json.loads(args)
+                            except Exception:
+                                args = {}
+                        if not isinstance(args, dict):
+                            args = {}
+                        content_blocks.append(
+                            {
+                                "type": "tool_use",
+                                "id": cid or str(uuid.uuid4()),
+                                "name": name,
+                                "input": args,
+                            }
+                        )
+                    if not content_blocks:
+                        content_blocks = [{"type": "text", "text": ""}]
+                    ant_messages.append(
+                        {"role": "assistant", "content": content_blocks}
+                    )
+                elif role == "tool":
+                    tool_call_id = m.get("tool_call_id")
+                    if not tool_call_id:
+                        # Best effort: match by tool name is not possible; generate
+                        tool_call_id = str(uuid.uuid4())
+                    pending_tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call_id,
+                            "content": m.get("content", ""),
+                        }
+                    )
                 else:
-                    filtered_msgs.append(m)
+                    flush_tool_results()
+                    content = m.get("content", "")
+                    ant_messages.append(
+                        {"role": str(role or "user"), "content": content}
+                    )
+
+            flush_tool_results()
+
             if system_msg:
-                kwargs["messages"] = filtered_msgs
                 kwargs["system"] = system_msg
+            kwargs["messages"] = (
+                ant_messages if ant_messages else [{"role": "user", "content": ""}]
+            )
 
             response = self.client.messages.create(**kwargs)
             # Extract tool calls
@@ -363,12 +515,9 @@ class AnthropicProvider(LLMProvider):
                     if tool_calls is None:
                         tool_calls = []
                     tool_calls.append(
-                        {
-                            "function": {
-                                "name": block.name,
-                                "arguments": block.input,
-                            }
-                        }
+                        _ToolCall(
+                            name=block.name, arguments=block.input, call_id=block.id
+                        )
                     )
             text_content = ""
             for block in response.content:
@@ -380,6 +529,128 @@ class AnthropicProvider(LLMProvider):
             return _ToolResponse(content=f"AI error (Anthropic): {e}", tool_calls=None)
 
 
+def _python_type_to_json(annotation: Any) -> Dict[str, Any]:
+    """Map a Python annotation to a JSON Schema fragment."""
+    import typing
+
+    origin = getattr(annotation, "__origin__", None)
+    args = getattr(annotation, "__args__", ())
+
+    # Optional / Union with None
+    if origin is typing.Union and type(None) in args:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            schema = _python_type_to_json(non_none[0])
+            schema["nullable"] = True
+            return schema
+    if origin is typing.Optional if hasattr(typing, "Optional") else None:
+        pass
+
+    # List / Sequence
+    if origin in (list, typing.List, typing.Sequence, typing.Iterable):
+        item_type = args[0] if args else str
+        return {"type": "array", "items": _python_type_to_json(item_type)}
+
+    # Dict / Mapping
+    if origin in (dict, typing.Dict, typing.Mapping):
+        return {"type": "object"}
+
+    # Primitive mapping
+    if annotation is str or annotation is None or annotation is Any:
+        return {"type": "string"}
+    if annotation is int:
+        return {"type": "integer"}
+    if annotation is float:
+        return {"type": "number"}
+    if annotation is bool:
+        return {"type": "boolean"}
+    if annotation is list:
+        return {"type": "array", "items": {"type": "string"}}
+    if annotation is dict:
+        return {"type": "object"}
+    return {"type": "string"}
+
+
+def _function_to_tool_schema(func: Any) -> Dict[str, Any]:
+    """Convert a Python callable into an OpenAI/Anthropic tool schema."""
+    import inspect
+
+    _parse_docstring = None
+    try:
+        from docstring_parser import parse as _docstring_parse
+
+        _parse_docstring = _docstring_parse
+    except Exception:  # pragma: no cover
+        _parse_docstring = None
+
+    name = getattr(func, "__name__", str(func))
+    doc = inspect.getdoc(func) or ""
+    description = doc.strip().split("\n", 1)[0] if doc.strip() else name
+
+    param_descriptions: Dict[str, str] = {}
+    if _parse_docstring is not None:
+        try:
+            parsed = _parse_docstring(doc)
+            for p in parsed.params:
+                if p.arg_name:
+                    param_descriptions[p.arg_name] = (p.description or "").strip()
+        except Exception:
+            param_descriptions = {}
+
+    sig = inspect.signature(func)
+    properties: Dict[str, Any] = {}
+    required: List[str] = []
+    for pname, param in sig.parameters.items():
+        if pname in ("self", "cls"):
+            continue
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            continue
+        annotation = param.annotation
+        if annotation is inspect.Parameter.empty:
+            annotation = str
+        schema = _python_type_to_json(annotation)
+        if pname in param_descriptions:
+            schema["description"] = param_descriptions[pname]
+        properties[pname] = schema
+        if param.default is inspect.Parameter.empty:
+            required.append(pname)
+
+    parameters: Dict[str, Any] = {"type": "object", "properties": properties}
+    if required:
+        parameters["required"] = required
+
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
+
+
+class _FunctionCall:
+    """Mimics Ollama's function-call object for cloud providers."""
+
+    def __init__(self, name: str, arguments: Any) -> None:
+        self.name = name
+        self.arguments = arguments
+
+
+class _ToolCall:
+    """Mimics Ollama's ToolCall object for cloud providers."""
+
+    def __init__(
+        self, name: str, arguments: Any, call_id: Optional[str] = None
+    ) -> None:
+        self.id = call_id or str(uuid.uuid4())
+        self.function = _FunctionCall(name, arguments)
+        self.function.arguments = arguments
+
+
 class _ToolResponse:
     """Lightweight wrapper to normalize tool-calling responses across providers."""
 
@@ -387,6 +658,7 @@ class _ToolResponse:
         """Initialize the tool response wrapper."""
         self.content = content
         self.tool_calls = tool_calls
+        self.role = "assistant"
         self.message = self
 
     @property
