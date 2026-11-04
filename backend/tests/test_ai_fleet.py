@@ -12,7 +12,6 @@ if workspace_root not in sys.path:
 
 from ai.tools import (  # noqa: E402
     TOOL_REGISTRY,
-    get_tool_proposal_sink,
     propose_fleet_action,
     set_tool_proposal_sink,
 )
@@ -27,6 +26,7 @@ from homepot.models import Base, Device, Site  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
+    """Temp database fixture."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
@@ -54,10 +54,12 @@ def mock_db_url(monkeypatch):
 
 
 def test_fleet_action_is_registered():
+    """Fleet action is registered."""
     assert "propose_fleet_action" in TOOL_REGISTRY
 
 
 def test_propose_fleet_action_records_per_device_proposals():
+    """Fleet action expands into per-device proposals."""
     import homepot.database
 
     db = homepot.database.SessionLocal()
