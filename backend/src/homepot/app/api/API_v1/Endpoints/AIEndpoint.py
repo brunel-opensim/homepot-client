@@ -1925,7 +1925,11 @@ async def _query_ai_impl(
             )
             # Build user scope for per-device RBAC in tools.
             _user_scope: Optional[Dict[str, Any]] = {
-                "role": current_user.get("role", "viewer"),
+                "role": (
+                    "admin"
+                    if current_user.get("is_admin")
+                    else str(current_user.get("role") or "viewer").lower()
+                ),
                 "accessible_site_ids": (
                     list(site_scope) if site_scope is not None else None
                 ),
