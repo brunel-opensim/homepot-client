@@ -530,9 +530,13 @@ async def propose_device_action(
 
     Args:
         action: The proposed action. Must be one of the registered actions:
-            'health_check', 'list_processes', 'scan_filesystem' (T1 read-only),
-            'update_config', 'restart', 'rollback_config' (T2 reversible),
-            'restart_service' (T3 disruptive).
+            'health_check', 'list_processes', 'scan_filesystem',
+            'list_installed_programs', 'list_connections' (T1 read-only),
+            'update_config', 'restart', 'rollback_config', 'start_program',
+            'stop_program', 'install_program', 'uninstall_program',
+            'update_program', 'run_command_unprivileged' (T2 reversible),
+            'restart_service', 'shutdown', 'upgrade_all_programs',
+            'run_command', 'run_script' (T3 disruptive).
         target_device_id: The device identifier the action applies to.
         rationale: Why the action is recommended, citing the evidence you
                 observed (metrics, errors, config history).
