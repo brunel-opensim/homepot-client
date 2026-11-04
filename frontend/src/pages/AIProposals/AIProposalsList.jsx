@@ -134,6 +134,39 @@ export default function AIProposalsList() {
     }
   };
 
+  const handleExecuteAndWait = async (planId) => {
+    if (
+      !window.confirm(
+        'Execute this approved plan and wait for the result? Device commands will be queued.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setBusyPlan(planId);
+      const result = await api.aiProposals.executeAndWait(planId, 60);
+      if (result.completed) {
+        const status = result.plan?.status;
+        setToast({
+          type: status === 'succeeded' ? 'success' : 'error',
+          message: `Delegated task ${status || 'finished'} in ${result.elapsed_seconds}s.`,
+        });
+      } else {
+        setToast({
+          type: 'error',
+          message: `Timed out after ${result.elapsed_seconds}s; plan still ${result.plan?.status}.`,
+        });
+      }
+      fetchPlans();
+    } catch (err) {
+      console.error('Failed to execute-and-wait:', err);
+      setToast({ type: 'error', message: apiHelpers.formatError(err) });
+    } finally {
+      setBusyPlan(null);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-[#0b0e13] p-2">
       {toast && (
@@ -219,6 +252,7 @@ export default function AIProposalsList() {
                   onApprove={() => handleDecide(plan.plan_id, 'approve')}
                   onReject={() => handleDecide(plan.plan_id, 'reject')}
                   onExecute={() => handleExecute(plan.plan_id)}
+                  onExecuteAndWait={() => handleExecuteAndWait(plan.plan_id)}
                   onApproveStep={(step) => handleApproveStep(plan.plan_id, step)}
                 />
               ))}
@@ -236,7 +270,7 @@ function pendingApprovalCount(plans) {
   return plans.filter((plan) => plan.status === 'pending_approval').length;
 }
 
-function PlanCard({ plan, busy, onApprove, onReject, onExecute, onApproveStep }) {
+function PlanCard({ plan, busy, onApprove, onReject, onExecute, onExecuteAndWait, onApproveStep }) {
   const [dryRunResult, setDryRunResult] = useState(null);
   const [dryRunning, setDryRunning] = useState(false);
   const reviewable = plan.status === 'pending_approval';
@@ -372,6 +406,17 @@ function PlanCard({ plan, busy, onApprove, onReject, onExecute, onApproveStep })
             >
               <PlayCircle className="h-4 w-4 mr-1" />
               Execute
+            </Button>
+          )}
+          {executable && (
+            <Button
+              size="sm"
+              onClick={onExecuteAndWait}
+              disabled={busy}
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              <PlayCircle className="h-4 w-4 mr-1" />
+              Execute &amp; wait
             </Button>
           )}
           <Button

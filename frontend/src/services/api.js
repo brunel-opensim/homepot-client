@@ -1057,6 +1057,16 @@ const api = {
     },
 
     /**
+     * Execute an approved plan and wait for a terminal outcome.
+     */
+    executeAndWait: async (planId, timeoutSeconds = 60) => {
+      const response = await apiClient.post(`/ai/action-plans/${planId}/execute-and-wait`, null, {
+        params: { timeout_seconds: timeoutSeconds },
+      });
+      return response.data;
+    },
+
+    /**
      * Dry-run an action plan (non-destructive preview). No commands are queued.
      */
     dryRun: async (planId) => {
