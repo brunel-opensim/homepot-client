@@ -110,9 +110,13 @@ async def validate_llm_provider_secrets() -> None:
 
         result = validate_provider_secrets()
         if not result.get("ok"):
-            logging.getLogger(__name__).warning("LLM provider secret validation: %s", result.get("message"))
+            logging.getLogger(__name__).warning(
+                "LLM provider secret validation: %s", result.get("message")
+            )
     except Exception as e:
-        logging.getLogger(__name__).warning("LLM provider secret validation failed: %s", e)
+        logging.getLogger(__name__).warning(
+            "LLM provider secret validation failed: %s", e
+        )
 
 
 @app.on_event("startup")
