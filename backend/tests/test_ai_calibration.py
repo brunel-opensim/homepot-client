@@ -4,7 +4,7 @@ import asyncio
 import os
 import sys
 import tempfile
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
@@ -43,6 +43,7 @@ CALIBRATION = {
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
+    """Temp database fixture."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
@@ -82,6 +83,7 @@ def _seed_user(db):
 
 
 def test_calibration_endpoint_returns_bands(client: TestClient, monkeypatch):
+    """The calibration endpoint returns bands."""
     monkeypatch.setattr(
         "ai.analytics_service.AIAnalyticsService.get_confidence_calibration",
         AsyncMock(return_value=CALIBRATION),
@@ -102,6 +104,7 @@ def test_calibration_endpoint_returns_bands(client: TestClient, monkeypatch):
 
 
 def test_calibrate_direct():
+    """Smoke test for the calibration helper."""
     import homepot.app.ai_ops  # noqa
 
     # Smoke: the analytics function exists and is callable.
