@@ -201,17 +201,23 @@ def validate_provider_secrets() -> dict:
         return {"ok": True, "provider": current, "message": "local provider"}
     key = get_api_key(current)
     if not key:
-        msg = (
-            "LLM provider '%s' is selected but has no API key. "
+        logger.error(
+            "LLM provider is selected but has no API key. "
             "Set the configured env var, store a key via PUT /ai/provider/key, "
             "or switch back to ollama. Cloud queries will fail until resolved."
-        ) % current
-        logger.error(msg)
-        return {"ok": False, "provider": current, "message": msg}
+        )
+        return {
+            "ok": False,
+            "provider": current,
+            "message": "missing or placeholder key",
+        }
     if key.lower() in {"", "changeme", "your-api-key", "sk-..."}:
-        msg = "LLM provider '%s' API key looks like a placeholder." % current
-        logger.error(msg)
-        return {"ok": False, "provider": current, "message": msg}
+        logger.error("LLM provider API key looks like a placeholder.")
+        return {
+            "ok": False,
+            "provider": current,
+            "message": "missing or placeholder key",
+        }
     logger.info("LLM provider '%s' has a configured API key.", current)
     return {"ok": True, "provider": current, "message": "secret present"}
 
