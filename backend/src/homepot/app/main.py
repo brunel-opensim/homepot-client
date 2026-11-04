@@ -103,6 +103,24 @@ async def initialize_database() -> None:
 
 
 @app.on_event("startup")
+async def validate_llm_provider_secrets() -> None:
+    """Validate LLM provider secrets at startup (non-blocking)."""
+    try:
+        from ai.provider import validate_provider_secrets
+
+        result = validate_provider_secrets()
+        if not result.get("ok"):
+            # Avoid logging any value derived from the secret-checking result.
+            logging.getLogger(__name__).warning(
+                "LLM provider secret validation failed; see startup logs."
+            )
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            "LLM provider secret validation failed: %s", e
+        )
+
+
+@app.on_event("startup")
 async def start_agent_manager() -> None:
     """Auto-start the device agent simulator when the API starts.
 

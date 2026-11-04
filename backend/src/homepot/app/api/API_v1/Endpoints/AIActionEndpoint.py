@@ -180,6 +180,7 @@ async def get_autonomy_levels(
     # instead of an empty in-memory singleton.
     controller = await hydrate_autonomy_from_reliability(days=30)
     levels = controller.all_levels()
+
     return {
         action_type: {
             "level": level.level,
@@ -190,6 +191,17 @@ async def get_autonomy_levels(
         }
         for action_type, level in levels.items()
     }
+
+
+@router.get("/calibration", tags=["AI Action Delegation"])
+async def get_confidence_calibration(
+    days: int = 30,
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, Any]:
+    """Return trust-score vs. observed-success calibration (Phase D, item 15)."""
+    from ai.analytics_service import AIAnalyticsService
+
+    return await AIAnalyticsService.get_confidence_calibration(days=days)
 
 
 def _get_db_user(db: SASession, current_user: UserDict) -> User:

@@ -19,10 +19,10 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from homepot.app.ai_ops.autonomy import (  # noqa: E402
     hydrate_autonomy_from_reliability,
 )
+from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, Device, Site, User  # noqa: E402
-from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
 
 
 REL_METRICS = {
@@ -71,7 +71,7 @@ CALIBRATION = {
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
-    """Temp database fixture."""
+    """Provide an isolated SQLite database for each test."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
@@ -123,7 +123,7 @@ def _seed(db):
 
 
 def test_hydrate_autonomy_from_reliability():
-    """Hydrating from reliability populates the controller."""
+    """Hydrate autonomy levels from reliability metrics."""
     import homepot.app.ai_ops.autonomy as autonomy_mod
 
     autonomy_mod._controller = None
@@ -139,7 +139,7 @@ def test_hydrate_autonomy_from_reliability():
 
 
 def test_autonomy_endpoint_returns_hydrated_levels(client: TestClient, monkeypatch):
-    """The autonomy endpoint returns hydrated levels."""
+    """Return hydrated autonomy levels from the endpoint."""
     monkeypatch.setattr(
         "ai.analytics_service.AIAnalyticsService.get_ai_action_reliability",
         AsyncMock(return_value=REL_METRICS),

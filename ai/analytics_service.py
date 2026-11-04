@@ -7,6 +7,7 @@ for ML models and predictive features.
 from datetime import datetime, timedelta
 import logging
 from typing import Any, Dict, Optional
+from typing import cast as typing_cast
 
 from sqlalchemy import String, and_, case, cast, func, select
 
@@ -657,6 +658,91 @@ class AIAnalyticsService:
                 }
         except Exception as e:
             logger.error("Failed to compute AI action reliability: %s", e)
+            return {"status": "error", "message": str(e)}
+
+    @staticmethod
+    async def get_confidence_calibration(
+        days: int = 30,
+        buckets: int = 5,
+    ) -> Dict[str, Any]:
+        """Compare the trust score recorded at proposal time with the actual outcome.
+
+        Autonomy thresholds can be tuned against reality (D15). Plans are grouped
+        into ``buckets`` bands by their recorded
+        ``trust_score`` (0..1). For each band we report how many plans were
+        created and how many of them ultimately succeeded, plus the gap between
+        the average trust score and the observed success rate.
+        """
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                from sqlalchemy import select
+
+                from homepot.app.models.AnalyticsModel import AIActionPlan
+
+                cutoff = datetime.utcnow() - timedelta(days=days)
+                plans_result = await session.execute(
+                    select(AIActionPlan).where(AIActionPlan.created_at >= cutoff)
+                )
+                plans = plans_result.scalars().all()
+
+                bands: Dict[str, Dict[str, Any]] = {}
+                step = 1.0 / buckets
+                for i in range(buckets):
+                    lo = round(i * step, 4)
+                    hi = round((i + 1) * step, 4)
+                    key = f"{lo:.2f}-{hi:.2f}"
+                    bands[key] = {
+                        "trust_min": lo,
+                        "trust_max": hi,
+                        "plans": 0,
+                        "succeeded": 0,
+                        "failed": 0,
+                        "trust_sum": 0.0,
+                    }
+
+                for plan in plans:
+                    trust_score = plan.trust_score
+                    score: float = (
+                        0.5 if trust_score is None else typing_cast(float, trust_score)
+                    )
+                    score = max(0.0, min(1.0, score))
+                    idx = min(buckets - 1, int(score / step))
+                    lo = round(idx * step, 4)
+                    hi = round((idx + 1) * step, 4)
+                    key = f"{lo:.2f}-{hi:.2f}"
+                    band = bands[key]
+                    band["plans"] += 1
+                    band["trust_sum"] += score
+                    if plan.status == "succeeded":
+                        band["succeeded"] += 1
+                    elif plan.status in ("failed", "rolled_back"):
+                        band["failed"] += 1
+
+                result = {}
+                for key, band in bands.items():
+                    plans_n = band["plans"] or 1
+                    observed = band["succeeded"] / plans_n if band["plans"] else 0.0
+                    avg_trust = band["trust_sum"] / plans_n if band["plans"] else 0.0
+                    result[key] = {
+                        "trust_min": band["trust_min"],
+                        "trust_max": band["trust_max"],
+                        "plans": band["plans"],
+                        "succeeded": band["succeeded"],
+                        "failed": band["failed"],
+                        "avg_trust_score": round(avg_trust, 4),
+                        "observed_success_rate": round(observed, 4),
+                        "calibration_gap": round(avg_trust - observed, 4),
+                    }
+
+                return {
+                    "period_days": days,
+                    "buckets": buckets,
+                    "bands": result,
+                    "total_plans": len(plans),
+                }
+        except Exception as e:
+            logger.error("Failed to compute confidence calibration: %s", e)
             return {"status": "error", "message": str(e)}
 
     @staticmethod

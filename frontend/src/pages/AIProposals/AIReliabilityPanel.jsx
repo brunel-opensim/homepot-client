@@ -29,6 +29,7 @@ export default function AIReliabilityPanel() {
   const [summary, setSummary] = useState(null);
   const [reliability, setReliability] = useState(null);
   const [autonomy, setAutonomy] = useState(null);
+  const [calibration, setCalibration] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState({});
@@ -66,6 +67,17 @@ export default function AIReliabilityPanel() {
         setAutonomy(autonomyData.value);
       } else {
         nextErrors.autonomy = apiHelpers.formatError(autonomyData.reason);
+      }
+
+      if (typeof api.ai.getCalibration === 'function') {
+        try {
+          const calibrationData = await api.ai.getCalibration(30);
+          if (calibrationData?.status !== 'error') {
+            setCalibration(calibrationData);
+          }
+        } catch (err) {
+          nextErrors.calibration = apiHelpers.formatError(err);
+        }
       }
 
       setErrors(nextErrors);
@@ -238,6 +250,25 @@ export default function AIReliabilityPanel() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {calibration?.bands && (
+        <div className="mt-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+            Confidence calibration (trust vs. observed success)
+          </p>
+          <div className="space-y-1 text-xs text-gray-300">
+            {Object.entries(calibration.bands).map(([band, entry]) => (
+              <div key={band} className="flex flex-wrap gap-2">
+                <span className="font-mono">{band}</span>
+                <span>{entry.plans} plan(s)</span>
+                <span>trust {pct(entry.avg_trust_score)}</span>
+                <span>observed {pct(entry.observed_success_rate)}</span>
+                <span>gap {pct(entry.calibration_gap)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

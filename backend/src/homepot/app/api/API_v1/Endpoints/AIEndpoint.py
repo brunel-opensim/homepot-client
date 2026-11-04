@@ -2185,6 +2185,10 @@ async def _query_ai_impl(
             trust.is_actionable,
         )
 
+        from ai.provider import get_provider as _get_provider
+
+        _active_provider = _get_provider()
+
         try:
             audit = get_audit_logger()
             await audit.log_event(
@@ -2204,6 +2208,7 @@ async def _query_ai_impl(
                     "routing_mode": routing_info["resolved"],
                     "routing_requested": routing_info["requested"],
                     "routing_reason": routing_info["reason"],
+                    "provider": _active_provider,
                 },
             )
             if not trust.is_actionable:
@@ -2235,6 +2240,7 @@ async def _query_ai_impl(
         return {
             "response": response,
             "timestamp": datetime.utcnow().isoformat(),
+            "provider": _active_provider,
             "trust": trust.to_dict(),
             "routing": routing_info,
             **({"agentic": agentic_info} if agentic_info else {}),

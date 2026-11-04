@@ -37,9 +37,9 @@ from ai.tools import (  # noqa: E402
 # ── Tool registry tests ──────────────────────────────────────────────────────
 
 
-def test_tool_registry_has_all_ten_tools():
-    """Tool registry should contain exactly 10 tools."""
-    assert len(TOOL_REGISTRY) == 10
+def test_tool_registry_has_all_eleven_tools():
+    """Tool registry should contain exactly 11 tools."""
+    assert len(TOOL_REGISTRY) == 11
 
 
 def test_tool_registry_names():
@@ -54,6 +54,7 @@ def test_tool_registry_names():
         "get_fleet_summary",
         "get_alerts",
         "propose_device_action",
+        "propose_fleet_action",
         "get_action_plan_status",
     }
     assert set(TOOL_REGISTRY.keys()) == expected
@@ -104,10 +105,14 @@ async def test_execute_tool_refuses_name_outside_allowlist():
 @pytest.mark.asyncio
 async def test_execute_tool_success():
     """Executing a tool with correct args should return a result."""
-    with patch("ai.tools.ContextBuilder") as mock_cb:
+    with patch("ai.tools.ContextBuilder") as mock_cb, patch(
+        "ai.tools._gate_b_note",
+        new_callable=AsyncMock,
+        return_value="[Gate B: telemetry fresh]",
+    ):
         mock_cb.get_metadata_context = AsyncMock(return_value="Device status: healthy")
         result = await _execute_tool("get_device_status", {"device_id": "POS-001"})
-        assert result == "Device status: healthy"
+        assert result == "Device status: healthy\n[Gate B: telemetry fresh]"
 
 
 @pytest.mark.asyncio

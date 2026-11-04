@@ -919,6 +919,11 @@ const api = {
       const response = await apiClient.get('/ai/autonomy');
       return response.data;
     },
+
+    getCalibration: async (days = 30) => {
+      const response = await apiClient.get('/ai/calibration', { params: { days } });
+      return response.data;
+    },
   },
 
   // Investigation sessions (backend-owned AI investigations).
@@ -1048,6 +1053,14 @@ const api = {
      */
     execute: async (planId) => {
       const response = await apiClient.post(`/ai/action-plans/${planId}/execute`);
+      return response.data;
+    },
+
+    /**
+     * Dry-run an action plan (non-destructive preview). No commands are queued.
+     */
+    dryRun: async (planId) => {
+      const response = await apiClient.post(`/ai/action-plans/${planId}/dry-run`);
       return response.data;
     },
   },

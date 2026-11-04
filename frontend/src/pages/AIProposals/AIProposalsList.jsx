@@ -9,6 +9,7 @@ import {
   Clock,
   Cpu,
   PlayCircle,
+  Activity,
 } from 'lucide-react';
 import api, { apiHelpers } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -236,8 +237,22 @@ function pendingApprovalCount(plans) {
 }
 
 function PlanCard({ plan, busy, onApprove, onReject, onExecute, onApproveStep }) {
+  const [dryRunResult, setDryRunResult] = useState(null);
+  const [dryRunning, setDryRunning] = useState(false);
   const reviewable = plan.status === 'pending_approval';
   const executable = plan.status === 'approved';
+
+  const handleDryRun = async () => {
+    setDryRunning(true);
+    try {
+      const result = await api.aiProposals.dryRun(plan.plan_id);
+      setDryRunResult(result);
+    } catch (err) {
+      console.error('Dry run failed:', err);
+    } finally {
+      setDryRunning(false);
+    }
+  };
   const targets = [...new Set((plan.steps || []).map((step) => step.target_device_id))].filter(
     Boolean
   );
@@ -287,6 +302,30 @@ function PlanCard({ plan, busy, onApprove, onReject, onExecute, onApproveStep })
             ))}
           </div>
 
+          {dryRunResult && (
+            <div className="mt-2 rounded-md border border-border bg-[#0b0e13] p-3 text-xs space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400">Dry run:</span>
+                <span className={dryRunResult.policy?.allowed ? 'text-green-400' : 'text-red-400'}>
+                  {dryRunResult.policy?.allowed ? 'policy OK' : 'policy blocked'}
+                </span>
+              </div>
+              {(dryRunResult.steps || []).map((step, idx) => (
+                <div key={idx} className="flex flex-wrap gap-2 text-gray-300">
+                  <span className="font-mono">{step.action}</span>
+                  <span className="text-gray-500">→</span>
+                  <span className="font-mono text-gray-400">{step.target_device_id}</span>
+                  <span className={step.policy_allowed ? 'text-green-400' : 'text-red-400'}>
+                    {step.policy_allowed ? 'allowed' : 'blocked'}
+                  </span>
+                  {step.predicted_change && (
+                    <span className="text-gray-500">{JSON.stringify(step.predicted_change)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {plan.outcome && <OutcomeLine outcome={plan.outcome} />}
 
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
@@ -335,6 +374,20 @@ function PlanCard({ plan, busy, onApprove, onReject, onExecute, onApproveStep })
               Execute
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDryRun}
+            disabled={busy || dryRunning}
+            className="text-gray-300 hover:text-white hover:bg-gray-700/40"
+          >
+            {dryRunning ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Activity className="h-4 w-4 mr-1" />
+            )}
+            Dry run
+          </Button>
         </div>
       </div>
     </Card>
