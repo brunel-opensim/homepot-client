@@ -105,10 +105,14 @@ async def test_execute_tool_refuses_name_outside_allowlist():
 @pytest.mark.asyncio
 async def test_execute_tool_success():
     """Executing a tool with correct args should return a result."""
-    with patch("ai.tools.ContextBuilder") as mock_cb:
+    with patch("ai.tools.ContextBuilder") as mock_cb, patch(
+        "ai.tools._gate_b_note",
+        new_callable=AsyncMock,
+        return_value="[Gate B: telemetry fresh]",
+    ):
         mock_cb.get_metadata_context = AsyncMock(return_value="Device status: healthy")
         result = await _execute_tool("get_device_status", {"device_id": "POS-001"})
-        assert result == "Device status: healthy"
+        assert result == "Device status: healthy\n[Gate B: telemetry fresh]"
 
 
 @pytest.mark.asyncio

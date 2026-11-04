@@ -174,6 +174,44 @@ async def _resolve_device_int_id(
     return result.scalar_one_or_none()
 
 
+async def _gate_b_note(device_id: str) -> str:
+    """Run a lightweight Gate B freshness check on a device's telemetry.
+
+    Returns a short annotation the tool output carries so the LLM (and the
+    operator) can see whether the underlying data is fresh enough to trust.
+    """
+    try:
+        from datetime import datetime
+
+        from homepot.app.models.AnalyticsModel import DeviceMetrics
+        from homepot.database import get_database_service
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            int_id = await _resolve_device_int_id(session, device_id)
+            if int_id is None:
+                return "[Gate B: device not found]"
+            from sqlalchemy import func as _func
+
+            stmt = select(_func.max(DeviceMetrics.timestamp)).where(
+                DeviceMetrics.device_id == int_id
+            )
+            result = await session.execute(stmt)
+            latest = result.scalar_one_or_none()
+            if latest is None:
+                return "[Gate B: no telemetry recorded - treat with caution]"
+            age = (datetime.utcnow() - latest).total_seconds()
+            if age > 300:
+                return (
+                    f"[Gate B: stale telemetry (last sample {int(age)}s ago) - "
+                    "treat with caution]"
+                )
+            return "[Gate B: telemetry fresh]"
+    except Exception as e:
+        logger.debug("Gate B note failed for %s: %s", device_id, e)
+        return "[Gate B: unavailable]"
+
+
 # ---------------------------------------------------------------------------
 # Tool 1: get_device_status
 # ---------------------------------------------------------------------------
@@ -196,7 +234,8 @@ async def get_device_status(device_id: str) -> str:
         context = await ContextBuilder.get_metadata_context(device_id=device_id)
         if not context:
             return f"No device found with ID '{device_id}'."
-        return context
+        note = await _gate_b_note(device_id)
+        return f"{context}\n{note}"
     except Exception as e:
         logger.error("get_device_status failed for %s: %s", device_id, e)
         return f"Error retrieving status for {device_id}: {e}"
@@ -219,6 +258,9 @@ async def get_device_metrics(device_id: str, metric: Optional[str] = None) -> st
         Recent metric readings for the device including timestamps and values.
     """
     try:
+        access_error = await _check_device_access(device_id, "viewer")
+        if access_error:
+            return access_error
         context = await ContextBuilder.get_metrics_context(device_id=device_id)
         if not context:
             return f"No metrics available for device '{device_id}'."
@@ -232,13 +274,15 @@ async def get_device_metrics(device_id: str, metric: Optional[str] = None) -> st
                 if metric_lower in line.lower():
                     filtered.append(line)
             if len(filtered) > 1:
-                return "\n".join(filtered)
+                note = await _gate_b_note(device_id)
+                return "\n".join(filtered) + "\n" + note
             return (
                 f"Metric '{metric}' not found in recent data for {device_id}."
                 f" Available metrics:\n{context}"
             )
 
-        return context
+        note = await _gate_b_note(device_id)
+        return f"{context}\n{note}"
     except Exception as e:
         logger.error("get_device_metrics failed for %s: %s", device_id, e)
         return f"Error retrieving metrics for {device_id}: {e}"
