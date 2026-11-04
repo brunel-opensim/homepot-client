@@ -16,11 +16,10 @@ import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
+from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, User  # noqa: E402
-from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
-
 
 CALIBRATION = {
     "period_days": 30,
@@ -43,7 +42,7 @@ CALIBRATION = {
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
-    """Temp database fixture."""
+    """Use a temporary SQLite database for each test."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
@@ -83,7 +82,7 @@ def _seed_user(db):
 
 
 def test_calibration_endpoint_returns_bands(client: TestClient, monkeypatch):
-    """The calibration endpoint returns bands."""
+    """Return confidence calibration bands from the endpoint."""
     monkeypatch.setattr(
         "ai.analytics_service.AIAnalyticsService.get_confidence_calibration",
         AsyncMock(return_value=CALIBRATION),
@@ -104,10 +103,10 @@ def test_calibration_endpoint_returns_bands(client: TestClient, monkeypatch):
 
 
 def test_calibrate_direct():
-    """Smoke test for the calibration helper."""
-    import homepot.app.ai_ops  # noqa
-
+    """Expose the confidence calibration service through AI operations."""
     # Smoke: the analytics function exists and is callable.
     from ai.analytics_service import AIAnalyticsService
+
+    import homepot.app.ai_ops  # noqa
 
     assert hasattr(AIAnalyticsService, "get_confidence_calibration")

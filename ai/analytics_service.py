@@ -7,6 +7,7 @@ for ML models and predictive features.
 from datetime import datetime, timedelta
 import logging
 from typing import Any, Dict, Optional
+from typing import cast as typing_cast
 
 from sqlalchemy import String, and_, case, cast, func, select
 
@@ -701,24 +702,18 @@ class AIAnalyticsService:
                     }
 
                 for plan in plans:
-                    raw_score = plan.trust_score
-                    if raw_score is None:
-                        numeric_score = 0.5
-                    else:
-                        numeric_score = float(raw_score)
-                    if numeric_score < 0.0:
-                        numeric_score = 0.0
-                    elif numeric_score > 1.0:
-                        numeric_score = 1.0
-                    idx = int(numeric_score / step)
-                    if idx > buckets - 1:
-                        idx = buckets - 1
+                    trust_score = plan.trust_score
+                    score: float = (
+                        0.5 if trust_score is None else typing_cast(float, trust_score)
+                    )
+                    score = max(0.0, min(1.0, score))
+                    idx = min(buckets - 1, int(score / step))
                     lo = round(idx * step, 4)
                     hi = round((idx + 1) * step, 4)
                     key = f"{lo:.2f}-{hi:.2f}"
                     band = bands[key]
                     band["plans"] += 1
-                    band["trust_sum"] += numeric_score
+                    band["trust_sum"] += score
                     if plan.status == "succeeded":
                         band["succeeded"] += 1
                     elif plan.status in ("failed", "rolled_back"):
