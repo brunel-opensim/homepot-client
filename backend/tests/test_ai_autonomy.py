@@ -24,7 +24,6 @@ from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, Device, Site, User  # noqa: E402
 
-
 REL_METRICS = {
     "period_days": 30,
     "action_types": {
