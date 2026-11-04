@@ -722,3 +722,103 @@ async def execute_action_plan(
     result = _serialize_plan(plan)
     result["policy"] = {"allowed": policy.allowed, "reasons": policy.reasons}
     return result
+
+
+@router.post(
+    "/action-plans/{plan_id}/execute-and-wait",
+    tags=["AI Action Delegation"],
+)
+async def execute_and_wait_action_plan(
+    plan_id: str,
+    timeout_seconds: int = 60,
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Execute an approved plan and wait for a terminal outcome.
+
+    Claims and dispatches the plan like ``execute``, then polls until the
+    verifier reports a terminal status (succeeded/failed/rolled_back/blocked/
+    rejected/cancelled) or ``timeout_seconds`` elapses. Returns the final
+    serialized plan (including its outcome) so a caller can tell whether the
+    delegated task succeeded.
+    """
+    if timeout_seconds < 1:
+        timeout_seconds = 1
+    if timeout_seconds > 300:
+        timeout_seconds = 300
+
+    db_user = _get_db_user(db, current_user)
+    repo = AIActionRepository(db)
+    plan = repo.get_plan(plan_id)
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
+        )
+    _authorize_plan(db, db_user, plan)
+
+    if not await run_in_threadpool(repo.claim_for_execution, str(plan.plan_id)):
+        db.refresh(plan)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Plan is '{plan.status}' and cannot be executed "
+                "(only 'approved' plans execute)"
+            ),
+        )
+    db.refresh(plan)
+
+    plan, policy = await start_execution(db, plan, actor=str(current_user.get("email")))
+    if not policy.allowed:
+        await _log_execution(
+            current_user,
+            plan,
+            AuditEventType.AI_EXECUTION_BLOCKED,
+            _authorize_plan(db, db_user, plan),
+        )
+        return {
+            "completed": True,
+            "elapsed_seconds": 0,
+            "plan": _serialize_plan(plan),
+            "policy": {"allowed": policy.allowed, "reasons": policy.reasons},
+        }
+
+    await _log_execution(
+        current_user,
+        plan,
+        AuditEventType.AI_EXECUTION_STARTED,
+        _authorize_plan(db, db_user, plan),
+    )
+
+    import asyncio as _asyncio
+
+    from homepot.app.ai_ops.verifier import reconcile_plan
+
+    start = _asyncio.get_event_loop().time()
+    terminal = {
+        "succeeded",
+        "failed",
+        "rolled_back",
+        "blocked",
+        "rejected",
+        "cancelled",
+    }
+    while True:
+        db.refresh(plan)
+        if plan.status in terminal:
+            break
+        elapsed = _asyncio.get_event_loop().time() - start
+        if elapsed >= timeout_seconds:
+            break
+        try:
+            await reconcile_plan(db, plan)
+        except Exception:
+            logger.warning("reconcile failed during wait", exc_info=True)
+        await _asyncio.sleep(2)
+
+    elapsed = _asyncio.get_event_loop().time() - start
+    db.refresh(plan)
+    return {
+        "completed": plan.status in terminal,
+        "elapsed_seconds": round(elapsed, 1),
+        "plan": _serialize_plan(plan),
+    }
