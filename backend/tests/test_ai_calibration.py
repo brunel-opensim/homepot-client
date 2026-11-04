@@ -4,7 +4,7 @@ import asyncio
 import os
 import sys
 import tempfile
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
@@ -42,6 +42,7 @@ CALIBRATION = {
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
+    """Use a temporary SQLite database for each test."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
@@ -81,6 +82,7 @@ def _seed_user(db):
 
 
 def test_calibration_endpoint_returns_bands(client: TestClient, monkeypatch):
+    """Return confidence calibration bands from the endpoint."""
     monkeypatch.setattr(
         "ai.analytics_service.AIAnalyticsService.get_confidence_calibration",
         AsyncMock(return_value=CALIBRATION),
@@ -101,6 +103,7 @@ def test_calibration_endpoint_returns_bands(client: TestClient, monkeypatch):
 
 
 def test_calibrate_direct():
+    """Expose the confidence calibration service through AI operations."""
     # Smoke: the analytics function exists and is callable.
     from ai.analytics_service import AIAnalyticsService
 

@@ -11,21 +11,19 @@ workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
-from ai.actions import ActionProposal  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from homepot.app.ai_ops.autonomy import (  # noqa: E402
-    get_autonomy_controller,
     hydrate_autonomy_from_reliability,
 )
 from homepot.app.auth_utils import create_access_token, hash_password  # noqa: E402
-from homepot.app.models.AnalyticsModel import (  # noqa: E402
+from homepot.app.models.AnalyticsModel import (  # noqa: E402,F401
     AIActionOutcome,
 )
-from homepot.app.repositories import ai_action_repository  # noqa: E402
+from homepot.app.repositories import ai_action_repository  # noqa: E402, F401
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, Device, Site, User  # noqa: E402
@@ -76,6 +74,7 @@ CALIBRATION = {
 
 @pytest.fixture(autouse=True)
 def mock_db_url(monkeypatch):
+    """Use a temporary SQLite database for each test."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
@@ -127,6 +126,7 @@ def _seed(db):
 
 
 def test_hydrate_autonomy_from_reliability():
+    """Hydrate autonomy levels from reliability metrics."""
     import homepot.app.ai_ops.autonomy as autonomy_mod
 
     autonomy_mod._controller = None
@@ -142,6 +142,7 @@ def test_hydrate_autonomy_from_reliability():
 
 
 def test_autonomy_endpoint_returns_hydrated_levels(client: TestClient, monkeypatch):
+    """Return hydrated autonomy levels from the endpoint."""
     monkeypatch.setattr(
         "ai.analytics_service.AIAnalyticsService.get_ai_action_reliability",
         AsyncMock(return_value=REL_METRICS),
