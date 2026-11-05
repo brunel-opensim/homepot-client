@@ -186,12 +186,64 @@ Ollama for speed; trust gates still enforced.
 | Scenario | Action | Plan status | Outcome | Verified | Notes |
 |----------|--------|-------------|---------|----------|-------|
 | S1 — Health check | `health_check` | `succeeded` | verified=true | ✅ | Baseline run; trust 1.0 |
-| S2 — Config change | `update_config` (log_level debug) | `succeeded` | verified=true | ✅ | log_level "unsupported" (no OS action), but command completed |
+| S2 — Config change | `update_config` (volume 50) | `succeeded` | verified=true | ✅ | Volume set to 50%, verified=true (before=0, after=50) |
 | S3 — Rollback drill | `update_config` (brightness "abc") | `rolled_back` | rolled_back=true, rollback_success=true | ✅ | Per-key failure triggered rollback; restored brightness=60 |
 | S5 — Per-step approval | `restart_service` (spooler) | `executing` (retry) | — | — | T3 step paused in `awaiting_approval`; released on "Approve step"; retry re-gated |
 | S6 — Dry run | `health_check` | `pending_approval` (unchanged) | — | — | Policy allowed, predicted changes shown, no command queued |
 | S7 — Fleet command | `health_check` (1 device at site) | `succeeded` | verified=true | ✅ | Each step tracked independently |
 | S8 — Delegate and report | `health_check` | `succeeded` | verified=true | ✅ | AI reported "Yes, succeeded" via `get_action_plan_status` |
+
+### S2 detail — config change (volume 50)
+
+- **Prompt:** "Apply configuration to set volume to 50 on Brunel Device 001."
+- **Plan:** `update_config` with `{"config": {"volume": 50}}` (T2, reversible)
+- **Trust:** 1.0, actionable
+- **Execution:** command queued, device applied volume via ctypes Core Audio COM
+- **Result:** `{"status": "applied", "message": "volume set to 50%", "verification": {"before": 0, "after": 50, "target": 50, "verified": true}}`
+- **Outcome:** `verified: true`, `rolled_back: false`, provenance `real`
+- **Duration:** ~8.8s
+
+### S3 detail — rollback drill (volume "abc")
+
+- **Setup:** Device config set to `{"volume": 50}` (baseline from S2).
+- **Plan:** `update_config` with `{"config": {"volume": "abc"}}` (invalid value, will fail)
+- **Trust:** 1.0, actionable
+- **Execution:** command dispatched → device agent: `int("abc")` throws → status "error"
+- **Reconcile:** detected per-key failure → triggered rollback
+- **Rollback:** restored volume to 50 via rollback command (snapshot captured from device config)
+- **Outcome:** `rolled_back: true`, `rollback_success: true`, `verified: false`, provenance `real`
+- **Duration:** ~62s (includes 30s retry backoff window before terminal failure)
+
+### S5 detail — per-step approval (restart_service spooler)
+
+- **Plan:** `restart_service` (service_name: "spooler", T3, approval_required: true)
+- **Maintenance window:** created for Brunel Site (all 7 days) to allow T3 dispatch
+- **Flow:** plan approved → step deferred (no maintenance window) → after window created, step re-evaluated → `awaiting_approval` → "Approve step" clicked → step released → `queued` → dispatched
+- **Command:** `systemctl restart spooler` → failed (Windows laptop, no systemctl)
+- **Retry:** max_retries=2, scheduled retry, re-gated in `awaiting_approval`
+- **Verified behavior:** per-step approval gate works; retry + re-gate interaction works
+
+### S6 detail — dry run (health_check)
+
+- **Plan:** `health_check` (pending_approval)
+- **Dry run:** policy allowed, step allowed, predicted change `{"action": "read-only: health_check"}`
+- **No command queued** (plan stayed `pending_approval`, step `pending`, `command_id: null`)
+- **Non-destructive:** confirmed
+
+### S7 detail — fleet command (health_check on Brunel Site)
+
+- **Plan:** 1 step (1 active device at Brunel Site): `health_check` on `DEVICE-MRUU-AUCA-8TJB`
+- **Approved, executed, succeeded, verified** in ~9s
+- Each step tracked independently (fleet expansion works)
+
+### S8 detail — delegate and report (health_check)
+
+- **Query 1:** "Run a health check on Brunel Device 001 and tell me whether it worked."
+  - AI proposed `health_check` (plan `4c6bbd2d`)
+- **Approve + Execute & wait:** completed in 19.0s, `succeeded`, `verified: true`
+- **Query 2:** "Did the health check on Brunel Device 001 succeed?"
+  - AI called `get_action_plan_status` → reported: "Yes, succeeded, verified, no errors"
+- **Loop closed:** delegate → execute → verify → report, all in one conversation
 
 ### Key observations
 
