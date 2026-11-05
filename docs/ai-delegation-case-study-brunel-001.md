@@ -17,6 +17,53 @@ for later modifications.
 | Tester | maziar.ghorbani@brunel.ac.uk |
 | Date | 2026-11-04 |
 
+## Prompts provided to the AI
+
+The following prompts were sent to the AI during this validation. They are
+recorded so the exact input that produced the delegated plan is reproducible.
+
+### Prompt 1 — Status check (non-agentic, no proposal)
+
+> Check the health of Brunel Device 001 and report its status.
+
+Device ID: `DEVICE-MRUU-AUCA-8TJB` (passed as context). Mode: non-agentic
+(direct answer). Result: AI returned a health report (CPU, memory, disk,
+uptime, network latency alerts) but **no proposal** was created because the
+query was answered directly without tool-calling.
+
+### Prompt 2 — Delegation request (agentic, proposal created)
+
+> Run a health check on Brunel Device 001.
+
+Device ID: `DEVICE-MRUU-AUCA-8TJB`. Mode: agentic (`agentic: true`).
+Result: the agent called `propose_device_action(action="health_check", ...)`,
+which recorded a proposal. The plan was persisted as
+`c0a7315c-0b72-43fa-be36-24adbdf08545` (status `pending_approval`).
+
+### Prompt 3 — Follow-up agentic check (no new proposal)
+
+> Run a health check on Brunel Device 001.
+
+Same as Prompt 2; confirmed the agent consistently proposes a `health_check`
+action when asked to run a health check. Trust score 1.0, actionable.
+
+### Prompt 4 — Delegate and report (S4 scenario)
+
+> Set brightness to 50 on Brunel Device 001 and tell me whether it worked.
+
+*(Planned for the next run; not yet executed at time of writing.)*
+
+### Notes on prompt design
+
+- The device ID was passed both in the query text and as the `device_id`
+  context field, so the agent had unambiguous targeting.
+- Agentic mode (`agentic: true`) was required for the agent to call
+  `propose_device_action`. Non-agentic queries answer directly without
+  creating proposals.
+- The AI proactively noted the 6 active network-latency alerts (267–350 ms)
+  in its rationale, even though the user did not mention them — demonstrating
+  context-aware reasoning.
+
 ## Plan summary
 
 | Field | Value |
