@@ -45,24 +45,54 @@ def applied_config(step: Any) -> Dict[str, Any]:
     return {k: v for k, v in params.items() if k not in _RESERVED_PARAMS}
 
 
+# Titles mirror the compose-command labels in PushReview.jsx so AI-created
+# commands show the same friendly title and are reusable from push history.
+_AI_COMMAND_TITLES = {
+    "health_check": "Run Diagnostics",
+    "list_processes": "List Processes",
+    "scan_filesystem": "Scan Filesystem",
+    "list_installed_programs": "List Installed Programs",
+    "list_connections": "List Network Connections",
+    "update_config": "Apply Configuration",
+    "restart": "Reboot System",
+    "rollback_config": "Apply Configuration",
+    "start_program": "Start Program",
+    "stop_program": "Stop Program",
+    "install_program": "Install Program",
+    "uninstall_program": "Uninstall Program",
+    "update_program": "Update Program",
+    "upgrade_all_programs": "Upgrade All Programs",
+    "restart_service": "Run Command",
+    "shutdown": "Shut Down System",
+    "run_command": "Run Command",
+    "run_command_unprivileged": "Run Command",
+    "run_script": "Run Script",
+}
+
+
 def command_payload(step: Any) -> Optional[Dict[str, Any]]:
     """Map a plan step to the device-command payload, or ``None``.
 
-    ``update_config`` and ``rollback_config`` payloads are nested under ``data``
-    to match ``command_poller._command_data``; ``restart`` carries no payload;
-    ``restart_service`` wraps the service name in a ``run_command`` payload.
+    Payloads mirror the compose-command envelope (``title`` + ``data``) so
+    AI-created commands display the same friendly title in push history and
+    can be reused by technicians. ``update_config``/``rollback_config`` nest
+    their config under ``data``; ``restart_service`` wraps the service name.
     """
+    title = _AI_COMMAND_TITLES.get(step.action, step.action.replace("_", " ").title())
     if step.action in ("update_config", "rollback_config"):
-        return {"data": applied_config(step)}
+        return {"title": title, "data": applied_config(step)}
     if step.action == "restart_service":
         params = step.params or {}
         service_name = params.get("service_name", "")
-        return {"data": {"command": f"systemctl restart {service_name}"}}
-    # Compose-command actions: forward their params as the device-command data.
+        return {
+            "title": title,
+            "data": {"command": f"systemctl restart {service_name}"},
+        }
     params = step.params or {}
     if params:
-        return {"data": dict(params)}
-    return None
+        return {"title": title, "data": dict(params)}
+    # Read-only / no-param actions still carry a title so history is readable.
+    return {"title": title, "data": {}}
 
 
 def rollback_snapshot(step: Any, device: Optional[Device]) -> Optional[Dict[str, Any]]:

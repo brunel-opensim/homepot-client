@@ -271,7 +271,7 @@ def test_start_execution_queues_commands():
         assert plan.steps[0].command_id == "cmd-1"
         assert fake.created[0].command_type == "restart"
         assert fake.created[0].issued_by == "ai:t"
-        assert fake.created[0].payload is None
+        assert fake.created[0].payload == {"title": "Reboot System", "data": {}}
     finally:
         db.close()
 
@@ -285,7 +285,7 @@ def test_start_execution_snapshots_config_for_rollback():
             db, "POS-A", action="update_config", params={"config": {"brightness": 80}}
         )
         assert plan.steps[0].rollback_params == {"previous": {"brightness": 10}}
-        assert fake.created[0].payload == {"data": {"brightness": 80}}
+        assert fake.created[0].payload == {"title": "Apply Configuration", "data": {"brightness": 80}}
     finally:
         db.close()
 
