@@ -220,6 +220,48 @@ Thresholds for promotion:
 - **Level 2:** ≥ 50 samples, ≥ 98% success
 - **Level 3:** ≥ 200 samples, ≥ 99.5% success, proven rollback
 
+### Database snapshot (2026-11-05)
+
+Reliability metrics, autonomy levels, and calibration as of 2026-11-05
+(30-day window, 15 total plans).
+
+**Reliability:**
+
+| Action | Proposed | Approved | Executed | Succeeded | Failed | Rolled back | Success rate |
+|--------|----------|----------|----------|-----------|--------|-------------|--------------|
+| `health_check` | 5 | 4 | 4 | 4 | 0 | 0 | 100% |
+| `update_config` | 9 | 1 | 8 | 3 | 4 | 1 | 37.5% |
+| `restart_service` | 1 | 1 | 0 | 0 | 0 | 0 | — (deferred) |
+
+**Autonomy:**
+
+| Action | Samples | Success rate | Rollback proven | Level |
+|--------|---------|--------------|-----------------|-------|
+| `health_check` | 4 | 100% | No | Level 1 |
+| `update_config` | 8 | 37.5% | Yes | Level 1 |
+| `restart_service` | 0 | 0% | No | Level 0 |
+
+**Calibration (trust vs. observed success):**
+
+| Trust band | Plans | Avg trust | Observed success | Gap |
+|------------|-------|-----------|------------------|-----|
+| 0.40–0.60 | 7 | 0.50 | 28.6% | +0.21 (overconfident) |
+| 0.80–1.00 | 8 | 1.00 | 62.5% | +0.38 (overconfident) |
+
+**Key findings:**
+
+1. `health_check` is the strongest autonomy candidate (100% success, 4 samples).
+   Needs 46 more verified runs to reach Level 2.
+2. `update_config` has a low success rate (37.5%) — partly deliberate
+   (invalid brightness "abc" for rollback testing) and partly unsupported keys.
+3. Trust scores are overconfident — trust 1.0 plans only succeed 62.5% of the
+   time. Calibration thresholds need tuning as more data accumulates.
+4. `restart_service` never executed (deferred, no maintenance window). A
+   maintenance window was created for Brunel Site during testing.
+
+**Plan status distribution:** 7 succeeded, 4 failed, 1 cancelled, 1 rolled back,
+1 executing, 1 pending approval (15 total).
+
 ### Remaining soak test work
 
 - S4 (retry on transport failure) — not yet observed; retry logic validated
