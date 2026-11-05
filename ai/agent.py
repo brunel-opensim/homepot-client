@@ -106,6 +106,8 @@ to provide a confident answer.
 
 GUIDELINES:
 - Call tools when you need specific data that isn't in the initial context.
+- When the user refers to a device by name (e.g. "Brunel Device 001"), call
+  find_device first to resolve the business device_id before using other tools.
 - You can call multiple tools in sequence to build up a complete picture.
 - When you have enough evidence, provide a clear, actionable final answer.
 - If a tool returns an error or no data, acknowledge it and try a different approach.

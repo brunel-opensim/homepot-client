@@ -410,6 +410,87 @@ def search_similar_incidents(query: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool 6b: find_device (resolve a name or partial ID to a device)
+# ---------------------------------------------------------------------------
+
+
+async def find_device(query: str) -> str:
+    """Find devices whose name or ID matches a search term.
+
+    Use this when the user refers to a device by name (e.g. "Brunel Device 001")
+    or a partial ID, and you need the business device_id to call other tools.
+    Returns a list of matching devices with their device_id, name, site and status.
+
+    Args:
+        query: A device name, partial name, site name, or partial device ID.
+
+    Returns:
+        A list of matching devices, or "No devices found" if none match.
+    """
+    try:
+        scope = get_tool_user_scope()
+        from homepot.database import get_database_service
+        from homepot.models import Device, Site
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            term = f"%{query.strip()}%"
+            stmt = (
+                select(Device, Site)
+                .join(Site, Device.site_id == Site.id, isouter=True)
+                .where(
+                    (Device.device_id.ilike(term))
+                    | (Device.name.ilike(term))
+                    | (Site.name.ilike(term))
+                )
+                .limit(20)
+            )
+            rows = (await session.execute(stmt)).all()
+
+            # RBAC: filter to accessible devices/sites if scope is bound.
+            accessible = None
+            accessible_sites = None
+            if scope is not None:
+                accessible = scope.get("accessible_device_ids")
+                accessible_sites = scope.get("accessible_site_ids")
+
+            matches = []
+            for dev, site in rows:
+                if accessible is not None and dev.device_id not in accessible:
+                    if accessible_sites is not None and (
+                        site is None or site.id not in accessible_sites
+                    ):
+                        continue
+                matches.append(
+                    {
+                        "device_id": dev.device_id,
+                        "name": getattr(dev, "name", None),
+                        "site": getattr(site, "name", None) if site else None,
+                        "status": getattr(dev, "health_state", None)
+                        or getattr(dev, "lifecycle_state", None),
+                    }
+                )
+
+        if not matches:
+            return f"No devices found matching '{query}'."
+
+        lines = [f"Found {len(matches)} device(s) matching '{query}':"]
+        for m in matches:
+            lines.append(
+                f"  - {m['device_id']} | {m['name']} | site={m['site']} | "
+                f"status={m['status']}"
+            )
+        lines.append(
+            "Use the device_id value (e.g. DEVICE-XXXX-XXXX-XXXX) with other "
+            "device tools."
+        )
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error("find_device failed for %r: %s", query, e)
+        return f"Error searching devices: {e}"
+
+
+# ---------------------------------------------------------------------------
 # Tool 7: get_fleet_summary
 # ---------------------------------------------------------------------------
 
@@ -537,7 +618,8 @@ async def propose_device_action(
             'update_program', 'run_command_unprivileged' (T2 reversible),
             'restart_service', 'shutdown', 'upgrade_all_programs',
             'run_command', 'run_script' (T3 disruptive).
-        target_device_id: The device identifier the action applies to.
+        target_device_id: The device identifier the action applies to. If you only
+        have a device name, call find_device first to resolve the business ID.
         rationale: Why the action is recommended, citing the evidence you
                 observed (metrics, errors, config history).
         params: Optional JSON object string of action parameters, e.g.
@@ -809,6 +891,7 @@ TOOL_REGISTRY = {
     "get_config_history": (get_config_history, True),
     "search_similar_incidents": (search_similar_incidents, False),
     "get_fleet_summary": (get_fleet_summary, True),
+    "find_device": (find_device, True),
     "get_alerts": (get_alerts, True),
     "propose_device_action": (propose_device_action, True),
     "propose_fleet_action": (propose_fleet_action, True),
@@ -824,6 +907,7 @@ TOOL_FUNCTIONS = [
     get_config_history,
     search_similar_incidents,
     get_fleet_summary,
+    find_device,
     get_alerts,
     propose_device_action,
     propose_fleet_action,

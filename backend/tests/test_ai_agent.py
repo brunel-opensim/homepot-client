@@ -37,9 +37,9 @@ from ai.tools import (  # noqa: E402
 # ── Tool registry tests ──────────────────────────────────────────────────────
 
 
-def test_tool_registry_has_all_eleven_tools():
-    """Tool registry should contain exactly 11 tools."""
-    assert len(TOOL_REGISTRY) == 11
+def test_tool_registry_has_all_twelve_tools():
+    """Tool registry should contain exactly 12 tools."""
+    assert len(TOOL_REGISTRY) == 12
 
 
 def test_tool_registry_names():
@@ -47,6 +47,7 @@ def test_tool_registry_names():
     expected = {
         "get_device_status",
         "get_device_metrics",
+        "find_device",
         "get_error_logs",
         "get_command_history",
         "get_config_history",
