@@ -12,6 +12,13 @@ agent:
   execution_timeout_seconds: 60 # execution phase timeout (plan-and-execute mode)
   tool_result_max_chars: 1500   # max chars per tool result fed back to the LLM
 
+  # Background auto-execution of approved plans (Phase 3). Disabled by default;
+  # enable only after autonomy levels are earned and reviewed.
+  auto_execute_enabled: false
+  auto_execute_min_level: 3       # minimum autonomy level to auto-execute (2 or 3)
+  auto_execute_poll_seconds: 30   # how often the runner scans for eligible plans
+  auto_execute_max_concurrent: 2  # cap on simultaneous auto-executions
+
 llm:
   # Provider selection: "ollama" (local), "openai", or "anthropic".
   # For demo sessions with limited server resources, use "openai" or

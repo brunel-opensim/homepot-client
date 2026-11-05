@@ -183,6 +183,15 @@ async def start_ai_execution_reconcile() -> None:
 
 
 @app.on_event("startup")
+async def start_ai_auto_execution() -> None:
+    """Start the Phase 3 AI auto-execution runner (disabled by default)."""
+    from homepot.app.ai_ops.auto_executor import run_auto_execution_loop
+
+    app.state.ai_auto_execution_task = asyncio.create_task(run_auto_execution_loop())
+    logging.getLogger(__name__).info("AI auto-execution runner task started")
+
+
+@app.on_event("startup")
 async def start_api_request_log_retention() -> None:
     """Start the periodic ``api_request_logs`` retention trim.
 
@@ -236,6 +245,19 @@ async def stop_ai_execution_reconcile() -> None:
         except asyncio.CancelledError:
             pass
         app.state.ai_execution_task = None
+
+
+@app.on_event("shutdown")
+async def stop_ai_auto_execution() -> None:
+    """Cancel the AI auto-execution runner on shutdown."""
+    task = getattr(app.state, "ai_auto_execution_task", None)
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        app.state.ai_auto_execution_task = None
 
 
 @app.on_event("shutdown")
