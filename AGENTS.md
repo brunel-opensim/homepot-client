@@ -92,6 +92,19 @@ sudo -n /usr/bin/systemctl start homepot-api
 ```
 Frontend: build to `/tmp/homepot-dist-new`, swap `dist`, preserve `dist/downloads`, move old to `~/frontend-dist-rollback-<ts>`.
 
+## Git hooks (enable once per clone)
+
+Run once after cloning so the pre-commit gate is active:
+
+```bash
+./scripts/setup-git-hooks.sh
+```
+
+The hook (`.githooks/pre-commit`) runs black/isort/flake8 on staged Python
+files, prettier/eslint on staged frontend files, and mypy when backend/ai
+Python changed. It blocks the commit on failure. **Do not bypass with
+`--no-verify`** unless the user explicitly approves.
+
 ## Do not
 
 - Push directly to `main`.
