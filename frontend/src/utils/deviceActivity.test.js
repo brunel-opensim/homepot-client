@@ -5,6 +5,8 @@ import {
   lastAttributedCommand,
   lastActorLabel,
   newForeignCommands,
+  isAiCommand,
+  aiActorLabel,
 } from './deviceActivity';
 
 const ME = 'tech@example.com';
@@ -93,5 +95,37 @@ describe('newForeignCommands', () => {
   it('does not report the current user own commands', () => {
     const history = [command('2', ME)];
     expect(newForeignCommands(history, ['1'], ME)).toEqual([]);
+  });
+});
+
+describe('isAiCommand', () => {
+  it('is true when issued_by starts with ai:', () => {
+    expect(isAiCommand(command('1', 'ai:maziar@example.com'))).toBe(true);
+  });
+
+  it('is false for a human actor', () => {
+    expect(isAiCommand(command('1', COLLEAGUE))).toBe(false);
+  });
+
+  it('is false when there is no actor', () => {
+    expect(isAiCommand(command('1', null))).toBe(false);
+  });
+});
+
+describe('aiActorLabel', () => {
+  it('strips the ai: prefix', () => {
+    expect(aiActorLabel(command('1', 'ai:maziar@example.com'))).toBe('maziar@example.com');
+  });
+
+  it('returns null for a human actor', () => {
+    expect(aiActorLabel(command('1', COLLEAGUE))).toBeNull();
+  });
+});
+
+describe('foreignCommands ignores AI-initiated commands', () => {
+  it('does not report AI commands as colleague actions', () => {
+    const history = [command('1', 'ai:maziar@example.com'), command('2', COLLEAGUE)];
+    const result = foreignCommands(history, ME);
+    expect(result.map((c) => c.command_id)).toEqual(['2']);
   });
 });

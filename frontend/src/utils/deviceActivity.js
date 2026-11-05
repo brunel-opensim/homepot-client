@@ -12,7 +12,22 @@ export function isOwnCommand(command, currentUserEmail) {
   if (!command) return true;
   if (!currentUserEmail) return false;
   if (!command.issued_by) return false;
+  // AI-initiated commands are owned by the requesting user for alerting
+  // purposes (they do not trigger a "colleague acted" warning).
+  if (isAiCommand(command)) return true;
   return command.issued_by === currentUserEmail;
+}
+
+/** True when the command was issued by the AI on behalf of a user. */
+export function isAiCommand(command) {
+  if (!command || !command.issued_by) return false;
+  return String(command.issued_by).toLowerCase().startsWith('ai:');
+}
+
+/** Short label for an AI-initiated command's actor (strips the "ai:" prefix). */
+export function aiActorLabel(command) {
+  if (!isAiCommand(command)) return null;
+  return String(command.issued_by).slice(3).trim() || 'AI';
 }
 
 /**
@@ -24,7 +39,10 @@ export function isOwnCommand(command, currentUserEmail) {
 export function foreignCommands(history, currentUserEmail) {
   if (!Array.isArray(history)) return [];
   if (!currentUserEmail) return [];
-  return history.filter((command) => command.issued_by && command.issued_by !== currentUserEmail);
+  return history.filter(
+    (command) =>
+      command.issued_by && command.issued_by !== currentUserEmail && !isAiCommand(command)
+  );
 }
 
 /** The most recent command that records an actor, or null if none does. */

@@ -53,6 +53,7 @@ def test_tool_registry_names():
         "get_config_history",
         "search_similar_incidents",
         "get_fleet_summary",
+        "find_device",
         "get_alerts",
         "propose_device_action",
         "propose_fleet_action",
