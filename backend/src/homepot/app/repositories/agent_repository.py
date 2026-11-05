@@ -38,14 +38,18 @@ class AgentRepository:
     def device_name_exists_in_site(self, site_pk: int, name: str) -> bool:
         """Return True if a live device in the site already uses this name.
 
-        Matching is case-insensitive and whitespace-trimmed. Retired and
-        unpaired devices are excluded so names can be reused after a device
-        is decommissioned.
+        Matching is case-insensitive and whitespace-trimmed. Only fully
+        purged (deleted) devices are excluded, so names can be reused only
+        after a device is permanently removed.
         """
+        # Only a fully purged (deleted) device frees its name. Unpaired
+        # (soft-deleted) devices still block reuse so two devices never share
+        # a name, even after one is taken offline.
         active_states = [
             LifecycleState.PENDING.value,
             LifecycleState.ACTIVE.value,
             LifecycleState.SUSPENDED.value,
+            LifecycleState.UNPAIRED.value,
         ]
         result = self.db.execute(
             select(Device).where(

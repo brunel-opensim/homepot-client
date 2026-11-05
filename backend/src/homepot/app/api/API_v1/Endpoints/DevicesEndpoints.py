@@ -282,6 +282,17 @@ async def register_device_to_site(
                 detail=f"Device {device_request.device_id} already exists",
             )
 
+        # Enforce per-site device-name uniqueness (only purged devices free a name)
+        if getattr(device_request, "name", None):
+            from homepot.app.repositories.agent_repository import AgentRepository
+
+            sync_repo = AgentRepository(db)
+            if sync_repo.device_name_exists_in_site(int(site.id), device_request.name):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Device name '{device_request.name}' is already in use in site '{site_id}'.",
+                )
+
         # Create new device using db_service
         device = await db_service.create_device(
             device_id=device_request.device_id,
