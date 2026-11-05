@@ -85,8 +85,11 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         required_permission="root_access",
         min_role="operator",
         description=(
-            "Apply a configuration change to a device. Reversible via snapshot; "
-            "requires the owner's root_access grant."
+            "Apply a configuration change to a device. The 'config' param is a "
+            "dict of settings to apply, e.g. config with keys brightness, "
+            "volume, log_level, hostname. Common keys: volume, brightness, "
+            "log_level, hostname. Reversible via snapshot; requires the "
+            "owner's root_access grant."
         ),
         required_params=("config",),
     ),

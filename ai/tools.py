@@ -613,7 +613,8 @@ async def propose_device_action(
         action: The proposed action. Must be one of the registered actions:
             'health_check', 'list_processes', 'scan_filesystem',
             'list_installed_programs', 'list_connections' (T1 read-only),
-            'update_config', 'restart', 'rollback_config', 'start_program',
+            'update_config' (config keys: volume, brightness, log_level,
+            hostname, etc.), 'restart', 'rollback_config', 'start_program',
             'stop_program', 'install_program', 'uninstall_program',
             'update_program', 'run_command_unprivileged' (T2 reversible),
             'restart_service', 'shutdown', 'upgrade_all_programs',
