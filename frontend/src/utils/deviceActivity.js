@@ -21,13 +21,13 @@ export function isOwnCommand(command, currentUserEmail) {
 /** True when the command was issued by the AI on behalf of a user. */
 export function isAiCommand(command) {
   if (!command || !command.issued_by) return false;
-  return String(command.issued_by).toLowerCase().startsWith("ai:");
+  return String(command.issued_by).toLowerCase().startsWith('ai:');
 }
 
 /** Short label for an AI-initiated command's actor (strips the "ai:" prefix). */
 export function aiActorLabel(command) {
   if (!isAiCommand(command)) return null;
-  return String(command.issued_by).slice(3).trim() || "AI";
+  return String(command.issued_by).slice(3).trim() || 'AI';
 }
 
 /**
@@ -41,9 +41,7 @@ export function foreignCommands(history, currentUserEmail) {
   if (!currentUserEmail) return [];
   return history.filter(
     (command) =>
-      command.issued_by &&
-      command.issued_by !== currentUserEmail &&
-      !isAiCommand(command)
+      command.issued_by && command.issued_by !== currentUserEmail && !isAiCommand(command)
   );
 }
 
