@@ -103,6 +103,11 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
 
   const actionEntries = Object.entries(reliability?.action_types || {});
 
+  // Filter recent plans by the selected status (from the clickable badges).
+  const recentPlans = (summary?.recent || []).filter((plan) =>
+    statusFilter ? plan.status === statusFilter : true
+  );
+
   if (loading) {
     return (
       <Card className="p-6 bg-card border-border">
@@ -186,14 +191,17 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
             </div>
           </div>
 
-          {summary.recent?.length > 0 && (
+          {recentPlans.length > 0 && (
             <div className="mt-4">
               <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
                 <ListChecks className="h-3.5 w-3.5" />
                 Recent delegated tasks
+                {statusFilter && (
+                  <span className="text-indigo-300 font-normal normal-case">— {statusFilter}</span>
+                )}
               </p>
               <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
-                {summary.recent.map((plan) => (
+                {recentPlans.map((plan) => (
                   <div
                     key={plan.plan_id}
                     className="flex flex-wrap items-center gap-2 text-sm rounded-md border border-border bg-[#0b0e13] px-3 py-2"
