@@ -25,7 +25,7 @@ function pct(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-export default function AIReliabilityPanel() {
+export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange }) {
   const [summary, setSummary] = useState(null);
   const [reliability, setReliability] = useState(null);
   const [autonomy, setAutonomy] = useState(null);
@@ -165,13 +165,22 @@ export default function AIReliabilityPanel() {
                   <span className="text-sm text-gray-500">No delegated tasks in this window.</span>
                 )}
                 {statusEntries.map(([status, count]) => (
-                  <span
+                  <button
                     key={status}
-                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-800 text-gray-300"
+                    type="button"
+                    onClick={() =>
+                      onStatusFilterChange &&
+                      onStatusFilterChange(statusFilter === status ? '' : status)
+                    }
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
+                      statusFilter === status
+                        ? 'bg-indigo-600 text-white border-indigo-500'
+                        : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700/60 hover:text-white'
+                    }`}
                   >
                     <AIStatusBadge status={status} />
                     <span className="font-mono text-white">{count}</span>
-                  </span>
+                  </button>
                 ))}
               </div>
             </div>
