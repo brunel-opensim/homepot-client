@@ -213,7 +213,7 @@ export default function AIProposalsList() {
         </div>
 
         {/* Phase E: reliability + cross-session task aggregation overview */}
-        <div className="shrink-0 mb-4">
+        <div className="shrink-0 mb-4 max-h-[50vh] overflow-y-auto pr-1">
           <AIReliabilityPanel statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} />
         </div>
 
