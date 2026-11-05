@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Pre-commit quality gate. Enable with: git config core.hooksPath .githooks
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+STAGED_FE=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/.*\.(js|jsx|ts|tsx)$' || true)
+
+# --- Python: black + isort + flake8 on staged files ---
+if [ -n "$STAGED_PY" ]; then
+    if [ -x "$REPO_ROOT/.venv/bin/black" ]; then
+        BLACK="$REPO_ROOT/.venv/bin/black"
+        ISORT="$REPO_ROOT/.venv/bin/isort"
+        FLAKE8="$REPO_ROOT/.venv/bin/flake8"
+    else
+        BLACK="black"; ISORT="isort"; FLAKE8="flake8"
+    fi
+    echo "pre-commit: checking Python formatting (black/isort/flake8)..."
+    $BLACK --check $STAGED_PY
+    $ISORT --check-only $STAGED_PY
+    $FLAKE8 $STAGED_PY
+fi
+
+# --- Frontend: prettier + eslint on staged files ---
+if [ -n "$STAGED_FE" ]; then
+    cd "$REPO_ROOT/frontend"
+    echo "pre-commit: checking frontend formatting (prettier)..."
+    npx prettier --check $STAGED_FE
+    echo "pre-commit: linting frontend..."
+    npx eslint --quiet $STAGED_FE
+    cd "$REPO_ROOT"
+fi
+
+# --- mypy on backend (only if backend/ai Python changed) ---
+if echo "$STAGED_PY" | grep -qE '^(backend/src/homepot/|ai/)'; then
+    if [ -x "$REPO_ROOT/.venv/bin/mypy" ]; then
+        echo "pre-commit: running mypy..."
+        "$REPO_ROOT/.venv/bin/mypy" --config-file="$REPO_ROOT/backend/mypy.ini" "$REPO_ROOT/backend/src/homepot/" >/dev/null
+    fi
+fi
+
+echo "pre-commit: all checks passed."
