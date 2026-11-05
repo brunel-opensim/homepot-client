@@ -183,7 +183,7 @@ export default function AIReliabilityPanel() {
                 <ListChecks className="h-3.5 w-3.5" />
                 Recent delegated tasks
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
                 {summary.recent.map((plan) => (
                   <div
                     key={plan.plan_id}

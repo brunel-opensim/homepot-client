@@ -26,10 +26,12 @@ fi
 # --- Frontend: prettier + eslint on staged files ---
 if [ -n "$STAGED_FE" ]; then
     cd "$REPO_ROOT/frontend"
+    # Strip the leading "frontend/" prefix for paths relative to this dir.
+    FE_REL=$(echo "$STAGED_FE" | sed 's|^frontend/||')
     echo "pre-commit: checking frontend formatting (prettier)..."
-    npx prettier --check $STAGED_FE
+    npx prettier --check $FE_REL
     echo "pre-commit: linting frontend..."
-    npx eslint --quiet $STAGED_FE
+    npx eslint --quiet $FE_REL
     cd "$REPO_ROOT"
 fi
 
