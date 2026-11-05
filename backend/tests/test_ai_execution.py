@@ -285,7 +285,10 @@ def test_start_execution_snapshots_config_for_rollback():
             db, "POS-A", action="update_config", params={"config": {"brightness": 80}}
         )
         assert plan.steps[0].rollback_params == {"previous": {"brightness": 10}}
-        assert fake.created[0].payload == {"title": "Apply Configuration", "data": {"brightness": 80}}
+        assert fake.created[0].payload == {
+            "title": "Apply Configuration",
+            "data": {"brightness": 80},
+        }
     finally:
         db.close()
 
