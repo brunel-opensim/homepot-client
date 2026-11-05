@@ -202,18 +202,23 @@ export default function AIProposalsList() {
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 rounded-md border border-gray-700 bg-[#1a1f2e] text-gray-300 px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {STATUS_FILTERS.map((option) => (
-                <option key={option.value} value={option.value}>
+                <button
+                  key={option.value || 'all'}
+                  type="button"
+                  onClick={() => setStatusFilter(option.value)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${
+                    statusFilter === option.value
+                      ? 'bg-indigo-600 text-white border-indigo-500'
+                      : 'bg-[#1a1f2e] text-gray-300 border-gray-700 hover:bg-gray-700/60 hover:text-white'
+                  }`}
+                >
                   {option.label}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
             <span className="text-sm text-gray-500">{plans.length} plan(s)</span>
             {statusFilter === 'pending_approval' && (
               <span className="text-sm text-yellow-400">
