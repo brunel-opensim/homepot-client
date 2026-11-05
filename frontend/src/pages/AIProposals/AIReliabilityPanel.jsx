@@ -213,7 +213,7 @@ export default function AIReliabilityPanel() {
           {actionEntries.length === 0 ? (
             <p className="text-sm text-gray-500">No action outcomes recorded yet.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
               {actionEntries.map(([action, entry]) => (
                 <div
                   key={action}
