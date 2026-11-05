@@ -964,12 +964,14 @@ class DatabaseService:
             # Idempotency check: return existing command if key matches
             if idempotency_key is not None:
                 existing = await session.execute(
-                    select(DeviceCommand).where(
+                    select(DeviceCommand)
+                    .where(
                         DeviceCommand.device_id == device_id,
                         DeviceCommand.idempotency_key == idempotency_key,
                     )
+                    .limit(1)
                 )
-                existing_cmd = existing.scalar_one_or_none()
+                existing_cmd = existing.scalars().first()
                 if existing_cmd is not None:
                     return existing_cmd
 
