@@ -203,22 +203,6 @@ export default function AIProposalsList() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap gap-1.5">
-              {STATUS_FILTERS.map((option) => (
-                <button
-                  key={option.value || 'all'}
-                  type="button"
-                  onClick={() => setStatusFilter(option.value)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${
-                    statusFilter === option.value
-                      ? 'bg-indigo-600 text-white border-indigo-500'
-                      : 'bg-[#1a1f2e] text-gray-300 border-gray-700 hover:bg-gray-700/60 hover:text-white'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
             <span className="text-sm text-gray-500">{plans.length} plan(s)</span>
             {statusFilter === 'pending_approval' && (
               <span className="text-sm text-yellow-400">
@@ -230,7 +214,7 @@ export default function AIProposalsList() {
 
         {/* Phase E: reliability + cross-session task aggregation overview */}
         <div className="shrink-0 mb-4">
-          <AIReliabilityPanel />
+          <AIReliabilityPanel statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} />
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto">
