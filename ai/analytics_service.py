@@ -571,6 +571,7 @@ class AIAnalyticsService:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 from sqlalchemy import select
+                from sqlalchemy.orm import selectinload
 
                 from homepot.app.models.AnalyticsModel import (
                     AIActionPlan,
@@ -578,8 +579,14 @@ class AIAnalyticsService:
 
                 cutoff = datetime.utcnow() - timedelta(days=days)
 
-                plans_stmt = select(AIActionPlan).where(
-                    AIActionPlan.created_at >= cutoff
+                plans_stmt = (
+                    select(AIActionPlan)
+                    .where(AIActionPlan.created_at >= cutoff)
+                    .options(
+                        selectinload(AIActionPlan.steps),
+                        selectinload(AIActionPlan.approvals),
+                        selectinload(AIActionPlan.outcome),
+                    )
                 )
                 plans_result = await session.execute(plans_stmt)
                 plans = plans_result.scalars().all()
