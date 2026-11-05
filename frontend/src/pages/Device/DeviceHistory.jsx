@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Ban,
   UserRound,
+  Bot,
 } from 'lucide-react';
 import api from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -26,7 +27,13 @@ import {
 import { Toast } from '@/components/ui/Toast';
 import CancelCommandDialog from '@/components/Devices/CancelCommandDialog';
 import { useAuth } from '@/hooks/useAuth';
-import { isOwnCommand, lastActorLabel, newForeignCommands } from '@/utils/deviceActivity';
+import {
+  isOwnCommand,
+  lastActorLabel,
+  newForeignCommands,
+  isAiCommand,
+  aiActorLabel,
+} from '@/utils/deviceActivity';
 import {
   lifecycleStages,
   formatCommandType,
@@ -354,6 +361,12 @@ export default function DeviceHistory() {
                           <h3 className="text-sm font-medium text-white truncate min-w-0">
                             {commandTitle(cmd)}
                           </h3>
+                          {isAiCommand(cmd) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
+                              <Bot className="h-3 w-3" />
+                              AI
+                            </span>
+                          )}
                           <StatusBadge status={cmd.status} />
                           <span className="font-mono text-[10px] text-slate-500">
                             {cmd.command_id.substring(0, 8)}
@@ -369,6 +382,11 @@ export default function DeviceHistory() {
                         {fromColleague && (
                           <div className="mt-1.5">
                             <ActorLine email={cmd.issued_by} time={cmd.created_at} />
+                          </div>
+                        )}
+                        {isAiCommand(cmd) && (
+                          <div className="mt-1.5">
+                            <ActorLine email={`AI (${aiActorLabel(cmd)})`} time={cmd.created_at} />
                           </div>
                         )}
 
