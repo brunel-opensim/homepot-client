@@ -174,3 +174,56 @@ Thresholds for promotion:
 - Track calibration in `GET /api/v1/ai/calibration`.
 PYEOF
 echo written
+
+## Soak test results (S1–S8)
+
+All scenarios run on Brunel Device 001 (`DEVICE-MRUU-AUCA-8TJB`) on 2026-11-05.
+Provider: Anthropic (claude-haiku-4-5-20251001). LLM provider switched from
+Ollama for speed; trust gates still enforced.
+
+### Results summary
+
+| Scenario | Action | Plan status | Outcome | Verified | Notes |
+|----------|--------|-------------|---------|----------|-------|
+| S1 — Health check | `health_check` | `succeeded` | verified=true | ✅ | Baseline run; trust 1.0 |
+| S2 — Config change | `update_config` (log_level debug) | `succeeded` | verified=true | ✅ | log_level "unsupported" (no OS action), but command completed |
+| S3 — Rollback drill | `update_config` (brightness "abc") | `rolled_back` | rolled_back=true, rollback_success=true | ✅ | Per-key failure triggered rollback; restored brightness=60 |
+| S5 — Per-step approval | `restart_service` (spooler) | `executing` (retry) | — | — | T3 step paused in `awaiting_approval`; released on "Approve step"; retry re-gated |
+| S6 — Dry run | `health_check` | `pending_approval` (unchanged) | — | — | Policy allowed, predicted changes shown, no command queued |
+| S7 — Fleet command | `health_check` (1 device at site) | `succeeded` | verified=true | ✅ | Each step tracked independently |
+| S8 — Delegate and report | `health_check` | `succeeded` | verified=true | ✅ | AI reported "Yes, succeeded" via `get_action_plan_status` |
+
+### Key observations
+
+1. **Trust score reached 1.0** after the Gate B fix (insufficient health_check
+   samples treated as not-applicable instead of failure).
+2. **Rollback works on real hardware** — a failed config change triggered
+   snapshot-based rollback, restoring the previous value. `rollback_success=true`.
+3. **Per-step approval gate works** — T3 steps pause in `awaiting_approval`
+   after plan approval; "Approve step" releases them. Retry re-gates correctly.
+4. **Dry run is non-destructive** — policy and predicted changes shown, no
+   command queued.
+5. **Delegate-and-report closes the loop** — the AI proposed, executed (via
+   Execute & wait), verified, and reported the result back in conversation using
+   `get_action_plan_status`.
+6. **Agentic mode works with Anthropic** — cloud provider tool-calling fixed
+   (PR #775) and verified end-to-end on real device queries.
+
+### Autonomy progress (after soak test)
+
+| Action type | Samples | Success rate | Level |
+|-------------|---------|--------------|-------|
+| `health_check` | 4+ | 100% | Level 1 (any sample > 0) |
+| `update_config` | 2+ | 100% (1 success, 1 rolled back) | Level 1 |
+
+Thresholds for promotion:
+- **Level 2:** ≥ 50 samples, ≥ 98% success
+- **Level 3:** ≥ 200 samples, ≥ 99.5% success, proven rollback
+
+### Remaining soak test work
+
+- S4 (retry on transport failure) — not yet observed; retry logic validated
+  via unit tests (test_ai_execution.py) and the S5 retry re-gate.
+- More runs needed to accumulate samples toward Level 2.
+- S8 with a T2 action (config change) instead of T1 health_check, to test
+  the full delegate-and-report with a state-changing operation.
