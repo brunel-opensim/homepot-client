@@ -114,7 +114,7 @@ export default function AIReliabilityPanel() {
   }
 
   return (
-    <Card className="p-4 bg-card border-border">
+    <Card className="p-4 bg-card border-border overflow-hidden">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -213,7 +213,7 @@ export default function AIReliabilityPanel() {
           {actionEntries.length === 0 ? (
             <p className="text-sm text-gray-500">No action outcomes recorded yet.</p>
           ) : (
-            <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[180px] min-h-0 overflow-y-auto pr-1">
               {actionEntries.map(([action, entry]) => (
                 <div
                   key={action}
