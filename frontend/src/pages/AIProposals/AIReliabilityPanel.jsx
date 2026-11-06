@@ -25,13 +25,12 @@ function pct(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange }) {
+export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange, refreshKey }) {
   const [summary, setSummary] = useState(null);
   const [reliability, setReliability] = useState(null);
   const [autonomy, setAutonomy] = useState(null);
   const [calibration, setCalibration] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState({});
 
   const fetchAll = useCallback(async () => {
@@ -83,7 +82,6 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
       setErrors(nextErrors);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
@@ -91,24 +89,11 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
     fetchAll();
   }, [fetchAll]);
 
-  // Auto-refresh metrics every 15s while visible.
+  // Refresh when the parent's refreshKey changes (single shared timer).
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible' && !refreshing) {
-        fetchAll();
-      }
-    }, 15000);
-    const onFocus = () => {
-      if (!refreshing) fetchAll();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
-    };
-  }, [fetchAll, refreshing]);
+    if (refreshKey === undefined) return;
+    fetchAll();
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const byStatus = summary?.by_status || {};
   const statusEntries = Object.entries(byStatus)
