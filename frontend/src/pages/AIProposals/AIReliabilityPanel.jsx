@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Loader2, RefreshCw, Sparkles, Activity, ListChecks } from 'lucide-react';
 import api, { apiHelpers } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -195,20 +196,36 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange,
                 )}
               </p>
               <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
-                {recentPlans.map((plan) => (
-                  <div
-                    key={plan.plan_id}
-                    className="flex flex-wrap items-center gap-2 text-sm rounded-md border border-border bg-[#0b0e13] px-3 py-2"
-                  >
-                    <AIStatusBadge status={plan.status} />
-                    <span className="font-mono text-xs text-gray-300">{plan.plan_id}</span>
-                    <span className="text-xs text-gray-500">{plan.step_count} step(s)</span>
-                    <span className="text-xs text-gray-400">by {plan.created_by || 'unknown'}</span>
-                    <span className="text-xs text-gray-500">
-                      {plan.created_at ? new Date(plan.created_at).toLocaleString() : '-'}
-                    </span>
-                  </div>
-                ))}
+                {recentPlans.map((plan) => {
+                  const targetDevice = plan.target_device_id;
+                  const row = (
+                    <div className="flex flex-wrap items-center gap-2 text-sm rounded-md border border-border bg-[#0b0e13] px-3 py-2 hover:border-indigo-500/40 transition-colors">
+                      <AIStatusBadge status={plan.status} />
+                      <span className="font-mono text-xs text-gray-300">{plan.plan_id}</span>
+                      <span className="text-xs text-gray-500">{plan.step_count} step(s)</span>
+                      <span className="text-xs text-gray-400">
+                        by {plan.created_by || 'unknown'}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {plan.created_at ? new Date(plan.created_at).toLocaleString() : '-'}
+                      </span>
+                      {targetDevice && (
+                        <span className="text-xs text-indigo-300">→ push history</span>
+                      )}
+                    </div>
+                  );
+                  return targetDevice ? (
+                    <Link
+                      key={plan.plan_id}
+                      to={`/device/${targetDevice}/history`}
+                      className="block"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    <div key={plan.plan_id}>{row}</div>
+                  );
+                })}
               </div>
             </div>
           )}
