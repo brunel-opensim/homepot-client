@@ -14,6 +14,7 @@ import {
   RefreshCcw,
   Settings,
   Ban,
+  Bot,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import OsIcon from '@/components/common/OsIcon';
@@ -883,6 +884,12 @@ export const CommandHistoryWidget = ({ device, history = [], onCancelCommand, on
                     <span className="text-slate-200 font-medium truncate">
                       {title.replace(/_/g, ' ')}
                     </span>
+                    {item.issued_by && String(item.issued_by).toLowerCase().startsWith('ai:') && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium shrink-0">
+                        <Bot className="h-3 w-3" />
+                        AI
+                      </span>
+                    )}
                     <span
                       className={`text-[9px] font-mono shrink-0 ${statusMeta(item.status).color}`}
                     >
