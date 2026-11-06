@@ -81,12 +81,14 @@ describe('AIProposalsList', () => {
   });
 
   it('approves a plan and refreshes the list', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     api.aiProposals.approve.mockResolvedValue({ ...mockPlans[0], status: 'approved' });
 
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Approve'));
+    // themed dialog confirm
+    const approveBtns = await screen.findAllByText('Approve');
+    await userEvent.click(approveBtns[approveBtns.length - 1]);
 
     await waitFor(() => {
       expect(api.aiProposals.approve).toHaveBeenCalledWith(mockPlans[0].plan_id, null);
@@ -95,12 +97,16 @@ describe('AIProposalsList', () => {
   });
 
   it('rejects a plan with a prompted reason', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('not now');
     api.aiProposals.reject.mockResolvedValue({ ...mockPlans[0], status: 'rejected' });
 
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Reject'));
+    // themed dialog: type reason and confirm
+    const textarea = await screen.findByPlaceholderText('Reason (optional)');
+    await userEvent.type(textarea, 'not now');
+    const rejectBtns = screen.getAllByText('Reject');
+    await userEvent.click(rejectBtns[rejectBtns.length - 1]);
 
     await waitFor(() => {
       expect(api.aiProposals.reject).toHaveBeenCalledWith(mockPlans[0].plan_id, 'not now');
@@ -120,12 +126,13 @@ describe('AIProposalsList', () => {
   });
 
   it('executes an approved plan and refreshes the list', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     api.aiProposals.execute.mockResolvedValue({ ...mockPlans[1], status: 'executing' });
 
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Execute'));
+    const execBtns = await screen.findAllByText('Execute');
+    await userEvent.click(execBtns[execBtns.length - 1]);
 
     await waitFor(() => {
       expect(api.aiProposals.execute).toHaveBeenCalledWith(mockPlans[1].plan_id);
@@ -134,7 +141,6 @@ describe('AIProposalsList', () => {
   });
 
   it('surfaces a policy block when execution is refused', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     api.aiProposals.execute.mockResolvedValue({
       ...mockPlans[1],
       status: 'blocked',
@@ -144,6 +150,8 @@ describe('AIProposalsList', () => {
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Execute'));
+    const execBtns = await screen.findAllByText('Execute');
+    await userEvent.click(execBtns[execBtns.length - 1]);
 
     expect((await screen.findAllByText(/Device is not active/)).length).toBeGreaterThan(0);
   });
