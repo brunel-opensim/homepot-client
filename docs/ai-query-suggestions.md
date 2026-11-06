@@ -59,9 +59,9 @@ rationale='<reason>'.
 
 | Phrasing | Result |
 |----------|--------|
-| `Call propose_device_action with action=update_config, target_device_id=DEVICE-MRUU-AUCA-8TJB, params={"config": {"brightness": 30}}, rationale='test brightness control'.` | ✅ Proposed `update_config` with brightness=30 |
-| `Call propose_device_action with action=update_config, target_device_id=DEVICE-MRUU-AUCA-8TJB, params={"config": {"volume": 75}}, rationale='test volume control'.` | ✅ Proposed `update_config` with volume=75 |
-| `Call propose_fleet_action with action=health_check, site_id=SITE-W545-2BK3, rationale='fleet health check'.` | ✅ Proposed `health_check` (1 step for 1 active device) |
+| `Call propose_device_action with action=update_config, target_device_id=DEVICE-MRUU-AUCA-8TJB, params={"config": {"brightness": 30}}, rationale='test brightness control'.` | Proposed `update_config` with brightness=30 |
+| `Call propose_device_action with action=update_config, target_device_id=DEVICE-MRUU-AUCA-8TJB, params={"config": {"volume": 75}}, rationale='test volume control'.` | Proposed `update_config` with volume=75 |
+| `Call propose_fleet_action with action=health_check, site_id=SITE-W545-2BK3, rationale='fleet health check'.` | Proposed `health_check` (1 step for 1 active device) |
 
 ### When to use explicit phrasing
 
