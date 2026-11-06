@@ -40,6 +40,7 @@ export default function AIProposalsList() {
   const [refreshKey, setRefreshKey] = useState(0);
   const plansRef = useRef(plans);
   const fetchingRef = useRef(false);
+  const initialLoadRef = useRef(true);
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -51,10 +52,10 @@ export default function AIProposalsList() {
     if (fetchingRef.current) return; // prevent overlapping requests
     fetchingRef.current = true;
     try {
-      // Only show the full loading spinner on the first load; subsequent
+      // Only show the full loading spinner on the very first load; subsequent
       // refreshes (including auto-refresh) keep the current list visible to
       // avoid flicker of the empty/loading state.
-      if (!plansRef.current || plansRef.current.length === 0) setLoading(true);
+      if (initialLoadRef.current) setLoading(true);
       const data = await api.aiProposals.list(statusFilter || null, 100, 0);
       setPlans(data.plans || []);
     } catch (err) {
@@ -63,6 +64,7 @@ export default function AIProposalsList() {
     } finally {
       setLoading(false);
       fetchingRef.current = false;
+      initialLoadRef.current = false;
     }
   }, [statusFilter]);
 
