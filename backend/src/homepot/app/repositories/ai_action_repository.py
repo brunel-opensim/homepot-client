@@ -216,6 +216,7 @@ class AIActionRepository:
                 "created_at": p.created_at.isoformat() if p.created_at else None,
                 "created_by": p.created_by,
                 "step_count": len(p.steps),
+                "target_device_id": (p.steps[0].target_device_id if p.steps else None),
             }
             for p in sorted(plans, key=lambda x: x.created_at, reverse=True)[:10]
         ]
