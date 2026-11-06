@@ -115,3 +115,53 @@ async def run_api_request_log_retention_loop() -> None:
         except Exception as e:
             logger.warning("API request log retention pass failed: %s", e)
         await asyncio.sleep(API_REQUEST_LOG_RETENTION_INTERVAL_SECONDS)
+
+
+#: How often (seconds) to attempt archiving old AI action plans.
+AI_PLAN_RETENTION_INTERVAL_SECONDS = 24 * 60 * 60  # every 24 hours
+
+
+async def run_ai_plan_retention_loop() -> None:
+    """Soft-archive AI action plans past the configured retention window.
+
+    Terminal plans (succeeded, failed, rolled_back, cancelled, rejected,
+    blocked, expired) older than the configured retention (default 90 days)
+    are soft-archived (archived_at set) so they stay in the DB for
+    reliability metrics but are hidden from the default list/summary. A
+    retention setting of 0 disables archiving.
+
+    Runs forever; callers own the task lifecycle and should cancel on
+    shutdown.
+    """
+    import asyncio as _asyncio
+
+    from homepot.config import get_settings
+    from homepot.database import SessionLocal
+
+    while True:
+        try:
+            retention_days = getattr(
+                get_settings().database, "ai_plan_retention_days", 90
+            )
+            if retention_days and retention_days > 0:
+                db = SessionLocal()
+                try:
+                    from homepot.app.repositories.ai_action_repository import (
+                        AIActionRepository,
+                    )
+
+                    repo = AIActionRepository(db)
+                    archived = repo.archive_old_plans(days=retention_days)
+                    if archived:
+                        logger.info(
+                            "Archived %d old AI action plan(s) (retention=%d days)",
+                            archived,
+                            retention_days,
+                        )
+                finally:
+                    db.close()
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning("AI plan retention pass failed: %s", e)
+        await _asyncio.sleep(AI_PLAN_RETENTION_INTERVAL_SECONDS)

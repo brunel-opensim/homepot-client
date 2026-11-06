@@ -59,6 +59,15 @@ class DatabaseSettings(BaseSettings):
             "rows to keep the table and its indexes healthy."
         ),
     )
+    ai_plan_retention_days: int = Field(
+        default=90,
+        description=(
+            "Days to retain AI action plans before the periodic background "
+            "cleanup soft-archives them (archived_at set). Archived plans are "
+            "hidden from the default list/summary but retained for reliability "
+            "metrics and audit. Set to 0 to disable archiving."
+        ),
+    )
 
 
 class AuthSettings(BaseSettings):
