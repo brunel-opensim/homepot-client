@@ -115,6 +115,7 @@ export default function AIProposalsList() {
   const confirmApprove = async () => {
     if (!approveTarget) return;
     const planId = approveTarget;
+    setToast(null);
     try {
       setBusyPlan(planId);
       await api.aiProposals.approve(planId, null);
@@ -132,6 +133,7 @@ export default function AIProposalsList() {
   const confirmReject = async () => {
     if (!rejectTarget) return;
     const planId = rejectTarget;
+    setToast(null);
     try {
       setBusyPlan(planId);
       await api.aiProposals.reject(planId, rejectReason || null);
@@ -154,6 +156,7 @@ export default function AIProposalsList() {
   const confirmApproveStep = async () => {
     if (!stepApproveTarget) return;
     const { planId, step } = stepApproveTarget;
+    setToast(null);
     try {
       setBusyPlan(planId);
       await api.aiProposals.approveStep(planId, step.step_id);
@@ -175,6 +178,7 @@ export default function AIProposalsList() {
   const confirmExecute = async () => {
     if (!executeTarget) return;
     const planId = executeTarget;
+    setToast(null);
     try {
       setBusyPlan(planId);
       const result = await api.aiProposals.execute(planId);
@@ -204,6 +208,7 @@ export default function AIProposalsList() {
   const confirmExecuteAndWait = async () => {
     if (!executeAndWaitTarget) return;
     const planId = executeAndWaitTarget;
+    setToast(null);
     try {
       setBusyPlan(planId);
       const result = await api.aiProposals.executeAndWait(planId, 60);
