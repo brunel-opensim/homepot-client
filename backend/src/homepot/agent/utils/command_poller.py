@@ -1818,7 +1818,7 @@ def _stop_program(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def process_command(
+def _process_command_impl(
     command: Dict[str, Any],
     permissions: Optional[Dict[str, bool]] = None,
 ) -> Dict[str, Any]:
@@ -1958,6 +1958,47 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
         "disk_usage": metrics["disk_usage"],
         "timestamp": utc_now_iso(),
     }
+
+
+def _describe_executed_command(command_type: str, command: Dict[str, Any]) -> str:
+    """Return a human-readable description of the OS command that was executed."""
+    data = _command_data(command)
+    if command_type in ("run_command", "run_script"):
+        return str(data.get("command") or data.get("script") or command_type)
+    if command_type == "restart_service":
+        return "systemctl restart %s" % data.get("service_name", "")
+    if command_type == "update_config":
+        keys = list((data or {}).keys())
+        return "update_config: " + ", ".join(keys) if keys else "update_config"
+    if command_type in ("install_program", "uninstall_program", "update_program"):
+        return "%s %s" % (
+            command_type,
+            data.get("package") or data.get("program_name") or "",
+        )
+    if command_type in ("start_program", "stop_program"):
+        return "%s %s" % (command_type, data.get("path") or data.get("name") or "")
+    return command_type
+
+
+def process_command(
+    command: Dict[str, Any], permissions: Optional[Dict[str, bool]] = None
+) -> Dict[str, Any]:
+    """Execute a device command and annotate the result with the command that ran.
+
+    Wraps :func:`_process_command_impl` and adds a ``command_executed`` field
+    to the result payload so technicians can see exactly what OS command was
+    invoked (transparency / auditability).
+    """
+    result = _process_command_impl(command, permissions)
+    try:
+        res = result.get("result") if isinstance(result, dict) else None
+        if isinstance(res, dict) and "command_executed" not in res:
+            res["command_executed"] = _describe_executed_command(
+                str(command.get("command_type", "")), command
+            )
+    except Exception:  # noqa: BLE001 - never break command execution
+        pass
+    return result
 
 
 def build_status_update_payload(

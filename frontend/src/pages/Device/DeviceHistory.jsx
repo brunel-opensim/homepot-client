@@ -508,6 +508,15 @@ export default function DeviceHistory() {
                   </div>
                 )}
 
+                {selectedCommand.result?.command_executed && (
+                  <div>
+                    <span className="text-gray-500 block mb-1 text-sm">Command executed</span>
+                    <code className="block bg-black/50 rounded-md p-3 text-xs font-mono text-amber-300 whitespace-pre-wrap break-words">
+                      {selectedCommand.result.command_executed}
+                    </code>
+                  </div>
+                )}
+
                 {selectedCommand.result && (
                   <div>
                     <span className="text-gray-500 block mb-2 text-sm">Result</span>

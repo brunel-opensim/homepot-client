@@ -877,6 +877,11 @@ export const CommandHistoryWidget = ({ device, history = [], onCancelCommand, on
                 <div
                   key={item.command_id || item.id || i}
                   onClick={() => navigate(`/device/${deviceId}/history`)}
+                  title={
+                    item.result?.command_executed
+                      ? `Command executed: ${item.result.command_executed}`
+                      : undefined
+                  }
                   className="flex items-center justify-between p-2 rounded bg-[#0b2024]/50 border border-[#1f2735]/50 cursor-pointer hover:bg-[#0b2024]/80 hover:border-teal-500/30 transition-colors"
                 >
                   <div className="flex items-center gap-2 min-w-0">
