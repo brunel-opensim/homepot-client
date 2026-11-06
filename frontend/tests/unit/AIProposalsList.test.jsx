@@ -86,6 +86,7 @@ describe('AIProposalsList', () => {
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Approve'));
+    // themed dialog confirm
     const approveButtons = await screen.findAllByText('Approve');
     await userEvent.click(approveButtons[approveButtons.length - 1]);
 
@@ -101,6 +102,7 @@ describe('AIProposalsList', () => {
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Reject'));
+    // themed dialog: type reason and confirm
     const reasonInput = await screen.findByPlaceholderText('Reason (optional)');
     await userEvent.type(reasonInput, 'not now');
     const rejectButtons = screen.getAllByText('Reject');

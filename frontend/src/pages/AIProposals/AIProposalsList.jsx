@@ -138,10 +138,7 @@ export default function AIProposalsList() {
       const result = await api.aiProposals.execute(planId);
       if (result.status === 'blocked') {
         const reasons = (result.policy?.reasons || []).join(' ');
-        setToast({
-          type: 'error',
-          message: `Execution blocked by policy. ${reasons}`.trim(),
-        });
+        setToast({ type: 'error', message: `Execution blocked by policy. ${reasons}`.trim() });
       } else {
         setToast({
           type: 'success',
