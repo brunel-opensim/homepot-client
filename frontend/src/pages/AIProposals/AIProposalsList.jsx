@@ -39,6 +39,7 @@ export default function AIProposalsList() {
   const [toast, setToast] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const plansRef = useRef(plans);
+  const fetchingRef = useRef(false);
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -47,6 +48,8 @@ export default function AIProposalsList() {
   const [stepApproveTarget, setStepApproveTarget] = useState(null);
 
   const fetchPlans = useCallback(async () => {
+    if (fetchingRef.current) return; // prevent overlapping requests
+    fetchingRef.current = true;
     try {
       // Only show the full loading spinner on the first load; subsequent
       // refreshes (including auto-refresh) keep the current list visible to
@@ -59,6 +62,7 @@ export default function AIProposalsList() {
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   }, [statusFilter]);
 
@@ -78,7 +82,7 @@ export default function AIProposalsList() {
         fetchPlans();
         setRefreshKey((k) => k + 1);
       }
-    }, 15000);
+    }, 30000);
     const onFocus = () => {
       if (!busyPlan) {
         fetchPlans();
