@@ -91,10 +91,24 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
     fetchAll();
   }, [fetchAll]);
 
-  const refresh = async () => {
-    setRefreshing(true);
-    await fetchAll();
-  };
+  // Auto-refresh metrics every 15s while visible.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible' && !refreshing) {
+        fetchAll();
+      }
+    }, 15000);
+    const onFocus = () => {
+      if (!refreshing) fetchAll();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [fetchAll, refreshing]);
 
   const byStatus = summary?.by_status || {};
   const statusEntries = Object.entries(byStatus)
@@ -130,16 +144,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
             Aggregated AI action outcomes over the last 30 days, plus the current autonomy posture.
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={refresh}
-          disabled={refreshing}
-          className="text-gray-400 hover:text-white"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <span className="text-xs text-gray-500">Auto-refreshing</span>
       </div>
 
       {Object.keys(errors).length > 0 && (

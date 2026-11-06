@@ -61,6 +61,26 @@ export default function AIProposalsList() {
     fetchPlans();
   }, [fetchPlans]);
 
+  // Auto-refresh plans every 15s while the tab is visible, so technicians
+  // don't need to click Refresh manually after a delegation completes.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible' && !busyPlan) {
+        fetchPlans();
+      }
+    }, 15000);
+    const onFocus = () => {
+      if (!busyPlan) fetchPlans();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [fetchPlans, busyPlan]);
+
   const handleDecide = (planId, decision) => {
     if (decision === 'approve') {
       setApproveTarget(planId);
@@ -272,15 +292,7 @@ export default function AIProposalsList() {
                 executed automatically.
               </p>
             </div>
-            <Button
-              variant="ghost"
-              onClick={fetchPlans}
-              disabled={loading}
-              className="text-gray-400 hover:text-white"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <span className="text-xs text-gray-500">Auto-refreshing every 15s</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
