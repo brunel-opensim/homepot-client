@@ -375,6 +375,10 @@ class AIActionPlan(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now)
     updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
+    # Retention: soft-archive timestamp. NULL means active. Archived plans are
+    # hidden from the default list/summary but retained for reliability metrics.
+    archived_at = Column(DateTime, nullable=True, index=True)
+
     # Link back to the AI query / audit event that produced the proposal.
     source_query_id = Column(String(36), nullable=True)
 

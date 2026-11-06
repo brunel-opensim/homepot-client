@@ -178,6 +178,7 @@ class AIActionRepository:
         accessible_device_ids: Optional[Iterable[str]] = None,
         created_by: Optional[str] = None,
         days: int = 30,
+        include_archived: bool = False,
     ) -> Dict[str, Any]:
         """Aggregate plan counts by status for cross-session task overview.
 
@@ -200,6 +201,9 @@ class AIActionRepository:
 
         if created_by is not None:
             stmt = stmt.where(AIActionPlan.created_by == created_by)
+
+        if not include_archived:
+            stmt = stmt.where(AIActionPlan.archived_at.is_(None))
 
         plans = list(self.db.execute(stmt).scalars().all())
 
@@ -228,6 +232,38 @@ class AIActionRepository:
             "period_days": days,
         }
 
+    def archive_old_plans(self, days: int = 90) -> int:
+        """Soft-archive terminal plans older than ``days``.
+
+        Archived plans are hidden from the default list/summary but retained
+        in the database for reliability metrics and audit. Returns the number
+        of plans archived.
+        """
+        from datetime import datetime, timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        terminal = {
+            "succeeded",
+            "failed",
+            "rolled_back",
+            "cancelled",
+            "rejected",
+            "blocked",
+            "expired",
+        }
+        stmt = (
+            update(AIActionPlan)
+            .where(
+                AIActionPlan.archived_at.is_(None),
+                AIActionPlan.status.in_(terminal),
+                AIActionPlan.created_at < cutoff,
+            )
+            .values(archived_at=datetime.utcnow())
+        )
+        result = self.db.execute(stmt)
+        self.db.commit()
+        return int(getattr(result, "rowcount", 0) or 0)
+
     def list_plans(
         self,
         *,
@@ -237,6 +273,7 @@ class AIActionRepository:
         run_id: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
+        include_archived: bool = False,
     ) -> List[AIActionPlan]:
         """List plans newest-first, optionally filtered by status and scope.
 
@@ -257,6 +294,9 @@ class AIActionRepository:
             stmt = stmt.where(AIActionPlan.investigation_session_id == session_id)
         if run_id is not None:
             stmt = stmt.where(AIActionPlan.investigation_run_id == run_id)
+
+        if not include_archived:
+            stmt = stmt.where(AIActionPlan.archived_at.is_(None))
 
         if accessible_device_ids is not None:
             device_ids = list(accessible_device_ids)

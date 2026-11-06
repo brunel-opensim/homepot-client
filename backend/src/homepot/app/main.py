@@ -234,6 +234,15 @@ async def start_device_metrics_retention() -> None:
     logging.getLogger(__name__).info("Device metrics retention task started")
 
 
+@app.on_event("startup")
+async def start_ai_plan_retention() -> None:
+    """Start the periodic AI action plan retention (soft-archive)."""
+    from homepot.app.maintenance import run_ai_plan_retention_loop
+
+    app.state.ai_plan_retention_task = asyncio.create_task(run_ai_plan_retention_loop())
+    logging.getLogger(__name__).info("AI plan retention task started")
+
+
 @app.on_event("shutdown")
 async def stop_ai_execution_reconcile() -> None:
     """Cancel the AI action-execution reconcile loop on shutdown."""
@@ -298,6 +307,19 @@ async def stop_device_metrics_retention() -> None:
         except asyncio.CancelledError:
             pass
         app.state.device_metrics_retention_task = None
+
+
+@app.on_event("shutdown")
+async def stop_ai_plan_retention() -> None:
+    """Cancel the AI plan retention loop on shutdown."""
+    task = getattr(app.state, "ai_plan_retention_task", None)
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        app.state.ai_plan_retention_task = None
 
 
 @app.on_event("startup")
