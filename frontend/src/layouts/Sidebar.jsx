@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,9 +10,10 @@ import {
   Download,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import api from '@/services/api';
 import ProfileModal from '@/components/ui/ProfileModal';
 
-function NavList({ items }) {
+function NavList({ items, pendingProposals = 0 }) {
   return (
     <div className="space-y-1">
       {items.map((item) => (
@@ -29,6 +30,11 @@ function NavList({ items }) {
         >
           {item.icon}
           <span>{item.label}</span>
+          {item.to === '/ai-proposals' && pendingProposals > 0 && (
+            <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-black text-[11px] font-bold">
+              {pendingProposals > 99 ? '99+' : pendingProposals}
+            </span>
+          )}
         </NavLink>
       ))}
     </div>
@@ -38,6 +44,27 @@ function NavList({ items }) {
 export default function Sidebar() {
   const { logout, user } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [pendingProposals, setPendingProposals] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPending = async () => {
+      try {
+        const data = await api.ai.getPlanSummary(30, null);
+        if (!cancelled) {
+          setPendingProposals(data?.by_status?.pending_approval || 0);
+        }
+      } catch {
+        // ignore — badge is best-effort
+      }
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const navItems = [
     { to: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
@@ -65,7 +92,7 @@ export default function Sidebar() {
             Overview
           </h3>
           <div className="space-y-1">
-            <NavList items={navItems} />
+            <NavList items={navItems} pendingProposals={pendingProposals} />
           </div>
         </div>
 
