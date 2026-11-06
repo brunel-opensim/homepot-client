@@ -34,11 +34,13 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange,
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const fetchingRef = useRef(false);
+  const initialLoadRef = useRef(true);
 
   const fetchAll = useCallback(async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
     try {
+      if (initialLoadRef.current) setLoading(true);
       const [summaryData, reliabilityData, autonomyData] = await Promise.allSettled([
         api.ai.getPlanSummary(30, null),
         api.ai.getReliability(30, null),
@@ -87,6 +89,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange,
     } finally {
       setLoading(false);
       fetchingRef.current = false;
+      initialLoadRef.current = false;
     }
   }, []);
 
