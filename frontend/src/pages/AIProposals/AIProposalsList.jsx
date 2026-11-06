@@ -105,7 +105,9 @@ export default function AIProposalsList() {
     }
   };
 
-  const handleApproveStep = (planId, step) => setStepApproveTarget({ planId, step });
+  const handleApproveStep = (planId, step) => {
+    setStepApproveTarget({ planId, step });
+  };
 
   const confirmApproveStep = async () => {
     if (!stepApproveTarget) return;
@@ -124,7 +126,9 @@ export default function AIProposalsList() {
     }
   };
 
-  const handleExecute = (planId) => setExecuteTarget(planId);
+  const handleExecute = (planId) => {
+    setExecuteTarget(planId);
+  };
 
   const confirmExecute = async () => {
     if (!executeTarget) return;
@@ -151,7 +155,9 @@ export default function AIProposalsList() {
     }
   };
 
-  const handleExecuteAndWait = (planId) => setExecuteAndWaitTarget(planId);
+  const handleExecuteAndWait = (planId) => {
+    setExecuteAndWaitTarget(planId);
+  };
 
   const confirmExecuteAndWait = async () => {
     if (!executeAndWaitTarget) return;

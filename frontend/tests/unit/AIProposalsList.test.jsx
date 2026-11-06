@@ -87,8 +87,8 @@ describe('AIProposalsList', () => {
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Approve'));
     // themed dialog confirm
-    const approveBtns = await screen.findAllByText('Approve');
-    await userEvent.click(approveBtns[approveBtns.length - 1]);
+    const approveButtons = await screen.findAllByText('Approve');
+    await userEvent.click(approveButtons[approveButtons.length - 1]);
 
     await waitFor(() => {
       expect(api.aiProposals.approve).toHaveBeenCalledWith(mockPlans[0].plan_id, null);
@@ -103,10 +103,10 @@ describe('AIProposalsList', () => {
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Reject'));
     // themed dialog: type reason and confirm
-    const textarea = await screen.findByPlaceholderText('Reason (optional)');
-    await userEvent.type(textarea, 'not now');
-    const rejectBtns = screen.getAllByText('Reject');
-    await userEvent.click(rejectBtns[rejectBtns.length - 1]);
+    const reasonInput = await screen.findByPlaceholderText('Reason (optional)');
+    await userEvent.type(reasonInput, 'not now');
+    const rejectButtons = screen.getAllByText('Reject');
+    await userEvent.click(rejectButtons[rejectButtons.length - 1]);
 
     await waitFor(() => {
       expect(api.aiProposals.reject).toHaveBeenCalledWith(mockPlans[0].plan_id, 'not now');
@@ -131,8 +131,8 @@ describe('AIProposalsList', () => {
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Execute'));
-    const execBtns = await screen.findAllByText('Execute');
-    await userEvent.click(execBtns[execBtns.length - 1]);
+    const executeButtons = await screen.findAllByText('Execute');
+    await userEvent.click(executeButtons[executeButtons.length - 1]);
 
     await waitFor(() => {
       expect(api.aiProposals.execute).toHaveBeenCalledWith(mockPlans[1].plan_id);
@@ -150,8 +150,8 @@ describe('AIProposalsList', () => {
     renderPage();
     await screen.findByText('AI Action Proposals');
     await userEvent.click(screen.getByText('Execute'));
-    const execBtns = await screen.findAllByText('Execute');
-    await userEvent.click(execBtns[execBtns.length - 1]);
+    const executeButtons = await screen.findAllByText('Execute');
+    await userEvent.click(executeButtons[executeButtons.length - 1]);
 
     expect((await screen.findAllByText(/Device is not active/)).length).toBeGreaterThan(0);
   });
