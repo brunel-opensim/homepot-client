@@ -35,6 +35,50 @@ they can pick from or adapt.
 | Delegation | "Set brightness to 50 on {device} and tell me whether it worked." |
 | Fleet | "Run a health check on all devices at {site}." |
 
+## Explicit tool-call phrasing
+
+When natural-language phrasing doesn't trigger the right action, technicians
+can use **explicit tool-call phrasing** to force a specific proposal. The AI
+recognizes these patterns and calls the corresponding tool directly.
+
+### Format
+
+```
+Call propose_device_action with action=<action>, target_device_id=<device_id>,
+params=<json>, rationale='<reason>'.
+```
+
+For fleet-wide actions:
+
+```
+Call propose_fleet_action with action=<action>, site_id=<site_id>,
+rationale='<reason>'.
+```
+
+### Tested examples (Brunel Device 001)
+
+| Phrasing | Result |
+|----------|--------|
+| `Call propose_device_action with action=update_config, target_device_id=DEVICE-MRUU-AUCA-8TJB, params={"config": {"brightness": 30}}, rationale='test brightness control'.` | Proposed `update_config` with brightness=30 |
+| `Call propose_device_action with action=update_config, target_device_id=DEVICE-MRUU-AUCA-8TJB, params={"config": {"volume": 75}}, rationale='test volume control'.` | Proposed `update_config` with volume=75 |
+| `Call propose_fleet_action with action=health_check, site_id=SITE-W545-2BK3, rationale='fleet health check'.` | Proposed `health_check` (1 step for 1 active device) |
+
+### When to use explicit phrasing
+
+- The AI refuses a natural-language request ("brightness is not configurable").
+- You need a specific config key that the AI doesn't associate with
+  `update_config`.
+- You want to propose an action the AI wouldn't normally suggest.
+- Fleet operations where you want to ensure all devices are covered.
+
+### Tips
+
+- Always include `target_device_id` (business ID, not the friendly name).
+- `params` must be valid JSON with the correct structure for the action.
+- For `update_config`, wrap settings under `{"config": {...}}`.
+- For `restart_service`, include `{"service_name": "..."}`.
+- For `run_command`, include `{"command": "..."}`.
+
 ## Where suggestions come from
 
 - **Soak test scenarios** (S1–S8 in `docs/real-device-ai-soak-test.md`) are
