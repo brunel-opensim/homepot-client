@@ -37,6 +37,7 @@ export default function AIProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -61,16 +62,20 @@ export default function AIProposalsList() {
     fetchPlans();
   }, [fetchPlans]);
 
-  // Auto-refresh plans every 15s while the tab is visible, so technicians
-  // don't need to click Refresh manually after a delegation completes.
+  // Single auto-refresh timer for the whole page: refreshes both the plan
+  // list and the reliability panel together every 15s while visible.
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible' && !busyPlan) {
         fetchPlans();
+        setRefreshKey((k) => k + 1);
       }
     }, 15000);
     const onFocus = () => {
-      if (!busyPlan) fetchPlans();
+      if (!busyPlan) {
+        fetchPlans();
+        setRefreshKey((k) => k + 1);
+      }
     };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onFocus);
@@ -80,6 +85,11 @@ export default function AIProposalsList() {
       document.removeEventListener('visibilitychange', onFocus);
     };
   }, [fetchPlans, busyPlan]);
+
+  // Keep the panel in sync with the same refresh tick.
+  useEffect(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   const handleDecide = (planId, decision) => {
     if (decision === 'approve') {
@@ -307,7 +317,11 @@ export default function AIProposalsList() {
 
         {/* Phase E: reliability + cross-session task aggregation overview */}
         <div className="shrink-0 mb-4 max-h-[50vh] overflow-y-auto pr-1">
-          <AIReliabilityPanel statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} />
+          <AIReliabilityPanel
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            refreshKey={refreshKey}
+          />
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto">
