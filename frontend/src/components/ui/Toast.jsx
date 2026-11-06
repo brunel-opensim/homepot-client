@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export const Toast = ({ title, message, type = 'success', onClose }) => {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const timer = setTimeout(() => onCloseRef.current(), 3000);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, []); // run once on mount
 
   return (
     <div
