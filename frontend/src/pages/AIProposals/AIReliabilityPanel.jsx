@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, RefreshCw, Sparkles, Activity, ListChecks } from 'lucide-react';
 import api, { apiHelpers } from '@/services/api';
 import { Button } from '@/components/ui/button';
@@ -32,8 +32,11 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange,
   const [calibration, setCalibration] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
+  const fetchingRef = useRef(false);
 
   const fetchAll = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     try {
       const [summaryData, reliabilityData, autonomyData] = await Promise.allSettled([
         api.ai.getPlanSummary(30, null),
@@ -82,6 +85,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange,
       setErrors(nextErrors);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   }, []);
 
