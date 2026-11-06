@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Toast } from '@/components/ui/Toast';
 import AIStatusBadge from './AIStatusBadge';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import AIReliabilityPanel from './AIReliabilityPanel';
 
 const STATUS_FILTERS = [
@@ -36,6 +37,12 @@ export default function AIProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [executeTarget, setExecuteTarget] = useState(null);
+  const [executeAndWaitTarget, setExecuteAndWaitTarget] = useState(null);
+  const [stepApproveTarget, setStepApproveTarget] = useState(null);
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -54,44 +61,62 @@ export default function AIProposalsList() {
     fetchPlans();
   }, [fetchPlans]);
 
-  const handleDecide = async (planId, decision) => {
-    let reason = null;
-    if (decision === 'reject') {
-      reason = window.prompt('Reason for rejection (optional):') || null;
-    } else if (!window.confirm('Approve this AI action plan? This records your decision.')) {
-      return;
+  const handleDecide = (planId, decision) => {
+    if (decision === 'approve') {
+      setApproveTarget(planId);
+    } else {
+      setRejectTarget(planId);
+      setRejectReason('');
     }
+  };
 
+  const confirmApprove = async () => {
+    if (!approveTarget) return;
+    const planId = approveTarget;
     try {
       setBusyPlan(planId);
-      await api.aiProposals[decision](planId, reason);
-      setToast({
-        type: 'success',
-        message: `Proposal ${decision === 'approve' ? 'approved' : 'rejected'}.`,
-      });
+      await api.aiProposals.approve(planId, null);
+      setToast({ type: 'success', message: 'Proposal approved.' });
+      setApproveTarget(null);
       fetchPlans();
     } catch (err) {
-      console.error(`Failed to ${decision} plan:`, err);
+      console.error('Failed to approve plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
     } finally {
       setBusyPlan(null);
     }
   };
 
-  const handleApproveStep = async (planId, step) => {
-    if (
-      !window.confirm(
-        `Approve step ${step.seq + 1} (${step.action} → ${step.target_device_id})? ` +
-          'Later steps still need their own approval.'
-      )
-    ) {
-      return;
+  const confirmReject = async () => {
+    if (!rejectTarget) return;
+    const planId = rejectTarget;
+    try {
+      setBusyPlan(planId);
+      await api.aiProposals.reject(planId, rejectReason || null);
+      setToast({ type: 'success', message: 'Proposal rejected.' });
+      setRejectTarget(null);
+      setRejectReason('');
+      fetchPlans();
+    } catch (err) {
+      console.error('Failed to reject plan:', err);
+      setToast({ type: 'error', message: apiHelpers.formatError(err) });
+    } finally {
+      setBusyPlan(null);
     }
+  };
 
+  const handleApproveStep = (planId, step) => {
+    setStepApproveTarget({ planId, step });
+  };
+
+  const confirmApproveStep = async () => {
+    if (!stepApproveTarget) return;
+    const { planId, step } = stepApproveTarget;
     try {
       setBusyPlan(planId);
       await api.aiProposals.approveStep(planId, step.step_id);
       setToast({ type: 'success', message: `Step ${step.seq + 1} approved.` });
+      setStepApproveTarget(null);
       fetchPlans();
     } catch (err) {
       console.error('Failed to approve step:', err);
@@ -101,15 +126,13 @@ export default function AIProposalsList() {
     }
   };
 
-  const handleExecute = async (planId) => {
-    if (
-      !window.confirm(
-        'Execute this approved plan now? Device commands will be queued and run on the devices.'
-      )
-    ) {
-      return;
-    }
+  const handleExecute = (planId) => {
+    setExecuteTarget(planId);
+  };
 
+  const confirmExecute = async () => {
+    if (!executeTarget) return;
+    const planId = executeTarget;
     try {
       setBusyPlan(planId);
       const result = await api.aiProposals.execute(planId);
@@ -125,6 +148,7 @@ export default function AIProposalsList() {
           message: 'Execution started; devices will report back shortly.',
         });
       }
+      setExecuteTarget(null);
       fetchPlans();
     } catch (err) {
       console.error('Failed to execute plan:', err);
@@ -134,15 +158,13 @@ export default function AIProposalsList() {
     }
   };
 
-  const handleExecuteAndWait = async (planId) => {
-    if (
-      !window.confirm(
-        'Execute this approved plan and wait for the result? Device commands will be queued.'
-      )
-    ) {
-      return;
-    }
+  const handleExecuteAndWait = (planId) => {
+    setExecuteAndWaitTarget(planId);
+  };
 
+  const confirmExecuteAndWait = async () => {
+    if (!executeAndWaitTarget) return;
+    const planId = executeAndWaitTarget;
     try {
       setBusyPlan(planId);
       const result = await api.aiProposals.executeAndWait(planId, 60);
@@ -158,6 +180,7 @@ export default function AIProposalsList() {
           message: `Timed out after ${result.elapsed_seconds}s; plan still ${result.plan?.status}.`,
         });
       }
+      setExecuteAndWaitTarget(null);
       fetchPlans();
     } catch (err) {
       console.error('Failed to execute-and-wait:', err);
@@ -177,6 +200,67 @@ export default function AIProposalsList() {
           onClose={() => setToast(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(approveTarget)}
+        onClose={() => setApproveTarget(null)}
+        onConfirm={confirmApprove}
+        title="Approve AI action plan"
+        description="This records your approval decision. Nothing is executed until you click Execute."
+        confirmLabel="Approve"
+        confirmClassName="bg-teal-600 text-white hover:bg-teal-700"
+        loading={busyPlan === approveTarget}
+      />
+      <ConfirmDialog
+        open={Boolean(rejectTarget)}
+        onClose={() => setRejectTarget(null)}
+        onConfirm={confirmReject}
+        title="Reject AI action plan"
+        description="Reject this proposal and record your reason (optional)."
+        confirmLabel="Reject"
+        confirmClassName="bg-red-600 text-white hover:bg-red-700"
+        loading={busyPlan === rejectTarget}
+        showReason
+        reason={rejectReason}
+        onReasonChange={setRejectReason}
+      />
+
+      <ConfirmDialog
+        open={Boolean(executeTarget)}
+        onClose={() => setExecuteTarget(null)}
+        onConfirm={confirmExecute}
+        title="Execute AI action plan"
+        description="Device commands will be queued and run on the devices."
+        confirmLabel="Execute"
+        confirmClassName="bg-indigo-600 text-white hover:bg-indigo-700"
+        loading={busyPlan === executeTarget}
+      />
+      <ConfirmDialog
+        open={Boolean(executeAndWaitTarget)}
+        onClose={() => setExecuteAndWaitTarget(null)}
+        onConfirm={confirmExecuteAndWait}
+        title="Execute and wait"
+        description="Device commands will be queued and the plan will be polled until it finishes or times out."
+        confirmLabel="Execute & wait"
+        confirmClassName="bg-emerald-600 text-white hover:bg-emerald-700"
+        loading={busyPlan === executeAndWaitTarget}
+      />
+      <ConfirmDialog
+        open={Boolean(stepApproveTarget)}
+        onClose={() => setStepApproveTarget(null)}
+        onConfirm={confirmApproveStep}
+        title={
+          stepApproveTarget ? `Approve step ${stepApproveTarget.step.seq + 1}` : 'Approve step'
+        }
+        description={
+          stepApproveTarget
+            ? `${stepApproveTarget.step.action} → ${stepApproveTarget.step.target_device_id}. Later steps still need their own approval.`
+            : ''
+        }
+        confirmLabel="Approve step"
+        confirmClassName="bg-teal-600 text-white hover:bg-teal-700"
+        loading={busyPlan === (stepApproveTarget ? stepApproveTarget.planId : null)}
+      />
 
       <div className="container mx-auto max-w-7xl h-full flex flex-col">
         <div className="shrink-0 mb-4 space-y-4">
