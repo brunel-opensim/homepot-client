@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2,
   Sparkles,
@@ -37,6 +37,7 @@ export default function AIProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
+  const plansRef = useRef(plans);
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -46,7 +47,10 @@ export default function AIProposalsList() {
 
   const fetchPlans = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only show the full loading spinner on the first load; subsequent
+      // refreshes (including auto-refresh) keep the current list visible to
+      // avoid flicker of the empty/loading state.
+      if (!plansRef.current || plansRef.current.length === 0) setLoading(true);
       const data = await api.aiProposals.list(statusFilter || null, 100, 0);
       setPlans(data.plans || []);
     } catch (err) {
@@ -56,6 +60,10 @@ export default function AIProposalsList() {
       setLoading(false);
     }
   }, [statusFilter]);
+
+  useEffect(() => {
+    plansRef.current = plans;
+  }, [plans]);
 
   useEffect(() => {
     fetchPlans();
