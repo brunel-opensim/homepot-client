@@ -151,8 +151,8 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="root_access",
         min_role="operator",
-        description="Start a named program on the device. Reversible via stop_program.",
-        required_params=("program_name",),
+        description="Start a program. Use 'path' (executable path or name on PATH) and optional 'args'.",
+        required_params=("path",),
     ),
     "stop_program": ActionSpec(
         name="stop_program",
@@ -161,8 +161,11 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="root_access",
         min_role="operator",
-        description="Stop a named program on the device.",
-        required_params=("program_name",),
+        description=(
+            "Stop a running process. Use 'name' (process name) or 'pid'. "
+            "Set 'force' to terminate immediately."
+        ),
+        required_params=("name",),
     ),
     "install_program": ActionSpec(
         name="install_program",
@@ -171,8 +174,11 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="root_access",
         min_role="operator",
-        description="Install a program via the package manager (winget). Reversible via uninstall.",
-        required_params=("program_name",),
+        description=(
+            "Install a program via winget. Use 'package' (winget package ID). "
+            "Reversible via uninstall."
+        ),
+        required_params=("package",),
     ),
     "uninstall_program": ActionSpec(
         name="uninstall_program",
@@ -181,8 +187,8 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="root_access",
         min_role="operator",
-        description="Uninstall a program via the package manager.",
-        required_params=("program_name",),
+        description="Uninstall a program via winget. Use 'package' (winget package ID).",
+        required_params=("package",),
     ),
     "update_program": ActionSpec(
         name="update_program",
@@ -191,8 +197,8 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="root_access",
         min_role="operator",
-        description="Update a single installed program.",
-        required_params=("program_name",),
+        description="Update a single installed program. Use 'package' (winget package ID).",
+        required_params=("package",),
     ),
     "upgrade_all_programs": ActionSpec(
         name="upgrade_all_programs",

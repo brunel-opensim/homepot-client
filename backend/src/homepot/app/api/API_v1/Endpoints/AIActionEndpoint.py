@@ -636,7 +636,10 @@ async def dry_run_action_plan(
         ):
             params = step.params or {}
             preview["predicted_change"] = {
-                "action": f"{step.action}: {params.get('program_name', 'unknown')}"
+                "action": (
+                    f"{step.action}: "
+                    f"{params.get('path') or params.get('name') or params.get('package', 'unknown')}"
+                )
             }
         elif step.action in ("run_command", "run_command_unprivileged", "run_script"):
             params = step.params or {}
