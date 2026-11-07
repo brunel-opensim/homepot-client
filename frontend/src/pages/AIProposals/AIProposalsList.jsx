@@ -123,7 +123,7 @@ export default function AIProposalsList() {
       await api.aiProposals.approve(planId, null);
       setToast({ type: 'success', message: 'Proposal approved.' });
       setApproveTarget(null);
-      fetchPlans();
+      fetchPlans(true);
     } catch (err) {
       console.error('Failed to approve plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -142,7 +142,7 @@ export default function AIProposalsList() {
       setToast({ type: 'success', message: 'Proposal rejected.' });
       setRejectTarget(null);
       setRejectReason('');
-      fetchPlans();
+      fetchPlans(true);
     } catch (err) {
       console.error('Failed to reject plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -164,7 +164,7 @@ export default function AIProposalsList() {
       await api.aiProposals.approveStep(planId, step.step_id);
       setToast({ type: 'success', message: `Step ${step.seq + 1} approved.` });
       setStepApproveTarget(null);
-      fetchPlans();
+      fetchPlans(true);
     } catch (err) {
       console.error('Failed to approve step:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -194,7 +194,7 @@ export default function AIProposalsList() {
         });
       }
       setExecuteTarget(null);
-      fetchPlans();
+      fetchPlans(true);
     } catch (err) {
       console.error('Failed to execute plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -227,7 +227,7 @@ export default function AIProposalsList() {
         });
       }
       setExecuteAndWaitTarget(null);
-      fetchPlans();
+      fetchPlans(true);
     } catch (err) {
       console.error('Failed to execute-and-wait:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
