@@ -34,6 +34,7 @@ class ContractInfrastructureGate(Gate):
             gate_id="A",
             name="Contract and Infrastructure",
             failure_mode=MODE_STATUS_ONLY,
+            weight=2.0,
         )
 
     async def evaluate(self, context: GateContext) -> GateResult:

@@ -53,6 +53,7 @@ class LifecycleIntegrityGate(Gate):
             gate_id="E",
             name="Lifecycle Integrity",
             failure_mode=MODE_LIFECYCLE_HALT,
+            weight=1.5,
         )
 
     async def evaluate(self, context: GateContext) -> GateResult:

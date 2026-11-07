@@ -44,7 +44,10 @@ class ContextReadinessGate(Gate):
     ) -> None:
         """Configure Gate C's required content blocks, size bound, and failure fallback."""
         super().__init__(
-            gate_id="C", name="Context Readiness", failure_mode=MODE_CAUTIONARY
+            gate_id="C",
+            name="Context Readiness",
+            failure_mode=MODE_CAUTIONARY,
+            weight=0.5,
         )
         self.required_blocks = required_blocks or DEFAULT_REQUIRED_BLOCKS
         self.max_context_chars = max_context_chars

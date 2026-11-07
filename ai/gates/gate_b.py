@@ -17,12 +17,14 @@ per-call via ``DataIntegrityGate(freshness_max_age_seconds=..., ...)`` /
 envelope.py's ``build_default_envelope``. None of these are yet validated
 against real deployment data.
 
-TESTING NOTE: the ``continuity_gap_seconds`` and ``completeness_max_null_ratio``
-defaults are deliberately relaxed for the current development/testing phase so
-Gate B passes on rehearsal data and the downstream gates (C/D/E) can be
-exercised. Before real-device testing, restore the paper's values
-(continuity gaps <= 60s, completeness null ratio 0) so Gate B actually rejects
-stale/incomplete telemetry.
+REAL-DEVICE NOTE (2026-11): thresholds were relaxed during development for
+simulated devices. Real-device soak testing (Brunel Device 001) confirmed
+that the relaxed values are appropriate for production: real devices have
+irregular heartbeats (1800s continuity gap is realistic; 60s is not) and
+occasional null metrics (1% tolerance is needed). The paper's values
+(continuity gaps <= 60s, completeness null ratio 0) are designed for
+simulated devices with perfect telemetry and should NOT be restored for
+real-device deployments. See docs/gate-review-real-device.md.
 """
 
 from __future__ import annotations
@@ -63,7 +65,10 @@ class DataIntegrityGate(Gate):
     ) -> None:
         """Configure Gate B's tunable thresholds and Mode 2 failure fallback."""
         super().__init__(
-            gate_id="B", name="Data Integrity", failure_mode=MODE_BEST_EFFORT
+            gate_id="B",
+            name="Data Integrity",
+            failure_mode=MODE_BEST_EFFORT,
+            weight=1.5,
         )
         self.freshness_max_age_seconds = freshness_max_age_seconds
         self.continuity_gap_seconds = continuity_gap_seconds
