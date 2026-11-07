@@ -51,6 +51,7 @@ class PermissionCapabilityGate(Gate):
             gate_id="D",
             name="Permission and Capability",
             failure_mode=MODE_PERMISSION_GAP,
+            weight=1.0,
         )
 
     async def evaluate(self, context: GateContext) -> GateResult:
