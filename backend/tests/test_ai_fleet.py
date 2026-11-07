@@ -10,15 +10,15 @@ workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
+import pytest  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
 from ai.tools import (  # noqa: E402
     TOOL_REGISTRY,
     propose_fleet_action,
     set_tool_proposal_sink,
 )
-import pytest  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import Base, Device, Site  # noqa: E402

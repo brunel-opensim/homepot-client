@@ -14,7 +14,6 @@ if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
 from ai.context_builder import ContextBuilder  # noqa: E402
-
 from homepot.app.models.AnalyticsModel import (  # noqa: E402
     APIRequestLog,
     ConfigurationHistory,
