@@ -59,7 +59,7 @@ const COMMAND_TYPE_TO_TEMPLATE = {
   list_processes: 'LIST_PROCESSES',
   list_connections: 'LIST_CONNECTIONS',
   scan_filesystem: 'SCAN_FILESYSTEM',
-  health_check: 'RUN_DIAGNOSTICS',
+  health_check: 'HEALTH_CHECK',
   restart: 'REBOOT_SYSTEM',
   shutdown: 'SHUT_DOWN',
 };

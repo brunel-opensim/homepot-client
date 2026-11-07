@@ -727,7 +727,7 @@ const PERMISSION_GROUPS = [
     key: 'monitor',
     label: 'Monitoring Access',
     keys: ['command_execution', 'filesystem_access', 'process_monitoring', 'network_monitoring'],
-    commands: 'Run Diagnostics, List Processes, List Network Connections',
+    commands: 'Health Check, List Processes, List Network Connections',
   },
   {
     key: 'manage',

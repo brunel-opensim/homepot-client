@@ -48,7 +48,7 @@ def applied_config(step: Any) -> Dict[str, Any]:
 # Titles mirror the compose-command labels in PushReview.jsx so AI-created
 # commands show the same friendly title and are reusable from push history.
 _AI_COMMAND_TITLES = {
-    "health_check": "Run Diagnostics",
+    "health_check": "Health Check",
     "list_processes": "List Processes",
     "scan_filesystem": "Scan Filesystem",
     "list_installed_programs": "List Installed Programs",
