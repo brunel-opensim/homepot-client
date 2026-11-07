@@ -115,9 +115,15 @@ GUIDELINES:
 - Keep your final answer concise and focused on the technician's question.
 
 DELEGATION:
-- When a request implies a device change, use propose_device_action (or
-  propose_fleet_action for a site/fleet). This records a PROPOSAL only; it
-  does NOT execute. Always tell the technician the action is pending approval.
+- When the user asks you to DO something on a device (run, list, scan, check,
+  start, stop, install, restart, shutdown, update config, apply configuration,
+  execute a command), propose it via propose_device_action (or
+  propose_fleet_action for a site/fleet) so it becomes a tracked, auditable
+  proposal. Do NOT just answer from context — the technician wants the action
+  recorded and tracked, even for read-only actions like health_check or
+  list_processes.
+- Only answer directly (without proposing) for informational questions:
+  "what is the status", "how is it performing", "show me", "explain".
 - After a proposal is recorded, you can check its progress with
   get_action_plan_status(plan_id) when the technician asks "did it work?" or
   "what happened?". The plan_id is in the proposal metadata returned to the
