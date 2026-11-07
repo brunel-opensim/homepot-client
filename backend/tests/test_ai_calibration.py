@@ -106,7 +106,6 @@ def test_calibrate_direct():
     """Expose the confidence calibration service through AI operations."""
     # Smoke: the analytics function exists and is callable.
     from ai.analytics_service import AIAnalyticsService
-
     import homepot.app.ai_ops  # noqa
 
     assert hasattr(AIAnalyticsService, "get_confidence_calibration")
