@@ -145,6 +145,33 @@ async def _reconcile_executing(db: SASession, plan: Any, db_service: Any = None)
                 else:
                     step.result = getattr(command, "result", None)
                     step.completed_at = utc_now()
+                    # Persist the applied config on the device so the next
+                    # change's rollback snapshot captures the current values.
+                    if step.action == "update_config" and step.target_device_id:
+                        try:
+                            from homepot.app.ai_ops.executor import applied_config
+                            from homepot.models import Device as _Dev
+
+                            _device = (
+                                db.query(_Dev)
+                                .filter(_Dev.device_id == step.target_device_id)
+                                .first()
+                            )
+                            if _device is not None:
+                                _applied = applied_config(step)
+                                if isinstance(_applied, dict) and _applied:
+                                    _cfg = (
+                                        dict(_device.config)
+                                        if isinstance(_device.config, dict)
+                                        else {}
+                                    )
+                                    _cfg.update(_applied)
+                                    _device.config = _cfg  # type: ignore[assignment]
+                                    db.commit()
+                        except Exception:
+                            logger.debug(
+                                "Failed to persist device config", exc_info=True
+                            )
 
         if step.status == "failed":
             # Per-key failures inside a completed command are deterministic and
