@@ -374,10 +374,31 @@ async def update_command_status(
         # session timezone (which previously produced negative round-trip times).
         executed_at = request.executed_at.astimezone(timezone.utc)
 
+    # Enrich the result with the executed command description (transparency).
+    # The device agent may not include this (older agent versions), so the
+    # backend derives it from the stored command type and payload.
+    enriched_result = request.result
+    if isinstance(enriched_result, dict):
+        if "command_executed" not in enriched_result:
+            try:
+                from homepot.agent.utils.command_poller import (
+                    _describe_executed_command,
+                )
+
+                cmd = await db.get_command(command_id)
+                if cmd is not None:
+                    enriched_result = dict(enriched_result)
+                    enriched_result["command_executed"] = _describe_executed_command(
+                        str(cmd.command_type),
+                        {"command_type": cmd.command_type, "payload": cmd.payload},
+                    )
+            except Exception:  # noqa: BLE001
+                pass
+
     updated_command = await db.update_command_status(
         command_id=command_id,
         status=request.status,
-        result=request.result,
+        result=enriched_result,
         device_id=cast(int, current_device.id),
         executed_at=executed_at,
     )
