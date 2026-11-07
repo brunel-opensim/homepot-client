@@ -604,10 +604,17 @@ async def propose_device_action(
 ) -> str:
     """Propose a device-management action for technician approval (does NOT execute).
 
-    Use this when the user's request implies a change to a device (for example
-    applying a configuration or restarting it). This records a *proposal* only:
-    a technician must review and approve before anything runs. Never claim an
-    action was performed — always tell the user it is pending approval.
+    Use this whenever the user asks you to DO something on a device: run a
+    health check, list processes, scan the filesystem, install/start/stop a
+    program, run a command, apply configuration, restart a service, etc.
+    This records a *proposal* only: a technician must review and approve
+    before anything runs. Never claim an action was performed — always tell
+    the user it is pending approval.
+
+    Do NOT use this for informational questions ("what is the status", "how
+    is it performing") — answer those directly. But if the user says "run",
+    "list", "scan", "check", "start", "stop", "install", "execute", propose
+    the corresponding action even if you already have the data in context.
 
     Args:
         action: The proposed action. Must be one of the registered actions:
