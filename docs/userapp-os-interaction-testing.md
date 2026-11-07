@@ -45,7 +45,7 @@ export HOMEPOT_BACKEND_URL=http://<host>:<port>/api/v1
 
 1. User App → Setup → enter the site ID + bootstrap key from the Dashboard.
 2. Pick **macOS POS emulator** in the device-type picker.
-3. Dashboard → the device → **Compose Command** → **Run Diagnostics** → Queue.
+3. Dashboard → the device → **Compose Command** → **Health Check** → Queue.
 4. Watch the emulator log; the command is polled, executed (simulated), and
    appears **completed** in the device's Push History.
 
@@ -70,7 +70,7 @@ an emulator.
 | Agent config written | `cat ~/.homepot/agent/agent-config.json` (your `backend_url`, `device_id`, `api_key`) |
 | Registration + heartbeat | Dashboard device shows **online / active**; backend log shows registration + heartbeats |
 | Permissions synced | User App → Permissions → toggle **Monitor** on; the device page **CAPABILITIES** shows Monitor granted |
-| Monitor-tier command | Compose **Run Diagnostics** → Queue → polls ≤15 s → real `health_check` → Push History shows **completed** with real CPU/mem/disk |
+| Monitor-tier command | Compose **Health Check** → Queue → polls ≤15 s → real `health_check` → Push History shows **completed** with real CPU/mem/disk |
 | Real process list | Compose **List Processes** → result has real pids/names from the host |
 | Real filesystem scan | Compose **Scan Filesystem** (path e.g. `/var/homepot`) → real `os.walk` entries |
 | Real config action | Compose **Apply Configuration** with `brightness` → host brightness actually changes |
@@ -137,7 +137,7 @@ and `restart`/`shutdown` report `failed` — expected. The Monitor-tier and
 
 | Command | Tier | Real host result |
 |---|---|---|
-| Run Diagnostics (`health_check`) | Monitor | per-test pass/fail + CPU/memory/disk values |
+| Health Check (`health_check`) | Monitor | per-test pass/fail + CPU/memory/disk values |
 | List Processes | Monitor | sorted process snapshot |
 | List Network Connections | Monitor | connections filtered by state |
 | Run Command / Run Script | Manage | sudo execution, stdout/stderr/exit code |
