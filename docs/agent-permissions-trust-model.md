@@ -122,7 +122,7 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 | Upgrade All Programs | `upgrade_all_programs` | `root_access` |
 | Start Program | `start_program` | `root_access` |
 | Stop Program | `stop_program` | `root_access` |
-| Run Diagnostics | `health_check` | `command_execution` |
+| Health Check | `health_check` | `command_execution` |
 | List Processes | `list_processes` | `process_monitoring` |
 | List Network Connections | `list_connections` | `network_monitoring` |
 | Scan Filesystem | `scan_filesystem` | `root_access` |

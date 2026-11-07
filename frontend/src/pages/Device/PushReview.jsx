@@ -133,8 +133,8 @@ const COMMAND_TEMPLATES = {
     defaultData: { timeout_seconds: 600 },
     description: 'Upgrade all installed programs on the Windows device via winget (silent).',
   },
-  RUN_DIAGNOSTICS: {
-    label: 'Run Diagnostics',
+  HEALTH_CHECK: {
+    label: 'Health Check',
     action: 'health_check',
     permission: 'command_execution',
     defaultData: {
