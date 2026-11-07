@@ -186,8 +186,8 @@ Ollama for speed; trust gates still enforced.
 | Scenario | Action | Plan status | Outcome | Verified | Notes |
 |----------|--------|-------------|---------|----------|-------|
 | S1 — Health check | `health_check` | `succeeded` | verified=true | ✅ | Baseline run; trust 1.0 |
-| S2 — Config change | `update_config` (volume 50) | `succeeded` | verified=true | ✅ | Volume set to 50%, verified=true (before=0, after=50) |
-| S3 — Rollback drill | `update_config` (brightness "abc") | `rolled_back` | rolled_back=true, rollback_success=true | ✅ | Per-key failure triggered rollback; restored brightness=60 |
+| S2 — Config change | `update_config` (volume 50) | `succeeded` | verified=true | ✅ | Volume set to 50%, verified (before=0, after=50). Device config persisted with volume=50. |
+| S3 — Rollback drill | `update_config` (brightness "abc") | `rolled_back` | rolled_back=true, rollback_success=true | ✅ | Per-key failure → rollback restored brightness=60. Config persisted via PR #819. |
 | S5 — Per-step approval | `restart_service` (spooler) | `executing` (retry) | — | — | T3 step paused in `awaiting_approval`; released on "Approve step"; retry re-gated |
 | S6 — Dry run | `health_check` | `pending_approval` (unchanged) | — | — | Policy allowed, predicted changes shown, no command queued |
 | S7 — Fleet command | `health_check` (1 device at site) | `succeeded` | verified=true | ✅ | Each step tracked independently |
@@ -213,6 +213,30 @@ Ollama for speed; trust gates still enforced.
 - **Rollback:** restored volume to 50 via rollback command (snapshot captured from device config)
 - **Outcome:** `rolled_back: true`, `rollback_success: true`, `verified: false`, provenance `real`
 - **Duration:** ~62s (includes 30s retry backoff window before terminal failure)
+
+### S2 detail — config change (volume 50)
+
+- **Prompt:** "Apply configuration to set volume to 50 on Brunel Device 001."
+- **Plan:** `update_config` with `{"config": {"volume": 50}}` (T2, reversible)
+- **Trust:** 1.0, actionable
+- **Execution:** command queued, device applied volume via ctypes Core Audio COM
+- **Result:** `{"status": "applied", "message": "volume set to 50%", "verification": {"before": 0, "after": 50, "target": 50, "verified": true}}`
+- **Outcome:** `verified: true`, `rolled_back: false`, provenance `real`
+- **Duration:** ~8.8s
+- **Side effect:** device.config persisted with `{"volume": 50, "brightness": 60, ...}` (PR #819)
+
+### S3 detail — rollback drill (volume/brightness "abc")
+
+- **Setup:** Device config set to `{"volume": 50, "brightness": 60}` (baseline from prior runs).
+- **Plan:** `update_config` with `{"config": {"brightness": "abc"}}` (invalid value, will fail)
+- **Trust:** 1.0, actionable
+- **Execution:** command dispatched → device agent: `int("abc")` throws → status "error"
+- **Reconcile:** detected per-key failure → triggered rollback
+- **Rollback:** snapshot captured `brightness: 60` from device.config → restored to 60 on device
+- **Outcome:** `rolled_back: true`, `rollback_success: true`, `verified: false`, provenance `real`
+- **Duration:** ~62s (includes reconcile loop polling)
+- **Key proof:** PR #819 (config persistence) made rollback work — without it, the
+  snapshot would have been empty and rollback would not have fired.
 
 ### S5 detail — per-step approval (restart_service spooler)
 
