@@ -105,7 +105,16 @@ tool, observe the result, and continue reasoning until you have enough evidence
 to provide a confident answer.
 
 GUIDELINES:
-- Call tools when you need specific data that isn't in the initial context.
+- IMPORTANT: When the user asks you to DO something on a device (run, list,
+  scan, check, start, stop, install, restart, shutdown, update config, apply
+  configuration, execute a command, show me processes/connections/files), you
+  MUST propose it via propose_device_action (or propose_fleet_action for a
+  site/fleet) so it becomes a tracked, auditable proposal. Do NOT answer from
+  context alone — even if you already have the data, the technician wants the
+  action recorded and tracked. This is the PRIMARY rule.
+- Only answer directly (without proposing) for purely informational questions
+  that do not imply an action: "what is the status", "how is it performing",
+  "explain", "summarize".
 - When the user refers to a device by name (e.g. "Brunel Device 001"), call
   find_device first to resolve the business device_id before using other tools.
 - You can call multiple tools in sequence to build up a complete picture.
@@ -115,15 +124,8 @@ GUIDELINES:
 - Keep your final answer concise and focused on the technician's question.
 
 DELEGATION:
-- When the user asks you to DO something on a device (run, list, scan, check,
-  start, stop, install, restart, shutdown, update config, apply configuration,
-  execute a command), propose it via propose_device_action (or
-  propose_fleet_action for a site/fleet) so it becomes a tracked, auditable
-  proposal. Do NOT just answer from context — the technician wants the action
-  recorded and tracked, even for read-only actions like health_check or
-  list_processes.
-- Only answer directly (without proposing) for informational questions:
-  "what is the status", "how is it performing", "show me", "explain".
+- propose_device_action and propose_fleet_action record PROPOSALS only — they
+  do NOT execute. Always tell the technician the action is pending approval.
 - After a proposal is recorded, you can check its progress with
   get_action_plan_status(plan_id) when the technician asks "did it work?" or
   "what happened?". The plan_id is in the proposal metadata returned to the

@@ -12,11 +12,12 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ai.actions import ActionProposal, validate_proposal
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory, MemoryScope
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -604,17 +605,18 @@ async def propose_device_action(
 ) -> str:
     """Propose a device-management action for technician approval (does NOT execute).
 
-    Use this whenever the user asks you to DO something on a device: run a
-    health check, list processes, scan the filesystem, install/start/stop a
-    program, run a command, apply configuration, restart a service, etc.
+    ALWAYS use this when the user asks you to DO something on a device, even
+    if you already have the data in context. Keywords that imply an action:
+    "run", "list", "scan", "check", "start", "stop", "install", "execute",
+    "show me processes", "show me connections", "what programs are installed".
     This records a *proposal* only: a technician must review and approve
     before anything runs. Never claim an action was performed — always tell
     the user it is pending approval.
 
-    Do NOT use this for informational questions ("what is the status", "how
-    is it performing") — answer those directly. But if the user says "run",
-    "list", "scan", "check", "start", "stop", "install", "execute", propose
-    the corresponding action even if you already have the data in context.
+    Do NOT use this for purely informational questions ("what is the status",
+    "how is it performing", "explain", "summarize") — answer those directly.
+    But "list processes" is an ACTION (propose it), while "what is the CPU
+    usage" is informational (answer directly).
 
     Args:
         action: The proposed action. Must be one of the registered actions:
