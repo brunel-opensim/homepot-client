@@ -434,92 +434,38 @@
   }
 }
 
-/* AI proposal collapsible (follows the AI widget theme) */
-.ai-proposal-details {
+/* AI proposal flat link (follows the AI widget theme) */
+.ai-proposal-flat {
   margin-top: 6px;
-  border: 1px solid var(--ai-border);
-  border-radius: 8px;
-  background: var(--ai-composer);
-  color: var(--ai-text);
-  overflow: hidden;
 }
-.ai-proposal-summary {
-  display: flex;
+.ai-proposal-link {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ai-text);
-  list-style: none;
-}
-.ai-proposal-summary::-webkit-details-marker {
-  display: none;
-}
-.ai-proposal-summary-icon {
-  color: #bda5ed;
-  display: inline-flex;
-}
-.ai-proposal-summary-chevron {
-  margin-left: auto;
-  color: var(--ai-muted);
-  transition: transform 0.15s ease;
-}
-.ai-proposal-details[open] .ai-proposal-summary-chevron {
-  transform: rotate(180deg);
-}
-
-.ai-proposal-summary-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  padding: 2px 8px;
+  padding: 5px 10px;
   border: 1px solid var(--ai-border);
-  border-radius: 6px;
-  background: transparent;
+  border-radius: 7px;
+  background: var(--ai-composer);
   color: #bda5ed;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
-.ai-proposal-summary-link:hover {
+.ai-proposal-link:hover {
   background: rgba(189, 165, 237, 0.12);
   color: #d4c4f7;
+  border-color: #bda5ed;
 }
-.ai-proposal-body {
-  padding: 8px 10px 10px;
-  border-top: 1px solid var(--ai-border);
-  font-size: 12px;
-}
-.ai-proposal-head {
-  margin-bottom: 6px;
-}
-.ai-proposal-rationale {
-  margin: 0 0 6px;
+.ai-proposal-link-arrow {
   color: var(--ai-muted);
 }
-.ai-proposal-empty {
-  margin: 0;
-  color: var(--ai-muted);
-}
-.ai-proposal-risk {
-  margin: 0 0 6px;
-  color: var(--ai-muted);
-}
-.ai-proposal-steps {
-  list-style: none;
-  margin: 0 0 8px;
-  padding: 0;
-}
-.ai-proposal-steps li {
-  display: flex;
+.ai-proposal-none {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  font-size: 12px;
   color: var(--ai-muted);
-  margin: 2px 0;
 }
