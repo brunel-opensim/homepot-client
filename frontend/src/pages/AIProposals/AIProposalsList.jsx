@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Loader2,
   Sparkles,
@@ -32,8 +33,12 @@ const STATUS_FILTERS = [
 ];
 
 export default function AIProposalsList() {
+  const [searchParams] = useSearchParams();
+  // A `plan` query param deep-links from the Ask AI proposal card to the
+  // specific proposal. When present, show all statuses and highlight the plan.
+  const highlightPlanId = searchParams.get('plan');
   const [plans, setPlans] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('pending_approval');
+  const [statusFilter, setStatusFilter] = useState(highlightPlanId ? '' : 'pending_approval');
   const [loading, setLoading] = useState(true);
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
@@ -41,6 +46,7 @@ export default function AIProposalsList() {
   const plansRef = useRef(plans);
   const fetchingRef = useRef(false);
   const initialLoadRef = useRef(true);
+  const highlightedRef = useRef(null);
   const [approveTarget, setApproveTarget] = useState(null);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -76,6 +82,13 @@ export default function AIProposalsList() {
   useEffect(() => {
     fetchPlans();
   }, [fetchPlans]);
+
+  // Deep-link highlight: scroll the referenced plan into view once it loads.
+  useEffect(() => {
+    if (highlightPlanId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightPlanId, plans]);
 
   // Single auto-refresh timer for the whole page: refreshes both the plan
   // list and the reliability panel together every 15s while visible.
@@ -348,7 +361,7 @@ export default function AIProposalsList() {
                 executed automatically.
               </p>
             </div>
-            <span className="text-xs text-gray-500">Auto-refreshing every 15s</span>
+            <span className="text-xs text-gray-500">Auto-refreshing every 30s</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -388,6 +401,8 @@ export default function AIProposalsList() {
                   plan={plan}
                   busy={busyPlan === plan.plan_id}
                   isExecuting={executingPlanId === plan.plan_id}
+                  highlighted={plan.plan_id === highlightPlanId}
+                  highlightRef={highlightedRef}
                   onApprove={() => handleDecide(plan.plan_id, 'approve')}
                   onReject={() => handleDecide(plan.plan_id, 'reject')}
                   onExecute={() => handleExecute(plan.plan_id)}
@@ -413,6 +428,8 @@ function PlanCard({
   plan,
   busy,
   isExecuting,
+  highlighted,
+  highlightRef,
   onApprove,
   onReject,
   onExecute,
@@ -440,7 +457,12 @@ function PlanCard({
   );
 
   return (
-    <Card className="p-4 bg-card border-border">
+    <Card
+      ref={highlighted ? highlightRef : null}
+      className={`p-4 bg-card border-border ${
+        highlighted ? 'ring-2 ring-indigo-500 border-indigo-500/40' : ''
+      }`}
+    >
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">

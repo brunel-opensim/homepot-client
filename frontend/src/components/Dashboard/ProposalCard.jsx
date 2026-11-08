@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ExternalLink,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 const STATUS_META = {
   proposed: { label: 'Proposed', color: 'bg-gray-500/10 text-gray-400', icon: Clock },
@@ -48,7 +47,10 @@ export default function ProposalCard({ proposal, onReview }) {
 
   const review =
     hasProposal && proposal.plan_id
-      ? () => (onReview ? onReview(proposal.plan_id) : window.location.assign('/ai-proposals'))
+      ? () =>
+          onReview
+            ? onReview(proposal.plan_id)
+            : window.location.assign(`/ai-proposals?plan=${proposal.plan_id}`)
       : null;
 
   return (
@@ -109,14 +111,6 @@ export default function ProposalCard({ proposal, onReview }) {
                   </li>
                 ))}
               </ul>
-            )}
-
-            {review && (
-              <div className="ai-proposal-review">
-                <Button variant="outline" size="sm" onClick={review} className="h-7 text-xs">
-                  Review on AI Proposals page
-                </Button>
-              </div>
             )}
           </>
         )}
