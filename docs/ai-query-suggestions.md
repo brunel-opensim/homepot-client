@@ -24,16 +24,25 @@ they can pick from or adapt.
 
 ## Example suggestions
 
-| Category | Query template |
-|----------|---------------|
-| Diagnostics | "Check the health of {device} and report its status." |
-| Diagnostics | "Run a health check on all devices at {site}." |
-| Configuration | "Apply configuration to set volume to 50 on {device}." |
-| Configuration | "Set brightness to 30 on {device}." |
-| Troubleshooting | "Why is {device} showing high network latency?" |
-| Troubleshooting | "Restart the print spooler on {device}." |
-| Delegation | "Set brightness to 50 on {device} and tell me whether it worked." |
-| Fleet | "Run a health check on all devices at {site}." |
+| Category | Query template | Triggers proposal? |
+|----------|---------------|-------------------|
+| Diagnostics | "Run a health check on {device}." | ✅ Yes |
+| Diagnostics | "Check the health of {device} and report its status." | ❌ No (answers directly) |
+| Diagnostics | "Scan the filesystem of {device}." | ✅ Yes |
+| Diagnostics | "List installed programs on {device}." | ✅ Yes |
+| Diagnostics | "List processes on {device}." | ✅ Yes |
+| Diagnostics | "Run a list of network connections on {device}." | ✅ Yes |
+| Diagnostics | "List network connections on {device}." | ❌ No (answers directly) |
+| Configuration | "Apply configuration to set volume to 50 on {device}." | ✅ Yes |
+| Configuration | "Set brightness to 30 on {device}." | ❌ No (AI refuses) |
+| Troubleshooting | "Restart the print spooler on {device}." | ✅ Yes |
+| Delegation | "Run a health check on {device} and tell me whether it worked." | ✅ Yes |
+| Fleet | "Run a health check on all devices at {site}." | ✅ Yes |
+
+**Tip:** Action-oriented verbs ("Run", "Scan", "Apply") trigger proposals more
+reliably than informational verbs ("Check", "List", "Set"). When in doubt, use
+"Run a ..." phrasing. For guaranteed results, use explicit tool-call phrasing
+(see `docs/ai-command-payload-transparency.md`).
 
 ## Explicit tool-call phrasing
 
