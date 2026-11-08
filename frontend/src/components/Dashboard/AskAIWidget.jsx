@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -156,9 +156,9 @@ function ConversationMessage({ message }) {
 export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const c = useAIConversation(variant);
   const scrollRef = useRef(null);
+  const bottomRef = useRef(null);
   const inputRef = useRef(null);
-  const stickToBottomRef = useRef(true);
-  const [showLatest, setShowLatest] = useState(false);
+  const [stickToBottom, setStickToBottom] = useState(true);
   // Both variants render the same thread; sizing comes entirely from the parent.
   // The response fallback also preserves pre-session browser storage on upgrade.
   const messages = c.messages.length
@@ -175,16 +175,51 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
           },
         ]
       : [];
-  const jumpToLatest = () => {
+  const scrollToBottom = () => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-    stickToBottomRef.current = true;
-    setShowLatest(false);
   };
+  const jumpToLatest = () => {
+    scrollToBottom();
+    setStickToBottom(true);
+  };
+  // Track whether the bottom sentinel is visible (i.e. the user is pinned to
+  // the latest message). IntersectionObserver avoids the programmatic-scroll
+  // race a plain onScroll handler suffers from. Falls back to a scroll listener
+  // where IntersectionObserver is unavailable (e.g. jsdom).
   useEffect(() => {
-    const el = scrollRef.current;
-    if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
-  }, [c.messages, c.loading, c.response, c.error, c.loadingMessage, c.streamText, c.activity]);
+    const root = scrollRef.current;
+    const sentinel = bottomRef.current;
+    if (!root || !sentinel) return undefined;
+    if (typeof IntersectionObserver === 'undefined') {
+      const onScroll = () => {
+        const atBottom = root.scrollHeight - root.scrollTop - root.clientHeight < 80;
+        setStickToBottom(atBottom);
+      };
+      root.addEventListener('scroll', onScroll, { passive: true });
+      return () => root.removeEventListener('scroll', onScroll);
+    }
+    const observer = new IntersectionObserver(([entry]) => setStickToBottom(entry.isIntersecting), {
+      root,
+      threshold: 0,
+      rootMargin: '0px 0px 80px 0px',
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+  // Auto-scroll to the bottom when new content arrives while pinned.
+  useLayoutEffect(() => {
+    if (stickToBottom) scrollToBottom();
+  }, [
+    c.messages,
+    c.loading,
+    c.response,
+    c.error,
+    c.loadingMessage,
+    c.streamText,
+    c.activity,
+    stickToBottom,
+  ]);
   useEffect(() => {
     const input = inputRef.current;
     if (!input) return;
@@ -193,8 +228,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
   }, [c.query]);
   const newConversation = () => {
     c.clearHistory();
-    stickToBottomRef.current = true;
-    setShowLatest(false);
+    setStickToBottom(true);
     inputRef.current?.focus();
   };
 
@@ -235,18 +269,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         </div>
       </header>
       <div className="ai-conversation-wrap">
-        <div
-          ref={scrollRef}
-          className="ai-conversation"
-          role="region"
-          aria-label="Conversation"
-          onScroll={() => {
-            const el = scrollRef.current;
-            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-            stickToBottomRef.current = nearBottom;
-            setShowLatest(!nearBottom);
-          }}
-        >
+        <div ref={scrollRef} className="ai-conversation" role="region" aria-label="Conversation">
           {messages.length === 0 && !c.loading && !c.error && !c.cancelled && (
             <div className="ai-empty-state">
               <Sparkles aria-hidden="true" />
@@ -330,8 +353,9 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
               </p>
             </div>
           )}
+          <div ref={bottomRef} className="ai-bottom-sentinel" aria-hidden="true" />
         </div>
-        {showLatest && (
+        {!stickToBottom && (
           <button type="button" className="ai-jump-latest" onClick={jumpToLatest}>
             <ArrowDown aria-hidden="true" />
             Latest

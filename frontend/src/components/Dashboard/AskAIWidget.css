@@ -319,6 +319,9 @@
   padding-top: 8px;
   border-top: 1px solid var(--ai-border);
 }
+.ai-bottom-sentinel {
+  height: 1px;
+}
 
 .ai-inline-note,
 .ai-inline-error {
