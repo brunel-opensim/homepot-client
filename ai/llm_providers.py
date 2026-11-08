@@ -12,7 +12,7 @@ Usage:
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, cast
 import uuid
 
 logger = logging.getLogger(__name__)
@@ -380,152 +380,40 @@ class AnthropicProvider(LLMProvider):
         tools: list,
     ) -> Any:
         """Generate a response with tool calling via Anthropic."""
-        # Convert tools to Anthropic format
-        ant_tools = []
-        for t in tools:
-            if isinstance(t, dict) and "function" in t:
-                fn = t["function"]
-                ant_tools.append(
-                    {
-                        "name": fn.get("name", ""),
-                        "description": fn.get("description", ""),
-                        "input_schema": fn.get("parameters", {}),
-                    }
-                )
-            elif callable(t):
-                schema = _function_to_tool_schema(t)
-                fn = schema["function"]
-                ant_tools.append(
-                    {
-                        "name": fn.get("name", ""),
-                        "description": fn.get("description", ""),
-                        "input_schema": fn.get("parameters", {}),
-                    }
-                )
-            else:
-                ant_tools.append(t)
-
         try:
-            kwargs: Dict[str, Any] = {
-                "model": self.model,
-                "max_tokens": self.max_tokens,
-                "messages": messages,
-                "tools": ant_tools if ant_tools else None,
-            }
-            # Convert common/Ollama-style messages to Anthropic format
-            system_msg = None
-            ant_messages = []
-            # Collect tool results into a pending user message
-            pending_tool_results: list = []
-
-            def flush_tool_results() -> None:
-                nonlocal pending_tool_results
-                if pending_tool_results:
-                    ant_messages.append(
-                        {"role": "user", "content": list(pending_tool_results)}
-                    )
-                    pending_tool_results = []
-
-            for m in messages:
-                if not isinstance(m, dict):
-                    continue
-                role = m.get("role")
-                if role == "system":
-                    system_msg = m.get("content", "")
-                    continue
-                if role == "assistant":
-                    flush_tool_results()
-                    content_blocks = []
-                    text = m.get("content")
-                    if text:
-                        content_blocks.append({"type": "text", "text": text})
-                    for tc in m.get("tool_calls") or []:
-                        fn = getattr(tc, "function", None)
-                        if fn is None and isinstance(tc, dict):
-                            fn = tc.get("function", {})
-                        name = (
-                            getattr(fn, "name", None)
-                            if not isinstance(fn, dict)
-                            else fn.get("name")
-                        )
-                        args = (
-                            getattr(fn, "arguments", None)
-                            if not isinstance(fn, dict)
-                            else fn.get("arguments")
-                        )
-                        cid = (
-                            getattr(tc, "id", None)
-                            if not isinstance(tc, dict)
-                            else tc.get("id")
-                        )
-                        if isinstance(args, str):
-                            try:
-                                import json as _json
-
-                                args = _json.loads(args)
-                            except Exception:
-                                args = {}
-                        if not isinstance(args, dict):
-                            args = {}
-                        content_blocks.append(
-                            {
-                                "type": "tool_use",
-                                "id": cid or str(uuid.uuid4()),
-                                "name": name,
-                                "input": args,
-                            }
-                        )
-                    if not content_blocks:
-                        content_blocks = [{"type": "text", "text": ""}]
-                    ant_messages.append(
-                        {"role": "assistant", "content": content_blocks}
-                    )
-                elif role == "tool":
-                    tool_call_id = m.get("tool_call_id")
-                    if not tool_call_id:
-                        # Best effort: match by tool name is not possible; generate
-                        tool_call_id = str(uuid.uuid4())
-                    pending_tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_call_id,
-                            "content": m.get("content", ""),
-                        }
-                    )
-                else:
-                    flush_tool_results()
-                    content = m.get("content", "")
-                    ant_messages.append(
-                        {"role": str(role or "user"), "content": content}
-                    )
-
-            flush_tool_results()
-
-            if system_msg:
-                kwargs["system"] = system_msg
-            kwargs["messages"] = (
-                ant_messages if ant_messages else [{"role": "user", "content": ""}]
+            kwargs = _build_anthropic_request(
+                self.model, self.max_tokens, messages, tools
             )
-
             response = self.client.messages.create(**kwargs)
-            # Extract tool calls
-            tool_calls = None
-            for block in response.content:
-                if block.type == "tool_use":
-                    if tool_calls is None:
-                        tool_calls = []
-                    tool_calls.append(
-                        _ToolCall(
-                            name=block.name, arguments=block.input, call_id=block.id
-                        )
-                    )
-            text_content = ""
-            for block in response.content:
-                if block.type == "text":
-                    text_content += block.text
-            return _ToolResponse(content=text_content, tool_calls=tool_calls)
+            return _tool_response_from_anthropic(response)
         except Exception as e:
             logger.error("Anthropic generate_with_tools failed: %s", e)
+            return _ToolResponse(content=f"AI error (Anthropic): {e}", tool_calls=None)
+
+    def generate_with_tools_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: list,
+        on_delta: Optional[Callable[[str], None]] = None,
+    ) -> Any:
+        """Generate a tool-calling response via Anthropic, streaming text deltas.
+
+        Each text chunk is passed to ``on_delta`` (called from the worker thread
+        that runs this call) as it arrives. Returns the same normalized
+        ``_ToolResponse`` as :meth:`generate_with_tools`.
+        """
+        try:
+            kwargs = _build_anthropic_request(
+                self.model, self.max_tokens, messages, tools
+            )
+            with self.client.messages.stream(**kwargs) as stream:
+                if on_delta is not None:
+                    for text in stream.text_stream:
+                        if text:
+                            on_delta(text)
+            return _tool_response_from_anthropic(stream.get_final_message())
+        except Exception as e:
+            logger.error("Anthropic generate_with_tools_stream failed: %s", e)
             return _ToolResponse(content=f"AI error (Anthropic): {e}", tool_calls=None)
 
 
@@ -664,6 +552,143 @@ class _ToolResponse:
     @property
     def tool_calls_list(self) -> Optional[list]:
         return self.tool_calls
+
+
+def _anthropic_tool_schema(t: Any) -> Dict[str, Any]:
+    """Convert one tool (dict or callable) to an Anthropic tool schema."""
+    if isinstance(t, dict) and "function" in t:
+        fn = t["function"]
+    elif callable(t):
+        schema = _function_to_tool_schema(t)
+        fn = schema["function"]
+    else:
+        return cast(Dict[str, Any], t)  # already Anthropic-shaped
+    return {
+        "name": fn.get("name", ""),
+        "description": fn.get("description", ""),
+        "input_schema": fn.get("parameters", {}),
+    }
+
+
+def _build_anthropic_request(
+    model: str,
+    max_tokens: int,
+    messages: List[Dict[str, Any]],
+    tools: list,
+) -> Dict[str, Any]:
+    """Assemble an Anthropic messages kwargs dict from Ollama-style messages."""
+    ant_tools = [_anthropic_tool_schema(t) for t in tools]
+    kwargs: Dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "tools": ant_tools if ant_tools else None,
+    }
+
+    system_msg = None
+    ant_messages: List[Dict[str, Any]] = []
+    # Tool results are collected into a pending user message so they follow the
+    # assistant turn that requested them (Anthropic requires alternating roles).
+    pending_tool_results: list = []
+
+    def flush_tool_results() -> None:
+        nonlocal pending_tool_results
+        if pending_tool_results:
+            ant_messages.append({"role": "user", "content": list(pending_tool_results)})
+            pending_tool_results = []
+
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        if role == "system":
+            system_msg = m.get("content", "")
+            continue
+        if role == "assistant":
+            flush_tool_results()
+            content_blocks = []
+            text = m.get("content")
+            if text:
+                content_blocks.append({"type": "text", "text": text})
+            for tc in m.get("tool_calls") or []:
+                fn = getattr(tc, "function", None)
+                if fn is None and isinstance(tc, dict):
+                    fn = tc.get("function", {})
+                name = (
+                    getattr(fn, "name", None)
+                    if not isinstance(fn, dict)
+                    else fn.get("name")
+                )
+                args = (
+                    getattr(fn, "arguments", None)
+                    if not isinstance(fn, dict)
+                    else fn.get("arguments")
+                )
+                cid = (
+                    getattr(tc, "id", None)
+                    if not isinstance(tc, dict)
+                    else tc.get("id")
+                )
+                if isinstance(args, str):
+                    try:
+                        import json as _json
+
+                        args = _json.loads(args)
+                    except Exception:
+                        args = {}
+                if not isinstance(args, dict):
+                    args = {}
+                content_blocks.append(
+                    {
+                        "type": "tool_use",
+                        "id": cid or str(uuid.uuid4()),
+                        "name": name,
+                        "input": args,
+                    }
+                )
+            if not content_blocks:
+                content_blocks = [{"type": "text", "text": ""}]
+            ant_messages.append({"role": "assistant", "content": content_blocks})
+        elif role == "tool":
+            tool_call_id = m.get("tool_call_id")
+            if not tool_call_id:
+                tool_call_id = str(uuid.uuid4())
+            pending_tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": tool_call_id,
+                    "content": m.get("content", ""),
+                }
+            )
+        else:
+            flush_tool_results()
+            content = m.get("content", "")
+            ant_messages.append({"role": str(role or "user"), "content": content})
+
+    flush_tool_results()
+
+    if system_msg:
+        kwargs["system"] = system_msg
+    kwargs["messages"] = (
+        ant_messages if ant_messages else [{"role": "user", "content": ""}]
+    )
+    return kwargs
+
+
+def _tool_response_from_anthropic(response: Any) -> "_ToolResponse":
+    """Convert an Anthropic message into a normalized ``_ToolResponse``."""
+    tool_calls = None
+    for block in response.content:
+        if block.type == "tool_use":
+            if tool_calls is None:
+                tool_calls = []
+            tool_calls.append(
+                _ToolCall(name=block.name, arguments=block.input, call_id=block.id)
+            )
+    text_content = ""
+    for block in response.content:
+        if block.type == "text":
+            text_content += block.text
+    return _ToolResponse(content=text_content, tool_calls=tool_calls)
 
 
 def create_llm_provider(config: Dict[str, Any]) -> "LLMProvider":

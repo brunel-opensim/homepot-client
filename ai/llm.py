@@ -7,7 +7,7 @@ selected via ``llm.provider`` in config.yaml.
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml
 
@@ -73,4 +73,20 @@ class LLMService:
         tools: list,
     ) -> Any:
         """Generate a response with tool calling support."""
+        return self.provider.generate_with_tools(messages=messages, tools=tools)
+
+    def generate_with_tools_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: list,
+        on_delta: Optional[Callable[[str], None]] = None,
+    ) -> Any:
+        """Generate a tool-calling response, streaming text deltas to ``on_delta``.
+
+        Falls back to a plain non-streaming call when the active provider does
+        not implement streaming.
+        """
+        stream = getattr(self.provider, "generate_with_tools_stream", None)
+        if callable(stream):
+            return stream(messages=messages, tools=tools, on_delta=on_delta)
         return self.provider.generate_with_tools(messages=messages, tools=tools)
