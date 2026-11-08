@@ -414,8 +414,6 @@ export default function AIProposalsList() {
           )}
         </div>
       </div>
-
-      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
     </div>
   );
 }
