@@ -503,6 +503,10 @@
   margin: 0 0 6px;
   color: var(--ai-muted);
 }
+.ai-proposal-empty {
+  margin: 0;
+  color: var(--ai-muted);
+}
 .ai-proposal-risk {
   margin: 0 0 6px;
   color: var(--ai-muted);
