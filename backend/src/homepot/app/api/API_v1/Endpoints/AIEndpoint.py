@@ -2224,6 +2224,23 @@ async def _query_ai_impl(
                 response, proposal_created=proposal_info is not None
             )
 
+        # 5a-bis. Stream the finalized answer to the client in small chunks so
+        # the UI renders it progressively (streaming PoC). This replays the real
+        # answer with a typewriter cadence over the existing SSE event stream;
+        # true token-level streaming is a follow-up.
+        if response and request.session_id and request.run_id:
+            try:
+                _chunk_size = 24
+                for _i in range(0, len(response), _chunk_size):
+                    await _publish_investigation_event(
+                        request,
+                        "response_delta",
+                        {"text": response[_i : _i + _chunk_size]},
+                    )
+                    await asyncio.sleep(0.012)
+            except Exception:
+                logger.warning("Response streaming failed", exc_info=True)
+
         # 5b. Persist a compact, scoped long-term memory of this answer so later
         # queries can recall it. Best-effort: a storage failure must never break
         # a query, and we skip the Ollama-unreachable fallback string.

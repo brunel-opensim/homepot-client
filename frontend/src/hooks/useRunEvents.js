@@ -68,6 +68,7 @@ export function useRunEvents(sessionId, runId) {
       'gates_complete',
       'llm_started',
       'llm_complete',
+      'response_delta',
       'memory_written',
       'completed',
       'cancelled',

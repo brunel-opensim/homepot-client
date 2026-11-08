@@ -300,6 +300,13 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                   })}
                 </ul>
               )}
+              {c.streamText && (
+                <div className="ai-markdown ai-streaming">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {c.streamText}
+                  </ReactMarkdown>
+                </div>
+              )}
               {c.slowHint && (
                 <p className="ai-inline-note">
                   Still working. You can stop this response at any time.

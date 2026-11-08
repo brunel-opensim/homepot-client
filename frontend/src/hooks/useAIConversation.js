@@ -92,6 +92,7 @@ export function useAIConversation(variant = 'compact') {
   // over SSE, plus agentic tool calls captured from the response.
   const [activity, setActivity] = useState([]);
   const [toolCalls, setToolCalls] = useState([]);
+  const [streamText, setStreamText] = useState('');
   const [slowHint, setSlowHint] = useState(false);
   const [llmProvider, setLlmProvider] = useState(null);
   const [llmSwitching, setLlmSwitching] = useState(false);
@@ -236,11 +237,21 @@ export function useAIConversation(variant = 'compact') {
     }
   }, [runEvents.events]);
 
+  // Accumulate the streamed answer from `response_delta` SSE events.
+  useEffect(() => {
+    const text = runEvents.events
+      .filter((ev) => ev.type === 'response_delta')
+      .map((ev) => ev.data?.text || '')
+      .join('');
+    if (text) setStreamText(text);
+  }, [runEvents.events]);
+
   // Clear the transient activity feed at the start of each run.
   useEffect(() => {
     if (loading) {
       setActivity([]);
       setToolCalls([]);
+      setStreamText('');
     }
   }, [loading]);
 
@@ -471,6 +482,7 @@ export function useAIConversation(variant = 'compact') {
     loadingMessage,
     activity,
     toolCalls,
+    streamText,
     slowHint,
     llmProvider,
     llmSwitching,

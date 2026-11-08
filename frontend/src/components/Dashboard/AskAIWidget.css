@@ -314,6 +314,11 @@
   border-top: 1px solid var(--ai-border);
   padding-top: 6px;
 }
+.ai-streaming {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ai-border);
+}
 
 .ai-inline-note,
 .ai-inline-error {
