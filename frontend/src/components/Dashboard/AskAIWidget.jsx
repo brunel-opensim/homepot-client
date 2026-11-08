@@ -184,7 +184,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
-  }, [c.messages, c.loading, c.response, c.error, c.loadingMessage]);
+  }, [c.messages, c.loading, c.response, c.error, c.loadingMessage, c.streamText, c.activity]);
   useEffect(() => {
     const input = inputRef.current;
     if (!input) return;

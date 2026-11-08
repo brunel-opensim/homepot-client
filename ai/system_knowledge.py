@@ -230,7 +230,9 @@ class SystemKnowledge:
             "- Be concise: aim for at most ~80 words unless the user explicitly "
             "asks for more detail; do not restate the question or pad with "
             "pleasantries. Prefer a short list over prose. Be professional and "
-            "technical."
+            "technical.\n"
+            "- Do not use emoji or emoji-like symbols in your answer; express "
+            "status and severity with plain words and markdown only."
         )
 
     def get_knowledge_prompt(self, include_repo_tools: bool = False) -> str:
@@ -306,7 +308,9 @@ class SystemKnowledge:
             "cited files are returned to the UI separately.\n"
             "- Be concise: aim for at most ~80 words unless the user explicitly "
             "asks for more detail; prefer a short list over prose. Be "
-            "professional and technical."
+            "professional and technical.\n"
+            "- Do not use emoji or emoji-like symbols in your answer; express "
+            "status and severity with plain words and markdown only."
         )
 
     def get_documentation_context(self, max_chars_per_doc: int = 500) -> str:
