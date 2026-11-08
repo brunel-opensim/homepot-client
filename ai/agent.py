@@ -13,7 +13,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 from ai.actions import ActionProposal
 from ai.exceptions import AIBusyError
@@ -272,6 +272,35 @@ async def _generate_with_gate(
     )
 
 
+async def _generate_with_gate_stream(
+    llm: LLMService,
+    messages: List[Dict[str, Any]],
+    tools: List[Any],
+    gate: Optional[Any] = None,
+    on_delta: Optional[Callable[[str], None]] = None,
+) -> Any:
+    """Run ``llm.generate_with_tools_stream`` off the event loop, through the gate.
+
+    Same concurrency-gate wrapping as :func:`_generate_with_gate`, but streams
+    text deltas to ``on_delta`` (called from the worker thread). Providers that
+    do not implement streaming fall back inside ``LLMService``.
+    """
+    if gate is not None:
+        return await asyncio.to_thread(
+            gate.run,
+            llm.generate_with_tools_stream,
+            messages=messages,
+            tools=tools,
+            on_delta=on_delta,
+        )
+    return await asyncio.to_thread(
+        llm.generate_with_tools_stream,
+        messages=messages,
+        tools=tools,
+        on_delta=on_delta,
+    )
+
+
 async def run_agent(
     query: str,
     context: str,
@@ -290,6 +319,7 @@ async def run_agent(
     include_repo_tools: bool = False,
     max_tool_bytes: Optional[int] = None,
     proposal_block_reason: Optional[str] = None,
+    on_delta: Optional[Callable[[str], None]] = None,
 ) -> AgentResult:
     """Run the ReAct agent loop.
 
@@ -489,9 +519,14 @@ async def run_agent(
                 }
             )
             try:
-                response = await _generate_with_gate(
-                    llm, messages, tool_functions, gate
-                )
+                if on_delta is not None:
+                    response = await _generate_with_gate_stream(
+                        llm, messages, tool_functions, gate, on_delta
+                    )
+                else:
+                    response = await _generate_with_gate(
+                        llm, messages, tool_functions, gate
+                    )
                 content = getattr(response, "content", None)
                 if content:
                     last_response_text = content
@@ -545,11 +580,16 @@ async def run_agent(
                 )
                 break
 
-            # Call LLM with tools
+            # Call LLM with tools (streaming when a delta callback is supplied)
             try:
-                response = await _generate_with_gate(
-                    llm, messages, tool_functions, gate
-                )
+                if on_delta is not None:
+                    response = await _generate_with_gate_stream(
+                        llm, messages, tool_functions, gate, on_delta
+                    )
+                else:
+                    response = await _generate_with_gate(
+                        llm, messages, tool_functions, gate
+                    )
             except AIBusyError:
                 # No slot for the very first/early call: surface "busy" to the
                 # caller rather than pretending we investigated.
@@ -653,9 +693,14 @@ async def run_agent(
                 }
             )
             try:
-                response = await _generate_with_gate(
-                    llm, messages, tool_functions, gate
-                )
+                if on_delta is not None:
+                    response = await _generate_with_gate_stream(
+                        llm, messages, tool_functions, gate, on_delta
+                    )
+                else:
+                    response = await _generate_with_gate(
+                        llm, messages, tool_functions, gate
+                    )
                 last_response_text = response.message.content or ""
             except AIBusyError:
                 logger.warning("Agent final-answer call hit a saturated gate")

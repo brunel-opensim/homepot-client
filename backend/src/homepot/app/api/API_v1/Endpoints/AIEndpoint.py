@@ -9,7 +9,7 @@ import logging
 import os
 import re
 import sys
-from typing import Any, Dict, List, Literal, Optional, cast
+from typing import Any, Callable, Dict, List, Literal, Optional, cast
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1984,6 +1984,23 @@ async def _query_ai_impl(
             )
             return _cancelled_response(routing_info, trust.to_dict())
 
+        # Build a thread-safe streaming callback. The agent runs the LLM in a
+        # worker thread, so `on_delta` is invoked from that thread and must
+        # marshal back onto the event loop to publish SSE events.
+        _loop = asyncio.get_running_loop()
+        _stream_on_delta: Optional[Callable[[str], None]] = None
+        if request.session_id and request.run_id:
+
+            def _forward_delta(text: str) -> None:
+                asyncio.run_coroutine_threadsafe(
+                    _publish_investigation_event(
+                        request, "response_delta", {"text": text}
+                    ),
+                    _loop,
+                )
+
+            _stream_on_delta = _forward_delta
+
         if request.agentic:
             # Agentic mode: multi-step tool-calling investigation. Each LLM
             # call is routed through the same concurrency gate as a direct
@@ -2048,6 +2065,7 @@ async def _query_ai_impl(
                     execution_timeout=_execution_timeout,
                     total_timeout=_total_timeout,
                     proposal_block_reason=_proposal_block_reason,
+                    on_delta=_stream_on_delta,
                 )
             except AIBusyError:
                 raise _ai_busy_http_exception(gate)
@@ -2223,6 +2241,28 @@ async def _query_ai_impl(
             response = _annotate_action_claims(
                 response, proposal_created=proposal_info is not None
             )
+
+        # 5a-bis. Fallback streaming for paths that did not stream tokens live
+        # (e.g. direct generation, or an agentic run with no investigation
+        # session). Replays the finalized answer in small chunks so the UI still
+        # renders it progressively.
+        if (
+            response
+            and request.session_id
+            and request.run_id
+            and _stream_on_delta is None
+        ):
+            try:
+                _chunk_size = 24
+                for _i in range(0, len(response), _chunk_size):
+                    await _publish_investigation_event(
+                        request,
+                        "response_delta",
+                        {"text": response[_i : _i + _chunk_size]},
+                    )
+                    await asyncio.sleep(0.012)
+            except Exception:
+                logger.warning("Response streaming failed", exc_info=True)
 
         # 5b. Persist a compact, scoped long-term memory of this answer so later
         # queries can recall it. Best-effort: a storage failure must never break
