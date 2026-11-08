@@ -84,6 +84,39 @@ def get_tool_proposal_sink() -> Optional[List[ActionProposal]]:
 
 
 # ---------------------------------------------------------------------------
+# Per-request proposal gating
+# ---------------------------------------------------------------------------
+#
+# The validation envelope decides whether an answer is actionable *before* the
+# agent runs. When it is not (e.g. Gate B failed on stale telemetry) the
+# endpoint deliberately drops any captured proposals rather than surfacing
+# them. Without telling the tools, though, ``propose_device_action`` would
+# still report "Recorded proposal" to the model, which then tells the
+# technician a proposal exists even though nothing was persisted (observed on
+# Brunel Device 001, 2026-11). This ContextVar carries the block reason
+# (``None`` = proposals allowed) so the tools refuse honestly instead.
+
+_tool_proposal_block_reason: contextvars.ContextVar[Optional[str]] = (
+    contextvars.ContextVar("tool_proposal_block_reason", default=None)
+)
+
+
+def set_tool_proposal_block_reason(reason: Optional[str]) -> contextvars.Token:
+    """Bind a reason that forbids proposals for this run; returns a token."""
+    return _tool_proposal_block_reason.set(reason)
+
+
+def reset_tool_proposal_block_reason(token: contextvars.Token) -> None:
+    """Restore the previous proposal-block reason using a token."""
+    _tool_proposal_block_reason.reset(token)
+
+
+def get_tool_proposal_block_reason() -> Optional[str]:
+    """Return the reason proposals are blocked for this run, or ``None``."""
+    return _tool_proposal_block_reason.get()
+
+
+# ---------------------------------------------------------------------------
 # User scope (RBAC) — per-run ContextVar
 # ---------------------------------------------------------------------------
 # Tracks the authenticated user's accessible device IDs and minimum role for
@@ -640,6 +673,16 @@ async def propose_device_action(
         A confirmation that the proposal was recorded (not executed), or an
         error explaining why it was rejected.
     """
+    block_reason = get_tool_proposal_block_reason()
+    if block_reason is not None:
+        return (
+            "Proposal NOT recorded: the validation envelope is not actionable "
+            f"({block_reason}). Do NOT tell the technician a proposal was "
+            "created or is pending approval. In your final answer, explain that "
+            "no proposal could be created, cite the reason above, and state "
+            "what must be fixed before retrying."
+        )
+
     # RBAC: verify the caller has access to the target device.
     access_error = await _check_device_access(target_device_id, "operator")
     if access_error:
@@ -716,6 +759,16 @@ async def propose_fleet_action(
     Returns:
         A summary of how many proposals were recorded, or an error.
     """
+    block_reason = get_tool_proposal_block_reason()
+    if block_reason is not None:
+        return (
+            "Proposals NOT recorded: the validation envelope is not actionable "
+            f"({block_reason}). Do NOT tell the technician any proposal was "
+            "created or is pending approval. In your final answer, explain that "
+            "no proposals could be created, cite the reason above, and state "
+            "what must be fixed before retrying."
+        )
+
     try:
         from homepot.database import get_database_service
         from homepot.models import Device, Site

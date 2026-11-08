@@ -28,9 +28,12 @@ from ai.actions import (  # noqa: E402
     validate_proposal,
 )
 from ai.tools import (  # noqa: E402
+    get_tool_proposal_block_reason,
     get_tool_proposal_sink,
     propose_device_action,
+    reset_tool_proposal_block_reason,
     reset_tool_proposal_sink,
+    set_tool_proposal_block_reason,
     set_tool_proposal_sink,
 )
 from homepot.app.models.AnalyticsModel import AIActionPlan, AIActionStep  # noqa: E402
@@ -196,6 +199,39 @@ async def test_tool_without_sink_does_not_crash():
     assert get_tool_proposal_sink() is None
     result = await propose_device_action("restart", "POS-001", "stuck")
     assert "no proposal sink" in result
+
+
+@pytest.mark.asyncio
+async def test_tool_refuses_to_record_when_proposals_blocked():
+    """A non-actionable envelope must not produce a phantom proposal."""
+    sink = []
+    sink_token = set_tool_proposal_sink(sink)
+    block_token = set_tool_proposal_block_reason(
+        "gate B did not pass: Last telemetry 155251s old"
+    )
+    try:
+        result = await propose_device_action(
+            action="health_check",
+            target_device_id="POS-001",
+            rationale="telemetry stale",
+        )
+        assert "NOT recorded" in result
+        assert "gate B did not pass" in result
+        assert sink == []
+    finally:
+        reset_tool_proposal_block_reason(block_token)
+        reset_tool_proposal_sink(sink_token)
+
+
+def test_proposal_block_reason_is_scoped():
+    """Binding a reason is reversible; the default allows proposals."""
+    assert get_tool_proposal_block_reason() is None
+    token = set_tool_proposal_block_reason("gate B failed")
+    try:
+        assert get_tool_proposal_block_reason() == "gate B failed"
+    finally:
+        reset_tool_proposal_block_reason(token)
+    assert get_tool_proposal_block_reason() is None
 
 
 # ── Repository write-path tests ──────────────────────────────────────────────

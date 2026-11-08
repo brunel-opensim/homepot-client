@@ -28,6 +28,7 @@ from ai.tools import (  # noqa: E402
     get_device_status,
     get_error_logs,
     get_tool_memory_scope,
+    get_tool_proposal_block_reason,
     get_tool_proposal_sink,
     reset_tool_memory_scope,
     search_similar_incidents,
@@ -327,6 +328,47 @@ async def test_run_agent_with_tool_calls():
     assert result.iterations == 1
     assert len(result.tools_called) == 1
     assert result.tools_called[0].tool_name == "get_device_status"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_binds_and_clears_proposal_block_reason():
+    """Tools see the block reason during the run, and it is reset afterwards."""
+    mock_llm = MagicMock()
+
+    tool_call_response = MagicMock()
+    tool_call_response.message.content = ""
+    tool_call_mock = MagicMock()
+    tool_call_mock.function.name = "propose_device_action"
+    tool_call_mock.function.arguments = {
+        "action": "health_check",
+        "target_device_id": "POS-001",
+        "rationale": "telemetry stale",
+    }
+    tool_call_response.message.tool_calls = [tool_call_mock]
+
+    final_response = MagicMock()
+    final_response.message.content = "No proposal was created."
+    final_response.message.tool_calls = None
+    mock_llm.generate_with_tools.side_effect = [tool_call_response, final_response]
+
+    seen = {}
+
+    async def _fake_execute(name, args, allowed=None):
+        seen["reason"] = get_tool_proposal_block_reason()
+        return "Proposal NOT recorded: gate B did not pass."
+
+    with patch("ai.agent._execute_tool", new=AsyncMock(side_effect=_fake_execute)):
+        result = await run_agent(
+            query="Run a health check",
+            context="[CONTEXT]",
+            llm=mock_llm,
+            proposal_block_reason="gate B did not pass: telemetry stale",
+        )
+
+    assert seen["reason"] == "gate B did not pass: telemetry stale"
+    assert result.proposals == []
+    # ContextVar is restored after the run so later queries are unaffected.
+    assert get_tool_proposal_block_reason() is None
 
 
 @pytest.mark.asyncio
