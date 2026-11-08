@@ -135,6 +135,16 @@ function ConversationMessage({ message }) {
             {message.elapsedMs != null && <span>{Math.round(message.elapsedMs / 1000)} s</span>}
             <CopyButton text={message.content} />
           </div>
+          {message.toolCalls?.length > 0 && (
+            <ul className="ai-activity ai-activity-done" aria-label="AI actions taken">
+              {message.toolCalls.map((tc) => (
+                <li key={tc.key} className="ai-activity-step">
+                  <Check className="ai-activity-check" aria-hidden="true" />
+                  <span>{tc.label}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <MessageDetails message={message} />
           <ProposalCard proposal={message.proposal} />
         </>
@@ -270,6 +280,26 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
                 <Loader2 className="animate-spin" aria-hidden="true" />
                 <span>{c.loadingMessage}</span>
               </div>
+              {c.activity.length > 0 && (
+                <ul className="ai-activity" aria-label="AI activity">
+                  {c.activity.map((step, i) => {
+                    const isLast = i === c.activity.length - 1;
+                    return (
+                      <li key={step.key} className="ai-activity-step">
+                        {isLast ? (
+                          <Loader2
+                            className="ai-activity-spinner animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Check className="ai-activity-check" aria-hidden="true" />
+                        )}
+                        <span>{step.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               {c.slowHint && (
                 <p className="ai-inline-note">
                   Still working. You can stop this response at any time.

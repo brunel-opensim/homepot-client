@@ -27,6 +27,33 @@ const SUGGESTED_PROMPTS = [
   'Show recent anomalies',
 ];
 
+// Friendly labels for the investigation lifecycle events the backend publishes
+// over SSE (activity transparency PoC).
+const ACTIVITY_LABELS = {
+  run_started: 'Starting investigation',
+  context_ready: 'Gathering context and evidence',
+  gates_complete: 'Validating data through gate chain',
+  llm_started: 'Generating answer',
+  llm_complete: 'Answer generated',
+  memory_written: 'Storing memory',
+};
+
+// Friendly labels for the agentic tool calls (surfaced after the run).
+const TOOL_LABELS = {
+  get_device_status: 'Checking device status',
+  get_device_metrics: 'Reading device metrics',
+  get_error_logs: 'Reading error logs',
+  get_command_history: 'Reading command history',
+  get_config_history: 'Reading config history',
+  search_similar_incidents: 'Recalling similar incidents',
+  get_fleet_summary: 'Summarizing fleet',
+  find_device: 'Locating device',
+  get_alerts: 'Reading alerts',
+  propose_device_action: 'Proposing device action',
+  propose_fleet_action: 'Proposing fleet action',
+  get_action_plan_status: 'Checking action plan status',
+};
+
 function loadStored(key, fallback, parse = false) {
   try {
     const stored = localStorage.getItem(key);
@@ -61,6 +88,10 @@ export function useAIConversation(variant = 'compact') {
   const [cancelConfirmed, setCancelConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Analyzing system metrics...');
+  // Live activity steps (activity transparency PoC): lifecycle events streamed
+  // over SSE, plus agentic tool calls captured from the response.
+  const [activity, setActivity] = useState([]);
+  const [toolCalls, setToolCalls] = useState([]);
   const [slowHint, setSlowHint] = useState(false);
   const [llmProvider, setLlmProvider] = useState(null);
   const [llmSwitching, setLlmSwitching] = useState(false);
@@ -180,21 +211,38 @@ export function useAIConversation(variant = 'compact') {
     setTimeout(() => setCopied(false), 2000);
   }, [response]);
 
-  // SSE-driven progress messages (replaces timer narration when a run is active).
+  // SSE-driven activity feed (activity transparency PoC). Builds an ordered
+  // list of completed/in-progress steps from the lifecycle events and keeps the
+  // single loading label in sync with the latest step.
   useEffect(() => {
-    const ev = runEvents.latest;
-    if (!ev) return;
-    const type = ev.type || ev.data?.event;
-    const map = {
-      run_started: 'Starting investigation...',
-      context_ready: 'Gathering context and evidence...',
-      gates_complete: 'Validating data through gate chain...',
-      llm_started: 'Generating answer...',
-      llm_complete: 'Finalizing response...',
-      memory_written: 'Storing memory...',
-    };
-    if (map[type]) setLoadingMessage(map[type]);
-  }, [runEvents.latest]);
+    const steps = runEvents.events
+      .map((ev) => {
+        const type = ev.type || ev.data?.event;
+        const data = ev.data || {};
+        let label = ACTIVITY_LABELS[type];
+        if (type === 'gates_complete') {
+          label = data.failed_gate
+            ? `Validation gate ${data.failed_gate} did not pass`
+            : 'Validation gates passed';
+        } else if (type === 'llm_started') {
+          label = data.mode === 'agentic' ? 'Running agentic investigation' : 'Generating answer';
+        }
+        return label ? { key: `${type}-${ev.seq ?? ev.id}`, label } : null;
+      })
+      .filter(Boolean);
+    if (steps.length) {
+      setActivity(steps);
+      setLoadingMessage(steps[steps.length - 1].label);
+    }
+  }, [runEvents.events]);
+
+  // Clear the transient activity feed at the start of each run.
+  useEffect(() => {
+    if (loading) {
+      setActivity([]);
+      setToolCalls([]);
+    }
+  }, [loading]);
 
   // A neutral fallback until real backend events arrive. A timer cannot tell
   // whether a particular gate or retrieval operation has actually happened.
@@ -284,6 +332,11 @@ export function useAIConversation(variant = 'compact') {
         setRouting(result.routing || null);
         setSources(result.sources || []);
         setProposal(result.proposal || null);
+        const toolSteps = (result.agentic?.tools_called || []).map((t) => ({
+          key: `tool-${t.tool}-${t.iteration}`,
+          label: TOOL_LABELS[t.tool] || t.tool,
+        }));
+        setToolCalls(toolSteps);
         if (result.trust?.gates?.length) setReplaying(true);
         setMessages((prev) => [
           ...prev,
@@ -295,6 +348,7 @@ export function useAIConversation(variant = 'compact') {
             routing: result.routing || null,
             sources: result.sources || [],
             proposal: result.proposal || null,
+            toolCalls: toolSteps,
             provider: llmProvider?.current || null,
             model: llmProvider?.model || null,
             elapsedMs: Date.now() - startedAt,
@@ -415,6 +469,8 @@ export function useAIConversation(variant = 'compact') {
     cancelConfirmed,
     copied,
     loadingMessage,
+    activity,
+    toolCalls,
     slowHint,
     llmProvider,
     llmSwitching,
