@@ -37,7 +37,6 @@ export default function AIProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const plansRef = useRef(plans);
   const fetchingRef = useRef(false);
   const initialLoadRef = useRef(true);
@@ -82,13 +81,11 @@ export default function AIProposalsList() {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible' && !busyPlan) {
         fetchPlans();
-        setRefreshKey((k) => k + 1);
       }
     }, 30000);
     const onFocus = () => {
       if (!busyPlan) {
         fetchPlans();
-        setRefreshKey((k) => k + 1);
       }
     };
     window.addEventListener('focus', onFocus);
@@ -99,11 +96,6 @@ export default function AIProposalsList() {
       document.removeEventListener('visibilitychange', onFocus);
     };
   }, [fetchPlans, busyPlan]);
-
-  // Keep the panel in sync with the same refresh tick.
-  useEffect(() => {
-    setRefreshKey((k) => k + 1);
-  }, []);
 
   const handleDecide = (planId, decision) => {
     if (decision === 'approve') {
@@ -336,11 +328,7 @@ export default function AIProposalsList() {
 
         {/* Phase E: reliability + cross-session task aggregation overview */}
         <div className="shrink-0 mb-4 max-h-[50vh] overflow-y-auto pr-1">
-          <AIReliabilityPanel
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            refreshKey={refreshKey}
-          />
+          <AIReliabilityPanel statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} />
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto">
