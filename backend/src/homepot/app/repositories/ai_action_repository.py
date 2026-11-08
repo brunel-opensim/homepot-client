@@ -208,9 +208,18 @@ class AIActionRepository:
         plans = list(self.db.execute(stmt).scalars().all())
 
         by_status: Dict[str, int] = {}
+        needs_approval = 0
         for plan in plans:
             status_val = str(plan.status)
             by_status[status_val] = by_status.get(status_val, 0) + 1
+            # A plan needs an operator decision when it is pending plan-level
+            # approval, or when any of its disruptive steps is awaiting its own
+            # per-step approval (the plan may be 'approved'/'executing' but a
+            # step gate still blocks it). This count feeds the review badge.
+            if status_val == "pending_approval" or any(
+                getattr(s, "status", None) == "awaiting_approval" for s in plan.steps
+            ):
+                needs_approval += 1
 
         recent = [
             {
@@ -228,6 +237,7 @@ class AIActionRepository:
         return {
             "total": len(plans),
             "by_status": by_status,
+            "needs_approval": needs_approval,
             "recent": recent,
             "period_days": days,
         }
