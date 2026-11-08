@@ -7,6 +7,7 @@ import {
   Clock,
   AlertTriangle,
   ChevronDown,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -35,15 +36,19 @@ const STATUS_META = {
  * Compact proposal card shown inline in a conversation turn.
  *
  * Rendered as a collapsible <details> so the transcript stays tidy: the
- * summary just announces that an AI proposal exists, and the full review
- * (status, rationale, steps, risk) plus the "Review on AI Proposals page"
- * link are revealed on demand.
+ * summary announces that an AI proposal exists and keeps the "Review on AI
+ * Proposals page" link always visible and clickable, while the full review
+ * (status, rationale, steps, risk) is revealed on demand.
  */
 export default function ProposalCard({ proposal, onReview }) {
   if (!proposal) return null;
   const meta = STATUS_META[proposal.status] || STATUS_META.proposed;
   const Icon = meta.icon;
   const steps = proposal.steps || [];
+
+  const review = proposal.plan_id
+    ? () => (onReview ? onReview(proposal.plan_id) : window.location.assign('/ai-proposals'))
+    : null;
 
   return (
     <details className="ai-proposal-details">
@@ -52,6 +57,20 @@ export default function ProposalCard({ proposal, onReview }) {
           <ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" />
         </span>
         <span className="ai-proposal-summary-text">AI Proposal (if any)</span>
+        {review && (
+          <button
+            type="button"
+            className="ai-proposal-summary-link"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              review();
+            }}
+          >
+            <ExternalLink className="w-3 h-3" aria-hidden="true" />
+            Review on AI Proposals page
+          </button>
+        )}
         <ChevronDown className="ai-proposal-summary-chevron w-3.5 h-3.5" aria-hidden="true" />
       </summary>
       <div className="ai-proposal-body">
@@ -87,16 +106,9 @@ export default function ProposalCard({ proposal, onReview }) {
           </ul>
         )}
 
-        {proposal.plan_id && (
+        {review && (
           <div className="ai-proposal-review">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                onReview ? onReview(proposal.plan_id) : window.location.assign('/ai-proposals')
-              }
-              className="h-7 text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={review} className="h-7 text-xs">
               Review on AI Proposals page
             </Button>
           </div>
