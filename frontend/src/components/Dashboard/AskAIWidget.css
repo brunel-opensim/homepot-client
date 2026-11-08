@@ -433,3 +433,70 @@
     width: 44px;
   }
 }
+
+/* AI proposal collapsible (follows the AI widget theme) */
+.ai-proposal-details {
+  margin-top: 6px;
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  background: var(--ai-composer);
+  color: var(--ai-text);
+  overflow: hidden;
+}
+.ai-proposal-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ai-text);
+  list-style: none;
+}
+.ai-proposal-summary::-webkit-details-marker {
+  display: none;
+}
+.ai-proposal-summary-icon {
+  color: #bda5ed;
+  display: inline-flex;
+}
+.ai-proposal-summary-chevron {
+  margin-left: auto;
+  color: var(--ai-muted);
+  transition: transform 0.15s ease;
+}
+.ai-proposal-details[open] .ai-proposal-summary-chevron {
+  transform: rotate(180deg);
+}
+.ai-proposal-body {
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--ai-border);
+  font-size: 12px;
+}
+.ai-proposal-head {
+  margin-bottom: 6px;
+}
+.ai-proposal-rationale {
+  margin: 0 0 6px;
+  color: var(--ai-muted);
+}
+.ai-proposal-risk {
+  margin: 0 0 6px;
+  color: var(--ai-muted);
+}
+.ai-proposal-steps {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.ai-proposal-steps li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ai-muted);
+  margin: 2px 0;
+}
+.ai-proposal-review {
+  margin-top: 8px;
+}
