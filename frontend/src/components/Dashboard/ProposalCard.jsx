@@ -48,7 +48,10 @@ export default function ProposalCard({ proposal, onReview }) {
 
   const review =
     hasProposal && proposal.plan_id
-      ? () => (onReview ? onReview(proposal.plan_id) : window.location.assign('/ai-proposals'))
+      ? () =>
+          onReview
+            ? onReview(proposal.plan_id)
+            : window.location.assign(`/ai-proposals?plan=${proposal.plan_id}`)
       : null;
 
   return (
