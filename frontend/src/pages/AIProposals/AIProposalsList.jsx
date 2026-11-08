@@ -37,6 +37,7 @@ export default function AIProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
+  const [toastKey, setToastKey] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const plansRef = useRef(plans);
   const fetchingRef = useRef(false);
@@ -117,10 +118,10 @@ export default function AIProposalsList() {
   const confirmApprove = async () => {
     if (!approveTarget) return;
     const planId = approveTarget;
-    setToast(null);
     try {
       setBusyPlan(planId);
       await api.aiProposals.approve(planId, null);
+      setToastKey((k) => k + 1);
       setToast({ type: 'success', message: 'Proposal approved.' });
       setApproveTarget(null);
       fetchPlans(true);
@@ -135,10 +136,10 @@ export default function AIProposalsList() {
   const confirmReject = async () => {
     if (!rejectTarget) return;
     const planId = rejectTarget;
-    setToast(null);
     try {
       setBusyPlan(planId);
       await api.aiProposals.reject(planId, rejectReason || null);
+      setToastKey((k) => k + 1);
       setToast({ type: 'success', message: 'Proposal rejected.' });
       setRejectTarget(null);
       setRejectReason('');
@@ -158,10 +159,10 @@ export default function AIProposalsList() {
   const confirmApproveStep = async () => {
     if (!stepApproveTarget) return;
     const { planId, step } = stepApproveTarget;
-    setToast(null);
     try {
       setBusyPlan(planId);
       await api.aiProposals.approveStep(planId, step.step_id);
+      setToastKey((k) => k + 1);
       setToast({ type: 'success', message: `Step ${step.seq + 1} approved.` });
       setStepApproveTarget(null);
       fetchPlans(true);
@@ -180,12 +181,12 @@ export default function AIProposalsList() {
   const confirmExecute = async () => {
     if (!executeTarget) return;
     const planId = executeTarget;
-    setToast(null);
     try {
       setBusyPlan(planId);
       const result = await api.aiProposals.execute(planId);
       if (result.status === 'blocked') {
         const reasons = (result.policy?.reasons || []).join(' ');
+        setToastKey((k) => k + 1);
         setToast({ type: 'error', message: `Execution blocked by policy. ${reasons}`.trim() });
       } else {
         setToast({
@@ -210,17 +211,18 @@ export default function AIProposalsList() {
   const confirmExecuteAndWait = async () => {
     if (!executeAndWaitTarget) return;
     const planId = executeAndWaitTarget;
-    setToast(null);
     try {
       setBusyPlan(planId);
       const result = await api.aiProposals.executeAndWait(planId, 60);
       if (result.completed) {
         const status = result.plan?.status;
+        setToastKey((k) => k + 1);
         setToast({
           type: status === 'succeeded' ? 'success' : 'error',
           message: `Delegated task ${status || 'finished'} in ${result.elapsed_seconds}s.`,
         });
       } else {
+        setToastKey((k) => k + 1);
         setToast({
           type: 'error',
           message: `Timed out after ${result.elapsed_seconds}s; plan still ${result.plan?.status}.`,
@@ -240,6 +242,7 @@ export default function AIProposalsList() {
     <div className="h-full flex flex-col overflow-hidden bg-[#0b0e13] p-2">
       {toast && (
         <Toast
+          key={toastKey}
           title={toast.type === 'error' ? 'Error' : 'Done'}
           message={toast.message}
           type={toast.type}
