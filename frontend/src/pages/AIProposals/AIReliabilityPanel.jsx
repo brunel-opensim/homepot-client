@@ -26,7 +26,7 @@ function pct(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange, refreshKey }) {
+export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange }) {
   const [summary, setSummary] = useState(null);
   const [reliability, setReliability] = useState(null);
   const [autonomy, setAutonomy] = useState(null);
@@ -97,11 +97,9 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange,
     fetchAll();
   }, [fetchAll]);
 
-  // Refresh when the parent's refreshKey changes (single shared timer).
-  useEffect(() => {
-    if (refreshKey === undefined) return;
+  const refresh = () => {
     fetchAll();
-  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
 
   const byStatus = summary?.by_status || {};
   const statusEntries = Object.entries(byStatus)
@@ -137,7 +135,16 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange,
             Aggregated AI action outcomes over the last 30 days, plus the current autonomy posture.
           </p>
         </div>
-        <span className="text-xs text-gray-500">Auto-refreshing</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={refresh}
+          disabled={loading}
+          className="text-gray-400 hover:text-white"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {Object.keys(errors).length > 0 && (
