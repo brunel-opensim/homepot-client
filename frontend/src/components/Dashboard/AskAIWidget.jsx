@@ -207,19 +207,16 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, []);
-  // Auto-scroll to the bottom when new content arrives while pinned.
+  // During streaming, keep pinned to the bottom as each chunk arrives. Guarded
+  // by `loading` so the delayed post-completion SSE events (memory_written,
+  // completed) no longer yank the view back down while the user scrolls up.
   useLayoutEffect(() => {
-    if (stickToBottom) scrollToBottom();
-  }, [
-    c.messages,
-    c.loading,
-    c.response,
-    c.error,
-    c.loadingMessage,
-    c.streamText,
-    c.activity,
-    stickToBottom,
-  ]);
+    if (stickToBottom && c.loading) scrollToBottom();
+  }, [c.loading, c.streamText, c.activity, c.loadingMessage, stickToBottom]);
+  // Settle once when the run completes (release the view to the user after).
+  useEffect(() => {
+    if (!c.loading && stickToBottom) scrollToBottom();
+  }, [c.loading, stickToBottom]);
   useEffect(() => {
     const input = inputRef.current;
     if (!input) return;
