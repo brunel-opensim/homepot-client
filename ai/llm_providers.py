@@ -221,82 +221,14 @@ class OpenAIProvider(LLMProvider):
         tools: list,
     ) -> Any:
         """Generate a response with tool calling via OpenAI."""
-        # Convert tools to OpenAI format if needed
-        oai_tools = []
-        for t in tools:
-            if isinstance(t, dict) and "function" in t:
-                oai_tools.append(t)
-            elif callable(t):
-                oai_tools.append(_function_to_tool_schema(t))
-            else:
-                oai_tools.append({"type": "function", "function": t})
-
-        # Normalize messages (common/Ollama-style -> OpenAI format)
-        norm_messages = []
-        for m in messages:
-            if (
-                isinstance(m, dict)
-                and m.get("role") == "assistant"
-                and m.get("tool_calls")
-            ):
-                tc_list = []
-                for tc in m["tool_calls"]:
-                    fn = getattr(tc, "function", None)
-                    if fn is None and isinstance(tc, dict):
-                        fn = tc.get("function", {})
-                    name = (
-                        getattr(fn, "name", None)
-                        if not isinstance(fn, dict)
-                        else fn.get("name")
-                    )
-                    args = (
-                        getattr(fn, "arguments", None)
-                        if not isinstance(fn, dict)
-                        else fn.get("arguments")
-                    )
-                    cid = (
-                        getattr(tc, "id", None)
-                        if not isinstance(tc, dict)
-                        else tc.get("id")
-                    )
-                    if isinstance(args, (dict, list)):
-                        import json as _json
-
-                        args = _json.dumps(args)
-                    tc_list.append(
-                        {
-                            "id": cid or str(uuid.uuid4()),
-                            "type": "function",
-                            "function": {"name": name, "arguments": args or "{}"},
-                        }
-                    )
-                norm_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": m.get("content") or None,
-                        "tool_calls": tc_list,
-                    }
-                )
-            elif isinstance(m, dict) and m.get("role") == "tool":
-                norm_messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": m.get("tool_call_id") or str(uuid.uuid4()),
-                        "content": m.get("content", ""),
-                    }
-                )
-            else:
-                norm_messages.append(m)
-
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=norm_messages,  # type: ignore[arg-type]
-                tools=oai_tools if oai_tools else None,  # type: ignore[arg-type]
+                messages=_openai_messages(messages),  # type: ignore[arg-type]
+                tools=_openai_tools(tools) or None,  # type: ignore[arg-type]
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
-            # Wrap in a compatible object
             msg = response.choices[0].message
             tool_calls = None
             if msg.tool_calls:
@@ -311,6 +243,69 @@ class OpenAIProvider(LLMProvider):
             return _ToolResponse(content=msg.content or "", tool_calls=tool_calls)
         except Exception as e:
             logger.error("OpenAI generate_with_tools failed: %s", e)
+            return _ToolResponse(content=f"AI error (OpenAI): {e}", tool_calls=None)
+
+    def generate_with_tools_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: list,
+        on_delta: Optional[Callable[[str], None]] = None,
+    ) -> Any:
+        """Generate a tool-calling response via OpenAI, streaming text deltas.
+
+        Tool-call arguments arrive as fragments across chunks, so they are
+        accumulated by tool-call index and re-assembled into the same normalized
+        ``_ToolResponse`` shape as :meth:`generate_with_tools`.
+        """
+        try:
+            # The sync OpenAI client types a streaming response as a union of
+            # chunk and tuple, so annotate as Any and read fields defensively.
+            stream: Any = self.client.chat.completions.create(
+                model=self.model,
+                messages=_openai_messages(messages),  # type: ignore[arg-type]
+                tools=_openai_tools(tools) or None,  # type: ignore[arg-type]
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                stream=True,
+            )
+            content_parts: List[str] = []
+            tc_frags: Dict[int, Dict[str, Any]] = {}
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta is None:
+                    continue
+                if delta.content:
+                    content_parts.append(delta.content)
+                    if on_delta is not None:
+                        on_delta(delta.content)
+                for tc in delta.tool_calls or []:
+                    idx = getattr(tc, "index", 0)
+                    frag = tc_frags.setdefault(
+                        idx, {"id": None, "name": "", "arguments": ""}
+                    )
+                    if getattr(tc, "id", None):
+                        frag["id"] = tc.id
+                    fn = getattr(tc, "function", None)
+                    if fn is not None:
+                        if getattr(fn, "name", None):
+                            frag["name"] = fn.name
+                        if getattr(fn, "arguments", None):
+                            frag["arguments"] += fn.arguments
+            tool_calls = None
+            if tc_frags:
+                tool_calls = [
+                    _ToolCall(
+                        name=frag["name"],
+                        arguments=frag["arguments"],
+                        call_id=frag["id"],
+                    )
+                    for _, frag in sorted(tc_frags.items())
+                ]
+            return _ToolResponse(content="".join(content_parts), tool_calls=tool_calls)
+        except Exception as e:
+            logger.error("OpenAI generate_with_tools_stream failed: %s", e)
             return _ToolResponse(content=f"AI error (OpenAI): {e}", tool_calls=None)
 
 
@@ -689,6 +684,75 @@ def _tool_response_from_anthropic(response: Any) -> "_ToolResponse":
         if block.type == "text":
             text_content += block.text
     return _ToolResponse(content=text_content, tool_calls=tool_calls)
+
+
+def _openai_tools(tools: list) -> List[Dict[str, Any]]:
+    """Convert tools to OpenAI function-tool format."""
+    oai_tools: List[Dict[str, Any]] = []
+    for t in tools:
+        if isinstance(t, dict) and "function" in t:
+            oai_tools.append(t)
+        elif callable(t):
+            oai_tools.append(_function_to_tool_schema(t))
+        else:
+            oai_tools.append({"type": "function", "function": t})
+    return oai_tools
+
+
+def _openai_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize Ollama-style messages to OpenAI chat format."""
+    norm_messages: List[Dict[str, Any]] = []
+    for m in messages:
+        if isinstance(m, dict) and m.get("role") == "assistant" and m.get("tool_calls"):
+            tc_list = []
+            for tc in m["tool_calls"]:
+                fn = getattr(tc, "function", None)
+                if fn is None and isinstance(tc, dict):
+                    fn = tc.get("function", {})
+                name = (
+                    getattr(fn, "name", None)
+                    if not isinstance(fn, dict)
+                    else fn.get("name")
+                )
+                args = (
+                    getattr(fn, "arguments", None)
+                    if not isinstance(fn, dict)
+                    else fn.get("arguments")
+                )
+                cid = (
+                    getattr(tc, "id", None)
+                    if not isinstance(tc, dict)
+                    else tc.get("id")
+                )
+                if isinstance(args, (dict, list)):
+                    import json as _json
+
+                    args = _json.dumps(args)
+                tc_list.append(
+                    {
+                        "id": cid or str(uuid.uuid4()),
+                        "type": "function",
+                        "function": {"name": name, "arguments": args or "{}"},
+                    }
+                )
+            norm_messages.append(
+                {
+                    "role": "assistant",
+                    "content": m.get("content") or None,
+                    "tool_calls": tc_list,
+                }
+            )
+        elif isinstance(m, dict) and m.get("role") == "tool":
+            norm_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": m.get("tool_call_id") or str(uuid.uuid4()),
+                    "content": m.get("content", ""),
+                }
+            )
+        else:
+            norm_messages.append(m)
+    return norm_messages
 
 
 def create_llm_provider(config: Dict[str, Any]) -> "LLMProvider":
