@@ -284,6 +284,37 @@
   flex: none;
   color: #bda5ed;
 }
+.ai-activity {
+  list-style: none;
+  margin: 2px 0 6px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--ai-muted);
+}
+.ai-activity-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.ai-activity-check {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: #9dcab4;
+}
+.ai-activity-spinner {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: #bda5ed;
+}
+.ai-activity-done {
+  margin-top: 6px;
+  border-top: 1px solid var(--ai-border);
+  padding-top: 6px;
+}
+
 .ai-inline-note,
 .ai-inline-error {
   margin: 10px 0;
