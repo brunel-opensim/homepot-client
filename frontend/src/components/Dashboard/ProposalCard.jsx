@@ -35,20 +35,21 @@ const STATUS_META = {
 /**
  * Compact proposal card shown inline in a conversation turn.
  *
- * Rendered as a collapsible <details> so the transcript stays tidy: the
- * summary announces that an AI proposal exists and keeps the "Review on AI
- * Proposals page" link always visible and clickable, while the full review
- * (status, rationale, steps, risk) is revealed on demand.
+ * Always rendered for assistant turns so the "AI Proposal (if any)" section is
+ * consistently visible after the response metadata. When no proposal exists the
+ * body states that plainly; otherwise it reveals status, rationale, steps,
+ * risk, and a clickable "Review on AI Proposals page" link.
  */
 export default function ProposalCard({ proposal, onReview }) {
-  if (!proposal) return null;
-  const meta = STATUS_META[proposal.status] || STATUS_META.proposed;
-  const Icon = meta.icon;
-  const steps = proposal.steps || [];
+  const hasProposal = proposal != null;
+  const meta = hasProposal ? STATUS_META[proposal.status] || STATUS_META.proposed : null;
+  const Icon = meta?.icon;
+  const steps = hasProposal ? proposal.steps || [] : [];
 
-  const review = proposal.plan_id
-    ? () => (onReview ? onReview(proposal.plan_id) : window.location.assign('/ai-proposals'))
-    : null;
+  const review =
+    hasProposal && proposal.plan_id
+      ? () => (onReview ? onReview(proposal.plan_id) : window.location.assign('/ai-proposals'))
+      : null;
 
   return (
     <details className="ai-proposal-details">
@@ -74,44 +75,50 @@ export default function ProposalCard({ proposal, onReview }) {
         <ChevronDown className="ai-proposal-summary-chevron w-3.5 h-3.5" aria-hidden="true" />
       </summary>
       <div className="ai-proposal-body">
-        <div className="ai-proposal-head">
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${meta.color}`}
-          >
-            <Icon className="w-3 h-3" />
-            {meta.label}
-          </span>
-        </div>
+        {!hasProposal ? (
+          <p className="ai-proposal-empty">No proposal was created for this query.</p>
+        ) : (
+          <>
+            <div className="ai-proposal-head">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${meta.color}`}
+              >
+                <Icon className="w-3 h-3" />
+                {meta.label}
+              </span>
+            </div>
 
-        {proposal.rationale && <p className="ai-proposal-rationale">{proposal.rationale}</p>}
+            {proposal.rationale && <p className="ai-proposal-rationale">{proposal.rationale}</p>}
 
-        {proposal.risk_tier && (
-          <p className="ai-proposal-risk">
-            Risk: <span className="font-medium">{proposal.risk_tier}</span>
-            {proposal.reversible ? ' · reversible' : ' · not reversible'}
-          </p>
-        )}
+            {proposal.risk_tier && (
+              <p className="ai-proposal-risk">
+                Risk: <span className="font-medium">{proposal.risk_tier}</span>
+                {proposal.reversible ? ' · reversible' : ' · not reversible'}
+              </p>
+            )}
 
-        {steps.length > 0 && (
-          <ul className="ai-proposal-steps">
-            {steps.map((s, i) => (
-              <li key={i}>
-                <span className="font-mono text-[10px] text-gray-400">#{s.seq ?? i}</span>{' '}
-                <span className="font-medium">{s.action}</span>
-                {s.target_device_id && (
-                  <span className="text-gray-400"> → {s.target_device_id}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+            {steps.length > 0 && (
+              <ul className="ai-proposal-steps">
+                {steps.map((s, i) => (
+                  <li key={i}>
+                    <span className="font-mono text-[10px] text-gray-400">#{s.seq ?? i}</span>{' '}
+                    <span className="font-medium">{s.action}</span>
+                    {s.target_device_id && (
+                      <span className="text-gray-400"> → {s.target_device_id}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
 
-        {review && (
-          <div className="ai-proposal-review">
-            <Button variant="outline" size="sm" onClick={review} className="h-7 text-xs">
-              Review on AI Proposals page
-            </Button>
-          </div>
+            {review && (
+              <div className="ai-proposal-review">
+                <Button variant="outline" size="sm" onClick={review} className="h-7 text-xs">
+                  Review on AI Proposals page
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </details>

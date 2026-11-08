@@ -136,7 +136,7 @@ function ConversationMessage({ message }) {
             <CopyButton text={message.content} />
           </div>
           <MessageDetails message={message} />
-          {message.proposal && <ProposalCard proposal={message.proposal} />}
+          <ProposalCard proposal={message.proposal} />
         </>
       )}
     </article>
