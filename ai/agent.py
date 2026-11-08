@@ -23,9 +23,11 @@ from ai.tools import (
     TOOL_FUNCTIONS,
     TOOL_REGISTRY,
     reset_tool_memory_scope,
+    reset_tool_proposal_block_reason,
     reset_tool_proposal_sink,
     reset_tool_user_scope,
     set_tool_memory_scope,
+    set_tool_proposal_block_reason,
     set_tool_proposal_sink,
     set_tool_user_scope,
 )
@@ -287,6 +289,7 @@ async def run_agent(
     system_prompt: Optional[str] = None,
     include_repo_tools: bool = False,
     max_tool_bytes: Optional[int] = None,
+    proposal_block_reason: Optional[str] = None,
 ) -> AgentResult:
     """Run the ReAct agent loop.
 
@@ -319,6 +322,10 @@ async def run_agent(
             documentation and code (Tier B; see docs/ai-code-access.md).
         max_tool_bytes: Optional per-run cap on the total size of tool results;
             once exceeded the loop stops calling tools and forces a final answer.
+        proposal_block_reason: When set, the proposal tools refuse to record
+            anything and return this reason to the model, so a non-actionable
+            validation envelope cannot produce a phantom "proposal recorded"
+            claim in the final answer.
 
     Returns:
         AgentResult with the final response and metadata.
@@ -367,6 +374,7 @@ async def run_agent(
 
     scope_token = set_tool_memory_scope(memory_scope)
     sink_token = set_tool_proposal_sink(proposals)
+    proposal_block_token = set_tool_proposal_block_reason(proposal_block_reason)
     user_scope_token = set_tool_user_scope(user_scope)
 
     # Plan-and-execute mode: separate planning from execution
@@ -503,11 +511,13 @@ async def run_agent(
         # Reset scopes and return early
         reset_tool_memory_scope(scope_token)
         reset_tool_proposal_sink(sink_token)
+        reset_tool_proposal_block_reason(proposal_block_token)
         reset_tool_user_scope(user_scope_token)
         scope_token = scope_token  # keep for finally (no-op reset)
         # Mark as consumed so finally doesn't double-reset
         scope_token = None  # type: ignore[assignment]
         sink_token = None  # type: ignore[assignment]
+        proposal_block_token = None  # type: ignore[assignment]
         user_scope_token = None  # type: ignore[assignment]
 
         total_ms = int((time.monotonic() - start_time) * 1000)
@@ -666,6 +676,8 @@ async def run_agent(
             reset_tool_memory_scope(scope_token)
         if sink_token is not None:
             reset_tool_proposal_sink(sink_token)
+        if proposal_block_token is not None:
+            reset_tool_proposal_block_reason(proposal_block_token)
         if user_scope_token is not None:
             reset_tool_user_scope(user_scope_token)
 

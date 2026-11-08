@@ -216,6 +216,14 @@ The design adds one control, with `Auto` as the default:
 Skipping gates/insights for `knowledge` removes the DB work and the
 cautionary instructions in one move.
 
+When the envelope is **not actionable**, the proposal tools refuse to record
+anything and return the failed-gate reason to the model. If the agent still
+attempted a proposal, the endpoint prepends a deterministic "No proposal was
+created" notice to the answer. This prevents the assistant from telling a
+technician that a proposal exists when nothing was persisted -- for example,
+when Gate B fails on stale telemetry. See
+[ai-delegation-plan.md](ai-delegation-plan.md) for the proposal lifecycle.
+
 ## 7.1 Knowledge mode and the analysis-mode guard
 
 None of the diagnostic/cautionary behaviour should leak into `knowledge`. The

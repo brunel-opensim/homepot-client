@@ -1942,6 +1942,25 @@ async def _query_ai_impl(
             _planning_timeout = _agent_cfg.get("planning_timeout_seconds", 30)
             _execution_timeout = _agent_cfg.get("execution_timeout_seconds", 60)
 
+            # When validation did not clear this query, forbid the proposal
+            # tools from recording anything. Otherwise the model is told a
+            # proposal was captured, tells the technician so, and the endpoint
+            # silently drops it because it is not actionable -- an answer that
+            # claims an action that does not exist. (Observed on Brunel Device
+            # 001 when Gate B failed on stale telemetry.)
+            _proposal_block_reason: Optional[str] = None
+            if not trust.is_actionable:
+                _failing_gate = trust.gate_results[-1] if trust.gate_results else None
+                _block_reasons = [
+                    c.message
+                    for c in (_failing_gate.checks if _failing_gate else [])
+                    if not c.passed and c.message
+                ]
+                _proposal_block_reason = (
+                    f"gate {trust.failed_gate_id or 'unknown'} did not pass"
+                    + (f": {' '.join(_block_reasons[:2])}" if _block_reasons else "")
+                )
+
             try:
                 agent_result = await run_agent(
                     query=request.query,
@@ -1957,6 +1976,7 @@ async def _query_ai_impl(
                     planning_timeout=_planning_timeout,
                     execution_timeout=_execution_timeout,
                     total_timeout=_total_timeout,
+                    proposal_block_reason=_proposal_block_reason,
                 )
             except AIBusyError:
                 raise _ai_busy_http_exception(gate)
@@ -2108,6 +2128,27 @@ async def _query_ai_impl(
                     trust.is_actionable,
                     agent_result.fell_back_to_direct,
                 )
+
+        # Never let the final answer claim a proposal exists when validation
+        # blocked it. The proposal tools now refuse to record, but the model
+        # can still phrase its answer as if one was captured; this
+        # deterministic header keeps the transcript honest (repo rule: command
+        # templates must not claim actions that were not performed).
+        if (
+            agentic_info is not None
+            and response
+            and not trust.is_actionable
+            and any(
+                tc.tool_name in ("propose_device_action", "propose_fleet_action")
+                for tc in agent_result.tools_called
+            )
+        ):
+            response = (
+                "> **No proposal was created.** Validation gate "
+                f"{trust.failed_gate_id or 'unknown'} did not pass, so this "
+                "action was not recorded and is not pending approval. Fix the "
+                "issue below, then retry.\n\n" + response
+            )
 
         # 5b. Persist a compact, scoped long-term memory of this answer so later
         # queries can recall it. Best-effort: a storage failure must never break
