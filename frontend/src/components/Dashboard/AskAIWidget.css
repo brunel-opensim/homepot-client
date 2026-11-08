@@ -469,6 +469,28 @@
 .ai-proposal-details[open] .ai-proposal-summary-chevron {
   transform: rotate(180deg);
 }
+
+.ai-proposal-summary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--ai-border);
+  border-radius: 6px;
+  background: transparent;
+  color: #bda5ed;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.ai-proposal-summary-link:hover {
+  background: rgba(189, 165, 237, 0.12);
+  color: #d4c4f7;
+}
 .ai-proposal-body {
   padding: 8px 10px 10px;
   border-top: 1px solid var(--ai-border);
