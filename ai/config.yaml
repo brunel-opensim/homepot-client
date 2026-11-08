@@ -46,18 +46,18 @@ llm:
       model: "gpt-4o-mini"
       api_key_env: "OPENAI_API_KEY"
       base_url: "https://api.openai.com/v1"
-      context_budget: 6000   # chars of enriched context (default 2000)
+      context_budget: 5500   # chars of enriched context (default 2000)
       num_predict: 512       # output token cap (default 120)
       max_concurrent: 4      # concurrency (default 1)
-      memory_n_results: 5    # recalled memories (default 3)
+      memory_n_results: 3    # recalled memories (default 3); deeper recall is a tool call
     anthropic:
       model: "claude-haiku-4-5-20251001"
       api_key_env: "ANTHROPIC_API_KEY"
       base_url: "https://api.anthropic.com"
-      context_budget: 6000
+      context_budget: 5500
       num_predict: 512
       max_concurrent: 4
-      memory_n_results: 5
+      memory_n_results: 3
   base_url: "http://localhost:11434"
   temperature: 0.7
   # The static system prompt is ~3.8k tokens; the request also appends live
@@ -75,7 +75,7 @@ llm:
   # within the model's window. The full transcript is stored separately
   # (investigation_messages) and is never replaced by this selection.
   history:
-    max_messages: 5        # max recent turns injected verbatim
+    max_messages: 4        # max recent messages injected verbatim (2 turns)
     max_tokens: 0          # 0 = no token cap (message cap only)
     summarise_older: false # summarise turns beyond the budget instead of dropping
   # Cap generated tokens per answer. CPU generation runs at ~4 tok/s, so
@@ -244,4 +244,8 @@ validation_gates:
   gate_c:
     required_blocks:
       - "[CURRENT SYSTEM STATUS]"
+    # Bounded-context guard, not a model-window limit. Keep it at 16k and trim
+    # low-relevance extras instead (see history.max_messages, memory_n_results,
+    # and context_budget above): the agent can fetch deeper memory and command
+    # history on demand, so the bounded prompt does not lose actionable data.
     max_context_chars: 16000          # ~4k tokens at 4 chars/token heuristic

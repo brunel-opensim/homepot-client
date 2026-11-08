@@ -8,7 +8,7 @@ scoped for multi-tenant safety, and how to configure them.
 | **What** | Recent conversation turns | Past answers / incidents |
 | **Where** | Supplied by the client per request | ChromaDB vector store (on disk) |
 | **Lifetime** | One request | Until pruned (default 90 days) |
-| **Recall** | Last 5 messages, verbatim | Semantic similarity + scope filter |
+| **Recall** | Last 4 messages (2 turns), verbatim | Semantic similarity + scope filter |
 | **Code** | `AIEndpoint.query_ai` | `ai/device_memory.py` |
 
 !!! note "Provider-independent"
@@ -23,29 +23,35 @@ scoped for multi-tenant safety, and how to configure them.
 ## Short-term memory (conversation)
 
 The client sends the conversation `history` in the request body. The endpoint
-keeps the **last 5 messages**, sanitizes them (prompt-injection scrubbing), and
-injects them as a `[CONVERSATION HISTORY]` block:
+keeps the **last 4 messages** (two turns), sanitizes them (prompt-injection
+scrubbing), and injects them as a `[CONVERSATION HISTORY]` block. Older
+messages are replaced by an explicit
+`[EARLIER CONVERSATION: N prior turn(s) omitted …]` marker, so the model knows
+the transcript is bounded:
 
 ```python
 # backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py
-if request.history:
-    short_term_context = "\n[CONVERSATION HISTORY]\n"
-    short_term_context += "\n".join(
-        f"{sanitize(msg.role)}: {sanitize(msg.content)}"
-        for msg in request.history[-5:]
-    )
+_recent, _older = _select_history(
+    effective_history, _max_hist_msgs, _max_hist_tokens
+)
+short_term_context = "\n".join(_parts)  # history + omitted/summary marker
 ```
 
-Short-term memory is **stateless on the server**: nothing is stored, and the
-client is responsible for sending history back. This keeps the request path
-simple and avoids storing transcripts.
+The limit comes from `llm.history.max_messages` in `ai/config.yaml` (currently
+4). The full transcript is still stored server-side in `investigation_messages`;
+only the prompt selection is bounded.
+
+Short-term memory is **stateless on the server for API clients**: the client is
+responsible for sending history back. When a `session_id` is supplied, the
+endpoint loads the prior turns from the backend-held transcript instead.
 
 !!! note "Dashboard coverage"
     The API accepts `history` and the Dashboard's `AskAIWidget` now sends the
-    prior turns (capped to the backend's last 5), so short-term memory works
-    in both the compact assistant and the AI workspace. The compact view shows
-    only the latest answer; the workspace renders the full thread.
-    Long-term memory works regardless.
+    prior turns (bounded by the backend's `llm.history.max_messages`, currently
+    the last 4 messages), so short-term memory works in both the compact
+    assistant and the AI workspace. The compact view shows only the latest
+    answer; the workspace renders the full thread. Long-term memory works
+    regardless.
 
 ### Multi-turn behaviour
 

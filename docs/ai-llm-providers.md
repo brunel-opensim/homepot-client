@@ -211,7 +211,7 @@ is called. **Switching providers changes the generator, not the memory.**
 
 | Layer | What it is | Where | Provider impact |
 |---|---|---|---|
-| **Short-term** | Last 5 conversation turns | Client sends `history`; backend renders `[CONVERSATION HISTORY]` | None |
+| **Short-term** | Last 4 conversation messages (2 turns) | Client sends `history`; backend renders `[CONVERSATION HISTORY]` | None |
 | **Long-term** | Semantic recall of past Q/A | ChromaDB (`ai/device_memory.py`) | None |
 
 - **Embeddings are local.** Long-term memory uses ChromaDB's default
@@ -224,9 +224,18 @@ is called. **Switching providers changes the generator, not the memory.**
 
 !!! note "Short-term memory is client-supplied"
     The API accepts `history` and the Dashboard's `AskAIWidget` now sends prior
-    turns (capped to the backend's last 5), so short-term memory works in both
-    the compact assistant and the AI workspace. Long-term memory works
-    regardless. See [AI Memory](ai-memory.md).
+    turns (bounded by the backend's `llm.history.max_messages`, currently the
+    last 4 messages), so short-term memory works in both the compact assistant
+    and the AI workspace. Long-term memory works regardless. See
+    [AI Memory](ai-memory.md).
+
+!!! note "Bounded context trim policy"
+    To keep Gate C's 16,000-char context bound meaningful, the diagnostic
+    prompt trims low-relevance extras rather than raising the bound: history is
+    capped at the last 4 messages, long-term recall at the 3 most similar
+    memories, and enriched context at 5,500 chars. These are all recoverable on
+    demand in agentic mode via `search_similar_incidents` and
+    `get_command_history`, so the model does not lose actionable data.
 
 ---
 

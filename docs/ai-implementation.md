@@ -15,7 +15,8 @@ We utilize a **Hybrid Analysis** approach to balance speed and intelligence:
 As of January 2026, the AI has been upgraded with a **Dual-Memory System** and **System Knowledge**, making it fully self-aware and contextually intelligent.
 
 ### 1. Short-Term Memory (Conversation History)
-*   **Mechanism**: The API now tracks the last 5 exchanges in the conversation.
+*   **Mechanism**: The API injects the last 4 messages (2 exchanges), bounded by
+    `llm.history.max_messages`; older turns are marked as omitted.
 *   **Benefit**: Enables natural, back-and-forth dialogue. You can ask follow-up questions like "Tell me more about that error" without restating the context.
 
 ### 2. Long-Term Memory (Vector Store)

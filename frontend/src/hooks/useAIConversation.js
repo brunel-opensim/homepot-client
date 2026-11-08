@@ -272,7 +272,12 @@ export function useAIConversation(variant = 'compact') {
           queryId,
           historyPayload,
           activeSessionId,
-          activeRunId
+          activeRunId,
+          // Ask AI must run the tool-calling loop so natural-language action
+          // requests become tracked proposals in AI Proposals. Informational
+          // queries still answer directly; the backend routes knowledge
+          // questions down the documentation path regardless of this flag.
+          true
         );
         setResponse(result.response);
         setTrust(result.trust || null);

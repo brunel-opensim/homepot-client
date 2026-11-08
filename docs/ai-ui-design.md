@@ -209,8 +209,9 @@ cancellation mechanism.
 - **Error/cancellation:** show a clear outcome and recovery path. Distinguish a
   locally stopped wait from a server-confirmed discarded answer.
 - **Conversation history:** the workspace behaves as a real multi-turn chat.
-  The backend accepts `history` and the widget now sends prior turns (capped to
-  the backend's last 5), persisted under `homepot_ai_thread`. The compact
+  The backend accepts `history` and the widget now sends prior turns (bounded by
+  the backend's `llm.history.max_messages`, currently the last 4 messages),
+  persisted under `homepot_ai_thread`. The compact
   assistant keeps the latest answer; the workspace renders the full thread.
   See [AI Memory](ai-memory.md).
 

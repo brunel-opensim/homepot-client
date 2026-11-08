@@ -140,7 +140,8 @@ validation on real devices.
 2. **ID rules** (`C.id_rules`): Alert ID references in the context match the
    known alert IDs (no fabricated IDs). Skipped if no allowlist supplied.
 3. **Bounded context** (`C.bounded_context`): Assembled context ≤ 16,000 chars
-   (~4k tokens).
+   (~4k tokens). Low-relevance extras are trimmed to stay under the bound
+   (see `docs/ai-validation-gates.md`).
 
 ### Real-device observations
 

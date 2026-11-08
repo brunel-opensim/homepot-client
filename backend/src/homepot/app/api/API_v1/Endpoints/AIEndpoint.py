@@ -877,6 +877,77 @@ _LEADING_ANSWER_TAG_RE = re.compile(r"^(?:\s*\[ANSWER\]\s*:?\s*)+", re.IGNORECAS
 # separately in the response's ``sources`` field, so these are redundant.
 _SOURCE_LINE_RE = re.compile(r"^\s*Sources?:", re.IGNORECASE)
 
+# A chat query can never issue a device command: at most it records a proposal
+# for approval. The model nevertheless sometimes narrates an action as already
+# done ("Health Check Command Issued", "Status: SENT"). Detect only the
+# unambiguous past-tense/status forms so the endpoint can prefix a truthful
+# correction without rewriting legitimate future-tense guidance.
+_ACTION_CLAIM_RE = re.compile(
+    r"(?:"
+    r"\bcommand\s+issued\b"
+    r"|\bissued\s+by\s*:"
+    r"|\b(?:command|action|request|health\s*check)\s+"
+    r"(?:has\s+been|was)\s+"
+    r"(?:issued|sent|queued|executed|dispatched|delivered)\b"
+    r"|\b(?:command|action)\s+"
+    r"(?:sent|issued|queued|executed|dispatched|delivered)\b"
+    r"|\bstatus\s*:\s*\**\s*"
+    r"(?:sent|queued|executed|dispatched|delivered|succeeded)\b"
+    r"|\b(?:i|we)\s+(?:have\s+)?(?:issued|queued|executed|dispatched)\b"
+    r")",
+    re.IGNORECASE,
+)
+# Words immediately before a match that turn it into a denial ("no command has
+# been sent"), which must NOT be treated as a claim.
+_ACTION_CLAIM_NEGATION_RE = re.compile(
+    r"\b(?:not|no|never|cannot|could\s+not|did\s+not|has\s+not|hasn't|"
+    r"was\s+not|wasn't|is\s+not|isn't)\b\W*$",
+    re.IGNORECASE,
+)
+
+
+def _claims_action_performed(text: str) -> bool:
+    """Return True when the answer claims a device action was already issued.
+
+    A chat turn can only propose actions; it never sends or executes commands.
+    Detecting a past-tense/status claim lets the endpoint prepend a truthful
+    correction instead of letting the model imply work that did not happen.
+    Negated phrases ("no command has been sent") are ignored.
+    """
+    if not text:
+        return False
+    for match in _ACTION_CLAIM_RE.finditer(text):
+        prefix = text[max(0, match.start() - 40) : match.start()]
+        if _ACTION_CLAIM_NEGATION_RE.search(prefix):
+            continue
+        return True
+    return False
+
+
+def _annotate_action_claims(text: str, *, proposal_created: bool) -> str:
+    """Prefix a truthful correction when an answer claims a command already ran.
+
+    A chat turn can record a proposal but never sends or executes a command.
+    This keeps the final transcript honest when the model narrates an action as
+    already done (for example "Status: SENT"). The correction depends on whether
+    a proposal was actually persisted, so it never implies one exists when it
+    does not.
+    """
+    if not _claims_action_performed(text):
+        return text
+    if proposal_created:
+        notice = (
+            "> **No command was issued.** A proposal was recorded in AI "
+            "Proposals; nothing has run from this chat.\n\n"
+        )
+    else:
+        notice = (
+            "> **No command was issued.** This answer is advisory only; device "
+            "actions must be proposed, reviewed, and approved before anything "
+            "runs.\n\n"
+        )
+    return notice + text
+
 
 def _strip_answer_markup(text: str) -> str:
     """Remove internal format artifacts a small model sometimes emits.
@@ -2129,25 +2200,28 @@ async def _query_ai_impl(
                     agent_result.fell_back_to_direct,
                 )
 
-        # Never let the final answer claim a proposal exists when validation
-        # blocked it. The proposal tools now refuse to record, but the model
-        # can still phrase its answer as if one was captured; this
-        # deterministic header keeps the transcript honest (repo rule: command
-        # templates must not claim actions that were not performed).
-        if (
-            agentic_info is not None
-            and response
-            and not trust.is_actionable
-            and any(
-                tc.tool_name in ("propose_device_action", "propose_fleet_action")
-                for tc in agent_result.tools_called
-            )
-        ):
+        # Deterministic honesty guard. A chat query can record a proposal (when
+        # validation allows) but it NEVER sends or executes a device command.
+        # Two failure modes are corrected here:
+        #   1. proposal tools were attempted but validation blocked them, so no
+        #      plan exists and no proposal may be implied; and
+        #   2. the answer itself claims an action was issued/sent/executed.
+        # This enforces the repo rule that command templates must never claim an
+        # action that was not actually performed.
+        _attempted_proposal = agentic_info is not None and any(
+            tc.tool_name in ("propose_device_action", "propose_fleet_action")
+            for tc in agent_result.tools_called
+        )
+        if response and _attempted_proposal and not trust.is_actionable:
             response = (
-                "> **No proposal was created.** Validation gate "
-                f"{trust.failed_gate_id or 'unknown'} did not pass, so this "
-                "action was not recorded and is not pending approval. Fix the "
-                "issue below, then retry.\n\n" + response
+                "> **No proposal was created and no command was issued.** "
+                f"Validation gate {trust.failed_gate_id or 'unknown'} did not "
+                "pass, so this action was not recorded and is not pending "
+                "approval. Fix the issue below, then retry.\n\n" + response
+            )
+        elif response:
+            response = _annotate_action_claims(
+                response, proposal_created=proposal_info is not None
             )
 
         # 5b. Persist a compact, scoped long-term memory of this answer so later

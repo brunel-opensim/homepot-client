@@ -125,7 +125,7 @@ like `docs/device-enrolment.md`.
 | --- | --- |
 | Collection | `device_logs` (`ai/data/chroma_db`, ~0.7 MB) |
 | Metadata | `{source: ai_query, trust_score, is_actionable, user_id, created_at}` |
-| Recall | `n_results: 5`, `max_distance: 0.9`, scope-filtered (user/site/device) |
+| Recall | `n_results: 3` (per-provider override), `max_distance: 0.9`, scope-filtered (user/site/device) |
 | Retention | `retention_days: 90`, pruned at service start |
 | Writer | the API process only (single writer) |
 

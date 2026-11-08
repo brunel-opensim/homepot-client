@@ -64,7 +64,7 @@ Implemented in `ai/gates/gate_c.py`. Confirms the assembled prompt context hande
 |---|---|
 | `C.stable_content_blocks` | All required section headers are present in the assembled context. |
 | `C.id_rules` | Every alert ID referenced in the context actually exists in the current status data (no dangling references). |
-| `C.bounded_context` | The assembled context stays within a bounded size (default 16,000 chars). |
+| `C.bounded_context` | The assembled context stays within a bounded size (default 16,000 chars, about 4k tokens). The bound is kept small by trimming low-relevance extras rather than raising it: conversation history is capped at the last 4 messages, long-term memory at the 3 most similar, and enriched context at 5.5k chars. The agent can fetch deeper memory and command history on demand with its tools, so this does not remove actionable data. |
 
 Failing Gate C falls back to **Mode 3: Cautionary summaries** -- only uncertainty-qualified, non-actionable summaries are permitted.
 
