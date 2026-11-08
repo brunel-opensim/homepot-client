@@ -547,7 +547,8 @@ def test_agentic_flag_in_request_model():
         os.path.join(
             workspace_root,
             "backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py",
-        )
+        ),
+        encoding="utf-8",
     ) as f:
         source = f.read()
     assert "agentic: bool" in source
