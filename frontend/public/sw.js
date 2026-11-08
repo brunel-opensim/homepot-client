@@ -1,13 +1,13 @@
 /* eslint-env serviceworker */
 /**
  * HOMEPOT Service Worker
- * 
+ *
  * Handles Web Push notifications in the background.
  * Displays notifications when the app is not in focus.
  */
 
 // Service Worker version - increment to force update
-const SW_VERSION = 'v1.3.0';
+const SW_VERSION = 'v1.3.1';
 const CACHE_NAME = `homepot-cache-${SW_VERSION}`;
 
 // Shared device_id helper (single source of truth, also used by the main app)
@@ -17,21 +17,16 @@ const getDeviceId = self.__HOMEPOT_DEVICE_ID__;
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing Service Worker', SW_VERSION);
-  
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching app shell');
-      return cache.addAll([
-        '/',
-        '/index.html',
-        '/manifest.json',
-        '/deviceId.js',
-      ]).catch((err) => {
+      return cache.addAll(['/', '/index.html', '/manifest.json', '/deviceId.js']).catch((err) => {
         console.error('[SW] Cache failed:', err);
       });
     })
   );
-  
+
   // Force the waiting service worker to become the active service worker
   self.skipWaiting();
 });
@@ -39,7 +34,7 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating Service Worker', SW_VERSION);
-  
+
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -52,28 +47,28 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  
+
   // Claim all clients immediately
   return self.clients.claim();
 });
 
 async function acknowledgePush(messageId) {
   if (!messageId) return;
-  
+
   try {
     const deviceId = await getDeviceId();
     await fetch('/api/v1/push/ack', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         message_id: messageId,
         device_id: deviceId,
         status: 'delivered',
         received_at: new Date().toISOString(),
-        platform: 'web_push'
-      })
+        platform: 'web_push',
+      }),
     });
     console.log('[SW] Acknowledged push:', messageId);
   } catch (err) {
@@ -84,7 +79,7 @@ async function acknowledgePush(messageId) {
 // Push event - handle incoming push notifications
 self.addEventListener('push', (event) => {
   console.log('[SW] Push notification received:', event);
-  
+
   let notificationData = {
     title: 'HOMEPOT Notification',
     body: 'You have a new notification',
@@ -92,7 +87,7 @@ self.addEventListener('push', (event) => {
     badge: '/badge-72x72.png',
     data: {},
   };
-  
+
   // Parse notification data
   if (event.data) {
     try {
@@ -118,7 +113,7 @@ self.addEventListener('push', (event) => {
       notificationData.body = event.data.text();
     }
   }
-  
+
   // Show notification
   event.waitUntil(
     self.registration.showNotification(notificationData.title, {
@@ -139,16 +134,16 @@ self.addEventListener('push', (event) => {
 // Notification click event - handle user interaction
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification clicked:', event.notification);
-  
+
   event.notification.close();
-  
+
   const notificationData = event.notification.data || {};
   const urlToOpen = notificationData.url || '/dashboard';
-  
+
   // Handle action button clicks
   if (event.action) {
     console.log('[SW] Action clicked:', event.action);
-    
+
     switch (event.action) {
       case 'view':
         // Open the notification URL
@@ -161,7 +156,7 @@ self.addEventListener('notificationclick', (event) => {
         break;
     }
   }
-  
+
   // Open or focus the app
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -172,7 +167,7 @@ self.addEventListener('notificationclick', (event) => {
           return client.focus();
         }
       }
-      
+
       // No matching client found, open a new window
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
@@ -184,10 +179,10 @@ self.addEventListener('notificationclick', (event) => {
 // Notification close event - track dismissals
 self.addEventListener('notificationclose', (event) => {
   console.log('[SW] Notification dismissed:', event.notification);
-  
+
   // Optional: Send analytics or feedback to server
   const notificationData = event.notification.data || {};
-  
+
   if (notificationData.trackDismissal) {
     // You can track notification dismissals here
     console.log('[SW] Tracking notification dismissal');
@@ -197,7 +192,7 @@ self.addEventListener('notificationclose', (event) => {
 // Sync event - for background sync (future enhancement)
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync triggered:', event.tag);
-  
+
   if (event.tag === 'sync-notifications') {
     event.waitUntil(
       // Sync logic here
@@ -209,11 +204,11 @@ self.addEventListener('sync', (event) => {
 // Message event - handle messages from main app
 self.addEventListener('message', (event) => {
   console.log('[SW] Message received:', event.data);
-  
+
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  
+
   if (event.data && event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({ version: SW_VERSION });
   }
@@ -233,8 +228,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   const isNavigation =
-    event.request.mode === 'navigate' ||
-    event.request.destination === 'document';
+    event.request.mode === 'navigate' || event.request.destination === 'document';
 
   if (isNavigation) {
     // Network-first: always try the network so the latest index.html (with
@@ -260,21 +254,23 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
 
-      return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
+      return fetch(event.request)
+        .then((response) => {
+          if (!response || response.status !== 200 || response.type !== 'basic') {
+            return response;
+          }
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
           return response;
-        }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
+        })
+        .catch((error) => {
+          console.error('[SW] Fetch failed:', error);
+          return caches.match('/offline.html').then((offlineResponse) => {
+            return offlineResponse || new Response('Offline', { status: 503 });
+          });
         });
-        return response;
-      }).catch((error) => {
-        console.error('[SW] Fetch failed:', error);
-        return caches.match('/offline.html').then((offlineResponse) => {
-          return offlineResponse || new Response('Offline', { status: 503 });
-        });
-      });
     })
   );
 });
