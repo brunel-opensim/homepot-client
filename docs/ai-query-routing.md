@@ -224,6 +224,14 @@ technician that a proposal exists when nothing was persisted -- for example,
 when Gate B fails on stale telemetry. See
 [ai-delegation-plan.md](ai-delegation-plan.md) for the proposal lifecycle.
 
+A second, broader guard covers any answer that claims an action was already
+issued, sent, or executed ("Command Issued", "Status: SENT"). A chat turn can
+only record a proposal -- it never sends a command -- so the endpoint prepends
+a "No command was issued" correction. This holds even when the request ran
+without the agent loop (for example a non-agentic API client). The dashboard's
+Ask AI always opts into the agent loop (`agentic: true`) so natural-language
+action requests become tracked proposals.
+
 ## 7.1 Knowledge mode and the analysis-mode guard
 
 None of the diagnostic/cautionary behaviour should leak into `knowledge`. The

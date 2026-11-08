@@ -64,7 +64,7 @@ graph LR
 
 ### Key Design Principles
 
-- **Non-breaking**: The existing single-turn pipeline remains the default. Agentic mode is opt-in via `agentic: true` in the API request.
+- **Non-breaking**: The existing single-turn pipeline remains the default. Agentic mode is opt-in via `agentic: true` in the API request. The dashboard's **Ask AI** panel sets this flag on every query so natural-language action requests become tracked proposals; purely informational questions still answer directly, and `knowledge`-routed questions use the documentation path regardless of the flag.
 - **Graceful degradation**: If the agent loop fails to produce an answer (LLM error, or budget exhausted with no output), it returns with `fell_back_to_direct=True` and the endpoint answers directly with the already-assembled context. It does **not** invent an answer.
 - **Concurrency-shared**: Every LLM call in the loop goes through the same `AIConcurrencyGate` as a direct query, so agentic mode cannot starve the inference slot and returns the same HTTP 503 when saturated. See [AI Concurrency & Load](ai-concurrency.md).
 - **Caller-scoped recall**: The caller's `MemoryScope` is bound for the run, so memory-reading tools (e.g. `search_similar_incidents`) recall only what the user may see.

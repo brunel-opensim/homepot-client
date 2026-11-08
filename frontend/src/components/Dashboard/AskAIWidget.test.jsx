@@ -96,7 +96,9 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       expect.any(String),
       [],
       null,
-      null
+      null,
+      // Ask AI opts into the agent loop so action requests become proposals.
+      true
     );
   });
 
@@ -118,7 +120,9 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       expect.any(String),
       [],
       null,
-      null
+      null,
+      // Ask AI opts into the agent loop so action requests become proposals.
+      true
     );
     expect(localStorage.getItem('homepot_ai_mode')).toBe('knowledge');
   });
@@ -141,7 +145,9 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       expect.any(String),
       [],
       null,
-      null
+      null,
+      // Ask AI opts into the agent loop so action requests become proposals.
+      true
     );
   });
 
@@ -485,6 +491,8 @@ describe('AskAIWidget conversation history forwarding', () => {
 
     const calls = api.ai.query.mock.calls;
     expect(calls.length).toBe(2);
+    // Every dashboard query opts into the agent loop.
+    expect(calls[0][9]).toBe(true);
     const secondCallHistory = calls[1][6];
     expect(secondCallHistory).toEqual([
       { role: 'user', content: 'first question' },

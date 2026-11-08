@@ -794,6 +794,8 @@ const api = {
      *   discards the answer instead of remembering it (docs/ai-concurrency.md).
      * @param {string} [queryId] - Client-generated id for this query, sent back
      *   to `api.ai.cancel` if the technician presses Stop/Esc.
+     * @param {boolean} [agentic] - Enable the tool-calling agent loop so action
+     *   requests become tracked proposals (required for AI Proposals).
      */
     query: async (
       query,
@@ -804,7 +806,8 @@ const api = {
       queryId = null,
       history = null,
       sessionId = null,
-      runId = null
+      runId = null,
+      agentic = false
     ) => {
       const payload = { query };
       if (deviceId) {
@@ -827,6 +830,9 @@ const api = {
       }
       if (runId) {
         payload.run_id = runId;
+      }
+      if (agentic) {
+        payload.agentic = true;
       }
       // AI inference (local LLM, CPU) can take well over a minute, and cold
       // model loads longer still -- use the AI-specific timeout.
