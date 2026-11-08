@@ -47,7 +47,7 @@ llm:
       api_key_env: "OPENAI_API_KEY"
       base_url: "https://api.openai.com/v1"
       context_budget: 5500   # chars of enriched context (default 2000)
-      num_predict: 512       # output token cap (default 120)
+      num_predict: 1024      # output token cap (default 120); raised from 512 to avoid mid-sentence truncation on verbose diagnostics
       max_concurrent: 4      # concurrency (default 1)
       memory_n_results: 3    # recalled memories (default 3); deeper recall is a tool call
     anthropic:
@@ -55,7 +55,7 @@ llm:
       api_key_env: "ANTHROPIC_API_KEY"
       base_url: "https://api.anthropic.com"
       context_budget: 5500
-      num_predict: 512
+      num_predict: 1024      # raised from 512 to avoid mid-sentence truncation on verbose diagnostics
       max_concurrent: 4
       memory_n_results: 3
   base_url: "http://localhost:11434"
