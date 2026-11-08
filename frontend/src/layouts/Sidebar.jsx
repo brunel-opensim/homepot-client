@@ -52,7 +52,7 @@ export default function Sidebar() {
       try {
         const data = await api.ai.getPlanSummary(30, null);
         if (!cancelled) {
-          setPendingProposals(data?.by_status?.pending_approval || 0);
+          setPendingProposals(data?.needs_approval ?? data?.by_status?.pending_approval ?? 0);
         }
       } catch {
         // ignore — badge is best-effort
