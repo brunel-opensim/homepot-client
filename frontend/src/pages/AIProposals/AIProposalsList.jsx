@@ -47,6 +47,7 @@ export default function AIProposalsList() {
   const [executeTarget, setExecuteTarget] = useState(null);
   const [executeAndWaitTarget, setExecuteAndWaitTarget] = useState(null);
   const [stepApproveTarget, setStepApproveTarget] = useState(null);
+  const [executingPlanId, setExecutingPlanId] = useState(null);
 
   const fetchPlans = useCallback(async () => {
     if (fetchingRef.current) return; // prevent overlapping requests
@@ -180,28 +181,58 @@ export default function AIProposalsList() {
   const confirmExecute = async () => {
     if (!executeTarget) return;
     const planId = executeTarget;
-    setToast(null);
     try {
       setBusyPlan(planId);
       const result = await api.aiProposals.execute(planId);
       if (result.status === 'blocked') {
         const reasons = (result.policy?.reasons || []).join(' ');
         setToast({ type: 'error', message: `Execution blocked by policy. ${reasons}`.trim() });
+        setExecuteTarget(null);
       } else {
-        setToast({
-          type: 'success',
-          message: 'Execution started; devices will report back shortly.',
-        });
+        setToast({ type: 'success', message: 'Execution started; tracking progress...' });
+        setExecuteTarget(null);
+        setExecutingPlanId(planId);
       }
-      setExecuteTarget(null);
       fetchPlans(true);
     } catch (err) {
       console.error('Failed to execute plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
+      setExecuteTarget(null);
     } finally {
       setBusyPlan(null);
     }
   };
+
+  // Poll executing plan until terminal
+  useEffect(() => {
+    if (!executingPlanId) return;
+    const terminal = new Set([
+      'succeeded',
+      'failed',
+      'rolled_back',
+      'blocked',
+      'cancelled',
+      'rejected',
+    ]);
+    const interval = setInterval(async () => {
+      try {
+        const data = await api.aiProposals.get(executingPlanId);
+        setPlans((prev) => prev.map((p) => (p.plan_id === executingPlanId ? data : p)));
+        if (terminal.has(data.status)) {
+          clearInterval(interval);
+          setExecutingPlanId(null);
+          setToast({
+            type: data.status === 'succeeded' ? 'success' : 'error',
+            message: `Delegated task ${data.status}.`,
+          });
+          fetchPlans(true);
+        }
+      } catch (err) {
+        console.error('Polling failed:', err);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [executingPlanId, fetchPlans]);
 
   const handleExecuteAndWait = (planId) => {
     setExecuteAndWaitTarget(planId);
@@ -364,6 +395,7 @@ export default function AIProposalsList() {
                   key={plan.plan_id}
                   plan={plan}
                   busy={busyPlan === plan.plan_id}
+                  isExecuting={executingPlanId === plan.plan_id}
                   onApprove={() => handleDecide(plan.plan_id, 'approve')}
                   onReject={() => handleDecide(plan.plan_id, 'reject')}
                   onExecute={() => handleExecute(plan.plan_id)}
@@ -385,7 +417,16 @@ function pendingApprovalCount(plans) {
   return plans.filter((plan) => plan.status === 'pending_approval').length;
 }
 
-function PlanCard({ plan, busy, onApprove, onReject, onExecute, onExecuteAndWait, onApproveStep }) {
+function PlanCard({
+  plan,
+  busy,
+  isExecuting,
+  onApprove,
+  onReject,
+  onExecute,
+  onExecuteAndWait,
+  onApproveStep,
+}) {
   const [dryRunResult, setDryRunResult] = useState(null);
   const [dryRunning, setDryRunning] = useState(false);
   const reviewable = plan.status === 'pending_approval';
@@ -450,6 +491,36 @@ function PlanCard({ plan, busy, onApprove, onReject, onExecute, onExecuteAndWait
               </div>
             ))}
           </div>
+
+          {isExecuting && (
+            <div className="mt-2">
+              <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+                <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
+                <span>Executing... {plan.status}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-gray-800 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    plan.status === 'succeeded'
+                      ? 'bg-green-500'
+                      : plan.status === 'failed' || plan.status === 'rolled_back'
+                        ? 'bg-red-500'
+                        : 'bg-blue-500 animate-pulse'
+                  }`}
+                  style={{
+                    width:
+                      plan.status === 'succeeded' ||
+                      plan.status === 'failed' ||
+                      plan.status === 'rolled_back'
+                        ? '100%'
+                        : plan.steps && plan.steps.length > 0
+                          ? `${Math.round((plan.steps.filter((st) => st.status === 'done').length / plan.steps.length) * 100)}%`
+                          : '10%',
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
           {dryRunResult && (
             <div className="mt-2 rounded-md border border-border bg-[#0b0e13] p-3 text-xs space-y-1">
