@@ -876,6 +876,20 @@ _LEADING_ANSWER_TAG_RE = re.compile(r"^(?:\s*\[ANSWER\]\s*:?\s*)+", re.IGNORECAS
 # A trailing "Source:"/"Sources:" attribution line. Sources are returned
 # separately in the response's ``sources`` field, so these are redundant.
 _SOURCE_LINE_RE = re.compile(r"^\s*Sources?:", re.IGNORECASE)
+# Emoji and emoji-adjacent symbols. The system prompt asks the model not to use
+# them, but that is a soft hint; strip them deterministically so the answer text
+# never reaches the UI with a status glyph (✅ ⚠️ 🔴 …). Arrows (→) and common
+# punctuation (· — –) are intentionally left intact.
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001f000-\U0001faff"  # emoji pictographs / supplementary symbols
+    "\u2600-\u27bf"  # misc symbols + dingbats (✅ ⚠ ★ …)
+    "\u2b00-\u2bff"  # misc symbols (⭐ ⬛ …)
+    "\ufe0f"  # variation selector-16
+    "\u200d"  # zero-width joiner (emoji ZWJ sequences)
+    "\u20e3"  # combining enclosing keycap
+    "]+"
+)
 
 # A chat query can never issue a device command: at most it records a proposal
 # for approval. The model nevertheless sometimes narrates an action as already
@@ -950,7 +964,7 @@ def _annotate_action_claims(text: str, *, proposal_created: bool) -> str:
 
 
 def _strip_answer_markup(text: str) -> str:
-    """Remove internal format artifacts a small model sometimes emits.
+    """Remove internal format artifacts and emoji the model sometimes emits.
 
     The AI context is built from bracketed blocks ([RELEVANT DOCUMENTATION],
     [RELEVANT MEMORIES], ...), and the model occasionally mimics that style by
@@ -958,11 +972,14 @@ def _strip_answer_markup(text: str) -> str:
     ``Source: [RELEVANT DOCUMENTATION]`` line. Neither belongs in the
     user-facing answer -- the cited files are returned separately in the
     response's ``sources`` field. The system prompt also asks for plain text,
-    but the model is stochastic, so strip defensively as well.
+    but the model is stochastic, so strip defensively as well. Emoji are also
+    removed here so the prompt-level "no emoji" instruction is enforced
+    deterministically.
     """
     if not text:
         return text
     cleaned = _LEADING_ANSWER_TAG_RE.sub("", text, count=1)
+    cleaned = _EMOJI_RE.sub("", cleaned)
     lines = cleaned.split("\n")
     # Drop trailing blank lines and redundant source-attribution lines, stopping
     # at the first line of real content.

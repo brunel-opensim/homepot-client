@@ -64,6 +64,14 @@ def test_strips_tag_and_source_together():
     assert _strip_answer_markup(text) == "Use the Register New Device flow."
 
 
+def test_strips_emoji_but_keeps_arrows_and_punctuation():
+    """Emoji/status glyphs are removed; arrows and common punctuation survive."""
+    text = "Health ✅ | Latency ⚠️ | Risk 🔴 high → escalate"
+    assert _strip_answer_markup(text) == "Health  | Latency  | Risk  high → escalate"
+    # Keycap (# + combining keycap) is stripped too.
+    assert _strip_answer_markup("Status ⚠️ pending") == "Status  pending"
+
+
 def test_detects_issued_sent_and_status_claims():
     """Past-tense verbs and status lines that imply a command already ran."""
     claims = [
