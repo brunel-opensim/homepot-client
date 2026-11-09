@@ -70,13 +70,16 @@ _AI_COMMAND_TITLES = {
 }
 
 
-def command_payload(step: Any) -> Optional[Dict[str, Any]]:
+def command_payload(
+    step: Any, device: Optional[Device] = None
+) -> Optional[Dict[str, Any]]:
     """Map a plan step to the device-command payload, or ``None``.
 
     Payloads mirror the compose-command envelope (``title`` + ``data``) so
     AI-created commands display the same friendly title in push history and
     can be reused by technicians. ``update_config``/``rollback_config`` nest
-    their config under ``data``; ``restart_service`` wraps the service name.
+    their config under ``data``; ``restart_service`` wraps the service name and
+    picks an OS-appropriate command (PowerShell on Windows, systemctl elsewhere).
     """
     title = _AI_COMMAND_TITLES.get(step.action, step.action.replace("_", " ").title())
     if step.action in ("update_config", "rollback_config"):
@@ -84,10 +87,12 @@ def command_payload(step: Any) -> Optional[Dict[str, Any]]:
     if step.action == "restart_service":
         params = step.params or {}
         service_name = params.get("service_name", "")
-        return {
-            "title": title,
-            "data": {"command": f"systemctl restart {service_name}"},
-        }
+        os_name = (getattr(device, "os_details", None) or "").lower() if device else ""
+        if "windows" in os_name:
+            command = f"Restart-Service -Name {service_name}"
+        else:
+            command = f"systemctl restart {service_name}"
+        return {"title": title, "data": {"command": command}}
     params = step.params or {}
     if params:
         return {"title": title, "data": dict(params)}
@@ -171,7 +176,7 @@ async def _dispatch_step(
     command = await db_service.create_device_command(
         device_id=device.id,
         command_type=spec.command_type,
-        payload=command_payload(step),
+        payload=command_payload(step, device),
         issued_by=f"ai:{actor}",
         idempotency_key=getattr(step, "idempotency_key", None),
     )

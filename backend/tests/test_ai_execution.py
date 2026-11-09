@@ -24,7 +24,7 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from ai.actions import ActionProposal  # noqa: E402
-from homepot.app.ai_ops.executor import start_execution  # noqa: E402
+from homepot.app.ai_ops.executor import command_payload, start_execution  # noqa: E402
 from homepot.app.ai_ops.policy import evaluate_plan  # noqa: E402
 from homepot.app.ai_ops.retry import (  # noqa: E402
     BACKOFF_BASE_SECONDS,
@@ -307,6 +307,23 @@ def test_start_execution_blocked_leaves_nothing_queued():
         assert plan.steps[0].status == "pending"
     finally:
         db.close()
+
+
+def test_restart_service_command_is_os_aware():
+    """restart_service maps to PowerShell on Windows, systemctl elsewhere."""
+    step = type(
+        "Step", (), {"action": "restart_service", "params": {"service_name": "spooler"}}
+    )()
+    win = type("Dev", (), {"os_details": "Windows 11"})()
+    linux = type("Dev", (), {"os_details": "linux"})()
+    assert (
+        command_payload(step, win)["data"]["command"] == "Restart-Service -Name spooler"
+    )
+    assert (
+        command_payload(step, linux)["data"]["command"] == "systemctl restart spooler"
+    )
+    # No device info → fall back to the Linux template.
+    assert command_payload(step)["data"]["command"] == "systemctl restart spooler"
 
 
 # --------------------------------------------------------------------------
