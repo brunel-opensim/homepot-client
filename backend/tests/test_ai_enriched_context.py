@@ -308,7 +308,7 @@ async def test_query_ai_includes_documentation_in_system_prompt():
 
 
 def test_command_payload_reference_contains_all_types():
-    """get_command_payload_reference should list all 12 command types."""
+    """get_command_payload_reference should list the core command types."""
     knowledge = SystemKnowledge(workspace_root)
     ref = knowledge.get_command_payload_reference()
 
@@ -318,6 +318,7 @@ def test_command_payload_reference_contains_all_types():
         "health_check",
         "update_config",
         "restart",
+        "restart_service",
         "shutdown",
         "run_command",
         "run_script",

@@ -388,6 +388,10 @@ COMMAND TYPES AND PAYLOADS:
    {"command_type": "shutdown"}
    Permission: root_access
 
+5b. restart_service — Restart a named OS service (Windows service or systemd unit).
+   {"command_type": "restart_service", "payload": {"data": {"service_name": "Spooler"}}}
+   Permission: root_access
+
 6. run_command — Execute a shell command on the device.
    {"command_type": "run_command", "payload":
    {"data": {"command": "ls -la /tmp", "timeout_seconds": 30}}}

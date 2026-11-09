@@ -30,6 +30,7 @@ COMMAND_TYPES = frozenset(
         "health_check",
         "request_permission",
         "restart",
+        "restart_service",
         "run_command",
         "run_script",
         "shutdown",
@@ -56,6 +57,7 @@ COMMAND_TYPES = frozenset(
 REQUIRED_PERMISSION: Dict[str, str] = {
     "health_check": "command_execution",
     "restart": "root_access",
+    "restart_service": "root_access",
     "run_command": "root_access",
     "run_script": "root_access",
     "shutdown": "root_access",
@@ -1818,6 +1820,24 @@ def _stop_program(data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _restart_service(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Restart a named OS service, using the OS-appropriate command.
+
+    Windows restarts via PowerShell (``Restart-Service``); POSIX via
+    ``systemctl``. Execution reuses the elevated command path so a service
+    restart carries the same elevation and permission gating as ``run_command``.
+    """
+    service_name = data.get("service_name")
+    if not isinstance(service_name, str) or not service_name.strip():
+        return {"status": "failed", "result": {"error": "'service_name' is required"}}
+    service_name = service_name.strip()
+    if _is_windows_platform():
+        command = f"Restart-Service -Name '{service_name}'"
+    else:
+        command = f"systemctl restart '{service_name}'"
+    return _execute_local({"payload": {"data": {"command": command}}}, script=False)
+
+
 def _process_command_impl(
     command: Dict[str, Any],
     permissions: Optional[Dict[str, bool]] = None,
@@ -1885,6 +1905,9 @@ def _process_command_impl(
 
     if command_type == "shutdown":
         return _system_control("shutdown")
+
+    if command_type == "restart_service":
+        return _restart_service(_command_data(command))
 
     if command_type == "update_config":
         return _apply_config(_command_data(command))
@@ -1966,7 +1989,10 @@ def _describe_executed_command(command_type: str, command: Dict[str, Any]) -> st
     if command_type in ("run_command", "run_script"):
         return str(data.get("command") or data.get("script") or command_type)
     if command_type == "restart_service":
-        return "systemctl restart %s" % data.get("service_name", "")
+        name = data.get("service_name", "")
+        if _is_windows_platform():
+            return "Restart-Service -Name %s" % name
+        return "systemctl restart %s" % name
     if command_type == "update_config":
         keys = list((data or {}).keys())
         return "update_config: " + ", ".join(keys) if keys else "update_config"

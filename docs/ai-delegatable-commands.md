@@ -32,7 +32,7 @@ and for the automated soak script (Option B). Reboot (`restart`) and shutdown
 
 | # | Action | Command type | Params | Description |
 |---|--------|-------------|--------|-------------|
-| 14 | `restart_service` | `run_command` | `service_name` | Restart a named OS service |
+| 14 | `restart_service` | `restart_service` | `service_name` | Restart a named OS service (Windows: PowerShell `Restart-Service`; POSIX: `systemctl`) |
 | 15 | `upgrade_all_programs` | `upgrade_all_programs` | `timeout_seconds` | Upgrade all programs via winget |
 | 16 | `run_command` | `run_command` | `command`, `timeout_seconds` | Run elevated command |
 | 17 | `run_script` | `run_script` | `script`, `timeout_seconds` | Run elevated script |

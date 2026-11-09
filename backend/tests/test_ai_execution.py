@@ -309,21 +309,14 @@ def test_start_execution_blocked_leaves_nothing_queued():
         db.close()
 
 
-def test_restart_service_command_is_os_aware():
-    """restart_service maps to PowerShell on Windows, systemctl elsewhere."""
+def test_restart_service_payload_passes_service_name():
+    """restart_service passes service_name through; the agent picks the OS command."""
     step = type(
         "Step", (), {"action": "restart_service", "params": {"service_name": "spooler"}}
     )()
-    win = type("Dev", (), {"os_details": "Windows 11"})()
-    linux = type("Dev", (), {"os_details": "linux"})()
-    assert (
-        command_payload(step, win)["data"]["command"] == "Restart-Service -Name spooler"
-    )
-    assert (
-        command_payload(step, linux)["data"]["command"] == "systemctl restart spooler"
-    )
-    # No device info → fall back to the Linux template.
-    assert command_payload(step)["data"]["command"] == "systemctl restart spooler"
+    payload = command_payload(step)
+    assert payload["title"] == "Restart Service"
+    assert payload["data"] == {"service_name": "spooler"}
 
 
 # --------------------------------------------------------------------------
