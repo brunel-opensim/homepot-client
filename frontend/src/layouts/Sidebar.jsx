@@ -82,8 +82,8 @@ export default function Sidebar() {
   return (
     <div className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0">
       <div className="p-6 border-b border-slate-800">
-        <h1 className="text-xl font-bold text-indigo-400">HOMEPOT</h1>
-        <p className="text-xs text-slate-400 mt-1">Client Portal</p>
+        <h1 className="text-xl font-bold text-indigo-400">HOMEPOT Dashboard</h1>
+        <p className="text-xs text-slate-400 mt-1">v{import.meta.env.VITE_APP_VERSION || 'dev'}</p>
       </div>
 
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
