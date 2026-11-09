@@ -1140,6 +1140,16 @@ function startAgentProcess(): boolean {
   })
   child.on('exit', (code) => {
     safeLog(`[agent] exited with code ${code}`)
+    // A `restart_agent` command exits with a reserved code so we can respawn
+    // cleanly without counting it against the crash-loop budget. Keep in sync
+    // with RESTART_AGENT_EXIT_CODE in command_poller.py.
+    if (code === 42) {
+      recordAppEvent('info', 'agent', 'Device agent restarted on request')
+      if (agentProcess === child) agentProcess = null
+      agentSupervisor.resetCrashLoop()
+      startAgentProcess()
+      return
+    }
     recordAppEvent(code === 0 ? 'info' : 'error', 'agent', `Device agent exited with code ${code ?? 'unknown'}`)
     // A stale child (superseded by a newer agent) must not drive a restart.
     if (agentProcess !== child) return

@@ -30,6 +30,7 @@ COMMAND_TYPES = frozenset(
         "health_check",
         "request_permission",
         "restart",
+        "restart_agent",
         "restart_service",
         "run_command",
         "run_script",
@@ -57,6 +58,7 @@ COMMAND_TYPES = frozenset(
 REQUIRED_PERMISSION: Dict[str, str] = {
     "health_check": "command_execution",
     "restart": "root_access",
+    "restart_agent": "root_access",
     "restart_service": "root_access",
     "run_command": "root_access",
     "run_script": "root_access",
@@ -77,6 +79,12 @@ REQUIRED_PERMISSION: Dict[str, str] = {
 
 MAX_COMMAND_OUTPUT = 64 * 1024
 MAX_COMMAND_TIMEOUT = 300
+
+# The agent exits with this reserved code after a ``restart_agent`` command has
+# been acknowledged so the Electron supervisor (user_app/electron/main.ts) can
+# distinguish a requested restart from a crash and respawn without counting it
+# against the crash-loop budget. Keep in sync with the supervisor's check.
+RESTART_AGENT_EXIT_CODE = 42
 
 
 def _command_data(command: Dict[str, Any]) -> Dict[str, Any]:
@@ -1838,6 +1846,17 @@ def _restart_service(data: Dict[str, Any]) -> Dict[str, Any]:
     return _execute_local({"payload": {"data": {"command": command}}}, script=False)
 
 
+def _restart_agent(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Acknowledge a restart of the agent process itself.
+
+    Returns success immediately so the command is reported as completed; the
+    actual process exit (with :data:`RESTART_AGENT_EXIT_CODE`) is triggered by
+    the agent's command-polling loop after it has posted this result, so the
+    technician sees a clean success rather than a timeout.
+    """
+    return {"status": "completed", "result": {"message": "restart initiated"}}
+
+
 def _process_command_impl(
     command: Dict[str, Any],
     permissions: Optional[Dict[str, bool]] = None,
@@ -1905,6 +1924,9 @@ def _process_command_impl(
 
     if command_type == "shutdown":
         return _system_control("shutdown")
+
+    if command_type == "restart_agent":
+        return _restart_agent(_command_data(command))
 
     if command_type == "restart_service":
         return _restart_service(_command_data(command))

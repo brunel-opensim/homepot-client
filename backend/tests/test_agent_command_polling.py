@@ -148,6 +148,21 @@ def test_restart_service_builds_os_command(monkeypatch):
     assert calls == []
 
 
+def test_restart_agent_returns_completed():
+    """restart_agent acknowledges success; the exit is driven by the poll loop."""
+    from homepot.agent.utils.command_poller import _restart_agent
+
+    result = _restart_agent({})
+    assert result["status"] == "completed"
+    assert result["result"]["message"] == "restart initiated"
+
+
+def test_restart_agent_in_command_types_and_permission():
+    """restart_agent is registered and gated on root_access."""
+    assert "restart_agent" in COMMAND_TYPES
+    assert required_permissions_for_command("restart_agent") == ["root_access"]
+
+
 class TestProcessCommand:
     """Tests for ``process_command``."""
 

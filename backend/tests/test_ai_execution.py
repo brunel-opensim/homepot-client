@@ -319,6 +319,14 @@ def test_restart_service_payload_passes_service_name():
     assert payload["data"] == {"service_name": "spooler"}
 
 
+def test_restart_agent_payload_is_empty():
+    """restart_agent takes no params and carries the 'Restart Agent' title."""
+    step = type("Step", (), {"action": "restart_agent", "params": {}})()
+    payload = command_payload(step)
+    assert payload["title"] == "Restart Agent"
+    assert payload["data"] == {}
+
+
 # --------------------------------------------------------------------------
 # Verifier / rollback
 # --------------------------------------------------------------------------
