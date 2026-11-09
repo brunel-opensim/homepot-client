@@ -55,6 +55,7 @@ _AI_COMMAND_TITLES = {
     "list_connections": "List Network Connections",
     "update_config": "Apply Configuration",
     "restart": "Reboot System",
+    "restart_agent": "Restart Agent",
     "rollback_config": "Apply Configuration",
     "start_program": "Start Program",
     "stop_program": "Stop Program",

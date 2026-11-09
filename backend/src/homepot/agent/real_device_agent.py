@@ -24,6 +24,7 @@ from homepot.agent.credential_storage import (
 )
 from homepot.agent.utils.alerts import AlertEvaluator
 from homepot.agent.utils.command_poller import (
+    RESTART_AGENT_EXIT_CODE,
     build_status_report,
     build_status_update_payload,
     fetch_device_permissions,
@@ -68,6 +69,24 @@ _AGENT_START_TIME = time.monotonic()
 
 # Track last successful activity per background task (for watchdog)
 _TASK_LAST_ACTIVITY: Dict[str, float] = {}
+
+# Set when a `restart_agent` command has been acknowledged so the graceful
+# shutdown ends with RESTART_AGENT_EXIT_CODE (the Electron supervisor respawns).
+_restart_requested = False
+
+
+def _request_agent_restart() -> None:
+    """Flag that the running agent process should exit with the restart code."""
+    global _restart_requested
+    _restart_requested = True
+
+
+def _consume_restart_request() -> bool:
+    """Return and clear the restart flag."""
+    global _restart_requested
+    requested = _restart_requested
+    _restart_requested = False
+    return requested
 
 
 def _record_task_activity(task_name: str) -> None:
@@ -503,6 +522,7 @@ async def pending_commands_loop(
     retry_queue: RetryQueue,
     ipc_server: Server | None,
     wake_event: asyncio.Event,
+    shutdown_event: asyncio.Event,
 ) -> None:
     """Poll for pending commands, ACK them, and route to IPC or process locally.
 
@@ -687,6 +707,16 @@ async def pending_commands_loop(
                         await _report_status_to_live_logs(
                             client, config, result["result"]
                         )
+                    if command.get("command_type") == "restart_agent":
+                        # The result has been posted (or queued for retry); now
+                        # trigger a graceful shutdown that ends with the reserved
+                        # exit code so the Electron supervisor respawns the agent.
+                        logger.info(
+                            "restart_agent: acknowledged; requesting agent restart"
+                        )
+                        _request_agent_restart()
+                        shutdown_event.set()
+                        return
         except DeviceSuspendedError as e:
             logger.info("Pending commands paused: device suspended (%s)", e)
         except DeviceRemovedError as e:
@@ -1632,6 +1662,7 @@ async def run_agent(
                     retry_queue,
                     ipc_server,
                     push_listener.wake_event,
+                    shutdown_event,
                 )
             ),
             asyncio.ensure_future(
@@ -1681,6 +1712,12 @@ async def run_agent(
     await push_listener.stop()
     if ipc_server is not None:
         ipc_server.should_exit = True
+
+    # A `restart_agent` command exits with a reserved code so the Electron
+    # supervisor respawns the agent without counting it as a crash.
+    if _consume_restart_request():
+        logger.info("Exiting with agent-restart code %d", RESTART_AGENT_EXIT_CODE)
+        sys.exit(RESTART_AGENT_EXIT_CODE)
 
 
 if __name__ == "__main__":

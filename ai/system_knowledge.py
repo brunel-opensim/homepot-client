@@ -380,12 +380,16 @@ COMMAND TYPES AND PAYLOADS:
    {"data": {"config_url": "https://...", "config_version": "v2.1.0", "brightness": 75, "volume": 50}}}
    Permission: root_access
 
-4. restart — Restart the device agent. No payload needed.
+4. restart — Reboot the device. No payload needed.
    {"command_type": "restart"}
    Permission: root_access
 
-5. shutdown — Shut down the device agent. No payload needed.
+5. shutdown — Shut down the device. No payload needed.
    {"command_type": "shutdown"}
+   Permission: root_access
+
+5a. restart_agent — Restart the agent process itself (the supervisor respawns it).
+   {"command_type": "restart_agent"}
    Permission: root_access
 
 5b. restart_service — Restart a named OS service (Windows service or systemd unit).

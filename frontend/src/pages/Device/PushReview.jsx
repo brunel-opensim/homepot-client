@@ -63,6 +63,14 @@ const COMMAND_TEMPLATES = {
     defaultData: {},
     description: 'Reboot the system the User App runs on. The reboot begins immediately.',
   },
+  RESTART_AGENT: {
+    label: 'Restart Agent',
+    action: 'restart_agent',
+    permission: 'root_access',
+    defaultData: {},
+    description:
+      'Restart the agent process itself. The User App supervisor respawns it, briefly interrupting heartbeat and telemetry. Use for an online-but-misbehaving agent.',
+  },
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
     action: 'update_config',

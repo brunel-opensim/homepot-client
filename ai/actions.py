@@ -120,6 +120,21 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         required_params=("config",),
     ),
     # --- T3: Disruptive ---
+    "restart_agent": ActionSpec(
+        name="restart_agent",
+        command_type="restart_agent",
+        risk_tier="T3",
+        reversible=False,
+        required_permission="root_access",
+        min_role="operator",
+        description=(
+            "Restart the on-device agent process. The agent exits and its "
+            "supervisor respawns it, briefly interrupting heartbeat/telemetry. "
+            "Useful for recovering an online-but-misbehaving agent. Requires "
+            "root_access."
+        ),
+        required_params=(),
+    ),
     "restart_service": ActionSpec(
         name="restart_service",
         command_type="restart_service",
