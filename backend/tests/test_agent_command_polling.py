@@ -116,6 +116,38 @@ def fake_elevation(tmp_path, monkeypatch):
     return {"root": root, "ctl": ctl, "dropin": dropin_dir / "homepot"}
 
 
+def test_restart_service_builds_os_command(monkeypatch):
+    """_restart_service builds PowerShell on Windows, systemctl on POSIX."""
+    from homepot.agent.utils.command_poller import _restart_service
+
+    calls = []
+
+    def fake_execute(command, script):
+        calls.append(command)
+        return {"status": "completed", "result": {}}
+
+    monkeypatch.setattr(
+        "homepot.agent.utils.command_poller._execute_local", fake_execute
+    )
+    monkeypatch.setattr(
+        "homepot.agent.utils.command_poller._is_windows_platform", lambda: True
+    )
+    _restart_service({"service_name": "Spooler"})
+    assert calls[-1]["payload"]["data"]["command"] == "Restart-Service -Name 'Spooler'"
+
+    monkeypatch.setattr(
+        "homepot.agent.utils.command_poller._is_windows_platform", lambda: False
+    )
+    _restart_service({"service_name": "spooler"})
+    assert calls[-1]["payload"]["data"]["command"] == "systemctl restart 'spooler'"
+
+    # Missing service_name fails cleanly without touching _execute_local.
+    calls.clear()
+    result = _restart_service({})
+    assert result["status"] == "failed"
+    assert calls == []
+
+
 class TestProcessCommand:
     """Tests for ``process_command``."""
 

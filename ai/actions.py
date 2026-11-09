@@ -122,14 +122,15 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
     # --- T3: Disruptive ---
     "restart_service": ActionSpec(
         name="restart_service",
-        command_type="run_command",
+        command_type="restart_service",
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
         min_role="operator",
         description=(
-            "Restart a named OS service on a device. Disruptive; may cause "
-            "brief service interruption. Requires root_access."
+            "Restart a named OS service on a device (Windows service or "
+            "systemd unit). Disruptive; may cause brief service interruption. "
+            "Requires root_access."
         ),
         required_params=("service_name",),
     ),
