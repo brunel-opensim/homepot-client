@@ -184,6 +184,18 @@ const COMMAND_TEMPLATES = {
     defaultData: {},
     description: 'Shut down the system the User App runs on. The shutdown begins immediately.',
   },
+  RESTART_SERVICE: {
+    label: 'Restart Service',
+    action: 'restart_service',
+    permission: 'root_access',
+    defaultData: { service_name: 'Spooler' },
+    defaultDataByOS: {
+      linux: { service_name: 'cron' },
+      macos: { service_name: 'com.apple.mDNSResponder' },
+    },
+    description:
+      'Restart a named OS service (Windows service, systemd unit, or launchd label) with root privileges.',
+  },
 };
 
 // Map a device's os_details string to a canonical OS family, mirroring the
