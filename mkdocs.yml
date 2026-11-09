@@ -214,6 +214,7 @@ nav:
       - Releases & Versioning: user-app-releases.md
       - Wireframes: user-app-wireframes.md
       - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
+      - Restart User App Command (Design): restart-user-app-command.md
       - Verify with Emulators: verify-user-app-with-emulators.md
       - Trust Model & OS Elevation: user-app-trust-and-elevation.md
       - Host OS Interaction: userapp-os-interaction.md
