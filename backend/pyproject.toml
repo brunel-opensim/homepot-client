@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "homepot-client"
-version = "0.1.0"
+dynamic = ["version"]
 authors = [
     {name = "HOMEPOT Consortium", email = "contact@homepot-consortium.org"},
 ]
@@ -125,6 +125,11 @@ include = ["homepot*"]
 
 [tool.setuptools.package-dir]
 "" = "."
+
+# The single source of truth for the client version is homepot.__version__;
+# setuptools reads it here so pyproject.toml can never drift from the code.
+[tool.setuptools.dynamic]
+version = {attr = "homepot.__version__"}
 
 # Black configuration
 [tool.black]

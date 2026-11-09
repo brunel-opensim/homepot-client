@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 
+from homepot import __version__
 from homepot.agents import get_agent_manager, stop_agent_manager
 from homepot.app.ai_ops.reconcile import run_ai_execution_reconcile_loop
 from homepot.app.api.API_v1.Api import api_v1_router
@@ -402,7 +403,7 @@ class CreateSiteRequest(BaseModel):
 app = FastAPI(
     title="HOMEPOT Client API",
     description="REST API for HOMEPOT device management and monitoring",
-    version="0.1.0",
+    version=__version__,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -541,7 +542,7 @@ async def root() -> Dict[str, str]:
     """Root endpoint providing basic information."""
     return {
         "message": "HOMEPOT Client API",
-        "version": "0.1.0",
+        "version": __version__,
         "docs": "/docs",
         "status": "operational",
     }

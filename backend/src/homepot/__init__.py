@@ -13,7 +13,7 @@ Copyright 2025 HOMEPOT Consortium
 Licensed under the Apache License, Version 2.0
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.31"
 __author__ = "HOMEPOT Consortium"
 __email__ = "contact@homepot-consortium.org"
 __license__ = "Apache-2.0"

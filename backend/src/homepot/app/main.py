@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from homepot import __version__
 from homepot.app.api.API_v1.Api import api_v1_router
 from homepot.app.middleware.analytics import AnalyticsMiddleware
 from homepot.app.utils.limiter import limiter
@@ -54,7 +55,7 @@ cors_origins = get_settings().cors.cors_origins
 app = FastAPI(
     title="HOMEPOT Client API",
     description="REST API for HOMEPOT device management and monitoring",
-    version="0.1.0",
+    version=__version__,
     docs_url="/docs",
     redoc_url="/redoc",
     # lifespan=lifespan,

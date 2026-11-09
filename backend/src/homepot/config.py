@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from homepot import __version__
+
 
 class DatabaseSettings(BaseSettings):
     """Database configuration settings."""
@@ -211,7 +213,7 @@ class Settings(BaseSettings):
 
     # Application info
     app_name: str = Field(default="HOMEPOT Client", description="Application name")
-    app_version: str = Field(default="0.1.0", description="Application version")
+    app_version: str = Field(default=__version__, description="Application version")
     debug: bool = Field(default=False, description="Enable debug mode")
     cors: CorsSettings = Field(default_factory=CorsSettings)
     environment: str = Field(
