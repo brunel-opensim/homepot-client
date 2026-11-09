@@ -123,6 +123,7 @@ def test_pending_commands_loop_wakes_on_push_event() -> None:
         "backend_url": "http://x",
     }
     wake_event = asyncio.Event()
+    shutdown_event = asyncio.Event()
     polls: List[str] = []
 
     async def fake_get_json(client: Any, url: str, headers: Any) -> None:
@@ -138,7 +139,9 @@ def test_pending_commands_loop_wakes_on_push_event() -> None:
             patch.object(rda, "parse_pending_commands", return_value=[]),
         ):
             task = asyncio.create_task(
-                rda.pending_commands_loop(None, config, None, None, wake_event)
+                rda.pending_commands_loop(
+                    None, config, None, None, wake_event, shutdown_event
+                )
             )
             # Let the first poll complete, then the loop waits on wake_event.
             await asyncio.sleep(0.15)

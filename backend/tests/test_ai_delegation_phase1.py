@@ -64,6 +64,7 @@ def test_registry_declares_expected_actions():
         "uninstall_program",
         "update_program",
         "run_command_unprivileged",
+        "restart_agent",
         "restart_service",
         "shutdown",
         "upgrade_all_programs",
@@ -95,6 +96,7 @@ def test_registry_declares_expected_actions():
         assert ACTION_REGISTRY[name].risk_tier == "T2"
         assert ACTION_REGISTRY[name].reversible is True
     # T3 disruptive action
+    assert ACTION_REGISTRY["restart_agent"].risk_tier == "T3"
     assert ACTION_REGISTRY["restart_service"].risk_tier == "T3"
 
 
