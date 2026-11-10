@@ -118,6 +118,12 @@ const ROLLBACK_APP_MARKER = '__HOMEPOT_ROLLBACK_APP__'
 // lifecycle handlers can restore the default channel once it settles.
 let rollingBack = false
 
+// Command id (if any) of the in-flight `update_app` / `rollback_app` command
+// triggered via the agent's stdout marker. When set, the lifecycle handlers
+// report the terminal outcome back to the backend so the command log reflects
+// success/failure instead of the initial "initiated" acknowledgement.
+let pendingUpdateCommandId: string | undefined
+
 // The app updates through electron-updater when packaged; when run from a git
 // checkout (the rollout model for managed machines) updates come from the repo
 // itself. 'none' means neither channel is usable, so the UI reports disabled.
@@ -143,6 +149,40 @@ function resetUpdaterChannel(): void {
   autoUpdater.channel = 'latest'
   autoUpdater.allowDowngrade = false
   autoUpdater.disableDifferentialDownload = false
+}
+
+// Report the terminal outcome of an `update_app` / `rollback_app` command back
+// to the backend so the command log reflects success/failure instead of the
+// initial "initiated" acknowledgement. Device credentials are used, so the
+// backend's device-authenticated status endpoint accepts it directly.
+async function reportCommandResult(
+  commandId: string | undefined,
+  status: 'completed' | 'failed',
+  result: Record<string, unknown>,
+): Promise<void> {
+  if (!commandId) return
+  const credentials = readCredentialsFile()
+  const deviceId = credentials.device_id
+  const apiKey = credentials.api_key
+  if (!deviceId || !apiKey) return
+  const backendUrl = resolveBackendUrl(credentials)
+  const url = `${backendUrl}/devices/${commandId}/status`
+  const body = JSON.stringify({ status, result })
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Device-ID': deviceId,
+    'X-API-Key': apiKey,
+  }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, { method: 'PUT', headers, body })
+      if (res.ok) return
+      recordAppEvent('warning', 'updater', `Command result report HTTP ${res.status} (attempt ${attempt + 1})`)
+    } catch (err) {
+      recordAppEvent('warning', 'updater', `Command result report failed (attempt ${attempt + 1}): ${String(err)}`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+  }
 }
 
 function sendUpdateStatus(): void {
@@ -200,8 +240,10 @@ function setupAutoUpdater(): void {
 
   autoUpdater.on('update-not-available', () => {
     const wasRollingBack = rollingBack
+    const cmdId = pendingUpdateCommandId
     installOnDownload = false
     if (rollingBack) resetUpdaterChannel()
+    pendingUpdateCommandId = undefined
     updateState = { kind: 'not-available' }
     sendUpdateStatus()
     recordAppEvent(
@@ -212,6 +254,17 @@ function setupAutoUpdater(): void {
         : 'Update not available',
     )
     if (tray) tray.setToolTip('HOMEPOT Agent')
+    if (cmdId) {
+      void reportCommandResult(
+        cmdId,
+        'completed',
+        {
+          message: wasRollingBack
+            ? 'no previous version available to roll back to'
+            : 'no update available',
+        },
+      )
+    }
   })
 
   autoUpdater.on('download-progress', (progress) => {
@@ -224,6 +277,8 @@ function setupAutoUpdater(): void {
     sendUpdateStatus()
     recordAppEvent('info', 'updater', `Update downloaded v${info.version}`)
     if (installOnDownload) {
+      const cmdId = pendingUpdateCommandId
+      pendingUpdateCommandId = undefined
       recordAppEvent(
         'info',
         'updater',
@@ -231,6 +286,22 @@ function setupAutoUpdater(): void {
           ? 'Restarting to install the previous version'
           : 'Restarting to install the update',
       )
+      if (cmdId) {
+        // Report the terminal outcome before restarting, so the command log
+        // reflects the download rather than the initial "initiated" ack.
+        void reportCommandResult(
+          cmdId,
+          'completed',
+          {
+            message: rollingBack
+              ? 'update downloaded; restarting to install previous version'
+              : 'update downloaded; restarting to install',
+          },
+        ).then(() => {
+          autoUpdater.quitAndInstall()
+        })
+        return
+      }
       autoUpdater.quitAndInstall()
       return
     }
@@ -245,12 +316,17 @@ function setupAutoUpdater(): void {
   })
 
   autoUpdater.on('error', (err) => {
+    const cmdId = pendingUpdateCommandId
     installOnDownload = false
     if (rollingBack) resetUpdaterChannel()
+    pendingUpdateCommandId = undefined
     const message = String(err instanceof Error ? err.message : err)
     updateState = recoverFromDownloadError(message)
     sendUpdateStatus()
     recordAppEvent('error', 'updater', `Update error: ${message}`)
+    if (cmdId) {
+      void reportCommandResult(cmdId, 'failed', { message })
+    }
   })
 }
 
@@ -803,23 +879,44 @@ function getOrCreateDeviceIdentity(): { deviceId: string; machineId: string } {
 // The background auto-check stays check-only; only the IPC handler and the
 // `update_app` command (via the agent's stdout marker) arm the auto-install
 // path through `installOnDownload`.
-async function runOneShotUpdate(): Promise<Record<string, unknown>> {
+async function runOneShotUpdate(commandId?: string): Promise<Record<string, unknown>> {
+  pendingUpdateCommandId = commandId
   // A normal update must never downgrade; drop any channel left from a rollback.
   if (rollingBack) resetUpdaterChannel()
   if (updateMode() === 'source') {
     const result = await applySourceUpdate()
-    if (result.status === 'downloaded') restartToApplySourceUpdate()
+    const cmdId = pendingUpdateCommandId
+    pendingUpdateCommandId = undefined
+    if (result.status === 'downloaded') {
+      if (cmdId) await reportCommandResult(cmdId, 'completed', { message: 'update downloaded; restarting to install' })
+      restartToApplySourceUpdate()
+      return result
+    }
+    if (cmdId) {
+      const status = result.status === 'error' ? 'failed' : 'completed'
+      await reportCommandResult(cmdId, status, { message: String(result.message ?? result.status) })
+    }
     return result
   }
-  if (!updaterConfigured()) return { status: 'disabled' }
+  if (!updaterConfigured()) {
+    const cmdId = pendingUpdateCommandId
+    pendingUpdateCommandId = undefined
+    if (cmdId) await reportCommandResult(cmdId, 'failed', { message: 'updates not available for this build' })
+    return { status: 'disabled' }
+  }
   setupAutoUpdater()
   installOnDownload = true
   try {
-    return await performUpdateCheck()
+    const result = await performUpdateCheck()
+    // Outcome is reported by the lifecycle handlers (no-update / downloaded / error).
+    return result
   } catch (err) {
+    const cmdId = pendingUpdateCommandId
+    pendingUpdateCommandId = undefined
     installOnDownload = false
     const message = String(err instanceof Error ? err.message : err)
     recordAppEvent('error', 'updater', `One-shot update failed: ${message}`)
+    if (cmdId) await reportCommandResult(cmdId, 'failed', { message })
     return { status: 'error', message }
   }
 }
@@ -831,13 +928,22 @@ async function runOneShotUpdate(): Promise<Record<string, unknown>> {
 // reliable path for an emergency rollback. The lifecycle handlers restore the
 // `latest` channel if the rollback cannot start (no previous feed, download
 // error).
-async function runRollback(): Promise<Record<string, unknown>> {
+async function runRollback(commandId?: string): Promise<Record<string, unknown>> {
+  pendingUpdateCommandId = commandId
   if (updateMode() === 'source') {
+    const cmdId = pendingUpdateCommandId
+    pendingUpdateCommandId = undefined
     const message = 'Rollback is only available for packaged builds'
     recordAppEvent('error', 'updater', message)
+    if (cmdId) await reportCommandResult(cmdId, 'failed', { message })
     return { status: 'disabled', message }
   }
-  if (!updaterConfigured()) return { status: 'disabled' }
+  if (!updaterConfigured()) {
+    const cmdId = pendingUpdateCommandId
+    pendingUpdateCommandId = undefined
+    if (cmdId) await reportCommandResult(cmdId, 'failed', { message: 'updates not available for this build' })
+    return { status: 'disabled' }
+  }
   setupAutoUpdater()
   rollingBack = true
   autoUpdater.channel = 'previous'
@@ -851,15 +957,21 @@ async function runRollback(): Promise<Record<string, unknown>> {
     // from here. On a failed or empty check the lifecycle handlers may not have
     // run (e.g. an early provider error), so restore the default channel too.
     if (result.status !== 'checking') {
+      const cmdId = pendingUpdateCommandId
+      pendingUpdateCommandId = undefined
       installOnDownload = false
       resetUpdaterChannel()
+      if (cmdId) await reportCommandResult(cmdId, 'failed', { message: String(result.message ?? 'rollback failed') })
     }
     return result
   } catch (err) {
+    const cmdId = pendingUpdateCommandId
+    pendingUpdateCommandId = undefined
     installOnDownload = false
     resetUpdaterChannel()
     const message = String(err instanceof Error ? err.message : err)
     recordAppEvent('error', 'updater', `Rollback failed: ${message}`)
+    if (cmdId) await reportCommandResult(cmdId, 'failed', { message })
     return { status: 'error', message }
   }
 }
@@ -1246,19 +1358,24 @@ function startAgentProcess(): boolean {
 
   child.stdout?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
-      if (line.trim() === UPDATE_APP_MARKER) {
+      const markerParts = line.trim().split(/\s+/)
+      if (markerParts[0] === UPDATE_APP_MARKER) {
         // The agent acknowledged an `update_app` command; run the one-shot
         // update. The agent keeps running through the download, then the app
-        // restarts to install.
+        // restarts to install. The command_id (if present) lets us report the
+        // terminal outcome back to the backend.
+        const commandId = markerParts[1]
         recordAppEvent('info', 'agent', 'Update requested by the backend; starting one-shot update')
-        void runOneShotUpdate()
+        void runOneShotUpdate(commandId)
         continue
       }
-      if (line.trim() === ROLLBACK_APP_MARKER) {
+      if (markerParts[0] === ROLLBACK_APP_MARKER) {
         // The agent acknowledged a `rollback_app` command; roll back through
-        // the `previous` channel.
+        // the `previous` channel. The command_id (if present) lets us report
+        // the terminal outcome back to the backend.
+        const commandId = markerParts[1]
         recordAppEvent('info', 'agent', 'Rollback requested by the backend; starting rollback')
-        void runRollback()
+        void runRollback(commandId)
         continue
       }
       safeLog(`[agent] ${line}`)

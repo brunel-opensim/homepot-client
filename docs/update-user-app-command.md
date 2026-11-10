@@ -190,11 +190,16 @@ remotely:
 
 **Deferred:**
 
-- **Electron → agent terminal signal** — the Electron shell does not yet report
-  the outcome (downloaded / no-update / error) back to the agent, because the
-  agent cannot see electron-updater's lifecycle. The current stdin is `'ignore'`;
-  this needs a minimal channel (piped stdin line or a status file), so failures
-  are not silently invisible.
+- **Electron → agent terminal channel** — implemented: the agent appends the
+  `command_id` to the reserved stdout marker, and the Electron supervisor
+  reports the terminal outcome (completed/failed, with a message) back to the
+  backend via `PUT /api/v1/devices/{command_id}/status` once the
+  check/download settles (or before `quitAndInstall()` when installing). The
+  command log now reflects success/failure instead of the initial "initiated"
+  acknowledgement; final install success is still confirmed by the
+  `agent_version` bump on the next heartbeat.
+- **Explicit version downgrade** (`rollback_app --target=<version>`) to any
+  release, not just the immediately-previous one.
 
 ## Edge cases
 
@@ -224,4 +229,4 @@ remotely:
 | Rollback (`main.ts`, mirror script) | `previous` channel + `allowDowngrade` + channel reset | Implemented |
 | `update_app` command | agent handler + stdout marker + AI registry + compose template | Implemented |
 | `rollback_app` command | agent handler + stdout marker + AI registry + compose template | Implemented |
-| Terminal channel (`main.ts`, agent) | Electron → agent outcome report | Deferred (follow-on) |
+| Terminal channel (`main.ts`, agent) | Electron → backend outcome report via `PUT .../status` | Implemented |
