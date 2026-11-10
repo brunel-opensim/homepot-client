@@ -25,6 +25,7 @@ from homepot.agent.credential_storage import (
 from homepot.agent.utils.alerts import AlertEvaluator
 from homepot.agent.utils.command_poller import (
     RESTART_AGENT_EXIT_CODE,
+    ROLLBACK_APP_MARKER,
     UPDATE_APP_MARKER,
     build_status_report,
     build_status_update_payload,
@@ -728,6 +729,13 @@ async def pending_commands_loop(
                             "update_app: acknowledged; signaling Electron supervisor"
                         )
                         print(UPDATE_APP_MARKER, flush=True)
+                    if command.get("command_type") == "rollback_app":
+                        # Same channel as update_app, but the supervisor switches
+                        # to the `previous` update channel and allows a downgrade.
+                        logger.info(
+                            "rollback_app: acknowledged; signaling Electron supervisor"
+                        )
+                        print(ROLLBACK_APP_MARKER, flush=True)
         except DeviceSuspendedError as e:
             logger.info("Pending commands paused: device suspended (%s)", e)
         except DeviceRemovedError as e:

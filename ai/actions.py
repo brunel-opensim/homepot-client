@@ -164,6 +164,23 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "rollback_app": ActionSpec(
+        name="rollback_app",
+        command_type="rollback_app",
+        risk_tier="T3",
+        reversible=False,
+        required_permission="root_access",
+        min_role="operator",
+        description=(
+            "Roll the HOMEPOT User App on a device back to the previously "
+            "served release. The app checks the server-hosted 'previous' "
+            "channel, downloads, and restarts to install the older version in "
+            "one action. Use only when a newly installed release is broken. "
+            "Briefly interrupts telemetry during the restart. Requires "
+            "root_access."
+        ),
+        required_params=(),
+    ),
     # --- Additional management commands (compose command templates) ---
     "shutdown": ActionSpec(
         name="shutdown",

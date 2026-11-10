@@ -37,6 +37,7 @@ and for the automated soak script (Option B). Reboot (`restart`) and shutdown
 | 16 | `run_command` | `run_command` | `command`, `timeout_seconds` | Run elevated command |
 | 17 | `run_script` | `run_script` | `script`, `timeout_seconds` | Run elevated script |
 | 18 | `update_app` | `update_app` | none | Update the User App to the latest published release (check + download + restart) |
+| 19 | `rollback_app` | `rollback_app` | none | Roll the User App back to the previously served release (check `previous` channel + download + restart) |
 
 ## Excluded from automated testing
 
@@ -45,6 +46,7 @@ and for the automated soak script (Option B). Reboot (`restart`) and shutdown
 | `restart` | Reboots the device — disruptive to soak test |
 | `shutdown` | Shuts down the device — disruptive to soak test |
 | `update_app` | Restarts the User App — disruptive to soak test |
+| `rollback_app` | Restarts the User App and changes its version — disruptive to soak test |
 
 ## Fleet variant
 

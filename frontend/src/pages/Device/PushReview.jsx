@@ -79,6 +79,14 @@ const COMMAND_TEMPLATES = {
     description:
       'Update the HOMEPOT User App to the latest published release. The app checks the server-hosted feed, downloads, and restarts to install in one action. Briefly interrupts telemetry during the restart.',
   },
+  ROLLBACK_APP: {
+    label: 'Roll Back User App',
+    action: 'rollback_app',
+    permission: 'root_access',
+    defaultData: {},
+    description:
+      'Roll the HOMEPOT User App back to the previously served release. The app checks the server-hosted previous channel, downloads, and restarts to install the older version in one action. Use only when a newly installed release is broken.',
+  },
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
     action: 'update_config',

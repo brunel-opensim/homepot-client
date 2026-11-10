@@ -335,6 +335,14 @@ def test_update_app_payload_is_empty():
     assert payload["data"] == {}
 
 
+def test_rollback_app_payload_is_empty():
+    """rollback_app takes no params and carries the 'Roll Back User App' title."""
+    step = type("Step", (), {"action": "rollback_app", "params": {}})()
+    payload = command_payload(step)
+    assert payload["title"] == "Roll Back User App"
+    assert payload["data"] == {}
+
+
 # --------------------------------------------------------------------------
 # Verifier / rollback
 # --------------------------------------------------------------------------

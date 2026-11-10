@@ -188,6 +188,31 @@ def test_update_app_dispatches_through_process_command():
     assert result["result"]["message"] == "update initiated"
 
 
+def test_rollback_app_returns_completed():
+    """rollback_app acknowledges success; the rollback is driven by the supervisor."""
+    from homepot.agent.utils.command_poller import _rollback_app
+
+    result = _rollback_app({})
+    assert result["status"] == "completed"
+    assert result["result"]["message"] == "rollback initiated"
+
+
+def test_rollback_app_in_command_types_and_permission():
+    """rollback_app is registered and gated on root_access."""
+    assert "rollback_app" in COMMAND_TYPES
+    assert required_permissions_for_command("rollback_app") == ["root_access"]
+
+
+def test_rollback_app_dispatches_through_process_command():
+    """A well-formed rollback_app command resolves to the completed handler result."""
+    result = process_command(
+        {"command_id": "c1", "command_type": "rollback_app", "payload": {"data": {}}},
+        ALLOW_ALL,
+    )
+    assert result["status"] == "completed"
+    assert result["result"]["message"] == "rollback initiated"
+
+
 class TestProcessCommand:
     """Tests for ``process_command``."""
 
