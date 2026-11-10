@@ -56,6 +56,7 @@ _AI_COMMAND_TITLES = {
     "update_config": "Apply Configuration",
     "restart": "Reboot System",
     "restart_agent": "Restart Agent",
+    "update_app": "Update User App",
     "rollback_config": "Apply Configuration",
     "start_program": "Start Program",
     "stop_program": "Stop Program",

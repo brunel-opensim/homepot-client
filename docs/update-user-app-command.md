@@ -1,8 +1,9 @@
 # Update the User App (One-shot) — Design
 
-Status: In progress — the one-shot update and the `generic` provider switch are
-implemented in this change; rollback ("previous" channel) and the `update_app`
-command are follow-ons.
+Status: In progress — the one-shot update, the `generic` provider switch, and
+the `update_app` command (agent handler, Electron stdout marker, AI registry,
+and compose template) are implemented; rollback ("previous" channel) and the
+Electron → agent terminal channel are follow-ons.
 
 > Decision: Updating the User App is a **single one-shot action** — check,
 > download, and restart-to-install happen in one step, both in the on-device UI
@@ -46,8 +47,8 @@ auto-updater just is not reading from it yet.
 2. Collapse the three-step flow into a **single one-shot "Update" action** in the
    on-device UI.
 3. Provide **rollback to the previous version** when a release misbehaves.
-4. Lay the groundwork for a future `update_app` command so the Dashboard (or the
-   AI) can trigger the same one-shot remotely.
+4. Add an `update_app` command so the Dashboard (or the AI) can trigger the same
+   one-shot remotely.
 
 ## Design
 
@@ -158,26 +159,32 @@ installer by hand. This is the zero-code safety net.
 `update_app --target=<version>`) to go back to any release, not just the
 immediately-previous one.
 
-## Future follow-on: `update_app` command
+## `update_app` command (implemented)
 
-A separate change (not in this note's scope) adds a `update_app` command so the
-Dashboard or AI can trigger the same one-shot remotely:
+The `update_app` command lets the Dashboard or AI trigger the same one-shot
+remotely:
 
 - **Command** — `update_app` (T3, `root_access`), added to `COMMAND_TYPES`,
-  `REQUIRED_PERMISSION`, and the AI `ACTION_REGISTRY`. A `rollback_app` action
-  reuses the same machinery with `channel: 'previous'` + `allowDowngrade`.
-- **Agent → Electron** — the agent signals the Electron shell to run
-  `app:updateNow`'s logic. Because the agent must stay alive through the
-  download (unlike `restart_agent`, which exits), this uses a **stdout marker**
-  rather than a reserved exit code.
-- **Electron → agent terminal signal** — the Electron shell reports the outcome
-  (downloaded / no-update / error) back to the agent, because the agent cannot
-  see electron-updater's lifecycle. The current stdin is `'ignore'`; this needs a
-  minimal channel (piped stdin line or a status file), so failures are not
-  silently invisible.
+  `REQUIRED_PERMISSION`, the AI `ACTION_REGISTRY`, the AI command titles, and
+  the compose-command templates in `PushReview.jsx`.
+- **Agent → Electron** — after the agent posts the "update initiated" result it
+  prints the reserved `UPDATE_APP_MARKER` (`__HOMEPOT_UPDATE_APP__`) to stdout.
+  Because the agent must stay alive through the download (unlike `restart_agent`,
+  which exits), this uses a **stdout marker** rather than a reserved exit code.
+  The Electron supervisor detects the marker and runs the one-shot update.
 - **Result confirmation** — success is confirmed by the device's `agent_version`
   bump on the next heartbeat (it already reports `app_version` in the device
-  DNA).
+  DNA). The command reports "update initiated", not the final outcome.
+
+**Deferred:**
+
+- **Electron → agent terminal signal** — the Electron shell does not yet report
+  the outcome (downloaded / no-update / error) back to the agent, because the
+  agent cannot see electron-updater's lifecycle. The current stdin is `'ignore'`;
+  this needs a minimal channel (piped stdin line or a status file), so failures
+  are not silently invisible.
+- **`rollback_app`** — reuses the same machinery with `channel: 'previous'` +
+  `allowDowngrade`.
 
 ## Edge cases
 
@@ -204,4 +211,5 @@ Dashboard or AI can trigger the same one-shot remotely:
 | Packaging (`package.json`) | `publish.provider` → `generic` | Small |
 | Tests (`views.test.tsx`) | one-shot API + UI assertions | Moderate |
 | Rollback (`main.ts`, mirror script) | `previous` channel + `allowDowngrade` | Deferred (follow-on) |
-| Follow-on (command + agent signal) | `update_app` + `rollback_app` + stdout marker + terminal channel | Separate PR |
+| `update_app` command | agent handler + stdout marker + AI registry + compose template | Implemented |
+| Terminal channel (`main.ts`, agent) | Electron → agent outcome report | Deferred (follow-on) |

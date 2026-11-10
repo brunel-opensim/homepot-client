@@ -101,6 +101,13 @@ let lastCheckedAt: string | null = null
 // The background auto-check never sets this, so it stays check-only.
 let installOnDownload = false
 
+// The device agent prints this reserved line to stdout after an `update_app`
+// command is acknowledged. We then run the one-shot update while the agent
+// stays alive through the download; the app restarts at the end. Keep in sync
+// with UPDATE_APP_MARKER in
+// backend/src/homepot/agent/utils/command_poller.py.
+const UPDATE_APP_MARKER = '__HOMEPOT_UPDATE_APP__'
+
 // The app updates through electron-updater when packaged; when run from a git
 // checkout (the rollout model for managed machines) updates come from the repo
 // itself. 'none' means neither channel is usable, so the UI reports disabled.
@@ -749,6 +756,29 @@ function getOrCreateDeviceIdentity(): { deviceId: string; machineId: string } {
   return identity
 }
 
+// One-shot update: check, download, and restart-to-install in a single action.
+// The background auto-check stays check-only; only the IPC handler and the
+// `update_app` command (via the agent's stdout marker) arm the auto-install
+// path through `installOnDownload`.
+async function runOneShotUpdate(): Promise<Record<string, unknown>> {
+  if (updateMode() === 'source') {
+    const result = await applySourceUpdate()
+    if (result.status === 'downloaded') restartToApplySourceUpdate()
+    return result
+  }
+  if (!updaterConfigured()) return { status: 'disabled' }
+  setupAutoUpdater()
+  installOnDownload = true
+  try {
+    return await performUpdateCheck()
+  } catch (err) {
+    installOnDownload = false
+    const message = String(err instanceof Error ? err.message : err)
+    recordAppEvent('error', 'updater', `One-shot update failed: ${message}`)
+    return { status: 'error', message }
+  }
+}
+
 function registerIpcHandlers() {
   ipcMain.handle('credentials:save', (_event, data: Record<string, string>) => {
     writeCredentialsFile(data)
@@ -846,25 +876,10 @@ function registerIpcHandlers() {
   })
 
   // One-shot update: check, download, and restart-to-install in a single action.
-  // The background auto-check stays check-only; only this handler (and a future
-  // `update_app` command) arms the auto-install path via `installOnDownload`.
+  // The background auto-check stays check-only; only this handler and the
+  // `update_app` command arm the auto-install path via `installOnDownload`.
   ipcMain.handle('app:updateNow', async () => {
-    if (updateMode() === 'source') {
-      const result = await applySourceUpdate()
-      if (result.status === 'downloaded') restartToApplySourceUpdate()
-      return result
-    }
-    if (!updaterConfigured()) return { status: 'disabled' }
-    setupAutoUpdater()
-    installOnDownload = true
-    try {
-      return await performUpdateCheck()
-    } catch (err) {
-      installOnDownload = false
-      const message = String(err instanceof Error ? err.message : err)
-      recordAppEvent('error', 'updater', `One-shot update failed: ${message}`)
-      return { status: 'error', message }
-    }
+    return runOneShotUpdate()
   })
 
   ipcMain.handle('app:getUpdateState', () => {
@@ -1146,6 +1161,14 @@ function startAgentProcess(): boolean {
 
   child.stdout?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
+      if (line.trim() === UPDATE_APP_MARKER) {
+        // The agent acknowledged an `update_app` command; run the one-shot
+        // update. The agent keeps running through the download, then the app
+        // restarts to install.
+        recordAppEvent('info', 'agent', 'Update requested by the backend; starting one-shot update')
+        void runOneShotUpdate()
+        continue
+      }
       safeLog(`[agent] ${line}`)
       appendDeviceLog(logFile, 'agent', line)
     }

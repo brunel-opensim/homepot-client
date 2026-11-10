@@ -149,6 +149,21 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=("service_name",),
     ),
+    "update_app": ActionSpec(
+        name="update_app",
+        command_type="update_app",
+        risk_tier="T3",
+        reversible=False,
+        required_permission="root_access",
+        min_role="operator",
+        description=(
+            "Update the HOMEPOT User App on a device to the latest published "
+            "release. The app checks the server-hosted feed, downloads, and "
+            "restarts to install in one action. Briefly interrupts telemetry "
+            "during the restart. Requires root_access."
+        ),
+        required_params=(),
+    ),
     # --- Additional management commands (compose command templates) ---
     "shutdown": ActionSpec(
         name="shutdown",

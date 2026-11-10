@@ -66,6 +66,7 @@ def test_registry_declares_expected_actions():
         "run_command_unprivileged",
         "restart_agent",
         "restart_service",
+        "update_app",
         "shutdown",
         "upgrade_all_programs",
         "run_command",
@@ -98,6 +99,7 @@ def test_registry_declares_expected_actions():
     # T3 disruptive action
     assert ACTION_REGISTRY["restart_agent"].risk_tier == "T3"
     assert ACTION_REGISTRY["restart_service"].risk_tier == "T3"
+    assert ACTION_REGISTRY["update_app"].risk_tier == "T3"
 
 
 def test_propose_device_action_docstring_lists_every_registered_action():

@@ -71,6 +71,14 @@ const COMMAND_TEMPLATES = {
     description:
       'Restart the agent process itself. The User App supervisor respawns it, briefly interrupting heartbeat and telemetry. Use for an online-but-misbehaving agent.',
   },
+  UPDATE_APP: {
+    label: 'Update User App',
+    action: 'update_app',
+    permission: 'root_access',
+    defaultData: {},
+    description:
+      'Update the HOMEPOT User App to the latest published release. The app checks the server-hosted feed, downloads, and restarts to install in one action. Briefly interrupts telemetry during the restart.',
+  },
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
     action: 'update_config',

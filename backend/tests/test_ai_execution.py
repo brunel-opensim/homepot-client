@@ -327,6 +327,14 @@ def test_restart_agent_payload_is_empty():
     assert payload["data"] == {}
 
 
+def test_update_app_payload_is_empty():
+    """update_app takes no params and carries the 'Update User App' title."""
+    step = type("Step", (), {"action": "update_app", "params": {}})()
+    payload = command_payload(step)
+    assert payload["title"] == "Update User App"
+    assert payload["data"] == {}
+
+
 # --------------------------------------------------------------------------
 # Verifier / rollback
 # --------------------------------------------------------------------------
