@@ -249,7 +249,18 @@ export default function HomeDashboard() {
   const connectivity = status?.connectivity_state || 'unknown'
   const lifecycle = status?.lifecycle_state || 'unknown'
   const isOnline = connectivity === 'online'
-  const isOffline = connectivity === 'offline'
+  // During a restart (e.g. after an update) the agent shuts down gracefully
+  // and the backend reports 'offline' immediately, even though the device is
+  // coming back. Treat a recently-seen device as "connecting" rather than
+  // "offline" so the UI shows the reconnecting checklist instead of a red
+  // OFFLINE flash. A genuinely offline device has a stale last heartbeat.
+  const lastHeartbeatAt = status?.last_heartbeat_at ?? null
+  const heartbeatAgeMs = lastHeartbeatAt
+    // eslint-disable-next-line react-hooks/purity
+    ? Date.now() - new Date(lastHeartbeatAt).getTime()
+    : Infinity
+  const recentlySeen = lifecycle === 'active' && heartbeatAgeMs < 90_000
+  const isOffline = connectivity === 'offline' && !recentlySeen
   // 'unknown' (no heartbeat yet — e.g. right after provisioning) renders as
   // CONNECTING instead of alarming red OFFLINE.
   const isConnecting = !isOnline && !isOffline
