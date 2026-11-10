@@ -308,27 +308,15 @@ async def test_query_ai_includes_documentation_in_system_prompt():
 
 
 def test_command_payload_reference_contains_all_types():
-    """get_command_payload_reference should list the core command types."""
+    """get_command_payload_reference should list every device command type."""
+    from homepot.agent.utils.command_poller import COMMAND_TYPES
+
     knowledge = SystemKnowledge(workspace_root)
     ref = knowledge.get_command_payload_reference()
 
     assert "[COMMAND PAYLOAD REFERENCE]" in ref
-    for cmd_type in [
-        "ping",
-        "health_check",
-        "update_config",
-        "restart",
-        "restart_service",
-        "shutdown",
-        "run_command",
-        "run_script",
-        "status_request",
-        "list_processes",
-        "list_connections",
-        "scan_filesystem",
-        "request_permission",
-    ]:
-        assert cmd_type in ref, f"Command type '{cmd_type}' missing from reference"
+    missing = [t for t in sorted(COMMAND_TYPES) if f'"command_type": "{t}"' not in ref]
+    assert not missing, f"Command reference missing types: {missing}"
 
 
 def test_command_payload_reference_contains_push_wrapper():
