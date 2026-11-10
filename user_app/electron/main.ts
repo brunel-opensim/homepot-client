@@ -96,6 +96,11 @@ type SourceUpdateInfo = {
 let updateState: UpdateState = { kind: 'idle' }
 let lastCheckedAt: string | null = null
 
+// When true, a one-shot update (app:updateNow) is in flight: once an update is
+// available it is downloaded, and once downloaded it is installed immediately.
+// The background auto-check never sets this, so it stays check-only.
+let installOnDownload = false
+
 // The app updates through electron-updater when packaged; when run from a git
 // checkout (the rollout model for managed machines) updates come from the repo
 // itself. 'none' means neither channel is usable, so the UI reports disabled.
@@ -140,6 +145,13 @@ function setupAutoUpdater(): void {
     updateState = { kind: 'available', version: info.version, channel: 'packaged' }
     sendUpdateStatus()
     recordAppEvent('info', 'updater', `Update available v${info.version}`)
+    if (installOnDownload) {
+      // One-shot: proceed straight to download; the downloader then auto-installs.
+      updateState = { kind: 'downloading', percent: 0 }
+      sendUpdateStatus()
+      autoUpdater.downloadUpdate()
+      return
+    }
     try {
       new Notification({
         title: 'HOMEPOT Agent update available',
@@ -152,6 +164,7 @@ function setupAutoUpdater(): void {
   })
 
   autoUpdater.on('update-not-available', () => {
+    installOnDownload = false
     updateState = { kind: 'not-available' }
     sendUpdateStatus()
     recordAppEvent('info', 'updater', 'Update not available')
@@ -167,6 +180,11 @@ function setupAutoUpdater(): void {
     updateState = { kind: 'downloaded', version: info.version }
     sendUpdateStatus()
     recordAppEvent('info', 'updater', `Update downloaded v${info.version}`)
+    if (installOnDownload) {
+      recordAppEvent('info', 'updater', 'Restarting to install the update')
+      autoUpdater.quitAndInstall()
+      return
+    }
     try {
       new Notification({
         title: 'HOMEPOT Agent update ready',
@@ -178,6 +196,7 @@ function setupAutoUpdater(): void {
   })
 
   autoUpdater.on('error', (err) => {
+    installOnDownload = false
     const message = String(err instanceof Error ? err.message : err)
     updateState = recoverFromDownloadError(message)
     sendUpdateStatus()
@@ -826,24 +845,26 @@ function registerIpcHandlers() {
     return performUpdateCheck()
   })
 
-  ipcMain.handle('app:downloadUpdate', async () => {
-    if (updateMode() === 'source') return applySourceUpdate()
+  // One-shot update: check, download, and restart-to-install in a single action.
+  // The background auto-check stays check-only; only this handler (and a future
+  // `update_app` command) arms the auto-install path via `installOnDownload`.
+  ipcMain.handle('app:updateNow', async () => {
+    if (updateMode() === 'source') {
+      const result = await applySourceUpdate()
+      if (result.status === 'downloaded') restartToApplySourceUpdate()
+      return result
+    }
     if (!updaterConfigured()) return { status: 'disabled' }
+    setupAutoUpdater()
+    installOnDownload = true
     try {
-      autoUpdater.downloadUpdate()
-      return { status: 'downloading' }
+      return await performUpdateCheck()
     } catch (err) {
+      installOnDownload = false
       const message = String(err instanceof Error ? err.message : err)
-      recordAppEvent('error', 'updater', `Update download failed: ${message}`)
+      recordAppEvent('error', 'updater', `One-shot update failed: ${message}`)
       return { status: 'error', message }
     }
-  })
-
-  ipcMain.handle('app:restartToInstall', () => {
-    if (updateMode() === 'source') return restartToApplySourceUpdate()
-    if (!updaterConfigured()) return { status: 'disabled' }
-    autoUpdater.quitAndInstall()
-    return { status: 'installing' }
   })
 
   ipcMain.handle('app:getUpdateState', () => {

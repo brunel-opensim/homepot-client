@@ -57,10 +57,8 @@
       }
     ],
     "publish": {
-      "provider": "github",
-      "owner": "brunel-opensim",
-      "repo": "homepot-client",
-      "releaseType": "release"
+      "provider": "generic",
+      "url": "https://homepot.cabera.com/downloads"
     },
     "linux": {
       "target": [
