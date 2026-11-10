@@ -5,7 +5,7 @@ import MetricsHistoryChart from '../components/MetricsHistoryChart'
 import { credentialStorage } from '../services/credentialStorage'
 import { fetchDeviceStatus, fetchDeviceMetrics, fetchDeviceMetricsHistory, fetchPermissions } from '../services/api'
 import { getCachedTelemetry, setCachedTelemetry } from '../services/telemetryCache'
-import { MANAGE_KEY, MONITOR_KEYS } from '../services/permissionsEvents'
+import { MANAGE_KEY, MONITOR_KEYS, onPermissionsChanged } from '../services/permissionsEvents'
 import type { DeviceStatus, DeviceMetrics } from '../services/api'
 
 function formatUptime(totalSeconds: number | null): string {
@@ -231,6 +231,9 @@ export default function HomeDashboard() {
       scheduleHistory(30000)
     }, 30000)
     const permissionsInterval = setInterval(fetchPermissionsData, 30000)
+    const offPermissionsChanged = onPermissionsChanged(() => {
+      void fetchPermissionsData()
+    })
     return () => {
       if (statusIntervalRef.current) clearInterval(statusIntervalRef.current)
       if (metricsIntervalRef.current) clearInterval(metricsIntervalRef.current)
@@ -239,6 +242,7 @@ export default function HomeDashboard() {
       clearTimeout(metricsSlowdown)
       clearTimeout(historySlowdown)
       clearInterval(permissionsInterval)
+      offPermissionsChanged()
     }
   }, [deviceId])
 
@@ -255,7 +259,7 @@ export default function HomeDashboard() {
   const monitorGranted =
     !!devicePermissions && MONITOR_KEYS.every((k) => devicePermissions[k] === true)
   const manageGranted = !!devicePermissions && devicePermissions[MANAGE_KEY] === true
-  const showAccessPrompt = isOnline && !(monitorGranted && manageGranted)
+  const showAccessPrompt = isOnline && devicePermissions !== null && !(monitorGranted && manageGranted)
 
   const statusStyles = isOnline
     ? {
