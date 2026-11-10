@@ -138,29 +138,30 @@ visible to devices until someone deliberately promotes it:
 gh release edit v0.3.2 --draft=false --latest
 ```
 
-This matters because the updater is configured with `releaseType: release`,
-which resolves `/releases/latest` — and that excludes both drafts and
-prereleases. Promoting is therefore the step that makes devices see a new
-version, and it is worth a deliberate look first:
+This matters because the mirror (`mirror-downloads.sh`) refuses to mirror a
+draft, so a draft never reaches `/downloads` — and thus never reaches a device.
+Promoting is therefore the step that makes devices see a new version, and it is
+worth a deliberate look first:
 
 ```bash
 gh release view v0.3.2 --json tagName,isDraft --jq '"tag=\(.tagName) draft=\(.isDraft)"'
 gh release view v0.3.2 --json assets --jq '.assets[] | "\(.size)\t\(.name)"' | sort -k2
 ```
 
-## 7. Two destinations, one source
+## 7. One source, one destination
 
-A release feeds two things, and they must serve the same bytes:
+The GitHub release is the single source of truth, and both the dashboard and
+the devices read from the same verified mirror:
 
 ```
-GitHub release  ──>  packaged devices (auto-updater polls /releases/latest)
-     │
-     └──────────>  dashboard /downloads  (served to technicians)
+GitHub release  ──>  dashboard /downloads  ──>  packaged devices (auto-updater polls /downloads/latest.yml)
+                         │
+                         └──────────>  technicians (Downloads page)
 ```
 
-The **GitHub release is the single source of truth.** The server's
-`downloads/` directory is a verified *mirror* of it, never a separate copy.
-Mirroring, verification and rollback are covered in
+The server's `downloads/` directory is a verified *mirror* of the GitHub
+release, never a separate copy. Mirroring, verification and rollback are
+covered in
 [Server Deployment](server-deployment.md#mirroring-the-release-preferred).
 
 Practical consequence: never hand-copy an installer into the server's
@@ -209,22 +210,34 @@ visible at `/build-info.json`
 The packaged User App checks for updates automatically. This section documents
 the behavior so technicians know what to expect.
 
+### Update source
+
+Packaged builds read the electron-builder feed (`latest.yml` /
+`latest-mac.yml` / `latest-linux.yml`) served from the dashboard's
+**`/downloads`** directory via a `generic` provider, not GitHub directly. The
+server directory is a verified mirror of the GitHub release, so the Downloads
+page and the auto-updater always read the same bytes.
+
 ### Check schedule
 - **First check**: 30 seconds after app launch (lets the app settle)
 - **Periodic check**: every 4 hours thereafter
-- **Manual check**: technician can trigger via Settings → "Check for Updates"
 
-### Update flow
-1. **Checking**: App queries GitHub releases for a newer version
-2. **Update available**: OS notification shown ("HOMEPOT Agent update available — Version X is ready to download"). Tray tooltip changes to "HOMEPOT Agent — Update v{version} available"
-3. **Download**: User clicks "Download" in Settings; progress shown as percentage
-4. **Downloaded**: OS notification shown ("HOMEPOT Agent update ready — Version X has been downloaded. Restart to finish installing.")
-5. **Install**: User clicks "Restart to Install" → app quits, installer runs, app relaunches
+The background check is **check-only**: it notifies "update available" but never
+downloads or restarts on its own.
+
+### Update flow (one-shot)
+A single "Update app" action in Settings performs the whole update:
+1. **Check** — compares the app version against `/downloads/latest.yml`
+2. **Download** — progress shown as a percentage
+3. **Install & restart** — the app quits, the installer runs silently, and the
+   app relaunches on the new version
+
+There is no separate "Restart to Install" step — the update is one-shot.
 
 ### Update modes
 | Mode | Channel | Notes |
 |------|---------|-------|
-| Packaged app | GitHub releases (electron-updater) | Reads `latest.yml` / `latest-mac.yml` / `latest-linux.yml` |
+| Packaged app | Dashboard `/downloads` (`generic` provider) | Reads `latest.yml` / `latest-mac.yml` / `latest-linux.yml` |
 | Source checkout (dev) | Git (`git fetch` + `git rev-parse`) | Shows commits behind `origin/main` |
 | Neither | Disabled | Reports "Automatic updates are not enabled for this build" |
 
@@ -234,7 +247,8 @@ the behavior so technicians know what to expect.
 - **OS notifications**: Native toast when update available and when downloaded
 
 ### Important notes
-- Updates are **manual install** — the app downloads but does not install automatically. The user must click "Restart to Install".
-- The auto-updater only sees **published** releases (not drafts). Drafts are held back until a technician promotes them.
+- Updates are **one-shot** — a single "Update app" action downloads and installs.
+- Devices only see **published** releases that have been **mirrored** to
+  `/downloads`. A draft is never mirrored, so it never reaches a device.
 - The agent binary inside the app is updated as part of the app update — no separate agent update needed.
 - On Windows, the NSIS installer runs silently and replaces the app in `%LOCALAPPDATA%\Programs\homepot-agent\`.
