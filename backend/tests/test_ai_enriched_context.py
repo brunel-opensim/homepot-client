@@ -315,7 +315,7 @@ def test_command_payload_reference_contains_all_types():
     ref = knowledge.get_command_payload_reference()
 
     assert "[COMMAND PAYLOAD REFERENCE]" in ref
-    missing = [t for t in sorted(COMMAND_TYPES) if f'"command_type": "{t}"' not in ref]
+    missing = [t for t in sorted(COMMAND_TYPES) if f"- {t} —" not in ref]
     assert not missing, f"Command reference missing types: {missing}"
 
 

@@ -223,6 +223,7 @@ nav:
 
   - Dev & Ops:
       - Development Guide: development-guide.md
+      - Adding a Device Command: adding-a-device-command.md
       - Deployment: deployment-guide.md
       - CI/CD Pipelines: frontend-ci-cd.md
       - Monorepo Structure: monorepo-migration.md
