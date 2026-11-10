@@ -94,12 +94,14 @@ RESTART_AGENT_EXIT_CODE = 42
 # has been acknowledged. The Electron supervisor detects it and runs the
 # one-shot update (check + download + restart) while the agent stays alive.
 # Keep in sync with UPDATE_APP_MARKER in user_app/electron/main.ts.
+# The command_id is appended at runtime: "__HOMEPOT_UPDATE_APP__ <command_id>".
 UPDATE_APP_MARKER = "__HOMEPOT_UPDATE_APP__"
 
 # The agent writes this reserved line to stdout after a ``rollback_app`` command
 # has been acknowledged. The Electron supervisor detects it and rolls back to
 # the previously served release through the ``previous`` update channel.
 # Keep in sync with ROLLBACK_APP_MARKER in user_app/electron/main.ts.
+# The command_id is appended at runtime: "__HOMEPOT_ROLLBACK_APP__ <command_id>".
 ROLLBACK_APP_MARKER = "__HOMEPOT_ROLLBACK_APP__"
 
 

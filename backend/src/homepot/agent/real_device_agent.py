@@ -728,14 +728,20 @@ async def pending_commands_loop(
                         logger.info(
                             "update_app: acknowledged; signaling Electron supervisor"
                         )
-                        print(UPDATE_APP_MARKER, flush=True)
+                        print(
+                            f"{UPDATE_APP_MARKER} {command.get('command_id')}",
+                            flush=True,
+                        )
                     if command.get("command_type") == "rollback_app":
                         # Same channel as update_app, but the supervisor switches
                         # to the `previous` update channel and allows a downgrade.
                         logger.info(
                             "rollback_app: acknowledged; signaling Electron supervisor"
                         )
-                        print(ROLLBACK_APP_MARKER, flush=True)
+                        print(
+                            f"{ROLLBACK_APP_MARKER} {command.get('command_id')}",
+                            flush=True,
+                        )
         except DeviceSuspendedError as e:
             logger.info("Pending commands paused: device suspended (%s)", e)
         except DeviceRemovedError as e:
