@@ -430,6 +430,42 @@ COMMAND TYPES AND PAYLOADS:
     {"command_type": "request_permission"}
     Permission: none
 
+13. run_command_unprivileged — Run a command as the unprivileged user.
+    {"command_type": "run_command_unprivileged", "payload":
+    {"data": {"command": "whoami", "timeout_seconds": 30}}}
+    Permission: command_execution
+
+14. install_program — Install a program via winget (Windows, silent).
+    {"command_type": "install_program", "payload":
+    {"data": {"package": "Notepad++.Notepad++", "timeout_seconds": 300}}}
+    Permission: root_access
+
+15. uninstall_program — Uninstall a program via winget (Windows, silent).
+    {"command_type": "uninstall_program", "payload":
+    {"data": {"package": "Notepad++.Notepad++", "timeout_seconds": 300}}}
+    Permission: root_access
+
+16. update_program — Update a single installed program via winget (Windows).
+    {"command_type": "update_program", "payload":
+    {"data": {"package": "Notepad++.Notepad++", "timeout_seconds": 300}}}
+    Permission: root_access
+
+17. upgrade_all_programs — Upgrade all installed programs via winget (Windows).
+    {"command_type": "upgrade_all_programs", "payload": {"data": {"timeout_seconds": 600}}}
+    Permission: root_access
+
+18. list_installed_programs — List installed programs (Windows, from the registry).
+    {"command_type": "list_installed_programs"}
+    Permission: command_execution
+
+19. start_program — Launch a program in the background.
+    {"command_type": "start_program", "payload": {"data": {"path": "notepad.exe", "args": []}}}
+    Permission: root_access
+
+20. stop_program — Stop a running process by name or PID.
+    {"command_type": "stop_program", "payload": {"data": {"name": "notepad.exe", "force": false}}}
+    Permission: root_access
+
 PUSH NOTIFICATION PAYLOAD WRAPPER:
 When a command is delivered via push notification, the wire format is:
 {
