@@ -373,6 +373,16 @@ describe('DeviceInfo', () => {
     expect(screen.getByText('Source updated — restart to apply')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Restart to finish/ })).not.toBeInTheDocument()
   })
+
+  it('shows an up-to-date status with a Check again action', async () => {
+    installUpdateApi({
+      seed: { state: { kind: 'not-available' }, currentVersion: '0.1.0', mode: 'packaged' },
+    })
+    routeDeviceApi({ device_id: 'test-device', name: 'Test Device', device_type: 'pos_terminal', os_details: 'linux', lifecycle_state: 'active' })
+    renderWithProviders(<DeviceInfo />)
+    expect(await screen.findByText('Up to date')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Check again/ })).toBeInTheDocument()
+  })
 })
 
 describe('Permissions', () => {
