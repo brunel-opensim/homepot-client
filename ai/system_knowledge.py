@@ -7,6 +7,8 @@ and documentation to give the AI context about "what it is" and "where it lives"
 import logging
 import os
 
+from ai.actions import ACTION_REGISTRY
+
 logger = logging.getLogger(__name__)
 
 # Single source of truth for the role definitions shared by the diagnostic and
@@ -356,136 +358,67 @@ class SystemKnowledge:
         Gives the LLM the schema knowledge needed to generate valid push
         notification payloads and device command JSON for technicians.
         """
-        return _COMMAND_PAYLOAD_REFERENCE
+        return _build_command_payload_reference()
 
 
-_COMMAND_PAYLOAD_REFERENCE = """[COMMAND PAYLOAD REFERENCE]
-The system supports these device command types. Each command is sent
-via POST /api/v1/devices/{device_id}/commands as JSON.
-The push notification payload wraps these commands for delivery over
-FCM, APNs, Web Push, MQTT, or WNS.
+def _build_command_payload_reference() -> str:
+    """Build the command payload reference from the action registry.
 
-COMMAND TYPES AND PAYLOADS:
+    ``ACTION_REGISTRY`` is the single source of truth for the AI-proposable
+    command types, their required params, and their permissions, so the
+    reference can never drift from the registry when an action is added. The
+    three internal command types (ping, request_permission, status_request) are
+    not proposed by the AI and are listed separately.
+    """
+    lines = [
+        "[COMMAND PAYLOAD REFERENCE]",
+        "The system supports these device command types. Each command is sent",
+        "via POST /api/v1/devices/{device_id}/commands as JSON.",
+        "The push notification payload wraps these commands for delivery over",
+        "FCM, APNs, Web Push, MQTT, or WNS.",
+        "",
+        "COMMAND TYPES (AI-proposable actions):",
+        "",
+    ]
+    for name in sorted(ACTION_REGISTRY):
+        spec = ACTION_REGISTRY[name]
+        if spec.name != spec.command_type:
+            # rollback_config reuses update_config's command type.
+            continue
+        params = ", ".join(spec.required_params) if spec.required_params else "none"
+        permission = spec.required_permission or "none"
+        lines.append(f"- {spec.command_type} — {spec.description}")
+        lines.append(f"  required_params: {params}")
+        lines.append(f"  Permission: {permission}")
+        lines.append("")
 
-1. ping — Lightweight connectivity check. No payload needed.
-   {"command_type": "ping"}
-   Permission: none
-
-2. health_check — Run device health diagnostics.
-   {"command_type": "health_check", "payload": {"data": {"tests": ["network", "storage", "memory", "cpu"]}}}
-   Permission: command_execution
-
-3. update_config — Push new configuration to the device.
-   {"command_type": "update_config", "payload":
-   {"data": {"config_url": "https://...", "config_version": "v2.1.0", "brightness": 75, "volume": 50}}}
-   Permission: root_access
-
-4. restart — Reboot the device. No payload needed.
-   {"command_type": "restart"}
-   Permission: root_access
-
-5. shutdown — Shut down the device. No payload needed.
-   {"command_type": "shutdown"}
-   Permission: root_access
-
-5a. restart_agent — Restart the agent process itself (the supervisor respawns it).
-   {"command_type": "restart_agent"}
-   Permission: root_access
-
-5b. restart_service — Restart a named OS service (Windows service or systemd unit).
-   {"command_type": "restart_service", "payload": {"data": {"service_name": "Spooler"}}}
-   Permission: root_access
-
-6. run_command — Execute a shell command on the device.
-   {"command_type": "run_command", "payload":
-   {"data": {"command": "ls -la /tmp", "timeout_seconds": 30}}}
-   Permission: root_access
-
-7. run_script — Execute a script on the device.
-   {"command_type": "run_script", "payload":
-    {"data": {"script": "#!/bin/bash\\necho hello", "timeout_seconds": 30}
-    }
-   }
-   Permission: root_access
-
-8. status_request — Request current device status. No payload needed.
-   {"command_type": "status_request"}
-   Permission: none
-
-9. list_processes — List running processes.
-   {"command_type": "list_processes", "payload":
-   {"data": {"sort_by": "cpu", "max_results": 50, "include_memory": true}}}
-   Permission: process_monitoring
-
-10. list_connections — List network connections.
-    {"command_type": "list_connections", "payload": {"data": {"filter_state": "ESTABLISHED", "limit": 100}}}
-    Permission: network_monitoring
-
-11. scan_filesystem — Scan filesystem for files.
-    {"command_type": "scan_filesystem", "payload":
-    {"data": {"path": "/tmp", "max_depth": 2, "include_sizes": true}}}
-    Permission: root_access
-
-12. request_permission — Agent requests a permission grant. No payload needed.
-    {"command_type": "request_permission"}
-    Permission: none
-
-13. run_command_unprivileged — Run a command as the unprivileged user.
-    {"command_type": "run_command_unprivileged", "payload":
-    {"data": {"command": "whoami", "timeout_seconds": 30}}}
-    Permission: command_execution
-
-14. install_program — Install a program via winget (Windows, silent).
-    {"command_type": "install_program", "payload":
-    {"data": {"package": "Notepad++.Notepad++", "timeout_seconds": 300}}}
-    Permission: root_access
-
-15. uninstall_program — Uninstall a program via winget (Windows, silent).
-    {"command_type": "uninstall_program", "payload":
-    {"data": {"package": "Notepad++.Notepad++", "timeout_seconds": 300}}}
-    Permission: root_access
-
-16. update_program — Update a single installed program via winget (Windows).
-    {"command_type": "update_program", "payload":
-    {"data": {"package": "Notepad++.Notepad++", "timeout_seconds": 300}}}
-    Permission: root_access
-
-17. upgrade_all_programs — Upgrade all installed programs via winget (Windows).
-    {"command_type": "upgrade_all_programs", "payload": {"data": {"timeout_seconds": 600}}}
-    Permission: root_access
-
-18. list_installed_programs — List installed programs (Windows, from the registry).
-    {"command_type": "list_installed_programs"}
-    Permission: command_execution
-
-19. start_program — Launch a program in the background.
-    {"command_type": "start_program", "payload": {"data": {"path": "notepad.exe", "args": []}}}
-    Permission: root_access
-
-20. stop_program — Stop a running process by name or PID.
-    {"command_type": "stop_program", "payload": {"data": {"name": "notepad.exe", "force": false}}}
-    Permission: root_access
-
-PUSH NOTIFICATION PAYLOAD WRAPPER:
-When a command is delivered via push notification, the wire format is:
-{
-  "title": "Notification title",
-  "body": "Notification body",
-  "data": { ... command payload fields ... },
-  "priority": "low|normal|high|critical",
-  "ttl_seconds": 300,
-  "collapse_key": "grouping-key-or-null"
-}
-
-The "data" field carries the command-specific payload. The agent reads
-"data.action" to determine the command type, and "data" for the rest.
-
-PLATFORM-SPECIFIC WIRE FORMATS:
-
-MQTT: {"title": "...", "body": "...", "data": {...}, "priority": "high", "ttl": 300, "message_id": "uuid"}
-Web Push: {"notification":
-Example: {"root_access": true, "command_execution": true, "process_monitoring": false}
-
-COMMAND STATUS LIFECYCLE:
-pending -> sent -> completed | failed | expired | cancelled
-"""
+    lines += [
+        "INTERNAL COMMAND TYPES (not AI-proposable):",
+        "- ping — Lightweight connectivity check.",
+        "- request_permission — Agent requests a permission grant.",
+        "- status_request — Request current device status.",
+        "",
+        "PUSH NOTIFICATION PAYLOAD WRAPPER:",
+        "When a command is delivered via push notification, the wire format is:",
+        "{",
+        '  "title": "Notification title",',
+        '  "body": "Notification body",',
+        '  "data": { ... command payload fields ... },',
+        '  "priority": "low|normal|high|critical",',
+        '  "ttl_seconds": 300,',
+        '  "collapse_key": "grouping-key-or-null"',
+        "}",
+        "",
+        'The "data" field carries the command-specific payload. The agent reads',
+        '"data.action" to determine the command type, and "data" for the rest.',
+        "",
+        "PLATFORM-SPECIFIC WIRE FORMATS:",
+        "",
+        'MQTT: {"title": "...", "body": "...", "data": {...}, "priority": "high", "ttl": 300}',
+        'Web Push: {"notification":',
+        'Example: {"root_access": true, "command_execution": true, "process_monitoring": false}',
+        "",
+        "COMMAND STATUS LIFECYCLE:",
+        "pending -> sent -> completed | failed | expired | cancelled",
+    ]
+    return "\n".join(lines)
