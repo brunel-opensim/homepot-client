@@ -448,12 +448,31 @@ export default function DeviceInfo() {
               {updateState.detail && (
                 <p className="text-slate-400 text-xs text-center break-words">{updateState.detail}</p>
               )}
-              <button
-                onClick={handleUpdateNow}
-                className="w-full py-2.5 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 text-emerald-300 text-sm font-medium transition-colors"
-              >
-                ✓  Up to date — v{appVersion} · Check again
-              </button>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-800/60 bg-emerald-950/40 p-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+                    <svg className="h-3.5 w-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                  <div className="text-left">
+                    <p className="text-emerald-300 text-xs font-medium leading-tight">Up to date</p>
+                    <p className="text-slate-400 text-[11px] leading-tight">v{appVersion}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleUpdateNow}
+                  title="Check again"
+                  aria-label="Check again"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-700/60 hover:bg-slate-600 px-2.5 py-1.5 text-slate-300 text-[11px] font-medium transition-colors"
+                >
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    <polyline points="21 3 21 9 15 9" />
+                  </svg>
+                  Check again
+                </button>
+              </div>
             </div>
           ) : (
             <button
