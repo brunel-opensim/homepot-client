@@ -158,39 +158,17 @@ export default function DeviceInfo() {
     loadDna()
   }, [])
 
-  async function handleCheckUpdate() {
+  async function handleUpdateNow() {
     if (!window.electronAPI) {
       setUpdateState({ kind: 'disabled', reason: 'No update service is available in this context' })
       return
     }
-    setUpdateState({ kind: 'checking' })
-    const result = await window.electronAPI.app.checkForUpdates()
-    const seed = await window.electronAPI.app?.getUpdateState?.()
-    if (seed?.lastCheckedAt) setLastCheckedAt(seed.lastCheckedAt)
+    const result = await window.electronAPI.app.updateNow()
     if (result.status === 'disabled') setUpdateState({ kind: 'disabled', reason: result.message })
-    else if (result.status === 'error') setUpdateState({ kind: 'error', message: result.message ?? 'Update check failed' })
-    else if (result.mode === 'source' && result.status === 'available') {
-      setUpdateState({ kind: 'available', version: result.version ?? 'latest', detail: result.detail, channel: 'source' })
-    } else if (result.mode === 'source' && result.status === 'not-available') {
-      setUpdateState({ kind: 'not-available', detail: result.detail })
-    }
-    // Packaged 'checking' is transitionary; the authoritative outcome arrives
-    // via app:update:status events from the main process.
-  }
-
-  async function handleDownloadUpdate() {
-    if (!window.electronAPI) return
-    const result = await window.electronAPI.app.downloadUpdate()
-    if (result.status === 'downloading') setUpdateState({ kind: 'downloading', percent: 0 })
-    else if (result.status === 'updating') setUpdateState({ kind: 'updating' })
-    else if (result.status === 'downloaded') setUpdateState({ kind: 'downloaded', version: result.version ?? 'latest', detail: result.detail })
     else if (result.status === 'error') setUpdateState({ kind: 'error', message: result.message ?? 'Update failed' })
-    else if (result.status === 'disabled') setUpdateState({ kind: 'disabled', reason: result.message })
-  }
-
-  function handleRestartToInstall() {
-    window.electronAPI?.app.restartToInstall()
-    setUpdateState({ kind: 'downloaded', version: updateState.kind === 'downloaded' ? updateState.version : 'pending' })
+    // Authoritative progress (checking/downloading/installing) and the terminal
+    // "not-available" state arrive via app:update:status events from the main
+    // process; this call just arms and starts the one-shot.
   }
 
   // Subscribe to authoritative update-status events pushed from the main
@@ -220,14 +198,11 @@ export default function DeviceInfo() {
       }
     }
     setup()
-    // Auto-check once after a short delay so the user doesn't have to click
-    // manually; the main process also checks at 30s, so this is a fast-path.
-    const autoTimer = setTimeout(() => {
-      if (!cancelled) handleCheckUpdate()
-    }, 5000)
+    // The main process auto-checks at 30s after launch and every 4h; the state
+    // is pushed here via app:update:status events. No renderer-side check is
+    // scheduled (a one-shot must never fire automatically at launch).
     return () => {
       cancelled = true
-      clearTimeout(autoTimer)
       unsubscribe?.()
     }
   }, [])
@@ -410,15 +385,14 @@ export default function DeviceInfo() {
               )}
               <p className="text-slate-400 text-xs text-center">Current version {appVersion ? `v${appVersion}` : 'unknown'}</p>
               <button
-                onClick={handleCheckUpdate}
+                onClick={handleUpdateNow}
                 className="w-full py-2 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium transition-colors"
               >
-                Check again
+                Retry
               </button>
             </div>
           ) : updateState.kind === 'checking' ? (
             <button
-              onClick={handleCheckUpdate}
               disabled
               className="w-full py-2.5 rounded-lg border border-slate-600 bg-slate-700 text-slate-200 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
             >
@@ -434,10 +408,10 @@ export default function DeviceInfo() {
                 <p className="text-teal-400 text-xs text-center break-words">{updateState.detail}</p>
               )}
               <button
-                onClick={handleDownloadUpdate}
+                onClick={handleUpdateNow}
                 className="w-full py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-colors"
               >
-                {updateState.channel === 'source' ? 'Update app from source' : 'Download update'}
+                {updateState.channel === 'source' ? 'Update app from source' : 'Update app'}
               </button>
             </div>
           ) : updateState.kind === 'updating' ? (
@@ -461,18 +435,13 @@ export default function DeviceInfo() {
             </div>
           ) : updateState.kind === 'downloaded' ? (
             <div className="flex flex-col gap-2 bg-teal-950 border border-teal-800 rounded-xl p-3">
-              <p className="text-teal-300 text-xs font-medium text-center">
-                ✓  Update v{updateState.version} ready to install
+              <p className="text-teal-300 text-xs font-medium text-center flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-teal-300 border-t-transparent rounded-full animate-spin" />
+                Installing update v{updateState.version}…
               </p>
               {updateState.detail && (
                 <p className="text-teal-400 text-xs text-center break-words">{updateState.detail}</p>
               )}
-              <button
-                onClick={handleRestartToInstall}
-                className="w-full py-2 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-colors"
-              >
-                Restart to finish
-              </button>
             </div>
           ) : updateState.kind === 'not-available' ? (
             <div className="flex flex-col gap-2">
@@ -480,7 +449,7 @@ export default function DeviceInfo() {
                 <p className="text-slate-400 text-xs text-center break-words">{updateState.detail}</p>
               )}
               <button
-                onClick={handleCheckUpdate}
+                onClick={handleUpdateNow}
                 className="w-full py-2.5 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 text-emerald-300 text-sm font-medium transition-colors"
               >
                 ✓  Up to date — v{appVersion} · Check again
@@ -488,10 +457,10 @@ export default function DeviceInfo() {
             </div>
           ) : (
             <button
-              onClick={handleCheckUpdate}
+              onClick={handleUpdateNow}
               className="w-full py-2.5 rounded-lg border border-slate-600 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
-              <>↺  Check for Updates</>
+              <>↺  Update app</>
             </button>
           )}
           {lastCheckedAt && (

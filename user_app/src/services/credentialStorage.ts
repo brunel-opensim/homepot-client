@@ -40,13 +40,12 @@ declare global {
           message: string
         }>>
         checkForUpdates(): Promise<UpdateCheckResult>
-        downloadUpdate(): Promise<{
-          status: 'downloading' | 'updating' | 'downloaded' | 'disabled' | 'error'
+        updateNow(): Promise<{
+          status: 'checking' | 'downloading' | 'updating' | 'downloaded' | 'disabled' | 'error'
           message?: string
           version?: string
           detail?: string
         }>
-        restartToInstall(): Promise<{ status: 'installing' } | { status: 'disabled' }>
         getUpdateState(): Promise<UpdateStatePayload>
         getLoginItemSettings(): Promise<{ enabled: boolean; supported: boolean }>
         setLoginItemSettings(openAtLogin: boolean): Promise<{ enabled: boolean; ok: boolean }>

@@ -181,19 +181,11 @@ describe('DeviceInfo', () => {
 
   function installUpdateApi(overrides: {
     seed?: unknown
-    checkForUpdates?: () => Promise<unknown>
-    downloadUpdate?: () => Promise<unknown>
-    restartToInstall?: () => Promise<unknown>
+    updateNow?: () => Promise<unknown>
   } = {}) {
-    const checkForUpdates = overrides.checkForUpdates
-      ? vi.fn(overrides.checkForUpdates)
-      : vi.fn().mockResolvedValue({ mode: 'source', status: 'not-available', currentVersion: '0.1.0' })
-    const downloadUpdate = overrides.downloadUpdate
-      ? vi.fn(overrides.downloadUpdate)
-      : vi.fn().mockResolvedValue({ status: 'updating' })
-    const restartToInstall = overrides.restartToInstall
-      ? vi.fn(overrides.restartToInstall)
-      : vi.fn().mockResolvedValue({ status: 'installing' })
+    const updateNow = overrides.updateNow
+      ? vi.fn(overrides.updateNow)
+      : vi.fn().mockResolvedValue({ status: 'checking' })
     ;(window as unknown as { electronAPI?: unknown }).electronAPI = {
       device: {
         identity: vi.fn().mockResolvedValue({ deviceId: 'test-device', machineId: 'mac-1' }),
@@ -202,9 +194,7 @@ describe('DeviceInfo', () => {
       app: {
         getVersion: vi.fn().mockResolvedValue('0.1.0'),
         getRecentLogs: vi.fn().mockResolvedValue([]),
-        checkForUpdates,
-        downloadUpdate,
-        restartToInstall,
+        updateNow,
         getUpdateState: vi.fn().mockResolvedValue(
           overrides.seed ?? { state: { kind: 'idle' }, currentVersion: '0.1.0', mode: 'source' },
         ),
@@ -213,7 +203,7 @@ describe('DeviceInfo', () => {
         onStatus: vi.fn().mockReturnValue(() => {}),
       },
     } as never
-    return { checkForUpdates, downloadUpdate, restartToInstall }
+    return { updateNow }
   }
 
   it('renders DNA table with backend data', async () => {
@@ -303,10 +293,10 @@ describe('DeviceInfo', () => {
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
   })
 
-  it('renders the Check for Updates button by default', async () => {
+  it('renders the Update app button by default', async () => {
     routeDeviceApi({ device_id: 'test-device', name: 'Test Device', device_type: 'pos_terminal', os_details: 'linux', lifecycle_state: 'active' })
     renderWithProviders(<DeviceInfo />)
-    expect(await screen.findByRole('button', { name: /Check for Updates/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Update app/ })).toBeInTheDocument()
   })
 
   it('reads and toggles the start-at-login switch', async () => {
@@ -336,58 +326,52 @@ describe('DeviceInfo', () => {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'))
   })
 
-  it('shows a disabled reason and offers a Check again retry', async () => {
-    const { checkForUpdates } = installUpdateApi({
+  it('shows a disabled reason and offers a Retry', async () => {
+    const { updateNow } = installUpdateApi({
       seed: { state: { kind: 'idle' }, currentVersion: '0.1.0', mode: 'none' },
-      checkForUpdates: () =>
-        Promise.resolve({ mode: 'none', status: 'disabled', currentVersion: '0.1.0', message: 'No update channel is configured' }),
+      updateNow: () =>
+        Promise.resolve({ status: 'disabled', currentVersion: '0.1.0', message: 'No update channel is configured' }),
     })
     routeDeviceApi({ device_id: 'test-device', name: 'Test Device', device_type: 'pos_terminal', os_details: 'linux', lifecycle_state: 'active' })
     renderWithProviders(<DeviceInfo />)
-    fireEvent.click(await screen.findByRole('button', { name: /Check for Updates/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Update app/ }))
     expect(await screen.findByText('Automatic updates are not enabled for this build')).toBeInTheDocument()
     expect(screen.getByText('No update channel is configured')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Check again/ }))
-    expect(checkForUpdates).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: /Retry/ }))
+    expect(updateNow).toHaveBeenCalledTimes(2)
   })
 
-  it('offers a source update when the checkout is behind origin', async () => {
-    const { downloadUpdate, checkForUpdates } = installUpdateApi({
-      checkForUpdates: () =>
-        Promise.resolve({
-          mode: 'source',
-          status: 'available',
-          currentVersion: '0.1.0',
+  it('offers a one-shot source update when an update is available', async () => {
+    const { updateNow } = installUpdateApi({
+      seed: {
+        state: {
+          kind: 'available',
           version: 'v0.1.1',
           detail: '3 commits behind origin/main',
-          info: {
-            mode: 'source', root: '/x', branch: 'main', headSha: 'abc1234', behindCount: 3,
-            aheadCount: 0, dirty: false, fetchSucceeded: true, latestTag: 'v0.1.1', currentTag: null, error: null,
-          },
-        }),
-      downloadUpdate: () => Promise.resolve({ status: 'updating' }),
+          channel: 'source',
+        },
+        currentVersion: '0.1.0',
+        mode: 'source',
+      },
+      updateNow: () => Promise.resolve({ status: 'updating' }),
     })
     routeDeviceApi({ device_id: 'test-device', name: 'Test Device', device_type: 'pos_terminal', os_details: 'linux', lifecycle_state: 'active' })
     renderWithProviders(<DeviceInfo />)
-    fireEvent.click(await screen.findByRole('button', { name: /Check for Updates/ }))
     expect(await screen.findByText(/v0\.1\.1 available/)).toBeInTheDocument()
     expect(screen.getByText(/3 commits behind origin\/main/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Update app from source/ }))
-    await waitFor(() => expect(downloadUpdate).toHaveBeenCalled())
-    expect(await screen.findByText(/Updating the app…/)).toBeInTheDocument()
-    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(updateNow).toHaveBeenCalledTimes(1))
   })
 
-  it('shows Restart to finish after a source update is applied', async () => {
-    const { restartToInstall } = installUpdateApi({
+  it('shows an installing state after an update is downloaded', async () => {
+    installUpdateApi({
       seed: { state: { kind: 'downloaded', version: '0.1.1', detail: 'Source updated — restart to apply' }, currentVersion: '0.1.0', mode: 'source' },
     })
     routeDeviceApi({ device_id: 'test-device', name: 'Test Device', device_type: 'pos_terminal', os_details: 'linux', lifecycle_state: 'active' })
     renderWithProviders(<DeviceInfo />)
-    expect(await screen.findByText(/Update v0\.1\.1 ready to install/)).toBeInTheDocument()
+    expect(await screen.findByText(/Installing update v0\.1\.1/)).toBeInTheDocument()
     expect(screen.getByText('Source updated — restart to apply')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Restart to finish/ }))
-    await waitFor(() => expect(restartToInstall).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Restart to finish/ })).not.toBeInTheDocument()
   })
 })
 
