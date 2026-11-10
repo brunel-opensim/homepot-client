@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai.actions import ActionProposal, validate_proposal
+from ai.actions import ActionProposal, allowed_actions_summary, validate_proposal
 from ai.context_builder import ContextBuilder
 from ai.device_memory import DeviceMemory, MemoryScope
 
@@ -629,6 +629,40 @@ async def get_alerts(severity: Optional[str] = None) -> str:
 # Tool 9: propose_device_action
 # ---------------------------------------------------------------------------
 
+# The full tool docstring is built once from the action registry so the
+# advertised action list can never drift from ACTION_REGISTRY.
+_PROPOSE_DEVICE_ACTION_DOC = f"""Propose a device-management action for technician
+approval (does NOT execute).
+
+ALWAYS use this when the user asks you to DO something on a device, even
+if you already have the data in context. Keywords that imply an action:
+"run", "list", "scan", "check", "start", "stop", "install", "execute",
+"show me processes", "show me connections", "what programs are installed".
+This records a *proposal* only: a technician must review and approve
+before anything runs. Never claim an action was performed — always tell
+the user it is pending approval.
+
+Do NOT use this for purely informational questions ("what is the status",
+"how is it performing", "explain", "summarize") — answer those directly.
+But "list processes" is an ACTION (propose it), while "what is the CPU
+usage" is informational (answer directly).
+
+Args:
+    action: The proposed action. Must be one of the registered actions:
+        {allowed_actions_summary()}
+    target_device_id: The device identifier the action applies to. If you only
+    have a device name, call find_device first to resolve the business ID.
+    rationale: Why the action is recommended, citing the evidence you
+            observed (metrics, errors, config history).
+    params: Optional JSON object string of action parameters, e.g.
+            '{{"config": {{"log_level": "debug"}}}}'. Omit for actions such as
+            'restart' that take no parameters.
+
+Returns:
+    A confirmation that the proposal was recorded (not executed), or an
+    error explaining why it was rejected.
+"""
+
 
 async def propose_device_action(
     action: str,
@@ -636,43 +670,7 @@ async def propose_device_action(
     rationale: str,
     params: Optional[str] = None,
 ) -> str:
-    """Propose a device-management action for technician approval (does NOT execute).
-
-    ALWAYS use this when the user asks you to DO something on a device, even
-    if you already have the data in context. Keywords that imply an action:
-    "run", "list", "scan", "check", "start", "stop", "install", "execute",
-    "show me processes", "show me connections", "what programs are installed".
-    This records a *proposal* only: a technician must review and approve
-    before anything runs. Never claim an action was performed — always tell
-    the user it is pending approval.
-
-    Do NOT use this for purely informational questions ("what is the status",
-    "how is it performing", "explain", "summarize") — answer those directly.
-    But "list processes" is an ACTION (propose it), while "what is the CPU
-    usage" is informational (answer directly).
-
-    Args:
-        action: The proposed action. Must be one of the registered actions:
-            'health_check', 'list_processes', 'scan_filesystem',
-            'list_installed_programs', 'list_connections' (T1 read-only),
-            'update_config' (config keys: volume, brightness, log_level,
-            hostname, etc.), 'restart', 'rollback_config', 'start_program',
-            'stop_program', 'install_program', 'uninstall_program',
-            'update_program', 'run_command_unprivileged' (T2 reversible),
-            'restart_service', 'shutdown', 'upgrade_all_programs',
-            'run_command', 'run_script' (T3 disruptive).
-        target_device_id: The device identifier the action applies to. If you only
-        have a device name, call find_device first to resolve the business ID.
-        rationale: Why the action is recommended, citing the evidence you
-                observed (metrics, errors, config history).
-        params: Optional JSON object string of action parameters, e.g.
-                '{"config": {"log_level": "debug"}}'. Omit for actions such as
-                'restart' that take no parameters.
-
-    Returns:
-        A confirmation that the proposal was recorded (not executed), or an
-        error explaining why it was rejected.
-    """
+    """Propose a device-management action for technician approval."""
     block_reason = get_tool_proposal_block_reason()
     if block_reason is not None:
         return (
@@ -730,6 +728,9 @@ async def propose_device_action(
         "The technician can later ask whether it succeeded; use "
         "get_action_plan_status with the plan_id from the proposal metadata."
     )
+
+
+propose_device_action.__doc__ = _PROPOSE_DEVICE_ACTION_DOC
 
 
 # ---------------------------------------------------------------------------

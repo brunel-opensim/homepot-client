@@ -100,6 +100,15 @@ def test_registry_declares_expected_actions():
     assert ACTION_REGISTRY["restart_service"].risk_tier == "T3"
 
 
+def test_propose_device_action_docstring_lists_every_registered_action():
+    """The tool docstring advertises exactly the registered actions (no drift)."""
+    doc = propose_device_action.__doc__ or ""
+    missing = [name for name in ACTION_REGISTRY if f"'{name}'" not in doc]
+    assert (
+        not missing
+    ), f"propose_device_action docstring is missing registered actions: {missing}"
+
+
 def test_validate_proposal_accepts_known_action():
     """A well-formed proposal validates against the registry."""
     spec, error = validate_proposal("restart", "POS-001", {})

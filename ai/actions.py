@@ -355,3 +355,34 @@ def max_risk_tier(proposals: List[ActionProposal]) -> Optional[str]:
 def all_reversible(proposals: List[ActionProposal]) -> bool:
     """Whether every proposed step can be rolled back (empty plan => False)."""
     return bool(proposals) and all(bool(p.reversible) for p in proposals)
+
+
+# Map each risk tier to a short label for tool docstrings / diagnostics.
+_RISK_LABELS = {
+    "T1": "read-only",
+    "T2": "reversible",
+    "T3": "disruptive",
+    "T4": "destructive",
+}
+
+
+def allowed_actions_summary() -> str:
+    """Render the registered actions grouped by risk tier.
+
+    This is the single source of truth for the human-readable action list used
+    by the proposal tool's docstring, so it can never drift from
+    :data:`ACTION_REGISTRY`. Each line is indented to fit inside the tool's
+    ``Args`` block.
+    """
+    grouped: Dict[str, List[str]] = {}
+    for name, spec in sorted(ACTION_REGISTRY.items()):
+        grouped.setdefault(spec.risk_tier, []).append(name)
+
+    lines: List[str] = []
+    for tier in ("T1", "T2", "T3", "T4"):
+        names = grouped.get(tier)
+        if not names:
+            continue
+        rendered = ", ".join(f"'{name}'" for name in names)
+        lines.append(f"{rendered} ({tier} {_RISK_LABELS[tier]})")
+    return "\n            ".join(lines)
