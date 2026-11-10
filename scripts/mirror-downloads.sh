@@ -250,6 +250,85 @@ if command -v diff >/dev/null; then
   fi
 fi
 
+# --- Build the `previous` update channel ------------------------------------
+# The app rolls a broken release back through a `previous` channel:
+# electron-updater fetches <publish-url>/<channel>.yml, so the previous feed
+# must live next to latest.yml and reference installers that are also served
+# here. Carry the current set's channel files and the installers they reference
+# into the staged set, renaming latest*.yml to previous*.yml. Hard links are
+# used so keeping the previous version costs no extra disk; the old set is
+# still kept aside as a backup after the swap.
+#
+# This runs after the blockmap warning (which compares the live and staged
+# sets) so the carried-over files cannot mask a lost blockmap in the new
+# release.
+if compgen -G "$TARGET_DIR/latest*.yml" >/dev/null; then
+  python3 - "$TARGET_DIR" "$STAGE" <<'PY' || fail "could not build the previous channel"
+import os, re, shutil, sys
+
+target, stage = sys.argv[1], sys.argv[2]
+CHANNEL = re.compile(r"^latest(-[a-z0-9]+)*\.yml$")
+
+def version_of(text):
+    m = re.search(r"^version:\s*(\S+)\s*$", text, re.M)
+    return m.group(1).strip("'\"") if m else None
+
+def referenced(text):
+    names = []
+    for m in re.finditer(r"^[ \t-]*url:\s*(\S+)\s*$", text, re.M):
+        names.append(m.group(1).strip("'\""))
+    m = re.search(r"^path:\s*(\S+)\s*$", text, re.M)
+    if m:
+        names.append(m.group(1).strip("'\""))
+    return names
+
+def carry(name):
+    src = os.path.join(target, name)
+    dst = os.path.join(stage, name)
+    if not os.path.exists(src):
+        return False
+    if os.path.exists(dst):
+        return True
+    try:
+        os.link(src, dst)          # same filesystem: no extra disk
+    except OSError:
+        shutil.copy2(src, dst)     # fallback if hard links are unavailable
+    return True
+
+made = []
+for name in sorted(os.listdir(target)):
+    if not CHANNEL.match(name):
+        continue
+    with open(os.path.join(target, name), encoding="utf-8") as fh:
+        text = fh.read()
+    prev_name = "previous" + name[len("latest"):]
+    # A re-mirror of the same version has nothing to roll back to.
+    new_path = os.path.join(stage, "latest" + name[len("latest"):])
+    if os.path.exists(new_path):
+        with open(new_path, encoding="utf-8") as fh:
+            if version_of(fh.read()) == version_of(text):
+                print("  previous channel: %s skipped (same version)" % prev_name, file=sys.stderr)
+                continue
+    assets = referenced(text)
+    missing = [n for n in assets if not carry(n)]
+    for n in assets:
+        carry(n + ".blockmap")
+    if missing:
+        print("  previous channel: %s skipped (missing %s)" % (prev_name, ", ".join(missing)), file=sys.stderr)
+        continue
+    dst = os.path.join(stage, prev_name)
+    if os.path.exists(dst):
+        continue
+    with open(dst, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    made.append(prev_name)
+
+print("  previous channel: %s" % (", ".join(made) if made else "(none)"), file=sys.stderr)
+PY
+else
+  log "No current channel file; skipping the previous channel (first mirror?)"
+fi
+
 # Move the old set aside, move the new one in, then remove the old one. At no
 # point is the live directory empty: the gap between the two renames is a
 # single filesystem operation on the same directory. Existence was checked

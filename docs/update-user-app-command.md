@@ -1,12 +1,14 @@
 # Update the User App (One-shot) — Design
 
-Status: In progress — the one-shot update and the `generic` provider switch are
-implemented in this change; rollback ("previous" channel) and the `update_app`
-command are follow-ons.
+Status: Implemented — the one-shot update, the `generic` provider switch, the
+`update_app` and `rollback_app` commands (agent handler, Electron stdout
+marker, AI registry, and compose template), and rollback through the
+server-published `previous` channel are in place; the Electron → agent terminal
+channel is a follow-on.
 
 > Decision: Updating the User App is a **single one-shot action** — check,
 > download, and restart-to-install happen in one step, both in the on-device UI
-> and (later) as a single `update_app` command from the Dashboard. The
+> and as a single `update_app` command from the Dashboard. The
 > **stable** source of truth is the Dashboard **Downloads page** (`/downloads`),
 > not the GitHub release. The User App is installed **per device** (one install
 > per device), and a broken release must be **rollback-able to the previous
@@ -46,8 +48,8 @@ auto-updater just is not reading from it yet.
 2. Collapse the three-step flow into a **single one-shot "Update" action** in the
    on-device UI.
 3. Provide **rollback to the previous version** when a release misbehaves.
-4. Lay the groundwork for a future `update_app` command so the Dashboard (or the
-   AI) can trigger the same one-shot remotely.
+4. Add an `update_app` command so the Dashboard (or the AI) can trigger the same
+   one-shot remotely.
 
 ## Design
 
@@ -135,18 +137,29 @@ install it.
 
 ### Approach: "previous" channel
 
-The mirror script's atomic swap already keeps the previous version's full feed
-and installers in its backup. Serve that as a `previous` channel alongside
-`latest.yml`, and roll back by reusing the update pipeline:
+The app rolls back through a `previous` update channel that the mirror script
+publishes next to `latest.yml`. `mirror-downloads.sh` carries the current set's
+`latest*.yml` into the served set as `previous*.yml` (`previous.yml`,
+`previous-mac.yml`, `previous-linux.yml`, ...) and hard-links the installers
+they reference, so the previous version is served without duplicating its bytes.
+The app then reuses the update pipeline:
 
 ```ts
-autoUpdater.allowDowngrade = true   // permit a lower version
-autoUpdater.channel = 'previous'    // fetch previous.yml instead of latest.yml
+autoUpdater.channel = 'previous'   // fetch previous.yml instead of latest.yml
+autoUpdater.allowDowngrade = true  // the setter enables this; set explicitly too
 // → checkForUpdates() → downloadUpdate() → quitAndInstall()
 ```
 
-- Reuses the blockmap differential and checksum verification.
-- One step back only (the immediately-previous version).
+- Reuses the checksum verification.
+- Uses a full download (differential download is disabled for the rollback: a
+  downgrade has no valid "old" blockmap base).
+- One step back only (the immediately-previous served version).
+- The updater channel is restored to `latest` with `allowDowngrade = false` as
+  soon as a rollback settles without installing (no previous feed, download
+  error), so a later normal update never silently downgrades.
+- After a rollback the `latest` feed still points at the broken release; publish
+  a fixed release (or mirror the last-good one) so the next update does not
+  re-introduce it.
 
 ### Fallback: manual reinstall
 
@@ -154,35 +167,40 @@ The Downloads page serves installers and GitHub retains every release, so a
 device can always be rolled back by downloading and running the previous
 installer by hand. This is the zero-code safety net.
 
-**Deferred:** an explicit version downgrade (`rollback_app` /
-`update_app --target=<version>`) to go back to any release, not just the
-immediately-previous one.
+**Deferred:** an explicit version downgrade to *any* release (not just the
+immediately-previous one), e.g. `rollback_app --target=<version>`.
 
-## Future follow-on: `update_app` command
+## `update_app` and `rollback_app` commands (implemented)
 
-A separate change (not in this note's scope) adds a `update_app` command so the
-Dashboard or AI can trigger the same one-shot remotely:
+The two commands let the Dashboard or AI trigger the same one-shot operations
+remotely:
 
-- **Command** — `update_app` (T3, `root_access`), added to `COMMAND_TYPES`,
-  `REQUIRED_PERMISSION`, and the AI `ACTION_REGISTRY`. A `rollback_app` action
-  reuses the same machinery with `channel: 'previous'` + `allowDowngrade`.
-- **Agent → Electron** — the agent signals the Electron shell to run
-  `app:updateNow`'s logic. Because the agent must stay alive through the
-  download (unlike `restart_agent`, which exits), this uses a **stdout marker**
-  rather than a reserved exit code.
-- **Electron → agent terminal signal** — the Electron shell reports the outcome
-  (downloaded / no-update / error) back to the agent, because the agent cannot
-  see electron-updater's lifecycle. The current stdin is `'ignore'`; this needs a
-  minimal channel (piped stdin line or a status file), so failures are not
-  silently invisible.
+- **Commands** — `update_app` and `rollback_app` (T3, `root_access`), added to
+  `COMMAND_TYPES`, `REQUIRED_PERMISSION`, the AI `ACTION_REGISTRY`, the AI
+  command titles, and the compose-command templates in `PushReview.jsx`.
+- **Agent → Electron** — after the agent posts the "initiated" result it prints
+  a reserved marker to stdout (`UPDATE_APP_MARKER` / `ROLLBACK_APP_MARKER`).
+  Because the agent must stay alive through the download (unlike
+  `restart_agent`, which exits), this uses a **stdout marker** rather than a
+  reserved exit code. The Electron supervisor detects the marker and runs the
+  one-shot update or the rollback.
 - **Result confirmation** — success is confirmed by the device's `agent_version`
   bump on the next heartbeat (it already reports `app_version` in the device
-  DNA).
+  DNA). The commands report "initiated", not the final outcome.
+
+**Deferred:**
+
+- **Electron → agent terminal signal** — the Electron shell does not yet report
+  the outcome (downloaded / no-update / error) back to the agent, because the
+  agent cannot see electron-updater's lifecycle. The current stdin is `'ignore'`;
+  this needs a minimal channel (piped stdin line or a status file), so failures
+  are not silently invisible.
 
 ## Edge cases
 
-1. **Auto-check must not auto-install** — only the explicit `app:updateNow` (and
-   the future command) sets `installOnDownload`.
+1. **Auto-check must not auto-install** — only the explicit update/rollback actions
+   (on-device UI and the `update_app` / `rollback_app` commands) set
+   `installOnDownload`.
 2. **No update available** — one-shot must return a clean "already up to date",
    not a hung "initiated".
 3. **Download error** — must surface to the caller (on-device UI, and later the
@@ -203,5 +221,7 @@ Dashboard or AI can trigger the same one-shot remotely:
 | Types (`credentialStorage.ts`) | interface + `UpdateState` | Small |
 | Packaging (`package.json`) | `publish.provider` → `generic` | Small |
 | Tests (`views.test.tsx`) | one-shot API + UI assertions | Moderate |
-| Rollback (`main.ts`, mirror script) | `previous` channel + `allowDowngrade` | Deferred (follow-on) |
-| Follow-on (command + agent signal) | `update_app` + `rollback_app` + stdout marker + terminal channel | Separate PR |
+| Rollback (`main.ts`, mirror script) | `previous` channel + `allowDowngrade` + channel reset | Implemented |
+| `update_app` command | agent handler + stdout marker + AI registry + compose template | Implemented |
+| `rollback_app` command | agent handler + stdout marker + AI registry + compose template | Implemented |
+| Terminal channel (`main.ts`, agent) | Electron → agent outcome report | Deferred (follow-on) |

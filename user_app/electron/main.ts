@@ -101,6 +101,23 @@ let lastCheckedAt: string | null = null
 // The background auto-check never sets this, so it stays check-only.
 let installOnDownload = false
 
+// The device agent prints this reserved line to stdout after an `update_app`
+// command is acknowledged. We then run the one-shot update while the agent
+// stays alive through the download; the app restarts at the end. Keep in sync
+// with UPDATE_APP_MARKER in
+// backend/src/homepot/agent/utils/command_poller.py.
+const UPDATE_APP_MARKER = '__HOMEPOT_UPDATE_APP__'
+
+// The device agent prints this reserved line to stdout after a `rollback_app`
+// command is acknowledged. We then roll back through the `previous` update
+// channel. Keep in sync with ROLLBACK_APP_MARKER in
+// backend/src/homepot/agent/utils/command_poller.py.
+const ROLLBACK_APP_MARKER = '__HOMEPOT_ROLLBACK_APP__'
+
+// True while a rollback to the `previous` channel is in flight, so the update
+// lifecycle handlers can restore the default channel once it settles.
+let rollingBack = false
+
 // The app updates through electron-updater when packaged; when run from a git
 // checkout (the rollout model for managed machines) updates come from the repo
 // itself. 'none' means neither channel is usable, so the UI reports disabled.
@@ -114,6 +131,18 @@ function updateMode(): BuildMode {
 function updaterConfigured(): boolean {
   // electron-updater is only usable in a packaged app that ships app-update.yml.
   return app.isPackaged
+}
+
+// Restore the default `latest` channel after a rollback attempt. The `channel`
+// setter rejects `null` once a channel has been set and always flips
+// `allowDowngrade` to true, so set a valid channel name and then disable
+// downgrades explicitly. Without this a later normal check could keep reading
+// `previous.yml` and silently downgrade.
+function resetUpdaterChannel(): void {
+  rollingBack = false
+  autoUpdater.channel = 'latest'
+  autoUpdater.allowDowngrade = false
+  autoUpdater.disableDifferentialDownload = false
 }
 
 function sendUpdateStatus(): void {
@@ -144,7 +173,13 @@ function setupAutoUpdater(): void {
   autoUpdater.on('update-available', (info) => {
     updateState = { kind: 'available', version: info.version, channel: 'packaged' }
     sendUpdateStatus()
-    recordAppEvent('info', 'updater', `Update available v${info.version}`)
+    recordAppEvent(
+      'info',
+      'updater',
+      rollingBack
+        ? `Previous version v${info.version} available`
+        : `Update available v${info.version}`,
+    )
     if (installOnDownload) {
       // One-shot: proceed straight to download; the downloader then auto-installs.
       updateState = { kind: 'downloading', percent: 0 }
@@ -164,10 +199,18 @@ function setupAutoUpdater(): void {
   })
 
   autoUpdater.on('update-not-available', () => {
+    const wasRollingBack = rollingBack
     installOnDownload = false
+    if (rollingBack) resetUpdaterChannel()
     updateState = { kind: 'not-available' }
     sendUpdateStatus()
-    recordAppEvent('info', 'updater', 'Update not available')
+    recordAppEvent(
+      'info',
+      'updater',
+      wasRollingBack
+        ? 'No previous version available to roll back to'
+        : 'Update not available',
+    )
     if (tray) tray.setToolTip('HOMEPOT Agent')
   })
 
@@ -181,7 +224,13 @@ function setupAutoUpdater(): void {
     sendUpdateStatus()
     recordAppEvent('info', 'updater', `Update downloaded v${info.version}`)
     if (installOnDownload) {
-      recordAppEvent('info', 'updater', 'Restarting to install the update')
+      recordAppEvent(
+        'info',
+        'updater',
+        rollingBack
+          ? 'Restarting to install the previous version'
+          : 'Restarting to install the update',
+      )
       autoUpdater.quitAndInstall()
       return
     }
@@ -197,6 +246,7 @@ function setupAutoUpdater(): void {
 
   autoUpdater.on('error', (err) => {
     installOnDownload = false
+    if (rollingBack) resetUpdaterChannel()
     const message = String(err instanceof Error ? err.message : err)
     updateState = recoverFromDownloadError(message)
     sendUpdateStatus()
@@ -749,6 +799,71 @@ function getOrCreateDeviceIdentity(): { deviceId: string; machineId: string } {
   return identity
 }
 
+// One-shot update: check, download, and restart-to-install in a single action.
+// The background auto-check stays check-only; only the IPC handler and the
+// `update_app` command (via the agent's stdout marker) arm the auto-install
+// path through `installOnDownload`.
+async function runOneShotUpdate(): Promise<Record<string, unknown>> {
+  // A normal update must never downgrade; drop any channel left from a rollback.
+  if (rollingBack) resetUpdaterChannel()
+  if (updateMode() === 'source') {
+    const result = await applySourceUpdate()
+    if (result.status === 'downloaded') restartToApplySourceUpdate()
+    return result
+  }
+  if (!updaterConfigured()) return { status: 'disabled' }
+  setupAutoUpdater()
+  installOnDownload = true
+  try {
+    return await performUpdateCheck()
+  } catch (err) {
+    installOnDownload = false
+    const message = String(err instanceof Error ? err.message : err)
+    recordAppEvent('error', 'updater', `One-shot update failed: ${message}`)
+    return { status: 'error', message }
+  }
+}
+
+// Roll back to the previously served release through the `previous` update
+// channel. The channel setter enables `allowDowngrade`, so the older version is
+// treated as an available update. Differential download is disabled: a
+// downgrade has no valid "old" blockmap base, and a full re-download is the
+// reliable path for an emergency rollback. The lifecycle handlers restore the
+// `latest` channel if the rollback cannot start (no previous feed, download
+// error).
+async function runRollback(): Promise<Record<string, unknown>> {
+  if (updateMode() === 'source') {
+    const message = 'Rollback is only available for packaged builds'
+    recordAppEvent('error', 'updater', message)
+    return { status: 'disabled', message }
+  }
+  if (!updaterConfigured()) return { status: 'disabled' }
+  setupAutoUpdater()
+  rollingBack = true
+  autoUpdater.channel = 'previous'
+  autoUpdater.allowDowngrade = true
+  autoUpdater.disableDifferentialDownload = true
+  installOnDownload = true
+  try {
+    const result = await performUpdateCheck()
+    // Only a successful check that found the previous release ('checking') may
+    // keep the rollback channel armed; the download/install handlers take over
+    // from here. On a failed or empty check the lifecycle handlers may not have
+    // run (e.g. an early provider error), so restore the default channel too.
+    if (result.status !== 'checking') {
+      installOnDownload = false
+      resetUpdaterChannel()
+    }
+    return result
+  } catch (err) {
+    installOnDownload = false
+    resetUpdaterChannel()
+    const message = String(err instanceof Error ? err.message : err)
+    recordAppEvent('error', 'updater', `Rollback failed: ${message}`)
+    return { status: 'error', message }
+  }
+}
+
 function registerIpcHandlers() {
   ipcMain.handle('credentials:save', (_event, data: Record<string, string>) => {
     writeCredentialsFile(data)
@@ -846,25 +961,10 @@ function registerIpcHandlers() {
   })
 
   // One-shot update: check, download, and restart-to-install in a single action.
-  // The background auto-check stays check-only; only this handler (and a future
-  // `update_app` command) arms the auto-install path via `installOnDownload`.
+  // The background auto-check stays check-only; only this handler and the
+  // `update_app` command arm the auto-install path via `installOnDownload`.
   ipcMain.handle('app:updateNow', async () => {
-    if (updateMode() === 'source') {
-      const result = await applySourceUpdate()
-      if (result.status === 'downloaded') restartToApplySourceUpdate()
-      return result
-    }
-    if (!updaterConfigured()) return { status: 'disabled' }
-    setupAutoUpdater()
-    installOnDownload = true
-    try {
-      return await performUpdateCheck()
-    } catch (err) {
-      installOnDownload = false
-      const message = String(err instanceof Error ? err.message : err)
-      recordAppEvent('error', 'updater', `One-shot update failed: ${message}`)
-      return { status: 'error', message }
-    }
+    return runOneShotUpdate()
   })
 
   ipcMain.handle('app:getUpdateState', () => {
@@ -1146,6 +1246,21 @@ function startAgentProcess(): boolean {
 
   child.stdout?.on('data', (data: Buffer) => {
     for (const line of data.toString().split('\n').filter(Boolean)) {
+      if (line.trim() === UPDATE_APP_MARKER) {
+        // The agent acknowledged an `update_app` command; run the one-shot
+        // update. The agent keeps running through the download, then the app
+        // restarts to install.
+        recordAppEvent('info', 'agent', 'Update requested by the backend; starting one-shot update')
+        void runOneShotUpdate()
+        continue
+      }
+      if (line.trim() === ROLLBACK_APP_MARKER) {
+        // The agent acknowledged a `rollback_app` command; roll back through
+        // the `previous` channel.
+        recordAppEvent('info', 'agent', 'Rollback requested by the backend; starting rollback')
+        void runRollback()
+        continue
+      }
       safeLog(`[agent] ${line}`)
       appendDeviceLog(logFile, 'agent', line)
     }

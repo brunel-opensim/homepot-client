@@ -234,6 +234,23 @@ A single "Update app" action in Settings performs the whole update:
 
 There is no separate "Restart to Install" step — the update is one-shot.
 
+### Rollback (previous release)
+
+A broken release can be rolled back from the Dashboard or by the AI with the
+`rollback_app` command, or by running the previous installer by hand from the
+Downloads page. This is the one-step-back path.
+
+- The mirror script publishes a `previous` channel next to `latest.yml`
+  (`previous.yml`, `previous-mac.yml`, `previous-linux.yml`, ...). It carries
+  the previously served release's feed and hard-links its installers, so the
+  rollback copy costs no extra disk.
+- The app switches to the `previous` channel with `allowDowngrade`, downloads
+  the older installer in full, and restarts to install it.
+- The channel is restored to `latest` (with downgrades disabled) if the
+  rollback cannot start, so a later normal update never silently downgrades.
+- After a rollback, publish a fixed release (or re-mirror the last-good one);
+  otherwise the `latest` feed still points at the broken release.
+
 ### Update modes
 | Mode | Channel | Notes |
 |------|---------|-------|

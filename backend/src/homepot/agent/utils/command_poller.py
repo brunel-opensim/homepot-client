@@ -37,6 +37,8 @@ COMMAND_TYPES = frozenset(
         "shutdown",
         "status_request",
         "update_config",
+        "update_app",
+        "rollback_app",
         "list_processes",
         "list_connections",
         "scan_filesystem",
@@ -64,6 +66,8 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "run_script": "root_access",
     "shutdown": "root_access",
     "update_config": "root_access",
+    "update_app": "root_access",
+    "rollback_app": "root_access",
     "list_processes": "process_monitoring",
     "list_connections": "network_monitoring",
     "scan_filesystem": "root_access",
@@ -85,6 +89,18 @@ MAX_COMMAND_TIMEOUT = 300
 # distinguish a requested restart from a crash and respawn without counting it
 # against the crash-loop budget. Keep in sync with the supervisor's check.
 RESTART_AGENT_EXIT_CODE = 42
+
+# The agent writes this reserved line to stdout after an ``update_app`` command
+# has been acknowledged. The Electron supervisor detects it and runs the
+# one-shot update (check + download + restart) while the agent stays alive.
+# Keep in sync with UPDATE_APP_MARKER in user_app/electron/main.ts.
+UPDATE_APP_MARKER = "__HOMEPOT_UPDATE_APP__"
+
+# The agent writes this reserved line to stdout after a ``rollback_app`` command
+# has been acknowledged. The Electron supervisor detects it and rolls back to
+# the previously served release through the ``previous`` update channel.
+# Keep in sync with ROLLBACK_APP_MARKER in user_app/electron/main.ts.
+ROLLBACK_APP_MARKER = "__HOMEPOT_ROLLBACK_APP__"
 
 
 def _command_data(command: Dict[str, Any]) -> Dict[str, Any]:
@@ -1857,6 +1873,29 @@ def _restart_agent(data: Dict[str, Any]) -> Dict[str, Any]:
     return {"status": "completed", "result": {"message": "restart initiated"}}
 
 
+def _update_app(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Acknowledge a request to update the User App itself.
+
+    Returns success immediately so the command is reported as completed; the
+    actual one-shot update (check + download + restart) is triggered by the
+    Electron supervisor after the agent's command-polling loop prints the
+    reserved :data:`UPDATE_APP_MARKER` to stdout. The agent stays alive through
+    the download; the supervisor restarts the whole app at the end.
+    """
+    return {"status": "completed", "result": {"message": "update initiated"}}
+
+
+def _rollback_app(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Acknowledge a request to roll the User App back to the previous release.
+
+    Returns success immediately so the command is reported as completed; the
+    actual rollback (check the ``previous`` channel + download + restart) is
+    triggered by the Electron supervisor after the agent's command-polling loop
+    prints the reserved :data:`ROLLBACK_APP_MARKER` to stdout.
+    """
+    return {"status": "completed", "result": {"message": "rollback initiated"}}
+
+
 def _process_command_impl(
     command: Dict[str, Any],
     permissions: Optional[Dict[str, bool]] = None,
@@ -1927,6 +1966,12 @@ def _process_command_impl(
 
     if command_type == "restart_agent":
         return _restart_agent(_command_data(command))
+
+    if command_type == "update_app":
+        return _update_app(_command_data(command))
+
+    if command_type == "rollback_app":
+        return _rollback_app(_command_data(command))
 
     if command_type == "restart_service":
         return _restart_service(_command_data(command))
