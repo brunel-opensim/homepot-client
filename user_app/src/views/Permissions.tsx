@@ -305,10 +305,10 @@ export default function Permissions() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
-      <div className="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden">
+    <div className="h-screen bg-slate-900 flex items-center justify-center p-4 font-sans overflow-hidden">
+      <div className="w-full max-w-sm h-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700 shrink-0">
           <div>
             <h1 className="text-slate-100 font-bold text-base tracking-wide">
               HOMEPOT Agent
@@ -322,6 +322,8 @@ export default function Permissions() {
           </div>
         </div>
 
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto min-h-0 logs-scroll">
         {/* Description */}
         <div className="px-5 pt-4">
           <p className="text-slate-400 text-sm">
@@ -424,6 +426,8 @@ export default function Permissions() {
                 : "All changes synced to the server."}
             </p>
           </div>
+        </div>
+
         </div>
 
         {/* Tab Bar */}
