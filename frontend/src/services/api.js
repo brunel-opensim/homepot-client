@@ -930,6 +930,11 @@ const api = {
       const response = await apiClient.get('/ai/calibration', { params: { days } });
       return response.data;
     },
+
+    getComposeTemplates: async () => {
+      const response = await apiClient.get('/ai/compose-templates');
+      return response.data;
+    },
   },
 
   // Investigation sessions (backend-owned AI investigations).

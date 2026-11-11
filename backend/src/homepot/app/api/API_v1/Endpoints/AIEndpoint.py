@@ -85,6 +85,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_user())])
 
+
+@router.get("/compose-templates", tags=["AI Chat"])
+async def get_compose_templates() -> Dict[str, Any]:
+    """Return the Compose Command templates (single source of truth).
+
+    The Dashboard's Compose Command page and the AI both read from this
+    endpoint/the shared ``COMPOSE_TEMPLATES`` dict so they never drift.
+    """
+    from homepot.app.ai_ops.compose_templates import COMPOSE_TEMPLATES
+
+    return {"templates": COMPOSE_TEMPLATES}
+
+
 # Tokens commonly used to break out of a prompt context and inject adversarial
 # instructions. These are neutralized in any user-supplied text before it is
 # placed into the LLM prompt (see _sanitize_ai_input).

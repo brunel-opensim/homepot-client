@@ -21,7 +21,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 // Predefined templates for common commands
-const COMMAND_TEMPLATES = {
+const FALLBACK_COMMAND_TEMPLATES = {
   RUN_COMMAND: {
     label: 'Run Command',
     action: 'run_command',
@@ -240,8 +240,8 @@ function osFamily(osDetails) {
 
 // Resolve the default command payload for a template, applying any OS-specific
 // overrides for the target device.
-function resolveDefaultData(templateKey, osDetails) {
-  const template = COMMAND_TEMPLATES[templateKey];
+function resolveDefaultData(templates, templateKey, osDetails) {
+  const template = (templates || FALLBACK_COMMAND_TEMPLATES)[templateKey];
   if (!template) return {};
   const base = template.defaultData ?? {};
   const override = template.defaultDataByOS?.[osFamily(osDetails)];
@@ -262,19 +262,19 @@ const PERMISSION_TO_GROUP = Object.fromEntries(
   Object.entries(PERMISSION_GROUPS).flatMap(([group, def]) => def.keys.map((key) => [key, group]))
 );
 
-const ACTION_TO_TEMPLATE = Object.fromEntries(
-  Object.entries(COMMAND_TEMPLATES).map(([key, template]) => [template.action, key])
-);
-
-function initialTemplate(action) {
-  if (COMMAND_TEMPLATES[action]) return action;
+function initialTemplate(templates, action) {
+  const tpls = templates || FALLBACK_COMMAND_TEMPLATES;
+  if (tpls[action]) return action;
   // APPLY_CONFIG and UPDATE_FIRMWARE share the action "update_config"; the
   // reverse lookup collapses them (UPDATE_FIRMWARE won the insertion order),
   // which made reuse of an "Apply Configuration" command show the "Update
   // Firmware" title. Default update_config to APPLY_CONFIG; callers that know
   // the real template pass the template key directly.
   if (action === 'update_config') return 'APPLY_CONFIG';
-  return ACTION_TO_TEMPLATE[action] || 'APPLY_CONFIG';
+  const actionToTemplate = Object.fromEntries(
+    Object.entries(tpls).map(([key, template]) => [template.action, key])
+  );
+  return actionToTemplate[action] || 'APPLY_CONFIG';
 }
 
 function LifecycleTracker({ commandId, commandType, command, onViewHistory }) {
@@ -373,17 +373,21 @@ export default function PushReview() {
   const [device, setDevice] = useState(null);
   const [toast, setToast] = useState(null);
 
+  // Compose Command templates: prefer the backend's (single source of truth),
+  // fall back to the bundled copy while loading or if the fetch fails.
+  const [templates, setTemplates] = useState(FALLBACK_COMMAND_TEMPLATES);
+
   // State for the Command Builder
   // Initialize from location state if available
   const [selectedCommand, setSelectedCommand] = useState(
-    initialTemplate(location.state?.initialCommand)
+    initialTemplate(FALLBACK_COMMAND_TEMPLATES, location.state?.initialCommand)
   );
   const [commandData, setCommandData] = useState(
     location.state?.initialData
       ? typeof location.state.initialData === 'string'
         ? location.state.initialData
         : JSON.stringify(location.state.initialData, null, 2)
-      : JSON.stringify(COMMAND_TEMPLATES['APPLY_CONFIG'].defaultData, null, 2)
+      : JSON.stringify(FALLBACK_COMMAND_TEMPLATES['APPLY_CONFIG'].defaultData, null, 2)
   );
   const [jsonError, setJsonError] = useState(null);
   const [trackingCommandId, setTrackingCommandId] = useState(null);
@@ -428,11 +432,11 @@ export default function PushReview() {
     if (device) {
       setPayloadConfig((prev) => ({
         ...prev,
-        title: COMMAND_TEMPLATES[selectedCommand]?.label || 'Custom Command',
+        title: templates[selectedCommand]?.label || 'Custom Command',
         body: `Executing ${selectedCommand} on ${device.name}`,
       }));
     }
-  }, [selectedCommand, device]);
+  }, [selectedCommand, device, templates]);
 
   // Handle Command Template Changes
   useEffect(() => {
@@ -445,9 +449,13 @@ export default function PushReview() {
 
     // Only reset if command type ACTUALLY changed
     if (prevCommand.current !== selectedCommand) {
-      if (COMMAND_TEMPLATES[selectedCommand]) {
+      if (templates[selectedCommand]) {
         setCommandData(
-          JSON.stringify(resolveDefaultData(selectedCommand, device?.os_details), null, 2)
+          JSON.stringify(
+            resolveDefaultData(templates, selectedCommand, device?.os_details),
+            null,
+            2
+          )
         );
       } else {
         setCommandData('{}');
@@ -455,7 +463,27 @@ export default function PushReview() {
       setJsonError(null);
       prevCommand.current = selectedCommand;
     }
-  }, [selectedCommand, device?.os_details]);
+  }, [selectedCommand, device?.os_details, templates]);
+
+  // Fetch Compose Command templates from the backend (single source of truth),
+  // falling back to the bundled copy on failure.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await api.ai.getComposeTemplates?.();
+        const fetched = res?.templates;
+        if (active && fetched && Object.keys(fetched).length > 0) {
+          setTemplates(fetched);
+        }
+      } catch {
+        // Keep fallback templates; nothing to do.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleDataChange = (value) => {
     setCommandData(value);
@@ -475,7 +503,7 @@ export default function PushReview() {
     parsedData = { error: 'Invalid JSON' };
   }
 
-  const template = COMMAND_TEMPLATES[selectedCommand];
+  const template = templates[selectedCommand];
   // Simulators expect the extra envelope keys (command/timestamp/config_url/
   // config_version) inside `data`. Real devices treat them as unknown config
   // keys, so only send them to simulated targets; otherwise every update_config
@@ -677,14 +705,14 @@ export default function PushReview() {
                       onChange={(e) => setSelectedCommand(e.target.value)}
                       className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
                     >
-                      {Object.entries(COMMAND_TEMPLATES).map(([key, template]) => (
+                      {Object.entries(templates).map(([key, template]) => (
                         <option key={key} value={key}>
                           {template.label} ({key})
                         </option>
                       ))}
                     </select>
                     <p className="text-[10px] text-slate-500 mt-1">
-                      {COMMAND_TEMPLATES[selectedCommand]?.description || 'Custom command'}
+                      {templates[selectedCommand]?.description || 'Custom command'}
                     </p>
                   </div>
                 </div>
