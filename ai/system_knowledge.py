@@ -179,6 +179,14 @@ class SystemKnowledge:
         cmd_ref = self.get_command_payload_reference()
         if cmd_ref:
             shared += f"\n\n{cmd_ref}"
+        try:
+            from homepot.app.ai_ops.compose_templates import compose_templates_reference
+
+            tmpl_ref = compose_templates_reference()
+            if tmpl_ref:
+                shared += f"\n\n{tmpl_ref}"
+        except Exception:
+            pass
         return f"SYSTEM CONTEXT:\n{shared}\n\n{_DEFINED_SYSTEM_ROLES}"
 
     def get_system_prompt(self) -> str:
