@@ -26,7 +26,7 @@ const normalizeAlertKind = (reason) =>
 // accounting for the `object-contain` fit so the marker lands on the visible
 // map (full image, no cropping) regardless of the container's aspect ratio.
 function markerPosition(lat, lng, metrics, index) {
-  const { cw, ch, iw, ih } = metrics || {};
+  const { cw, ch, iw, ih, cx, cy, cw2, ch2 } = metrics || {};
   const hasCoords =
     typeof lat === 'number' &&
     typeof lng === 'number' &&
@@ -34,26 +34,31 @@ function markerPosition(lat, lng, metrics, index) {
     lat <= 90 &&
     lng >= -180 &&
     lng <= 180;
-  if (!hasCoords || !cw || !ch || !iw || !ih) {
+  // Use the detected map content region if available, else the full image.
+  const regionX = cw2 > 0 ? cx : 0;
+  const regionY = ch2 > 0 ? cy : 0;
+  const regionW = cw2 > 0 ? cw2 : iw;
+  const regionH = ch2 > 0 ? ch2 : ih;
+  if (!hasCoords || !cw || !ch || !iw || !ih || !regionW || !regionH) {
     return {
       top: `${30 + ((index * 17) % 40)}%`,
       left: `${20 + ((index * 23) % 60)}%`,
     };
   }
-  // Equirectangular projection in image space.
-  const ix = ((lng + 180) / 360) * iw;
-  const iy = ((90 - lat) / 180) * ih;
+  // Equirectangular projection within the map content region.
+  const ix = regionX + ((lng + 180) / 360) * regionW;
+  const iy = regionY + ((90 - lat) / 180) * regionH;
   // object-contain transform: fit (no crop), then center.
   const scale = Math.min(cw / iw, ch / ih);
   const scaledW = iw * scale;
   const scaledH = ih * scale;
   const offsetX = (cw - scaledW) / 2;
   const offsetY = (ch - scaledH) / 2;
-  const cx = ix * scale + offsetX;
-  const cy = iy * scale + offsetY;
+  const cxp = ix * scale + offsetX;
+  const cyp = iy * scale + offsetY;
   return {
-    top: `${(cy / ch) * 100}%`,
-    left: `${(cx / cw) * 100}%`,
+    top: `${(cyp / ch) * 100}%`,
+    left: `${(cxp / cw) * 100}%`,
   };
 }
 
@@ -65,7 +70,103 @@ export default function Dashboard() {
   const [monitoredItems, setMonitoredItems] = useState([]);
   const [siteMarkers, setSiteMarkers] = useState([]);
   const mapContainerRef = useRef(null);
-  const [mapMetrics, setMapMetrics] = useState({ cw: 0, ch: 0, iw: 0, ih: 0 });
+  const [mapMetrics, setMapMetrics] = useState({
+    cw: 0,
+    ch: 0,
+    iw: 0,
+    ih: 0,
+    cx: 0,
+    cy: 0,
+    cw2: 0,
+    ch2: 0,
+  });
+
+  useEffect(() => {
+    const el = mapContainerRef.current;
+    if (!el) return;
+    const update = () => {
+      const img = el.querySelector('img');
+      const iw = img?.naturalWidth || 0;
+      const ih = img?.naturalHeight || 0;
+      // Detect the map content region (non-background pixels) so markers
+      // align to the actual map even if the image has padding/background
+      // bars around it.
+      let cx = 0,
+        cy = 0,
+        cw2 = iw,
+        ch2 = ih;
+      if (iw > 0 && ih > 0 && img?.complete) {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = iw;
+          canvas.height = ih;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const data = ctx.getImageData(0, 0, iw, ih).data;
+          let minX = iw,
+            maxX = 0,
+            minY = ih,
+            maxY = 0;
+          let found = false;
+          for (let y = 0; y < ih; y++) {
+            for (let x = 0; x < iw; x++) {
+              const i = (y * iw + x) * 4;
+              const r = data[i],
+                g = data[i + 1],
+                b = data[i + 2];
+              // Background = near-black (low brightness)
+              if (r + g + b > 40) {
+                found = true;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }
+            }
+          }
+          if (found) {
+            cx = minX;
+            cy = minY;
+            cw2 = maxX - minX + 1;
+            ch2 = maxY - minY + 1;
+          }
+        } catch {
+          // CORS or other issue; fall back to full image
+        }
+      }
+      const next = {
+        cw: el.clientWidth,
+        ch: el.clientHeight,
+        iw,
+        ih,
+        cx,
+        cy,
+        cw2,
+        ch2,
+      };
+      setMapMetrics((prev) =>
+        prev.cw === next.cw &&
+        prev.ch === next.ch &&
+        prev.iw === next.iw &&
+        prev.ih === next.ih &&
+        prev.cx === next.cx &&
+        prev.cy === next.cy &&
+        prev.cw2 === next.cw2 &&
+        prev.ch2 === next.ch2
+          ? prev
+          : next
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    const img = el.querySelector('img');
+    if (img) img.addEventListener('load', update);
+    return () => {
+      ro.disconnect();
+      if (img) img.removeEventListener('load', update);
+    };
+  }, []);
 
   useEffect(() => {
     const el = mapContainerRef.current;
