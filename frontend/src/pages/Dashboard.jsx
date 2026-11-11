@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle, Apple, Package, Monitor, CheckCircle } from 'lucide-react';
@@ -22,12 +22,77 @@ const normalizeAlertKind = (reason) =>
     .trim()
     .toLowerCase();
 
+// Map a site's lat/long to a CSS position on the world-map background image,
+// accounting for the `object-contain` fit so the marker lands on the visible
+// map (full image, no cropping) regardless of the container's aspect ratio.
+function markerPosition(lat, lng, metrics, index) {
+  const { cw, ch, iw, ih } = metrics || {};
+  const hasCoords =
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180;
+  if (!hasCoords || !cw || !ch || !iw || !ih) {
+    return {
+      top: `${30 + ((index * 17) % 40)}%`,
+      left: `${20 + ((index * 23) % 60)}%`,
+    };
+  }
+  // Equirectangular projection in image space.
+  const ix = ((lng + 180) / 360) * iw;
+  const iy = ((90 - lat) / 180) * ih;
+  // object-contain transform: fit (no crop), then center.
+  const scale = Math.min(cw / iw, ch / ih);
+  const scaledW = iw * scale;
+  const scaledH = ih * scale;
+  const offsetX = (cw - scaledW) / 2;
+  const offsetY = (ch - scaledH) / 2;
+  const cx = ix * scale + offsetX;
+  const cy = iy * scale + offsetY;
+  return {
+    top: `${(cy / ch) * 100}%`,
+    left: `${(cx / cw) * 100}%`,
+  };
+}
+
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
   const [summary, setSummary] = useState(null);
   const [extraMonitored, setExtraMonitored] = useState(0);
   const [monitoredItems, setMonitoredItems] = useState([]);
+  const mapContainerRef = useRef(null);
+  const [mapMetrics, setMapMetrics] = useState({ cw: 0, ch: 0, iw: 0, ih: 0 });
+
+  useEffect(() => {
+    const el = mapContainerRef.current;
+    if (!el) return;
+    const update = () => {
+      const img = el.querySelector('img');
+      const next = {
+        cw: el.clientWidth,
+        ch: el.clientHeight,
+        iw: img?.naturalWidth || 0,
+        ih: img?.naturalHeight || 0,
+      };
+      setMapMetrics((prev) =>
+        prev.cw === next.cw && prev.ch === next.ch && prev.iw === next.iw && prev.ih === next.ih
+          ? prev
+          : next
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    const img = el.querySelector('img');
+    if (img) img.addEventListener('load', update);
+    return () => {
+      ro.disconnect();
+      if (img) img.removeEventListener('load', update);
+    };
+  }, []);
   const clearMonitoredBoard = () => {
     setMonitoredItems([]);
     setExtraMonitored(0);
@@ -347,7 +412,7 @@ export default function Dashboard() {
         {/* Left Column: Connected Sites */}
         <Card className="col-span-1 lg:col-span-2 min-w-0 h-[min(50dvh,28rem)] lg:h-full relative bg-[#080A0A] border border-primary bg-no-repeat bg-center bg-cover flex flex-col overflow-hidden">
           {/* Overlay for opacity */}
-          <div className="absolute inset-0 bg-black/40 rounded-xl z-0"></div>
+          <div className="absolute inset-0 bg-black/20 rounded-xl z-0"></div>
 
           <CardContent className="p-3 relative z-10 flex flex-col h-full overflow-hidden">
             <h2 className="text-lg font-semibold text-white mb-2 shrink-0">Monitored Resources</h2>
@@ -405,11 +470,14 @@ export default function Dashboard() {
           </CardContent>
 
           {/* World Map Background */}
-          <div className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none">
+          <div
+            className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none flex items-center justify-center"
+            ref={mapContainerRef}
+          >
             <img
               src={WorldMapImage}
               alt="World Map"
-              className="w-full h-full object-cover opacity-20"
+              className="max-w-full max-h-full object-contain opacity-40"
             />
           </div>
 
@@ -418,24 +486,12 @@ export default function Dashboard() {
             {monitoredItems.map((site, index) => {
               const lat = typeof site.latitude === 'number' ? site.latitude : null;
               const lng = typeof site.longitude === 'number' ? site.longitude : null;
-              const hasCoords =
-                lat !== null &&
-                lng !== null &&
-                lat >= -90 &&
-                lat <= 90 &&
-                lng >= -180 &&
-                lng <= 180;
-              const top = hasCoords
-                ? `${((90 - lat) / 180) * 100}%`
-                : `${30 + ((index * 17) % 40)}%`;
-              const left = hasCoords
-                ? `${((lng + 180) / 360) * 100}%`
-                : `${20 + ((index * 23) % 60)}%`;
+              const pos = markerPosition(lat, lng, mapMetrics, index);
               return (
                 <span
                   key={index}
                   className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-                  style={{ top, left }}
+                  style={{ top: pos.top, left: pos.left }}
                   title={site.name || site.site || site.site_id || site.device_id}
                 ></span>
               );
