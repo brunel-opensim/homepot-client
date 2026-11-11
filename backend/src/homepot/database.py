@@ -499,6 +499,39 @@ class DatabaseService:
             )
             return result.scalar_one_or_none()
 
+    async def update_site(
+        self,
+        site_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+    ) -> Optional[Site]:
+        """Update an active site's editable fields. Returns None if not found."""
+        from sqlalchemy import select
+
+        async with self.get_session() as session:
+            result = await session.execute(
+                select(Site).where(Site.site_id == site_id, Site.is_active.is_(True))
+            )
+            site = result.scalar_one_or_none()
+            if site is None:
+                return None
+            if name is not None:
+                site.name = name  # type: ignore[assignment]
+            if description is not None:
+                site.description = description  # type: ignore[assignment]
+            if location is not None:
+                site.location = location  # type: ignore[assignment]
+            if latitude is not None:
+                site.latitude = latitude  # type: ignore[assignment]
+            if longitude is not None:
+                site.longitude = longitude  # type: ignore[assignment]
+            await session.flush()
+            await session.refresh(site)
+            return site
+
     async def get_device_by_device_id(
         self, device_id: str, include_unpaired: bool = False
     ) -> Optional[Device]:

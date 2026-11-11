@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session as SASession
 
@@ -97,6 +97,13 @@ class CreateSiteRequest(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
 
+    @field_validator("latitude", "longitude", mode="before")
+    @classmethod
+    def _empty_to_none(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -180,6 +187,65 @@ async def create_site(
         )
         raise HTTPException(
             status_code=500, detail="Failed to create site. Please check server logs."
+        )
+
+
+@router.put("/{site_id}", tags=["Sites"], response_model=Dict[str, str])
+async def update_site(
+    site_id: str,
+    site_request: CreateSiteRequest,
+    current_user: UserDict = Depends(require_user()),
+) -> Dict[str, str]:
+    """Update an existing site's editable details."""
+    try:
+        db_service = await get_database_service()
+
+        site = await db_service.update_site(
+            site_id=site_id,
+            name=site_request.name,
+            description=site_request.description,
+            location=site_request.location,
+            latitude=site_request.latitude,
+            longitude=site_request.longitude,
+        )
+        if site is None:
+            raise HTTPException(status_code=404, detail="Site not found")
+
+        audit_logger = get_audit_logger()
+        await audit_logger.log_event(
+            AuditEventType.SITE_UPDATED,
+            f"Site '{site.name}' updated ({site.site_id})",
+            site_id=int(site.id),
+            new_values={
+                "site_id": str(site.site_id),
+                "name": str(site.name),
+                "description": str(site.description),
+                "location": site.location,
+                "latitude": site.latitude,
+                "longitude": site.longitude,
+            },
+        )
+
+        logger.info(f"Updated site {site.site_id}")
+        return {
+            "message": f"Site {site.site_id} updated successfully",
+            "site_id": str(site.site_id),
+            "name": str(site.name),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update site: {e}", exc_info=True)
+        await log_error(
+            category="api",
+            severity="error",
+            error_message="Failed to update site",
+            exception=e,
+            endpoint=f"/api/v1/sites/{site_id}",
+            context={"site_data": site_request.model_dump()},
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to update site. Please check server logs."
         )
 
 
