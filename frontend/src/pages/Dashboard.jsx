@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle, Apple, Package, Monitor, CheckCircle } from 'lucide-react';
@@ -22,12 +22,81 @@ const normalizeAlertKind = (reason) =>
     .trim()
     .toLowerCase();
 
+// Map a site's lat/long to a CSS position on the world-map background image,
+// accounting for the `object-cover` crop so the marker lands on the visible
+// map regardless of the container's aspect ratio or the image's dimensions.
+function markerPosition(lat, lng, metrics, index) {
+  const { cw, ch, iw, ih } = metrics || {};
+  const hasCoords =
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180;
+  if (!hasCoords || !cw || !ch || !iw || !ih) {
+    return {
+      top: `${30 + ((index * 17) % 40)}%`,
+      left: `${20 + ((index * 23) % 60)}%`,
+    };
+  }
+  // Equirectangular projection in image space.
+  const ix = ((lng + 180) / 360) * iw;
+  const iy = ((90 - lat) / 180) * ih;
+  // object-cover transform: scale to cover, then center.
+  const scale = Math.max(cw / iw, ch / ih);
+  const scaledW = iw * scale;
+  const scaledH = ih * scale;
+  const offsetX = (cw - scaledW) / 2;
+  const offsetY = (ch - scaledH) / 2;
+  const cx = ix * scale + offsetX;
+  const cy = iy * scale + offsetY;
+  return {
+    top: `${(cy / ch) * 100}%`,
+    left: `${(cx / cw) * 100}%`,
+  };
+}
+
 export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [systemPulse, setSystemPulse] = useState({ status: 'idle', load_score: 0 });
   const [summary, setSummary] = useState(null);
   const [extraMonitored, setExtraMonitored] = useState(0);
   const [monitoredItems, setMonitoredItems] = useState([]);
+  const mapContainerRef = useRef(null);
+  const [mapMetrics, setMapMetrics] = useState({ cw: 0, ch: 0, iw: 0, ih: 0 });
+
+  // Measure the map container and the background image so markers can be
+  // positioned in image space and then mapped through the `object-cover`
+  // transform. This keeps markers aligned with the (possibly cropped) map
+  // regardless of the container's aspect ratio or the image's projection.
+  useEffect(() => {
+    const el = mapContainerRef.current;
+    if (!el) return;
+    const update = () => {
+      const img = el.querySelector('img');
+      const next = {
+        cw: el.clientWidth,
+        ch: el.clientHeight,
+        iw: img?.naturalWidth || 0,
+        ih: img?.naturalHeight || 0,
+      };
+      setMapMetrics((prev) =>
+        prev.cw === next.cw && prev.ch === next.ch && prev.iw === next.iw && prev.ih === next.ih
+          ? prev
+          : next
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    const img = el.querySelector('img');
+    if (img) img.addEventListener('load', update);
+    return () => {
+      ro.disconnect();
+      if (img) img.removeEventListener('load', update);
+    };
+  }, []);
   const clearMonitoredBoard = () => {
     setMonitoredItems([]);
     setExtraMonitored(0);
@@ -404,42 +473,31 @@ export default function Dashboard() {
             </div>
           </CardContent>
 
-          {/* World Map Background */}
-          <div className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none">
+          {/* World Map Background + Site Markers */}
+          <div
+            className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none"
+            ref={mapContainerRef}
+          >
             <img
               src={WorldMapImage}
               alt="World Map"
               className="w-full h-full object-cover opacity-20"
             />
-          </div>
-
-          {/* Glowing Site Dots */}
-          <div className="absolute inset-0 pointer-events-none z-10">
-            {monitoredItems.map((site, index) => {
-              const lat = typeof site.latitude === 'number' ? site.latitude : null;
-              const lng = typeof site.longitude === 'number' ? site.longitude : null;
-              const hasCoords =
-                lat !== null &&
-                lng !== null &&
-                lat >= -90 &&
-                lat <= 90 &&
-                lng >= -180 &&
-                lng <= 180;
-              const top = hasCoords
-                ? `${((90 - lat) / 180) * 100}%`
-                : `${30 + ((index * 17) % 40)}%`;
-              const left = hasCoords
-                ? `${((lng + 180) / 360) * 100}%`
-                : `${20 + ((index * 23) % 60)}%`;
-              return (
-                <span
-                  key={index}
-                  className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-                  style={{ top, left }}
-                  title={site.name || site.site || site.site_id || site.device_id}
-                ></span>
-              );
-            })}
+            <div className="absolute inset-0 z-10">
+              {monitoredItems.map((site, index) => {
+                const lat = typeof site.latitude === 'number' ? site.latitude : null;
+                const lng = typeof site.longitude === 'number' ? site.longitude : null;
+                const pos = markerPosition(lat, lng, mapMetrics, index);
+                return (
+                  <span
+                    key={index}
+                    className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
+                    style={{ top: pos.top, left: pos.left }}
+                    title={site.name || site.site || site.site_id || site.device_id}
+                  ></span>
+                );
+              })}
+            </div>
           </div>
         </Card>
 
