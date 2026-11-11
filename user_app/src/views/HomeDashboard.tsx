@@ -314,11 +314,11 @@ export default function HomeDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
-      <div className="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden">
+    <div className="h-screen bg-slate-900 flex items-center justify-center p-4 font-sans overflow-hidden">
+      <div className="w-full max-w-sm h-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden">
     
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-700 shrink-0">
           <div>
             <h1 className="text-slate-100 font-bold text-base tracking-wide">HOMEPOT Agent</h1>
             <p className="text-slate-500 text-xs">Digital Security Badge</p>
@@ -331,6 +331,8 @@ export default function HomeDashboard() {
           </div>
         </div>
 
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto min-h-0 logs-scroll">
         {/* Status Badge */}
         <div className="px-5 pt-4">
           <div className={`w-full rounded-xl p-4 flex items-center gap-3 ${statusStyles.card}`}>
@@ -446,6 +448,8 @@ export default function HomeDashboard() {
               {formatHeartbeat(status?.last_heartbeat_at ?? null)}
             </span>
           </div>
+        </div>
+
         </div>
 
         {/* Tab Bar */}

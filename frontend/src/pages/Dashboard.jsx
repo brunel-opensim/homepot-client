@@ -469,7 +469,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
 
-          {/* World Map Background */}
+          {/* World Map Background + Site Markers */}
           <div
             className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none flex items-center justify-center"
             ref={mapContainerRef}
@@ -479,23 +479,21 @@ export default function Dashboard() {
               alt="World Map"
               className="max-w-full max-h-full object-contain opacity-40"
             />
-          </div>
-
-          {/* Glowing Site Dots */}
-          <div className="absolute inset-0 pointer-events-none z-10">
-            {monitoredItems.map((site, index) => {
-              const lat = typeof site.latitude === 'number' ? site.latitude : null;
-              const lng = typeof site.longitude === 'number' ? site.longitude : null;
-              const pos = markerPosition(lat, lng, mapMetrics, index);
-              return (
-                <span
-                  key={index}
-                  className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-                  style={{ top: pos.top, left: pos.left }}
-                  title={site.name || site.site || site.site_id || site.device_id}
-                ></span>
-              );
-            })}
+            <div className="absolute inset-0 z-10">
+              {monitoredItems.map((site, index) => {
+                const lat = typeof site.latitude === 'number' ? site.latitude : null;
+                const lng = typeof site.longitude === 'number' ? site.longitude : null;
+                const pos = markerPosition(lat, lng, mapMetrics, index);
+                return (
+                  <span
+                    key={index}
+                    className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
+                    style={{ top: pos.top, left: pos.left }}
+                    title={site.name || site.site || site.site_id || site.device_id}
+                  ></span>
+                );
+              })}
+            </div>
           </div>
         </Card>
 
