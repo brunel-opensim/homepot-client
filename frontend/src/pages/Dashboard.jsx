@@ -23,8 +23,8 @@ const normalizeAlertKind = (reason) =>
     .toLowerCase();
 
 // Map a site's lat/long to a CSS position on the world-map background image,
-// accounting for the `object-cover` crop so the marker lands on the visible
-// map regardless of the container's aspect ratio or the image's dimensions.
+// accounting for the `object-contain` fit so the marker lands on the visible
+// map (full image, no cropping) regardless of the container's aspect ratio.
 function markerPosition(lat, lng, metrics, index) {
   const { cw, ch, iw, ih } = metrics || {};
   const hasCoords =
@@ -43,7 +43,7 @@ function markerPosition(lat, lng, metrics, index) {
   // Equirectangular projection in image space.
   const ix = ((lng + 180) / 360) * iw;
   const iy = ((90 - lat) / 180) * ih;
-  // object-cover transform: scale to cover, then center.
+  // object-contain transform: fit (no crop), then center.
   const scale = Math.min(cw / iw, ch / ih);
   const scaledW = iw * scale;
   const scaledH = ih * scale;
@@ -63,13 +63,10 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [extraMonitored, setExtraMonitored] = useState(0);
   const [monitoredItems, setMonitoredItems] = useState([]);
+  const [siteMarkers, setSiteMarkers] = useState([]);
   const mapContainerRef = useRef(null);
   const [mapMetrics, setMapMetrics] = useState({ cw: 0, ch: 0, iw: 0, ih: 0 });
 
-  // Measure the map container and the background image so markers can be
-  // positioned in image space and then mapped through the `object-cover`
-  // transform. This keeps markers aligned with the (possibly cropped) map
-  // regardless of the container's aspect ratio or the image's projection.
   useEffect(() => {
     const el = mapContainerRef.current;
     if (!el) return;
@@ -192,6 +189,14 @@ export default function Dashboard() {
 
         // Filter monitored items
         const monitoredSites = fetchedSites.filter((s) => s.is_monitored);
+
+        // All sites with coordinates become map markers (one per site),
+        // regardless of monitored status, so the map reflects every site.
+        setSiteMarkers(
+          fetchedSites.filter(
+            (s) => typeof s.latitude === 'number' && typeof s.longitude === 'number'
+          )
+        );
 
         // Auto-monitor devices with active alerts
         const alertedDeviceIds = new Set(anomalies.map((a) => a.device_id));
@@ -475,7 +480,7 @@ export default function Dashboard() {
 
           {/* World Map Background + Site Markers */}
           <div
-            className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none"
+            className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none flex items-center justify-center"
             ref={mapContainerRef}
           >
             <img
@@ -484,16 +489,16 @@ export default function Dashboard() {
               className="max-w-full max-h-full object-contain opacity-40"
             />
             <div className="absolute inset-0 z-10">
-              {monitoredItems.map((site, index) => {
+              {siteMarkers.map((site, index) => {
                 const lat = typeof site.latitude === 'number' ? site.latitude : null;
                 const lng = typeof site.longitude === 'number' ? site.longitude : null;
                 const pos = markerPosition(lat, lng, mapMetrics, index);
                 return (
                   <span
-                    key={index}
+                    key={site.site_id || index}
                     className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
                     style={{ top: pos.top, left: pos.left }}
-                    title={site.name || site.site || site.site_id || site.device_id}
+                    title={site.name || site.site_id}
                   ></span>
                 );
               })}
