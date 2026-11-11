@@ -126,9 +126,12 @@ export default function Dashboard() {
 
         // Auto-monitor devices with active alerts
         const alertedDeviceIds = new Set(anomalies.map((a) => a.device_id));
-        const monitoredDevices = fetchedDevices.filter(
-          (d) => d.is_monitored || alertedDeviceIds.has(d.device_id)
-        );
+        const monitoredDevices = fetchedDevices
+          .filter((d) => d.is_monitored || alertedDeviceIds.has(d.device_id))
+          .map((d) => {
+            const site = fetchedSites.find((s) => s.site_id === d.site_id);
+            return site ? { ...d, latitude: site.latitude, longitude: site.longitude } : d;
+          });
 
         let itemsToDisplay = [];
 
@@ -412,17 +415,31 @@ export default function Dashboard() {
 
           {/* Glowing Site Dots */}
           <div className="absolute inset-0 pointer-events-none z-10">
-            {monitoredItems.map((site, index) => (
-              <span
-                key={index}
-                className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-                style={{
-                  top: `${30 + ((index * 17) % 40)}%`,
-                  left: `${20 + ((index * 23) % 60)}%`,
-                }}
-                title={site.site}
-              ></span>
-            ))}
+            {monitoredItems.map((site, index) => {
+              const lat = typeof site.latitude === 'number' ? site.latitude : null;
+              const lng = typeof site.longitude === 'number' ? site.longitude : null;
+              const hasCoords =
+                lat !== null &&
+                lng !== null &&
+                lat >= -90 &&
+                lat <= 90 &&
+                lng >= -180 &&
+                lng <= 180;
+              const top = hasCoords
+                ? `${((90 - lat) / 180) * 100}%`
+                : `${30 + ((index * 17) % 40)}%`;
+              const left = hasCoords
+                ? `${((lng + 180) / 360) * 100}%`
+                : `${20 + ((index * 23) % 60)}%`;
+              return (
+                <span
+                  key={index}
+                  className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
+                  style={{ top, left }}
+                  title={site.name || site.site || site.site_id || site.device_id}
+                ></span>
+              );
+            })}
           </div>
         </Card>
 
