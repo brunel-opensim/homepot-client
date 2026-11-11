@@ -320,14 +320,48 @@ function setupAutoUpdater(): void {
     installOnDownload = false
     if (rollingBack) resetUpdaterChannel()
     pendingUpdateCommandId = undefined
-    const message = String(err instanceof Error ? err.message : err)
+    const raw = String(err instanceof Error ? err.message : err)
+    const message = friendlyUpdateError(raw)
     updateState = recoverFromDownloadError(message)
     sendUpdateStatus()
-    recordAppEvent('error', 'updater', `Update error: ${message}`)
+    recordAppEvent('error', 'updater', `Update error: ${raw}`)
     if (cmdId) {
       void reportCommandResult(cmdId, 'failed', { message })
     }
   })
+}
+
+// Map electron-updater's raw (and often verbose) error messages to short,
+// actionable text for the UI. The raw message is still recorded in the app
+// event log for debugging.
+function friendlyUpdateError(message: string): string {
+  const m = message.toLowerCase()
+  if (m.includes('403') || m.includes('forbidden')) {
+    return 'Update feed unavailable (access denied). The downloads may not be published yet.'
+  }
+  if (
+    m.includes('404') ||
+    m.includes('not found') ||
+    m.includes('err_updater_channel_file_not_found') ||
+    m.includes('cannot find channel')
+  ) {
+    return 'No update feed found. The server may not have published this release yet.'
+  }
+  if (
+    m.includes('enotfound') ||
+    m.includes('econnrefused') ||
+    m.includes('etimedout') ||
+    m.includes('econnreset') ||
+    m.includes('network') ||
+    m.includes('timeout') ||
+    m.includes('socket hang up')
+  ) {
+    return 'Could not reach the update server. Check your network connection.'
+  }
+  if (message.length > 200) {
+    return `${message.slice(0, 197)}...`
+  }
+  return message
 }
 
 // If a download error aborts an in-progress download, settle back to idle so
@@ -388,8 +422,8 @@ async function performUpdateCheck(): Promise<Record<string, unknown>> {
     sendUpdateStatus()
     return { mode, status: 'checking', currentVersion }
   } catch (err) {
-    const message = String(err instanceof Error ? err.message : err)
-    recordAppEvent('error', 'updater', `Update check failed: ${message}`)
+    const message = friendlyUpdateError(String(err instanceof Error ? err.message : err))
+    recordAppEvent('error', 'updater', `Update check failed: ${String(err instanceof Error ? err.message : err)}`)
     updateState = { kind: 'error', message }
     sendUpdateStatus()
     return { mode, status: 'error', currentVersion, message }
@@ -914,8 +948,9 @@ async function runOneShotUpdate(commandId?: string): Promise<Record<string, unkn
     const cmdId = pendingUpdateCommandId
     pendingUpdateCommandId = undefined
     installOnDownload = false
-    const message = String(err instanceof Error ? err.message : err)
-    recordAppEvent('error', 'updater', `One-shot update failed: ${message}`)
+    const raw = String(err instanceof Error ? err.message : err)
+    const message = friendlyUpdateError(raw)
+    recordAppEvent('error', 'updater', `One-shot update failed: ${raw}`)
     if (cmdId) await reportCommandResult(cmdId, 'failed', { message })
     return { status: 'error', message }
   }
@@ -969,8 +1004,9 @@ async function runRollback(commandId?: string): Promise<Record<string, unknown>>
     pendingUpdateCommandId = undefined
     installOnDownload = false
     resetUpdaterChannel()
-    const message = String(err instanceof Error ? err.message : err)
-    recordAppEvent('error', 'updater', `Rollback failed: ${message}`)
+    const raw = String(err instanceof Error ? err.message : err)
+    const message = friendlyUpdateError(raw)
+    recordAppEvent('error', 'updater', `Rollback failed: ${raw}`)
     if (cmdId) await reportCommandResult(cmdId, 'failed', { message })
     return { status: 'error', message }
   }
