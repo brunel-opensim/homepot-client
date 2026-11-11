@@ -63,6 +63,7 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [extraMonitored, setExtraMonitored] = useState(0);
   const [monitoredItems, setMonitoredItems] = useState([]);
+  const [siteMarkers, setSiteMarkers] = useState([]);
   const mapContainerRef = useRef(null);
   const [mapMetrics, setMapMetrics] = useState({ cw: 0, ch: 0, iw: 0, ih: 0 });
 
@@ -192,6 +193,14 @@ export default function Dashboard() {
 
         // Filter monitored items
         const monitoredSites = fetchedSites.filter((s) => s.is_monitored);
+
+        // All sites with coordinates become map markers (one per site),
+        // regardless of monitored status, so the map reflects every site.
+        setSiteMarkers(
+          fetchedSites.filter(
+            (s) => typeof s.latitude === 'number' && typeof s.longitude === 'number'
+          )
+        );
 
         // Auto-monitor devices with active alerts
         const alertedDeviceIds = new Set(anomalies.map((a) => a.device_id));
@@ -484,16 +493,16 @@ export default function Dashboard() {
               className="w-full h-full object-cover opacity-20"
             />
             <div className="absolute inset-0 z-10">
-              {monitoredItems.map((site, index) => {
+              {siteMarkers.map((site, index) => {
                 const lat = typeof site.latitude === 'number' ? site.latitude : null;
                 const lng = typeof site.longitude === 'number' ? site.longitude : null;
                 const pos = markerPosition(lat, lng, mapMetrics, index);
                 return (
                   <span
-                    key={index}
+                    key={site.site_id || index}
                     className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
                     style={{ top: pos.top, left: pos.left }}
-                    title={site.name || site.site || site.site_id || site.device_id}
+                    title={site.name || site.site_id}
                   ></span>
                 );
               })}
