@@ -390,7 +390,7 @@ async def stream_action_plans(
                     f"data: {json.dumps({'error': 'An internal error has occurred.'})}\n\n"
                 )
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
         yield "event: close\ndata: {}\n\n"
 
