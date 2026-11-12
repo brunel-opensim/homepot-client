@@ -926,8 +926,10 @@ const api = {
       return response.data;
     },
 
-    getCalibration: async (days = 30) => {
-      const response = await apiClient.get('/ai/calibration', { params: { days } });
+    getCalibration: async (days = 30, osFamily = null) => {
+      const params = { days };
+      if (osFamily) params.os_family = osFamily;
+      const response = await apiClient.get('/ai/calibration', { params });
       return response.data;
     },
 

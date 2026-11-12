@@ -671,21 +671,58 @@ class AIAnalyticsService:
     async def get_confidence_calibration(
         days: int = 30,
         buckets: int = 5,
+        os_family: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Compare the trust score recorded at proposal time with the actual outcome.
 
         Autonomy thresholds can be tuned against reality (D15). Plans are grouped
-        into ``buckets`` bands by their recorded
-        ``trust_score`` (0..1). For each band we report how many plans were
-        created and how many of them ultimately succeeded, plus the gap between
-        the average trust score and the observed success rate.
+        into ``buckets`` bands by their recorded ``trust_score`` (0..1). For
+        each band we report how many plans were created and how many of them
+        ultimately succeeded, plus the gap between the average trust score and
+        the observed success rate.
+
+        When ``os_family`` is specified, only plans targeting devices of that
+        OS family are included. The response also includes a ``by_os``
+        breakdown so callers can inspect per-OS calibration.
         """
+        _BAND_LABELS = {
+            0: "Low Trust",
+            1: "Low-Medium Trust",
+            2: "Medium Trust",
+            3: "Medium-High Trust",
+            4: "High Trust",
+        }
+
+        def _empty_band(lo: float, hi: float, idx: int) -> Dict[str, Any]:
+            return {
+                "label": _BAND_LABELS.get(idx, f"Band {idx}"),
+                "trust_min": lo,
+                "trust_max": hi,
+                "plans": 0,
+                "succeeded": 0,
+                "failed": 0,
+                "trust_sum": 0.0,
+            }
+
         try:
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 from sqlalchemy import select
 
                 from homepot.app.models.AnalyticsModel import AIActionPlan
+                from homepot.app.schemas.os_capabilities import os_family as _os_family
+                from homepot.models import Device
+
+                # Build device_id -> os_family lookup
+                device_os_map: Dict[str, Optional[str]] = {}
+                try:
+                    devs = await session.execute(select(Device))
+                    for dev in devs.scalars().all():
+                        device_os_map[typing_cast(str, dev.device_id)] = _os_family(
+                            typing_cast(Optional[str], dev.os_details)
+                        )
+                except Exception:
+                    pass
 
                 cutoff = datetime.utcnow() - timedelta(days=days)
                 plans_result = await session.execute(
@@ -693,20 +730,21 @@ class AIAnalyticsService:
                 )
                 plans = plans_result.scalars().all()
 
-                bands: Dict[str, Dict[str, Any]] = {}
                 step = 1.0 / buckets
-                for i in range(buckets):
-                    lo = round(i * step, 4)
-                    hi = round((i + 1) * step, 4)
-                    key = f"{lo:.2f}-{hi:.2f}"
-                    bands[key] = {
-                        "trust_min": lo,
-                        "trust_max": hi,
-                        "plans": 0,
-                        "succeeded": 0,
-                        "failed": 0,
-                        "trust_sum": 0.0,
-                    }
+
+                def _make_bands() -> Dict[str, Dict[str, Any]]:
+                    bands: Dict[str, Dict[str, Any]] = {}
+                    for i in range(buckets):
+                        lo = round(i * step, 4)
+                        hi = round((i + 1) * step, 4)
+                        key = f"{lo:.2f}-{hi:.2f}"
+                        bands[key] = _empty_band(lo, hi, i)
+                    return bands
+
+                # Fleet-wide bands
+                bands = _make_bands()
+                # Per-OS bands
+                os_bands: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
                 for plan in plans:
                     trust_score = plan.trust_score
@@ -718,34 +756,60 @@ class AIAnalyticsService:
                     lo = round(idx * step, 4)
                     hi = round((idx + 1) * step, 4)
                     key = f"{lo:.2f}-{hi:.2f}"
-                    band = bands[key]
-                    band["plans"] += 1
-                    band["trust_sum"] += score
-                    if plan.status == "succeeded":
-                        band["succeeded"] += 1
-                    elif plan.status in ("failed", "rolled_back"):
-                        band["failed"] += 1
 
-                result = {}
-                for key, band in bands.items():
-                    plans_n = band["plans"] or 1
-                    observed = band["succeeded"] / plans_n if band["plans"] else 0.0
-                    avg_trust = band["trust_sum"] / plans_n if band["plans"] else 0.0
-                    result[key] = {
-                        "trust_min": band["trust_min"],
-                        "trust_max": band["trust_max"],
-                        "plans": band["plans"],
-                        "succeeded": band["succeeded"],
-                        "failed": band["failed"],
-                        "avg_trust_score": round(avg_trust, 4),
-                        "observed_success_rate": round(observed, 4),
-                        "calibration_gap": round(avg_trust - observed, 4),
-                    }
+                    # Resolve OS from the first step's target device
+                    plan_os: Optional[str] = None
+                    for step_obj in plan.steps:
+                        if step_obj.target_device_id:
+                            plan_os = device_os_map.get(step_obj.target_device_id)
+                            break
+
+                    # Filter by os_family if specified
+                    if os_family is not None and plan_os != os_family:
+                        continue
+
+                    os_key = plan_os or "unknown"
+                    os_bands.setdefault(os_key, _make_bands())
+
+                    for b in (bands, os_bands[os_key]):
+                        band = b[key]
+                        band["plans"] += 1
+                        band["trust_sum"] += score
+                        if plan.status == "succeeded":
+                            band["succeeded"] += 1
+                        elif plan.status in ("failed", "rolled_back"):
+                            band["failed"] += 1
+
+                def _finalize(bands_dict: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+                    result = {}
+                    for key, band in bands_dict.items():
+                        plans_n = band["plans"] or 1
+                        observed = band["succeeded"] / plans_n if band["plans"] else 0.0
+                        avg_trust = (
+                            band["trust_sum"] / plans_n if band["plans"] else 0.0
+                        )
+                        result[key] = {
+                            "label": band["label"],
+                            "trust_min": band["trust_min"],
+                            "trust_max": band["trust_max"],
+                            "plans": band["plans"],
+                            "succeeded": band["succeeded"],
+                            "failed": band["failed"],
+                            "avg_trust_score": round(avg_trust, 4),
+                            "observed_success_rate": round(observed, 4),
+                            "calibration_gap": round(avg_trust - observed, 4),
+                        }
+                    return result
+
+                result_bands = _finalize(bands)
+                by_os_result = {osf: _finalize(obs) for osf, obs in os_bands.items()}
 
                 return {
                     "period_days": days,
                     "buckets": buckets,
-                    "bands": result,
+                    "bands": result_bands,
+                    "by_os": by_os_result,
+                    "os_family": os_family,
                     "total_plans": len(plans),
                 }
         except Exception as e:

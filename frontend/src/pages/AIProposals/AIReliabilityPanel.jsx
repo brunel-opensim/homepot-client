@@ -31,6 +31,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
   const [reliability, setReliability] = useState(null);
   const [autonomy, setAutonomy] = useState(null);
   const [calibration, setCalibration] = useState(null);
+  const [calibrationOs, setCalibrationOs] = useState(''); // '' = all (fleet-wide)
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const fetchingRef = useRef(false);
@@ -76,7 +77,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
 
       if (typeof api.ai.getCalibration === 'function') {
         try {
-          const calibrationData = await api.ai.getCalibration(30);
+          const calibrationData = await api.ai.getCalibration(30, calibrationOs || null);
           if (calibrationData?.status !== 'error') {
             setCalibration(calibrationData);
           }
@@ -91,7 +92,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
       fetchingRef.current = false;
       initialLoadRef.current = false;
     }
-  }, []);
+  }, [calibrationOs]);
 
   useEffect(() => {
     fetchAll();
@@ -293,13 +294,27 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
 
       {calibration?.bands && (
         <div className="mt-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
-            Confidence calibration (trust vs. observed success)
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">
+              Confidence calibration (trust vs. observed success)
+            </p>
+            <select
+              value={calibrationOs}
+              onChange={(e) => setCalibrationOs(e.target.value)}
+              className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300"
+            >
+              <option value="">All OS</option>
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+              <option value="macos">macOS</option>
+              <option value="android">Android</option>
+              <option value="ios">iOS</option>
+            </select>
+          </div>
           <div className="space-y-1 text-xs text-gray-300">
             {Object.entries(calibration.bands).map(([band, entry]) => (
               <div key={band} className="flex flex-wrap gap-2">
-                <span className="font-mono">{band}</span>
+                <span className="font-mono w-20">{entry.label || band}</span>
                 <span>{entry.plans} plan(s)</span>
                 <span>trust {pct(entry.avg_trust_score)}</span>
                 <span>observed {pct(entry.observed_success_rate)}</span>
@@ -307,6 +322,24 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
               </div>
             ))}
           </div>
+          {calibration.by_os && Object.keys(calibration.by_os).length > 1 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Per-OS breakdown</p>
+              {Object.entries(calibration.by_os).map(([osf, osBands]) => (
+                <div key={osf} className="text-xs text-gray-400">
+                  <span className="font-mono text-gray-300">{osf}</span>
+                  {Object.entries(osBands).map(([band, entry]) =>
+                    entry.plans > 0 ? (
+                      <span key={band} className="ml-2">
+                        {entry.label || band}: {entry.plans} plan(s), gap{' '}
+                        {pct(entry.calibration_gap)}
+                      </span>
+                    ) : null
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
