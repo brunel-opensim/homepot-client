@@ -895,10 +895,13 @@ const api = {
      * @param {number} [days=30] - Aggregation window in days.
      * @param {string} [createdBy] - Optional creator filter (e.g. user id).
      */
-    getPlanSummary: async (days = 30, createdBy = null) => {
+    getPlanSummary: async (days = 30, createdBy = null, osFamily = null) => {
       const params = { days };
       if (createdBy) {
         params.created_by = createdBy;
+      }
+      if (osFamily) {
+        params.os_family = osFamily;
       }
       const response = await apiClient.get('/ai/action-plans/summary', { params });
       return response.data;

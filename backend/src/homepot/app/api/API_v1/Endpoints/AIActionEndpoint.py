@@ -135,6 +135,7 @@ def _serialize_plan(plan: AIActionPlan) -> Dict[str, Any]:
 async def get_action_plan_summary(
     days: int = 30,
     created_by: Optional[str] = None,
+    os_family: Optional[str] = None,
     current_user: UserDict = Depends(require_user()),
     db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -150,6 +151,7 @@ async def get_action_plan_summary(
         accessible_device_ids=accessible,
         created_by=created_by,
         days=days,
+        os_family=os_family,
     )
 
 
