@@ -359,6 +359,24 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
               </span>
             ))}
           </div>
+          {selectedOs === '' &&
+            Object.values(autonomy).some((l) => l?.by_os && Object.keys(l.by_os).length > 0) && (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Per-OS autonomy</p>
+                {Object.entries(autonomy).map(([action, level]) =>
+                  level?.by_os && Object.keys(level.by_os).length > 0 ? (
+                    <div key={action} className="text-xs text-gray-400">
+                      <span className="font-mono text-gray-300">{action}</span>
+                      {Object.entries(level.by_os).map(([osf, osLevel]) => (
+                        <span key={osf} className="ml-2">
+                          {osf}: L{osLevel.level} ({osLevel.sample_count} runs)
+                        </span>
+                      ))}
+                    </div>
+                  ) : null
+                )}
+              </div>
+            )}
         </div>
       )}
     </Card>
