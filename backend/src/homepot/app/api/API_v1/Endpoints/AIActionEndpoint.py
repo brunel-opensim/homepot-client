@@ -383,8 +383,12 @@ async def stream_action_plans(
                 if now - last_heartbeat >= 15:
                     yield "event: heartbeat\ndata: {}\n\n"
                     last_heartbeat = now
-            except Exception as e:
-                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+            except Exception:
+                logger.exception("Error while streaming AI action plan updates")
+                yield (
+                    "event: error\n"
+                    f"data: {json.dumps({'error': 'An internal error has occurred.'})}\n\n"
+                )
 
             await asyncio.sleep(1)
 
