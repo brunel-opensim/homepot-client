@@ -103,32 +103,38 @@ export default function Dashboard() {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
           const data = ctx.getImageData(0, 0, iw, ih).data;
-          let minX = iw,
-            maxX = 0,
-            minY = ih,
-            maxY = 0;
-          let found = false;
-          for (let y = 0; y < ih; y++) {
-            for (let x = 0; x < iw; x++) {
+          // Detect the map content region by row variance: padding rows are
+          // near-uniform (low std dev), map rows have texture (landmasses,
+          // ocean, grid lines -> higher std dev). This handles images where
+          // the map is centered with dark padding top/bottom.
+          let firstRow = -1;
+          let lastRow = -1;
+          const ROW_STEP = Math.max(1, Math.floor(ih / 200));
+          for (let y = 0; y < ih; y += ROW_STEP) {
+            let sum = 0,
+              sumsq = 0,
+              n = 0;
+            for (let x = 0; x < iw; x += 4) {
               const i = (y * iw + x) * 4;
-              const r = data[i],
-                g = data[i + 1],
-                b = data[i + 2];
-              // Background = near-black (low brightness)
-              if (r + g + b > 40) {
-                found = true;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-              }
+              const v = (data[i] + data[i + 1] + data[i + 2]) / 3;
+              sum += v;
+              sumsq += v * v;
+              n++;
+            }
+            const mean = sum / n;
+            const variance = sumsq / n - mean * mean;
+            const std = Math.sqrt(Math.max(0, variance));
+            if (std > 12) {
+              if (firstRow === -1) firstRow = y;
+              lastRow = y;
             }
           }
-          if (found) {
-            cx = minX;
-            cy = minY;
-            cw2 = maxX - minX + 1;
-            ch2 = maxY - minY + 1;
+          if (firstRow !== -1 && lastRow >= firstRow) {
+            cy = firstRow;
+            ch2 = lastRow - firstRow + ROW_STEP;
+            if (cy + ch2 > ih) ch2 = ih - cy;
+            cx = 0;
+            cw2 = iw;
           }
         } catch {
           // CORS or other issue; fall back to full image
