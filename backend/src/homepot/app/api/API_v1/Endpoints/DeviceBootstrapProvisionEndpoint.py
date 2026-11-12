@@ -101,10 +101,14 @@ def bootstrap_provision_device(
         raise
     except (LookupError, ValueError) as e:
         logger.error("Bootstrap provision validation failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400, detail="Invalid bootstrap provision request"
+        )
     except Exception as e:
         logger.error("Unexpected bootstrap provision error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail="Failed to bootstrap provision device"
+        )
 
 
 @router.post(

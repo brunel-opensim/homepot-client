@@ -111,4 +111,4 @@ def rotate_device_key(
         raise
     except Exception as e:
         logger.error("Failed to rotate device key: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to rotate device key")
