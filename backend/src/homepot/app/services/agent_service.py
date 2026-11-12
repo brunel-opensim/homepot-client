@@ -45,6 +45,10 @@ def _generate_unique_device_id(repository: AgentRepository) -> str:
     return device_id
 
 
+class DuplicateDeviceNameError(ValueError):
+    """Raised when a device name is already assigned within its site."""
+
+
 class AgentService:
     """Service class that contains business logic for agent APIs."""
 
@@ -487,7 +491,7 @@ class AgentService:
 
             requested_name = (payload.device_name or "").strip() or device_id
             if self.repository.device_name_exists_in_site(int(site.id), requested_name):
-                raise ValueError(
+                raise DuplicateDeviceNameError(
                     f"Device name '{requested_name}' is already in use in site "
                     f"'{payload.site_id}'. Choose a different device name."
                 )
@@ -569,6 +573,8 @@ class AgentService:
                 "epoch_id": epoch_id,
             }
 
+        except DuplicateDeviceNameError:
+            raise
         except LookupError:
             raise
         except ValueError as e:
