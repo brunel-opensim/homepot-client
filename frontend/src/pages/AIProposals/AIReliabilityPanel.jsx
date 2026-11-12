@@ -96,6 +96,11 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
 
   useEffect(() => {
     fetchAll();
+    const onPlanUpdated = () => fetchAll();
+    window.addEventListener('ai:plan-updated', onPlanUpdated);
+    return () => {
+      window.removeEventListener('ai:plan-updated', onPlanUpdated);
+    };
   }, [fetchAll]);
 
   const refresh = () => {
