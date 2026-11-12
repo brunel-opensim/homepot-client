@@ -157,13 +157,14 @@ async def get_action_plan_summary(
 async def get_ai_reliability(
     days: int = 30,
     action_type: Optional[str] = None,
+    os_family: Optional[str] = None,
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
     """Return per-action-type reliability metrics for AI delegation."""
     from ai.analytics_service import AIAnalyticsService
 
     return await AIAnalyticsService.get_ai_action_reliability(
-        action_type=action_type, days=days
+        action_type=action_type, days=days, os_family=os_family
     )
 
 
