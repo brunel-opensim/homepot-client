@@ -27,9 +27,9 @@ def get_device_status(device_id: str, db: Session = Depends(get_db)) -> Dict[str
         }
     except LookupError as e:
         logger.error("Status lookup failed: %s", e)
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Device status not found")
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Unexpected status error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch device status")

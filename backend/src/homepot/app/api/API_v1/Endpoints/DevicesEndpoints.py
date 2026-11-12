@@ -322,10 +322,10 @@ async def register_device_to_site(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error registering device to site {site_id}: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to register device: {str(e)}"
+        logger.error(
+            "Error registering device to site %s: %s", site_id, e, exc_info=True
         )
+        raise HTTPException(status_code=500, detail="Failed to register device")
 
 
 @router.get("/device", tags=["Devices"])

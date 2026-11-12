@@ -462,7 +462,7 @@ class TestBootstrapProvisionDuplicateNames:
             },
         )
         assert resp.status_code == 400, resp.text
-        assert "already in use" in resp.json()["detail"]
+        assert resp.json()["detail"] == "Device name is already in use"
 
     def test_same_name_allowed_in_another_site(
         self, client: TestClient, seeded_db: Any

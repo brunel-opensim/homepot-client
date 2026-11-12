@@ -73,4 +73,6 @@ async def report_config_history(
         raise
     except Exception as e:
         logger.error("Failed to store push history record: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail="Failed to store push history record"
+        )

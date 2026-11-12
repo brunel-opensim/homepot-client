@@ -19,7 +19,7 @@ from homepot.app.schemas.bootstrap import (
     DeviceNameCheckRequest,
     DeviceNameCheckResponse,
 )
-from homepot.app.services.agent_service import AgentService
+from homepot.app.services.agent_service import AgentService, DuplicateDeviceNameError
 from homepot.app.utils.limiter import limiter
 from homepot.database import get_db
 from homepot.models import Site
@@ -99,12 +99,19 @@ def bootstrap_provision_device(
         }
     except HTTPException:
         raise
+    except DuplicateDeviceNameError:
+        logger.error("Bootstrap provision rejected because the device name is in use")
+        raise HTTPException(status_code=400, detail="Device name is already in use")
     except (LookupError, ValueError) as e:
         logger.error("Bootstrap provision validation failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400, detail="Invalid bootstrap provision request"
+        )
     except Exception as e:
         logger.error("Unexpected bootstrap provision error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail="Failed to bootstrap provision device"
+        )
 
 
 @router.post(

@@ -67,9 +67,9 @@ def provision_device(
         }
     except (LookupError, ValueError) as e:
         logger.error("Provision validation failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Invalid provision request")
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Unexpected provision error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to provision device")

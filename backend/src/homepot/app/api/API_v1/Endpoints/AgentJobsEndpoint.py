@@ -79,7 +79,7 @@ async def report_job(
         raise
     except Exception as e:
         logger.error("Failed to create device job: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to create device job")
 
 
 @router.put("/jobs/{job_id}", tags=["Agent"])
@@ -127,7 +127,7 @@ async def update_job(
         raise
     except Exception as e:
         logger.error("Failed to update device job: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update device job")
 
 
 @router.get("/{device_id}/jobs", tags=["Agent"])
