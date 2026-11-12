@@ -20,6 +20,7 @@ export default function DataCollection() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isCollecting, setIsCollecting] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [simulationEnabled, setSimulationEnabled] = useState(true);
 
   const fetchAgents = async () => {
     try {
@@ -35,14 +36,22 @@ export default function DataCollection() {
     try {
       const res = await api.agents.getSimulationStatus();
       setIsCollecting(res.is_running);
+      setSimulationEnabled(true);
     } catch (err) {
-      console.error('Failed to fetch simulation status:', err);
+      // 404 means simulation is disabled on this server (production).
+      if (err?.response?.status === 404) {
+        setSimulationEnabled(false);
+        setIsCollecting(false);
+      } else {
+        console.error('Failed to fetch simulation status:', err);
+      }
     } finally {
       setLoadingStatus(false);
     }
   };
 
   const toggleCollection = async () => {
+    if (!simulationEnabled) return;
     try {
       setLoadingStatus(true);
       if (isCollecting) {
@@ -137,14 +146,20 @@ export default function DataCollection() {
           </div>
           <Button
             onClick={toggleCollection}
-            disabled={loadingStatus}
+            disabled={loadingStatus || !simulationEnabled}
             variant={isCollecting ? 'secondary' : 'default'}
             className="min-w-[140px] h-9"
+            title={!simulationEnabled ? 'Agent simulation is disabled on this server' : undefined}
           >
             {loadingStatus ? (
               <>
                 <RefreshCw className="w-3 h-3 mr-2 animate-spin" />
                 Updating...
+              </>
+            ) : !simulationEnabled ? (
+              <>
+                <AlertCircle className="w-3 h-3 mr-2" />
+                Simulation disabled
               </>
             ) : isCollecting ? (
               <>
@@ -162,6 +177,15 @@ export default function DataCollection() {
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">
+        {!simulationEnabled && (
+          <div className="shrink-0 rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-2.5 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
+            <p className="text-xs text-amber-300">
+              Agent simulation is disabled on this server. Simulated device telemetry cannot be
+              started here.
+            </p>
+          </div>
+        )}
         {/* Stats Overview */}
         <div className="grid gap-4 md:grid-cols-3 shrink-0">
           <Card className="bg-card/50 border-gray-800">
