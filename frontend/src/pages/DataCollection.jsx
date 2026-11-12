@@ -171,7 +171,7 @@ export default function DataCollection() {
             </CardHeader>
             <CardContent className="p-4 pt-0">
               <div className="text-2xl font-bold text-white">{agents.length}</div>
-              <p className="text-xs text-muted-foreground">Simulated POS devices</p>
+              <p className="text-xs text-muted-foreground">Registered devices</p>
             </CardContent>
           </Card>
           <Card className="bg-card/50 border-gray-800">
@@ -222,7 +222,7 @@ export default function DataCollection() {
                       {agent.device_id}
                     </CardTitle>
                     <p className="text-[10px] text-muted-foreground font-mono">
-                      v{agent.config_version}
+                      v{agent.agent_version || 'unknown'}
                     </p>
                   </div>
                   {getStatusBadge(agent.connectivity_state)}
