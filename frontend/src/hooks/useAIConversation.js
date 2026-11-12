@@ -343,6 +343,15 @@ export function useAIConversation(variant = 'compact') {
         setRouting(result.routing || null);
         setSources(result.sources || []);
         setProposal(result.proposal || null);
+        if (result.proposal) {
+          try {
+            window.dispatchEvent(
+              new CustomEvent('ai:proposal-created', { detail: result.proposal })
+            );
+          } catch {
+            // ignore — event dispatch is best-effort
+          }
+        }
         const toolSteps = (result.agentic?.tools_called || []).map((t) => ({
           key: `tool-${t.tool}-${t.iteration}`,
           label: TOOL_LABELS[t.tool] || t.tool,

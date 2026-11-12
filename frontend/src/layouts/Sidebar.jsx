@@ -59,10 +59,13 @@ export default function Sidebar() {
       }
     };
     fetchPending();
-    const interval = setInterval(fetchPending, 30000);
+    const interval = setInterval(fetchPending, 15000);
+    const onProposalCreated = () => fetchPending();
+    window.addEventListener('ai:proposal-created', onProposalCreated);
     return () => {
       cancelled = true;
       clearInterval(interval);
+      window.removeEventListener('ai:proposal-created', onProposalCreated);
     };
   }, []);
 
