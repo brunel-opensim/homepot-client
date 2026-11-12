@@ -169,17 +169,26 @@ async def get_ai_reliability(
 
 @router.get("/autonomy", tags=["AI Action Delegation"])
 async def get_autonomy_levels(
+    os_family: Optional[str] = None,
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Return current autonomy levels for all action types."""
+    """Return current autonomy levels for all action types.
+
+    When ``os_family`` is specified, returns levels for that OS family only.
+    Otherwise returns fleet-wide aggregates.
+    """
     from homepot.app.ai_ops.autonomy import (
         hydrate_autonomy_from_reliability,
     )
 
-    # Hydrate from measured reliability so the report reflects real outcomes
-    # instead of an empty in-memory singleton.
-    controller = await hydrate_autonomy_from_reliability(days=30)
-    levels = controller.all_levels()
+    controller = await hydrate_autonomy_from_reliability(days=30, os_family=os_family)
+    levels = (
+        controller.all_levels()
+        if os_family is None
+        else {
+            at: lvl for (at, osf), lvl in controller._levels.items() if osf == os_family
+        }
+    )
 
     return {
         action_type: {
@@ -188,6 +197,7 @@ async def get_autonomy_levels(
             "success_rate": level.success_rate,
             "rollback_proven": level.rollback_proven,
             "last_updated": level.last_updated,
+            "os_family": level.os_family,
         }
         for action_type, level in levels.items()
     }
