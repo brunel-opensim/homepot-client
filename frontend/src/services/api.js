@@ -909,10 +909,13 @@ const api = {
      * @param {number} [days=30] - Metrics window in days.
      * @param {string} [actionType] - Optional action-type filter.
      */
-    getReliability: async (days = 30, actionType = null) => {
+    getReliability: async (days = 30, actionType = null, osFamily = null) => {
       const params = { days };
       if (actionType) {
         params.action_type = actionType;
+      }
+      if (osFamily) {
+        params.os_family = osFamily;
       }
       const response = await apiClient.get('/ai/reliability', { params });
       return response.data;
@@ -921,8 +924,10 @@ const api = {
     /**
      * Current autonomy levels per action type (Phase D).
      */
-    getAutonomy: async () => {
-      const response = await apiClient.get('/ai/autonomy');
+    getAutonomy: async (osFamily = null) => {
+      const params = {};
+      if (osFamily) params.os_family = osFamily;
+      const response = await apiClient.get('/ai/autonomy', { params });
       return response.data;
     },
 

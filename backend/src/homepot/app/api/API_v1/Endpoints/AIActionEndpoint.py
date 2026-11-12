@@ -157,13 +157,14 @@ async def get_action_plan_summary(
 async def get_ai_reliability(
     days: int = 30,
     action_type: Optional[str] = None,
+    os_family: Optional[str] = None,
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
     """Return per-action-type reliability metrics for AI delegation."""
     from ai.analytics_service import AIAnalyticsService
 
     return await AIAnalyticsService.get_ai_action_reliability(
-        action_type=action_type, days=days
+        action_type=action_type, days=days, os_family=os_family
     )
 
 
@@ -182,25 +183,48 @@ async def get_autonomy_levels(
     )
 
     controller = await hydrate_autonomy_from_reliability(days=30, os_family=os_family)
-    levels = (
-        controller.all_levels()
-        if os_family is None
-        else {
+
+    if os_family is not None:
+        levels = {
             at: lvl for (at, osf), lvl in controller._levels.items() if osf == os_family
         }
-    )
+        return {
+            action_type: {
+                "level": level.level,
+                "sample_count": level.sample_count,
+                "success_rate": level.success_rate,
+                "rollback_proven": level.rollback_proven,
+                "last_updated": level.last_updated,
+                "os_family": level.os_family,
+            }
+            for action_type, level in levels.items()
+        }
 
-    return {
-        action_type: {
+    # Fleet-wide: include per-OS breakdown
+    fleet_levels = controller.all_levels()
+    by_os_all = controller.all_levels_by_os()
+    result = {}
+    for action_type, level in fleet_levels.items():
+        os_breakdown = {}
+        for osf, os_level in by_os_all.get(action_type, {}).items():
+            if osf is None:
+                continue
+            os_breakdown[osf] = {
+                "level": os_level.level,
+                "sample_count": os_level.sample_count,
+                "success_rate": os_level.success_rate,
+                "rollback_proven": os_level.rollback_proven,
+            }
+        result[action_type] = {
             "level": level.level,
             "sample_count": level.sample_count,
             "success_rate": level.success_rate,
             "rollback_proven": level.rollback_proven,
             "last_updated": level.last_updated,
             "os_family": level.os_family,
+            "by_os": os_breakdown,
         }
-        for action_type, level in levels.items()
-    }
+    return result
 
 
 @router.get("/calibration", tags=["AI Action Delegation"])

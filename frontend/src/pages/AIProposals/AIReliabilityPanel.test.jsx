@@ -65,7 +65,7 @@ describe('AIReliabilityPanel (Phase E: reliability + task aggregation)', () => {
     expect((await screen.findAllByText(/restart_service/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/Autonomy levels/i)).toBeInTheDocument();
     expect(api.ai.getPlanSummary).toHaveBeenCalledWith(30, null);
-    expect(api.ai.getReliability).toHaveBeenCalledWith(30, null);
+    expect(api.ai.getReliability).toHaveBeenCalledWith(30, null, null);
     expect(api.ai.getAutonomy).toHaveBeenCalled();
   });
 
