@@ -206,12 +206,15 @@ async def get_autonomy_levels(
 @router.get("/calibration", tags=["AI Action Delegation"])
 async def get_confidence_calibration(
     days: int = 30,
+    os_family: Optional[str] = None,
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
     """Return trust-score vs. observed-success calibration (Phase D, item 15)."""
     from ai.analytics_service import AIAnalyticsService
 
-    return await AIAnalyticsService.get_confidence_calibration(days=days)
+    return await AIAnalyticsService.get_confidence_calibration(
+        days=days, os_family=os_family
+    )
 
 
 def _get_db_user(db: SASession, current_user: UserDict) -> User:
