@@ -43,8 +43,12 @@ export default function AIProposalsList() {
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
   const [toastKey, setToastKey] = useState(0);
+  const statusFilterRef = useRef(statusFilter);
+  useEffect(() => {
+    statusFilterRef.current = statusFilter;
+  }, [statusFilter]);
+  const fetchRequestIdRef = useRef(0);
   const plansRef = useRef(plans);
-  const fetchingRef = useRef(false);
   const initialLoadRef = useRef(true);
   const highlightedRef = useRef(null);
   const [approveTarget, setApproveTarget] = useState(null);
@@ -56,22 +60,25 @@ export default function AIProposalsList() {
   const [executingPlanId, setExecutingPlanId] = useState(null);
 
   const fetchPlans = useCallback(async () => {
-    if (fetchingRef.current) return; // prevent overlapping requests
-    fetchingRef.current = true;
+    const requestId = ++fetchRequestIdRef.current;
     try {
       // Only show the full loading spinner on the very first load; subsequent
       // refreshes (including auto-refresh) keep the current list visible to
       // avoid flicker of the empty/loading state.
       if (initialLoadRef.current) setLoading(true);
       const data = await api.aiProposals.list(statusFilter || null, 100, 0);
+      // Ignore stale responses from earlier filters/requests.
+      if (requestId !== fetchRequestIdRef.current) return;
       setPlans(data.plans || []);
     } catch (err) {
+      if (requestId !== fetchRequestIdRef.current) return;
       console.error('Failed to load AI action plans:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
     } finally {
-      setLoading(false);
-      fetchingRef.current = false;
-      initialLoadRef.current = false;
+      if (requestId === fetchRequestIdRef.current) {
+        setLoading(false);
+        initialLoadRef.current = false;
+      }
     }
   }, [statusFilter]);
 
@@ -242,10 +249,18 @@ export default function AIProposalsList() {
       setPlans((prev) => {
         const idx = prev.findIndex((p) => p.plan_id === data.plan_id);
         if (idx >= 0) {
+          // If the plan no longer matches the active filter, drop it.
+          const filter = statusFilterRef.current;
+          if (filter && data.status !== filter) {
+            return prev.filter((p) => p.plan_id !== data.plan_id);
+          }
           const next = [...prev];
           next[idx] = data;
           return next;
         }
+        // New plan — only add if it matches the active filter (or no filter).
+        const filter = statusFilterRef.current;
+        if (filter && data.status !== filter) return prev;
         return [data, ...prev];
       });
       try {
