@@ -179,12 +179,16 @@ class AIActionRepository:
         created_by: Optional[str] = None,
         days: int = 30,
         include_archived: bool = False,
+        os_family: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Aggregate plan counts by status for cross-session task overview.
 
         Returns counts per status, total plans, and recent plan list.
         """
         from datetime import datetime, timedelta
+
+        from homepot.app.schemas.os_capabilities import os_family as _os_family
+        from homepot.models import Device
 
         cutoff = datetime.utcnow() - timedelta(days=days)
 
@@ -198,6 +202,26 @@ class AIActionRepository:
                 AIActionStep.target_device_id.in_(device_ids)
             )
             stmt = stmt.where(AIActionPlan.plan_id.in_(scoped))
+
+        # OS filter: only plans targeting devices of the given OS family
+        if os_family is not None:
+            os_device_ids = [
+                d.device_id
+                for d in self.db.query(Device).all()
+                if _os_family(cast(Optional[str], d.os_details)) == os_family
+            ]
+            if not os_device_ids:
+                return {"total": 0, "by_status": {}, "recent": []}
+            # Intersect with accessible device_ids if applicable
+            if accessible_device_ids is not None:
+                accessible_set = set(accessible_device_ids)
+                os_device_ids = [d for d in os_device_ids if d in accessible_set]
+                if not os_device_ids:
+                    return {"total": 0, "by_status": {}, "recent": []}
+            os_scoped = select(AIActionStep.plan_id).where(
+                AIActionStep.target_device_id.in_(os_device_ids)
+            )
+            stmt = stmt.where(AIActionPlan.plan_id.in_(os_scoped))
 
         if created_by is not None:
             stmt = stmt.where(AIActionPlan.created_by == created_by)
