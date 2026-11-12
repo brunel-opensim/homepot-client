@@ -97,7 +97,7 @@ export default function AIProposalsList() {
       if (document.visibilityState === 'visible' && !busyPlan) {
         fetchPlans();
       }
-    }, 30000);
+    }, 60000);
     const onFocus = () => {
       if (!busyPlan) {
         fetchPlans();
@@ -210,9 +210,8 @@ export default function AIProposalsList() {
     }
   };
 
-  // Poll executing plan until terminal
+  // Stream plan status changes via SSE for instant updates (replaces polling).
   useEffect(() => {
-    if (!executingPlanId) return;
     const terminal = new Set([
       'succeeded',
       'failed',
@@ -220,26 +219,62 @@ export default function AIProposalsList() {
       'blocked',
       'cancelled',
       'rejected',
+      'expired',
     ]);
-    const interval = setInterval(async () => {
-      try {
-        const data = await api.aiProposals.get(executingPlanId);
-        setPlans((prev) => prev.map((p) => (p.plan_id === executingPlanId ? data : p)));
-        if (terminal.has(data.status)) {
-          clearInterval(interval);
-          setExecutingPlanId(null);
-          setToast({
-            type: data.status === 'succeeded' ? 'success' : 'error',
-            message: `Delegated task ${data.status}.`,
-          });
-          fetchPlans(true);
+    if (typeof EventSource === 'undefined') {
+      // jsdom / non-browser environment: fall back to polling.
+      const interval = setInterval(() => {
+        if (document.visibilityState === 'visible' && !busyPlan) {
+          fetchPlans();
         }
-      } catch (err) {
-        console.error('Polling failed:', err);
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+    const es = new EventSource(`/api/v1/ai/action-plans/stream`);
+    es.addEventListener('plan', (event) => {
+      let data = null;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        return;
       }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [executingPlanId, fetchPlans]);
+      if (!data || !data.plan_id) return;
+      setPlans((prev) => {
+        const idx = prev.findIndex((p) => p.plan_id === data.plan_id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = data;
+          return next;
+        }
+        return [data, ...prev];
+      });
+      try {
+        window.dispatchEvent(new CustomEvent('ai:plan-updated', { detail: data }));
+      } catch {
+        // ignore
+      }
+      if (executingPlanId === data.plan_id && terminal.has(data.status)) {
+        setToast({
+          type: data.status === 'succeeded' ? 'success' : 'error',
+          message: `Delegated task ${data.status}.`,
+        });
+        fetchPlans(true);
+        setExecutingPlanId(null);
+      }
+    });
+    es.onerror = () => {
+      // EventSource auto-reconnects; nothing to do here.
+    };
+    const fallback = setInterval(() => {
+      if (document.visibilityState === 'visible' && !busyPlan) {
+        fetchPlans();
+      }
+    }, 120000);
+    return () => {
+      es.close();
+      clearInterval(fallback);
+    };
+  }, [executingPlanId, fetchPlans, busyPlan]);
 
   const handleExecuteAndWait = (planId) => {
     setExecuteAndWaitTarget(planId);
@@ -361,7 +396,9 @@ export default function AIProposalsList() {
                 executed automatically.
               </p>
             </div>
-            <span className="text-xs text-gray-500">Auto-refreshing every 30s</span>
+            <span className="text-xs text-gray-500">
+              Live updates via SSE (fallback refresh 60s)
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

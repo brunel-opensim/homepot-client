@@ -43,7 +43,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
     try {
       if (initialLoadRef.current) setLoading(true);
       const [summaryData, reliabilityData, autonomyData] = await Promise.allSettled([
-        api.ai.getPlanSummary(30, null),
+        api.ai.getPlanSummary(30, null, selectedOs || null),
         api.ai.getReliability(30, null, selectedOs || null),
         api.ai.getAutonomy(selectedOs || null),
       ]);
@@ -96,6 +96,11 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
 
   useEffect(() => {
     fetchAll();
+    const onPlanUpdated = () => fetchAll();
+    window.addEventListener('ai:plan-updated', onPlanUpdated);
+    return () => {
+      window.removeEventListener('ai:plan-updated', onPlanUpdated);
+    };
   }, [fetchAll]);
 
   const refresh = () => {

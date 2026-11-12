@@ -13,11 +13,14 @@ See docs/ai-delegation-plan.md sections 6 (state machine), 10 (approval & RBAC)
 and 11 (explainability).
 """
 
+import asyncio
+import json
 import logging
-from typing import Any, Dict, List, Optional, Set, cast
+from typing import Any, AsyncGenerator, Dict, List, Optional, Set, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as SASession
 
@@ -135,6 +138,7 @@ def _serialize_plan(plan: AIActionPlan) -> Dict[str, Any]:
 async def get_action_plan_summary(
     days: int = 30,
     created_by: Optional[str] = None,
+    os_family: Optional[str] = None,
     current_user: UserDict = Depends(require_user()),
     db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -150,6 +154,7 @@ async def get_action_plan_summary(
         accessible_device_ids=accessible,
         created_by=created_by,
         days=days,
+        os_family=os_family,
     )
 
 
@@ -315,6 +320,81 @@ async def list_action_plans(
         "plans": [_serialize_plan(plan) for plan in plans],
         "count": len(plans),
     }
+
+
+@router.get("/action-plans/stream", tags=["AI Action Delegation"])
+async def stream_action_plans(
+    plan_status: Optional[str] = Query(
+        None, alias="status", description="Filter by plan status"
+    ),
+    days: int = Query(30, ge=1, le=365),
+    current_user: UserDict = Depends(require_user()),
+    db: SASession = Depends(get_db),
+) -> StreamingResponse:
+    """Stream AI action plan status changes over SSE.
+
+    Emits a ``plan`` event whenever a plan's status (or any step's status)
+    changes, and a ``heartbeat`` event every 15 seconds to keep the
+    connection alive. The client (EventSource) auto-reconnects on drop.
+
+    This replaces the frontend's polling loops for instant updates.
+    """
+    db_user = _get_db_user(db, current_user)
+    accessible = _accessible_device_ids(db, db_user)
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        known: dict = {}  # plan_id -> (status, step_statuses_tuple)
+        last_heartbeat = asyncio.get_event_loop().time()
+        deadline = asyncio.get_event_loop().time() + 300  # 5 min max, then reconnect
+
+        while asyncio.get_event_loop().time() < deadline:
+            try:
+                # Fetch plans scoped to accessible devices
+                plans = []
+                try:
+                    from homepot.app.repositories.ai_action_repository import (
+                        AIActionRepository as _Repo,
+                    )
+
+                    _repo = _Repo(db)
+                    plans = _repo.list_plans(
+                        statuses={plan_status} if plan_status else None,
+                        accessible_device_ids=accessible,
+                        limit=200,
+                        offset=0,
+                    )
+                except Exception:
+                    plans = []
+
+                for plan in plans:
+                    plan_id = plan.plan_id
+                    step_statuses = tuple(
+                        (s.step_id, s.status) for s in (plan.steps or [])
+                    )
+                    signature = (plan.status, step_statuses)
+                    if known.get(plan_id) != signature:
+                        known[plan_id] = signature
+                        yield (
+                            "event: plan\n"
+                            f"data: {json.dumps(_serialize_plan(plan), default=str)}\n\n"
+                        )
+
+                now = asyncio.get_event_loop().time()
+                if now - last_heartbeat >= 15:
+                    yield "event: heartbeat\ndata: {}\n\n"
+                    last_heartbeat = now
+            except Exception as e:
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+            await asyncio.sleep(1)
+
+        yield "event: close\ndata: {}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/action-plans/{plan_id}", tags=["AI Action Delegation"])
