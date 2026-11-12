@@ -5,6 +5,8 @@ with owner + site/device scoping and per-operation authorisation.
 """
 
 from datetime import datetime, timezone
+import json
+import logging
 from typing import Any, AsyncGenerator, Dict, Optional
 import uuid
 
@@ -23,6 +25,8 @@ from homepot.models import (
     InvestigationSession,
     User,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_user())])
 
@@ -497,8 +501,12 @@ async def stream_run_events(
         try:
             async for chunk in bus.subscribe(session_id, run_id, last_event_id):
                 yield chunk
-        except Exception as e:  # pragma: no cover - defensive
-            yield f'event: error\ndata: {{"error": "{str(e)}"}}\n\n'
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Error while streaming investigation events")
+            yield (
+                "event: error\n"
+                f"data: {json.dumps({'error': 'An internal error has occurred.'})}\n\n"
+            )
 
     return StreamingResponse(
         event_stream(),
