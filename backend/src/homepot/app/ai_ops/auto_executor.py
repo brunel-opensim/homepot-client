@@ -18,7 +18,7 @@ Safety guardrails:
 
 import asyncio
 import logging
-from typing import Any, Optional, Set
+from typing import Any, Dict, Optional, Set, cast
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,36 @@ async def _is_eligible(plan: Any, controller: Any, min_level: int) -> bool:
     steps = getattr(plan, "steps", []) or []
     if not steps:
         return False
+
+    # Resolve device OS for each step to check per-OS autonomy.
+    from homepot.database import get_database_service
+    from homepot.models import Device
+
+    device_os_cache: Dict[str, Optional[str]] = {}
+
+    async def _os_for_device(device_id: Optional[str]) -> Optional[str]:
+        if not device_id:
+            return None
+        if device_id in device_os_cache:
+            return device_os_cache[device_id]
+        try:
+            db_service = await get_database_service()
+            async with db_service.get_session() as session:
+                from sqlalchemy import select
+
+                from homepot.app.schemas.os_capabilities import os_family as _os_family
+
+                result = await session.execute(
+                    select(Device.os_details).where(Device.device_id == device_id)
+                )
+                os_details = result.scalar_one_or_none()
+                osf = _os_family(cast(Optional[str], os_details))
+                device_os_cache[device_id] = osf
+                return osf
+        except Exception:
+            device_os_cache[device_id] = None
+            return None
+
     for step in steps:
         # Per-step approval gates must be cleared by a human first.
         if (
@@ -39,7 +69,8 @@ async def _is_eligible(plan: Any, controller: Any, min_level: int) -> bool:
             and getattr(step, "status", "") != "approved"
         ):
             return False
-        decision = controller.check_autonomy(step.action)
+        osf = await _os_for_device(getattr(step, "target_device_id", None))
+        decision = controller.check_autonomy(step.action, os_family=osf)
         if decision.current_level < min_level:
             return False
         if not decision.may_auto_execute and min_level >= 3:

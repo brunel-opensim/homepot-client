@@ -2185,8 +2185,28 @@ async def _query_ai_impl(
                     )
 
                     controller = await hydrate_autonomy_from_reliability(days=30)
+                    # Resolve the target device's OS family so autonomy is
+                    # checked per-OS (untested OS → Level 0, requires approval).
+                    _os_family = None
+                    if request.device_id:
+                        try:
+                            from homepot.app.schemas.os_capabilities import (
+                                os_family as _of,
+                            )
+
+                            db_dev = (
+                                db.query(Device)
+                                .filter(Device.device_id == request.device_id)
+                                .first()
+                            )
+                            if db_dev is not None:
+                                _os_family = _of(cast(Optional[str], db_dev.os_details))
+                        except Exception:
+                            _os_family = None
                     if agent_result.proposals and all(
-                        controller.check_autonomy(p.action).may_auto_execute
+                        controller.check_autonomy(
+                            p.action, os_family=_os_family
+                        ).may_auto_execute
                         for p in agent_result.proposals
                     ):
                         plan_status = "approved"

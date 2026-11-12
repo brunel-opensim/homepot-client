@@ -561,11 +561,15 @@ class AIAnalyticsService:
     async def get_ai_action_reliability(
         action_type: Optional[str] = None,
         days: int = 30,
+        os_family: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Compute per-action-type reliability metrics from AIActionOutcome.
 
         Returns proposal acceptance rate, execution success rate, verified
         improvement rate, and rollback effectiveness for each action type.
+        When ``os_family`` is specified, only plans targeting devices of that
+        OS family are included. Each action type also includes a ``by_os``
+        breakdown so callers can inspect per-OS reliability.
         """
         try:
             db_service = await get_database_service()
@@ -576,6 +580,19 @@ class AIAnalyticsService:
                 from homepot.app.models.AnalyticsModel import (
                     AIActionPlan,
                 )
+                from homepot.app.schemas.os_capabilities import os_family as _os_family
+                from homepot.models import Device
+
+                # Build device_id -> os_family lookup
+                device_os_map: Dict[str, Optional[str]] = {}
+                try:
+                    devs = await session.execute(select(Device))
+                    for dev in devs.scalars().all():
+                        device_os_map[typing_cast(str, dev.device_id)] = _os_family(
+                            typing_cast(Optional[str], dev.os_details)
+                        )
+                except Exception:
+                    pass
 
                 cutoff = datetime.utcnow() - timedelta(days=days)
 
@@ -592,33 +609,70 @@ class AIAnalyticsService:
                 plans = plans_result.scalars().all()
 
                 stats: Dict[str, Dict[str, Any]] = {}
+                os_stats: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+                def _ensure_action(at: str) -> None:
+                    if at not in stats:
+                        stats[at] = {
+                            "proposed": 0,
+                            "approved": 0,
+                            "rejected": 0,
+                            "executed": 0,
+                            "succeeded": 0,
+                            "failed": 0,
+                            "rolled_back": 0,
+                            "verified_improvement": 0,
+                        }
+                    if at not in os_stats:
+                        os_stats[at] = {}
+
+                def _ensure_os(at: str, osf: Optional[str]) -> None:
+                    key = osf or "unknown"
+                    if key not in os_stats[at]:
+                        os_stats[at][key] = {
+                            "proposed": 0,
+                            "approved": 0,
+                            "rejected": 0,
+                            "executed": 0,
+                            "succeeded": 0,
+                            "failed": 0,
+                            "rolled_back": 0,
+                            "verified_improvement": 0,
+                        }
+
                 for plan in plans:
+                    plan_os: Optional[str] = None
+                    for step in plan.steps:
+                        if step.target_device_id:
+                            plan_os = device_os_map.get(step.target_device_id)
+                            break
+
+                    # Filter by os_family if specified
+                    if os_family is not None and plan_os != os_family:
+                        continue
+
                     for step in plan.steps:
                         at = step.action
                         if action_type is not None and at != action_type:
                             continue
-                        if at not in stats:
-                            stats[at] = {
-                                "proposed": 0,
-                                "approved": 0,
-                                "rejected": 0,
-                                "executed": 0,
-                                "succeeded": 0,
-                                "failed": 0,
-                                "rolled_back": 0,
-                                "verified_improvement": 0,
-                            }
+                        _ensure_action(at)
+                        _ensure_os(at, plan_os)
                         stats[at]["proposed"] += 1
+                        os_stats[at][plan_os or "unknown"]["proposed"] += 1
 
                     for approval in plan.approvals:
                         for step in plan.steps:
                             at = step.action
                             if action_type is not None and at != action_type:
                                 continue
+                            _ensure_action(at)
+                            _ensure_os(at, plan_os)
                             if approval.decision == "approved":
                                 stats[at]["approved"] += 1
+                                os_stats[at][plan_os or "unknown"]["approved"] += 1
                             elif approval.decision == "rejected":
                                 stats[at]["rejected"] += 1
+                                os_stats[at][plan_os or "unknown"]["rejected"] += 1
 
                     if plan.outcome is not None:
                         outcome = plan.outcome
@@ -626,6 +680,8 @@ class AIAnalyticsService:
                             at = step.action
                             if action_type is not None and at != action_type:
                                 continue
+                            _ensure_action(at)
+                            _ensure_os(at, plan_os)
                             if plan.status in (
                                 "executing",
                                 "succeeded",
@@ -633,19 +689,47 @@ class AIAnalyticsService:
                                 "rolled_back",
                             ):
                                 stats[at]["executed"] += 1
+                                os_stats[at][plan_os or "unknown"]["executed"] += 1
                             if plan.status == "succeeded":
                                 stats[at]["succeeded"] += 1
+                                os_stats[at][plan_os or "unknown"]["succeeded"] += 1
                             if plan.status == "failed":
                                 stats[at]["failed"] += 1
+                                os_stats[at][plan_os or "unknown"]["failed"] += 1
                             if outcome.rolled_back:
                                 stats[at]["rolled_back"] += 1
+                                os_stats[at][plan_os or "unknown"]["rolled_back"] += 1
                             if outcome.verified:
                                 stats[at]["verified_improvement"] += 1
+                                os_stats[at][plan_os or "unknown"][
+                                    "verified_improvement"
+                                ] += 1
 
                 result: Dict[str, Any] = {}
                 for at, s in stats.items():
                     proposed = s["proposed"] or 1
                     executed = s["executed"] or 1
+                    by_os_result: Dict[str, Any] = {}
+                    for osf, os_s in os_stats.get(at, {}).items():
+                        os_proposed = os_s["proposed"] or 1
+                        os_executed = os_s["executed"] or 1
+                        by_os_result[osf] = {
+                            "counts": os_s,
+                            "rates": {
+                                "proposal_acceptance": round(
+                                    os_s["approved"] / os_proposed, 4
+                                ),
+                                "execution_success": round(
+                                    os_s["succeeded"] / os_executed, 4
+                                ),
+                                "verified_improvement": round(
+                                    os_s["verified_improvement"] / os_executed, 4
+                                ),
+                                "rollback_rate": round(
+                                    os_s["rolled_back"] / os_executed, 4
+                                ),
+                            },
+                        }
                     result[at] = {
                         "counts": s,
                         "rates": {
@@ -656,6 +740,7 @@ class AIAnalyticsService:
                             ),
                             "rollback_rate": round(s["rolled_back"] / executed, 4),
                         },
+                        "by_os": by_os_result,
                     }
 
                 return {
