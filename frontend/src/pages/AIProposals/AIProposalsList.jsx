@@ -269,10 +269,6 @@ export default function AIProposalsList() {
         // ignore
       }
       if (executingPlanId === data.plan_id && terminal.has(data.status)) {
-        setToast({
-          type: data.status === 'succeeded' ? 'success' : 'error',
-          message: `Delegated task ${data.status}.`,
-        });
         fetchPlans(true);
         setExecutingPlanId(null);
       }
