@@ -1672,8 +1672,62 @@ async def _query_ai_impl(
             # Resolve device integer ID early so enriched context and gates
             # can both use it.
             device_int_id = None
+            device_os_family = None
             if request.device_id:
                 device_int_id = await DeviceResolver(session).resolve(request.device_id)
+                try:
+                    from homepot.app.schemas.os_capabilities import (
+                        os_family as _os_family,
+                    )
+                    from homepot.models import Device as _Dev
+
+                    _dev = (
+                        db.query(_Dev)
+                        .filter(_Dev.device_id == request.device_id)
+                        .first()
+                    )
+                    if _dev is not None:
+                        device_os_family = _os_family(
+                            cast(Optional[str], _dev.os_details)
+                        )
+                        if device_os_family:
+                            full_context += f"\nOS family: {device_os_family}"
+                            # Add per-OS reliability summary so the AI is aware
+                            # of which actions have been validated on this OS.
+                            try:
+                                from homepot.app.ai_ops.autonomy import (
+                                    hydrate_autonomy_from_reliability,
+                                )
+
+                                _ctrl = await hydrate_autonomy_from_reliability(
+                                    days=30, os_family=None
+                                )
+                                # Per-OS levels for this device's OS
+                                _by_os = _ctrl.all_levels_by_os()
+                                _parts = []
+                                for _at, _os_map in _by_os.items():
+                                    _lvl = _os_map.get(device_os_family)
+                                    if _lvl is not None and _lvl.sample_count > 0:
+                                        _parts.append(
+                                            f"{_at}: L{_lvl.level} "
+                                            f"({_lvl.sample_count} runs, "
+                                            f"{_lvl.success_rate:.0%} success)"
+                                        )
+                                if _parts:
+                                    full_context += (
+                                        "\nOS reliability (this device's OS): "
+                                        + "; ".join(_parts)
+                                    )
+                                else:
+                                    full_context += (
+                                        "\nOS reliability: no validated actions "
+                                        "on this OS yet (Level 0 — proposals "
+                                        "require approval)"
+                                    )
+                            except Exception:
+                                pass
+                except Exception:
+                    device_os_family = None
 
             # Enriched diagnostic context: gather all ContextBuilder sources
             # in parallel so total latency = slowest single query, not the sum.
@@ -2187,7 +2241,7 @@ async def _query_ai_impl(
                     controller = await hydrate_autonomy_from_reliability(days=30)
                     # Resolve the target device's OS family so autonomy is
                     # checked per-OS (untested OS → Level 0, requires approval).
-                    _os_family = None
+                    _dev_os = None
                     if request.device_id:
                         try:
                             from homepot.app.schemas.os_capabilities import (
@@ -2200,12 +2254,12 @@ async def _query_ai_impl(
                                 .first()
                             )
                             if db_dev is not None:
-                                _os_family = _of(cast(Optional[str], db_dev.os_details))
+                                _dev_os = _of(cast(Optional[str], db_dev.os_details))
                         except Exception:
-                            _os_family = None
+                            _dev_os = None
                     if agent_result.proposals and all(
                         controller.check_autonomy(
-                            p.action, os_family=_os_family
+                            p.action, os_family=_dev_os
                         ).may_auto_execute
                         for p in agent_result.proposals
                     ):

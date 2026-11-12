@@ -221,13 +221,33 @@ async def hydrate_autonomy_from_reliability(
 
     action_types = metrics.get("action_types", {}) or {}
     for action_type, data in action_types.items():
-        # Fleet-wide aggregate
         counts = (data or {}).get("counts", {}) or {}
         rates = (data or {}).get("rates", {}) or {}
         sample_count = int(counts.get("executed", 0) or 0)
         success_rate = float(rates.get("execution_success", 0.0) or 0.0)
         rollback_proven = int(counts.get("rolled_back", 0) or 0) > 0
-        os_family_val = (data or {}).get("os_family")  # None for fleet aggregate
+
+        # When hydrating a specific OS, store as per-OS entry (not fleet-wide).
+        if os_family is not None:
+            try:
+                controller.update_level(
+                    action_type,
+                    os_family=os_family,
+                    sample_count=sample_count,
+                    success_rate=success_rate,
+                    rollback_proven=rollback_proven,
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to update autonomy for %s (os=%s)",
+                    action_type,
+                    os_family,
+                    exc_info=True,
+                )
+            continue
+
+        # Fleet-wide aggregate
+        os_family_val = None  # fleet aggregate
         try:
             controller.update_level(
                 action_type,
