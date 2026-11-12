@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -585,31 +586,13 @@ export default function Dashboard() {
             </div>
           </CardContent>
 
-          {/* World Map Background + Site Markers */}
-          <div
-            className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none flex items-center justify-center"
-            ref={mapContainerRef}
-          >
+          {/* World Map Background */}
+          <div className="absolute inset-0 overflow-hidden rounded-xl z-0 pointer-events-none">
             <img
               src={WorldMapImage}
               alt="World Map"
-              className="max-w-full max-h-full object-contain opacity-40"
+              className="w-full h-full object-cover opacity-30"
             />
-            <div className="absolute inset-0 z-10">
-              {siteMarkers.map((site, index) => {
-                const lat = typeof site.latitude === 'number' ? site.latitude : null;
-                const lng = typeof site.longitude === 'number' ? site.longitude : null;
-                const pos = markerPosition(lat, lng, mapMetrics, index);
-                return (
-                  <span
-                    key={site.site_id || index}
-                    className="absolute w-3 h-3 bg-cyan-400 rounded-full blur-md animate-pulse"
-                    style={{ top: pos.top, left: pos.left }}
-                    title={site.name || site.site_id}
-                  ></span>
-                );
-              })}
-            </div>
           </div>
         </Card>
 
