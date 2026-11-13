@@ -383,6 +383,7 @@ At the time this document was introduced, the repository implements only part of
 - Re-enrolment, transfer, suspension, retirement and concurrency rules are not represented.
 - Command-result ownership is checked after the update has been committed; ownership must be enforced before mutation.
 - **Deferred:** operator/device restore (re-activation) of unpaired *pre-provisioned* devices is out of scope until provisioned devices land. Self-register (User App) devices re-enrol via the enrolment-intent claim flow; operators can use `POST /device/{id}/reenrol`. The pre-provisioned claim flow does not yet restore an unpaired record (it does not pass `include_unpaired=True` and does not reset credentials/lifecycle).
+- **Deferred:** "Enrolling..." UI state and manual activation of `pending` devices are out of scope until provisioned devices land. Today `pending` devices are shown with a `PENDING` badge and activate via the enrolment-intent claim flow (or operator `reenrol`); there is no manual `pending -> active` activation endpoint or "Enrolling..." sub-state.
 
 ## Canonical state model
 PR 1: Separate lifecycle, connectivity, and health
