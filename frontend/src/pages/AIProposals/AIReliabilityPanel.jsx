@@ -141,31 +141,33 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
             Aggregated AI action outcomes over the last 30 days, plus the current autonomy posture.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <label className="text-xs text-gray-500">OS:</label>
-          <select
-            value={selectedOs}
-            onChange={(e) => setSelectedOs(e.target.value)}
-            className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300"
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500">OS:</label>
+            <select
+              value={selectedOs}
+              onChange={(e) => setSelectedOs(e.target.value)}
+              className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300"
+            >
+              <option value="">All OS</option>
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+              <option value="macos">macOS</option>
+              <option value="android">Android</option>
+              <option value="ios">iOS</option>
+            </select>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={refresh}
+            disabled={loading}
+            className="text-gray-400 hover:text-white"
           >
-            <option value="">All OS</option>
-            <option value="windows">Windows</option>
-            <option value="linux">Linux</option>
-            <option value="macos">macOS</option>
-            <option value="android">Android</option>
-            <option value="ios">iOS</option>
-          </select>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={refresh}
-          disabled={loading}
-          className="text-gray-400 hover:text-white"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
       </div>
 
       {Object.keys(errors).length > 0 && (
