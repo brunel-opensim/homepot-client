@@ -210,7 +210,7 @@ describe('SetupWizard Step 1', () => {
     expect(await screen.findByText('Setup Method')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     const [, deviceOs] = screen.getAllByRole('combobox') as HTMLSelectElement[]
-    expect(deviceOs.value).toBe('linux')
+    expect(deviceOs.value).toBe('Linux 6.8.0')
   })
 })
 

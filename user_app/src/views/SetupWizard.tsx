@@ -27,7 +27,45 @@ function normalizeOS(platform: string): string | null {
   return null
 }
 
-function detectBrowserOS(): string {
+// Build a human-readable, versioned OS details string from a native DNA
+// payload (platform + kernel release). Returns a coarse family label when no
+// version information is available. os_family() in the backend recognises
+// both short tokens and versioned strings, so sending "Windows 11" is safe.
+function nativeOSDetails(platform: string, release: string): string {
+  const p = platform.toLowerCase()
+  const r = release || ''
+  if (p.includes('win')) {
+    // Windows 10 reports 10.0.1904x, Windows 11 reports 10.0.22000+.
+    const buildMatch = r.match(/10\.0\.(\d+)/)
+    const build = buildMatch ? parseInt(buildMatch[1], 10) : 0
+    if (build >= 22000) return 'Windows 11'
+    if (build > 0) return 'Windows 10'
+    return 'Windows'
+  }
+  if (p.includes('darwin') || p.includes('mac')) {
+    const major = parseInt(r.split('.')[0] || '0', 10)
+    // Darwin 20 -> macOS 11 (Big Sur), 21 -> 12, ... 24 -> 15.
+    const macMajor = major >= 20 ? major - 9 : major
+    return macMajor > 0 ? `macOS ${macMajor}` : 'macOS'
+  }
+  if (p.includes('linux')) {
+    return r ? `Linux ${r.split('-')[0]}` : 'Linux'
+  }
+  if (p.includes('android')) return r ? `Android ${r}` : 'Android'
+  return normalizeOS(platform) || platform || 'Unknown'
+}
+
+async function detectOS(): Promise<string> {
+  try {
+    const dna = await window.electronAPI?.device.dna()
+    if (dna?.platform) {
+      const detected = nativeOSDetails(dna.platform, dna.release || '')
+      if (detected) return detected
+    }
+  } catch {
+    // Fall back to browser detection if the native bridge is unavailable.
+  }
+  // Browser fallback: coarse family only (no reliable version).
   const uaData = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData
   if (uaData?.platform) {
     const detected = normalizeOS(uaData.platform)
@@ -43,25 +81,13 @@ function detectBrowserOS(): string {
   return 'web'
 }
 
-async function detectOS(): Promise<string> {
-  try {
-    const nativePlatform = (await window.electronAPI?.device.dna())?.platform
-    if (nativePlatform) {
-      const detected = normalizeOS(nativePlatform)
-      if (detected) return detected
-    }
-  } catch {
-    // Fall back to browser detection if the native bridge is unavailable.
-  }
-  return detectBrowserOS()
-}
-
 // A sensible device type default for the host OS (used when the user leaves
 // the Device Type unset). Desktop OSes map to a desktop; Android POS to a POS
 // terminal; iOS to a tablet.
 function defaultDeviceTypeFor(os: string): string {
-  if (os === 'android') return 'pos_terminal'
-  if (os === 'ios') return 'tablet'
+  const lower = os.toLowerCase()
+  if (lower.includes('android')) return 'pos_terminal'
+  if (lower.includes('ios')) return 'tablet'
   return 'desktop'
 }
 
@@ -300,6 +326,9 @@ function Step1() {
           <option value="android">Android</option>
           <option value="ios">iOS</option>
           <option value="web">Web Browser</option>
+          {![ 'auto', 'windows', 'linux', 'mac', 'android', 'ios', 'web' ].includes(deviceOs) && deviceOs && (
+            <option value={deviceOs}>{deviceOs}</option>
+          )}
         </select>
       </div>
 
