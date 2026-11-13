@@ -1595,11 +1595,22 @@ function readElevationInstallStatus(): string {
   }
 }
 
+function isWindowsTaskCurrent(): boolean {
+  if (process.platform !== 'win32') return true
+  try {
+    const out = execFileSync('schtasks', ['/query', '/tn', 'HOMEPOT-Elevation', '/fo', 'LIST'], { encoding: 'utf8', stdio: 'pipe' })
+    return /execute-request/.test(out)
+  } catch {
+    return false
+  }
+}
+
 function managedElevationStatus() {
   return {
     supported: elevationSupported(),
     installed: fs.existsSync(installedCtlPath()),
     provisioned: fs.existsSync(elevationDropinPath()),
+    taskCurrent: isWindowsTaskCurrent(),
     ops: [...ELEVATION_OPS],
   }
 }
@@ -2086,7 +2097,7 @@ function pollForCredentials(credsPath: string, timeoutMs: number): Promise<Recor
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return
   const isFirstLaunch = !fs.existsSync(getAppLogFile())
   if (isFirstLaunch) {
@@ -2106,6 +2117,40 @@ app.whenReady().then(() => {
   // launch, keeping the agent in the tray until the operator opens it.
   hiddenLoginLaunch = process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin
   registerIpcHandlers()
+  // Auto-repair a stale/misconfigured elevation scheduled task on startup.
+  // The task is normally created once during the "Manage device" grant; if it
+  // became stale (e.g. an older installer) the agent cannot self-repair
+  // (UAC required), so we re-run the installer here. The user only has to
+  // accept the OS UAC prompt — no Dashboard toggle. A 24h cooldown avoids
+  // repeated prompts if the repair fails.
+  if (process.platform === 'win32') {
+    try {
+      const st = managedElevationStatus()
+      if (st.provisioned && !st.taskCurrent) {
+        const cooldownFile = path.join(os.tmpdir(), 'homepot-elevation-repair-attempt.txt')
+        let skip = false
+        try {
+          if (fs.existsSync(cooldownFile)) {
+            const last = parseInt(fs.readFileSync(cooldownFile, 'utf8').trim(), 10)
+            if (Date.now() - last < 24 * 60 * 60 * 1000) skip = true
+          }
+        } catch { /* ignore */ }
+        if (!skip) {
+          try { fs.writeFileSync(cooldownFile, String(Date.now())) } catch { /* ignore */ }
+          recordAppEvent('info', 'elevation', 'Elevation task stale; auto-repairing on startup')
+          const res = await installManagedElevation()
+          if (res.installed) {
+            try { fs.rmSync(cooldownFile, { force: true }) } catch { /* ignore */ }
+            recordAppEvent('info', 'elevation', 'Elevation repaired automatically')
+          } else {
+            recordAppEvent('warning', 'elevation', `Elevation auto-repair failed: ${res.reason}`)
+          }
+        }
+      }
+    } catch (err) {
+      recordAppEvent('warning', 'elevation', `Elevation auto-repair check failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
   adoptExistingEmulatorDevice()
   resumePersistedEmulator()
   startDeviceAgentIfProvisioned()
