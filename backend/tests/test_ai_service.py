@@ -80,6 +80,42 @@ def test_anomaly_detector_capped_score():
     assert score == 1.0
 
 
+def test_anomaly_detector_flapping():
+    """Flapping (state transitions) triggers an anomaly score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"flapping_count": 10.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.6
+    assert any("Instability" in r for r in reasons)
+
+
+def test_anomaly_detector_connectivity_offline():
+    """An offline (no heartbeat) device triggers an anomaly score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"connectivity_offline": True}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.4
+    assert any("offline" in r.lower() for r in reasons)
+
+
+def test_anomaly_detector_no_telemetry():
+    """Missing telemetry triggers an anomaly score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"no_telemetry": True}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.3
+    assert any("No telemetry" in r for r in reasons)
+
+
+def test_anomaly_detector_stale_telemetry():
+    """Stale telemetry triggers an anomaly score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"stale_telemetry": True}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.3
+    assert any("Stale telemetry" in r for r in reasons)
+
+
 # ==========================================
 # 2. Test AI API (With Mocks)
 # ==========================================
