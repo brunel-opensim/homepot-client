@@ -38,7 +38,68 @@ archive/unpair/retire action; a brand-new `pending` intent starts `is_active=tru
 `is_active` is a **compatibility/visibility** field, not a second lifecycle
 model. Its mapping to lifecycle state is defined once and used consistently.
 
-## Site × Device reachable combinations
+## State diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> SiteActive
+
+    state "Site: active" as SiteActive {
+        [*] --> DevPending
+        DevPending --> DevActive : claim / self-enrol
+        DevActive --> DevSuspended : suspend
+        DevSuspended --> DevActive : resume
+        DevActive --> DevUnpaired : unpair / retire
+        DevSuspended --> DevUnpaired : unpair / retire
+        DevPending --> DevUnpaired : retire (operator)
+    }
+
+    state "Site: archived" as SiteArchived {
+        [*] --> DevSuspendedA
+        DevSuspendedA --> DevUnpairedA : unpair / retire
+    }
+
+    SiteActive --> SiteArchived : archive site (DELETE ?mode=archive)\nactive/pending/suspended devices -> suspended
+    SiteArchived --> SiteActive : restore site (POST /restore)\nModel B: site only; devices stay suspended
+
+    SiteArchived --> SiteArchived : device unpair / retire (stays archived)
+
+    SiteActive --> Purged : purge site
+    SiteArchived --> Purged : purge site
+    DevUnpaired --> PurgedDevice : purge device
+    DevUnpairedA --> PurgedDevice : purge device
+
+    state Purged {
+        [*] --> [*]
+    }
+    state PurgedDevice {
+        [*] --> [*]
+    }
+
+    note right of SiteActive
+        Devices visible on Dashboard.
+        suspended/unpaired devices hidden individually.
+    end note
+
+    note right of SiteArchived
+        Site + all devices hidden.
+        active/pending/suspended -> suspended.
+        unpaired stays unpaired (is_active=false).
+        Restore does NOT revive devices (Model B).
+    end note
+
+    note right of Purged
+        Row deleted (site + all data).
+        Irreversible.
+    end note
+```
+
+> **Model B (restore):** restoring an archived site sets the site back to
+> `active` but leaves its devices `suspended`. A technician reviews them on
+> the Site page and resumes them individually. This prevents a silent
+> re-activation of every device under a restored site.
+
+## Site x Device reachable combinations
 
 A device's lifecycle is independent of its site's lifecycle, so the two
 dimensions cross-product. The following table lists every *reachable*
