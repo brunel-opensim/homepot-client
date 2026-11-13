@@ -1519,6 +1519,14 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             pass
 
     flags = "--silent --accept-package-agreements --accept-source-agreements"
+    # Ensure winget (App Installer) is available before running any winget
+    # command: on Windows 10 it may be missing. Check first, and bootstrap it
+    # only when it is not already installed (avoids an extra elevation round-trip
+    # on the common path where winget is present).
+    if _resolve_winget_path() is None:
+        bootstrap = _run_bootstrap_winget(data)
+        if bootstrap.get("status") != "completed":
+            return bootstrap
     # Resolve winget inside the elevated (SYSTEM) context: the per-user App
     # Execution Alias cannot be invoked there, but the real binary under
     # WindowsApps can be enumerated by SYSTEM.
