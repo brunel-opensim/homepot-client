@@ -113,6 +113,8 @@ export default function HomeDashboard() {
   const [devicePermissions, setDevicePermissions] = useState<Record<string, boolean> | null>(null)
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
+  const prevLifecycleRef = useRef<string | null>(null)
+  const resumedUntilRef = useRef<number>(0)
 
   useEffect(() => {
     Promise.all([
@@ -259,8 +261,17 @@ export default function HomeDashboard() {
     // eslint-disable-next-line react-hooks/purity
     ? Date.now() - new Date(lastHeartbeatAt).getTime()
     : Infinity
+  // Detect a suspended -> active transition (resume) so we can show the
+  // CONNECTING… state until the first post-resume heartbeat arrives, instead
+  // of flashing OFFLINE -> SECURE/ONLINE.
+  if (lifecycle === 'active' && prevLifecycleRef.current === 'suspended' && connectivity === 'offline') {
+    resumedUntilRef.current = Math.max(resumedUntilRef.current, Date.now() + 300_000)
+  }
+  if (isOnline) resumedUntilRef.current = 0
+  prevLifecycleRef.current = lifecycle
+  const recentlyResumed = lifecycle === 'active' && connectivity === 'offline' && Date.now() < resumedUntilRef.current
   const recentlySeen = lifecycle === 'active' && heartbeatAgeMs < 90_000
-  const isOffline = connectivity === 'offline' && !recentlySeen
+  const isOffline = connectivity === 'offline' && !recentlySeen && !recentlyResumed
   // 'unknown' (no heartbeat yet — e.g. right after provisioning) renders as
   // CONNECTING instead of alarming red OFFLINE.
   const isConnecting = !isOnline && !isOffline
