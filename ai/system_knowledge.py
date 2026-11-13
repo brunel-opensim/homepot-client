@@ -414,6 +414,10 @@ def _build_command_payload_reference() -> str:
         "- request_permission — Agent requests a permission grant.",
         "- status_request — Request current device status.",
         "",
+        "TECHNICIAN-ONLY UTILITY COMMANDS (not AI-proposable):",
+        "- bootstrap_winget — Ensure winget (App Installer) is installed on a "
+        "Windows device before using winget-based program commands.",
+        "",
         "PUSH NOTIFICATION PAYLOAD WRAPPER:",
         "When a command is delivered via push notification, the wire format is:",
         "{",
