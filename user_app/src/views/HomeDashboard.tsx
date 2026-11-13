@@ -313,11 +313,11 @@ export default function HomeDashboard() {
   const mem = metrics?.memory_percent ?? 0
   const disk = metrics?.disk_percent ?? 0
 
-  if (lifecycle === 'unpaired' || lifecycle === 'retired') {
+  if (lifecycle === 'unpaired') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
         <div className="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-8 text-center">
-          <p className="text-red-400 font-bold text-lg">Device {lifecycle}</p>
+          <p className="text-red-400 font-bold text-lg">Device unpaired</p>
           <p className="text-slate-400 text-sm mt-2">This device is no longer active. Please re-enrol.</p>
         </div>
       </div>
