@@ -36,6 +36,7 @@ from homepot.models import (
     Tenant,
     TenantMembership,
     User,
+    compute_connectivity,
 )
 
 logger = logging.getLogger(__name__)
@@ -1448,6 +1449,7 @@ class ContextBuilder:
                 f"Type: {device.device_type}\n"
                 f"Device ID: {device.device_id}\n"
                 f"Lifecycle State: {device.lifecycle_state}\n"
+                f"Connectivity: {compute_connectivity(device)}\n"
                 f"Health State: {device.health_state or 'Unknown'}\n"
                 f"Is Simulated: {device.is_simulated}\n"
                 f"Is Monitored: {device.is_monitored}\n"

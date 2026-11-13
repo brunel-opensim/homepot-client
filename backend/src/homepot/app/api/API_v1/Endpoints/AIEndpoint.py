@@ -145,23 +145,17 @@ def _sanitize_ai_input(text: Optional[str], label: str = "text") -> str:
 
 # --- Device context helpers ---------------------------------------------------
 
-# A device counts as online if it heartbeated recently (mirrors the site-status
-# computation). The stored Device.status field is NOT used: it only flips to
-# OFFLINE on explicit events and otherwise stays ONLINE even after a device
-# stops heartbeating.
-_HEARTBEAT_ONLINE_SECONDS = 120
-
 
 def _device_is_online(device: Device) -> bool:
-    """Return True if the device heartbeated within the online window."""
-    heartbeat = device.last_heartbeat_at
-    if not heartbeat:
-        return False
-    if heartbeat.tzinfo is None:
-        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
-    delta = datetime.now(timezone.utc) - heartbeat
-    is_online: bool = delta.total_seconds() <= _HEARTBEAT_ONLINE_SECONDS
-    return is_online
+    """Return True if the device is currently online.
+
+    Uses the shared ``compute_connectivity`` helper (same threshold and
+    lifecycle rules as the Dashboard) so the AI never disagrees with the
+    Dashboard on online/offline.
+    """
+    from homepot.models import compute_connectivity
+
+    return compute_connectivity(device) == "online"
 
 
 def _device_mode(device: Device) -> str:

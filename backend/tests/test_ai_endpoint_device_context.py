@@ -18,6 +18,7 @@ def test_device_is_online_uses_heartbeat_recency():
         name="Online Device",
         device_type="terminal",
         site_id=1,
+        lifecycle_state="active",
         last_heartbeat_at=(datetime.now(timezone.utc) - timedelta(seconds=60)).replace(
             tzinfo=None
         ),
@@ -25,7 +26,7 @@ def test_device_is_online_uses_heartbeat_recency():
 
     assert _device_is_online(device) is True
 
-    device.last_heartbeat_at = datetime.now(timezone.utc) - timedelta(seconds=180)
+    device.last_heartbeat_at = datetime.now(timezone.utc) - timedelta(seconds=400)
 
     assert _device_is_online(device) is False
 

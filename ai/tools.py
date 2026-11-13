@@ -555,7 +555,9 @@ async def get_fleet_summary() -> str:
             devices = dev_result.scalars().all()
             total_devices = len(devices)
 
-            online = sum(1 for d in devices if d.last_heartbeat_at is not None)
+            from homepot.models import compute_connectivity as _cc
+
+            online = sum(1 for d in devices if _cc(d) == "online")
             healthy = sum(1 for d in devices if d.health_state == "healthy")
 
             modes: dict[str, int] = {}
