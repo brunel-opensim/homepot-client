@@ -567,7 +567,8 @@ def run_elevated(
         details.append(f"task action: {task_state['action']}")
     elif task_state["registered"]:
         details.append(
-            f"task '{WINDOWS_TASK_NAME}' is registered with no readable action"
+            f"task '{WINDOWS_TASK_NAME}' is registered with no readable action "
+            "(re-grant 'Manage device' access to repair)"
         )
     else:
         details.append(f"task '{WINDOWS_TASK_NAME}' is not registered")
