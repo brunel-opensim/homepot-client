@@ -1501,6 +1501,23 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             },
         }
 
+    if os.name == "nt":
+        try:
+            if not elevation_util.is_windows_task_current():
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            f"{command_type} requires elevation, but the "
+                            "'HOMEPOT-Elevation' task is misconfigured. Re-grant "
+                            "'Manage device' access (toggle off then on) to repair "
+                            "it, then retry."
+                        )
+                    },
+                }
+        except Exception:
+            pass
+
     flags = "--silent --accept-package-agreements --accept-source-agreements"
     # Resolve winget inside the elevated (SYSTEM) context: the per-user App
     # Execution Alias cannot be invoked there, but the real binary under
@@ -1627,6 +1644,25 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
                 )
             },
         }
+
+    # If the elevation task exists but runs a stale action, the helper will never
+    # answer. Surface this immediately instead of timing out.
+    if os.name == "nt":
+        try:
+            if not elevation_util.is_windows_task_current():
+                return {
+                    "status": "failed",
+                    "result": {
+                        "error": (
+                            "Elevation task 'HOMEPOT-Elevation' is registered with a "
+                            "stale/misconfigured action. Re-grant 'Manage device' "
+                            "access (toggle off then on) to repair it, then retry "
+                            "bootstrap_winget."
+                        )
+                    },
+                }
+        except Exception:
+            pass
 
     # Resolve + (if missing) bootstrap, all inside the elevated context so the
     # same SYSTEM-visible PATH/Apps location is used.
