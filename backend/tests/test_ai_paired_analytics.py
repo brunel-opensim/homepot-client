@@ -59,8 +59,7 @@ def file_db(monkeypatch):
     yield path
 
     if homepot.database._db_service is not None:
-        asyncio.run(homepot.database._db_service.close())
-        homepot.database._db_service = None
+        asyncio.run(homepot.database.close_database_service())
     engine.dispose()
     if os.path.exists(path):
         os.unlink(path)

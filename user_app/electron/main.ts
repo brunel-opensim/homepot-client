@@ -58,6 +58,7 @@ let isQuitting = false
 let emulatorProcess: ChildProcess | null = null
 let emulatorDeviceId: string | null = null
 let agentProcess: ChildProcess | null = null
+let agentUnpaired = false
 // Restarts the agent on an unexpected exit (crash) with crash-loop backoff,
 // and never resurrects it after an intentional stop (unpair / re-enrol / quit).
 const agentSupervisor = new AgentSupervisor()
@@ -109,10 +110,19 @@ let installOnDownload = false
 const UPDATE_APP_MARKER = '__HOMEPOT_UPDATE_APP__'
 
 // The device agent prints this reserved line to stdout after a `rollback_app`
+// channel. Keep in sync with ROLLBACK_APP_MARKER in
 // command is acknowledged. We then roll back through the `previous` update
 // channel. Keep in sync with ROLLBACK_APP_MARKER in
 // backend/src/homepot/agent/utils/command_poller.py.
 const ROLLBACK_APP_MARKER = '__HOMEPOT_ROLLBACK_APP__'
+
+// The device agent prints this reserved line after it detects the device has
+// been unpaired (revoked credentials / 403). The supervisor reacts by stopping
+// the agent without counting it as a crash and running the unpair cleanup.
+// Keep in sync with UNPAIRED_MARKER / UNPAIRED_EXIT_CODE in
+// backend/src/homepot/agent/utils/command_poller.py.
+const UNPAIRED_MARKER = '__HOMEPOT_UNPAIRED__'
+const UNPAIRED_EXIT_CODE = 43
 
 // True while a rollback to the `previous` channel is in flight, so the update
 // lifecycle handlers can restore the default channel once it settles.
@@ -1414,6 +1424,15 @@ function startAgentProcess(): boolean {
         void runRollback(commandId)
         continue
       }
+      if (markerParts[0] === UNPAIRED_MARKER) {
+        // The agent detected that the device has been unpaired (revoked
+        // credentials / 403). Mark the in-flight stop as intentional so the
+        // supervisor does not restart it, and flag for cleanup on exit.
+        recordAppEvent('info', 'agent', 'Device unpaired remotely; stopping agent')
+        agentUnpaired = true
+        agentSupervisor.markIntentionalStop()
+        continue
+      }
       safeLog(`[agent] ${line}`)
       appendDeviceLog(logFile, 'agent', line)
     }
@@ -1437,6 +1456,29 @@ function startAgentProcess(): boolean {
       if (agentProcess === child) agentProcess = null
       agentSupervisor.resetCrashLoop()
       startAgentProcess()
+      return
+    }
+    if (code === UNPAIRED_EXIT_CODE || agentUnpaired) {
+      agentUnpaired = false
+      recordAppEvent('info', 'agent', 'Device agent stopped (unpaired)')
+      if (agentProcess === child) agentProcess = null
+      agentSupervisor.markIntentionalStop()
+      // Best-effort cleanup, mirroring the local unpair flow.
+      try {
+        if (fs.existsSync(AGENT_DIR)) fs.rmSync(AGENT_DIR, { recursive: true, force: true })
+      } catch { /* ignore */ }
+      try {
+        if (fs.existsSync(EMULATOR_DIR)) {
+          for (const entry of fs.readdirSync(EMULATOR_DIR)) {
+            if (entry.endsWith('.json')) {
+              try { fs.unlinkSync(path.join(EMULATOR_DIR, entry)) } catch { /* ignore */ }
+            }
+          }
+        }
+      } catch { /* ignore */ }
+      if (mainWindow?.webContents) {
+        mainWindow.webContents.send('device:unpaired')
+      }
       return
     }
     recordAppEvent(code === 0 ? 'info' : 'error', 'agent', `Device agent exited with code ${code ?? 'unknown'}`)
