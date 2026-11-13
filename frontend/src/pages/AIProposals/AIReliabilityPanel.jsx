@@ -355,16 +355,102 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
 
       {autonomy && Object.keys(autonomy).length > 0 && (
         <div className="mt-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Autonomy levels</p>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(autonomy).map(([action, level]) => (
-              <span
-                key={action}
-                className="rounded-full px-3 py-1 text-xs font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/30"
-              >
-                {action}: level {level?.level ?? 'n/a'} ({level?.sample_count ?? 0} samples)
-              </span>
-            ))}
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+            Autonomy levels (progress to next milestone)
+          </p>
+          <div className="space-y-3">
+            {Object.entries(autonomy).map(([action, level]) => {
+              const lvl = level?.level ?? 0;
+              const samples = level?.sample_count ?? 0;
+              const success = level?.success_rate ?? 0;
+              const rollback = level?.rollback_proven ?? false;
+              // Thresholds must match backend/src/homepot/app/ai_ops/autonomy.py
+              const L2_SAMPLES = 50;
+              const L2_SUCCESS = 0.98;
+              const L3_SAMPLES = 200;
+              const L3_SUCCESS = 0.995;
+
+              let nextLevel = lvl + 1;
+              let nextLabel = `L${lvl} → L${nextLevel}`;
+              let sampleTarget = 0;
+              let successTarget = 0;
+              let needsRollback = false;
+              if (lvl >= 3) {
+                nextLabel = 'L3 (max level reached)';
+              } else if (lvl === 2) {
+                sampleTarget = L3_SAMPLES;
+                successTarget = L3_SUCCESS;
+                needsRollback = true;
+              } else if (lvl === 1) {
+                sampleTarget = L2_SAMPLES;
+                successTarget = L2_SUCCESS;
+              } else {
+                sampleTarget = 1;
+                successTarget = 0;
+              }
+
+              const samplePct =
+                sampleTarget > 0 ? Math.min(100, Math.round((samples / sampleTarget) * 100)) : 100;
+              const successGap = Math.max(0, successTarget - success);
+              const sampleGap = Math.max(0, sampleTarget - samples);
+
+              return (
+                <div
+                  key={action}
+                  className="rounded-md border border-border bg-[#0b0e13] px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-sm text-gray-100">{action}</span>
+                    <span className="text-xs text-indigo-300 font-medium">{nextLabel}</span>
+                  </div>
+                  {lvl < 3 && (
+                    <div className="mt-2 space-y-1.5 text-xs">
+                      <div>
+                        <div className="flex justify-between text-gray-400 mb-0.5">
+                          <span>Samples</span>
+                          <span>
+                            {samples} / {sampleTarget}
+                            {sampleGap > 0 && (
+                              <span className="text-amber-400 ml-1">(need {sampleGap} more)</span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-gray-800 overflow-hidden">
+                          <div
+                            className="h-full bg-indigo-500 transition-all"
+                            style={{ width: `${samplePct}%` }}
+                          />
+                        </div>
+                      </div>
+                      {sampleTarget > 1 && (
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <span>Success rate</span>
+                          <span className="text-gray-200">{pct(success)}</span>
+                          <span className="text-gray-500">/</span>
+                          <span>{pct(successTarget)}</span>
+                          {successGap > 0 && (
+                            <span className="text-amber-400">(gap {pct(successGap)})</span>
+                          )}
+                        </div>
+                      )}
+                      {needsRollback && (
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <span>Rollback proven</span>
+                          <span className={rollback ? 'text-green-400' : 'text-amber-400'}>
+                            {rollback ? 'Yes' : 'No (required for L3)'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {lvl >= 3 && (
+                    <p className="text-xs text-green-400 mt-1">
+                      Auto-execute enabled (no approval needed)
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {selectedOs === '' &&
             Object.values(autonomy).some((l) => l?.by_os && Object.keys(l.by_os).length > 0) && (
