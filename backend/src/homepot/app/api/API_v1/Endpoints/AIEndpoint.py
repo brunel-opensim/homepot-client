@@ -477,9 +477,35 @@ async def get_system_anomalies() -> Dict[str, Any]:
                             "error_rate": latest_metric.error_rate,
                         }
                     )
+                    # Telemetry freshness
+                    metric_ts = latest_metric.timestamp
+                    if metric_ts is not None:
+                        if metric_ts.tzinfo is None:
+                            metric_ts = metric_ts.replace(tzinfo=timezone.utc)
+                        age = (datetime.now(timezone.utc) - metric_ts).total_seconds()
+                        device_metrics["stale_telemetry"] = age > 600
+                    else:
+                        device_metrics["stale_telemetry"] = True
+                    device_metrics["no_telemetry"] = False
+                else:
+                    device_metrics["no_telemetry"] = True
+                    device_metrics["stale_telemetry"] = False
 
-                # 4. Get Flapping Count (last 1 hour)
-                device_metrics["flapping_count"] = 0.0
+                # Connectivity (shared helper)
+                from homepot.models import compute_connectivity
+
+                device_metrics["connectivity_offline"] = (
+                    compute_connectivity(device) == "offline"
+                )
+
+                # 4. Get Flapping Count (last 5 health checks): count
+                # healthy<->unhealthy transitions.
+                checks_sorted = sorted(checks, key=lambda c: c.timestamp)
+                flapping_count = 0
+                for i in range(1, len(checks_sorted)):
+                    if checks_sorted[i].is_healthy != checks_sorted[i - 1].is_healthy:
+                        flapping_count += 1
+                device_metrics["flapping_count"] = float(flapping_count)
 
                 # 5. Get Consecutive Failures from pre-fetched dict
                 checks = health_checks_by_device.get(device.id, [])

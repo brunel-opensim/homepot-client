@@ -83,7 +83,8 @@ class AnomalyDetector:
         try:
             # 1. Critical Stability Checks (High Impact)
 
-            # Check Flapping (State Changes)
+            # Check Flapping (State Changes) — uses the pre-computed count of
+            # healthy<->unhealthy transitions in recent health checks.
             flapping = metrics.get("flapping_count")
             if flapping is not None and flapping > self.thresholds["flapping_count"]:
                 score += 0.6  # High impact
@@ -99,6 +100,20 @@ class AnomalyDetector:
                 anomalies.append(
                     f"System Failure: {failures} consecutive health check failures"
                 )
+
+            # Connectivity: an active device with no recent heartbeat is offline.
+            if metrics.get("connectivity_offline"):
+                score += 0.4
+                anomalies.append("Device offline (no recent heartbeat)")
+
+            # Telemetry freshness: missing or stale metrics indicate the device
+            # is not reporting, which is itself an anomaly.
+            if metrics.get("no_telemetry"):
+                score += 0.3
+                anomalies.append("No telemetry available")
+            elif metrics.get("stale_telemetry"):
+                score += 0.3
+                anomalies.append("Stale telemetry (no recent metrics)")
 
             # Check Error Rate
             err = metrics.get("error_rate")

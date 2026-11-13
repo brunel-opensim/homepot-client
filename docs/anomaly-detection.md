@@ -25,6 +25,9 @@ These metrics indicate that a device is failing to perform its function.
 | **Flapping** | > 5 / hr | **+0.6** | The device state changed (e.g., Online -> Offline -> Online) more than 5 times in the last hour. |
 | **Error Rate** | > 5% | **+0.5** | More than 5% of operations/requests are returning errors. |
 | **Network Latency** | > 500ms | **+0.4** | Network response time is critically slow. |
+| **Device Offline** | no recent heartbeat | **+0.4** | Active device has no recent heartbeat (offline). |
+| **No Telemetry** | no metric row | **+0.3** | Device has no recent metric readings. |
+| **Stale Telemetry** | last metric > 10 min | **+0.3** | Latest metric is older than 10 minutes. |
 
 ### 2. Resource Usage (Low Impact)
 High resource usage is often normal (e.g., during updates), so it carries less weight unless combined with stability issues.
@@ -33,7 +36,7 @@ High resource usage is often normal (e.g., during updates), so it carries less w
 | :--- | :--- | :--- | :--- |
 | **CPU Usage** | > 90% | **+0.2** | Processor is under heavy load. |
 | **Memory Usage** | > 90% | **+0.2** | RAM is near capacity. |
-| **Disk Usage** | > 95% | **+0.2** | Storage is critically low. |
+| **Disk Usage** | > 90% | **+0.2** | Storage is critically low. |
 
 ## Reliability & Alert Persistence
 
@@ -103,3 +106,48 @@ anomaly_detection:
 ```
 
 `sensitivity` scales the final anomaly score (`score * sensitivity`, capped at `1.0`); it changes the reported score but not which thresholds fire. `window_size` is reserved and not currently applied.
+
+## Multi-level detection (proposed)
+
+The current system is **single-tier**: any threshold breach produces an anomaly immediately, with no notion of persistence, promotion, or de-escalation. The proposed model adds levels so only devices with **regular and persistent** problems are brought forward ("Monitored Resources"), reducing noise.
+
+### Levels
+
+| Level | Name | Trigger | Surfaces on Dashboard? | AI context? |
+| :--- | :--- | :--- | :--- | :--- |
+| 0 | Normal | No anomalies | No | No |
+| 1 | Transient | Single threshold breach | No (logged only) | Only if queried |
+| 2 | Persistent | Repeated breaches within a window (e.g. 3+ in 1 hour) OR consecutive failures >= 3 OR flapping | Yes — promoted to "Monitored" | Yes |
+| 3 | Critical | Score >= 0.8, or a persistent alert with severity critical/high | Yes — alert banner | Yes + AI insight |
+
+### Promotion and de-escalation
+- **Promotion:** a device is auto-promoted to `is_monitored = True` when it reaches Level 2, so it enters the "Monitored Resources" set and is scanned on subsequent passes.
+- **De-escalation:** after N consecutive clean scans (e.g. 5, ~25 minutes), a device that was auto-promoted is demoted back to normal and `is_monitored` is cleared (manual monitoring grants are preserved).
+- Devices an operator has manually marked monitored are never auto-demoted.
+
+### Persistence
+Tier 1 (rule-based) results are currently ephemeral. To support "persistent" detection, anomaly scan results (timestamp, score, reasons) must be stored — either in a new `anomaly_scan` table or as `Alert` rows with category `anomaly`. This lets the system count breaches over a window instead of reacting to a single sample.
+
+### Background scan
+Today detection is pull-based (on AI query / Dashboard poll). A scheduled background scan (e.g. every 5 minutes) is needed to (a) compute persistence, (b) auto-promote/demote, and (c) keep the Dashboard current without an AI query.
+
+### Additional candidate signals (HOMEPOT-specific)
+Beyond the current metric thresholds, the following are worth considering:
+- Repeated command failures (device cannot execute commands).
+- Push-notification delivery failures.
+- Disk filling trend (rising disk usage over time).
+- Memory leak trend (rising memory over time).
+- Device offline for > X minutes (beyond the connectivity threshold).
+- No telemetry for > X minutes (partially implemented as "stale telemetry").
+
+### Implementation plan (multi-PR)
+1. **Persistence + background scan** (foundation): store per-device anomaly scans; run a scheduled scan; keep pull-based endpoint reading from stored results.
+2. **Promotion / de-escalation**: auto-promote on Level 2, auto-demote after N clean scans, preserve manual grants.
+3. **Additional signals**: command/push failures, trends.
+4. **UI**: surface monitoring tier (normal/watchlisted/monitored/critical) on the device page and Dashboard.
+
+### Open decisions
+- Auto-promotion vs. operator approval for Level 2.
+- De-escalation threshold (N clean scans).
+- Background scan interval and whether it runs in-process or as a worker.
+- Whether `is_monitored` (manual) and the new auto-promoted tier are the same flag or separate.
