@@ -189,7 +189,7 @@ async def test_lifecycle_unpair_sets_state(temp_db: Any) -> None:
         session.add(device)
         await session.commit()
 
-    success = await db_service.delete_device(device_id)
+    success = await db_service.unpair_device(device_id)
     assert success is True
 
     async with db_service.get_session() as session:
@@ -229,7 +229,7 @@ async def test_lifecycle_unpaired_device_not_in_active_list(temp_db: Any) -> Non
         session.add(device)
         await session.commit()
 
-    await db_service.delete_device(device_id)
+    await db_service.unpair_device(device_id)
 
     devices = await db_service.get_devices_by_site_id(site_id)
     assert not any(d.device_id == device_id for d in devices)
@@ -318,7 +318,7 @@ async def test_get_device_by_device_id_include_unpaired(temp_db: Any) -> None:
         await session.commit()
 
     # Unpair the device (soft delete) so is_active=False.
-    success = await db_service.delete_device(device_id)
+    success = await db_service.unpair_device(device_id)
     assert success is True
 
     # Default lookup filters out unpaired devices.
@@ -385,7 +385,7 @@ async def test_lifecycle_get_device_status_returns_three_dimensions(
 async def test_lifecycle_get_device_status_returns_suspended_for_suspended_device(
     temp_db: Any,
 ) -> None:
-    """get_device_status should return lifecycle_state='suspended' and connectivity_state='offline' for suspended devices."""
+    """Suspended devices report lifecycle_state='suspended' and offline connectivity."""
     from datetime import datetime, timezone
 
     from homepot.app.services.agent_service import AgentService

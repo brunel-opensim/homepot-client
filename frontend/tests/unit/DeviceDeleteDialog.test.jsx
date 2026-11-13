@@ -15,27 +15,17 @@ describe('DeviceDeleteDialog', () => {
     isDeleting: false,
   };
 
-  it('renders archive mode by default with Archive Device confirm', () => {
+  it('renders a purge-only confirmation', () => {
     render(<DeviceDeleteDialog {...props} />);
 
-    expect(screen.getByRole('button', { name: 'Archive Device' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Purge Device' })).toBeInTheDocument();
+    expect(screen.queryByText('Archive')).not.toBeInTheDocument();
   });
 
-  it('calls onConfirm with archive when Archive Device is clicked', async () => {
+  it('requires the device name before purge can be confirmed', () => {
     render(<DeviceDeleteDialog {...props} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Archive Device' }));
-
-    expect(props.onConfirm).toHaveBeenCalledWith('archive');
-  });
-
-  it('switches to purge mode and requires the device name to confirm', () => {
-    render(<DeviceDeleteDialog {...props} />);
-
-    fireEvent.click(screen.getByText('Purge'));
 
     const confirmButton = screen.getByRole('button', { name: 'Purge Device' });
-    expect(confirmButton).toBeInTheDocument();
     expect(confirmButton).toBeDisabled();
 
     const input = screen.getByPlaceholderText('pos-001');
@@ -46,15 +36,14 @@ describe('DeviceDeleteDialog', () => {
     expect(confirmButton).toBeEnabled();
   });
 
-  it('calls onConfirm with purge once the name matches', async () => {
+  it('calls onConfirm once the name matches', async () => {
     render(<DeviceDeleteDialog {...props} />);
 
-    fireEvent.click(screen.getByText('Purge'));
     fireEvent.change(screen.getByPlaceholderText('pos-001'), {
       target: { value: 'pos-001' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Purge Device' }));
 
-    expect(props.onConfirm).toHaveBeenCalledWith('purge');
+    expect(props.onConfirm).toHaveBeenCalledTimes(1);
   });
 });

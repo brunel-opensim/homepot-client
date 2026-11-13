@@ -728,64 +728,71 @@ async def update_device(
 @router.delete("/device/{device_id}", tags=["Devices"])
 async def delete_device(
     device_id: str,
-    mode: str = Query("archive", pattern="^(archive|purge)$"),
-    confirm: bool = Query(False, description="Required for purge"),
+    mode: str = Query(
+        "purge",
+        pattern="^(purge)$",
+        description="Only 'purge' is supported; archive was removed in favour of unpair.",
+    ),
+    confirm: bool = Query(False, description="Required for purge (permanent deletion)"),
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Archive or purge a device.
+    """Purge a device permanently.
 
-    - ``archive`` (default): unpair the device and retain its historical data.
-    - ``purge``: permanently delete the device and ALL its associated data
-      (telemetry, commands, history). Destructive and irreversible; requires
-      ``confirm=true``. Applies regardless of whether the device is simulated,
-      emulated, or real.
+    Permanently deletes the device and ALL its associated data (telemetry,
+    commands, history). Destructive and irreversible; requires ``confirm=true``.
+
+    This endpoint no longer supports an ``archive`` mode (passing one is
+    rejected). Soft-delete is the *unpair* lifecycle transition:
+
+    - ``POST /device/{device_id}/retire`` — operator-initiated unpair
+    - ``POST /device/{device_id}/unpair`` — device-initiated (self) unpair
+
+    Unpair first, then purge, for a safe reversible-then-permanent workflow.
 
     Requires operator-level access on the device's site.
     """
-    if mode == "purge" and not confirm:
-        raise HTTPException(
-            status_code=400,
-            detail="Purge requires confirm=true (it permanently deletes the device and all associated data).",
-        )
-
     try:
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
         db_service = await get_database_service()
 
-        # Verify access before deletion — operator role required.
-        # For purge, also match archived (is_active=false) devices so an
-        # already-archived device can still be permanently removed.
         device = await db_service.get_device_by_device_id(
-            device_id, include_unpaired=(mode == "purge")
+            device_id, include_unpaired=True
         )
         if not device:
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
+        # Authorise before validating the destructive confirmation so an
+        # unauthorised caller gets 403 (not a hint that the device exists).
         verify_device_belongs_to_user(
             db_user, device, db, minimum_role="operator", unified_fleet_access=True
         )
 
-        if mode == "purge":
-            success = await db_service.purge_device(device_id)
-        else:
-            success = await db_service.delete_device(device_id)
+        if not confirm:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Purge requires confirm=true (it permanently deletes the "
+                    "device and all associated data)."
+                ),
+            )
+
+        success = await db_service.purge_device(device_id)
 
         if not success:
             raise HTTPException(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
 
-        action = "purged" if mode == "purge" else "archived"
-        return {"message": f"Device '{device_id}' {action} successfully"}
+        return {"message": f"Device '{device_id}' purged successfully"}
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete device {device_id}: {e}", exc_info=True)
+        logger.error(f"Failed to purge device {device_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -901,88 +908,22 @@ async def unpair_device(
                 ),
             }
 
-        now = datetime.now(timezone.utc)
-
-        # ----- Update device -----
-        device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
-        device.is_active = False  # type: ignore[assignment]
-        device.api_key_hash = None  # type: ignore[assignment]
-        device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
-        # The device was loaded via get_device_by_device_id, whose session is
-        # already closed; merge the changes back into a fresh session so the
-        # state transition actually persists.
-        await db_service.persist_device(device)
-
-        # NOTE: credential revocation and command expiry run AFTER
-        # persist_device(device). persist_device merges the detached Device
-        # instance (whose "credentials" collection was eagerly loaded with
-        # is_active=True); revoking first and persisting afterwards would
-        # cascade the stale collection back and silently re-activate the
-        # revoked credentials. See the retire endpoint for the same ordering.
-
-        # ----- Revoke credentials -----
-        async with db_service.get_session() as session:
-            cred_result = await session.execute(
-                select(DeviceCredential).where(
-                    DeviceCredential.device_id == device.id,
-                    DeviceCredential.is_active,
-                )
-            )
-            for cred in cred_result.scalars().all():
-                cred.is_active = False  # type: ignore[assignment]
-                cred.revoked_at = now  # type: ignore[assignment]
-
-        # ----- Expire outstanding commands -----
-        async with db_service.get_session() as session:
-            cmd_result = await session.execute(
-                select(DeviceCommand).where(
-                    DeviceCommand.device_id == device.id,
-                    DeviceCommand.status.in_(
-                        [CommandStatus.PENDING.value, CommandStatus.SENT.value]
-                    ),
-                )
-            )
-            for cmd in cmd_result.scalars().all():
-                cmd.status = CommandStatus.EXPIRED.value  # type: ignore[assignment]
-
-        await _record_lifecycle_event(
+        now = await _apply_unpair_transition(
             db_service,
             device,
-            from_state=str(current_lifecycle),
-            to_state=LifecycleState.UNPAIRED.value,
-            triggered_by_user_id=None,
             reason=payload.reason,
             idempotency_key=payload.idempotency_key,
-        )
-
-        # ----- Audit event -----
-        ip_address = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent")
-
-        audit_logger = get_audit_logger()
-        await audit_logger.log_event(
-            AuditEventType.DEVICE_UNPAIRED,
-            f"Device '{device.name}' ({device.device_id}) unpaired by "
-            f"the device itself (self-unpair)"
-            + (f" — {payload.reason}" if payload.reason else ""),
-            device_id=int(device.id),
-            site_id=int(device.site_id) if device.site_id else None,
-            user_id=None,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            old_values={
-                "lifecycle_state": current_lifecycle,
-                "is_active": True,
-            },
-            new_values={
-                "lifecycle_state": LifecycleState.UNPAIRED.value,
-                "is_active": False,
-                "reason": payload.reason,
-            },
-            event_metadata={
+            triggered_by_user_id=None,
+            audit_description=(
+                f"Device '{device.name}' ({device.device_id}) unpaired by "
+                "the device itself (self-unpair)"
+            ),
+            audit_event_metadata={
                 "idempotency_key": payload.idempotency_key,
                 "unpair_endpoint": "POST /device/{device_id}/unpair",
             },
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
         )
 
         logger.info(
@@ -1037,6 +978,125 @@ async def _record_lifecycle_event(
         )
         session.add(event)
         await session.commit()
+
+
+async def _apply_unpair_transition(
+    db_service: Any,
+    device: Device,
+    *,
+    reason: Optional[str],
+    idempotency_key: Optional[str],
+    triggered_by_user_id: Optional[int],
+    audit_description: str,
+    audit_event_metadata: Dict[str, Any],
+    ip_address: Optional[str],
+    user_agent: Optional[str],
+) -> datetime:
+    """Apply the soft-unpair transition and all of its side effects.
+
+    Shared by the device-initiated (``POST /device/{id}/unpair``) and
+    operator-initiated (``POST /device/{id}/retire``) endpoints so there is a
+    single soft-unpair code path.
+
+    Side effects, in order:
+      1. persist the lifecycle change (``unpaired`` / inactive / no API key),
+      2. revoke active credentials and expire outstanding commands,
+      3. close the open lifecycle epoch,
+      4. record the lifecycle event and the audit entry.
+
+    Credentials are revoked *after* the device is persisted. The caller holds a
+    detached Device whose eagerly-loaded ``credentials`` collection still
+    contains the pre-revocation rows; persisting after revoking would cascade
+    those stale rows back and silently re-activate the credentials.
+
+    Returns the UTC timestamp of the transition.
+    """
+    now = datetime.now(timezone.utc)
+    raw_lifecycle = device.lifecycle_state
+    previous_lifecycle = (
+        raw_lifecycle.value
+        if isinstance(raw_lifecycle, LifecycleState)
+        else str(raw_lifecycle)
+    )
+    previous_active = bool(device.is_active)
+
+    # ----- Update device -----
+    device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
+    device.is_active = False  # type: ignore[assignment]
+    device.api_key_hash = None  # type: ignore[assignment]
+    device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
+    await db_service.persist_device(device)
+
+    # ----- Revoke credentials -----
+    async with db_service.get_session() as session:
+        cred_result = await session.execute(
+            select(DeviceCredential).where(
+                DeviceCredential.device_id == device.id,
+                DeviceCredential.is_active,
+            )
+        )
+        for cred in cred_result.scalars().all():
+            cred.is_active = False  # type: ignore[assignment]
+            cred.revoked_at = now  # type: ignore[assignment]
+
+    # ----- Expire outstanding commands -----
+    async with db_service.get_session() as session:
+        cmd_result = await session.execute(
+            select(DeviceCommand).where(
+                DeviceCommand.device_id == device.id,
+                DeviceCommand.status.in_(
+                    [CommandStatus.PENDING.value, CommandStatus.SENT.value]
+                ),
+            )
+        )
+        for cmd in cmd_result.scalars().all():
+            cmd.status = CommandStatus.EXPIRED.value  # type: ignore[assignment]
+
+    # ----- Close the current lifecycle epoch if open -----
+    if device.lifecycle_epoch_id:
+        async with db_service.get_session() as session:
+            epoch_result = await session.execute(
+                select(LifecycleEpoch).where(
+                    LifecycleEpoch.id == device.lifecycle_epoch_id
+                )
+            )
+            epoch = epoch_result.scalars().first()
+            if epoch and not epoch.ended_at:
+                epoch.ended_at = now  # type: ignore[assignment]
+
+    # ----- Lifecycle event + audit -----
+    await _record_lifecycle_event(
+        db_service,
+        device,
+        from_state=previous_lifecycle,
+        to_state=LifecycleState.UNPAIRED.value,
+        triggered_by_user_id=triggered_by_user_id,
+        reason=reason,
+        idempotency_key=idempotency_key,
+    )
+
+    audit_logger = get_audit_logger()
+    await audit_logger.log_event(
+        AuditEventType.DEVICE_UNPAIRED,
+        audit_description + (f" — {reason}" if reason else ""),
+        device_id=int(device.id),
+        site_id=int(device.site_id) if device.site_id else None,
+        user_id=triggered_by_user_id,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        old_values={
+            "lifecycle_state": previous_lifecycle,
+            "is_active": previous_active,
+        },
+        new_values={
+            "lifecycle_state": LifecycleState.UNPAIRED.value,
+            "is_active": False,
+            "reason": reason,
+        },
+        event_metadata=audit_event_metadata,
+    )
+
+    return now
 
 
 class LifecycleTransitionRequest(BaseModel):
@@ -1384,13 +1444,16 @@ async def retire_device(
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Unpair a device from eligible lifecycle states.
+    """Unpair a device on behalf of an operator.
 
     The ``retired`` state was folded into ``unpaired`` (both revoke credentials
-    and hide the device; permanent removal is provided by ``purge``). This
-    endpoint is kept for API compatibility and performs an unpair.
+    and hide the device; permanent removal is provided by ``purge``). This is
+    the operator-initiated unpair path and the counterpart to the
+    device-initiated ``POST /device/{device_id}/unpair``.
 
-    Eligible states: ``active``, ``suspended``, ``unpaired``.
+    Eligible states: ``pending`` (pre-provisioned but never connected),
+    ``active`` and ``suspended``. Retiring an already ``unpaired`` device is an
+    idempotent no-op.
     """
     try:
         db_user = cast(
@@ -1400,7 +1463,11 @@ async def retire_device(
             raise HTTPException(status_code=403, detail="User not found")
         db_service = await get_database_service()
 
-        device = await db_service.get_device_by_device_id(device_id)
+        # include_unpaired=True so an already-unpaired device is found and the
+        # transition is reported as an idempotent no-op instead of a 404.
+        device = await db_service.get_device_by_device_id(
+            device_id, include_unpaired=True
+        )
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(
@@ -1408,93 +1475,42 @@ async def retire_device(
         )
 
         current_lifecycle = device.lifecycle_state
+        if current_lifecycle == LifecycleState.UNPAIRED.value:
+            return {
+                "status": "success",
+                "message": f"Device '{device_id}' is already unpaired",
+                "device_id": device_id,
+                "lifecycle_state": LifecycleState.UNPAIRED.value,
+            }
+
         eligible = (
+            LifecycleState.PENDING.value,
             LifecycleState.ACTIVE.value,
             LifecycleState.SUSPENDED.value,
-            LifecycleState.UNPAIRED.value,
         )
         if current_lifecycle not in eligible:
             raise HTTPException(
                 status_code=400,
                 detail=f"Device lifecycle state is '{current_lifecycle}'; "
-                "only 'active', 'suspended', or 'unpaired' devices may be unpaired",
+                "only 'pending', 'active' or 'suspended' devices may be unpaired",
             )
 
-        now = datetime.now(timezone.utc)
-        device.lifecycle_state = LifecycleState.UNPAIRED.value  # type: ignore[assignment]
-        device.is_active = False  # type: ignore[assignment]
-        device.api_key_hash = None  # type: ignore[assignment]
-        device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
-
-        await db_service.persist_device(device)
-
-        # Revoke active credentials
-        async with db_service.get_session() as session:
-            cred_result = await session.execute(
-                select(DeviceCredential).where(
-                    DeviceCredential.device_id == device.id,
-                    DeviceCredential.is_active,
-                )
-            )
-            for cred in cred_result.scalars().all():
-                cred.is_active = False  # type: ignore[assignment]
-                cred.revoked_at = now  # type: ignore[assignment]
-
-        # Expire pending commands
-        async with db_service.get_session() as session:
-            cmd_result = await session.execute(
-                select(DeviceCommand).where(
-                    DeviceCommand.device_id == device.id,
-                    DeviceCommand.status.in_(
-                        [CommandStatus.PENDING.value, CommandStatus.SENT.value]
-                    ),
-                )
-            )
-            for cmd in cmd_result.scalars().all():
-                cmd.status = CommandStatus.EXPIRED.value  # type: ignore[assignment]
-
-        # Close current epoch if open
-        if device.lifecycle_epoch_id:
-            async with db_service.get_session() as session:
-                epoch_result = await session.execute(
-                    select(LifecycleEpoch).where(
-                        LifecycleEpoch.id == device.lifecycle_epoch_id
-                    )
-                )
-                epoch = epoch_result.scalars().first()
-                if epoch and not epoch.ended_at:
-                    epoch.ended_at = now  # type: ignore[assignment]
-
-        await _record_lifecycle_event(
+        await _apply_unpair_transition(
             db_service,
             device,
-            from_state=str(current_lifecycle),
-            to_state=LifecycleState.UNPAIRED.value,
-            triggered_by_user_id=None,
             reason=payload.reason,
             idempotency_key=payload.idempotency_key,
-        )
-
-        ip_address = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent")
-        audit_logger = get_audit_logger()
-        await audit_logger.log_event(
-            AuditEventType.DEVICE_UNPAIRED,
-            f"Device '{device.name}' ({device.device_id}) unpaired by "
-            f"the device itself (self-unpair)"
-            + (f" — {payload.reason}" if payload.reason else ""),
-            device_id=int(device.id),
-            site_id=int(device.site_id) if device.site_id else None,
-            user_id=None,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            old_values={"lifecycle_state": current_lifecycle, "is_active": True},
-            new_values={
-                "lifecycle_state": LifecycleState.UNPAIRED.value,
-                "is_active": False,
-                "reason": payload.reason,
+            triggered_by_user_id=int(db_user.id),
+            audit_description=(
+                f"Device '{device.name}' ({device.device_id}) unpaired by "
+                f"operator {current_user['email']}"
+            ),
+            audit_event_metadata={
+                "idempotency_key": payload.idempotency_key,
+                "unpair_endpoint": "POST /device/{device_id}/retire",
             },
-            event_metadata={"idempotency_key": payload.idempotency_key},
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
         )
 
         logger.info("Device unpaired: %s by %s", device_id, current_user["email"])

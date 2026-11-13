@@ -49,7 +49,7 @@ combination (rows marked with the actions that produce them).
 | `active`   | `pending`  | true             | true               | A site is active; a device slot awaits claim.                       | Device yes            | n/a (claims to active)   |
 | `active`   | `active`   | true             | true               | Normal operating pair.                                              | Yes                   | n/a (already active)     |
 | `active`   | `suspended`| true             | false              | Device suspended directly (`suspend`), or site was archived then restored (Model B). | No (device hidden) | Yes — resume → `active` |
-| `active`   | `unpaired` | true             | false              | Device unpaired directly (`unpair`/`archive`/`retire`).             | No (device hidden)    | Yes — resume → `active`  |
+| `active`   | `unpaired` | true             | false              | Device unpaired directly (`unpair`/`retire`).             | No (device hidden)    | Yes — resume → `active`  |
 | `archived` | `suspended`| false            | false              | **Archive site**: active/pending/suspended devices → `suspended`.   | No (site hidden)      | Yes — restore site, then resume device |
 | `archived` | `unpaired` | false            | false              | Archive site over an independently-unpaired device.                 | No (site hidden)      | Yes — restore site, then resume device |
 
@@ -69,9 +69,9 @@ net effect of one user action.
 | **Purge site** `DELETE /sites/{id}?mode=purge&confirm=true` | **Deleted** (row + all data)             | **Deleted** with the site                                                                                            | No (permanent)                          |
 | **Suspend device** `POST /devices/device/{id}/suspend` | none                                     | `active` → `suspended`                                                                                               | Yes — resume                            |
 | **Resume/restore device** `POST /devices/device/{id}/resume` | none                                     | `suspended` or `unpaired` → **active**, `is_active=true`, `status=online`                                            | Yes — suspend/unpair again              |
-| **Unpair/archive device** `DELETE /devices/device/{id}?mode=archive` | none                                     | `active`/`suspended` → `unpaired`, `is_active=false`, credentials revoked                                            | Yes — resume (re-activate)              |
+| **Unpair device** `POST /devices/device/{id}/unpair` (device-initiated) or `POST /devices/device/{id}/retire` (operator) | none                                     | `pending`/`active`/`suspended` → `unpaired`, `is_active=false`, credentials revoked                                            | Yes — resume (re-activate)              |
 | **Purge device** `DELETE /devices/device/{id}?mode=purge&confirm=true` | none                                     | **Deleted** (row + all data)                                                                                         | No (permanent)                          |
-| **Retire device** `POST /devices/device/{id}/retire` (alias → unpair) | none                                     | `active`/`suspended`/`unpaired` → `unpaired` (credentials revoked, epoch closed)                                     | Yes — resume                             |
+| **Retire device** `POST /devices/device/{id}/retire` (alias → unpair) | none                                     | `pending`/`active`/`suspended`/`unpaired` → `unpaired` (credentials revoked, epoch closed; idempotent when already unpaired)                                     | Yes — resume                             |
 | **Transfer device** `POST /devices/device/{id}/transfer` | none                                     | `active`/`suspended` → `active` in the target site, new epoch, credentials rotated                                  | n/a (new epoch)                          |
 
 ### How a technician restores an archived site

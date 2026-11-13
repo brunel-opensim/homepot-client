@@ -1,8 +1,10 @@
-"""Tests for site/device archive and purge.
+"""Tests for site/device archive, unpair, and purge.
 
-Archive (default) hides the entity and retains data; purge (with confirm=true)
-permanently deletes the entity and all associated data. Applies regardless of
-whether devices are simulated, emulated, or real.
+Sites still support archive (default) versus purge (with confirm=true).
+Devices no longer have an archive mode: unpair (POST .../retire or .../unpair)
+is the soft-delete path, and DELETE (.../device/{id}) is purge-only and
+requires confirm=true. Applies regardless of whether devices are simulated,
+emulated, or real.
 """
 
 import asyncio
@@ -519,12 +521,12 @@ def test_resume_rejects_unpaired_device(file_db: Any) -> None:
     _, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
 
-    archived = client.delete(
-        f"/api/v1/devices/device/{device_id}",
-        params={"mode": "archive"},
+    unpaired = client.post(
+        f"/api/v1/devices/device/{device_id}/retire",
         headers=_headers(),
+        json={},
     )
-    assert archived.status_code == 200
+    assert unpaired.status_code == 200
 
     resumed = client.post(
         f"/api/v1/devices/device/{device_id}/resume", headers=_headers(), json={}
@@ -622,21 +624,68 @@ def test_site_purge_with_confirm_deletes_everything(file_db: Any) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_device_archive_default_retains_data(file_db: Any) -> None:
-    """Default delete archives the device (unpaired, data retained)."""
+def test_device_delete_default_requires_confirm(file_db: Any) -> None:
+    """Default delete is a purge and therefore requires confirm=true.
+
+    Archive mode was removed; the DELETE endpoint no longer soft-deletes a
+    device. Without confirm=true the request must be rejected and the device
+    left untouched.
+    """
     _, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
     response = client.delete(f"/api/v1/devices/device/{device_id}", headers=_headers())
-    assert response.status_code == 200
-    assert "archived" in response.json()["message"].lower()
+    assert response.status_code == 400
+    assert "confirm" in response.json()["detail"].lower()
 
     sync_db = homepot.database.SessionLocal()
     try:
         device = sync_db.query(Device).filter(Device.device_id == device_id).first()
-        assert device is not None and device.is_active is False
-        # archived device is no longer reachable, so connectivity status is offline
+        assert device is not None
+        assert device.is_active is True
+    finally:
+        sync_db.close()
+
+
+def test_device_delete_rejects_archive_mode(file_db: Any) -> None:
+    """The removed 'archive' mode is rejected rather than silently purging."""
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/v1/devices/device/{device_id}",
+        params={"mode": "archive", "confirm": "true"},
+        headers=_headers(),
+    )
+    assert response.status_code == 422
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None
+        assert device.is_active is True
+    finally:
+        sync_db.close()
+
+
+def test_device_retire_unpairs_and_retains_data(file_db: Any) -> None:
+    """Operator-initiated retire performs the unpair transition (data retained)."""
+    _, device_id, _ = _seed_site_device_admin()
+    client = TestClient(app)
+    response = client.post(
+        f"/api/v1/devices/device/{device_id}/retire",
+        headers=_headers(),
+        json={"reason": "decommissioned"},
+    )
+    assert response.status_code == 200
+    assert "unpaired" in response.json()["message"].lower()
+
+    sync_db = homepot.database.SessionLocal()
+    try:
+        device = sync_db.query(Device).filter(Device.device_id == device_id).first()
+        assert device is not None  # data retained
+        assert device.is_active is False
         assert device.status == "offline"
         assert device.lifecycle_state == "unpaired"
+        assert device.api_key_hash is None
     finally:
         sync_db.close()
 
@@ -742,17 +791,19 @@ def _seed_emulated_device_admin() -> tuple[str, str]:
         sync_db.close()
 
 
-def test_emulated_device_archive_and_purge(file_db: Any) -> None:
-    """Archive/purge apply to emulated devices too (device-agnostic)."""
+def test_emulated_device_retire_and_purge(file_db: Any) -> None:
+    """Unpair/purge apply to emulated devices too (device-agnostic)."""
     site_id, device_id = _seed_emulated_device_admin()
     client = TestClient(app)
     token = create_access_token({"sub": "admin@emu-arch.test"})
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Archive (default)
-    response = client.delete(f"/api/v1/devices/device/{device_id}", headers=headers)
+    # Unpair (soft delete)
+    response = client.post(
+        f"/api/v1/devices/device/{device_id}/retire", headers=headers, json={}
+    )
     assert response.status_code == 200
-    assert "archived" in response.json()["message"].lower()
+    assert "unpaired" in response.json()["message"].lower()
 
     sync_db = homepot.database.SessionLocal()
     try:
@@ -807,24 +858,26 @@ def test_device_purge_with_lifecycle_epoch_deletes(file_db: Any) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_ai_insights_device_hidden_after_archive(file_db: Any) -> None:
-    """AI device insights return 404 once the device is archived."""
+def test_ai_insights_device_hidden_after_unpair(file_db: Any) -> None:
+    """AI device insights return 404 once the device is unpaired."""
     _, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
 
     active = client.get(f"/api/v1/ai/insights/device/{device_id}", headers=_headers())
     assert active.status_code in (200, 500)
 
-    response = client.delete(f"/api/v1/devices/device/{device_id}", headers=_headers())
+    response = client.post(
+        f"/api/v1/devices/device/{device_id}/retire", headers=_headers(), json={}
+    )
     assert response.status_code == 200
 
-    archived = client.get(f"/api/v1/ai/insights/device/{device_id}", headers=_headers())
-    assert archived.status_code == 404
-    assert "not found or not active" in archived.json()["detail"].lower()
+    unpaired = client.get(f"/api/v1/ai/insights/device/{device_id}", headers=_headers())
+    assert unpaired.status_code == 404
+    assert "not found or not active" in unpaired.json()["detail"].lower()
 
 
-def test_ai_failure_prediction_hidden_after_archive(file_db: Any) -> None:
-    """AI failure prediction returns 404 once the device is archived."""
+def test_ai_failure_prediction_hidden_after_unpair(file_db: Any) -> None:
+    """AI failure prediction returns 404 once the device is unpaired."""
     _, device_id, _ = _seed_site_device_admin()
     client = TestClient(app)
 
@@ -833,13 +886,15 @@ def test_ai_failure_prediction_hidden_after_archive(file_db: Any) -> None:
     )
     assert active.status_code in (200, 500)
 
-    response = client.delete(f"/api/v1/devices/device/{device_id}", headers=_headers())
+    response = client.post(
+        f"/api/v1/devices/device/{device_id}/retire", headers=_headers(), json={}
+    )
     assert response.status_code == 200
 
-    archived = client.get(
+    unpaired = client.get(
         f"/api/v1/ai/predictions/failure/{device_id}", headers=_headers()
     )
-    assert archived.status_code == 404
+    assert unpaired.status_code == 404
 
 
 def test_ai_site_insights_hidden_after_archive(file_db: Any) -> None:

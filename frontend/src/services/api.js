@@ -343,13 +343,26 @@ const api = {
     },
 
     /**
-     * Delete device.
-     * `mode` is 'archive' (default, reversible) or 'purge' (permanent).
-     * Purge requires `confirm=true` on the backend, so it is always sent.
+     * Unpair a device on behalf of an operator (soft delete, reversible via
+     * re-enrollment). Revokes credentials and hides the device from the
+     * Dashboard while retaining its history.
      */
-    delete: async (deviceId, mode = 'archive') => {
+    retire: async (deviceId, { reason, idempotencyKey } = {}) => {
+      const response = await apiClient.post(`/devices/device/${deviceId}/retire`, {
+        reason,
+        idempotency_key: idempotencyKey,
+      });
+      return response.data;
+    },
+
+    /**
+     * Purge a device permanently (hard delete, irreversible).
+     * Requires `confirm=true` on the backend, so it is always sent.
+     * Unpair first if you want a reversible window.
+     */
+    delete: async (deviceId) => {
       const response = await apiClient.delete(`/devices/device/${deviceId}`, {
-        params: { mode, confirm: true },
+        params: { mode: 'purge', confirm: true },
       });
       return response.data;
     },
