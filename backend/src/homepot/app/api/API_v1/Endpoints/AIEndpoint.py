@@ -1591,19 +1591,24 @@ async def _query_ai_impl(
             )
             for site in sites:
                 site_context += f"- Site: {site.name} (ID: {site.site_id}), Location: {site.location}\n"
-                site_devices = devices_by_site.get(site.id, [])[:10]
+                site_devices = sorted(
+                    devices_by_site.get(site.id, []),
+                    key=lambda d: (d.name or "", d.device_id or ""),
+                )[:25]
                 if site_devices:
-                    site_context += "  Devices:\n"
+                    site_context += (
+                        f"  Devices ({len(devices_by_site.get(site.id, []))}):\n"
+                    )
                     for d in site_devices:
                         site_context += (
-                            f"    * Name: {d.name}\n"
-                            f"      ID: {d.device_id}\n"
-                            f"      Type: {d.device_type}\n"
-                            f"      Status: "
-                            f"{'online' if _device_is_online(d) else 'offline'}\n"
-                            f"      Health: {d.health_state or 'unknown'}\n"
-                            f"      Mode: {_device_mode(d)}\n"
-                            f"      IP: {d.ip_address or 'N/A'}\n"
+                            f"    - {d.name} ({d.device_id}) | {d.device_type} | "
+                            f"{'online' if _device_is_online(d) else 'offline'} | "
+                            f"{d.health_state or 'unknown'} | {_device_mode(d)}\n"
+                        )
+                    if len(devices_by_site.get(site.id, [])) > 25:
+                        site_context += (
+                            f"    ... and {len(devices_by_site.get(site.id, [])) - 25} more "
+                            f"(use list_devices tool for the full list)\n"
                         )
 
             # Get Push Notification Stats via ContextBuilder

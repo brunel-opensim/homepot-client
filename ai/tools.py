@@ -524,6 +524,140 @@ async def find_device(query: str) -> str:
         return f"Error searching devices: {e}"
 
 
+def _tool_connectivity(device: Any) -> str:
+    """Compute online/offline/unknown for a device (mirrors the dashboard)."""
+    try:
+        from datetime import datetime, timezone
+
+        if getattr(device, "lifecycle_state", None) != "active":
+            return "offline"
+        status = getattr(device, "status", None)
+        if status == "offline":
+            return "offline"
+        hb = getattr(device, "last_heartbeat_at", None)
+        if not hb:
+            return "unknown"
+        if getattr(hb, "tzinfo", None) is None:
+            hb = hb.replace(tzinfo=timezone.utc)
+        from homepot.config import get_settings
+
+        threshold = getattr(get_settings().devices, "device_offline_threshold", 300)
+        delta = (datetime.now(timezone.utc) - hb).total_seconds()
+        return "online" if delta <= threshold else "offline"
+    except Exception:
+        return "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Tool 6c: list_devices (full device list at a site or across the fleet)
+# ---------------------------------------------------------------------------
+
+
+async def list_devices(
+    site_id: str = "all",
+    status_filter: str = "active",
+    limit: int = 50,
+) -> str:
+    """List devices at a site (or across the fleet) in a compact form.
+
+    Use this when the user asks which devices are at a site, or when you need
+    the full device_id list for a site (the ambient system status only shows
+    the first 25 devices per site). Returns a compact one-line row per device.
+
+    Args:
+        site_id: Business site id to filter by, or "all" (default) for every
+            site.
+        status_filter: One of "active" (default, non-suspended paired devices),
+            "suspended", "unpaired", or "all" (every paired device). "active"
+            excludes suspended/unpaired; "all" includes suspended.
+        status_filter values are case-insensitive.
+        limit: Maximum rows to return (default 50, max 200).
+
+    Returns:
+        A compact list of devices, or "No devices found" if none match.
+    """
+    try:
+        scope = get_tool_user_scope()
+        from homepot.database import get_database_service
+        from homepot.models import PAIRED_LIFECYCLE_STATES, Device, Site
+
+        db_service = await get_database_service()
+        async with db_service.get_session() as session:
+            stmt = select(Device, Site).join(
+                Site, Device.site_id == Site.id, isouter=True
+            )
+
+            # Site filter
+            if site_id and site_id.strip().lower() not in ("", "all", "*"):
+                site = (
+                    await session.execute(
+                        select(Site).where(Site.site_id == site_id.strip())
+                    )
+                ).scalar_one_or_none()
+                if site is None:
+                    return f"Site not found: {site_id!r}."
+                stmt = stmt.where(Device.site_id == site.id)
+
+            # Status filter
+            sf = (status_filter or "active").strip().lower()
+            if sf == "active":
+                stmt = stmt.where(Device.is_active.is_(True))
+            elif sf == "suspended":
+                stmt = stmt.where(Device.lifecycle_state == "suspended")
+            elif sf == "unpaired":
+                stmt = stmt.where(Device.lifecycle_state == "unpaired")
+            elif sf == "all":
+                stmt = stmt.where(Device.lifecycle_state.in_(PAIRED_LIFECYCLE_STATES))
+            else:
+                return (
+                    f"Unknown status_filter {status_filter!r}; use one of "
+                    "'active', 'suspended', 'unpaired', 'all'."
+                )
+
+            stmt = stmt.order_by(Device.name, Device.device_id).limit(
+                min(max(int(limit or 50), 1), 200)
+            )
+
+            rows = (await session.execute(stmt)).all()
+
+            # RBAC: filter to accessible devices/sites if scope is bound.
+            accessible = None
+            accessible_sites = None
+            if scope is not None:
+                accessible = scope.get("accessible_device_ids")
+                accessible_sites = scope.get("accessible_site_ids")
+
+            matches = []
+            for dev, site in rows:
+                if accessible is not None and dev.device_id not in accessible:
+                    if accessible_sites is not None and (
+                        site is None or site.id not in accessible_sites
+                    ):
+                        continue
+                matches.append((dev, site))
+
+        if not matches:
+            return "No devices found."
+
+        lines = [f"Found {len(matches)} device(s):"]
+        for dev, site in matches:
+            site_name = site.name if site else "?"
+            lines.append(
+                f"  - {dev.name} ({dev.device_id}) | site={site_name} | "
+                f"{dev.device_type} | "
+                f"{'online' if _tool_connectivity(dev) == 'online' else 'offline'} | "
+                f"{dev.health_state or 'unknown'} | {dev.lifecycle_state}"
+            )
+        lines.append(
+            "Use the device_id value with other device tools (e.g. "
+            "get_device_status)."
+        )
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error("list_devices failed: %s", e, exc_info=True)
+        return f"Error listing devices: {e}"
+
+
 # ---------------------------------------------------------------------------
 # Tool 7: get_fleet_summary
 # ---------------------------------------------------------------------------
@@ -958,6 +1092,7 @@ TOOL_REGISTRY = {
     "search_similar_incidents": (search_similar_incidents, False),
     "get_fleet_summary": (get_fleet_summary, True),
     "find_device": (find_device, True),
+    "list_devices": (list_devices, True),
     "get_alerts": (get_alerts, True),
     "propose_device_action": (propose_device_action, True),
     "propose_fleet_action": (propose_fleet_action, True),
@@ -974,6 +1109,7 @@ TOOL_FUNCTIONS = [
     search_similar_incidents,
     get_fleet_summary,
     find_device,
+    list_devices,
     get_alerts,
     propose_device_action,
     propose_fleet_action,
