@@ -142,7 +142,12 @@ async def get_action_plan_summary(
     current_user: UserDict = Depends(require_user()),
     db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
-    """Return cross-session task aggregation (counts by status + recent plans)."""
+    """Return cross-session task aggregation (counts by status + recent plans).
+
+    Aggregates only plans targeting paired devices (pending/active/suspended)
+    so the overview reflects the live fleet; the approval badge is still
+    calculated across unpaired targets.
+    """
     db_user = _get_db_user(db, current_user)
     repo = AIActionRepository(db)
 
@@ -155,6 +160,7 @@ async def get_action_plan_summary(
         created_by=created_by,
         days=days,
         os_family=os_family,
+        paired_only=True,
     )
 
 

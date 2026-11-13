@@ -780,6 +780,7 @@ roadmap item to its as-built location. Legend: **Done** = implemented,
 | C12 | Idempotency keys | Done | `ai_action_step.idempotency_key` → `create_device_command`; migration `20261103_add_idempotency_to_device_command` |
 | C13 | Retry with backoff | Done | `ai_ops/retry.py`; non-zero default budget; verifier schedules exponential backoff; executor honours `next_retry_at` |
 | D14 | Reliability metrics | Done | `ai/analytics_service.py::get_ai_action_reliability` |
+| D14a | Paired-device predicate for analytics | Done | `homepot.models.PAIRED_LIFECYCLE_STATES`; `ai/analytics_service.py`; `AIActionRepository.plan_summary` (paired only) |
 | D15 | Confidence calibration | Done | `ai/analytics_service.py::get_confidence_calibration`; `GET /ai/calibration`; panel display |
 | D16 | Autonomy controller | Done | `hydrate_autonomy_from_reliability()`; `GET /ai/autonomy` hydrated; consulted at proposal capture (auto-approve at level 3) |
 | D17 | Outcome feedback to memory | Done | `ai_ops/verifier.py::_record_outcome` → `DeviceMemory` |

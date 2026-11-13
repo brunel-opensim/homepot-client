@@ -97,6 +97,22 @@ class LifecycleState(str, Enum):
     UNPAIRED = "unpaired"
 
 
+#: Lifecycle states that count as "paired" for analytics and performance
+#: assessment. A paired device is still enrolled: it has a live credential and
+#: can receive commands. ``unpaired`` devices are retained for audit/re-enrol
+#: but are excluded from fleet metrics, as is any device that was purged
+#: (purge deletes the row entirely).
+#:
+#: This is a derived predicate, not a stored lifecycle state. ``suspended`` is
+#: paired (it is a reversible operational pause), while ``active`` is the
+#: narrower "operational" state.
+PAIRED_LIFECYCLE_STATES: tuple[str, ...] = (
+    LifecycleState.PENDING.value,
+    LifecycleState.ACTIVE.value,
+    LifecycleState.SUSPENDED.value,
+)
+
+
 class SiteLifecycleState(str, Enum):
     """Site lifecycle state — the administrative management phase."""
 
