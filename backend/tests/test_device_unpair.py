@@ -41,7 +41,7 @@ async def test_device_unpair_soft_delete(temp_db: Any) -> None:
     assert len(devices) > 0
     assert any(d.device_id == device_id for d in devices)
 
-    success = await db_service.delete_device(device_id)
+    success = await db_service.unpair_device(device_id)
     assert success is True
 
     updated_devices = await db_service.get_devices_by_site_id(site_id)

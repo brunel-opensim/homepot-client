@@ -681,8 +681,15 @@ class DatabaseService:
             await session.refresh(device)
             return device
 
-    async def delete_device(self, device_id: str) -> bool:
-        """Unpair a device, retaining its historical data (soft delete)."""
+    async def unpair_device(self, device_id: str) -> bool:
+        """Unpair a device, retaining its historical data (soft delete).
+
+        This is the database-level helper for the ``unpaired`` lifecycle
+        transition. The HTTP API exposes it as
+        ``POST /device/{device_id}/retire`` (operator) and
+        ``POST /device/{device_id}/unpair`` (device self-unpair); permanent
+        removal is ``DELETE /device/{device_id}`` (purge).
+        """
         async with self.get_session() as session:
             result = await session.execute(
                 select(Device).where(Device.device_id == device_id)

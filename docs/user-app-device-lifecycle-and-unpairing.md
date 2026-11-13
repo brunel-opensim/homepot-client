@@ -32,7 +32,7 @@ These backend adjustments bring several deliberate changes to how the User App b
 The app now strictly differentiates between a device's networking state and its lifecycle state:
 * **Connectivity (`online` / `offline`):** Represents whether the device maintains an active MQTT/WebSocket heartbeat.
 * **Pairing Status (`paired` / `unpaired`):** Represents the relationship lifecycle. 
-* *Result:* A device can be "Offline" but "Paired" (turned off), or it can be completely "Unpaired" and archived.
+* *Result:* A device can be "Offline" but "Paired" (turned off), or it can be completely "Unpaired" (hidden until it is re-enrolled, or purged).
 
 ### 2. Immediate UI Responsiveness
 When a device is successfully unpaired via the User App SetupWizard or DeviceInfo screens:

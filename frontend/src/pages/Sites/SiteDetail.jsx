@@ -181,7 +181,7 @@ export default function SiteDetail() {
     setDeviceToDelete(device);
   };
 
-  const handleConfirmDeleteDevice = async (mode) => {
+  const handleConfirmDeleteDevice = async () => {
     if (!deviceToDelete) return;
 
     try {
@@ -189,7 +189,7 @@ export default function SiteDetail() {
       // Use device_id (string) if available, otherwise fallback to id (int) but convert to string if needed
       // The backend expects the string ID (e.g. "device-123")
       const idToDelete = deviceToDelete.device_id || deviceToDelete.id;
-      await api.devices.delete(idToDelete, mode);
+      await api.devices.delete(idToDelete);
 
       // Remove from list
       setDevices((prev) => prev.filter((d) => (d.device_id || d.id) !== idToDelete));
@@ -598,7 +598,7 @@ export default function SiteDetail() {
                             e.stopPropagation();
                             handleDeleteDeviceClick(device);
                           }}
-                          title="Archive or purge device"
+                          title="Purge device permanently"
                           className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -629,6 +629,7 @@ export default function SiteDetail() {
                             e.stopPropagation();
                             handleDeleteDeviceClick(device);
                           }}
+                          title="Purge device permanently"
                           className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-500/10"
                         >
                           <Trash2 className="h-4 w-4" />

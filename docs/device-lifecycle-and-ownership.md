@@ -183,14 +183,31 @@ The request must include authentication, authorisation, an optional reason, and 
 
 Hard deletion is a separate data-governance operation and is outside ordinary device unpairing.
 
-### Delete modes map to lifecycle concepts
+### Unpair and purge (archive removed for devices)
 
-The device `DELETE` endpoints (`DELETE /api/v1/devices/device/{id}`) use **archive / purge** modes that map to the lifecycle model above:
+Devices no longer have an **archive** delete mode. The old `archive` mode was a
+duplicate of the **unpair** lifecycle transition, so it was removed. The current
+model is:
 
-- **`archive`** (default) — performs the **unpair** lifecycle transition: revokes credentials, expires outstanding commands, sets `lifecycle_state = 'unpaired'` and `is_active = false`, while **retaining all data**. Restorable only by re-enrolling the device (new credentials).
-- **`purge`** — the separate hard-deletion data-governance operation (requires `confirm=true`): permanently deletes the device row and all associated data.
+- **Unpair** (soft delete, reversible) — `POST /api/v1/devices/device/{id}/retire`
+  for an operator, or `POST /api/v1/devices/device/{id}/unpair` for the device
+  itself. Revokes credentials, expires outstanding commands, sets
+  `lifecycle_state = 'unpaired'` and `is_active = false`, closes the open
+  lifecycle epoch, and **retains all data**. The device can only come back by
+  re-enrolling through the User App (new credentials).
+- **Purge** (hard delete, irreversible) — `DELETE /api/v1/devices/device/{id}?confirm=true`.
+  Permanently deletes the device row and all associated data. The removed
+  `mode=archive` value is rejected (`422`); the only accepted mode is `purge`.
 
-So "archive" is the `DELETE`-method alias for the `unpaired` lifecycle state; "purge" is the hard-deletion path that sits outside the lifecycle model (line above). Sites follow the same pattern (`DELETE /api/v1/sites/{id}?mode=archive|purge`), where archiving a site also archives its devices. These apply uniformly regardless of whether a device is simulated, emulated, or real.
+Unpair first, then purge, for a safe reversible-then-permanent workflow. In the
+Dashboard, **Unpair Device** is a lifecycle action on the device page (next to
+Suspend/Resume), while the recycle-bin action on a site's device row is
+**purge-only**.
+
+Sites still follow the archive/purge pattern
+(`DELETE /api/v1/sites/{id}?mode=archive|purge`), where archiving a site also
+archives (suspends) its devices. These apply uniformly regardless of whether a
+device is simulated, emulated, or real.
 
 ### User-initiated unpair and re-enrolment
 
@@ -208,10 +225,10 @@ re-enrolment is a new provisioning session.
 **Cleanup is a technician task.** Old unpaired records accumulate until the
 technician either:
 
-- **archives** them (`mode=archive`, default) — keeps the record + history for
+- **unpairs** them (operator `POST .../retire`) — keeps the record + history for
   audit, or
-- **purges** them (`mode=purge`, `confirm=true`) — permanently deletes the
-  device and all associated data.
+- **purges** them (`DELETE ...?confirm=true`) — permanently deletes the device
+  and all associated data.
 
 ### Restore ("resume") semantics
 

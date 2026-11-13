@@ -236,6 +236,9 @@ export default function Device() {
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
 
+  const [showUnpairModal, setShowUnpairModal] = useState(false);
+  const [unpairReason, setUnpairReason] = useState('');
+
   const handleToastClose = useCallback(() => {
     setToast(null);
   }, []);
@@ -427,6 +430,36 @@ export default function Device() {
     }
   };
 
+  const handleUnpairConfirm = async () => {
+    try {
+      setActionLoading('unpair');
+      await api.devices.retire(id, { reason: unpairReason || undefined });
+      setShowUnpairModal(false);
+      setUnpairReason('');
+      setToast({
+        message: 'Device unpaired. It is hidden from the Dashboard until it is re-enrolled.',
+        type: 'success',
+      });
+      // The device is now inactive/unpaired, so it drops out of the active
+      // list; leave the detail page once the toast has been seen.
+      setTimeout(() => {
+        if (location.state?.from === 'site' && location.state?.siteId) {
+          navigate(`/sites/${location.state.siteId}`);
+        } else if (device?.site_id) {
+          navigate(`/sites/${device.site_id}`);
+        } else {
+          navigate('/device');
+        }
+      }, 1200);
+    } catch (err) {
+      console.error('Failed to unpair device:', err);
+      const msg =
+        err?.response?.data?.detail?.message || err?.response?.data?.detail || err.message;
+      setToast({ message: `Failed to unpair device: ${msg}`, type: 'error' });
+      setActionLoading(null);
+    }
+  };
+
   const handleActionClick = async (actionKey) => {
     try {
       setActionLoading(actionKey);
@@ -447,6 +480,13 @@ export default function Device() {
       // Suspend opens the confirmation modal
       if (actionKey === 'suspend') {
         setShowSuspendModal(true);
+        return;
+      }
+
+      // Unpair opens the confirmation modal; the request only fires on confirm.
+      if (actionKey === 'unpair') {
+        setActionLoading(null);
+        setShowUnpairModal(true);
         return;
       }
 
@@ -801,12 +841,20 @@ export default function Device() {
   // const deviceType = device?.device_type || 'unknown';
   // const capabilities = DEVICE_CAPABILITIES[deviceType] || DEVICE_CAPABILITIES['unknown'];
   // NOTE: Capabilities are now handled by tab visibility or individual widget logic in the new layout
-  const actions = (DEVICE_ACTIONS[device?.device_type] || []).filter((action) => {
+  // Unpair is a lifecycle action available to every device type, so it is
+  // appended once here rather than duplicated in each DEVICE_ACTIONS entry.
+  const actions = [
+    ...(DEVICE_ACTIONS[device?.device_type] || []),
+    { key: 'unpair', label: 'Unpair Device' },
+  ].filter((action) => {
     if (action.key === 'suspend') {
       return device?.lifecycle_state === 'active' && device?.connectivity_state === 'online';
     }
     if (action.key === 'resume') {
       return device?.lifecycle_state === 'suspended';
+    }
+    if (action.key === 'unpair') {
+      return ['pending', 'active', 'suspended'].includes(device?.lifecycle_state);
     }
     return true;
   });
@@ -874,6 +922,45 @@ export default function Device() {
                 className="px-4 py-2 rounded-md text-sm font-medium bg-amber-600 text-white hover:bg-amber-500"
               >
                 Suspend Device
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnpairModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#062125] border border-[#0e3b3f] rounded-xl p-6 w-96 shadow-xl">
+            <h2 className="text-xl font-semibold text-red-400 mb-2">Unpair Device</h2>
+            <p className="text-sm text-slate-400 mb-4">
+              This revokes the device&apos;s credentials, expires pending commands and hides it from
+              the Dashboard. Its history is retained. Re-enrollment through the User App is required
+              to bring it back.
+            </p>
+            <input
+              type="text"
+              className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg p-3 text-slate-200 focus:outline-none focus:border-red-500 mb-4 text-sm"
+              placeholder="Reason (optional)"
+              value={unpairReason}
+              onChange={(e) => setUnpairReason(e.target.value)}
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowUnpairModal(false);
+                  setUnpairReason('');
+                  setActionLoading(null);
+                }}
+                className="px-4 py-2 rounded-md text-sm font-medium text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnpairConfirm}
+                disabled={actionLoading === 'unpair'}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {actionLoading === 'unpair' ? 'Unpairing...' : 'Unpair Device'}
               </button>
             </div>
           </div>
