@@ -120,7 +120,75 @@ Connectivity must be computed from authenticated heartbeat information.
 
 An unpaired device is not merely offline: it no longer has an active management relationship.
 
+### State diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending : device slot created (pre-provisioned)
+
+    pending --> active : claim / self-enrol (new epoch, credentials issued)
+    pending --> suspended : site archived
+    pending --> unpaired : retire (operator)
+    pending --> purged : purge (permanent, irreversible)
+
+    active --> suspended : suspend (operator/policy)
+    active --> unpaired : unpair (device self) / retire (operator)
+    active --> suspended : site archived
+    active --> active : transfer to another site (new epoch, credentials rotated)
+    active --> purged : purge (permanent, irreversible)
+
+    suspended --> active : resume
+    suspended --> unpaired : unpair / retire
+    suspended --> suspended : site archived (stays suspended)
+    suspended --> purged : purge (permanent, irreversible)
+
+    unpaired --> active : re-enrol (new epoch, new credentials)
+    unpaired --> unpaired : site archived (is_active stays false)
+    unpaired --> purged : purge (permanent, irreversible)
+
+    purged --> [*] : row deleted (no recovery)
+
+    note right of pending
+        is_active = true
+        credentials: none yet
+    end note
+
+    note right of active
+        is_active = true
+        status = online/offline
+        credentials active
+    end note
+
+    note right of suspended
+        is_active = false
+        status = offline
+        credentials active (revoked only on unpair)
+    end note
+
+    note right of unpaired
+        is_active = false
+        status = offline
+        credentials revoked
+        history retained
+    end note
+
+    note right of purged
+        row deleted (device + telemetry + commands + history)
+        AI plans/steps retained; skipped by analytics
+    end note
+```
+
+> `retired` was folded into `unpaired`, so there is no separate `retired` state.
+> `archive` is no longer a device lifecycle state; `DELETE /device/{id}?mode=archive`
+> is rejected. Soft removal is the `unpaired` transition (`/unpair` or `/retire`).
+> `purged` is not a stored state — it is the terminal outcome of
+> `DELETE /device/{id}?mode=purge&confirm=true` (row deleted). Site archiving
+> forces `active`/`pending`/`suspended` devices to `suspended` (Model B);
+> restoring the site does not restore devices, which must be individually
+> resumed.
+
 ## Allowed transitions
+
 
 | From                                | Event                         | To                                     | Required authority and effects                                                                                                   |
 | ----------------------------------- | ----------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
