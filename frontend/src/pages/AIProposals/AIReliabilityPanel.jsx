@@ -337,7 +337,9 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
               <p className="text-xs text-gray-500 uppercase tracking-wide">Per-OS breakdown</p>
               {Object.entries(calibration.by_os).map(([osf, osBands]) => (
                 <div key={osf} className="text-xs text-gray-400">
-                  <span className="font-mono text-gray-300">{osf}</span>
+                  <span className="font-mono text-gray-300">
+                    {osf === 'unknown' ? 'Unknown OS' : osf}
+                  </span>
                   {Object.entries(osBands).map(([band, entry]) =>
                     entry.plans > 0 ? (
                       <span key={band} className="ml-2">
