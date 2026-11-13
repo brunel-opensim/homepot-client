@@ -26,6 +26,8 @@ from homepot.agent.utils.alerts import AlertEvaluator
 from homepot.agent.utils.command_poller import (
     RESTART_AGENT_EXIT_CODE,
     ROLLBACK_APP_MARKER,
+    UNPAIRED_EXIT_CODE,
+    UNPAIRED_MARKER,
     UPDATE_APP_MARKER,
     build_status_report,
     build_status_update_payload,
@@ -71,6 +73,26 @@ _AGENT_START_TIME = time.monotonic()
 
 # Track last successful activity per background task (for watchdog)
 _TASK_LAST_ACTIVITY: Dict[str, float] = {}
+
+# Set when the device has been unpaired (credentials revoked / 403) so the
+# graceful shutdown ends with UNPAIRED_EXIT_CODE (the Electron supervisor
+# stops the agent without counting it as a crash and runs the unpair cleanup).
+_unpaired_detected = False
+
+
+def _request_unpaired_stop() -> None:
+    """Flag that the running agent has been unpaired and should exit accordingly."""
+    global _unpaired_detected
+    _unpaired_detected = True
+
+
+def _consume_unpaired_stop() -> bool:
+    """Return and clear the unpaired flag."""
+    global _unpaired_detected
+    detected = _unpaired_detected
+    _unpaired_detected = False
+    return detected
+
 
 # Set when a `restart_agent` command has been acknowledged so the graceful
 # shutdown ends with RESTART_AGENT_EXIT_CODE (the Electron supervisor respawns).
@@ -748,6 +770,7 @@ async def pending_commands_loop(
             logger.error(
                 "Pending commands loop: device removed from backend (%s); stopping", e
             )
+            _request_unpaired_stop()
             return
         except PermanentDeliveryError as e:
             logger.warning(
@@ -810,6 +833,7 @@ async def command_result_loop(
             logger.error(
                 "Command result loop: device removed from backend (%s); stopping", e
             )
+            _request_unpaired_stop()
             return
         except PermanentDeliveryError as e:
             logger.warning("Command result dropped after permanent failure (%s)", e)
@@ -972,6 +996,7 @@ async def send_registration(
             retry_queue.enqueue({"url": register_url, "payload": payload})
     except DeviceRemovedError as e:
         logger.error("Registration: device removed from backend (%s)", e)
+        _request_unpaired_stop()
     except DeviceSuspendedError as e:
         logger.info("Registration skipped: device suspended (%s)", e)
     except PermanentDeliveryError as e:
@@ -1090,6 +1115,8 @@ async def heartbeat_loop(
         except DeviceSuspendedError as e:
             logger.info("Heartbeat paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
+            if isinstance(e, DeviceRemovedError):
+                _request_unpaired_stop()
             logger.error("Heartbeat loop: permanent delivery failure (%s); stopping", e)
             return
         except Exception as e:
@@ -1183,6 +1210,8 @@ async def telemetry_loop(
         except DeviceSuspendedError as e:
             logger.info("Telemetry paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
+            if isinstance(e, DeviceRemovedError):
+                _request_unpaired_stop()
             logger.error("Telemetry loop: permanent delivery failure (%s); stopping", e)
             return
         except Exception as e:
@@ -1270,6 +1299,8 @@ async def alerts_loop(
         except DeviceSuspendedError as e:
             logger.info("Alerts paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
+            if isinstance(e, DeviceRemovedError):
+                _request_unpaired_stop()
             logger.error("Alert loop: permanent delivery failure (%s); stopping", e)
             return
         except Exception as e:
@@ -1315,6 +1346,8 @@ async def live_logs_loop(
         except DeviceSuspendedError as e:
             logger.info("Live logs paused: device suspended (%s)", e)
         except (DeviceRemovedError, PermanentDeliveryError) as e:
+            if isinstance(e, DeviceRemovedError):
+                _request_unpaired_stop()
             logger.error("Live log loop: permanent delivery failure (%s); stopping", e)
             return
         except Exception as e:
@@ -1366,6 +1399,7 @@ async def retry_flush_loop(
             logger.error(
                 "Retry flush loop: device removed from backend (%s); stopping", e
             )
+            _request_unpaired_stop()
             return
         except Exception as e:
             logger.error("Retry flush loop error: %s", e, exc_info=True)
@@ -1743,6 +1777,15 @@ async def run_agent(
     if _consume_restart_request():
         logger.info("Exiting with agent-restart code %d", RESTART_AGENT_EXIT_CODE)
         sys.exit(RESTART_AGENT_EXIT_CODE)
+
+    # A device that was unpaired remotely exits with a reserved code so the
+    # Electron supervisor stops the agent without counting it as a crash and
+    # runs the same cleanup as a local unpair. Print a marker too so the
+    # supervisor can react early (before the process exit lands).
+    if _consume_unpaired_stop():
+        print(UNPAIRED_MARKER, flush=True)
+        logger.info("Exiting with unpaired code %d", UNPAIRED_EXIT_CODE)
+        sys.exit(UNPAIRED_EXIT_CODE)
 
 
 if __name__ == "__main__":

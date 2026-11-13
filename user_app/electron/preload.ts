@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   device: {
     identity: () => ipcRenderer.invoke('device:identity'),
     dna: () => ipcRenderer.invoke('device:dna'),
+    onUnpaired: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('device:unpaired', listener)
+      return () => ipcRenderer.removeListener('device:unpaired', listener)
+    },
   },
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
