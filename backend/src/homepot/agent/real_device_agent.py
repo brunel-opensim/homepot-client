@@ -676,35 +676,50 @@ async def pending_commands_loop(
                             "result": report,
                         }
                     else:
-                        result = process_command(command, cached_permissions)
-                        # Emit command execution event to Live Logs
                         try:
-                            from homepot.agent.utils.event_reporter import (
-                                emit_log_event,
-                            )
+                            result = process_command(command, cached_permissions)
+                            # Emit command execution event to Live Logs
+                            try:
+                                from homepot.agent.utils.event_reporter import (
+                                    emit_log_event,
+                                )
 
-                            cmd_type = command.get("command_type", "unknown")
-                            cmd_status = result.get("status", "unknown")
-                            level = (
-                                "error" if cmd_status in ("failed", "error") else "info"
+                                cmd_type = command.get("command_type", "unknown")
+                                cmd_status = result.get("status", "unknown")
+                                level = (
+                                    "error"
+                                    if cmd_status in ("failed", "error")
+                                    else "info"
+                                )
+                                await emit_log_event(
+                                    client,
+                                    config,
+                                    level=level,
+                                    category="command",
+                                    message=(
+                                        f"Command {cmd_status}: {cmd_type} "
+                                        f"({str(cid)[:8]})"
+                                    ),
+                                    context={
+                                        "command_id": cid,
+                                        "command_type": cmd_type,
+                                        "status": cmd_status,
+                                    },
+                                )
+                            except Exception:
+                                pass
+                        except Exception as exc:
+                            logger.error(
+                                "Command %s failed to execute: %s",
+                                cid,
+                                exc,
+                                exc_info=True,
                             )
-                            await emit_log_event(
-                                client,
-                                config,
-                                level=level,
-                                category="command",
-                                message=(
-                                    f"Command {cmd_status}: {cmd_type} "
-                                    f"({str(cid)[:8]})"
-                                ),
-                                context={
-                                    "command_id": cid,
-                                    "command_type": cmd_type,
-                                    "status": cmd_status,
-                                },
-                            )
-                        except Exception:
-                            pass
+                            result = {
+                                "command_id": cid,
+                                "status": "failed",
+                                "result": {"error": f"Execution error: {exc}"},
+                            }
                     ok = await update_command_status(
                         client,
                         config,

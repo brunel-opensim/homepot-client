@@ -1647,8 +1647,14 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
         "$dest = Join-Path $env:TEMP 'Microsoft.DesktopAppInstaller.msixbundle'; "
         "try { Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing "
         '-ErrorAction Stop } catch { throw "download failed: $_" }; '
-        "try { Add-AppxPackage -Path $dest -AllUsers -ErrorAction Stop } "
-        'catch { throw "install failed: $_" }; '
+        "if (-not (Test-Path $dest) -or (Get-Item $dest).Length -lt 1MB) { "
+        "throw 'download failed: file missing or too small' }; "
+        "$installed = $false; "
+        "try { Add-AppxPackage -Path $dest -AllUsers -ErrorAction Stop; "
+        "$installed = $true } catch { "
+        'Write-Output "AllUsers install failed: $_; trying per-user..."; '
+        "try { Add-AppxPackage -Path $dest -ErrorAction Stop; $installed = $true } "
+        'catch { throw "install failed: $_" } }; '
         # Re-resolve after install.
         + winget_resolve + "if (-not $wingetExe -or -not (Test-Path $wingetExe)) { "
         "throw 'winget bootstrap failed: still not found after install' }; "
