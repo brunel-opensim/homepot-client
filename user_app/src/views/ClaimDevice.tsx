@@ -1,9 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { credentialStorage } from '../services/credentialStorage';
 import { claimDevice } from '../services/api';
 import { apiBaseUrl } from '../config/api';
+
+function nativeOSDetails(platform: string, release: string): string {
+  const p = platform.toLowerCase()
+  const r = release || ''
+  if (p.includes('win')) {
+    const buildMatch = r.match(/10\.0\.(\d+)/)
+    const build = buildMatch ? parseInt(buildMatch[1], 10) : 0
+    if (build >= 22000) return 'Windows 11'
+    if (build > 0) return 'Windows 10'
+    return 'Windows'
+  }
+  if (p.includes('darwin') || p.includes('mac')) {
+    const major = parseInt(r.split('.')[0] || '0', 10)
+    const macMajor = major >= 20 ? major - 9 : major
+    return macMajor > 0 ? `macOS ${macMajor}` : 'macOS'
+  }
+  if (p.includes('linux')) return r ? `Linux ${r.split('-')[0]}` : 'Linux'
+  if (p.includes('android')) return r ? `Android ${r}` : 'Android'
+  return platform || 'Unknown'
+}
 
 export default function ClaimDevice() {
   const navigate = useNavigate();
@@ -17,6 +37,24 @@ export default function ClaimDevice() {
     deviceType: 'pos_terminal',
     deviceOs: '',
   });
+
+  useEffect(() => {
+    let cancelled = false
+    async function detect() {
+      try {
+        const dna = await window.electronAPI?.device?.dna?.()
+        if (cancelled || !dna?.platform) return
+        const detected = nativeOSDetails(dna.platform, dna.release || '')
+        if (detected && !cancelled) {
+          setForm((prev) => (prev.deviceOs ? prev : { ...prev, deviceOs: detected }))
+        }
+      } catch {
+        // Fall back to manual selection.
+      }
+    }
+    void detect()
+    return () => { cancelled = true }
+  }, []);
 
   const deviceTypes = [
     'pos_terminal',
@@ -190,6 +228,9 @@ export default function ClaimDevice() {
                   {os}
                 </option>
               ))}
+              {form.deviceOs && !osOptions.includes(form.deviceOs) && (
+                <option value={form.deviceOs}>{form.deviceOs}</option>
+              )}
             </select>
           </div>
 
