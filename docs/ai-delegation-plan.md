@@ -807,17 +807,110 @@ reliability/summary endpoints, cancel, dry-run, plan-and-execute, and tool RBAC.
 
 ---
 
-## 16. References
+## 18. AI context pipeline — known limitations and tech debt
 
-- [Agentic AI](ai-agentic.md) — ReAct loop, tools, and the future-expansion
-  items this document develops.
-- [Trust & Validation Gates](ai-validation-gates.md) — `trust_score`,
-  `actionable`, Gate D/E semantics.
-- [Provenance & Outcomes](provenance-and-outcomes.md) and
-  [KPI Evaluation Roadmap](kpi-evaluation-roadmap.md) — existing outcome fields
-  and MW/AI KPI definitions.
-- [Device Configuration (MDM)](device-configuration-mdm.md) — config workflow and
-  drift-detection roadmap.
+The diagnostic AI query path assembles context in `_query_ai_impl`
+(`backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py`). The enriched
+context is built by `ContextBuilder.build_enriched_context`
+(`ai/context_builder.py`). The following limitations were identified during
+review (November 2026) and are tracked here for future work. No code changes
+have been made yet.
+
+### 18.1 Sequential DB queries in the diagnostic path
+
+When a shared session is provided (always in the diagnostic path),
+`build_enriched_context` runs ~20 queries **sequentially** (the `else`
+branch: `for context_call in context_calls: results.append(await context_call)`).
+Each query hits the DB. Total latency = sum of all queries.
+
+**Potential fix:** Use separate sessions per query (the parallel `asyncio.gather`
+path), or batch queries. Risk: session contention on the shared async session.
+
+### 18.2 Enriched context budget too small
+
+The enriched context (20 data sources) is capped to `context_budget` chars
+(default 1000). That's ~150 words — barely enough for 2-3 context blocks.
+The `context_budget` in `ai/config.yaml` controls this, but the default is
+very low for CPU-only hosts.
+
+**Impact:** The AI sees truncated context. For a device with 5 data sources,
+only the first ~2-3 fit.
+
+**Potential fix:** Increase the default budget or make it adaptive based on
+the LLM's context window.
+
+### 18.3 No AI proposal / reliability context in enriched context
+
+The enriched context includes device metrics, errors, config, audit, etc., but
+**not** recent AI proposals or their outcomes for the device. The AI cannot
+see "I proposed health_check on this device yesterday and it succeeded."
+
+The system prompt includes the command payload reference and compose templates,
+but not per-device AI action history or per-OS reliability stats (except when a
+device is in focus, where OS reliability is injected into `full_context`).
+
+**Potential fix:** Add an AI action plan context block to `build_enriched_context`
+that includes recent proposals/outcomes for the device.
+
+### 18.4 Site context not capped (all devices listed)
+
+`site_context` iterates all sites and up to 10 devices per site. For a fleet of
+50 devices across 5 sites, this is ~50 device entries. This is NOT capped by
+`context_budget` (which only caps the enriched part). So the full context can
+be very large for big fleets.
+
+**Potential fix:** Cap the number of devices listed (e.g., top 20 by
+recency) or summarize.
+
+### 18.5 Per-OS reliability fetched on every query
+
+The context-building section calls `hydrate_autonomy_from_reliability(days=30,
+os_family=None)` on every diagnostic query when a device is in focus. This
+queries the DB for all AI action plans in the last 30 days. For a fleet with
+thousands of plans, this is expensive. And it loads ALL OSes even though only
+the focus device's OS is needed for the context injection.
+
+**Potential fix:** Call with `os_family=device_os_family` (only that OS) for
+the context injection. The per-OS breakdown in the reliability panel is a
+separate concern.
+
+### 18.6 No caching of enriched context
+
+Every query rebuilds the enriched context from scratch. For repeated queries
+about the same device, this is redundant. The `ContextBuilder` methods each
+hit the DB.
+
+**Potential fix:** Short-lived cache (e.g., 30s) keyed by device_id.
+
+### 18.7 Command context overlap
+
+`get_command_context` and `get_device_command_context` both query device
+commands. This could be redundant.
+
+**Potential fix:** Merge into a single context block.
+
+### 18.8 System prompt reference is large (~4-6K tokens)
+
+The `[COMMAND PAYLOAD REFERENCE]` lists all 23 command types with descriptions
+and params. Plus compose templates (23 more). This is ~4-6K tokens. For small
+models (8K context), this leaves little room for actual context.
+
+**Potential fix:** Make the reference conditional (only include actions relevant
+to the device's OS/capabilities) or summarize.
+
+### 18.9 Sequential vs parallel context building
+
+When `session` is provided (diagnostic path), queries run sequentially. When
+no session is provided, they run in parallel via `asyncio.gather`. The
+diagnostic path always provides a session, so it's always sequential.
+
+**Potential fix:** Use separate sessions per query to enable parallelism.
+Risk: session contention on the shared async session.
+
+### Status
+
+All items above are **Open** (not implemented). They are tracked here for
+future work. None block the soak test or current functionality.
 - [RBAC Hardening Plan](rbac-hardening-plan.md) — role model and the
   "every privileged action records its actor" requirement.
 - [Audit & Compliance](audit-compliance.md) — audit event model.
