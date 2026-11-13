@@ -113,6 +113,42 @@ PAIRED_LIFECYCLE_STATES: tuple[str, ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Shared connectivity computation
+# ---------------------------------------------------------------------------
+
+
+def compute_connectivity(device: "Device") -> str:
+    """Return online/offline/unknown based on heartbeat recency.
+
+    A device that is not in the ``active`` lifecycle (pending, suspended,
+    unpaired) is never online. A device explicitly marked OFFLINE (graceful
+    shutdown heartbeat) is reported offline immediately. Otherwise the
+    configured ``device_offline_threshold`` (default 300s) decides.
+
+    Single source of truth shared by the Devices API and the AI context
+    builder so the AI never disagrees with the Dashboard on online/offline.
+    """
+    from homepot.config import get_settings
+
+    if device.lifecycle_state != LifecycleState.ACTIVE.value:
+        return ConnectivityState.OFFLINE.value
+    if device.status == DeviceStatus.OFFLINE.value:
+        return ConnectivityState.OFFLINE.value
+    if not device.last_heartbeat_at:
+        return ConnectivityState.UNKNOWN.value
+    heartbeat = device.last_heartbeat_at
+    if heartbeat.tzinfo is None:
+        heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - heartbeat
+    threshold = get_settings().devices.device_offline_threshold
+    return (
+        ConnectivityState.ONLINE.value
+        if delta.total_seconds() <= threshold
+        else ConnectivityState.OFFLINE.value
+    )
+
+
 class SiteLifecycleState(str, Enum):
     """Site lifecycle state — the administrative management phase."""
 
