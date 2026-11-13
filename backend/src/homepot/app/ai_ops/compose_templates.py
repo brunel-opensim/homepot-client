@@ -109,6 +109,13 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {"timeout_seconds": 300},
         "description": "Ensure winget (App Installer) is installed on the Windows device. Run once per device before using Install/Update/Uninstall Program on Windows 10 builds where App Installer is missing.",
     },
+    "INSTALL_PROGRAM": {
+        "label": "Install Program",
+        "action": "install_program",
+        "permission": "root_access",
+        "defaultData": {"package": "Notepad++.Notepad++", "timeout_seconds": 300},
+        "description": "Install a program on the Windows device via winget (silent, machine-wide).",
+    },
     "UNINSTALL_PROGRAM": {
         "label": "Uninstall Program",
         "action": "uninstall_program",
