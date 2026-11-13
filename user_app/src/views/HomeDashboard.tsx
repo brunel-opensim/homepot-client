@@ -111,10 +111,10 @@ export default function HomeDashboard() {
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null)
   const [history, setHistory] = useState<DeviceMetrics[]>([])
   const [devicePermissions, setDevicePermissions] = useState<Record<string, boolean> | null>(null)
+  const [recentlyResumed, setRecentlyResumed] = useState(false)
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
   const prevLifecycleRef = useRef<string | null>(null)
-  const resumedUntilRef = useRef<number>(0)
 
   useEffect(() => {
     Promise.all([
@@ -137,6 +137,15 @@ export default function HomeDashboard() {
       if (!dId || !aKey) return
       try {
         const fresh = await fetchDeviceStatus(dId, aKey)
+        if (
+          prevLifecycleRef.current === 'suspended' &&
+          fresh.lifecycle_state === 'active' &&
+          fresh.connectivity_state === 'offline'
+        ) {
+          setRecentlyResumed(true)
+        }
+        prevLifecycleRef.current = fresh.lifecycle_state
+        if (fresh.connectivity_state === 'online') setRecentlyResumed(false)
         setStatus(fresh)
         const cached = getCachedTelemetry(dId)
         setCachedTelemetry(dId, fresh, cached?.metrics ?? null)
@@ -185,7 +194,10 @@ export default function HomeDashboard() {
     const dId = deviceIdRef.current
     const cached = getCachedTelemetry(dId)
     if (cached) {
-      if (cached.status) setStatus(cached.status)
+      if (cached.status) {
+        setStatus(cached.status)
+        prevLifecycleRef.current = cached.status.lifecycle_state
+      }
       if (cached.metrics) setMetrics(cached.metrics)
     }
 
@@ -248,6 +260,12 @@ export default function HomeDashboard() {
     }
   }, [deviceId])
 
+  useEffect(() => {
+    if (!recentlyResumed) return
+    const timeout = setTimeout(() => setRecentlyResumed(false), 300_000)
+    return () => clearTimeout(timeout)
+  }, [recentlyResumed])
+
   const connectivity = status?.connectivity_state || 'unknown'
   const lifecycle = status?.lifecycle_state || 'unknown'
   const isOnline = connectivity === 'online'
@@ -261,17 +279,10 @@ export default function HomeDashboard() {
     // eslint-disable-next-line react-hooks/purity
     ? Date.now() - new Date(lastHeartbeatAt).getTime()
     : Infinity
-  // Detect a suspended -> active transition (resume) so we can show the
-  // CONNECTING… state until the first post-resume heartbeat arrives, instead
-  // of flashing OFFLINE -> SECURE/ONLINE.
-  if (lifecycle === 'active' && prevLifecycleRef.current === 'suspended' && connectivity === 'offline') {
-    resumedUntilRef.current = Math.max(resumedUntilRef.current, Date.now() + 300_000)
-  }
-  if (isOnline) resumedUntilRef.current = 0
-  prevLifecycleRef.current = lifecycle
-  const recentlyResumed = lifecycle === 'active' && connectivity === 'offline' && Date.now() < resumedUntilRef.current
+  const recentlyResumedOffline =
+    lifecycle === 'active' && connectivity === 'offline' && recentlyResumed
   const recentlySeen = lifecycle === 'active' && heartbeatAgeMs < 90_000
-  const isOffline = connectivity === 'offline' && !recentlySeen && !recentlyResumed
+  const isOffline = connectivity === 'offline' && !recentlySeen && !recentlyResumedOffline
   // 'unknown' (no heartbeat yet — e.g. right after provisioning) renders as
   // CONNECTING instead of alarming red OFFLINE.
   const isConnecting = !isOnline && !isOffline

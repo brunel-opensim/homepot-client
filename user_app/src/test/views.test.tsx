@@ -43,6 +43,10 @@ describe('HomeDashboard', () => {
     mockFetch.mockReset()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   function statusOk(overrides: Partial<{ lifecycle_state: string; connectivity_state: string; health_state: string; last_heartbeat_at: string | null }> = {}) {
     return ok({
       data: {
@@ -124,6 +128,32 @@ describe('HomeDashboard', () => {
     routeDeviceApi(statusOk({ connectivity_state: 'offline', last_heartbeat_at: null }))
     renderWithProviders(<HomeDashboard />)
     expect(await screen.findByText('OFFLINE')).toBeInTheDocument()
+  })
+
+  it('shows connecting while a resumed device reconnects', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let statusCalls = 0
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/permissions')) {
+        return ok({ data: { permissions: {}, capabilities: {} } })
+      }
+      if (String(url).includes('/metrics')) return metricsOk()
+      if (String(url).includes('/status')) {
+        statusCalls += 1
+        return statusOk(
+          statusCalls === 1
+            ? { lifecycle_state: 'suspended', connectivity_state: 'offline', last_heartbeat_at: null }
+            : { lifecycle_state: 'active', connectivity_state: 'offline', last_heartbeat_at: null },
+        )
+      }
+      return ok({ data: [] })
+    })
+
+    renderWithProviders(<HomeDashboard />)
+    expect(await screen.findByText('DEVICE SUSPENDED')).toBeInTheDocument()
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(screen.getByText('CONNECTING…')).toBeInTheDocument()
   })
 
   it('shows suspended banner when lifecycle is suspended', async () => {
