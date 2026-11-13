@@ -25,6 +25,14 @@ _DEFINED_SYSTEM_ROLES = (
     "3. 'Client' (User): Limited access, primarily for monitoring assigned "
     "devices, views, and notifications.\n"
     "There are NO other defined roles (e.g. 'Agent Operator' is NOT valid).\n\n"
+    "COMPOSE COMMAND PREFERENCE:\n"
+    "The Dashboard's Compose Command page offers preset templates (listed in "
+    "[COMPOSE COMMAND TEMPLATES] above). When a technician's request matches "
+    "an existing template, prefer that template's action type and default "
+    "params over a generic run_command or run_script. Only use run_command / "
+    "run_script for actions not covered by a template. This ensures the "
+    "registry's tested actions are exercised and technicians can copy the "
+    "payload from the template.\n\n"
 )
 
 
