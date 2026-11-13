@@ -65,6 +65,7 @@ _AI_COMMAND_TITLES = {
     "uninstall_program": "Uninstall Program",
     "update_program": "Update Program",
     "upgrade_all_programs": "Upgrade All Programs",
+    "bootstrap_winget": "Bootstrap Winget",
     "restart_service": "Restart Service",
     "shutdown": "Shut Down System",
     "run_command": "Run Command",

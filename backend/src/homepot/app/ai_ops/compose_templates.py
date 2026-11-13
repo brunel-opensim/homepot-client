@@ -102,12 +102,12 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {"name": "notepad.exe", "force": False},
         "description": "Stop a running process by name or PID. Set force to terminate immediately. Critical system processes are never stopped.",
     },
-    "INSTALL_PROGRAM": {
-        "label": "Install Program",
-        "action": "install_program",
+    "BOOTSTRAP_WINGET": {
+        "label": "Bootstrap Winget (App Installer)",
+        "action": "bootstrap_winget",
         "permission": "root_access",
-        "defaultData": {"package": "Notepad++.Notepad++", "timeout_seconds": 300},
-        "description": "Install a program on the Windows device via winget (silent, machine-wide).",
+        "defaultData": {"timeout_seconds": 300},
+        "description": "Ensure winget (App Installer) is installed on the Windows device. Run once per device before using Install/Update/Uninstall Program on Windows 10 builds where App Installer is missing.",
     },
     "UNINSTALL_PROGRAM": {
         "label": "Uninstall Program",

@@ -50,6 +50,7 @@ COMMAND_TYPES = frozenset(
         "upgrade_all_programs",
         "start_program",
         "stop_program",
+        "bootstrap_winget",
     }
 )
 
@@ -79,6 +80,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "upgrade_all_programs": "root_access",
     "start_program": "root_access",
     "stop_program": "root_access",
+    "bootstrap_winget": "root_access",
 }
 
 MAX_COMMAND_OUTPUT = 64 * 1024
@@ -249,13 +251,20 @@ def _resolve_winget_path() -> Optional[str]:
         candidates.sort()
         return candidates[-1]
 
-    # 2. PATH lookup (App Execution Alias; works in the device-user context,
+    # 2. Per-user App Execution Alias (works in the device-user context).
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        alias = os.path.join(local_app_data, "Microsoft", "WindowsApps", "winget.exe")
+        if os.path.isfile(alias):
+            return alias
+
+    # 3. PATH lookup (App Execution Alias; works in the device-user context,
     #    e.g. for the unprivileged list_installed_programs command).
     found = shutil.which("winget")
     if found and os.path.isfile(found):
         return found
 
-    # 3. Newer builds ship a copy on PATH-adjacent locations.
+    # 4. Newer builds ship a copy on PATH-adjacent locations.
     for candidate in (
         r"C:\Windows\System32\winget.exe",
         r"C:\Windows\SysWOW64\winget.exe",
@@ -1546,13 +1555,122 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
 
     outcome = elevation_util.run_elevated("exec", script, timeout)
     if not outcome.get("ok"):
+        raw_error = (
+            outcome.get("error") or outcome.get("stderr") or f"{command_type} failed"
+        )
+        stdout = (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:]
+        # Surface an actionable hint when winget itself is missing so the
+        # technician/AI knows to run bootstrap_winget first.
+        if (
+            "winget not found" in str(raw_error).lower()
+            or "winget not found" in str(outcome.get("stderr") or "").lower()
+        ):
+            raw_error = (
+                f"{raw_error} — winget (App Installer) is not installed on this "
+                "device. Run the 'bootstrap_winget' command once to install it, "
+                "then retry."
+            )
+        return {
+            "status": "failed",
+            "result": {
+                "error": raw_error,
+                "exit_code": outcome.get("exit_code"),
+                "stdout": stdout,
+            },
+        }
+    return {
+        "status": "completed",
+        "result": {
+            "exit_code": outcome.get("exit_code", 0),
+            "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+            "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+        },
+    }
+
+
+def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure winget (App Installer) is available on a Windows device.
+
+    If winget is already resolvable in the elevated (SYSTEM) context, returns
+    success immediately. Otherwise downloads the App Installer bundle from the
+    official aka.ms link and installs it via Add-AppxPackage, then verifies
+    winget is now available.
+
+    This is the one-shot bootstrap that the four winget-based program commands
+    (install/uninstall/update/upgrade_all) depend on. Run it once per device
+    before using those commands on Windows 10 builds where App Installer is
+    not pre-installed.
+    """
+    if not _is_windows_platform():
+        return {
+            "status": "failed",
+            "result": {"error": "bootstrap_winget is Windows-only"},
+        }
+
+    if not elevation_util.is_elevation_installed():
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    "bootstrap_winget requires the Manage elevation layer, which "
+                    "is not installed on this device. Grant 'Manage device' access."
+                )
+            },
+        }
+    if not elevation_util.is_provisioned():
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    "bootstrap_winget requires the Manage elevation layer, but its "
+                    "scheduled task is missing. Re-grant 'Manage device' access."
+                )
+            },
+        }
+
+    # Resolve + (if missing) bootstrap, all inside the elevated context so the
+    # same SYSTEM-visible PATH/Apps location is used.
+    winget_resolve = (
+        "$wingetExe = (Get-ChildItem 'C:/Program Files/WindowsApps' "
+        "-Filter 'Microsoft.DesktopAppInstaller_*' -Directory "
+        "-ErrorAction SilentlyContinue | "
+        "ForEach-Object { Join-Path $_.FullName 'winget.exe' } | "
+        "Where-Object { Test-Path $_ } | Sort-Object | Select-Object -Last 1); "
+        "if (-not $wingetExe) { "
+        "$wingetExe = (Get-Command winget -ErrorAction SilentlyContinue).Source }; "
+    )
+    script = (
+        winget_resolve + "if ($wingetExe -and (Test-Path $wingetExe)) { "
+        'Write-Output "winget already available: $wingetExe"; exit 0 }; '
+        "Write-Output 'winget not found; bootstrapping App Installer...'; "
+        "$url = 'https://aka.ms/getwinget'; "
+        "$dest = Join-Path $env:TEMP 'Microsoft.DesktopAppInstaller.msixbundle'; "
+        "try { Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing "
+        '-ErrorAction Stop } catch { throw "download failed: $_" }; '
+        "try { Add-AppxPackage -Path $dest -AllUsers -ErrorAction Stop } "
+        'catch { throw "install failed: $_" }; '
+        # Re-resolve after install.
+        + winget_resolve + "if (-not $wingetExe -or -not (Test-Path $wingetExe)) { "
+        "throw 'winget bootstrap failed: still not found after install' }; "
+        'Write-Output "winget bootstrapped: $wingetExe"'
+    )
+
+    try:
+        timeout = max(
+            1, min(int(data.get("timeout_seconds", 300)), MAX_COMMAND_TIMEOUT)
+        )
+    except (TypeError, ValueError):
+        timeout = 300
+
+    outcome = elevation_util.run_elevated("exec", script, timeout)
+    if not outcome.get("ok"):
         return {
             "status": "failed",
             "result": {
                 "error": (
                     outcome.get("error")
                     or outcome.get("stderr")
-                    or f"{command_type} failed"
+                    or "winget bootstrap failed"
                 ),
                 "exit_code": outcome.get("exit_code"),
                 "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
@@ -1564,6 +1682,7 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             "exit_code": outcome.get("exit_code", 0),
             "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
             "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+            "message": "winget (App Installer) is now available",
         },
     }
 
@@ -2000,6 +2119,9 @@ def _process_command_impl(
 
     if command_type == "list_installed_programs":
         return _run_list_installed_programs()
+
+    if command_type == "bootstrap_winget":
+        return _run_bootstrap_winget(_command_data(command))
 
     if command_type in {
         "install_program",
