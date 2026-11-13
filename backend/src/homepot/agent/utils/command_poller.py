@@ -1520,13 +1520,13 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
 
     flags = "--silent --accept-package-agreements --accept-source-agreements"
     # Ensure winget (App Installer) is available before running any winget
-    # command: on Windows 10 it may be missing. Check first, and bootstrap it
-    # only when it is not already installed (avoids an extra elevation round-trip
-    # on the common path where winget is present).
-    if _resolve_winget_path() is None:
-        bootstrap = _run_bootstrap_winget(data)
-        if bootstrap.get("status") != "completed":
-            return bootstrap
+    # command: on Windows 10 it may be missing. Bootstrap is idempotent and
+    # checks first, installing only when winget is genuinely absent (avoids
+    # relying on the non-elevated _resolve_winget_path, which can report a
+    # per-user alias that the elevated/SYSTEM context cannot see).
+    bootstrap = _run_bootstrap_winget(data)
+    if bootstrap.get("status") != "completed":
+        return bootstrap
     # Resolve winget inside the elevated (SYSTEM) context: the per-user App
     # Execution Alias cannot be invoked there, but the real binary under
     # WindowsApps can be enumerated by SYSTEM.
@@ -1685,7 +1685,7 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
     )
     script = (
         winget_resolve + "if ($wingetExe -and (Test-Path $wingetExe)) { "
-        'Write-Output "winget already available: $wingetExe"; exit 0 }; '
+        'Write-Output "winget already available: $wingetExe" }; '
         "Write-Output 'winget not found; bootstrapping App Installer...'; "
         "$url = 'https://aka.ms/getwinget'; "
         "$dest = Join-Path $env:TEMP 'Microsoft.DesktopAppInstaller.msixbundle'; "
