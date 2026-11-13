@@ -111,8 +111,10 @@ export default function HomeDashboard() {
   const [metrics, setMetrics] = useState<DeviceMetrics | null>(null)
   const [history, setHistory] = useState<DeviceMetrics[]>([])
   const [devicePermissions, setDevicePermissions] = useState<Record<string, boolean> | null>(null)
+  const [recentlyResumed, setRecentlyResumed] = useState(false)
   const deviceIdRef = useRef<string | null>(null)
   const apiKeyRef = useRef<string | null>(null)
+  const prevLifecycleRef = useRef<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -135,6 +137,15 @@ export default function HomeDashboard() {
       if (!dId || !aKey) return
       try {
         const fresh = await fetchDeviceStatus(dId, aKey)
+        if (
+          prevLifecycleRef.current === 'suspended' &&
+          fresh.lifecycle_state === 'active' &&
+          fresh.connectivity_state === 'offline'
+        ) {
+          setRecentlyResumed(true)
+        }
+        prevLifecycleRef.current = fresh.lifecycle_state
+        if (fresh.connectivity_state === 'online') setRecentlyResumed(false)
         setStatus(fresh)
         const cached = getCachedTelemetry(dId)
         setCachedTelemetry(dId, fresh, cached?.metrics ?? null)
@@ -183,7 +194,10 @@ export default function HomeDashboard() {
     const dId = deviceIdRef.current
     const cached = getCachedTelemetry(dId)
     if (cached) {
-      if (cached.status) setStatus(cached.status)
+      if (cached.status) {
+        setStatus(cached.status)
+        prevLifecycleRef.current = cached.status.lifecycle_state
+      }
       if (cached.metrics) setMetrics(cached.metrics)
     }
 
@@ -246,6 +260,12 @@ export default function HomeDashboard() {
     }
   }, [deviceId])
 
+  useEffect(() => {
+    if (!recentlyResumed) return
+    const timeout = setTimeout(() => setRecentlyResumed(false), 300_000)
+    return () => clearTimeout(timeout)
+  }, [recentlyResumed])
+
   const connectivity = status?.connectivity_state || 'unknown'
   const lifecycle = status?.lifecycle_state || 'unknown'
   const isOnline = connectivity === 'online'
@@ -259,8 +279,10 @@ export default function HomeDashboard() {
     // eslint-disable-next-line react-hooks/purity
     ? Date.now() - new Date(lastHeartbeatAt).getTime()
     : Infinity
+  const recentlyResumedOffline =
+    lifecycle === 'active' && connectivity === 'offline' && recentlyResumed
   const recentlySeen = lifecycle === 'active' && heartbeatAgeMs < 90_000
-  const isOffline = connectivity === 'offline' && !recentlySeen
+  const isOffline = connectivity === 'offline' && !recentlySeen && !recentlyResumedOffline
   // 'unknown' (no heartbeat yet — e.g. right after provisioning) renders as
   // CONNECTING instead of alarming red OFFLINE.
   const isConnecting = !isOnline && !isOffline
@@ -302,11 +324,11 @@ export default function HomeDashboard() {
   const mem = metrics?.memory_percent ?? 0
   const disk = metrics?.disk_percent ?? 0
 
-  if (lifecycle === 'unpaired' || lifecycle === 'retired') {
+  if (lifecycle === 'unpaired') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
         <div className="w-full max-w-sm bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-8 text-center">
-          <p className="text-red-400 font-bold text-lg">Device {lifecycle}</p>
+          <p className="text-red-400 font-bold text-lg">Device unpaired</p>
           <p className="text-slate-400 text-sm mt-2">This device is no longer active. Please re-enrol.</p>
         </div>
       </div>

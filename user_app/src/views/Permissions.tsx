@@ -8,6 +8,7 @@ import {
 } from "../services/permissionsEvents";
 import {
   fetchPermissions as fetchPermissionsApi,
+  fetchDeviceStatus,
   updatePermissions,
 } from "../services/api";
 
@@ -92,6 +93,9 @@ export default function Permissions() {
     monitor: boolean;
     manage: boolean;
   } | null>(null);
+  const [lifecycle, setLifecycle] = useState<string>("unknown");
+
+  const isSuspended = lifecycle === "suspended";
 
   const deviceIdRef = useRef<string | null>(null);
   const apiKeyRef = useRef<string | null>(null);
@@ -162,15 +166,29 @@ export default function Permissions() {
     }
   }, []);
 
+  const fetchLifecycle = useCallback(async () => {
+    const dId = deviceIdRef.current;
+    const aKey = apiKeyRef.current;
+    if (!dId || !aKey) return;
+    try {
+      const fresh = await fetchDeviceStatus(dId, aKey);
+      setLifecycle(fresh.lifecycle_state || "unknown");
+    } catch {
+      // silently degrade — keep last known lifecycle
+    }
+  }, []);
+
   useEffect(() => {
     const credsReady = setInterval(() => {
       if (deviceIdRef.current && apiKeyRef.current) {
         clearInterval(credsReady);
         fetchPermissions();
+        fetchLifecycle();
       }
     }, 100);
     const refresh = setInterval(() => {
       fetchPermissions(true);
+      fetchLifecycle();
     }, 15000);
     // Re-fetch immediately when a permission decision is made elsewhere (e.g.
     // the consent prompt accepts/denies a request) instead of waiting for the
@@ -362,6 +380,16 @@ export default function Permissions() {
           </div>
         )}
 
+        {/* Suspended banner */}
+        {isSuspended && (
+          <div className="px-5 pt-3">
+            <div className="bg-orange-950 border border-orange-800 rounded-xl p-3 text-center">
+              <p className="text-orange-400 text-xs font-medium">DEVICE SUSPENDED</p>
+              <p className="text-orange-300 text-xs mt-1">Contact your administrator to resume service.</p>
+            </div>
+          </div>
+        )}
+
         {/* Permission Toggles */}
         <div className="px-5 pt-4 flex flex-col">
           {/* Monitor device */}
@@ -376,7 +404,7 @@ export default function Permissions() {
             </div>
             <Toggle
               enabled={monitorEnabled}
-              disabled={monitorSupported.length === 0}
+              disabled={monitorSupported.length === 0 || isSuspended}
               saving={savingGroup === "monitor"}
               onChange={handleMonitorToggle}
             />
@@ -399,7 +427,7 @@ export default function Permissions() {
             </div>
             <Toggle
               enabled={manageEnabled}
-              disabled={!manageSupported || !monitorEnabled}
+              disabled={!manageSupported || !monitorEnabled || isSuspended}
               saving={savingGroup === "manage"}
               onChange={handleManageToggle}
             />
