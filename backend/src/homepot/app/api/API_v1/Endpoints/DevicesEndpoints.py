@@ -1025,6 +1025,9 @@ async def _apply_unpair_transition(
     device.is_active = False  # type: ignore[assignment]
     device.api_key_hash = None  # type: ignore[assignment]
     device.status = DeviceStatus.OFFLINE.value  # type: ignore[assignment]
+    # Revoke any owner-granted permissions so a re-enrolled device starts with
+    # a clean consent state (no inherited monitor/manage grants).
+    device.device_permissions = None  # type: ignore[assignment]
     await db_service.persist_device(device)
 
     # ----- Revoke credentials -----
