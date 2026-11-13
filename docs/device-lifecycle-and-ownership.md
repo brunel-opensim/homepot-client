@@ -382,6 +382,7 @@ At the time this document was introduced, the repository implements only part of
 - Unpairing does not yet revoke push-provider channels or expire outstanding commands and sessions.
 - Re-enrolment, transfer, suspension, retirement and concurrency rules are not represented.
 - Command-result ownership is checked after the update has been committed; ownership must be enforced before mutation.
+- **Deferred:** operator/device restore (re-activation) of unpaired *pre-provisioned* devices is out of scope until provisioned devices land. Self-register (User App) devices re-enrol via the enrolment-intent claim flow; operators can use `POST /device/{id}/reenrol`. The pre-provisioned claim flow does not yet restore an unpaired record (it does not pass `include_unpaired=True` and does not reset credentials/lifecycle).
 
 ## Canonical state model
 PR 1: Separate lifecycle, connectivity, and health
