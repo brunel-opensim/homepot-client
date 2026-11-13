@@ -362,6 +362,7 @@ At the time this document was introduced, the repository implements only part of
 - Database unpairing removes the API-key hash while retaining the site relationship.
 - Database unpairing creates a `device_unpaired` audit row.
 - Normal site listings exclude inactive devices and may optionally include unpaired records.
+- Analytics (reliability, calibration, and the delegated-task summary) count only paired devices (`pending`, `active`, `suspended`); unpaired and purged targets are excluded. Paired is a derived predicate, not a lifecycle state.
 
 ## Known gaps
 

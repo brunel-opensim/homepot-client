@@ -138,7 +138,8 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
             AI Reliability &amp; Task Delegation
           </h2>
           <p className="text-sm text-gray-400 mt-1">
-            Aggregated AI action outcomes over the last 30 days, plus the current autonomy posture.
+            Aggregated AI action outcomes for paired devices over the last 30 days, plus the current
+            autonomy posture.
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">

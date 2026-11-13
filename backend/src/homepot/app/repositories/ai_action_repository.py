@@ -24,7 +24,7 @@ from homepot.app.models.AnalyticsModel import (
     AIActionPlan,
     AIActionStep,
 )
-from homepot.models import Device
+from homepot.models import PAIRED_LIFECYCLE_STATES, Device
 
 
 class AIActionRepository:
@@ -180,26 +180,38 @@ class AIActionRepository:
         days: int = 30,
         include_archived: bool = False,
         os_family: Optional[str] = None,
+        paired_only: bool = False,
     ) -> Dict[str, Any]:
         """Aggregate plan counts by status for cross-session task overview.
 
-        Returns counts per status, total plans, and recent plan list.
+        Returns counts per status, total plans, and recent plan list. When
+        ``paired_only`` is true, plans targeting an unpaired (or purged) device
+        are excluded from ``total``/``by_status``/``recent`` so the overview
+        reflects the live fleet. ``needs_approval`` stays unscoped by lifecycle
+        so an operator still sees a pending decision on a device they are about
+        to unpair.
         """
         from datetime import datetime, timedelta
 
         from homepot.app.schemas.os_capabilities import os_family as _os_family
-        from homepot.models import Device
 
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         stmt = select(AIActionPlan).where(AIActionPlan.created_at >= cutoff)
 
+        scope_ids: Optional[List[str]] = None
         if accessible_device_ids is not None:
-            device_ids = list(accessible_device_ids)
-            if not device_ids:
-                return {"total": 0, "by_status": {}, "recent": []}
+            scope_ids = list(accessible_device_ids)
+            if not scope_ids:
+                return {
+                    "total": 0,
+                    "by_status": {},
+                    "needs_approval": 0,
+                    "recent": [],
+                    "period_days": days,
+                }
             scoped = select(AIActionStep.plan_id).where(
-                AIActionStep.target_device_id.in_(device_ids)
+                AIActionStep.target_device_id.in_(scope_ids)
             )
             stmt = stmt.where(AIActionPlan.plan_id.in_(scoped))
 
@@ -211,13 +223,25 @@ class AIActionRepository:
                 if _os_family(cast(Optional[str], d.os_details)) == os_family
             ]
             if not os_device_ids:
-                return {"total": 0, "by_status": {}, "recent": []}
+                return {
+                    "total": 0,
+                    "by_status": {},
+                    "needs_approval": 0,
+                    "recent": [],
+                    "period_days": days,
+                }
             # Intersect with accessible device_ids if applicable
-            if accessible_device_ids is not None:
-                accessible_set = set(accessible_device_ids)
+            if scope_ids is not None:
+                accessible_set = set(scope_ids)
                 os_device_ids = [d for d in os_device_ids if d in accessible_set]
                 if not os_device_ids:
-                    return {"total": 0, "by_status": {}, "recent": []}
+                    return {
+                        "total": 0,
+                        "by_status": {},
+                        "needs_approval": 0,
+                        "recent": [],
+                        "period_days": days,
+                    }
             os_scoped = select(AIActionStep.plan_id).where(
                 AIActionStep.target_device_id.in_(os_device_ids)
             )
@@ -231,19 +255,38 @@ class AIActionRepository:
 
         plans = list(self.db.execute(stmt).scalars().all())
 
+        # A plan needs an operator decision when it is pending plan-level
+        # approval, or when any of its disruptive steps is awaiting its own
+        # per-step approval (the plan may be 'approved'/'executing' but a
+        # step gate still blocks it). This count feeds the review badge and is
+        # intentionally not filtered by lifecycle state.
+        needs_approval = sum(
+            1
+            for plan in plans
+            if str(plan.status) == "pending_approval"
+            or any(
+                getattr(s, "status", None) == "awaiting_approval" for s in plan.steps
+            )
+        )
+
+        counted = plans
+        if paired_only:
+            paired_ids = set(self._paired_device_ids())
+            if scope_ids is not None:
+                paired_ids &= set(scope_ids)
+            counted = [
+                plan
+                for plan in plans
+                if not any(
+                    step.target_device_id and step.target_device_id not in paired_ids
+                    for step in plan.steps
+                )
+            ]
+
         by_status: Dict[str, int] = {}
-        needs_approval = 0
-        for plan in plans:
+        for plan in counted:
             status_val = str(plan.status)
             by_status[status_val] = by_status.get(status_val, 0) + 1
-            # A plan needs an operator decision when it is pending plan-level
-            # approval, or when any of its disruptive steps is awaiting its own
-            # per-step approval (the plan may be 'approved'/'executing' but a
-            # step gate still blocks it). This count feeds the review badge.
-            if status_val == "pending_approval" or any(
-                getattr(s, "status", None) == "awaiting_approval" for s in plan.steps
-            ):
-                needs_approval += 1
 
         recent = [
             {
@@ -255,11 +298,11 @@ class AIActionRepository:
                 "step_count": len(p.steps),
                 "target_device_id": (p.steps[0].target_device_id if p.steps else None),
             }
-            for p in sorted(plans, key=lambda x: x.created_at, reverse=True)[:10]
+            for p in sorted(counted, key=lambda x: x.created_at, reverse=True)[:10]
         ]
 
         return {
-            "total": len(plans),
+            "total": len(counted),
             "by_status": by_status,
             "needs_approval": needs_approval,
             "recent": recent,
@@ -342,6 +385,18 @@ class AIActionRepository:
             stmt = stmt.where(AIActionPlan.plan_id.in_(scoped))
 
         stmt = stmt.limit(limit).offset(offset)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def _paired_device_ids(self) -> List[str]:
+        """Return business device_ids whose lifecycle state counts as paired.
+
+        Paired devices are enrolled and still part of the live fleet. Unpaired
+        devices are retained for audit/re-enrol but excluded from fleet
+        analytics; purged devices have no row at all.
+        """
+        stmt = select(Device.device_id).where(
+            Device.lifecycle_state.in_(PAIRED_LIFECYCLE_STATES)
+        )
         return list(self.db.execute(stmt).scalars().all())
 
     def accessible_device_ids(

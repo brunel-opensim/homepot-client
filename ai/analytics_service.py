@@ -567,9 +567,12 @@ class AIAnalyticsService:
 
         Returns proposal acceptance rate, execution success rate, verified
         improvement rate, and rollback effectiveness for each action type.
-        When ``os_family`` is specified, only plans targeting devices of that
-        OS family are included. Each action type also includes a ``by_os``
-        breakdown so callers can inspect per-OS reliability.
+        Only plans targeting a paired device (``pending``, ``active`` or
+        ``suspended``) are assessed; plans targeting an unpaired or purged
+        device are excluded. When ``os_family`` is specified, only plans
+        targeting devices of that OS family are included. Each action type
+        also includes a ``by_os`` breakdown so callers can inspect per-OS
+        reliability.
         """
         try:
             db_service = await get_database_service()
@@ -581,15 +584,21 @@ class AIAnalyticsService:
                     AIActionPlan,
                 )
                 from homepot.app.schemas.os_capabilities import os_family as _os_family
-                from homepot.models import Device
+                from homepot.models import PAIRED_LIFECYCLE_STATES, Device
 
-                # Build device_id -> os_family lookup
+                # Build device_id -> os_family lookup for paired devices only.
+                # Unpaired devices are retained (audit/re-enrol) but must not
+                # pollute reliability metrics; purged devices have no row.
                 device_os_map: Dict[str, Optional[str]] = {}
-                existing_devices: set = set()
+                paired_device_ids: set = set()
                 try:
-                    devs = await session.execute(select(Device))
+                    devs = await session.execute(
+                        select(Device).where(
+                            Device.lifecycle_state.in_(PAIRED_LIFECYCLE_STATES)
+                        )
+                    )
                     for dev in devs.scalars().all():
-                        existing_devices.add(dev.device_id)
+                        paired_device_ids.add(dev.device_id)
                         device_os_map[typing_cast(str, dev.device_id)] = _os_family(
                             typing_cast(Optional[str], dev.os_details)
                         )
@@ -609,6 +618,7 @@ class AIAnalyticsService:
                 )
                 plans_result = await session.execute(plans_stmt)
                 plans = plans_result.scalars().all()
+                assessed_plans = 0
 
                 stats: Dict[str, Dict[str, Any]] = {}
                 os_stats: Dict[str, Dict[str, Dict[str, Any]]] = {}
@@ -651,16 +661,19 @@ class AIAnalyticsService:
                             plan_os = device_os_map.get(step.target_device_id)
                             break
 
-                    # Skip plans targeting deleted (non-existent) devices
+                    # Skip plans targeting purged (no row) or unpaired devices.
+                    # Only paired devices are part of the assessed fleet.
                     if (
                         target_device is not None
-                        and target_device not in existing_devices
+                        and target_device not in paired_device_ids
                     ):
                         continue
 
                     # Filter by os_family if specified
                     if os_family is not None and plan_os != os_family:
                         continue
+
+                    assessed_plans += 1
 
                     for step in plan.steps:
                         at = step.action
@@ -757,7 +770,7 @@ class AIAnalyticsService:
                 return {
                     "period_days": days,
                     "action_types": result,
-                    "total_plans": len(plans),
+                    "total_plans": assessed_plans,
                 }
         except Exception as e:
             logger.error("Failed to compute AI action reliability: %s", e)
@@ -778,7 +791,9 @@ class AIAnalyticsService:
         the observed success rate.
 
         When ``os_family`` is specified, only plans targeting devices of that
-        OS family are included. The response also includes a ``by_os``
+        OS family are included. Only plans targeting a paired device
+        (``pending``, ``active`` or ``suspended``) are assessed; unpaired and
+        purged targets are excluded. The response also includes a ``by_os``
         breakdown so callers can inspect per-OS calibration.
         """
         _BAND_LABELS = {
@@ -808,15 +823,21 @@ class AIAnalyticsService:
 
                 from homepot.app.models.AnalyticsModel import AIActionPlan
                 from homepot.app.schemas.os_capabilities import os_family as _os_family
-                from homepot.models import Device
+                from homepot.models import PAIRED_LIFECYCLE_STATES, Device
 
-                # Build device_id -> os_family lookup
+                # Build device_id -> os_family lookup for paired devices only.
+                # Unpaired devices are retained (audit/re-enrol) but must not
+                # pollute calibration; purged devices have no row.
                 device_os_map: Dict[str, Optional[str]] = {}
-                existing_devices: set = set()
+                paired_device_ids: set = set()
                 try:
-                    devs = await session.execute(select(Device))
+                    devs = await session.execute(
+                        select(Device).where(
+                            Device.lifecycle_state.in_(PAIRED_LIFECYCLE_STATES)
+                        )
+                    )
                     for dev in devs.scalars().all():
-                        existing_devices.add(dev.device_id)
+                        paired_device_ids.add(dev.device_id)
                         device_os_map[typing_cast(str, dev.device_id)] = _os_family(
                             typing_cast(Optional[str], dev.os_details)
                         )
@@ -833,6 +854,7 @@ class AIAnalyticsService:
                     )
                 )
                 plans = plans_result.scalars().all()
+                assessed_plans = 0
 
                 step = 1.0 / buckets
 
@@ -870,16 +892,18 @@ class AIAnalyticsService:
                             plan_os = device_os_map.get(step_obj.target_device_id)
                             break
 
-                    # Skip plans targeting deleted (non-existent) devices
+                    # Skip plans targeting purged (no row) or unpaired devices.
                     if (
                         target_device is not None
-                        and target_device not in existing_devices
+                        and target_device not in paired_device_ids
                     ):
                         continue
 
                     # Filter by os_family if specified
                     if os_family is not None and plan_os != os_family:
                         continue
+
+                    assessed_plans += 1
 
                     os_key = plan_os or "unknown"
                     os_bands.setdefault(os_key, _make_bands())
@@ -923,7 +947,7 @@ class AIAnalyticsService:
                     "bands": result_bands,
                     "by_os": by_os_result,
                     "os_family": os_family,
-                    "total_plans": len(plans),
+                    "total_plans": assessed_plans,
                 }
         except Exception as e:
             logger.error("Failed to compute confidence calibration: %s", e)
