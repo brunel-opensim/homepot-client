@@ -585,9 +585,11 @@ class AIAnalyticsService:
 
                 # Build device_id -> os_family lookup
                 device_os_map: Dict[str, Optional[str]] = {}
+                existing_devices: set = set()
                 try:
                     devs = await session.execute(select(Device))
                     for dev in devs.scalars().all():
+                        existing_devices.add(dev.device_id)
                         device_os_map[typing_cast(str, dev.device_id)] = _os_family(
                             typing_cast(Optional[str], dev.os_details)
                         )
@@ -642,10 +644,19 @@ class AIAnalyticsService:
 
                 for plan in plans:
                     plan_os: Optional[str] = None
+                    target_device = None
                     for step in plan.steps:
                         if step.target_device_id:
+                            target_device = step.target_device_id
                             plan_os = device_os_map.get(step.target_device_id)
                             break
+
+                    # Skip plans targeting deleted (non-existent) devices
+                    if (
+                        target_device is not None
+                        and target_device not in existing_devices
+                    ):
+                        continue
 
                     # Filter by os_family if specified
                     if os_family is not None and plan_os != os_family:
@@ -801,9 +812,11 @@ class AIAnalyticsService:
 
                 # Build device_id -> os_family lookup
                 device_os_map: Dict[str, Optional[str]] = {}
+                existing_devices: set = set()
                 try:
                     devs = await session.execute(select(Device))
                     for dev in devs.scalars().all():
+                        existing_devices.add(dev.device_id)
                         device_os_map[typing_cast(str, dev.device_id)] = _os_family(
                             typing_cast(Optional[str], dev.os_details)
                         )
@@ -850,10 +863,19 @@ class AIAnalyticsService:
 
                     # Resolve OS from the first step's target device
                     plan_os: Optional[str] = None
+                    target_device = None
                     for step_obj in plan.steps:
                         if step_obj.target_device_id:
+                            target_device = step_obj.target_device_id
                             plan_os = device_os_map.get(step_obj.target_device_id)
                             break
+
+                    # Skip plans targeting deleted (non-existent) devices
+                    if (
+                        target_device is not None
+                        and target_device not in existing_devices
+                    ):
+                        continue
 
                     # Filter by os_family if specified
                     if os_family is not None and plan_os != os_family:
