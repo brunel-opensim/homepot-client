@@ -90,6 +90,14 @@ MAX_COMMAND_TIMEOUT = 300
 # against the crash-loop budget. Keep in sync with the supervisor's check.
 RESTART_AGENT_EXIT_CODE = 42
 
+# The agent exits with this reserved code after it detects that the device has
+# been unpaired (revoked credentials / 403 DeviceRemovedError), so the Electron
+# supervisor (user_app/electron/main.ts) can distinguish a remote unpair from a
+# crash and stop the agent without counting it against the crash-loop budget,
+# then run the same cleanup as a local unpair. Keep in sync with the
+# supervisor's check.
+UNPAIRED_EXIT_CODE = 43
+
 # The agent writes this reserved line to stdout after an ``update_app`` command
 # has been acknowledged. The Electron supervisor detects it and runs the
 # one-shot update (check + download + restart) while the agent stays alive.
@@ -103,6 +111,12 @@ UPDATE_APP_MARKER = "__HOMEPOT_UPDATE_APP__"
 # Keep in sync with ROLLBACK_APP_MARKER in user_app/electron/main.ts.
 # The command_id is appended at runtime: "__HOMEPOT_ROLLBACK_APP__ <command_id>".
 ROLLBACK_APP_MARKER = "__HOMEPOT_ROLLBACK_APP__"
+
+# The agent writes this reserved line to stdout after it detects that the device
+# has been unpaired (revoked credentials / 403). The Electron supervisor
+# detects it and stops the agent without counting it as a crash, then runs the
+# same cleanup as a local unpair (clear creds, wipe stash, route to setup).
+UNPAIRED_MARKER = "__HOMEPOT_UNPAIRED__"
 
 
 def _command_data(command: Dict[str, Any]) -> Dict[str, Any]:

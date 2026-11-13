@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { credentialStorage } from '../services/credentialStorage'
 import { verifyDeviceCredentials } from '../services/api'
@@ -6,6 +7,7 @@ import { AppContext } from './AppContext'
 import type { AppContextType, DeviceInfo, SetupState } from './AppContext'
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null)
   const [isProvisioned, setIsProvisioned] = useState(false)
   const [provisionedChecked, setProvisionedChecked] = useState(false)
@@ -65,6 +67,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       mounted = false
     }
   }, [])
+
+  // React to a remote unpair: the agent exited after the backend revoked its
+  // credentials. Clear local credentials and route back to setup, mirroring
+  // the local unpair flow.
+  useEffect(() => {
+    const api = (window as {
+      electronAPI?: { device?: { onUnpaired?: (cb: () => void) => () => void } }
+    }).electronAPI
+    if (!api?.device?.onUnpaired) return
+    const unsubscribe = api.device.onUnpaired(() => {
+      void (async () => {
+        try { await credentialStorage.clear() } catch { /* ignore */ }
+        setIsProvisioned(false)
+        navigate('/setup')
+      })()
+    })
+    return () => {
+      unsubscribe?.()
+    }
+  }, [navigate, setIsProvisioned])
 
   const value: AppContextType = {
     deviceInfo, setDeviceInfo,
