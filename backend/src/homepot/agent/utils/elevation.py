@@ -432,11 +432,18 @@ def windows_task_state() -> Dict[str, Any]:
     if result.returncode != 0:
         return state
     state["registered"] = True
-    for line in result.stdout.splitlines():
+    # schtasks /fo LIST may wrap long values across lines, so search the
+    # entire output rather than a single line: the presence of the
+    # execute-request verb anywhere means the task runs the current helper.
+    full_output = result.stdout or ""
+    state["current"] = "execute-request" in full_output
+    # Capture the first line that mentions the helper for diagnostics.
+    for line in full_output.splitlines():
         if "homepot-ctl" in line or "execute-request" in line:
             state["action"] = line.strip()
             break
-    state["current"] = "execute-request" in state["action"]
+    if not state["action"]:
+        state["action"] = full_output.strip()[:200]
     return state
 
 
