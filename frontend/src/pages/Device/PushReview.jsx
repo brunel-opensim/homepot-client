@@ -25,6 +25,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   RUN_COMMAND: {
     label: 'Run Command',
     action: 'run_command',
+    group: 'Run Commands',
     permission: 'root_access',
     defaultData: { command: 'uname -a', timeout_seconds: 30 },
     defaultDataByOS: {
@@ -37,6 +38,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   RUN_SCRIPT: {
     label: 'Run Script',
     action: 'run_script',
+    group: 'Run Commands',
     permission: 'root_access',
     defaultData: { script: '#!/bin/sh\nid', timeout_seconds: 30 },
     defaultDataByOS: {
@@ -48,6 +50,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   APPLY_CONFIG: {
     label: 'Apply Configuration',
     action: 'update_config',
+    group: 'Configuration',
     permission: 'root_access',
     defaultData: {
       volume: 50,
@@ -59,6 +62,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   REBOOT_SYSTEM: {
     label: 'Reboot System',
     action: 'restart',
+    group: 'System',
     permission: 'root_access',
     defaultData: {},
     description: 'Reboot the system the User App runs on. The reboot begins immediately.',
@@ -66,6 +70,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   RESTART_AGENT: {
     label: 'Restart Agent',
     action: 'restart_agent',
+    group: 'Services & Agent',
     permission: 'root_access',
     defaultData: {},
     description:
@@ -74,6 +79,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   UPDATE_APP: {
     label: 'Update User App',
     action: 'update_app',
+    group: 'Services & Agent',
     permission: 'root_access',
     defaultData: {},
     description:
@@ -82,6 +88,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   ROLLBACK_APP: {
     label: 'Roll Back User App',
     action: 'rollback_app',
+    group: 'Services & Agent',
     permission: 'root_access',
     defaultData: {},
     description:
@@ -90,6 +97,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   UPDATE_FIRMWARE: {
     label: 'Update Firmware',
     action: 'update_config',
+    group: 'Configuration',
     permission: 'root_access',
     defaultData: {
       version: '2.4.0',
@@ -102,6 +110,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   START_PROGRAM: {
     label: 'Start Program',
     action: 'start_program',
+    group: 'Programs',
     permission: 'root_access',
     defaultData: {
       path: 'notepad.exe',
@@ -113,6 +122,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   STOP_PROGRAM: {
     label: 'Stop Program',
     action: 'stop_program',
+    group: 'Programs',
     permission: 'root_access',
     defaultData: {
       name: 'notepad.exe',
@@ -124,6 +134,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   BOOTSTRAP_WINGET: {
     label: 'Bootstrap Winget (App Installer)',
     action: 'bootstrap_winget',
+    group: 'Programs',
     permission: 'root_access',
     defaultData: { timeout_seconds: 300 },
     description:
@@ -132,6 +143,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   INSTALL_PROGRAM: {
     label: 'Install Program',
     action: 'install_program',
+    group: 'Programs',
     permission: 'root_access',
     defaultData: { package: 'Notepad++.Notepad++', timeout_seconds: 300 },
     description: 'Install a program on the Windows device via winget (silent, machine-wide).',
@@ -139,6 +151,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   UNINSTALL_PROGRAM: {
     label: 'Uninstall Program',
     action: 'uninstall_program',
+    group: 'Programs',
     permission: 'root_access',
     defaultData: { package: 'Notepad++.Notepad++', timeout_seconds: 300 },
     description: 'Uninstall a program from the Windows device via winget (silent).',
@@ -146,6 +159,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   LIST_INSTALLED_PROGRAMS: {
     label: 'List Installed Programs',
     action: 'list_installed_programs',
+    group: 'Diagnostics',
     permission: 'command_execution',
     defaultData: {},
     description:
@@ -154,6 +168,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   UPDATE_PROGRAM: {
     label: 'Update Program',
     action: 'update_program',
+    group: 'Programs',
     permission: 'root_access',
     defaultData: { package: 'Notepad++.Notepad++', timeout_seconds: 300 },
     description: 'Update a program on the Windows device via winget (silent).',
@@ -161,6 +176,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   UPGRADE_ALL_PROGRAMS: {
     label: 'Upgrade All Programs',
     action: 'upgrade_all_programs',
+    group: 'Programs',
     permission: 'root_access',
     defaultData: { timeout_seconds: 600 },
     description: 'Upgrade all installed programs on the Windows device via winget (silent).',
@@ -168,6 +184,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   HEALTH_CHECK: {
     label: 'Health Check',
     action: 'health_check',
+    group: 'Diagnostics',
     permission: 'command_execution',
     defaultData: {
       tests: ['network', 'storage', 'memory'],
@@ -177,6 +194,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   LIST_PROCESSES: {
     label: 'List Processes',
     action: 'list_processes',
+    group: 'Diagnostics',
     permission: 'process_monitoring',
     defaultData: {
       max_results: 50,
@@ -188,6 +206,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   LIST_CONNECTIONS: {
     label: 'List Network Connections',
     action: 'list_connections',
+    group: 'Diagnostics',
     permission: 'network_monitoring',
     defaultData: {
       filter_state: 'ESTABLISHED',
@@ -198,6 +217,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   SCAN_FILESYSTEM: {
     label: 'Scan Filesystem',
     action: 'scan_filesystem',
+    group: 'Diagnostics',
     permission: 'root_access',
     defaultData: {
       path: '/var/homepot',
@@ -212,6 +232,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   SHUT_DOWN: {
     label: 'Shut Down System',
     action: 'shutdown',
+    group: 'System',
     permission: 'root_access',
     defaultData: {},
     description: 'Shut down the system the User App runs on. The shutdown begins immediately.',
@@ -219,6 +240,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   RESTART_SERVICE: {
     label: 'Restart Service',
     action: 'restart_service',
+    group: 'Services & Agent',
     permission: 'root_access',
     defaultData: { service_name: 'Spooler' },
     defaultDataByOS: {
@@ -229,6 +251,33 @@ const FALLBACK_COMMAND_TEMPLATES = {
       'Restart a named OS service (Windows service, systemd unit, or launchd label) with root privileges.',
   },
 };
+
+// Display order for the Compose Command dropdown. Templates without a `group`
+// (e.g. a future addition, or a stale fallback) are appended under "Other".
+const COMMAND_GROUP_ORDER = [
+  'Diagnostics',
+  'Run Commands',
+  'Configuration',
+  'Programs',
+  'Services & Agent',
+  'System',
+];
+
+// Group a templates dict by its `group` field into ordered [label, entries] pairs.
+function groupedCommandTemplates(templates) {
+  const groups = new Map();
+  for (const group of COMMAND_GROUP_ORDER) groups.set(group, []);
+  const other = [];
+  for (const [key, template] of Object.entries(templates || {})) {
+    const bucket = groups.get(template.group) || other;
+    bucket.push([key, template]);
+  }
+  const ordered = COMMAND_GROUP_ORDER.map((group) => [group, groups.get(group)]).filter(
+    ([, entries]) => entries.length > 0
+  );
+  if (other.length > 0) ordered.push(['Other', other]);
+  return ordered;
+}
 
 // Map a device's os_details string to a canonical OS family, mirroring the
 // backend's homepot.app.schemas.os_capabilities.os_family so command payload
@@ -713,10 +762,14 @@ export default function PushReview() {
                       onChange={(e) => setSelectedCommand(e.target.value)}
                       className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
                     >
-                      {Object.entries(templates).map(([key, template]) => (
-                        <option key={key} value={key}>
-                          {template.label} ({key})
-                        </option>
+                      {groupedCommandTemplates(templates).map(([group, entries]) => (
+                        <optgroup key={group} label={group}>
+                          {entries.map(([key, template]) => (
+                            <option key={key} value={key}>
+                              {template.label} ({key})
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                     <p className="text-[10px] text-slate-500 mt-1">

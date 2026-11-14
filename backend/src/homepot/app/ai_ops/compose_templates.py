@@ -24,6 +24,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "RUN_COMMAND": {
         "label": "Run Command",
         "action": "run_command",
+        "group": "Run Commands",
         "permission": "root_access",
         "defaultData": {"command": "uname -a", "timeout_seconds": 30},
         "defaultDataByOS": {
@@ -35,6 +36,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "RUN_SCRIPT": {
         "label": "Run Script",
         "action": "run_script",
+        "group": "Run Commands",
         "permission": "root_access",
         "defaultData": {"script": "#!/bin/sh\nid", "timeout_seconds": 30},
         "defaultDataByOS": {
@@ -45,6 +47,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "APPLY_CONFIG": {
         "label": "Apply Configuration",
         "action": "update_config",
+        "group": "Configuration",
         "permission": "root_access",
         "defaultData": {"volume": 50, "brightness": 75},
         "description": "Update system settings with root privileges. Volume uses the Windows legacy audio API (may not move the modern master slider on all systems); brightness uses DDC/CI with a WMI fallback and reports failure when the panel does not support software control.",
@@ -52,6 +55,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "REBOOT_SYSTEM": {
         "label": "Reboot System",
         "action": "restart",
+        "group": "System",
         "permission": "root_access",
         "defaultData": {},
         "description": "Reboot the system the User App runs on. The reboot begins immediately.",
@@ -59,6 +63,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "RESTART_AGENT": {
         "label": "Restart Agent",
         "action": "restart_agent",
+        "group": "Services & Agent",
         "permission": "root_access",
         "defaultData": {},
         "description": "Restart the agent process itself. The User App supervisor respawns it, briefly interrupting heartbeat and telemetry. Use for an online-but-misbehaving agent.",
@@ -66,6 +71,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "UPDATE_APP": {
         "label": "Update User App",
         "action": "update_app",
+        "group": "Services & Agent",
         "permission": "root_access",
         "defaultData": {},
         "description": "Update the HOMEPOT User App to the latest published release. The app checks the server-hosted feed, downloads, and restarts to install in one action. Briefly interrupts telemetry during the restart.",
@@ -73,6 +79,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "ROLLBACK_APP": {
         "label": "Roll Back User App",
         "action": "rollback_app",
+        "group": "Services & Agent",
         "permission": "root_access",
         "defaultData": {},
         "description": "Roll the HOMEPOT User App back to the previously served release. The app checks the server-hosted previous channel, downloads, and restarts to install the older version in one action. Use only when a newly installed release is broken.",
@@ -80,6 +87,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "UPDATE_FIRMWARE": {
         "label": "Update Firmware",
         "action": "update_config",
+        "group": "Configuration",
         "permission": "root_access",
         "defaultData": {
             "version": "2.4.0",
@@ -91,6 +99,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "START_PROGRAM": {
         "label": "Start Program",
         "action": "start_program",
+        "group": "Programs",
         "permission": "root_access",
         "defaultData": {"path": "notepad.exe", "args": []},
         "description": "Launch a program on the device in the background. Provide an absolute path (or a name on PATH) and optional arguments.",
@@ -98,6 +107,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "STOP_PROGRAM": {
         "label": "Stop Program",
         "action": "stop_program",
+        "group": "Programs",
         "permission": "root_access",
         "defaultData": {"name": "notepad.exe", "force": False},
         "description": "Stop a running process by name or PID. Set force to terminate immediately. Critical system processes are never stopped.",
@@ -105,6 +115,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "BOOTSTRAP_WINGET": {
         "label": "Bootstrap Winget (App Installer)",
         "action": "bootstrap_winget",
+        "group": "Programs",
         "permission": "root_access",
         "defaultData": {"timeout_seconds": 300},
         "description": "Ensure winget (App Installer) is installed on the Windows device. Run once per device before using Install/Update/Uninstall Program on Windows 10 builds where App Installer is missing.",
@@ -112,6 +123,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "INSTALL_PROGRAM": {
         "label": "Install Program",
         "action": "install_program",
+        "group": "Programs",
         "permission": "root_access",
         "defaultData": {"package": "Notepad++.Notepad++", "timeout_seconds": 300},
         "description": "Install a program on the Windows device via winget (silent, machine-wide).",
@@ -119,6 +131,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "UNINSTALL_PROGRAM": {
         "label": "Uninstall Program",
         "action": "uninstall_program",
+        "group": "Programs",
         "permission": "root_access",
         "defaultData": {"package": "Notepad++.Notepad++", "timeout_seconds": 300},
         "description": "Uninstall a program from the Windows device via winget (silent).",
@@ -126,6 +139,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "LIST_INSTALLED_PROGRAMS": {
         "label": "List Installed Programs",
         "action": "list_installed_programs",
+        "group": "Diagnostics",
         "permission": "command_execution",
         "defaultData": {},
         "description": "List the programs installed on the Windows device with their install locations (from the registry). Use the location to find executables for Start/Stop Program.",
@@ -133,6 +147,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "UPDATE_PROGRAM": {
         "label": "Update Program",
         "action": "update_program",
+        "group": "Programs",
         "permission": "root_access",
         "defaultData": {"package": "Notepad++.Notepad++", "timeout_seconds": 300},
         "description": "Update a program on the Windows device via winget (silent).",
@@ -140,6 +155,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "UPGRADE_ALL_PROGRAMS": {
         "label": "Upgrade All Programs",
         "action": "upgrade_all_programs",
+        "group": "Programs",
         "permission": "root_access",
         "defaultData": {"timeout_seconds": 600},
         "description": "Upgrade all installed programs on the Windows device via winget (silent).",
@@ -147,6 +163,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "HEALTH_CHECK": {
         "label": "Health Check",
         "action": "health_check",
+        "group": "Diagnostics",
         "permission": "command_execution",
         "defaultData": {"tests": ["network", "storage", "memory"]},
         "description": "Execute self-tests (network/storage/memory) and report pass/fail.",
@@ -154,6 +171,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "LIST_PROCESSES": {
         "label": "List Processes",
         "action": "list_processes",
+        "group": "Diagnostics",
         "permission": "process_monitoring",
         "defaultData": {"max_results": 50, "sort_by": "cpu", "include_memory": True},
         "description": "List the running processes on the device.",
@@ -161,6 +179,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "LIST_CONNECTIONS": {
         "label": "List Network Connections",
         "action": "list_connections",
+        "group": "Diagnostics",
         "permission": "network_monitoring",
         "defaultData": {"filter_state": "ESTABLISHED", "limit": 100},
         "description": "List the device's active network connections.",
@@ -168,6 +187,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "SCAN_FILESYSTEM": {
         "label": "Scan Filesystem",
         "action": "scan_filesystem",
+        "group": "Diagnostics",
         "permission": "root_access",
         "defaultData": {"path": "/var/homepot", "max_depth": 3, "include_sizes": True},
         "defaultDataByOS": {"windows": {"path": "C:\\ProgramData\\Homepot"}},
@@ -176,6 +196,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "SHUT_DOWN": {
         "label": "Shut Down System",
         "action": "shutdown",
+        "group": "System",
         "permission": "root_access",
         "defaultData": {},
         "description": "Shut down the system the User App runs on. The shutdown begins immediately.",
@@ -183,6 +204,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "RESTART_SERVICE": {
         "label": "Restart Service",
         "action": "restart_service",
+        "group": "Services & Agent",
         "permission": "root_access",
         "defaultData": {"service_name": "Spooler"},
         "defaultDataByOS": {
