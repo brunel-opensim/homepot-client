@@ -347,6 +347,16 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=("host",),
     ),
+    "list_sessions": ActionSpec(
+        name="list_sessions",
+        command_type="list_sessions",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="viewer",
+        description="List users currently logged into the device. Read-only.",
+        required_params=(),
+    ),
 }
 
 

@@ -45,6 +45,7 @@ COMMAND_TYPES = frozenset(
         "list_drives",
         "tail_system_log",
         "network_test",
+        "list_sessions",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -78,6 +79,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_drives": "command_execution",
     "tail_system_log": "command_execution",
     "network_test": "network_monitoring",
+    "list_sessions": "command_execution",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -664,6 +666,46 @@ def _run_list_drives(data: Dict[str, Any]) -> Dict[str, Any]:
         "result": {
             "count": len(drives),
             "drives": drives,
+        },
+    }
+
+
+# --- list_sessions ----------------------------------------------------------
+
+
+def _run_list_sessions(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Snapshot the users currently logged into the device.
+
+    Read-only and cross-platform via ``psutil.users()``.
+    """
+    try:
+        users = psutil.users()
+    except Exception as exc:  # noqa: BLE001 - surface any enumeration error
+        return {
+            "status": "failed",
+            "result": {"error": f"session listing failed: {exc}"},
+        }
+
+    sessions: List[Dict[str, Any]] = []
+    for u in users:
+        sessions.append(
+            {
+                "user": u.name,
+                "terminal": u.terminal or "",
+                "host": u.host or "",
+                "started": (
+                    datetime.fromtimestamp(u.started, tz=timezone.utc).isoformat()
+                    if u.started
+                    else None
+                ),
+            }
+        )
+
+    return {
+        "status": "completed",
+        "result": {
+            "count": len(sessions),
+            "sessions": sessions,
         },
     }
 
@@ -2525,6 +2567,9 @@ def _process_command_impl(
 
     if command_type == "network_test":
         return _run_network_test(_command_data(command))
+
+    if command_type == "list_sessions":
+        return _run_list_sessions(_command_data(command))
 
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))

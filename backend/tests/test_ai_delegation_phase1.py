@@ -58,6 +58,7 @@ def test_registry_declares_expected_actions():
         "list_drives",
         "tail_system_log",
         "network_test",
+        "list_sessions",
         "update_config",
         "restart",
         "rollback_config",
@@ -87,6 +88,7 @@ def test_registry_declares_expected_actions():
         "list_drives",
         "tail_system_log",
         "network_test",
+        "list_sessions",
     ):
         assert ACTION_REGISTRY[name].risk_tier == "T1"
     # T2 reversible actions

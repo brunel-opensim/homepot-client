@@ -208,6 +208,14 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {"host": "example.com", "timeout_seconds": 10},
         "description": "Probe a host's connectivity (DNS, ping, optional TCP port).",
     },
+    "LIST_SESSIONS": {
+        "label": "List Sessions",
+        "action": "list_sessions",
+        "group": "Diagnostics",
+        "permission": "command_execution",
+        "defaultData": {},
+        "description": "List users currently logged into the device.",
+    },
     "SCAN_FILESYSTEM": {
         "label": "Scan Filesystem",
         "action": "scan_filesystem",

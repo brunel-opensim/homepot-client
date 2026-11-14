@@ -384,6 +384,41 @@ def test_network_test_in_command_types_and_permission():
     assert required_permissions_for_command("network_test") == ["network_monitoring"]
 
 
+def test_list_sessions_returns_logged_in_users():
+    """list_sessions enumerates logged-in users cross-platform."""
+    from homepot.agent.utils.command_poller import _run_list_sessions
+
+    class _User:
+        def __init__(self, name, terminal, host, started):
+            self.name = name
+            self.terminal = terminal
+            self.host = host
+            self.started = started
+
+    with patch(
+        "homepot.agent.utils.command_poller.psutil.users",
+        return_value=[
+            _User("alice", "console", "localhost", 1700000000.0),
+            _User("bob", "pts/0", "10.0.0.5", None),
+        ],
+    ):
+        result = _run_list_sessions({})
+
+    assert result["status"] == "completed"
+    assert result["result"]["count"] == 2
+    sessions = result["result"]["sessions"]
+    assert sessions[0]["user"] == "alice"
+    assert sessions[0]["started"] is not None
+    assert sessions[1]["user"] == "bob"
+    assert sessions[1]["started"] is None
+
+
+def test_list_sessions_in_command_types_and_permission():
+    """list_sessions is registered and gated on command_execution."""
+    assert "list_sessions" in COMMAND_TYPES
+    assert required_permissions_for_command("list_sessions") == ["command_execution"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent
