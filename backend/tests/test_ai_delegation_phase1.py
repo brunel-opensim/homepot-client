@@ -55,6 +55,7 @@ def test_registry_declares_expected_actions():
         "scan_filesystem",
         "list_installed_programs",
         "list_connections",
+        "list_drives",
         "update_config",
         "restart",
         "rollback_config",
@@ -81,6 +82,7 @@ def test_registry_declares_expected_actions():
         "scan_filesystem",
         "list_installed_programs",
         "list_connections",
+        "list_drives",
     ):
         assert ACTION_REGISTRY[name].risk_tier == "T1"
     # T2 reversible actions

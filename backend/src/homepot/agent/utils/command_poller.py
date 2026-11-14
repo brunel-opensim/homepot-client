@@ -42,6 +42,7 @@ COMMAND_TYPES = frozenset(
         "rollback_app",
         "list_processes",
         "list_connections",
+        "list_drives",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -72,6 +73,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "rollback_app": "root_access",
     "list_processes": "process_monitoring",
     "list_connections": "network_monitoring",
+    "list_drives": "command_execution",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -611,6 +613,53 @@ def _run_list_processes(data: Dict[str, Any]) -> Dict[str, Any]:
         "result": {
             "count": len(processes),
             "processes": processes[:max_results],
+        },
+    }
+
+
+# --- list_drives ------------------------------------------------------------
+
+
+def _run_list_drives(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Snapshot mounted drives/volumes with free-space usage.
+
+    Read-only and cross-platform: ``psutil.disk_partitions`` +
+    ``psutil.disk_usage`` need no elevation. Volumes whose usage cannot be
+    read (unmounted / permission-denied) are still listed with null usage.
+    """
+    try:
+        parts = psutil.disk_partitions(all=False)
+    except Exception as exc:  # noqa: BLE001 - surface any enumeration error
+        return {
+            "status": "failed",
+            "result": {"error": f"drive listing failed: {exc}"},
+        }
+
+    drives: List[Dict[str, Any]] = []
+    for part in parts:
+        entry: Dict[str, Any] = {
+            "device": part.device,
+            "mountpoint": part.mountpoint,
+            "fstype": part.fstype or "",
+        }
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+            entry["total"] = usage.total
+            entry["used"] = usage.used
+            entry["free"] = usage.free
+            entry["percent"] = round(float(usage.percent), 1)
+        except (OSError, PermissionError):
+            entry["total"] = None
+            entry["used"] = None
+            entry["free"] = None
+            entry["percent"] = None
+        drives.append(entry)
+
+    return {
+        "status": "completed",
+        "result": {
+            "count": len(drives),
+            "drives": drives,
         },
     }
 
@@ -2187,6 +2236,9 @@ def _process_command_impl(
 
     if command_type == "list_connections":
         return _run_list_connections(_command_data(command))
+
+    if command_type == "list_drives":
+        return _run_list_drives(_command_data(command))
 
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))

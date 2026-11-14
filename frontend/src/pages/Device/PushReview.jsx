@@ -214,6 +214,14 @@ const FALLBACK_COMMAND_TEMPLATES = {
     },
     description: 'List the device\u2019s active network connections.',
   },
+  LIST_DRIVES: {
+    label: 'List Drives',
+    action: 'list_drives',
+    group: 'Diagnostics',
+    permission: 'command_execution',
+    defaultData: {},
+    description: 'List mounted drives/volumes and their free space.',
+  },
   SCAN_FILESYSTEM: {
     label: 'Scan Filesystem',
     action: 'scan_filesystem',
