@@ -79,6 +79,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "tail_system_log": ActionSpec(
+        name="tail_system_log",
+        command_type="tail_system_log",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="viewer",
+        description=(
+            "Read the most recent OS error/warning events (Windows Event Log, "
+            "journalctl, or macOS unified log). Read-only; no state change."
+        ),
+        required_params=(),
+    ),
     "scan_filesystem": ActionSpec(
         name="scan_filesystem",
         command_type="scan_filesystem",

@@ -43,6 +43,7 @@ COMMAND_TYPES = frozenset(
         "list_processes",
         "list_connections",
         "list_drives",
+        "tail_system_log",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -74,6 +75,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_processes": "process_monitoring",
     "list_connections": "network_monitoring",
     "list_drives": "command_execution",
+    "tail_system_log": "command_execution",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -662,6 +664,195 @@ def _run_list_drives(data: Dict[str, Any]) -> Dict[str, Any]:
             "drives": drives,
         },
     }
+
+
+# --- tail_system_log -------------------------------------------------------
+
+#: Map syslog priorities (journalctl) to the level strings used in results.
+_SYSLOG_PRIORITY_LEVELS = {
+    0: "emerg",
+    1: "alert",
+    2: "critical",
+    3: "error",
+    4: "warning",
+}
+
+
+def _clip_log_message(message: str) -> str:
+    """Bound a single log message so a full page of events stays compact."""
+    text = (message or "").strip().replace("\r", "")
+    return text[:500]
+
+
+def _json_entries_result(raw: str) -> Dict[str, Any]:
+    """Parse a ``ConvertTo-Json`` (array-or-object) payload into entries."""
+    raw = (raw or "").strip()
+    if not raw:
+        return {"status": "completed", "result": {"count": 0, "events": []}}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"status": "failed", "result": {"error": "could not parse log output"}}
+    events = parsed if isinstance(parsed, list) else [parsed]
+    events = [e for e in events if isinstance(e, dict)]
+    return {"status": "completed", "result": {"count": len(events), "events": events}}
+
+
+def _run_tail_system_log(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the most recent OS error/warning events as structured entries.
+
+    Windows reads the System event log (Critical/Error/Warning) via
+    ``Get-WinEvent``; Linux reads ``journalctl``; macOS reads the unified log
+    via ``log show``. Read-only; no elevation required.
+    """
+    try:
+        lines = max(1, min(int(data.get("lines", 50)), 500))
+    except (TypeError, ValueError):
+        lines = 50
+
+    if _is_windows_platform():
+        return _tail_windows_event_log(lines)
+    if platform.system() == "Darwin":
+        return _tail_macos_log(lines)
+    return _tail_linux_log(lines)
+
+
+def _tail_windows_event_log(lines: int) -> Dict[str, Any]:
+    script = (
+        "@(Get-WinEvent -FilterHashtable @{LogName='System'; Level=1,2,3} "
+        "-MaxEvents " + str(lines) + " -ErrorAction SilentlyContinue | "
+        "Select-Object @{N='time';E={$_.TimeCreated.ToString('o')}}, "
+        "@{N='level';E={$_.LevelDisplayName}}, "
+        "@{N='source';E={$_.ProviderName}}, "
+        "@{N='message';E={$_.Message}}) | ConvertTo-Json -Compress"
+    )
+    argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
+    try:
+        completed = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "failed",
+            "result": {"error": f"event log query failed: {exc}"},
+        }
+    if completed.returncode != 0:
+        raw_error = completed.stderr or completed.stdout or "event log query failed"
+        return {
+            "status": "failed",
+            "result": {"error": raw_error[-MAX_COMMAND_OUTPUT:]},
+        }
+    result = _json_entries_result(completed.stdout)
+    for event in result.get("result", {}).get("events", []):  # type: ignore[union-attr]
+        event["message"] = _clip_log_message(str(event.get("message", "")))
+    return result
+
+
+def _tail_linux_log(lines: int) -> Dict[str, Any]:
+    argv = [
+        "journalctl",
+        "-n",
+        str(lines),
+        "-p",
+        "warning",
+        "--no-pager",
+        "-o",
+        "json",
+    ]
+    try:
+        completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "failed",
+            "result": {"error": f"journalctl failed: {exc}"},
+        }
+
+    events = []
+    for line in (completed.stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        ts = obj.get("__REALTIME_TIMESTAMP")
+        time_str = ""
+        if isinstance(ts, (int, float)):
+            time_str = datetime.fromtimestamp(
+                ts / 1_000_000, tz=timezone.utc
+            ).isoformat()
+        events.append(
+            {
+                "time": time_str,
+                "level": _SYSLOG_PRIORITY_LEVELS.get(
+                    obj.get("PRIORITY"), str(obj.get("PRIORITY", ""))
+                ),
+                "source": obj.get("SYSLOG_IDENTIFIER") or obj.get("_COMM") or "",
+                "message": _clip_log_message(obj.get("MESSAGE") or ""),
+            }
+        )
+    # journalctl exits 1 when there are no matching entries; that is empty, not
+    # an error.
+    return {"status": "completed", "result": {"count": len(events), "events": events}}
+
+
+def _tail_macos_log(lines: int) -> Dict[str, Any]:
+    # Unified log: messageType 4 = Error, 5 = Fault.
+    argv = [
+        "log",
+        "show",
+        "--last",
+        "15m",
+        "--predicate",
+        "messageType >= 4",
+        "--style",
+        "json",
+    ]
+    try:
+        completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "failed",
+            "result": {"error": f"log show failed: {exc}"},
+        }
+
+    events = []
+    for line in (completed.stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        events.append(
+            {
+                "time": str(obj.get("timestamp") or ""),
+                "level": "fault" if obj.get("messageType") == 5 else "error",
+                "source": str(
+                    obj.get("processImagePath") or obj.get("senderImagePath") or ""
+                ),
+                "message": _clip_log_message(obj.get("eventMessage") or ""),
+            }
+        )
+    return {"status": "completed", "result": {"count": len(events), "events": events}}
 
 
 # --- list_connections -------------------------------------------------------
@@ -2239,6 +2430,9 @@ def _process_command_impl(
 
     if command_type == "list_drives":
         return _run_list_drives(_command_data(command))
+
+    if command_type == "tail_system_log":
+        return _run_tail_system_log(_command_data(command))
 
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))

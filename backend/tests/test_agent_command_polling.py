@@ -281,6 +281,47 @@ def test_list_drives_in_command_types_and_permission():
     assert required_permissions_for_command("list_drives") == ["command_execution"]
 
 
+def test_tail_system_log_windows_parses_event_log():
+    """tail_system_log (Windows) parses Get-WinEvent JSON output."""
+    from homepot.agent.utils.command_poller import _run_tail_system_log
+
+    stdout = (
+        '[{"time":"2026-11-14T12:00:00","level":"Error","source":"Disk",'
+        '"message":"disk error"},'
+        '{"time":"2026-11-14T12:01:00","level":"Warning","source":"Kernel",'
+        '"message":"warning"}]'
+    )
+
+    from types import SimpleNamespace
+
+    completed = SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller._is_windows_platform",
+            return_value=True,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.subprocess.run",
+            return_value=completed,
+        ),
+    ):
+        result = _run_tail_system_log({"lines": 10})
+
+    assert result["status"] == "completed"
+    assert result["result"]["count"] == 2
+    events = result["result"]["events"]
+    assert events[0]["level"] == "Error"
+    assert events[0]["message"] == "disk error"
+    assert events[1]["level"] == "Warning"
+
+
+def test_tail_system_log_in_command_types_and_permission():
+    """tail_system_log is registered and gated on command_execution."""
+    assert "tail_system_log" in COMMAND_TYPES
+    assert required_permissions_for_command("tail_system_log") == ["command_execution"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent

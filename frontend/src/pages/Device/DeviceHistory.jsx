@@ -248,6 +248,38 @@ function renderKeyValue(result) {
   );
 }
 
+function logLevelColor(level) {
+  const l = String(level || '').toLowerCase();
+  if (['error', 'critical', 'fault', 'emerg', 'alert', 'crit', 'err'].includes(l)) {
+    return 'text-red-400';
+  }
+  if (['warning', 'warn'].includes(l)) {
+    return 'text-amber-400';
+  }
+  return 'text-slate-400';
+}
+
+// Render a list of log events (e.g. tail_system_log) as a scrollable log view.
+function renderLogEvents(events) {
+  if (!events || events.length === 0) return null;
+  return (
+    <div className="space-y-1 max-h-64 overflow-auto text-xs font-mono">
+      {events.map((event, i) => (
+        <div key={i} className="border border-[#1f2735] rounded p-2">
+          <div className="flex items-center gap-2 text-[10px]">
+            <span className={`font-semibold uppercase ${logLevelColor(event.level)}`}>
+              {event.level || 'info'}
+            </span>
+            <span className="text-slate-500">{event.source}</span>
+            <span className="text-slate-500 ml-auto">{event.time}</span>
+          </div>
+          <div className="text-slate-200 whitespace-pre-wrap break-words mt-1">{event.message}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const COMMAND_TYPE_TO_TEMPLATE = {
   run_command: 'RUN_COMMAND',
   run_script: 'RUN_SCRIPT',
@@ -887,6 +919,7 @@ export default function DeviceHistory() {
                       )}
                       {renderStructuredResult(selectedCommand.result)}
                       {renderKeyValue(selectedCommand.result)}
+                      {renderLogEvents(selectedCommand.result.events)}
                       {!selectedCommand.result.stdout &&
                         !selectedCommand.result.stderr &&
                         !selectedCommand.result.message &&
@@ -897,6 +930,7 @@ export default function DeviceHistory() {
                         !selectedCommand.result.entries &&
                         !selectedCommand.result.programs &&
                         !selectedCommand.result.drives &&
+                        !selectedCommand.result.events &&
                         !isFlatResult(selectedCommand.result) && (
                           <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                             {JSON.stringify(selectedCommand.result, null, 2)}

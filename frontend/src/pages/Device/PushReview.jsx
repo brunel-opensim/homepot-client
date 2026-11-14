@@ -222,6 +222,15 @@ const FALLBACK_COMMAND_TEMPLATES = {
     defaultData: {},
     description: 'List mounted drives/volumes and their free space.',
   },
+  TAIL_SYSTEM_LOG: {
+    label: 'Tail System Log',
+    action: 'tail_system_log',
+    group: 'Diagnostics',
+    permission: 'command_execution',
+    defaultData: { lines: 50 },
+    description:
+      'Read the most recent OS error/warning events (Windows Event Log, journalctl, or macOS unified log).',
+  },
   SCAN_FILESYSTEM: {
     label: 'Scan Filesystem',
     action: 'scan_filesystem',
