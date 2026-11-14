@@ -14,7 +14,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session as SASession
 
 from homepot.app.auth_utils import (  # noqa: E402
@@ -37,7 +37,6 @@ if project_root not in sys.path:
 from ai.actions import all_reversible, max_risk_tier  # noqa: E402
 from ai.agent import run_agent  # noqa: E402
 from ai.analytics_service import AIAnalyticsService  # noqa: E402
-from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 from ai.config import load_ai_config  # noqa: E402
 from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.device_memory import DeviceMemory, MemoryScope  # noqa: E402
@@ -68,7 +67,6 @@ from ai.repo_tools import (  # noqa: E402
 )
 from ai.system_knowledge import SystemKnowledge  # noqa: E402
 from homepot.app.models.AnalyticsModel import Alert  # noqa: E402
-from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: E402
 from homepot.app.repositories.ai_action_repository import (  # noqa: E402
     AIActionRepository,
 )
@@ -79,7 +77,7 @@ from homepot.app.utils.ai_gate import (  # noqa: E402
 )
 from homepot.audit import AuditEventType, get_audit_logger  # noqa: E402
 from homepot.database import get_database_service, get_db  # noqa: E402
-from homepot.models import Device, HealthCheck, Site, User  # noqa: E402
+from homepot.models import Device, Site, User  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -353,215 +351,66 @@ async def set_llm_api_key(
 
 @router.get("/anomalies", tags=["AI Insights"])
 async def get_system_anomalies() -> Dict[str, Any]:
-    """Detect system-wide anomalies using AI heuristics."""
+    """Detect system-wide anomalies from persisted scans plus active alerts."""
     try:
-        detector = AnomalyDetector()
-        anomalies = []
-
         db_service = await get_database_service()
+        anomalies: List[Dict[str, Any]] = []
+
+        # 1. Persistent DB alerts first (they carry an id + lifecycle).
         async with db_service.get_session() as session:
-            # 1. Get active devices for mapping (only live, non-archived devices)
             all_devices_result = await session.execute(
                 select(Device).where(Device.is_active.is_(True))
             )
             all_devices = all_devices_result.scalars().all()
             device_map = {d.device_id: d.name for d in all_devices}
 
-            # 2. Fetch Active Alerts from Database (Persistent Context) FIRST
-            # We want to prioritize persistent alerts which have IDs.
             alerts_result = await session.execute(
                 select(Alert).where(Alert.status == "active")
             )
             active_alerts = alerts_result.scalars().all()
 
-            # Track which devices have active alerts to avoid duplication
-            alerted_devices = set()
+        alerted_devices: set = set()
+        for alert in active_alerts:
+            alerted_devices.add(alert.device_id)
+            anomalies.append(
+                {
+                    "id": alert.id,
+                    "device_id": alert.device_id,
+                    "device_name": device_map.get(alert.device_id, "Unknown Device"),
+                    "score": round(alert.ai_confidence or 0.8, 2),
+                    "reasons": [alert.title, alert.description],
+                    "severity": alert.severity,
+                    "metrics": {
+                        "source": "persistent_alert",
+                        "category": alert.category,
+                    },
+                    "timestamp": (
+                        alert.timestamp.isoformat()
+                        if alert.timestamp
+                        else datetime.utcnow().isoformat()
+                    ),
+                }
+            )
 
-            for alert in active_alerts:
-                alerted_devices.add(alert.device_id)
-                anomalies.append(
-                    {
-                        "id": alert.id,
-                        "device_id": alert.device_id,
-                        "device_name": device_map.get(
-                            alert.device_id, "Unknown Device"
-                        ),
-                        "score": round(alert.ai_confidence or 0.8, 2),
-                        "reasons": [alert.title, alert.description],
-                        "severity": alert.severity,
-                        "metrics": {
-                            "source": "persistent_alert",
-                            "category": alert.category,
-                        },
-                        "timestamp": (
-                            alert.timestamp.isoformat()
-                            if alert.timestamp
-                            else datetime.utcnow().isoformat()
-                        ),
-                    }
-                )
+        # 2. Multi-level scan results (persistent + critical) from stored history.
+        from homepot.app.ai_ops.anomaly_scan import (
+            latest_anomaly_summaries,
+            scan_and_persist,
+        )
 
-            # Filter for monitored devices to run active detection
-            monitored_devices = [d for d in all_devices if d.is_monitored]
-            devices_to_check = [
-                d for d in monitored_devices if d.device_id not in alerted_devices
-            ]
-            device_ids_to_check = [d.id for d in devices_to_check]
+        scan_summaries = await latest_anomaly_summaries(db_service, min_level=2)
+        if not scan_summaries:
+            # Cold start before the background loop's first pass: run once.
+            scan_summaries = await scan_and_persist(db_service)
+            scan_summaries = [s for s in scan_summaries if s.get("level", 0) >= 2]
 
-            # Batch query DeviceMetrics and HealthCheck to eliminate N+1 queries
-            latest_metrics_by_device: Dict[Any, Any] = {}
-            health_checks_by_device: Dict[Any, Any] = {}
+        for summary in scan_summaries:
+            if summary["device_id"] in alerted_devices:
+                continue
+            anomalies.append(summary)
 
-            if device_ids_to_check:
-                from sqlalchemy.orm import aliased
-
-                # 1. Batch fetch latest metrics
-                metrics_subq = (
-                    select(
-                        DeviceMetrics,
-                        func.row_number()
-                        .over(
-                            partition_by=DeviceMetrics.device_id,
-                            order_by=DeviceMetrics.timestamp.desc(),
-                        )
-                        .label("rn"),
-                    )
-                    .where(DeviceMetrics.device_id.in_(device_ids_to_check))
-                    .subquery()
-                )
-                metrics_alias = aliased(DeviceMetrics, metrics_subq)
-                metrics_result = await session.execute(
-                    select(metrics_alias).where(metrics_subq.c.rn == 1)
-                )
-                for metric in metrics_result.scalars().all():
-                    latest_metrics_by_device[metric.device_id] = metric
-
-                # 2. Batch fetch last 5 health checks
-                health_subq = (
-                    select(
-                        HealthCheck,
-                        func.row_number()
-                        .over(
-                            partition_by=HealthCheck.device_id,
-                            order_by=HealthCheck.timestamp.desc(),
-                        )
-                        .label("rn"),
-                    )
-                    .where(HealthCheck.device_id.in_(device_ids_to_check))
-                    .subquery()
-                )
-                health_alias = aliased(HealthCheck, health_subq)
-                health_result = await session.execute(
-                    select(health_alias).where(health_subq.c.rn <= 5)
-                )
-                for hc in health_result.scalars().all():
-                    health_checks_by_device.setdefault(hc.device_id, []).append(hc)
-
-                # Ensure order is sorted by timestamp descending
-                for dev_id, checks in health_checks_by_device.items():
-                    checks.sort(key=lambda x: x.timestamp, reverse=True)
-
-            devices_status_updated = False
-            for device in devices_to_check:
-                device_metrics: Dict[str, Any] = {}
-
-                # 3. Get latest metrics from pre-fetched dict
-                latest_metric = latest_metrics_by_device.get(device.id)
-                if latest_metric:
-                    device_metrics.update(
-                        {
-                            "cpu_percent": latest_metric.cpu_percent,
-                            "memory_percent": latest_metric.memory_percent,
-                            "disk_percent": latest_metric.disk_percent,
-                            "network_latency_ms": latest_metric.network_latency_ms,
-                            "error_rate": latest_metric.error_rate,
-                        }
-                    )
-                    # Telemetry freshness
-                    metric_ts = latest_metric.timestamp
-                    if metric_ts is not None:
-                        if metric_ts.tzinfo is None:
-                            metric_ts = metric_ts.replace(tzinfo=timezone.utc)
-                        age = (datetime.now(timezone.utc) - metric_ts).total_seconds()
-                        device_metrics["stale_telemetry"] = age > 600
-                    else:
-                        device_metrics["stale_telemetry"] = True
-                    device_metrics["no_telemetry"] = False
-                else:
-                    device_metrics["no_telemetry"] = True
-                    device_metrics["stale_telemetry"] = False
-
-                # Connectivity (shared helper)
-                from homepot.models import compute_connectivity
-
-                device_metrics["connectivity_offline"] = (
-                    compute_connectivity(device) == "offline"
-                )
-
-                # 4. Get Flapping Count (last 5 health checks): count
-                # healthy<->unhealthy transitions.
-                checks_sorted = sorted(checks, key=lambda c: c.timestamp)
-                flapping_count = 0
-                for i in range(1, len(checks_sorted)):
-                    if checks_sorted[i].is_healthy != checks_sorted[i - 1].is_healthy:
-                        flapping_count += 1
-                device_metrics["flapping_count"] = float(flapping_count)
-
-                # 5. Get Consecutive Failures from pre-fetched dict
-                checks = health_checks_by_device.get(device.id, [])
-                consecutive_failures = 0
-                for check in checks:
-                    if not check.is_healthy:
-                        consecutive_failures += 1
-                    else:
-                        break
-                device_metrics["consecutive_failures"] = float(consecutive_failures)
-
-                # Sync Device Status with Health & Generate Offline Alert
-                try:
-                    status_changed = False
-                    if consecutive_failures >= 3:
-                        if device.status != "offline":
-                            device.status = "offline"  # type: ignore
-                            status_changed = True
-
-                    elif consecutive_failures == 0 and device.status == "offline":
-                        # Recover from offline
-                        device.status = "online"  # type: ignore
-                        status_changed = True
-
-                    if status_changed:
-                        session.add(device)
-                        devices_status_updated = True
-                except Exception as e:
-                    logger.error(f"Failed to sync device status: {e}")
-
-                # 6. Run Detection
-                score, reasons = detector.check_anomaly(device_metrics)
-
-                if score > 0:
-                    anomalies.append(
-                        {
-                            "device_id": device.device_id,
-                            "device_name": device.name,
-                            "score": round(score, 2),
-                            "reasons": reasons,
-                            "severity": "critical" if score >= 0.8 else "warning",
-                            "metrics": device_metrics,
-                            "timestamp": datetime.utcnow().isoformat(),
-                        }
-                    )
-
-            if devices_status_updated:
-                try:
-                    await session.commit()
-                except Exception as e:
-                    logger.error(f"Failed to commit device status changes: {e}")
-
-        # Sort by score descending
+        # Sort by score descending, cap to the top 5.
         anomalies.sort(key=lambda x: float(str(x["score"])), reverse=True)
-
-        # Limit to top 5 anomalies
         anomalies = anomalies[:5]
 
         return {"count": len(anomalies), "anomalies": anomalies}

@@ -244,6 +244,20 @@ async def start_ai_plan_retention() -> None:
     logging.getLogger(__name__).info("AI plan retention task started")
 
 
+@app.on_event("startup")
+async def start_anomaly_scan() -> None:
+    """Start the scheduled multi-level anomaly scan.
+
+    Appends an ``anomaly_scans`` row per active device each pass and classifies
+    each device into a 0-3 level; the Dashboard reads these persisted results
+    instead of recomputing on every poll.
+    """
+    from homepot.app.ai_ops.anomaly_scan import run_anomaly_scan_loop
+
+    app.state.anomaly_scan_task = asyncio.create_task(run_anomaly_scan_loop())
+    logging.getLogger(__name__).info("Anomaly scan task started")
+
+
 @app.on_event("shutdown")
 async def stop_ai_execution_reconcile() -> None:
     """Cancel the AI action-execution reconcile loop on shutdown."""

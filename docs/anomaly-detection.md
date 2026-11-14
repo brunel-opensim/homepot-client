@@ -107,9 +107,31 @@ anomaly_detection:
 
 `sensitivity` scales the final anomaly score (`score * sensitivity`, capped at `1.0`); it changes the reported score but not which thresholds fire. `window_size` is reserved and not currently applied.
 
-## Multi-level detection (proposed)
+## Multi-level detection
 
-The current system is **single-tier**: any threshold breach produces an anomaly immediately, with no notion of persistence, promotion, or de-escalation. The proposed model adds levels so only devices with **regular and persistent** problems are brought forward ("Monitored Resources"), reducing noise.
+The system is moving from a single-tier detector to a **leveled** model so only
+devices with **regular and persistent** problems are brought forward ("Monitored
+Resources"), reducing noise.
+
+### Foundation (implemented)
+
+The first step is shipped and running in the API:
+
+- **Persistence** — a new `anomaly_scans` table stores one row per device per
+  scan (`score`, `level`, `severity`, `reasons`).
+- **Background scan** — `ai_ops/anomaly_scan.py` runs a scheduled scan (default
+  every 5 minutes) of all active devices, appends scan rows, and syncs
+  online/offline status. It starts on API boot (`homepot.app.main`).
+- **Level classification** — `classify_anomaly_level()` maps score plus
+  persistence signals onto the 0-3 levels below. `GET /api/v1/ai/anomalies`
+  now reads the latest persisted scans (level >= 2) instead of recomputing on
+  every poll, with a cold-start fallback.
+- **Flapping window fix** — flapping is now counted over the last `window_size`
+  (default 50) health checks, not the last 5 (which could never exceed a
+  threshold of 5, so "High Instability" could never fire).
+
+Remaining: promotion/de-escalation of `is_monitored`, additional signals, and
+the monitoring-tier UI (see plan below).
 
 ### Levels
 
@@ -126,10 +148,16 @@ The current system is **single-tier**: any threshold breach produces an anomaly 
 - Devices an operator has manually marked monitored are never auto-demoted.
 
 ### Persistence
-Tier 1 (rule-based) results are currently ephemeral. To support "persistent" detection, anomaly scan results (timestamp, score, reasons) must be stored — either in a new `anomaly_scan` table or as `Alert` rows with category `anomaly`. This lets the system count breaches over a window instead of reacting to a single sample.
+Tier 1 (rule-based) results are stored in the `anomaly_scans` table (one row per
+device per scan). This lets the system count breaches over a window instead of
+reacting to a single sample, and gives de-escalation a clean-scan history to
+count against.
 
 ### Background scan
-Today detection is pull-based (on AI query / Dashboard poll). A scheduled background scan (e.g. every 5 minutes) is needed to (a) compute persistence, (b) auto-promote/demote, and (c) keep the Dashboard current without an AI query.
+A scheduled background scan runs in-process (default every 5 minutes) via
+`ai_ops/anomaly_scan.run_anomaly_scan_loop`, started by `homepot.app.main`. It
+computes persistence and keeps the Dashboard current without an AI query; the
+pull-based endpoint reads the persisted results.
 
 ### Additional candidate signals (HOMEPOT-specific)
 Beyond the current metric thresholds, the following are worth considering:
@@ -141,13 +169,28 @@ Beyond the current metric thresholds, the following are worth considering:
 - No telemetry for > X minutes (partially implemented as "stale telemetry").
 
 ### Implementation plan (multi-PR)
-1. **Persistence + background scan** (foundation): store per-device anomaly scans; run a scheduled scan; keep pull-based endpoint reading from stored results.
-2. **Promotion / de-escalation**: auto-promote on Level 2, auto-demote after N clean scans, preserve manual grants.
+1. **Persistence + background scan** (foundation): done — `anomaly_scans`
+   table, scheduled scan loop, level classification, and an endpoint that reads
+   stored results.
+2. **Promotion / de-escalation**: auto-promote on Level 2, auto-demote after N
+   clean scans, preserve manual grants.
 3. **Additional signals**: command/push failures, trends.
-4. **UI**: surface monitoring tier (normal/watchlisted/monitored/critical) on the device page and Dashboard.
+4. **UI**: surface monitoring tier (normal/watchlisted/monitored/critical) on
+   the device page and Dashboard.
+
+### Decisions (recorded)
+- **Scan storage**: a dedicated `anomaly_scans` table (append-only), not `Alert`
+  rows, so clean scans are retained for de-escalation without polluting the
+  alerts view.
+- **Level 2 = persistent**: `score >= 0.8` → Level 3; consecutive failures or
+  flapping or `persistent_breach_count` breaches in the window → Level 2; any
+  other non-zero score → Level 1.
+- **Flapping window**: last `window_size` (50) health checks.
+- **Scan cadence**: 5 minutes, in-process (mirrors the retention loops), read
+  from config `anomaly_detection.scan_interval_minutes`.
 
 ### Open decisions
 - Auto-promotion vs. operator approval for Level 2.
 - De-escalation threshold (N clean scans).
-- Background scan interval and whether it runs in-process or as a worker.
-- Whether `is_monitored` (manual) and the new auto-promoted tier are the same flag or separate.
+- Whether `is_monitored` (manual) and the new auto-promoted tier are the same
+  flag or separate.
