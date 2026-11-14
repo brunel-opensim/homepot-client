@@ -799,6 +799,7 @@ class TestProgramInstallUninstall:
         system.return_value = "Windows"
         elev.is_elevation_installed.return_value = True
         elev.is_provisioned.return_value = True
+        elev.is_windows_task_stale.return_value = False
         elev.run_elevated.return_value = {
             "ok": True,
             "exit_code": 0,
