@@ -513,6 +513,9 @@ class Device(Base):
     # DEPRECATED: use lifecycle_state — active/pending/suspended → True, unpaired/retired → False
     is_active = Column(Boolean, default=True)
     is_monitored = Column(Boolean, default=False)
+    # Operator override: when an operator removes an auto-monitored device, this
+    # timestamp suppresses auto re-pinning until it expires.
+    monitor_dismissed_until = Column(DateTime(timezone=True), nullable=True)
     is_simulated = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

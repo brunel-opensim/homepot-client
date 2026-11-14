@@ -325,6 +325,27 @@ class TestUnauthenticated:
         assert resp.status_code == 401
 
 
+def test_device_monitor_toggle_add_remove_and_dismiss(
+    client: TestClient, seeded_db: Any
+) -> None:
+    """Add pins a device; remove clears it and records a dismiss cooldown."""
+    headers = _auth_header("user.a@example.com")
+
+    add = client.put(
+        "/api/v1/devices/device/dev-a-1/monitor?monitor=true", headers=headers
+    )
+    assert add.status_code == 200
+    assert add.json()["is_monitored"] is True
+    assert add.json()["monitor_dismissed_until"] is None
+
+    remove = client.put(
+        "/api/v1/devices/device/dev-a-1/monitor?monitor=false", headers=headers
+    )
+    assert remove.status_code == 200
+    assert remove.json()["is_monitored"] is False
+    assert remove.json()["monitor_dismissed_until"] is not None
+
+
 # ===================================================================
 # Tests: Cross-tenant isolation
 # ===================================================================

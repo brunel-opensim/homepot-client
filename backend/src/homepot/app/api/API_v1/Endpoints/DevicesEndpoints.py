@@ -1,6 +1,6 @@
 """API endpoints for managing Device in the HomePot system."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
 import uuid
@@ -59,6 +59,10 @@ client_instance: Optional[HomepotClient] = None
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+#: How long (minutes) an operator's "Remove from Dashboard" suppresses the
+#: anomaly scan from auto re-pinning the device. Manually re-adding clears it.
+MONITOR_DISMISS_MINUTES = 30
 
 
 def _compute_connectivity(device: Device) -> str:
@@ -400,6 +404,11 @@ async def list_device(
                             else "inactive"
                         ),
                         "is_monitored": device.is_monitored,
+                        "monitor_dismissed_until": (
+                            device.monitor_dismissed_until.isoformat()
+                            if device.monitor_dismissed_until
+                            else None
+                        ),
                         "is_simulated": device.is_simulated,
                         "enrollment_method": (
                             device.enrollment_method or "pre-provisioned"
@@ -577,6 +586,11 @@ async def get_device(
                     "network_monitoring": False,
                 },
                 "is_monitored": device.is_monitored,
+                "monitor_dismissed_until": (
+                    device.monitor_dismissed_until.isoformat()
+                    if device.monitor_dismissed_until
+                    else None
+                ),
                 "is_simulated": device.is_simulated,
                 "enrollment_method": device.enrollment_method or "pre-provisioned",
                 "device_source": (
@@ -1949,7 +1963,13 @@ async def toggle_device_monitor(
     db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> Dict[str, Any]:
-    """Toggle the monitoring status of a device."""
+    """Toggle the monitoring status of a device.
+
+    Adding a device to the Dashboard pins it (``is_monitored=True``) and clears
+    any prior dismissal. Removing it clears the flag and records a
+    ``monitor_dismissed_until`` cooldown so the anomaly scan does not
+    immediately re-pin an auto-monitored device the operator just dismissed.
+    """
     try:
         db_user = cast(
             User, db.query(User).filter(User.email == current_user["email"]).first()
@@ -1973,12 +1993,24 @@ async def toggle_device_monitor(
             )
 
             device.is_monitored = monitor  # type: ignore
+            if monitor:
+                device.monitor_dismissed_until = None  # type: ignore
+            else:
+                dismiss_until = datetime.now(timezone.utc) + timedelta(
+                    minutes=MONITOR_DISMISS_MINUTES
+                )
+                device.monitor_dismissed_until = dismiss_until  # type: ignore
             await session.commit()
 
             return {
                 "message": f"Device monitoring {'enabled' if monitor else 'disabled'}",
                 "device_id": device.device_id,
                 "is_monitored": device.is_monitored,
+                "monitor_dismissed_until": (
+                    device.monitor_dismissed_until.isoformat()
+                    if device.monitor_dismissed_until
+                    else None
+                ),
             }
 
     except HTTPException:
@@ -2072,6 +2104,11 @@ async def get_devices_by_site(
                 "status": d.status,
                 "ip_address": d.ip_address,
                 "is_monitored": d.is_monitored,
+                "monitor_dismissed_until": (
+                    d.monitor_dismissed_until.isoformat()
+                    if d.monitor_dismissed_until
+                    else None
+                ),
                 "is_simulated": d.is_simulated,
                 "active_alerts": alert_map.get(d.device_id, 0),
                 "enrollment_method": getattr(d, "enrollment_method", "pre-provisioned"),

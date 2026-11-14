@@ -1023,7 +1023,7 @@ export default function Device() {
                   onClick={handleToggleMonitor}
                   className={device?.is_monitored ? 'text-yellow-400 border-yellow-400' : ''}
                 >
-                  {device?.is_monitored ? 'Monitored' : 'Add to Dashboard'}
+                  {device?.is_monitored ? 'Remove from Dashboard' : 'Add to Dashboard'}
                 </ActionButton>
 
                 <ActionButton onClick={handleDirectConnect} className="flex items-center gap-2">

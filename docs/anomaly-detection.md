@@ -188,9 +188,13 @@ Beyond the current metric thresholds, the following are worth considering:
 - **Flapping window**: last `window_size` (50) health checks.
 - **Scan cadence**: 5 minutes, in-process (mirrors the retention loops), read
   from config `anomaly_detection.scan_interval_minutes`.
+- **Monitoring model (operator + algorithm)**: keep `Device.is_monitored` as the
+  operator's manual pin and add `Device.monitor_dismissed_until` for operator
+  override. Effective "on Dashboard" = `is_monitored OR (auto-monitored AND not
+  dismissed)`, where auto-monitored = latest scan level >= 2. An operator's
+  "Remove from Dashboard" clears the pin and sets the dismiss cooldown; "Add to
+  Dashboard" clears the dismiss.
 
 ### Open decisions
 - Auto-promotion vs. operator approval for Level 2.
 - De-escalation threshold (N clean scans).
-- Whether `is_monitored` (manual) and the new auto-promoted tier are the same
-  flag or separate.

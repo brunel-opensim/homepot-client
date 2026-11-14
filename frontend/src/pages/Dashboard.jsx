@@ -306,10 +306,13 @@ export default function Dashboard() {
           )
         );
 
-        // Auto-monitor devices with active alerts
+        // Auto-monitor devices with active alerts, unless the operator has
+        // dismissed them (monitor_dismissed_until is still in the future).
         const alertedDeviceIds = new Set(anomalies.map((a) => a.device_id));
+        const isDismissed = (device) =>
+          !!device.monitor_dismissed_until && new Date(device.monitor_dismissed_until) > new Date();
         const monitoredDevices = fetchedDevices
-          .filter((d) => d.is_monitored || alertedDeviceIds.has(d.device_id))
+          .filter((d) => d.is_monitored || (alertedDeviceIds.has(d.device_id) && !isDismissed(d)))
           .map((d) => {
             const site = fetchedSites.find((s) => s.site_id === d.site_id);
             return site ? { ...d, latitude: site.latitude, longitude: site.longitude } : d;
