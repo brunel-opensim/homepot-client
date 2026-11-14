@@ -503,7 +503,7 @@ export default function DeviceHistory() {
 
         {/* Details Modal */}
         <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-          <DialogContent className="max-w-2xl bg-card border-gray-800 text-white">
+          <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-hidden bg-card border-gray-800 text-white">
             <DialogHeader>
               <DialogTitle>Command Details</DialogTitle>
               <DialogDescription>
@@ -512,7 +512,7 @@ export default function DeviceHistory() {
             </DialogHeader>
 
             {selectedCommand && (
-              <div className="mt-4 space-y-4">
+              <div className="mt-4 space-y-4 overflow-y-auto min-h-0">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-gray-500 block">Status</span>
