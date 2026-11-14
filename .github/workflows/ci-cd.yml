@@ -358,8 +358,9 @@ jobs:
         # Windows: the already-sharded jobs run serially (no nested xdist).
         # Nesting `-n auto` inside the sharded Windows jobs intermittently
         # triggers a silent pytest-xdist worker-teardown that exits 1 despite
-        # all tests passing. Ubuntu/macOS (single shard, one platform+forked)
-        # keep `-n auto` for speed and are stable.
+        # all tests passing. Ubuntu keeps `-n auto` for speed and is stable
+        # because it runs against a real PostgreSQL instance (isolated per
+        # worker via a dedicated test database).
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           # Windows runners are serially sharded by test count (see the
           # TEST_TARGETS split below) so each known-heavy file gets its own
@@ -371,6 +372,15 @@ jobs:
           # localhost backend that is never running in CI, and can hang or
           # produce spurious failures on Windows runners. Exclude them there.
           MARKER_ARGS=(-m "not slow and not integration and not performance")
+        elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          # macOS runs against a file-based SQLite (sqlite+aiosqlite:///./test.db).
+          # Parallel xdist workers racing on that single shared file produce
+          # non-deterministic failures: "no such table", "database is locked",
+          # and cross-worker data leakage (e.g. Gate B seeing telemetry seeded
+          # by a concurrent worker). Run serially for determinism, keeping the
+          # full test selection (slow/integration/performance included).
+          XDIST_ARGS="-n 0"
+          MARKER_ARGS=()
         else
           XDIST_ARGS="-n auto"
           MARKER_ARGS=()
