@@ -3,6 +3,7 @@
 import base64
 from datetime import datetime, timezone
 import hashlib
+import json
 import logging
 import os
 import platform
@@ -1788,14 +1789,14 @@ def _run_list_installed_programs() -> Dict[str, Any]:
         "    'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*',\n"
         "    'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'\n"
         ");\n"
-        "Get-ItemProperty $paths -ErrorAction SilentlyContinue |\n"
+        "@(Get-ItemProperty $paths -ErrorAction SilentlyContinue |\n"
         "    Where-Object { $_.DisplayName -and $_.DisplayName.Trim() } |\n"
         "    Select-Object @{N='Name';E={$_.DisplayName}},\n"
         "                 @{N='Version';E={$_.DisplayVersion}},\n"
         "                 @{N='Location';E={$_.InstallLocation}},\n"
         "                 @{N='Publisher';E={$_.Publisher}} |\n"
-        "    Sort-Object Name |\n"
-        "    Format-Table -AutoSize -Wrap | Out-String -Width 4096\n"
+        "    Sort-Object Name) |\n"
+        "    ConvertTo-Json -Compress\n"
     )
     argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
     try:
@@ -1817,15 +1818,27 @@ def _run_list_installed_programs() -> Dict[str, Any]:
                 "truncated": len(raw_error) > MAX_COMMAND_OUTPUT,
             },
         }
-    raw_stdout = completed.stdout or ""
-    raw_stderr = completed.stderr or ""
+
+    raw_stdout = (completed.stdout or "").strip()
+    if not raw_stdout:
+        return {"status": "completed", "result": {"count": 0, "programs": []}}
+    try:
+        parsed = json.loads(raw_stdout)
+    except json.JSONDecodeError:
+        return {
+            "status": "failed",
+            "result": {"error": "could not parse program listing output"},
+        }
+    # ConvertTo-Json emits an array for multiple items; a single item is an
+    # object. Normalise to a list and drop any non-dict entries.
+    programs = parsed if isinstance(parsed, list) else [parsed]
+    programs = [p for p in programs if isinstance(p, dict)]
+
     return {
         "status": "completed",
         "result": {
-            "stdout": raw_stdout[-MAX_COMMAND_OUTPUT:],
-            "stderr": raw_stderr[-MAX_COMMAND_OUTPUT:],
-            "truncated": len(raw_stdout) > MAX_COMMAND_OUTPUT
-            or len(raw_stderr) > MAX_COMMAND_OUTPUT,
+            "count": len(programs),
+            "programs": programs,
         },
     }
 

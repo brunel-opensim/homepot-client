@@ -157,7 +157,51 @@ function renderStructuredResult(result) {
       />
     );
   }
+  if (result?.programs) {
+    return (
+      <DataTable
+        columns={[
+          { key: 'name', label: 'Name', color: 'text-slate-200' },
+          { key: 'version', label: 'Version', color: 'text-blue-300' },
+          { key: 'publisher', label: 'Publisher', color: 'text-slate-300' },
+          { key: 'location', label: 'Location', color: 'text-emerald-300' },
+        ]}
+        rows={result.programs}
+      />
+    );
+  }
   return null;
+}
+
+// A flat, scalar-only result dict (e.g. status_request) is rendered as a
+// key/value list rather than a raw JSON blob.
+function isFlatResult(result) {
+  return (
+    result &&
+    typeof result === 'object' &&
+    !Array.isArray(result) &&
+    Object.keys(result).length > 0 &&
+    Object.values(result).every((v) => v == null || typeof v !== 'object')
+  );
+}
+
+function renderKeyValue(result) {
+  if (!isFlatResult(result)) return null;
+  return (
+    <div className="text-xs font-mono">
+      {Object.entries(result).map(([key, value]) => (
+        <div
+          key={key}
+          className="flex justify-between gap-4 py-0.5 border-b border-[#1f2735]/50 last:border-0"
+        >
+          <span className="text-slate-500 shrink-0">{key}</span>
+          <span className="text-slate-200 break-all text-right">
+            {value == null ? '—' : String(value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 const COMMAND_TYPE_TO_TEMPLATE = {
@@ -798,6 +842,7 @@ export default function DeviceHistory() {
                         </div>
                       )}
                       {renderStructuredResult(selectedCommand.result)}
+                      {renderKeyValue(selectedCommand.result)}
                       {!selectedCommand.result.stdout &&
                         !selectedCommand.result.stderr &&
                         !selectedCommand.result.message &&
@@ -805,7 +850,9 @@ export default function DeviceHistory() {
                         !selectedCommand.result.results &&
                         !selectedCommand.result.processes &&
                         !selectedCommand.result.connections &&
-                        !selectedCommand.result.entries && (
+                        !selectedCommand.result.entries &&
+                        !selectedCommand.result.programs &&
+                        !isFlatResult(selectedCommand.result) && (
                           <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                             {JSON.stringify(selectedCommand.result, null, 2)}
                           </pre>
