@@ -357,6 +357,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         description="List users currently logged into the device. Read-only.",
         required_params=(),
     ),
+    "get_system_info": ActionSpec(
+        name="get_system_info",
+        command_type="get_system_info",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="viewer",
+        description=(
+            "Return a hardware/OS inventory snapshot (CPU, RAM, OS build, and "
+            "on Windows serial/model/GPU). Read-only; no state change."
+        ),
+        required_params=(),
+    ),
 }
 
 
