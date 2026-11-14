@@ -370,6 +370,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "notify_user": ActionSpec(
+        name="notify_user",
+        command_type="notify_user",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="operator",
+        description=(
+            "Show a message to the person at the device. Transient; no "
+            "persistent state change."
+        ),
+        required_params=("message",),
+    ),
 }
 
 
