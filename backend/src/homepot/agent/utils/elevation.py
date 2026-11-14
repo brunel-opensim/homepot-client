@@ -304,13 +304,14 @@ def sync_os_elevation(permissions: Optional[Dict[str, bool]]) -> None:
                     "Elevation not provisioned while root_access granted; app must run installer"
                 )
                 return
-            if os.name == "nt" and not is_windows_task_current():
+            if os.name == "nt" and is_windows_task_stale():
                 # The task exists but runs an action from an older release, so
-                # it never answers an elevation request. Only a fresh grant
-                # (re-running the installer) can repair it.
+                # it never answers an elevation request. Only a fresh install
+                # (re-running the installer) can repair it; the User App does
+                # that automatically, so the owner is not asked to toggle.
                 logger.warning(
                     "Elevation task '%s' runs a stale action; the app must re-run "
-                    "the installer (toggle Manage off and on) to repair it",
+                    "the installer to repair it",
                     WINDOWS_TASK_NAME,
                 )
             if not os.path.isfile(allowlist_path()):
@@ -403,20 +404,63 @@ def _read_helper_error() -> str:
         return ""
 
 
+def _windows_task_arguments() -> Optional[str]:
+    """Return the elevation task's raw ``Arguments`` string, or None.
+
+    The Task Scheduler API (via PowerShell's ``Get-ScheduledTask``) is used
+    because ``schtasks /fo LIST`` wraps long values at the console width. A
+    wrapped "Task To Run" line can split the ``execute-request`` verb across
+    two lines and make a perfectly working task look stale — which would then
+    wrongly block ``update_program`` and friends. This is the same API the
+    installer uses to verify the task it just registered, and it grants
+    Authenticated Users read access to the task for exactly this check.
+
+    Returns None when the task or its arguments cannot be read, so the caller
+    can treat the state as unknown instead of guessing.
+    """
+    if os.name != "nt":
+        return None
+    script = (
+        f"$t = Get-ScheduledTask -TaskName '{WINDOWS_TASK_NAME}' "
+        "-ErrorAction Stop; "
+        "($t.Actions | ForEach-Object { $_.Arguments }) -join ' '"
+    )
+    try:
+        result = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    arguments = (result.stdout or "").strip()
+    return arguments or None
+
+
 def windows_task_state() -> Dict[str, Any]:
     """Return the Windows elevation task's registration state.
 
-    ``registered`` is False when the task does not exist, ``action`` holds the
-    task's "Task To Run" line and ``current`` says whether that action is the
-    ``execute-request`` verb this release expects. A task left over from an
-    older release keeps working as far as Task Scheduler is concerned but
-    never produces a result, so the agent needs to recognise it and ask for a
-    fresh grant instead of timing out silently.
+    ``registered`` is False when the task does not exist and ``action`` holds
+    the task's arguments (best effort) for diagnostics.
 
-    The plain-text ``schtasks /fo LIST`` output is used rather than
-    ``/xml`` because the XML is UTF-16 and would not survive decoding.
+    ``current`` is deliberately tri-state:
+
+    * ``True`` — the task runs this release's ``execute-request`` verb.
+    * ``False`` — the task positively runs a different (older) action, so it
+      will never answer an elevation request and needs a fresh grant.
+    * ``None`` — the task exists but its action could not be read. Callers must
+      treat this as "unknown", not "stale": blocking a command that may well
+      work is worse than attempting it and diagnosing a real timeout.
+
+    A task left over from an older release still looks healthy to Task
+    Scheduler but never produces a result, so it is worth recognising before a
+    long timeout — but only when the action can actually be read.
     """
-    state: Dict[str, Any] = {"registered": False, "action": "", "current": False}
+    state: Dict[str, Any] = {"registered": False, "action": "", "current": None}
     if os.name != "nt":
         return state
     try:
@@ -432,24 +476,39 @@ def windows_task_state() -> Dict[str, Any]:
     if result.returncode != 0:
         return state
     state["registered"] = True
-    # schtasks /fo LIST may wrap long values across lines, so search the
-    # entire output rather than a single line: the presence of the
-    # execute-request verb anywhere means the task runs the current helper.
+
+    arguments = _windows_task_arguments()
+    if arguments is not None:
+        state["action"] = arguments
+        state["current"] = "execute-request" in arguments
+        return state
+
+    # The API was unreadable. Fall back to the plain-text listing, but only
+    # trust a positive match: a wrap may have split the verb, so its absence is
+    # reported as unknown (None) rather than stale (False).
     full_output = result.stdout or ""
-    state["current"] = "execute-request" in full_output
-    # Capture the first line that mentions the helper for diagnostics.
     for line in full_output.splitlines():
         if "homepot-ctl" in line or "execute-request" in line:
             state["action"] = line.strip()
             break
-    if not state["action"]:
-        state["action"] = full_output.strip()[:200]
+    if "execute-request" in full_output:
+        state["current"] = True
     return state
 
 
 def is_windows_task_current() -> bool:
-    """Whether the registered task runs the current ``execute-request`` verb."""
-    return bool(windows_task_state()["current"])
+    """Whether the task positively runs the current ``execute-request`` verb."""
+    return windows_task_state()["current"] is True
+
+
+def is_windows_task_stale() -> bool:
+    """Whether the task exists and positively runs an older action.
+
+    Unknown/unreadable actions are not reported as stale, so a detection
+    glitch never blocks a command that would otherwise work.
+    """
+    state = windows_task_state()
+    return bool(state["registered"]) and state["current"] is False
 
 
 def run_elevated(
@@ -574,8 +633,8 @@ def run_elevated(
         details.append(f"task action: {task_state['action']}")
     elif task_state["registered"]:
         details.append(
-            f"task '{WINDOWS_TASK_NAME}' is registered with no readable action "
-            "(re-grant 'Manage device' access to repair)"
+            f"task '{WINDOWS_TASK_NAME}' is registered but its action could "
+            "not be read"
         )
     else:
         details.append(f"task '{WINDOWS_TASK_NAME}' is not registered")

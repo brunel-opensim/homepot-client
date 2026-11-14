@@ -374,54 +374,103 @@ def _completed(argv, returncode=0, stdout="", stderr=""):
 
 
 class TestWindowsTaskState:
-    """The agent can tell a missing task from one with a stale action."""
+    """The agent can tell a stale task from one it simply cannot read."""
+
+    @staticmethod
+    def _run(schtasks_out="", schtasks_rc=0, arguments=None, arguments_rc=0):
+        """Fake ``subprocess.run`` dispatching on the executable name."""
+
+        def fake_run(argv, **_kwargs):
+            if argv and argv[0] == "powershell":
+                return _completed(
+                    argv,
+                    arguments_rc,
+                    stdout=arguments or "",
+                    stderr="" if arguments is not None else "error",
+                )
+            return _completed(argv, schtasks_rc, stdout=schtasks_out)
+
+        return fake_run
+
+    def _state(self, fn, **kwargs):
+        with (
+            patch("homepot.agent.utils.elevation.os.name", "nt"),
+            patch(
+                "homepot.agent.utils.elevation.subprocess.run",
+                side_effect=self._run(**kwargs),
+            ),
+        ):
+            return fn()
 
     def test_not_registered_when_query_fails(self):
         """A failed query means the task does not exist."""
-        with patch("homepot.agent.utils.elevation.os.name", "nt"):
-            with patch(
-                "homepot.agent.utils.elevation.subprocess.run",
-                return_value=_completed([], 1, stderr="ERROR: not found"),
-            ):
-                state = elevation.windows_task_state()
-        assert state == {"registered": False, "action": "", "current": False}
-        assert elevation.is_windows_task_current() is False
+        state = self._state(
+            elevation.windows_task_state, schtasks_rc=1, schtasks_out=""
+        )
+        assert state == {"registered": False, "action": "", "current": None}
+        assert self._state(elevation.is_windows_task_current, schtasks_rc=1) is False
+        assert self._state(elevation.is_windows_task_stale, schtasks_rc=1) is False
 
     def test_detects_current_action(self):
-        """A task running `execute-request` is the current one."""
-        stdout = (
+        """The API reading returns the verb intact, so the task is current."""
+        arguments = (
+            "-NoProfile -NonInteractive -ExecutionPolicy Bypass "
+            '-File "C:\\ProgramData\\Homepot\\homepot-ctl.ps1" execute-request'
+        )
+        state = self._state(elevation.windows_task_state, arguments=arguments)
+        assert state["registered"] is True
+        assert state["current"] is True
+        assert "execute-request" in state["action"]
+        assert (
+            self._state(elevation.is_windows_task_stale, arguments=arguments) is False
+        )
+
+    def test_detects_stale_action(self):
+        """A task from an older release is registered but never answers."""
+        arguments = (
+            "-NoProfile -NonInteractive -ExecutionPolicy Bypass "
+            '-File "C:\\ProgramData\\Homepot\\homepot-ctl.ps1"'
+        )
+        state = self._state(elevation.windows_task_state, arguments=arguments)
+        assert state["registered"] is True
+        assert state["current"] is False
+        assert self._state(elevation.is_windows_task_stale, arguments=arguments) is True
+        assert (
+            self._state(elevation.is_windows_task_current, arguments=arguments) is False
+        )
+
+    def test_wrapped_list_output_is_unknown_not_stale(self):
+        """A wrapped `Task To Run` can hide the verb; do not block on that.
+
+        ``schtasks /fo LIST`` wraps long values at the console width, so on a
+        real device the verb may be split across lines even though the task
+        works. When the API is also unreadable the state must be unknown, so
+        the command is attempted instead of failing fast.
+        """
+        wrapped = (
             "TaskName:         \\HOMEPOT-Elevation\n"
+            "Task To Run:      powershell.exe -NoProfile -NonInteractive -Exec\n"
+            '                  utionPolicy Bypass -File "C:\\ProgramData\\Hom\n'
+            '                  epot\\homepot-ctl.ps1" execute-requ\n'
+            "                  est\n"
+        )
+        state = self._state(elevation.windows_task_state, schtasks_out=wrapped)
+        assert state["registered"] is True
+        assert state["current"] is None
+        assert (
+            self._state(elevation.is_windows_task_stale, schtasks_out=wrapped) is False
+        )
+
+    def test_intact_list_output_is_current_without_the_api(self):
+        """A readable verb in the listing is trusted when the API fails."""
+        listing = (
             "Task To Run:      powershell.exe -NoProfile -NonInteractive "
             '-ExecutionPolicy Bypass -File "C:\\ProgramData\\Homepot\\homepot-ctl.ps1" '
             "execute-request\n"
         )
-        with patch("homepot.agent.utils.elevation.os.name", "nt"):
-            with patch(
-                "homepot.agent.utils.elevation.subprocess.run",
-                return_value=_completed([], 0, stdout=stdout),
-            ):
-                state = elevation.windows_task_state()
-                assert elevation.is_windows_task_current() is True
+        state = self._state(elevation.windows_task_state, schtasks_out=listing)
         assert state["registered"] is True
         assert state["current"] is True
-        assert "execute-request" in state["action"]
-
-    def test_detects_stale_action(self):
-        """A task from an older release is registered but never answers."""
-        stdout = (
-            "TaskName:         \\HOMEPOT-Elevation\n"
-            "Task To Run:      powershell.exe -NoProfile -NonInteractive "
-            '-ExecutionPolicy Bypass -File "C:\\ProgramData\\Homepot\\homepot-ctl.ps1"\n'
-        )
-        with patch("homepot.agent.utils.elevation.os.name", "nt"):
-            with patch(
-                "homepot.agent.utils.elevation.subprocess.run",
-                return_value=_completed([], 0, stdout=stdout),
-            ):
-                state = elevation.windows_task_state()
-        assert state["registered"] is True
-        assert state["current"] is False
-        assert elevation.is_windows_task_current() is False
 
 
 class TestRunElevatedWindows:

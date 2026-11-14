@@ -1595,14 +1595,37 @@ function readElevationInstallStatus(): string {
   }
 }
 
-function isWindowsTaskCurrent(): boolean {
-  if (process.platform !== 'win32') return true
+function windowsElevationTaskStatus(): 'current' | 'stale' | 'missing' | 'unknown' {
+  // Ask the Task Scheduler API instead of `schtasks /fo LIST`: the listing
+  // wraps long values at the console width and can split the
+  // `execute-request` verb, making a working task look stale and triggering a
+  // needless repair prompt.
+  if (process.platform !== 'win32') return 'current'
   try {
-    const out = execFileSync('schtasks', ['/query', '/tn', 'HOMEPOT-Elevation', '/fo', 'LIST'], { encoding: 'utf8', stdio: 'pipe' })
-    return /execute-request/.test(out)
+    const script =
+      "$t = Get-ScheduledTask -TaskName 'HOMEPOT-Elevation' -ErrorAction SilentlyContinue; " +
+      "if (-not $t) { 'missing' } " +
+      "elseif ((($t.Actions | ForEach-Object { $_.Arguments }) -join ' ') -match 'execute-request') { 'current' } " +
+      "else { 'stale' }"
+    const out = execFileSync(
+      'powershell',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { encoding: 'utf8', stdio: 'pipe' }
+    )
+      .trim()
+      .toLowerCase()
+    if (out === 'current' || out === 'stale' || out === 'missing') return out
+    return 'unknown'
   } catch {
-    return false
+    return 'unknown'
   }
+}
+
+function isWindowsTaskCurrent(): boolean {
+  // Unknown counts as current: a repair costs the owner a UAC prompt, so only
+  // a positively stale or missing task justifies one.
+  const status = windowsElevationTaskStatus()
+  return status === 'current' || status === 'unknown'
 }
 
 function managedElevationStatus() {
@@ -1735,6 +1758,55 @@ async function installManagedElevation(): Promise<{ installed: boolean; reason: 
   }
   recordAppEvent(provisioned ? 'info' : 'warning', 'elevation', provisioned ? 'Managed elevation installed' : 'Elevation install completed but the elevation marker was not created')
   return { installed: provisioned, reason: provisioned ? null : 'Elevation installer ran but the elevation marker was not created' }
+}
+
+/**
+ * Re-run the installer when the elevation task is positively stale or missing.
+ *
+ * The task is created once during the "Manage device" grant. If an older
+ * installer left an outdated action (or the task was removed), the agent
+ * cannot self-repair because re-creating it needs UAC. The owner already
+ * granted access, so we repair it automatically instead of asking them to
+ * toggle the permission again; the only interaction is the OS UAC prompt.
+ *
+ * Runs once per launch and, on failure, at most once per 24h so a declined
+ * prompt is not re-offered every time the app starts. An unreadable task is
+ * left alone: a needless UAC prompt is worse than a detection miss.
+ */
+async function repairStaleElevationOnStartup(): Promise<void> {
+  if (process.platform !== 'win32') return
+  try {
+    const status = managedElevationStatus()
+    if (!status.provisioned || status.taskCurrent) return
+    const cooldownFile = path.join(os.tmpdir(), 'homepot-elevation-repair-attempt.txt')
+    try {
+      if (fs.existsSync(cooldownFile)) {
+        const last = parseInt(fs.readFileSync(cooldownFile, 'utf8').trim(), 10)
+        if (Date.now() - last < 24 * 60 * 60 * 1000) return
+      }
+    } catch {
+      // A broken cooldown file must not block a legitimate repair.
+    }
+    try {
+      fs.writeFileSync(cooldownFile, String(Date.now()))
+    } catch {
+      // Best effort: without the cooldown we may retry once per launch.
+    }
+    recordAppEvent('info', 'elevation', 'Elevation task stale or missing; repairing automatically')
+    const res = await installManagedElevation()
+    if (res.installed) {
+      try {
+        fs.rmSync(cooldownFile, { force: true })
+      } catch {
+        // Ignore: a leftover cooldown only delays the next repair.
+      }
+      recordAppEvent('info', 'elevation', 'Elevation repaired automatically')
+    } else {
+      recordAppEvent('warning', 'elevation', `Elevation auto-repair failed: ${res.reason}`)
+    }
+  } catch (err) {
+    recordAppEvent('warning', 'elevation', `Elevation auto-repair check failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 async function deprovisionManagedElevation(): Promise<{ deprovisioned: boolean; reason: string | null }> {
@@ -2097,7 +2169,7 @@ function pollForCredentials(credsPath: string, timeoutMs: number): Promise<Recor
   })
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   if (!hasSingleInstanceLock) return
   const isFirstLaunch = !fs.existsSync(getAppLogFile())
   if (isFirstLaunch) {
@@ -2117,45 +2189,14 @@ app.whenReady().then(async () => {
   // launch, keeping the agent in the tray until the operator opens it.
   hiddenLoginLaunch = process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin
   registerIpcHandlers()
-  // Auto-repair a stale/misconfigured elevation scheduled task on startup.
-  // The task is normally created once during the "Manage device" grant; if it
-  // became stale (e.g. an older installer) the agent cannot self-repair
-  // (UAC required), so we re-run the installer here. The user only has to
-  // accept the OS UAC prompt — no Dashboard toggle. A 24h cooldown avoids
-  // repeated prompts if the repair fails.
-  if (process.platform === 'win32') {
-    try {
-      const st = managedElevationStatus()
-      if (st.provisioned && !st.taskCurrent) {
-        const cooldownFile = path.join(os.tmpdir(), 'homepot-elevation-repair-attempt.txt')
-        let skip = false
-        try {
-          if (fs.existsSync(cooldownFile)) {
-            const last = parseInt(fs.readFileSync(cooldownFile, 'utf8').trim(), 10)
-            if (Date.now() - last < 24 * 60 * 60 * 1000) skip = true
-          }
-        } catch { /* ignore */ }
-        if (!skip) {
-          try { fs.writeFileSync(cooldownFile, String(Date.now())) } catch { /* ignore */ }
-          recordAppEvent('info', 'elevation', 'Elevation task stale; auto-repairing on startup')
-          const res = await installManagedElevation()
-          if (res.installed) {
-            try { fs.rmSync(cooldownFile, { force: true }) } catch { /* ignore */ }
-            recordAppEvent('info', 'elevation', 'Elevation repaired automatically')
-          } else {
-            recordAppEvent('warning', 'elevation', `Elevation auto-repair failed: ${res.reason}`)
-          }
-        }
-      }
-    } catch (err) {
-      recordAppEvent('warning', 'elevation', `Elevation auto-repair check failed: ${err instanceof Error ? err.message : String(err)}`)
-    }
-  }
   adoptExistingEmulatorDevice()
   resumePersistedEmulator()
   startDeviceAgentIfProvisioned()
   createWindow()
   createTray()
+  // Repair a stale elevation task in the background so a UAC prompt never
+  // blocks the window from appearing.
+  void repairStaleElevationOnStartup()
 
   scheduleAutoUpdateChecks()
 
