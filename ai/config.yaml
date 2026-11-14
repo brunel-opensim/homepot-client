@@ -213,7 +213,10 @@ database:
 # `window_size` is a reserved key and is not currently applied by the detector.
 anomaly_detection:
   sensitivity: 0.8
-  window_size: 50
+  window_size: 50                  # number of health checks used for the flapping/persistence window
+  scan_interval_minutes: 5         # scheduled background scan cadence
+  persistence_window_minutes: 60   # look-back for counting repeated breaches
+  persistent_breach_count: 3       # breaches within the window that promote to Level 2
   thresholds:
     network_latency_ms: 200          # ms; above this flags "High Latency"
     cpu_percent: 90.0                # %; above this flags "High CPU"

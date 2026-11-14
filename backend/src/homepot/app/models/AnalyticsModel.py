@@ -354,6 +354,30 @@ class Alert(Base):
     )
 
 
+class AnomalyScan(Base):
+    """A single anomaly scan result for a device (multi-level detection).
+
+    Each scheduled scan appends one row per device so persistence can be
+    computed: repeated breaches over a window promote a device through the
+    levels, and consecutive clean scans de-escalate it. The latest row per
+    device feeds the Dashboard instead of the old ephemeral, on-demand scan.
+    """
+
+    __tablename__ = "anomaly_scans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, nullable=False, index=True, default=utc_now)
+    device_id = Column(String(50), nullable=False, index=True)
+    score = Column(Float, nullable=False, default=0.0)
+    level = Column(Integer, nullable=False, default=0)  # 0 normal .. 3 critical
+    severity = Column(String(20), nullable=True)  # normal, warning, critical
+    reasons = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("idx_anomaly_scan_device_timestamp", "device_id", "timestamp"),
+    )
+
+
 class AIActionPlan(Base):
     """A device-management action (or batch) proposed by the AI.
 
