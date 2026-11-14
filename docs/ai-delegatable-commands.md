@@ -94,5 +94,54 @@ Once manual testing is complete, create an automated script that:
 - Skips T3 actions (or runs them only with maintenance window).
 
 This ensures we test the full registry, not just health_check.
-PYEOF
-echo written
+
+## Candidate commands (explored, not yet implemented)
+
+Recorded from the device-management command exploration. These are proposed
+additions, each following the same tier classification and the
+`adding-a-device-command.md` flow when implemented.
+
+### T1 candidates — read-only diagnostics
+
+| Command type | What it solves | Priority |
+|---|---|---|
+| `get_system_info` | Full hardware/OS inventory (CPU/RAM/GPU, serial, BIOS, OS build, drivers) | High |
+| `list_drives` | Per-drive/per-volume free space + SMART health (disk-full triage) | High |
+| `network_test` | Structured ping/traceroute/DNS/TCP port test to a target | High |
+| `tail_system_log` | Recent OS errors (Windows Event Log / `journalctl`) | High |
+| `collect_support_bundle` | Zip logs + config + metrics into one support artifact | High |
+| `list_sessions` | Who is logged in / active sessions | High |
+| `get_patch_status` | Pending OS updates (Windows Update / apt / brew) + last patched | Medium |
+| `get_firewall_rules` | Firewall posture + open ports | Medium |
+| `get_hardware_sensors` | CPU/GPU temperature, fan speed | Medium |
+| `get_battery_status` | Charge %, health, cycle count (laptops/mobile) | Medium |
+| `list_peripherals` | Live USB/attached devices | Medium |
+| `check_certificates` | TLS certificate expiry (POS/terminal integrations) | Medium |
+
+### T2 candidates — reversible control
+
+| Command type | What it solves | Priority |
+|---|---|---|
+| `disk_cleanup` | Clear temp files / logs / caches to reclaim space | High |
+| `set_service_state` | Enable/disable/start/stop a service (beyond restart) | High |
+| `notify_user` | Show a toast/banner message on the device (operator-to-user channel) | High |
+| `flush_dns` | Flush DNS cache / reset network adapter | Medium |
+| `set_device_name` | Rename / tag the device from the dashboard | Medium |
+| `lock_screen` | Lock the terminal remotely | Medium |
+| `sleep` | Power-state control (sleep/hibernate) | Medium |
+| `rotate_credential` | Rotate the device's own API key | Medium |
+| `set_agent_config` | Toggle telemetry/alerts/collection intervals | Medium |
+
+### T3 candidates — disruptive
+
+| Command type | What it solves | Priority |
+|---|---|---|
+| `schedule_maintenance` | Shut down/restart at a future time | Medium |
+| `quarantine` | Isolate a compromised device (block network / lock) | Low (needs design) |
+| `remote_wipe` | Factory reset for lost/stolen | Low (likely a lifecycle action) |
+
+### Server-side actions (not device commands)
+
+| Action | What it solves |
+|---|---|
+| `wake_on_lan` | Wake an offline device (network broadcast from the server) |
