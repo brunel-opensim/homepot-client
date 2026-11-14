@@ -22,6 +22,7 @@ from ai.exceptions import AIBusyError  # noqa: E402
 from ai.tools import (  # noqa: E402
     TOOL_FUNCTIONS,
     TOOL_REGISTRY,
+    get_command,
     get_command_history,
     get_config_history,
     get_device_metrics,
@@ -38,9 +39,9 @@ from ai.tools import (  # noqa: E402
 # ── Tool registry tests ──────────────────────────────────────────────────────
 
 
-def test_tool_registry_has_all_thirteen_tools():
-    """Tool registry should contain exactly 13 tools."""
-    assert len(TOOL_REGISTRY) == 13
+def test_tool_registry_has_all_fourteen_tools():
+    """Tool registry should contain exactly 14 tools."""
+    assert len(TOOL_REGISTRY) == 14
 
 
 def test_tool_registry_names():
@@ -51,6 +52,7 @@ def test_tool_registry_names():
         "find_device",
         "get_error_logs",
         "get_command_history",
+        "get_command",
         "get_config_history",
         "search_similar_incidents",
         "get_fleet_summary",
@@ -191,6 +193,16 @@ async def test_get_command_history_no_commands():
         mock_cb.get_command_context = AsyncMock(return_value="")
         result = await get_command_history("POS-001")
         assert "No command history" in result
+
+
+@pytest.mark.asyncio
+async def test_get_command_missing_returns_not_found():
+    """get_command returns a not-found message for an unknown command."""
+    db = AsyncMock()
+    db.get_command = AsyncMock(return_value=None)
+    with patch("homepot.database.get_database_service", AsyncMock(return_value=db)):
+        result = await get_command("POS-001", "does-not-exist")
+        assert "not found" in result
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import datetime, timedelta
+import json
 import logging
 from typing import Any, Optional
 
@@ -40,6 +41,90 @@ from homepot.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Default caps for how much of each command-result field is exposed to the LLM.
+# Error/message strings are clipped from the front; stdout/stderr are clipped
+# from the tail (the final lines usually carry the status/error).
+_RESULT_FIELD_MAX = 500
+_RESULT_TAIL_MAX = 500
+
+
+def _clip(value: Any, maxlen: int = _RESULT_FIELD_MAX, tail: bool = False) -> str:
+    """Stringify and clip a value to ``maxlen`` characters."""
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    if len(text) <= maxlen:
+        return text
+    return ("..." + text[-maxlen:]) if tail else (text[:maxlen] + "...")
+
+
+def summarize_command_result(
+    result: Any,
+    *,
+    field_max: int = _RESULT_FIELD_MAX,
+    tail_max: int = _RESULT_TAIL_MAX,
+) -> str:
+    """Render a device-command result as a compact, error-first summary.
+
+    Priorities the fields technicians and the AI care about (error, message,
+    exit code, stderr/stdout) so the failure reason and executed command survive
+    context trimming. Data-list results (processes/connections/entries) are
+    reduced to a count rather than dumped as JSON.
+    """
+    if not result:
+        return ""
+    if not isinstance(result, dict):
+        return _clip(result, field_max)
+    parts: list = []
+    if result.get("error"):
+        parts.append(f"error={_clip(result['error'], field_max)}")
+    if result.get("message"):
+        parts.append(f"message={_clip(result['message'], field_max)}")
+    if result.get("exit_code") is not None:
+        parts.append(f"exit={result['exit_code']}")
+    if result.get("truncated"):
+        parts.append("truncated")
+    command_executed = result.get("command_executed")
+    if command_executed:
+        parts.append(f"cmd={_clip(command_executed, field_max)}")
+    stderr = result.get("stderr")
+    if stderr:
+        parts.append(f"stderr={_clip(stderr, tail_max, tail=True)}")
+    stdout = result.get("stdout")
+    if stdout:
+        parts.append(f"stdout={_clip(stdout, tail_max, tail=True)}")
+    results = result.get("results")
+    if isinstance(results, dict):
+        sub = []
+        for key, value in results.items():
+            if isinstance(value, dict):
+                bits = []
+                status = value.get("status")
+                if status is not None:
+                    bits.append(f"status={status}")
+                metric = value.get("value")
+                if metric is not None:
+                    bits.append(f"value={metric}")
+                if value.get("error"):
+                    bits.append(f"error={_clip(value['error'], 200)}")
+                if value.get("message"):
+                    bits.append(f"msg={_clip(value['message'], 200)}")
+                sub.append(f"{key}({', '.join(bits)})")
+            else:
+                sub.append(f"{key}={_clip(value, 100)}")
+        parts.append("results={" + "; ".join(sub) + "}")
+    for key in ("processes", "connections", "entries"):
+        value = result.get(key)
+        if isinstance(value, list):
+            parts.append(f"{key}={len(value)}")
+    count = result.get("count")
+    if isinstance(count, int):
+        parts.append(f"count={count}")
+    report = result.get("report")
+    if isinstance(report, dict):
+        parts.append(f"report={_clip(report, tail_max)}")
+    if not parts:
+        return _clip(result, field_max)
+    return "; ".join(parts)
 
 
 class ContextBuilder:
@@ -954,20 +1039,13 @@ class ContextBuilder:
         for cmd in commands:
             payload_summary = ""
             if cmd.payload:
-                import json as _json
-
-                payload_str = _json.dumps(cmd.payload, default=str)
+                payload_str = json.dumps(cmd.payload, default=str)
                 if len(payload_str) > 200:
                     payload_str = payload_str[:200] + "..."
                 payload_summary = f" payload={payload_str}"
-            result_summary = ""
-            if cmd.result:
-                import json as _json
-
-                result_str = _json.dumps(cmd.result, default=str)
-                if len(result_str) > 150:
-                    result_str = result_str[:150] + "..."
-                result_summary = f" result={result_str}"
+            result_summary = summarize_command_result(cmd.result)
+            if result_summary:
+                result_summary = f" result={result_summary}"
             context_lines.append(
                 f"- type={cmd.command_type} status={cmd.status}"
                 f"{payload_summary}{result_summary}"

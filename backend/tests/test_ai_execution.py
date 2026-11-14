@@ -428,6 +428,24 @@ def test_reconcile_hard_failure_without_rollback_fails():
         db.close()
 
 
+def test_reconcile_failed_command_captures_result_error():
+    """A failed command's result error is surfaced on the step for follow-ups."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(db, "POS-A", action="restart")
+        plan.steps[0].max_retries = 0
+        db.commit()
+        cmd = fake.commands[plan.steps[0].command_id]
+        cmd.status = "failed"
+        cmd.result = {"error": "winget not found; run bootstrap_winget", "exit_code": 1}
+
+        assert asyncio.run(reconcile_plan(db, plan, db_service=fake)) == "failed"
+        assert "winget not found" in plan.steps[0].error
+    finally:
+        db.close()
+
+
 def test_reconcile_rollback_command_failure_marks_failed():
     """A failed rollback command ends the plan as failed."""
     db = homepot.database.SessionLocal()
