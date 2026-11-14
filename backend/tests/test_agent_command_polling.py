@@ -231,6 +231,56 @@ def test_describe_executed_command_covers_remaining_commands():
     assert d("status_request", {}) == "collect a device status snapshot"
 
 
+def test_list_drives_returns_volume_usage():
+    """list_drives enumerates mounted volumes with free space."""
+    from homepot.agent.utils.command_poller import _run_list_drives
+
+    class _Part:
+        def __init__(self, device, mountpoint, fstype):
+            self.device = device
+            self.mountpoint = mountpoint
+            self.fstype = fstype
+
+    class _Usage:
+        def __init__(self, total, used, free, percent):
+            self.total = total
+            self.used = used
+            self.free = free
+            self.percent = percent
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller.psutil.disk_partitions",
+            return_value=[
+                _Part("/dev/sda1", "/", "ext4"),
+                _Part("/dev/sda2", "/mnt/data", "ext4"),
+            ],
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.psutil.disk_usage",
+            side_effect=[
+                _Usage(100_000_000_000, 50_000_000_000, 50_000_000_000, 50.0),
+                _Usage(200_000_000_000, 190_000_000_000, 10_000_000_000, 95.0),
+            ],
+        ),
+    ):
+        result = _run_list_drives({})
+
+    assert result["status"] == "completed"
+    assert result["result"]["count"] == 2
+    drives = result["result"]["drives"]
+    assert drives[0]["mountpoint"] == "/"
+    assert drives[0]["percent"] == 50.0
+    assert drives[1]["mountpoint"] == "/mnt/data"
+    assert drives[1]["percent"] == 95.0
+
+
+def test_list_drives_in_command_types_and_permission():
+    """list_drives is registered and gated on command_execution."""
+    assert "list_drives" in COMMAND_TYPES
+    assert required_permissions_for_command("list_drives") == ["command_execution"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent

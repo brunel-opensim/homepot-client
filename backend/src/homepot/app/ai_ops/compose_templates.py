@@ -184,6 +184,14 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {"filter_state": "ESTABLISHED", "limit": 100},
         "description": "List the device's active network connections.",
     },
+    "LIST_DRIVES": {
+        "label": "List Drives",
+        "action": "list_drives",
+        "group": "Diagnostics",
+        "permission": "command_execution",
+        "defaultData": {},
+        "description": "List mounted drives/volumes and their free space.",
+    },
     "SCAN_FILESYSTEM": {
         "label": "Scan Filesystem",
         "action": "scan_filesystem",

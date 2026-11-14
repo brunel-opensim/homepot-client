@@ -66,6 +66,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         description=("List running processes on a device. Read-only; no state change."),
         required_params=(),
     ),
+    "list_drives": ActionSpec(
+        name="list_drives",
+        command_type="list_drives",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="viewer",
+        description=(
+            "List mounted drives/volumes and free space on a device. "
+            "Read-only; no state change."
+        ),
+        required_params=(),
+    ),
     "scan_filesystem": ActionSpec(
         name="scan_filesystem",
         command_type="scan_filesystem",

@@ -68,6 +68,18 @@ function normalizeOutput(value) {
     .replace(/\r/g, '\n');
 }
 
+function formatBytes(bytes) {
+  if (bytes == null) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  let v = Number(bytes);
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
 // A small generic table for list-style command results (processes, connections,
 // filesystem scans) that would otherwise render as an unreadable JSON blob.
 function DataTable({ columns, rows }) {
@@ -137,6 +149,38 @@ function renderStructuredResult(result) {
           { key: 'raddr', label: 'Remote', color: 'text-amber-300' },
         ]}
         rows={result.connections}
+      />
+    );
+  }
+  if (result?.drives) {
+    return (
+      <DataTable
+        columns={[
+          { key: 'mountpoint', label: 'Mount', color: 'text-slate-200' },
+          { key: 'device', label: 'Device', color: 'text-slate-300' },
+          { key: 'fstype', label: 'Type' },
+          {
+            key: 'total',
+            label: 'Total',
+            align: 'right',
+            render: (r) => formatBytes(r.total),
+          },
+          {
+            key: 'free',
+            label: 'Free',
+            align: 'right',
+            color: 'text-emerald-300',
+            render: (r) => formatBytes(r.free),
+          },
+          {
+            key: 'percent',
+            label: 'Used %',
+            align: 'right',
+            color: 'text-amber-300',
+            render: (r) => (r.percent == null ? '—' : `${r.percent}%`),
+          },
+        ]}
+        rows={result.drives}
       />
     );
   }
@@ -852,6 +896,7 @@ export default function DeviceHistory() {
                         !selectedCommand.result.connections &&
                         !selectedCommand.result.entries &&
                         !selectedCommand.result.programs &&
+                        !selectedCommand.result.drives &&
                         !isFlatResult(selectedCommand.result) && (
                           <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                             {JSON.stringify(selectedCommand.result, null, 2)}
