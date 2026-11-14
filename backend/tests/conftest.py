@@ -116,6 +116,14 @@ def pytest_runtest_call(item: pytest.Item) -> None:
 _arm_session_watchdog()
 
 
+@pytest.fixture(autouse=True)
+def isolate_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Restore the settings singleton after test environment patches are undone."""
+    import homepot.config
+
+    monkeypatch.setattr(homepot.config, "_settings", homepot.config._settings)
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Create a test client for the HOMEPOT application."""

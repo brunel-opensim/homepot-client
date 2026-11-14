@@ -70,6 +70,7 @@ class TestPOSDummy:
         db_fd, db_path = tempfile.mkstemp(suffix=".db")
         os.close(db_fd)
 
+        env = pytest.MonkeyPatch()
         engine = None
         try:
             # Set up test database
@@ -78,10 +79,14 @@ class TestPOSDummy:
 
             # Set environment variable for test database
             # Use DATABASE__URL (nested delimiter for Pydantic)
-            os.environ["DATABASE__URL"] = f"sqlite:///{db_path}"
+            env.setenv("DATABASE__URL", f"sqlite:///{db_path}")
 
             yield db_path
         finally:
+            env.undo()
+            from homepot.config import reload_settings
+
+            reload_settings()
             # Cleanup with proper connection disposal
             try:
                 # Dispose engine to close all connections
@@ -91,10 +96,6 @@ class TestPOSDummy:
                 # On Windows, add small delay for file handles to be released
                 if platform.system() == "Windows":
                     time.sleep(0.1)
-
-                # Clean up environment variable
-                if "DATABASE__URL" in os.environ:
-                    del os.environ["DATABASE__URL"]
 
                 # Try to remove the file with Windows-specific retry logic
                 if os.path.exists(db_path):
