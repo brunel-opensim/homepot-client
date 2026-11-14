@@ -420,6 +420,15 @@ const api = {
     },
 
     /**
+     * Get one command with its full execution result (stdout/stderr).
+     * The history list only carries a compact summary.
+     */
+    getCommand: async (deviceId, commandId) => {
+      const response = await apiClient.get(`/devices/device/${deviceId}/commands/${commandId}`);
+      return response.data;
+    },
+
+    /**
      * Cancel a command that is still in flight (PENDING/SENT).
      * The technical exit strategy for a hung command or push.
      */

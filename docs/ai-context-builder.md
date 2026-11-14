@@ -117,9 +117,13 @@ Currently, the Context Builder integrates the following data sources:
 
 ### 15. Recent Commands with Payloads (Dynamic)
 *   **Trigger:** Fetched when a device is specified (via `ContextBuilder.get_command_context()`).
-*   **Content:** Last 5 commands with their full `payload` and `result` JSON fields.
-*   **Fields:** Command type, status, payload JSON, result JSON.
-*   **Goal:** Shows the LLM real command patterns that have been executed, so it can adapt them when generating new payloads for technicians.
+*   **Content:** Last 5 commands. The `payload` is shown as a short JSON prefix (200 chars) and the `result` is rendered error-first via `summarize_command_result` — `error`/`message`/exit code/`truncated`/`command_executed`, with stdout/stderr tail-clipped and per-key `results`/list data reduced to counts.
+*   **Fields:** Command type, status, payload summary, result summary.
+*   **Goal:** Shows the LLM the real command patterns *and the failure reason* so it can propose the correct follow-up (e.g. "run `bootstrap_winget` first"). For the full result of one command, the assistant calls the `get_command(device_id, command_id)` tool.
+
+The command result is no longer injected as a raw `json.dumps(result)[:150]`
+prefix; see [Device Command Results](device-command-results.md) for the full
+feedback design and its validation checklist.
 
 ## Usage
 

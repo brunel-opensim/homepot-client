@@ -86,6 +86,10 @@ REQUIRED_PERMISSION: Dict[str, str] = {
 MAX_COMMAND_OUTPUT = 64 * 1024
 MAX_COMMAND_TIMEOUT = 300
 
+# Shared winget flags so the command that is described (audit trail) and the
+# command that is executed never drift apart.
+_WINGET_FLAGS = "--silent --accept-package-agreements --accept-source-agreements"
+
 # The agent exits with this reserved code after a ``restart_agent`` command has
 # been acknowledged so the Electron supervisor (user_app/electron/main.ts) can
 # distinguish a requested restart from a crash and respawn without counting it
@@ -1534,7 +1538,7 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
         except Exception:
             pass
 
-    flags = "--silent --accept-package-agreements --accept-source-agreements"
+    flags = _WINGET_FLAGS
     # Ensure winget (App Installer) is available before running any winget
     # command: on Windows 10 it may be missing. Bootstrap is idempotent and
     # checks first, installing only when winget is genuinely absent (avoids
@@ -1587,7 +1591,8 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
         raw_error = (
             outcome.get("error") or outcome.get("stderr") or f"{command_type} failed"
         )
-        stdout = (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:]
+        raw_stdout = outcome.get("stdout") or ""
+        stdout = raw_stdout[-MAX_COMMAND_OUTPUT:]
         # Surface an actionable hint when winget itself is missing so the
         # technician/AI knows to run bootstrap_winget first.
         if (
@@ -1605,14 +1610,19 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
                 "error": raw_error,
                 "exit_code": outcome.get("exit_code"),
                 "stdout": stdout,
+                "truncated": len(raw_stdout) > MAX_COMMAND_OUTPUT,
             },
         }
+    raw_stdout = outcome.get("stdout") or ""
+    raw_stderr = outcome.get("stderr") or ""
     return {
         "status": "completed",
         "result": {
             "exit_code": outcome.get("exit_code", 0),
-            "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
-            "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+            "stdout": raw_stdout[-MAX_COMMAND_OUTPUT:],
+            "stderr": raw_stderr[-MAX_COMMAND_OUTPUT:],
+            "truncated": len(raw_stdout) > MAX_COMMAND_OUTPUT
+            or len(raw_stderr) > MAX_COMMAND_OUTPUT,
         },
     }
 
@@ -1729,6 +1739,7 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
 
     outcome = elevation_util.run_elevated("exec", script, timeout)
     if not outcome.get("ok"):
+        raw_stdout = outcome.get("stdout") or ""
         return {
             "status": "failed",
             "result": {
@@ -1738,16 +1749,21 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
                     or "winget bootstrap failed"
                 ),
                 "exit_code": outcome.get("exit_code"),
-                "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
+                "stdout": raw_stdout[-MAX_COMMAND_OUTPUT:],
+                "truncated": len(raw_stdout) > MAX_COMMAND_OUTPUT,
             },
         }
+    raw_stdout = outcome.get("stdout") or ""
+    raw_stderr = outcome.get("stderr") or ""
     return {
         "status": "completed",
         "result": {
             "exit_code": outcome.get("exit_code", 0),
-            "stdout": (outcome.get("stdout") or "")[-MAX_COMMAND_OUTPUT:],
-            "stderr": (outcome.get("stderr") or "")[-MAX_COMMAND_OUTPUT:],
+            "stdout": raw_stdout[-MAX_COMMAND_OUTPUT:],
+            "stderr": raw_stderr[-MAX_COMMAND_OUTPUT:],
             "message": "winget (App Installer) is now available",
+            "truncated": len(raw_stdout) > MAX_COMMAND_OUTPUT
+            or len(raw_stderr) > MAX_COMMAND_OUTPUT,
         },
     }
 
@@ -1793,19 +1809,23 @@ def _run_list_installed_programs() -> Dict[str, Any]:
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"status": "failed", "result": {"error": f"program list failed: {exc}"}}
     if completed.returncode != 0:
+        raw_error = completed.stderr or completed.stdout or "program list failed"
         return {
             "status": "failed",
             "result": {
-                "error": (
-                    completed.stderr or completed.stdout or "program list failed"
-                )[-MAX_COMMAND_OUTPUT:]
+                "error": raw_error[-MAX_COMMAND_OUTPUT:],
+                "truncated": len(raw_error) > MAX_COMMAND_OUTPUT,
             },
         }
+    raw_stdout = completed.stdout or ""
+    raw_stderr = completed.stderr or ""
     return {
         "status": "completed",
         "result": {
-            "stdout": (completed.stdout or "")[-MAX_COMMAND_OUTPUT:],
-            "stderr": (completed.stderr or "")[-MAX_COMMAND_OUTPUT:],
+            "stdout": raw_stdout[-MAX_COMMAND_OUTPUT:],
+            "stderr": raw_stderr[-MAX_COMMAND_OUTPUT:],
+            "truncated": len(raw_stdout) > MAX_COMMAND_OUTPUT
+            or len(raw_stderr) > MAX_COMMAND_OUTPUT,
         },
     }
 
@@ -2253,23 +2273,42 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _describe_executed_command(command_type: str, command: Dict[str, Any]) -> str:
-    """Return a human-readable description of the OS command that was executed."""
+def _describe_executed_command(
+    command_type: str,
+    command: Dict[str, Any],
+    is_windows: Optional[bool] = None,
+) -> str:
+    """Return the OS command line that was (or would be) executed.
+
+    Mirrors the argv/script used by the corresponding runner so the stored
+    ``command_executed`` value is an accurate audit trail. ``is_windows`` lets
+    the backend describe an older agent's command using the device's OS instead
+    of the server's OS (where ``_is_windows_platform`` would be wrong).
+    """
     data = _command_data(command)
     if command_type in ("run_command", "run_script"):
         return str(data.get("command") or data.get("script") or command_type)
     if command_type == "restart_service":
         name = data.get("service_name", "")
-        if _is_windows_platform():
-            return "Restart-Service -Name %s" % name
-        return "systemctl restart %s" % name
+        windows = _is_windows_platform() if is_windows is None else is_windows
+        if windows:
+            return "Restart-Service -Name '%s'" % name
+        return "systemctl restart '%s'" % name
     if command_type == "update_config":
         keys = list((data or {}).keys())
         return "update_config: " + ", ".join(keys) if keys else "update_config"
     if command_type in ("install_program", "uninstall_program", "update_program"):
-        return "%s %s" % (
-            command_type,
-            data.get("package") or data.get("program_name") or "",
+        package = data.get("package") or data.get("program_name") or ""
+        if command_type == "install_program":
+            return f"winget install -e --id '{package}' {_WINGET_FLAGS} --scope machine"
+        if command_type == "uninstall_program":
+            return f"winget uninstall -e --id '{package}' --silent --scope machine"
+        return f"winget upgrade -e --id '{package}' {_WINGET_FLAGS} --scope machine"
+    if command_type == "upgrade_all_programs":
+        return f"winget upgrade --all {_WINGET_FLAGS} --scope machine"
+    if command_type == "bootstrap_winget":
+        return (
+            "bootstrap_winget: Add-AppxPackage App Installer only if winget is missing"
         )
     if command_type in ("start_program", "stop_program"):
         return "%s %s" % (command_type, data.get("path") or data.get("name") or "")
