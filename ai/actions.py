@@ -334,6 +334,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         description="List active network connections on the device. Read-only.",
         required_params=(),
     ),
+    "network_test": ActionSpec(
+        name="network_test",
+        command_type="network_test",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="network_monitoring",
+        min_role="viewer",
+        description=(
+            "Probe a host's connectivity (DNS resolution, ICMP ping, and an "
+            "optional TCP port check). Read-only; no state change."
+        ),
+        required_params=("host",),
+    ),
 }
 
 

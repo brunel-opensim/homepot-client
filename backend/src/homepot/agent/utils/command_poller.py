@@ -44,6 +44,7 @@ COMMAND_TYPES = frozenset(
         "list_connections",
         "list_drives",
         "tail_system_log",
+        "network_test",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -76,6 +77,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_connections": "network_monitoring",
     "list_drives": "command_execution",
     "tail_system_log": "command_execution",
+    "network_test": "network_monitoring",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -1002,6 +1004,93 @@ def _run_list_connections(data: Dict[str, Any]) -> Dict[str, Any]:
         "result": {
             "count": len(connections),
             "connections": connections[:limit],
+        },
+    }
+
+
+# --- network_test -----------------------------------------------------------
+
+
+def _network_test_dns(host: str) -> Dict[str, Any]:
+    """Resolve a hostname; report its addresses or the failure."""
+    try:
+        addrs = socket.getaddrinfo(host, None)
+        ips = sorted({str(a[4][0]) for a in addrs})
+        return {"status": "pass", "address": ", ".join(ips)}
+    except socket.gaierror as exc:
+        return {"status": "fail", "error": str(exc)}
+
+
+def _network_test_ping(host: str, timeout: int) -> Dict[str, Any]:
+    """Send one ICMP echo request; report pass/fail."""
+    if _is_windows_platform():
+        argv = ["ping", "-n", "1", "-w", str(int(timeout * 1000)), host]
+    else:
+        argv = ["ping", "-c", "1", "-W", str(max(1, int(timeout))), host]
+    try:
+        completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"status": "fail", "error": str(exc)}
+    if completed.returncode == 0:
+        return {"status": "pass"}
+    return {
+        "status": "fail",
+        "error": (completed.stdout or completed.stderr or "ping failed").strip()[-200:],
+    }
+
+
+def _network_test_tcp(host: str, port: int, timeout: int) -> Dict[str, Any]:
+    """Try a TCP connect to host:port; report pass/fail."""
+    try:
+        sock = socket.create_connection((host, port), timeout=timeout)
+        sock.close()
+        return {"status": "pass", "port": port}
+    except (OSError, socket.timeout) as exc:
+        return {"status": "fail", "port": port, "error": str(exc)}
+
+
+def _run_network_test(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Probe a host: DNS resolution, ICMP ping, and an optional TCP port check.
+
+    Read-only. Each sub-test is reported as pass/fail; the command status is
+    "failed" when any sub-test fails (mirroring health_check).
+    """
+    host = data.get("host")
+    if not isinstance(host, str) or not host.strip():
+        return {
+            "status": "failed",
+            "result": {"error": "A 'host' value is required"},
+        }
+    host = host.strip()
+
+    try:
+        timeout = max(1, min(int(data.get("timeout_seconds", 10)), 60))
+    except (TypeError, ValueError):
+        timeout = 10
+
+    results: Dict[str, Any] = {}
+    results["dns"] = _network_test_dns(host)
+    results["ping"] = _network_test_ping(host, timeout)
+
+    port = data.get("port")
+    if port is not None:
+        try:
+            results["tcp"] = _network_test_tcp(host, int(port), timeout)
+        except (TypeError, ValueError):
+            results["tcp"] = {"status": "fail", "error": "port must be an integer"}
+
+    all_pass = all(r.get("status") == "pass" for r in results.values())
+    return {
+        "status": "completed" if all_pass else "failed",
+        "result": {
+            "message": f"network test for {host}",
+            "results": results,
         },
     }
 
@@ -2433,6 +2522,9 @@ def _process_command_impl(
 
     if command_type == "tail_system_log":
         return _run_tail_system_log(_command_data(command))
+
+    if command_type == "network_test":
+        return _run_network_test(_command_data(command))
 
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))

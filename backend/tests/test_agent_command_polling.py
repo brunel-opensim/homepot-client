@@ -322,6 +322,68 @@ def test_tail_system_log_in_command_types_and_permission():
     assert required_permissions_for_command("tail_system_log") == ["command_execution"]
 
 
+def test_network_test_reports_dns_ping_tcp():
+    """network_test reports DNS, ping, and TCP port results."""
+    from homepot.agent.utils.command_poller import _run_network_test
+
+    addrinfo = [
+        (None, None, None, None, ("93.184.216.34",)),
+        (None, None, None, None, ("2606:2800:220:1:248:1893:25c8:1946",)),
+    ]
+
+    class _Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    class _Sock:
+        def close(self):
+            pass
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller._is_windows_platform",
+            return_value=False,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.socket.getaddrinfo",
+            return_value=addrinfo,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.subprocess.run",
+            return_value=_Completed(),
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.socket.create_connection",
+            return_value=_Sock(),
+        ),
+    ):
+        result = _run_network_test({"host": "example.com", "port": 443})
+
+    assert result["status"] == "completed"
+    res = result["result"]["results"]
+    assert res["dns"]["status"] == "pass"
+    assert "93.184.216.34" in res["dns"]["address"]
+    assert res["ping"]["status"] == "pass"
+    assert res["tcp"]["status"] == "pass"
+    assert res["tcp"]["port"] == 443
+
+
+def test_network_test_requires_host():
+    """network_test fails cleanly without a host."""
+    from homepot.agent.utils.command_poller import _run_network_test
+
+    result = _run_network_test({})
+    assert result["status"] == "failed"
+    assert "host" in result["result"]["error"]
+
+
+def test_network_test_in_command_types_and_permission():
+    """network_test is registered and gated on network_monitoring."""
+    assert "network_test" in COMMAND_TYPES
+    assert required_permissions_for_command("network_test") == ["network_monitoring"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent
