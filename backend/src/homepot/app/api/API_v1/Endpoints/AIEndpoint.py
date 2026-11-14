@@ -376,7 +376,7 @@ async def get_system_anomalies() -> Dict[str, Any]:
                 {
                     "id": alert.id,
                     "device_id": alert.device_id,
-                    "device_name": device_map.get(alert.device_id, "Unknown Device"),
+                    "device_name": device_map.get(alert.device_id, alert.device_id),
                     "score": round(alert.ai_confidence or 0.8, 2),
                     "reasons": [alert.title, alert.description],
                     "severity": alert.severity,
