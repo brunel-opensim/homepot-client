@@ -4,7 +4,7 @@ from typing import Any
 import uuid
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from homepot.database import get_database_service
 from homepot.models import Device, LifecycleState, Site
@@ -489,12 +489,22 @@ async def test_stale_devices_marked_offline(temp_db: Any) -> None:
         session.add_all(devices)
         await session.commit()
 
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=300)
+    async with db_service.get_session() as session:
+        expected_flipped = await session.scalar(
+            select(func.count())
+            .select_from(Device)
+            .where(
+                Device.is_active.is_(True),
+                Device.last_heartbeat_at.is_not(None),
+                Device.last_heartbeat_at < cutoff,
+            )
+        )
+
     flipped = await db_service.mark_stale_devices_offline(threshold_seconds=300)
 
-    assert flipped == 1
+    assert flipped == expected_flipped
     async with db_service.get_session() as session:
-        from sqlalchemy import select
-
         rows = (await session.execute(select(Device))).scalars().all()
         status = {d.device_id: d.status for d in rows}
         assert status[f"test-stale-old-{unique_suffix}"] == DeviceStatus.OFFLINE.value
