@@ -112,7 +112,7 @@ def summarize_command_result(
             else:
                 sub.append(f"{key}={_clip(value, 100)}")
         parts.append("results={" + "; ".join(sub) + "}")
-    for key in ("processes", "connections", "entries", "programs", "drives"):
+    for key in ("processes", "connections", "entries", "programs", "drives", "events"):
         value = result.get(key)
         if isinstance(value, list):
             parts.append(f"{key}={len(value)}")
