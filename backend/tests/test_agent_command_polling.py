@@ -15,6 +15,7 @@ from homepot.agent.utils.command_poller import (
     _download_firmware,
     _parse_firmware_checksum,
     _parse_lsof_connection,
+    _run_bootstrap_winget,
     build_status_report,
     build_status_update_payload,
     parse_pending_commands,
@@ -1254,6 +1255,37 @@ class TestProgramInstallUninstall:
         argv = run.call_args.args[0]
         assert argv[0] == "powershell"
         assert run.call_args.kwargs["input"] == "Get-Date"
+
+
+class TestBootstrapWingetScript:
+    """bootstrap_winget must only install App Installer when winget is missing."""
+
+    @patch("homepot.agent.utils.command_poller._is_windows_platform", return_value=True)
+    @patch("homepot.agent.utils.command_poller.os.name", "posix")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    def test_install_path_is_in_else_branch(self, elev, _is_win):
+        """Download/install runs only when winget is absent, without an early exit."""
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        elev.run_elevated.return_value = {
+            "ok": True,
+            "exit_code": 0,
+            "stdout": "winget ready",
+            "stderr": "",
+        }
+
+        result = _run_bootstrap_winget({"timeout_seconds": 30})
+
+        assert result["status"] == "completed"
+        script = elev.run_elevated.call_args.args[1]
+        else_at = script.index("} else {")
+        assert script.index("winget already available") < else_at
+        assert script.index("Invoke-WebRequest") > else_at
+        assert script.index("Add-AppxPackage") > else_at
+        # Never exit the script: that also exits the elevated helper before it
+        # can write its result file.
+        assert "exit" not in script.lower()
+        assert script.rstrip().endswith('Write-Output "winget ready: $wingetExe"')
 
 
 class TestBuildStatusUpdatePayload:

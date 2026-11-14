@@ -1683,9 +1683,12 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
         "if (-not $wingetExe) { "
         "$wingetExe = (Get-Command winget -ErrorAction SilentlyContinue).Source }; "
     )
-    script = (
-        winget_resolve + "if ($wingetExe -and (Test-Path $wingetExe)) { "
-        'Write-Output "winget already available: $wingetExe" }; '
+    # Wrap the download/install in the ``else`` branch of the "already
+    # available" check instead of using ``exit 0``: exiting the script also
+    # exits the elevated helper before it writes its result file. This keeps
+    # the helper's result write intact and avoids re-downloading/reinstalling
+    # App Installer on every winget command when winget is already present.
+    install_block = (
         "Write-Output 'winget not found; bootstrapping App Installer...'; "
         "$url = 'https://aka.ms/getwinget'; "
         "$dest = Join-Path $env:TEMP 'Microsoft.DesktopAppInstaller.msixbundle'; "
@@ -1693,16 +1696,22 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
         '-ErrorAction Stop } catch { throw "download failed: $_" }; '
         "if (-not (Test-Path $dest) -or (Get-Item $dest).Length -lt 1MB) { "
         "throw 'download failed: file missing or too small' }; "
-        "$installed = $false; "
-        "try { Add-AppxPackage -Path $dest -AllUsers -ErrorAction Stop; "
-        "$installed = $true } catch { "
-        'Write-Output "AllUsers install failed: $_; trying per-user..."; '
-        "try { Add-AppxPackage -Path $dest -ErrorAction Stop; $installed = $true } "
+        "try { Add-AppxPackage -Path $dest -AllUsers -ErrorAction Stop } "
+        'catch { Write-Output "AllUsers install failed: $_; trying per-user..."; '
+        "try { Add-AppxPackage -Path $dest -ErrorAction Stop } "
         'catch { throw "install failed: $_" } }; '
-        # Re-resolve after install.
-        + winget_resolve + "if (-not $wingetExe -or -not (Test-Path $wingetExe)) { "
-        "throw 'winget bootstrap failed: still not found after install' }; "
-        'Write-Output "winget bootstrapped: $wingetExe"'
+    )
+    script = (
+        winget_resolve
+        + "if ($wingetExe -and (Test-Path $wingetExe)) { "
+        + 'Write-Output "winget already available: $wingetExe" } else { '
+        + install_block
+        # Re-resolve after install (still inside the else branch).
+        + winget_resolve
+        + "if (-not $wingetExe -or -not (Test-Path $wingetExe)) { "
+        + "throw 'winget bootstrap failed: still not found after install' }; "
+        + "}; "
+        + 'Write-Output "winget ready: $wingetExe"'
     )
 
     try:
