@@ -177,6 +177,60 @@ def test_describe_executed_command_matches_actual_os_command():
     )
 
 
+def test_describe_executed_command_covers_remaining_commands():
+    """The audit string describes the real OS action for every command."""
+    from homepot.agent.utils.command_poller import _describe_executed_command
+
+    def d(command_type, data, is_windows=None):
+        return _describe_executed_command(
+            command_type, {"payload": {"data": data}}, is_windows=is_windows
+        )
+
+    # Power control
+    assert d("restart", {}, is_windows=True) == "shutdown /r /t 0"
+    assert d("restart", {}, is_windows=False) == "shutdown -r now"
+    assert d("shutdown", {}, is_windows=True) == "shutdown /s /t 0"
+    assert d("shutdown", {}, is_windows=False) == "shutdown -h now"
+
+    # Unprivileged command
+    assert d("run_command_unprivileged", {"command": "ipconfig"}) == "ipconfig"
+
+    # Programs
+    assert (
+        d("start_program", {"path": "notepad.exe", "args": ["/A"]}) == "notepad.exe /A"
+    )
+    assert (
+        d("stop_program", {"name": "notepad.exe"}) == "terminate process 'notepad.exe'"
+    )
+    assert (
+        d("stop_program", {"name": "notepad.exe", "force": True})
+        == "kill process 'notepad.exe'"
+    )
+
+    # Config (two-layer model: describe intent + mechanism)
+    assert d("update_config", {"volume": 50, "brightness": 75}, is_windows=True) == (
+        "update_config: set volume to 50% (Core Audio); "
+        "set brightness to 75% (Monitor Configuration API)"
+    )
+    assert (
+        d("update_config", {"url": "x", "version": "2.4.0"}, is_windows=False)
+        == "update_config: download+verify firmware 2.4.0"
+    )
+
+    # List installed programs
+    assert d("list_installed_programs", {}, is_windows=True) == (
+        "Get-ItemProperty (Add/Remove Programs registry keys)"
+    )
+
+    # Read-only / ack commands get a friendly description
+    assert d("health_check", {"tests": ["network", "memory"]}) == (
+        "health check (network, memory)"
+    )
+    assert d("list_processes", {}) == "list running processes"
+    assert d("restart_agent", {}) == "restart the agent process"
+    assert d("status_request", {}) == "collect a device status snapshot"
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent
