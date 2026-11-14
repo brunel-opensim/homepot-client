@@ -174,6 +174,26 @@ async def _reconcile_executing(db: SASession, plan: Any, db_service: Any = None)
                             )
 
         if step.status == "failed":
+            # Capture the device-reported reason so the plan-status tool and
+            # the assistant can explain the failure and suggest a follow-up
+            # (previously a plain failed command left step.error empty and the
+            # plan outcome was just the generic "step failed").
+            reason = command_failure(getattr(command, "result", None))
+            if reason:
+                step.error = reason
+            elif status == "expired":
+                step.error = "command expired (device did not acknowledge)"
+            elif status == "cancelled":
+                step.error = "command cancelled"
+            else:
+                res = getattr(command, "result", None)
+                exit_code = res.get("exit_code") if isinstance(res, dict) else None
+                step.error = (
+                    f"command failed (exit code {exit_code})"
+                    if exit_code is not None
+                    else "command failed"
+                )
+
             # Per-key failures inside a completed command are deterministic and
             # must roll back. Only transport-level failures are retried.
             is_transport_failure = (

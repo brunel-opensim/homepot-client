@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.actions import ActionProposal, allowed_actions_summary, validate_proposal
-from ai.context_builder import ContextBuilder
+from ai.context_builder import ContextBuilder, summarize_command_result
 from ai.device_memory import DeviceMemory, MemoryScope
 
 logger = logging.getLogger(__name__)
@@ -378,6 +378,59 @@ async def get_command_history(device_id: str) -> str:
     except Exception as e:
         logger.error("get_command_history failed for %s: %s", device_id, e)
         return f"Error retrieving command history for {device_id}: {e}"
+
+
+async def get_command(device_id: str, command_id: str) -> str:
+    """Fetch one command's full result (stdout/stderr/error/exit code).
+
+    Unlike ``get_command_history`` (a compact list), this returns the detailed
+    result for a specific command so the assistant can explain a failure and
+    suggest the correct follow-up.
+
+    Args:
+        device_id: Device identifier the command was sent to.
+        command_id: The command identifier (from history or a queued action).
+
+    Returns:
+        A string with the command's metadata, payload, and full result.
+    """
+    try:
+        from homepot.database import get_database_service
+
+        db = await get_database_service()
+        command = await db.get_command(command_id)
+        if command is None:
+            return f"Command '{command_id}' not found."
+
+        if device_id:
+            device = await db.get_device_by_device_id(device_id)
+            if device is None:
+                return f"Device '{device_id}' not found."
+            if command.device_id != device.id:
+                return (
+                    f"Command '{command_id}' does not belong to device '{device_id}'."
+                )
+
+        lines = [
+            f"command_id={command.command_id}",
+            f"type={command.command_type}",
+            f"status={command.status}",
+            f"created={command.created_at.isoformat() if command.created_at else None}",
+            f"executed_at={command.executed_at.isoformat() if command.executed_at else None}",
+            f"issued_by={command.issued_by}",
+        ]
+        if command.payload:
+            payload = json.dumps(command.payload, default=str)
+            if len(payload) > 1000:
+                payload = payload[:1000] + "..."
+            lines.append(f"payload={payload}")
+        result = summarize_command_result(command.result, field_max=2000, tail_max=2000)
+        if result:
+            lines.append(f"result={result}")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error("get_command failed for %s/%s: %s", device_id, command_id, e)
+        return f"Error retrieving command '{command_id}': {e}"
 
 
 # ---------------------------------------------------------------------------
@@ -1088,6 +1141,7 @@ TOOL_REGISTRY = {
     "get_device_metrics": (get_device_metrics, True),
     "get_error_logs": (get_error_logs, True),
     "get_command_history": (get_command_history, True),
+    "get_command": (get_command, True),
     "get_config_history": (get_config_history, True),
     "search_similar_incidents": (search_similar_incidents, False),
     "get_fleet_summary": (get_fleet_summary, True),
@@ -1105,6 +1159,7 @@ TOOL_FUNCTIONS = [
     get_device_metrics,
     get_error_logs,
     get_command_history,
+    get_command,
     get_config_history,
     search_similar_incidents,
     get_fleet_summary,

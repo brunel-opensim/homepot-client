@@ -364,6 +364,58 @@ async def test_get_command_context_empty_db():
     assert isinstance(context, str)
 
 
+def test_summarize_command_result_error_first_and_bounded():
+    """Error/message lead; stdout/stderr are tail-clipped to stay compact."""
+    from ai.context_builder import summarize_command_result
+
+    summary = summarize_command_result(
+        {
+            "error": "winget not found; run bootstrap_winget",
+            "exit_code": 1,
+            "truncated": True,
+            "stdout": "start\n" + ("x" * 5000),
+            "stderr": "boom",
+        }
+    )
+    assert summary.startswith("error=winget not found; run bootstrap_winget")
+    assert "exit=1" in summary
+    assert "truncated" in summary
+    assert "stderr=boom" in summary
+    # stdout is clipped from the tail, so the long prefix is gone.
+    assert "stdout=" in summary
+    assert "start" not in summary
+    assert len(summary) < 1600
+
+
+def test_summarize_command_result_counts_data_lists():
+    """List-style results are reduced to counts, not dumped as JSON."""
+    from ai.context_builder import summarize_command_result
+
+    summary = summarize_command_result(
+        {"count": 42, "processes": [{"pid": 1}, {"pid": 2}]}
+    )
+    assert "count=42" in summary
+    assert "processes=2" in summary
+
+
+def test_summarize_command_result_includes_per_key_results():
+    """Per-key results expose status and value (e.g. health-check metrics)."""
+    from ai.context_builder import summarize_command_result
+
+    summary = summarize_command_result(
+        {"results": {"storage": {"status": "fail", "value": 95.0}}}
+    )
+    assert "storage(status=fail, value=95.0)" in summary
+
+
+def test_summarize_command_result_empty():
+    """Empty results return an empty string."""
+    from ai.context_builder import summarize_command_result
+
+    assert summarize_command_result(None) == ""
+    assert summarize_command_result({}) == ""
+
+
 @pytest.mark.asyncio
 async def test_command_payload_reference_in_system_prompt():
     """The /query endpoint should include command payload reference in system prompt."""
