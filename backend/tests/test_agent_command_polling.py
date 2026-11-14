@@ -677,6 +677,32 @@ class TestProgramInstallUninstall:
         assert result["status"] == "failed"
         assert "package" in result["result"]["error"]
 
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    @patch("homepot.agent.utils.command_poller._run_bootstrap_winget")
+    def test_install_program_rejects_bad_package_before_bootstrap(
+        self, bootstrap, elev, system
+    ):
+        """An invalid package id fails before probing elevation or bootstrapping."""
+        system.return_value = "Windows"
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "install_program",
+                "payload": {"data": {"package": "bad;package"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "failed"
+        assert "Invalid package id" in result["result"]["error"]
+        bootstrap.assert_not_called()
+        elev.is_windows_task_current.assert_not_called()
+        elev.is_windows_task_stale.assert_not_called()
+        elev.run_elevated.assert_not_called()
+
     @patch("homepot.agent.utils.command_poller.os.name", "posix")
     @patch("homepot.agent.utils.command_poller.platform.system")
     def test_install_program_rejected_on_non_windows(self, system):

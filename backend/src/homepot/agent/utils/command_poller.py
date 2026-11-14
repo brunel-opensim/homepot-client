@@ -1501,6 +1501,22 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
             },
         }
 
+    # Validate the package id before any environment probe or winget bootstrap:
+    # a malformed request must not trigger an App Installer download/install (or
+    # a scheduled-task probe) before it is rejected.
+    package = data.get("package")
+    if command_type != "upgrade_all_programs":
+        if not isinstance(package, str) or not package.strip():
+            return {
+                "status": "failed",
+                "result": {"error": "A 'package' value is required"},
+            }
+        if not all(c.isalnum() or c in "._-+" for c in package):
+            return {
+                "status": "failed",
+                "result": {"error": "Invalid package id"},
+            }
+
     if os.name == "nt":
         try:
             if elevation_util.is_windows_task_stale():
@@ -1543,33 +1559,21 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
     )
     if command_type == "upgrade_all_programs":
         script = winget_resolve + f"& $wingetExe upgrade --all {flags} --scope machine"
-    else:
-        package = data.get("package")
-        if not isinstance(package, str) or not package.strip():
-            return {
-                "status": "failed",
-                "result": {"error": "A 'package' value is required"},
-            }
-        if not all(c.isalnum() or c in "._-+" for c in package):
-            return {
-                "status": "failed",
-                "result": {"error": "Invalid package id"},
-            }
-        if command_type == "install_program":
-            script = (
-                winget_resolve
-                + f"& $wingetExe install -e --id '{package}' {flags} --scope machine"
-            )
-        elif command_type == "uninstall_program":
-            script = (
-                winget_resolve
-                + f"& $wingetExe uninstall -e --id '{package}' --silent --scope machine"
-            )
-        else:  # update_program
-            script = (
-                winget_resolve
-                + f"& $wingetExe upgrade -e --id '{package}' {flags} --scope machine"
-            )
+    elif command_type == "install_program":
+        script = (
+            winget_resolve
+            + f"& $wingetExe install -e --id '{package}' {flags} --scope machine"
+        )
+    elif command_type == "uninstall_program":
+        script = (
+            winget_resolve
+            + f"& $wingetExe uninstall -e --id '{package}' --silent --scope machine"
+        )
+    else:  # update_program
+        script = (
+            winget_resolve
+            + f"& $wingetExe upgrade -e --id '{package}' {flags} --scope machine"
+        )
 
     try:
         timeout = max(

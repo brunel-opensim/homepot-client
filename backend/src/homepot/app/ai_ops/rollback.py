@@ -6,8 +6,14 @@ verifier then confirms the rollback commands completed.
 
 * ``update_config`` — inverse is ``update_config`` with the snapshotted
   ``previous`` values (captured by the executor at queue time).
+* ``install_program`` / ``uninstall_program`` — inverse is the opposite
+  command with the same package id.
 * ``restart`` — self-reverting: the device recovers on its own, so there is
   nothing to queue; the step is marked ``rolled_back`` immediately.
+
+Actions with no reliable inverse (``update_program``, ``start_program``,
+``stop_program``, read-only checks) are left untouched rather than being
+reported as rolled back while their effect is still in place.
 """
 
 import logging
@@ -28,6 +34,15 @@ STEP_ROLLED_BACK = "rolled_back"
 
 # Key under which the inverse (rollback) command id is stored on the step.
 ROLLBACK_COMMAND_KEY = "rollback_command_id"
+
+# Reversible actions whose inverse is the opposite command with the same
+# package id. Only these package operations have a reliable undo; other
+# reversible actions are skipped during rollback instead of being falsely
+# marked as rolled back.
+PACKAGE_INVERSE_COMMANDS: Dict[str, str] = {
+    "install_program": "uninstall_program",
+    "uninstall_program": "install_program",
+}
 
 
 async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bool:
@@ -85,8 +100,34 @@ async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bo
                     "existing": dict(rollback_params),
                 }
             )
-        elif step.status == STEP_DONE:
+        elif step.action == "restart" and step.status == STEP_DONE:
+            # Restart is self-reverting: the device recovers on its own.
             to_rollback.append({"step_id": step.step_id, "self_reverting": True})
+        elif step.action in PACKAGE_INVERSE_COMMANDS and step.status == STEP_DONE:
+            package = (step.params or {}).get("package")
+            if not isinstance(package, str) or not package.strip():
+                # Without the original package id there is nothing reliable to
+                # queue; leave the step as-is instead of claiming a rollback.
+                continue
+
+            device = (
+                db.query(Device)
+                .filter(Device.device_id == step.target_device_id)
+                .first()
+            )
+            if device is None:
+                continue
+
+            to_rollback.append(
+                {
+                    "step_id": step.step_id,
+                    "self_reverting": False,
+                    "device_pk": device.id,
+                    "command_type": PACKAGE_INVERSE_COMMANDS[step.action],
+                    "previous": {"package": package},
+                    "existing": dict(rollback_params),
+                }
+            )
 
     db.commit()
 

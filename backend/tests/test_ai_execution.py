@@ -492,6 +492,63 @@ def test_begin_rollback_is_idempotent():
         db.close()
 
 
+def test_begin_rollback_queues_uninstall_for_completed_install():
+    """A completed install is undone by queueing uninstall_program."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(
+            db,
+            "POS-A",
+            action="install_program",
+            params={"package": "Notepad++.Notepad++"},
+        )
+        plan.steps[0].status = "done"
+        db.commit()
+
+        assert asyncio.run(begin_rollback(db, plan, db_service=fake)) is True
+
+        inverses = [c for c in fake.created if c.issued_by == "ai:rollback"]
+        assert len(inverses) == 1
+        assert inverses[0].command_type == "uninstall_program"
+        assert inverses[0].payload == {"data": {"package": "Notepad++.Notepad++"}}
+    finally:
+        db.close()
+
+
+def test_begin_rollback_does_not_fake_rollback_non_invertible_action():
+    """A reversible action without an inverse stays 'done', not 'rolled_back'."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(
+            db, "POS-A", action="start_program", params={"path": "notepad.exe"}
+        )
+        plan.steps[0].status = "done"
+        db.commit()
+
+        assert asyncio.run(begin_rollback(db, plan, db_service=fake)) is False
+        assert plan.steps[0].status == "done"
+        assert [c for c in fake.created if c.issued_by == "ai:rollback"] == []
+    finally:
+        db.close()
+
+
+def test_begin_rollback_marks_done_restart_self_reverting():
+    """A completed restart is self-reverting and marked rolled back."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, fake = _queue_plan(db, "POS-A", action="restart")
+        plan.steps[0].status = "done"
+        db.commit()
+
+        assert asyncio.run(begin_rollback(db, plan, db_service=fake)) is True
+        assert plan.steps[0].status == "rolled_back"
+    finally:
+        db.close()
+
+
 def test_rolling_back_without_queued_rollback_fails():
     """A rolling-back plan with an unqueued inverse fails, not false success."""
     db = homepot.database.SessionLocal()
