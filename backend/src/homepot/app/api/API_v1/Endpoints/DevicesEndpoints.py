@@ -13,6 +13,7 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session as SASession
 from sqlalchemy.orm import joinedload
 
+from homepot.app.ai_ops.anomaly_scan import device_monitoring_active
 from homepot.app.auth_utils import (
     ALGORITHM,
     COOKIE_NAME,
@@ -591,6 +592,7 @@ async def get_device(
                     if device.monitor_dismissed_until
                     else None
                 ),
+                "monitoring_active": await device_monitoring_active(session, device),
                 "is_simulated": device.is_simulated,
                 "enrollment_method": device.enrollment_method or "pre-provisioned",
                 "device_source": (
@@ -2029,6 +2031,7 @@ async def toggle_device_monitor(
                     if device.monitor_dismissed_until
                     else None
                 ),
+                "monitoring_active": await device_monitoring_active(session, device),
             }
 
     except HTTPException:

@@ -361,6 +361,44 @@ async def latest_anomaly_summaries(db: Any, min_level: int = 2) -> List[Dict[str
     return summaries
 
 
+def _is_dismissed(device: Any) -> bool:
+    """Return True when the operator's dismiss cooldown is still active."""
+    dismissed_until = getattr(device, "monitor_dismissed_until", None)
+    if dismissed_until is None:
+        return False
+    if dismissed_until.tzinfo is None:
+        dismissed_until = dismissed_until.replace(tzinfo=timezone.utc)
+    return bool(dismissed_until > datetime.now(timezone.utc))
+
+
+async def device_monitoring_active(session: Any, device: Any) -> bool:
+    """Return True if the device is currently shown on the Dashboard.
+
+    Effective monitored state: manually pinned (``is_monitored``), or
+    auto-monitored (latest persisted anomaly scan at Level 2+) and not
+    dismissed by an operator override. This is the single source of truth the
+    Dashboard board and the Device Details "Add/Remove to Dashboard" toggle
+    both rely on.
+    """
+    if device.is_monitored:
+        return True
+    if _is_dismissed(device):
+        return False
+    row = (
+        (
+            await session.execute(
+                select(AnomalyScan)
+                .where(AnomalyScan.device_id == device.device_id)
+                .order_by(AnomalyScan.timestamp.desc())
+                .limit(1)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    return (int(row.level) if row else 0) >= 2
+
+
 async def run_anomaly_scan_loop() -> None:
     """Run the scheduled anomaly scan forever.
 
