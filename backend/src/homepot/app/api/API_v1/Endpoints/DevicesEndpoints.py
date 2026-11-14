@@ -1069,6 +1069,24 @@ async def _apply_unpair_transition(
         for cmd in cmd_result.scalars().all():
             cmd.status = CommandStatus.EXPIRED.value  # type: ignore[assignment]
 
+    # ----- Resolve active alerts -----
+    # A device that is unpaired leaves the active fleet, so its still-active
+    # alerts would otherwise surface as "Unknown Device" (the anomaly feed only
+    # maps active devices). Auto-resolve them as part of the unpair side
+    # effects.
+    async with db_service.get_session() as session:
+        alert_result = await session.execute(
+            select(analytics_models.Alert).where(
+                analytics_models.Alert.device_id == device.device_id,
+                analytics_models.Alert.status == "active",
+            )
+        )
+        for alert in alert_result.scalars().all():
+            alert.status = "resolved"  # type: ignore[assignment]
+            alert.resolved_at = now  # type: ignore[assignment]
+            alert.resolved_by = "system:unpair"  # type: ignore[assignment]
+            alert.resolution_notes = "Device unpaired"  # type: ignore[assignment]
+
     # ----- Close the current lifecycle epoch if open -----
     if device.lifecycle_epoch_id:
         async with db_service.get_session() as session:

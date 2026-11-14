@@ -20,6 +20,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from homepot.app.auth_utils import hash_password
+from homepot.app.models.AnalyticsModel import Alert
 from homepot.config import reload_settings
 import homepot.database
 from homepot.models import (
@@ -110,7 +111,6 @@ def _device_headers(device_id: str, api_key: str = "device-key") -> dict[str, st
 def test_unpair_returns_dashboard_ack(seeded_client: tuple[TestClient, str]) -> None:
     """Self-unpair returns an enriched acknowledgement of the final state."""
     client, device_id = seeded_client
-
     res = client.post(
         f"/api/v1/devices/device/{device_id}/unpair",
         headers=_device_headers(device_id),
@@ -242,3 +242,46 @@ def test_unpaired_device_cannot_authenticate_again(
         json={"reason": "retry", "idempotency_key": "unpair-auth-1"},
     )
     assert retry.status_code == 403
+
+
+def test_unpair_resolves_active_alerts(
+    seeded_client: tuple[TestClient, str],
+) -> None:
+    """Unpair auto-resolves active alerts so they never render as Unknown Device."""
+    client, device_id = seeded_client
+
+    db = homepot.database.SessionLocal()
+    try:
+        db.add(
+            Alert(
+                device_id=device_id,
+                title="High CPU",
+                severity="warning",
+                category="hardware",
+                status="active",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    res = client.post(
+        f"/api/v1/devices/device/{device_id}/unpair",
+        headers=_device_headers(device_id),
+        json={"reason": "User-initiated unpair", "idempotency_key": "unpair-alert-1"},
+    )
+    assert res.status_code == 200
+
+    db = homepot.database.SessionLocal()
+    try:
+        alerts = (
+            db.execute(select(Alert).where(Alert.device_id == device_id))
+            .scalars()
+            .all()
+        )
+        assert len(alerts) == 1
+        assert alerts[0].status == "resolved"
+        assert alerts[0].resolved_by == "system:unpair"
+        assert alerts[0].resolved_at is not None
+    finally:
+        db.close()
