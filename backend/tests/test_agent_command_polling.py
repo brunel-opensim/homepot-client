@@ -149,6 +149,34 @@ def test_restart_service_builds_os_command(monkeypatch):
     assert calls == []
 
 
+def test_describe_executed_command_matches_actual_os_command():
+    """The stored audit description mirrors the command that actually runs."""
+    from homepot.agent.utils.command_poller import _describe_executed_command
+
+    restart = {
+        "command_type": "restart_service",
+        "payload": {"data": {"service_name": "Spooler"}},
+    }
+    assert (
+        _describe_executed_command("restart_service", restart, is_windows=True)
+        == "Restart-Service -Name 'Spooler'"
+    )
+    assert (
+        _describe_executed_command("restart_service", restart, is_windows=False)
+        == "systemctl restart 'Spooler'"
+    )
+
+    install = {
+        "command_type": "install_program",
+        "payload": {"data": {"package": "Notepad++.Notepad++"}},
+    }
+    assert _describe_executed_command("install_program", install) == (
+        "winget install -e --id 'Notepad++.Notepad++' "
+        "--silent --accept-package-agreements --accept-source-agreements "
+        "--scope machine"
+    )
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent
@@ -625,6 +653,11 @@ class TestProgramInstallUninstall:
         assert "install" in script and "winget" in script
         assert "Notepad++.Notepad++" in script
         assert "--silent" in script
+        assert result["result"]["command_executed"] == (
+            "winget install -e --id 'Notepad++.Notepad++' "
+            "--silent --accept-package-agreements --accept-source-agreements "
+            "--scope machine"
+        )
 
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
@@ -656,6 +689,9 @@ class TestProgramInstallUninstall:
         script = elev.run_elevated.call_args.args[1]
         assert "uninstall" in script and "winget" in script
         assert "Notepad++.Notepad++" in script
+        assert result["result"]["command_executed"] == (
+            "winget uninstall -e --id 'Notepad++.Notepad++' " "--silent --scope machine"
+        )
 
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")
@@ -750,6 +786,37 @@ class TestProgramInstallUninstall:
     @patch(
         "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
     )
+    def test_install_program_marks_truncated_output(self, resolve, elev, system):
+        """Truncated winget output is flagged so the UI can warn the technician."""
+        from homepot.agent.utils.command_poller import MAX_COMMAND_OUTPUT
+
+        system.return_value = "Windows"
+        elev.is_elevation_installed.return_value = True
+        elev.is_provisioned.return_value = True
+        elev.run_elevated.return_value = {
+            "ok": True,
+            "exit_code": 0,
+            "stdout": "x" * (MAX_COMMAND_OUTPUT + 5),
+            "stderr": "",
+        }
+        result = process_command(
+            {
+                "command_id": "c1",
+                "command_type": "install_program",
+                "payload": {"data": {"package": "Notepad++.Notepad++"}},
+            },
+            ALLOW_ALL,
+        )
+        assert result["status"] == "completed"
+        assert result["result"]["truncated"] is True
+        assert len(result["result"]["stdout"]) == MAX_COMMAND_OUTPUT
+
+    @patch("homepot.agent.utils.command_poller.os.name", "nt")
+    @patch("homepot.agent.utils.command_poller.platform.system")
+    @patch("homepot.agent.utils.command_poller.elevation_util")
+    @patch(
+        "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
+    )
     def test_update_program_builds_winget_upgrade(self, resolve, elev, system):
         """update_program runs 'winget upgrade' with the package id."""
         system.return_value = "Windows"
@@ -774,6 +841,11 @@ class TestProgramInstallUninstall:
         script = elev.run_elevated.call_args.args[1]
         assert "upgrade" in script and "winget" in script
         assert "Notepad++.Notepad++" in script
+        assert result["result"]["command_executed"] == (
+            "winget upgrade -e --id 'Notepad++.Notepad++' "
+            "--silent --accept-package-agreements --accept-source-agreements "
+            "--scope machine"
+        )
 
     @patch("homepot.agent.utils.command_poller.os.name", "nt")
     @patch("homepot.agent.utils.command_poller.platform.system")

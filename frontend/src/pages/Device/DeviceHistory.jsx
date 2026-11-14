@@ -46,6 +46,28 @@ import {
 // Run Command, where data.command is the shell command ("systeminfo"), not the
 // template key — using it as the key made reuse fall back to Apply
 // Configuration and dropped the actual command.
+const HISTORY_PAGE_SIZE = 50;
+const HISTORY_MAX_LIMIT = 200;
+
+const NESTED_PASS_STATUSES = ['applied', 'pass', 'ok', 'completed', 'verified'];
+const NESTED_FAIL_STATUSES = ['failed', 'fail', 'error'];
+
+function nestedStatusClass(status) {
+  if (NESTED_PASS_STATUSES.includes(status)) {
+    return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+  }
+  if (NESTED_FAIL_STATUSES.includes(status)) {
+    return 'bg-red-500/20 text-red-400 border-red-500/30';
+  }
+  return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+}
+
+function normalizeOutput(value) {
+  return String(value ?? '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+}
+
 const COMMAND_TYPE_TO_TEMPLATE = {
   run_command: 'RUN_COMMAND',
   run_script: 'RUN_SCRIPT',
@@ -114,6 +136,8 @@ export default function DeviceHistory() {
   const [device, setDevice] = useState(null);
   const [selectedCommand, setSelectedCommand] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE_SIZE);
   const [toast, setToast] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -128,7 +152,7 @@ export default function DeviceHistory() {
     try {
       const [deviceData, commandData] = await Promise.all([
         api.devices.getDeviceById(id),
-        api.devices.getCommands(id, 50),
+        api.devices.getCommands(id, historyLimit),
       ]);
       setDevice(deviceData);
 
@@ -155,7 +179,7 @@ export default function DeviceHistory() {
     } finally {
       setLoading(false);
     }
-  }, [id, currentUserEmail]);
+  }, [id, currentUserEmail, historyLimit]);
 
   useEffect(() => {
     fetchData();
@@ -163,9 +187,25 @@ export default function DeviceHistory() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const openDetails = (cmd) => {
+  const openDetails = async (cmd) => {
+    // The list only carries a compact result summary, so show it immediately
+    // and fetch the full stdout/stderr for the modal on demand.
     setSelectedCommand(cmd);
+    setDetailsLoading(true);
     setIsDetailsModalOpen(true);
+    try {
+      const full = await api.devices.getCommand(id, cmd.command_id);
+      setSelectedCommand((current) => (current?.command_id === cmd.command_id ? full : current));
+    } catch (err) {
+      console.error('Failed to load full command result:', err);
+      setToast({
+        title: 'Error',
+        message: 'Failed to load the full command result',
+        type: 'error',
+      });
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
   const handleReuse = (cmd) => {
@@ -446,6 +486,21 @@ export default function DeviceHistory() {
           )}
         </div>
 
+        {!loading && history.length >= historyLimit && historyLimit < HISTORY_MAX_LIMIT && (
+          <div className="mt-3 flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setHistoryLimit((n) => Math.min(n + HISTORY_PAGE_SIZE, HISTORY_MAX_LIMIT))
+              }
+              className="border-gray-700 bg-transparent text-gray-300 hover:text-white hover:bg-gray-800 text-xs"
+            >
+              Load older commands
+            </Button>
+          </div>
+        )}
+
         {/* Details Modal */}
         <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
           <DialogContent className="max-w-2xl bg-card border-gray-800 text-white">
@@ -521,6 +576,22 @@ export default function DeviceHistory() {
                   <div>
                     <span className="text-gray-500 block mb-2 text-sm">Result</span>
                     <div className="bg-black/50 rounded-md p-4 overflow-auto max-h-[300px] space-y-2">
+                      {detailsLoading && (
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Loading full output...
+                        </div>
+                      )}
+                      {selectedCommand.result.error && (
+                        <div>
+                          <span className="text-[10px] uppercase tracking-wide text-red-400">
+                            Error
+                          </span>
+                          <pre className="text-xs font-mono text-red-300 whitespace-pre-wrap break-words">
+                            {normalizeOutput(selectedCommand.result.error)}
+                          </pre>
+                        </div>
+                      )}
                       {selectedCommand.result.exit_code != null && (
                         <div className="text-xs text-slate-400">
                           Exit code:{' '}
@@ -533,82 +604,111 @@ export default function DeviceHistory() {
                           >
                             {selectedCommand.result.exit_code}
                           </span>
-                          {selectedCommand.result.truncated && (
-                            <span className="text-amber-400 ml-2">(output truncated to 64 KB)</span>
-                          )}
                         </div>
+                      )}
+                      {selectedCommand.result.truncated && (
+                        <div className="text-[11px] text-amber-400">
+                          (truncated — only part of the output is available)
+                        </div>
+                      )}
+                      {selectedCommand.result.message && (
+                        <pre className="text-xs font-mono text-slate-200 whitespace-pre-wrap break-words">
+                          {normalizeOutput(selectedCommand.result.message)}
+                        </pre>
                       )}
                       {selectedCommand.result.stdout && (
                         <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
-                          {String(selectedCommand.result.stdout)
-                            .replace(/\\r\\n/g, '\\n')
-                            .replace(/\\r/g, '\\n')}
+                          {normalizeOutput(selectedCommand.result.stdout)}
                         </pre>
                       )}
                       {selectedCommand.result.stderr && (
                         <pre className="text-xs font-mono text-red-400 whitespace-pre-wrap break-words">
-                          {String(selectedCommand.result.stderr)
-                            .replace(/\\r\\n/g, '\\n')
-                            .replace(/\\r/g, '\\n')}
-                        </pre>
-                      )}
-                      {selectedCommand.result.message && !selectedCommand.result.stdout && (
-                        <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
-                          {selectedCommand.result.message}
+                          {normalizeOutput(selectedCommand.result.stderr)}
                         </pre>
                       )}
                       {selectedCommand.result.results && (
                         <div className="mt-2 space-y-2">
-                          {Object.entries(selectedCommand.result.results).map(([key, val]) => (
-                            <div key={key} className="border border-[#1f2735] rounded p-2">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-semibold text-slate-300 uppercase">
-                                  {key}
-                                </span>
-                                <span
-                                  className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${
-                                    val?.status === 'applied'
-                                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                                      : val?.status === 'failed'
-                                        ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                                        : 'bg-slate-500/20 text-slate-400 border-slate-500/30'
-                                  }`}
-                                >
-                                  {val?.status || 'unknown'}
-                                </span>
-                              </div>
-                              {val?.message && (
-                                <div className="text-xs text-slate-400">{val.message}</div>
-                              )}
-                              {val?.verification && (
-                                <div className="text-[10px] text-slate-500 font-mono mt-1">
-                                  before: {val.verification.before ?? 'N/A'} → after:{' '}
-                                  {val.verification.after ?? 'N/A'} (target:{' '}
-                                  {val.verification.target})
-                                  {val.verification.verified ? ' ✓' : ' ✗'}
+                          {Object.entries(selectedCommand.result.results).map(([key, val]) => {
+                            const extraKeys =
+                              val && typeof val === 'object'
+                                ? Object.keys(val).filter(
+                                    (k) =>
+                                      ![
+                                        'status',
+                                        'message',
+                                        'verification',
+                                        'stdout',
+                                        'stderr',
+                                        'error',
+                                        'value',
+                                      ].includes(k)
+                                  )
+                                : [];
+                            return (
+                              <div key={key} className="border border-[#1f2735] rounded p-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-semibold text-slate-300 uppercase">
+                                    {key}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border ${nestedStatusClass(
+                                      val?.status
+                                    )}`}
+                                  >
+                                    {val?.status || 'unknown'}
+                                  </span>
                                 </div>
-                              )}
-                              {val?.stdout && (
-                                <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words mt-1">
-                                  {String(val.stdout)
-                                    .replace(/\\r\\n/g, '\\n')
-                                    .replace(/\\r/g, '\\n')}
-                                </pre>
-                              )}
-                              {val?.stderr && (
-                                <pre className="text-xs font-mono text-red-400 whitespace-pre-wrap break-words mt-1">
-                                  {String(val.stderr)
-                                    .replace(/\\r\\n/g, '\\n')
-                                    .replace(/\\r/g, '\\n')}
-                                </pre>
-                              )}
-                            </div>
-                          ))}
+                                {val?.value != null && (
+                                  <div className="text-xs text-slate-300">
+                                    Value: <span className="font-mono">{String(val.value)}</span>
+                                  </div>
+                                )}
+                                {val?.message && (
+                                  <div className="text-xs text-slate-400">{val.message}</div>
+                                )}
+                                {val?.verification && (
+                                  <div className="text-[10px] text-slate-500 font-mono mt-1">
+                                    before: {val.verification.before ?? 'N/A'} → after:{' '}
+                                    {val.verification.after ?? 'N/A'} (target:{' '}
+                                    {val.verification.target})
+                                    {val.verification.verified ? ' ✓' : ' ✗'}
+                                  </div>
+                                )}
+                                {val?.error && (
+                                  <pre className="text-xs font-mono text-red-400 whitespace-pre-wrap break-words mt-1">
+                                    {normalizeOutput(val.error)}
+                                  </pre>
+                                )}
+                                {val?.stdout && (
+                                  <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words mt-1">
+                                    {normalizeOutput(val.stdout)}
+                                  </pre>
+                                )}
+                                {val?.stderr && (
+                                  <pre className="text-xs font-mono text-red-400 whitespace-pre-wrap break-words mt-1">
+                                    {normalizeOutput(val.stderr)}
+                                  </pre>
+                                )}
+                                {extraKeys.map((extraKey) => (
+                                  <div
+                                    key={extraKey}
+                                    className="text-[11px] text-slate-400 font-mono mt-1"
+                                  >
+                                    {extraKey}:{' '}
+                                    {typeof val[extraKey] === 'object'
+                                      ? JSON.stringify(val[extraKey])
+                                      : String(val[extraKey])}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {!selectedCommand.result.stdout &&
                         !selectedCommand.result.stderr &&
                         !selectedCommand.result.message &&
+                        !selectedCommand.result.error &&
                         !selectedCommand.result.results && (
                           <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                             {JSON.stringify(selectedCommand.result, null, 2)}

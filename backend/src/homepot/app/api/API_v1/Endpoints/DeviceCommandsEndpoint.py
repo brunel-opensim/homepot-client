@@ -21,6 +21,7 @@ from homepot.app.auth_utils import (
     require_user,
     verify_device_belongs_to_user,
 )
+from homepot.app.schemas.os_capabilities import os_family
 from homepot.app.utils.limiter import limiter
 from homepot.audit import AuditEventType, get_audit_logger
 from homepot.database import get_database_service, get_db
@@ -57,6 +58,42 @@ class CommandHistoryResponse(BaseModel):
     issued_by: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+HISTORY_DEFAULT_LIMIT = 50
+HISTORY_MAX_LIMIT = 200
+
+# The history list is polled every few seconds, so it must not ship full
+# stdout/stderr for every row. Only the fields the list renders are kept; the
+# single-command endpoint returns the complete result on demand.
+_RESULT_SUMMARY_KEYS = (
+    "message",
+    "error",
+    "exit_code",
+    "truncated",
+    "command_executed",
+)
+_RESULT_SUMMARY_MAX_CHARS = 500
+
+
+def _compact_result(result: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Return the compact result summary used by the history list.
+
+    Keeps only headline fields (error/message/exit code/truncation and the
+    executed command) so a paginated poll stays small. Long strings are capped;
+    the full dict is available from ``GET .../commands/{command_id}``.
+    """
+    if not isinstance(result, dict):
+        return result
+    compact: Dict[str, Any] = {}
+    for key in _RESULT_SUMMARY_KEYS:
+        if key not in result:
+            continue
+        value = result[key]
+        if isinstance(value, str) and len(value) > _RESULT_SUMMARY_MAX_CHARS:
+            value = value[: _RESULT_SUMMARY_MAX_CHARS - 3] + "..."
+        compact[key] = value
+    return compact
 
 
 class UpdateCommandStatusRequest(BaseModel):
@@ -391,6 +428,10 @@ async def update_command_status(
                     enriched_result["command_executed"] = _describe_executed_command(
                         str(cmd.command_type),
                         {"command_type": cmd.command_type, "payload": cmd.payload},
+                        is_windows=(
+                            os_family(cast(Optional[str], current_device.os_details))
+                            == "windows"
+                        ),
                     )
             except Exception:  # noqa: BLE001
                 pass
@@ -439,6 +480,21 @@ async def update_command_status(
     )
 
 
+def _command_history_entry(cmd: Any, *, compact_result: bool) -> CommandHistoryResponse:
+    """Build a history row, optionally trimming the result to its summary."""
+    return CommandHistoryResponse(
+        command_id=cmd.command_id,
+        command_type=cmd.command_type,
+        payload=cmd.payload,
+        status=cmd.status,
+        result=_compact_result(cmd.result) if compact_result else cmd.result,
+        created_at=cmd.created_at.isoformat(),
+        sent_at=cmd.sent_at.isoformat() if cmd.sent_at else None,
+        executed_at=cmd.executed_at.isoformat() if cmd.executed_at else None,
+        issued_by=cmd.issued_by,
+    )
+
+
 # 5. Get Device Command History (User-facing)
 @router.get(
     "/device/{device_id}/commands",
@@ -446,10 +502,16 @@ async def update_command_status(
 )
 async def get_device_command_history(
     device_id: str,
+    limit: int = HISTORY_DEFAULT_LIMIT,
+    offset: int = 0,
     sync_db: SASession = Depends(get_db),
     current_user: UserDict = Depends(require_user()),
 ) -> List[CommandHistoryResponse]:
-    """Get all commands for a device, sorted by created_at descending.
+    """Get the latest commands for a device, newest first.
+
+    Supports ``limit`` (1-200, default 50) and ``offset`` pagination. Each row
+    carries only a compact result summary so the polled list stays small; fetch
+    ``GET .../commands/{command_id}`` for full stdout/stderr.
 
     Requires viewer-level access on the device's site.
     """
@@ -465,21 +527,48 @@ async def get_device_command_history(
         db_user, device, sync_db, minimum_role="viewer", unified_fleet_access=True
     )
 
-    commands = await db.get_commands_for_device(device.id)  # type: ignore
-    return [
-        CommandHistoryResponse(
-            command_id=cmd.command_id,  # type: ignore
-            command_type=cmd.command_type,  # type: ignore
-            payload=cmd.payload,  # type: ignore
-            status=cmd.status,  # type: ignore
-            result=cmd.result,  # type: ignore
-            created_at=cmd.created_at.isoformat(),  # type: ignore
-            sent_at=cmd.sent_at.isoformat() if cmd.sent_at else None,  # type: ignore
-            executed_at=cmd.executed_at.isoformat() if cmd.executed_at else None,  # type: ignore
-            issued_by=cmd.issued_by,  # type: ignore
-        )
-        for cmd in commands
-    ]
+    capped_limit = max(1, min(int(limit), HISTORY_MAX_LIMIT))
+    safe_offset = max(0, int(offset))
+    commands = await db.get_commands_for_device(
+        cast(int, device.id), limit=capped_limit, offset=safe_offset
+    )
+    return [_command_history_entry(cmd, compact_result=True) for cmd in commands]
+
+
+# 6. Get One Command With Its Full Result (User-facing)
+@router.get(
+    "/device/{device_id}/commands/{command_id}",
+    response_model=CommandHistoryResponse,
+)
+async def get_device_command_detail(
+    device_id: str,
+    command_id: str,
+    sync_db: SASession = Depends(get_db),
+    current_user: UserDict = Depends(require_user()),
+) -> CommandHistoryResponse:
+    """Get one command for a device, including the full execution result.
+
+    The history list returns a compact result summary; the Dashboard calls this
+    endpoint when a technician opens Command Details so long stdout/stderr is
+    only transferred on demand.
+    """
+    db_user = cast(
+        User, sync_db.query(User).filter(User.email == current_user["email"]).first()
+    )
+    db = await get_database_service()
+    device = await db.get_device_by_device_id(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    verify_device_belongs_to_user(
+        db_user, device, sync_db, minimum_role="viewer", unified_fleet_access=True
+    )
+
+    command = await db.get_command(command_id)
+    if command is None or command.device_id != device.id:
+        raise HTTPException(status_code=404, detail="Command not found")
+
+    return _command_history_entry(command, compact_result=False)
 
 
 @router.get("/device/{device_id}/commands/{command_id}/stream")

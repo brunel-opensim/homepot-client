@@ -466,9 +466,117 @@ def test_command_history_endpoint(client: TestClient) -> None:
 
 
 def test_command_history_unauthorized(client: TestClient) -> None:
-    """Command history endpoint returns 401 without auth."""
+    """Command history endpoints return 401 without auth."""
     resp = client.get("/api/v1/devices/device/unknown/commands")
     assert resp.status_code == 401
+    resp = client.get("/api/v1/devices/device/unknown/commands/some-id")
+    assert resp.status_code == 401
+
+
+def test_command_history_respects_limit_and_offset(client: TestClient) -> None:
+    """The history list honours ``limit``/``offset`` and clamps bad values."""
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+    h = ctx["auth_headers"]
+
+    cmd_ids = [_queue_command(client, device_id, h, "ping") for _ in range(3)]
+
+    resp = client.get(
+        f"/api/v1/devices/device/{device_id}/commands",
+        params={"limit": 1},
+        headers=h,
+    )
+    assert resp.status_code == 200
+    assert [c["command_id"] for c in resp.json()] == [cmd_ids[-1]]
+
+    resp = client.get(
+        f"/api/v1/devices/device/{device_id}/commands",
+        params={"limit": 1, "offset": 1},
+        headers=h,
+    )
+    assert resp.status_code == 200
+    assert [c["command_id"] for c in resp.json()] == [cmd_ids[-2]]
+
+    # Out-of-range values are clamped rather than rejected.
+    resp = client.get(
+        f"/api/v1/devices/device/{device_id}/commands",
+        params={"limit": 0, "offset": -10},
+        headers=h,
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+def test_command_history_compact_result_and_detail_endpoint(
+    client: TestClient,
+) -> None:
+    """The list carries a summary; the detail endpoint carries full output."""
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+    h = ctx["auth_headers"]
+    dheaders = _device_headers(ctx)
+
+    cmd_id = _queue_command(client, device_id, h, "ping")
+    long_stdout = "winget output " * 1000
+    resp = client.put(
+        f"/api/v1/devices/{cmd_id}/status",
+        json={
+            "status": "completed",
+            "result": {
+                "exit_code": 0,
+                "stdout": long_stdout,
+                "stderr": "",
+                "message": "Installed",
+                "truncated": False,
+            },
+        },
+        headers=dheaders,
+    )
+    assert resp.status_code == 200
+
+    row = next(c for c in _history_for(client, ctx) if c["command_id"] == cmd_id)
+    assert row["result"]["message"] == "Installed"
+    assert row["result"]["exit_code"] == 0
+    assert "stdout" not in row["result"]
+    assert "stderr" not in row["result"]
+
+    detail = client.get(
+        f"/api/v1/devices/device/{device_id}/commands/{cmd_id}", headers=h
+    )
+    assert detail.status_code == 200
+    assert detail.json()["result"]["stdout"] == long_stdout
+
+    missing = client.get(
+        f"/api/v1/devices/device/{device_id}/commands/does-not-exist", headers=h
+    )
+    assert missing.status_code == 404
+
+
+def test_command_history_compact_result_caps_long_error(client: TestClient) -> None:
+    """Long summary strings are capped in the list response."""
+    ctx = _setup_site_and_device(client)
+    device_id = ctx["device_id"]
+    h = ctx["auth_headers"]
+    dheaders = _device_headers(ctx)
+
+    cmd_id = _queue_command(client, device_id, h, "ping")
+    resp = client.put(
+        f"/api/v1/devices/{cmd_id}/status",
+        json={"status": "failed", "result": {"error": "e" * 2000}},
+        headers=dheaders,
+    )
+    assert resp.status_code == 200
+
+    row = next(c for c in _history_for(client, ctx) if c["command_id"] == cmd_id)
+    summary = row["result"]["error"]
+    assert len(summary) <= 500
+    assert summary.endswith("...")
+
+    detail = client.get(
+        f"/api/v1/devices/device/{device_id}/commands/{cmd_id}", headers=h
+    )
+    assert detail.status_code == 200
+    assert detail.json()["result"]["error"] == "e" * 2000
 
 
 def test_stream_command_result_yields_result(client: TestClient) -> None:

@@ -93,5 +93,5 @@ export function formatCommandType(commandType) {
 export function resultMessage(result) {
   if (!result) return null;
   if (typeof result === 'string') return result;
-  return result.message || result.error || null;
+  return result.error || result.message || null;
 }
