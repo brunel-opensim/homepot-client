@@ -200,6 +200,14 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {"lines": 50},
         "description": "Read the most recent OS error/warning events (Windows Event Log, journalctl, or macOS unified log).",
     },
+    "NETWORK_TEST": {
+        "label": "Network Test",
+        "action": "network_test",
+        "group": "Diagnostics",
+        "permission": "network_monitoring",
+        "defaultData": {"host": "example.com", "timeout_seconds": 10},
+        "description": "Probe a host's connectivity (DNS, ping, optional TCP port).",
+    },
     "SCAN_FILESYSTEM": {
         "label": "Scan Filesystem",
         "action": "scan_filesystem",
