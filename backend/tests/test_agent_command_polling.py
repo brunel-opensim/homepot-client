@@ -419,6 +419,53 @@ def test_list_sessions_in_command_types_and_permission():
     assert required_permissions_for_command("list_sessions") == ["command_execution"]
 
 
+def test_get_system_info_returns_inventory():
+    """get_system_info returns a cross-platform hardware/OS inventory."""
+    from types import SimpleNamespace
+
+    from homepot.agent.utils.command_poller import _run_get_system_info
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller._is_windows_platform",
+            return_value=False,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.psutil.cpu_count",
+            side_effect=[8, 4],
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.psutil.cpu_freq",
+            return_value=SimpleNamespace(current=2400.0),
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.psutil.virtual_memory",
+            return_value=SimpleNamespace(total=16 * 1024**3),
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.psutil.boot_time",
+            return_value=1700000000.0,
+        ),
+    ):
+        result = _run_get_system_info({})
+
+    assert result["status"] == "completed"
+    info = result["result"]
+    assert info["hostname"]
+    assert info["os"]
+    assert info["cpu_count"] == 8
+    assert info["cpu_physical"] == 4
+    assert info["cpu_freq_mhz"] == 2400.0
+    assert info["total_memory_gb"] == 16.0
+    assert info["boot_time"] is not None
+
+
+def test_get_system_info_in_command_types_and_permission():
+    """get_system_info is registered and gated on command_execution."""
+    assert "get_system_info" in COMMAND_TYPES
+    assert required_permissions_for_command("get_system_info") == ["command_execution"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent

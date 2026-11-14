@@ -46,6 +46,7 @@ COMMAND_TYPES = frozenset(
         "tail_system_log",
         "network_test",
         "list_sessions",
+        "get_system_info",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -80,6 +81,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "tail_system_log": "command_execution",
     "network_test": "network_monitoring",
     "list_sessions": "command_execution",
+    "get_system_info": "command_execution",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -897,6 +899,97 @@ def _tail_macos_log(lines: int) -> Dict[str, Any]:
             }
         )
     return {"status": "completed", "result": {"count": len(events), "events": events}}
+
+
+# --- get_system_info --------------------------------------------------------
+
+
+def _windows_system_info() -> Dict[str, Any]:
+    """Gather Windows-specific inventory (serial, model, GPU) via WMI.
+
+    Best-effort: any failure returns an empty dict so the cross-platform core
+    still reports.
+    """
+    script = (
+        "$bios = Get-CimInstance Win32_BIOS; "
+        "$cs = Get-CimInstance Win32_ComputerSystem; "
+        "$gpu = Get-CimInstance Win32_VideoController | Select-Object -First 1; "
+        "[PSCustomObject]@{serial=$bios.SerialNumber; manufacturer=$cs.Manufacturer; "
+        "model=$cs.Model; gpu=$gpu.Name} | ConvertTo-Json -Compress"
+    )
+    argv = ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
+    try:
+        completed = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if completed.returncode != 0:
+        return {}
+    try:
+        data = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {
+        "serial": data.get("serial") or "",
+        "manufacturer": data.get("manufacturer") or "",
+        "model": data.get("model") or "",
+        "gpu": data.get("gpu") or "",
+    }
+
+
+def _run_get_system_info(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a hardware/OS inventory snapshot (read-only, cross-platform).
+
+    Uses ``platform`` + ``psutil`` for the portable core, plus a Windows WMI
+    probe for serial/manufacturer/model/GPU when available.
+    """
+    import platform as _platform
+
+    info: Dict[str, Any] = {
+        "hostname": socket.gethostname(),
+        "os": _platform.system(),
+        "os_release": _platform.release(),
+        "os_version": _platform.version(),
+        "arch": _platform.machine(),
+        "processor": _platform.processor() or "",
+    }
+
+    try:
+        info["cpu_count"] = psutil.cpu_count(logical=True)
+    except Exception:  # noqa: BLE001 - best-effort field
+        info["cpu_count"] = None
+    try:
+        info["cpu_physical"] = psutil.cpu_count(logical=False)
+    except Exception:  # noqa: BLE001 - best-effort field
+        info["cpu_physical"] = None
+    try:
+        freq = psutil.cpu_freq()
+        info["cpu_freq_mhz"] = round(float(freq.current), 1) if freq else None
+    except Exception:  # noqa: BLE001 - best-effort field
+        info["cpu_freq_mhz"] = None
+    try:
+        mem = psutil.virtual_memory()
+        info["total_memory_gb"] = round(float(mem.total) / (1024**3), 1)
+    except Exception:  # noqa: BLE001 - best-effort field
+        info["total_memory_gb"] = None
+    try:
+        info["boot_time"] = datetime.fromtimestamp(
+            psutil.boot_time(), tz=timezone.utc
+        ).isoformat()
+    except Exception:  # noqa: BLE001 - best-effort field
+        info["boot_time"] = None
+
+    if _is_windows_platform():
+        info.update(_windows_system_info())
+
+    return {"status": "completed", "result": info}
 
 
 # --- list_connections -------------------------------------------------------
@@ -2570,6 +2663,9 @@ def _process_command_impl(
 
     if command_type == "list_sessions":
         return _run_list_sessions(_command_data(command))
+
+    if command_type == "get_system_info":
+        return _run_get_system_info(_command_data(command))
 
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))

@@ -247,6 +247,15 @@ const FALLBACK_COMMAND_TEMPLATES = {
     defaultData: {},
     description: 'List users currently logged into the device.',
   },
+  GET_SYSTEM_INFO: {
+    label: 'Get System Info',
+    action: 'get_system_info',
+    group: 'Diagnostics',
+    permission: 'command_execution',
+    defaultData: {},
+    description:
+      'Return a hardware/OS inventory snapshot (CPU, RAM, OS build, and on Windows serial/model/GPU).',
+  },
   SCAN_FILESYSTEM: {
     label: 'Scan Filesystem',
     action: 'scan_filesystem',
