@@ -104,6 +104,26 @@ def test_registry_declares_expected_actions():
     assert ACTION_REGISTRY["rollback_app"].risk_tier == "T3"
 
 
+def test_registry_permissions_match_agent_requirements():
+    """Each action's required_permission matches the agent's REQUIRED_PERMISSION.
+
+    A drift here means the AI proposes an action the device agent will reject
+    (or vice-versa) at execution time.
+    """
+    from homepot.agent.utils.command_poller import REQUIRED_PERMISSION
+
+    mismatches = []
+    for name, spec in ACTION_REGISTRY.items():
+        if spec.name != spec.command_type:
+            continue  # rollback_config reuses update_config's command type
+        agent_perm = REQUIRED_PERMISSION.get(spec.command_type)
+        if agent_perm and agent_perm != spec.required_permission:
+            mismatches.append(
+                f"{name}: registry={spec.required_permission}, agent={agent_perm}"
+            )
+    assert not mismatches, f"permission drift: {mismatches}"
+
+
 def test_propose_device_action_docstring_lists_every_registered_action():
     """The tool docstring advertises exactly the registered actions (no drift)."""
     doc = propose_device_action.__doc__ or ""
