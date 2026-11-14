@@ -786,7 +786,13 @@ class TestProgramInstallUninstall:
     @patch(
         "homepot.agent.utils.command_poller._resolve_winget_path", return_value="winget"
     )
-    def test_install_program_marks_truncated_output(self, resolve, elev, system):
+    @patch(
+        "homepot.agent.utils.command_poller._run_bootstrap_winget",
+        return_value={"status": "completed", "result": {}},
+    )
+    def test_install_program_marks_truncated_output(
+        self, bootstrap, resolve, elev, system
+    ):
         """Truncated winget output is flagged so the UI can warn the technician."""
         from homepot.agent.utils.command_poller import MAX_COMMAND_OUTPUT
 
