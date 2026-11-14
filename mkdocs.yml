@@ -192,6 +192,7 @@ nav:
           - Enrolment Intents: enrolment-intents.md
           - Registration: device-registration.md
           - Metrics Collection: device-metrics-collection.md
+          - Command Results & Validation: device-command-results.md
           - Peripheral Discovery: peripheral-discovery.md
           - Configuration (MDM): device-configuration-mdm.md
       - Platform Integration:
