@@ -226,3 +226,62 @@ def test_scan_and_persist_round_trip(monkeypatch, isolated_db):
         assert promoted[0]["level"] == 2
     finally:
         sync_db.close()
+
+
+def _seed_device(sync_db, device_id, status):
+    """Create one active device with the given (string) status."""
+    from homepot.models import Device, LifecycleState
+
+    device = Device(
+        device_id=device_id,
+        name=device_id,
+        device_type="pos_terminal",
+        site_id=1,
+        is_active=True,
+        lifecycle_state=LifecycleState.ACTIVE.value,
+        status=status,
+    )
+    sync_db.add(device)
+    sync_db.commit()
+    sync_db.refresh(device)
+    return device
+
+
+def test_graceful_offline_not_scored(monkeypatch, isolated_db):
+    """A gracefully-off device (goodbye heartbeat) is not an anomaly."""
+    from homepot.app.ai_ops import anomaly_scan
+    from homepot.app.models.AnalyticsModel import AnomalyScan
+    from homepot.models import DeviceStatus
+
+    sync_db = isolated_db()
+    try:
+        _seed_device(sync_db, "DEV-GRACEFUL", DeviceStatus.OFFLINE.value)
+        monkeypatch.setattr(anomaly_scan, "compute_connectivity", lambda d: "offline")
+
+        db = _FakeDB(sync_db)
+        summaries = asyncio.run(anomaly_scan.scan_and_persist(db))
+        assert summaries == []
+        row = sync_db.query(AnomalyScan).order_by(AnomalyScan.id.desc()).first()
+        assert row.level == 0
+        assert row.score == 0.0
+    finally:
+        sync_db.close()
+
+
+def test_unexpected_offline_is_scored(monkeypatch, isolated_db):
+    """An unexpected outage (stale heartbeat, status still online) is scored."""
+    from homepot.app.ai_ops import anomaly_scan
+    from homepot.models import DeviceStatus
+
+    sync_db = isolated_db()
+    try:
+        _seed_device(sync_db, "DEV-UNEXPECTED", DeviceStatus.ONLINE.value)
+        monkeypatch.setattr(anomaly_scan, "compute_connectivity", lambda d: "offline")
+
+        db = _FakeDB(sync_db)
+        summaries = asyncio.run(anomaly_scan.scan_and_persist(db))
+        assert len(summaries) == 1
+        assert summaries[0]["device_id"] == "DEV-UNEXPECTED"
+        assert summaries[0]["level"] >= 1
+    finally:
+        sync_db.close()

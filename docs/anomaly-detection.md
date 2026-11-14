@@ -159,6 +159,28 @@ A scheduled background scan runs in-process (default every 5 minutes) via
 computes persistence and keeps the Dashboard current without an AI query; the
 pull-based endpoint reads the persisted results.
 
+### Offline triage (deliberate vs unexpected)
+
+Not every offline device is monitor-worthy. The scan distinguishes a deliberate
+"goodbye" from an unexpected outage using the signal the agent already sends:
+
+- **Graceful shutdown** — on app quit / OS shutdown the agent posts a final
+  offline heartbeat (`status=OFFLINE, online=false`), which sets
+  `device.status = offline` and clears the heartbeat. The scan treats this as
+  *deliberately off*: it is scored Level 0 (not an anomaly) and its status is
+  left exactly as the agent set it.
+- **Unexpected outage** — a crash or power loss leaves `status = online` with a
+  stale heartbeat; `compute_connectivity` reports `offline`. The scan treats
+  this as a genuine anomaly (`connectivity_offline` contributes +0.4).
+
+This is controlled by `anomaly_detection.ignore_graceful_offline` (default
+`true`). A hard power-off (`kill -9`, pulling the plug) cannot send a goodbye —
+no software can — so those are (correctly) classified `power_loss` /
+`agent_crash` on the next start and remain monitor-worthy.
+
+Still open (future signals): suppressing offline during closed/maintenance
+hours via `SiteOperatingSchedule`, and offline-duration as a second axis.
+
 ### Additional candidate signals (HOMEPOT-specific)
 Beyond the current metric thresholds, the following are worth considering:
 - Repeated command failures (device cannot execute commands).

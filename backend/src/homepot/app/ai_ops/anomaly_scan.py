@@ -25,7 +25,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import aliased
 
 from homepot.app.models.AnalyticsModel import AnomalyScan, DeviceMetrics
-from homepot.models import Device, HealthCheck, compute_connectivity
+from homepot.models import (
+    ConnectivityState,
+    Device,
+    DeviceStatus,
+    HealthCheck,
+    compute_connectivity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +166,14 @@ async def _gather_metrics(
         metrics["no_telemetry"] = True
         metrics["stale_telemetry"] = False
 
-    metrics["connectivity_offline"] = compute_connectivity(device) == "offline"
+    # Connectivity: separate a deliberate "goodbye" (graceful shutdown) from an
+    # unexpected outage. A graceful shutdown sends a final offline heartbeat that
+    # sets ``status=offline`` and clears the heartbeat; a crash/power loss leaves
+    # ``status=online`` with a stale heartbeat. Only the latter is monitor-worthy.
+    is_offline = compute_connectivity(device) == ConnectivityState.OFFLINE.value
+    graceful_offline = device.status == DeviceStatus.OFFLINE.value
+    metrics["graceful_offline"] = graceful_offline
+    metrics["connectivity_offline"] = is_offline and not graceful_offline
 
     # Flapping over a real window (previously only the last 5 checks, which
     # could never exceed a threshold of 5 state changes).
@@ -227,6 +240,7 @@ async def scan_and_persist(db: Any) -> List[Dict[str, Any]]:
         section.get("persistent_breach_count", DEFAULT_PERSISTENT_BREACH_COUNT)
     )
     flapping_window = int(section.get("window_size", DEFAULT_FLAPPING_WINDOW_CHECKS))
+    ignore_graceful_offline = bool(section.get("ignore_graceful_offline", True))
 
     summaries: List[Dict[str, Any]] = []
     async with db.get_session() as session:
@@ -242,7 +256,16 @@ async def scan_and_persist(db: Any) -> List[Dict[str, Any]]:
         for device in devices:
             try:
                 metrics = await _gather_metrics(session, device, flapping_window)
-                score, reasons = detector.check_anomaly(metrics)
+                score: float
+                reasons: List[str]
+                if metrics.get("graceful_offline") and ignore_graceful_offline:
+                    # Deliberately off (graceful goodbye): not an anomaly, and
+                    # leave the offline status exactly as the agent set it (the
+                    # status-sync would otherwise flip it back to "online").
+                    score, reasons = 0.0, []
+                else:
+                    score, reasons = detector.check_anomaly(metrics)
+                    _sync_status(device, metrics)
                 prior = await _count_prior_breaches(
                     session, device.device_id, window_start
                 )
@@ -269,7 +292,6 @@ async def scan_and_persist(db: Any) -> List[Dict[str, Any]]:
                         reasons=reasons,
                     )
                 )
-                _sync_status(device, metrics)
                 if level >= 1:
                     summaries.append(_summary(device, score, reasons, level, metrics))
             except Exception:

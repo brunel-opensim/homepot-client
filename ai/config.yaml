@@ -217,6 +217,7 @@ anomaly_detection:
   scan_interval_minutes: 5         # scheduled background scan cadence
   persistence_window_minutes: 60   # look-back for counting repeated breaches
   persistent_breach_count: 3       # breaches within the window that promote to Level 2
+  ignore_graceful_offline: true   # a deliberate shutdown (goodbye heartbeat) is not an anomaly
   thresholds:
     network_latency_ms: 200          # ms; above this flags "High Latency"
     cpu_percent: 90.0                # %; above this flags "High CPU"
