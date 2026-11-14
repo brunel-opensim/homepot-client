@@ -184,6 +184,19 @@ function renderStructuredResult(result) {
       />
     );
   }
+  if (result?.sessions) {
+    return (
+      <DataTable
+        columns={[
+          { key: 'user', label: 'User', color: 'text-slate-200' },
+          { key: 'terminal', label: 'Terminal', color: 'text-slate-300' },
+          { key: 'host', label: 'Host' },
+          { key: 'started', label: 'Started', color: 'text-slate-400' },
+        ]}
+        rows={result.sessions}
+      />
+    );
+  }
   if (result?.entries) {
     return (
       <DataTable
@@ -931,6 +944,7 @@ export default function DeviceHistory() {
                         !selectedCommand.result.programs &&
                         !selectedCommand.result.drives &&
                         !selectedCommand.result.events &&
+                        !selectedCommand.result.sessions &&
                         !isFlatResult(selectedCommand.result) && (
                           <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                             {JSON.stringify(selectedCommand.result, null, 2)}
