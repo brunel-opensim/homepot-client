@@ -3,11 +3,13 @@
 from datetime import datetime, timezone
 
 from homepot.app.auth_utils import hash_password, verify_password
+from homepot.config import Settings, get_settings
 from homepot.models import User
 
 
 def test_user_signup(temp_db):
     """Test user signup logic."""
+    assert get_settings().database.url == Settings().database.url
     db = temp_db()
 
     # Create new user
