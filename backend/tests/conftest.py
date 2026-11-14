@@ -207,8 +207,13 @@ async def async_client():
 
 
 @pytest.fixture
-def temp_db():
-    """Create a temporary database for testing."""
+def temp_db(tmp_path):
+    """Create a temporary database for testing.
+
+    Uses an isolated per-test SQLite file (never the shared ``DATABASE__URL``
+    file) so a test's ``create_all``/``drop_all`` cannot wipe or lock another
+    test's tables. PostgreSQL still uses a dedicated ``{db}_test`` database.
+    """
     import logging
 
     from sqlalchemy import create_engine, text
@@ -281,23 +286,22 @@ def temp_db():
                 logger.warning(
                     f"PostgreSQL not available or error creating test DB: {e}"
                 )
-                logger.info("Falling back to SQLite in-memory database for testing")
+                logger.info("Falling back to SQLite for testing")
                 use_postgresql = False
 
     # Fallback to SQLite if PostgreSQL failed or not configured
     if not use_postgresql or engine is None:
-        target_url = "sqlite:///:memory:"
+        target_url = f"sqlite:///{tmp_path / 'test.db'}"
 
-        # If we are here because it's configured as SQLite (not because Postgres failed)
-        if not use_postgresql and database_url.startswith("sqlite"):
-            target_url = database_url
-
-        logger.info(f"Using SQLite database for testing: {target_url}")
+        logger.info(f"Using isolated SQLite database for testing: {target_url}")
         engine = create_engine(
             target_url,
-            connect_args={"check_same_thread": False},
+            connect_args={"check_same_thread": False, "timeout": 30},
             pool_pre_ping=True,
         )
+        # WAL mode reduces reader/writer contention on the shared file.
+        with engine.connect() as conn:
+            conn.execute(text("PRAGMA journal_mode=WAL"))
 
     # Create all tables
     Base.metadata.create_all(bind=engine)
