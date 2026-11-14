@@ -121,6 +121,14 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Stop a running process by name or PID. Set force to terminate immediately. Critical system processes are never stopped.',
   },
+  BOOTSTRAP_WINGET: {
+    label: 'Bootstrap Winget (App Installer)',
+    action: 'bootstrap_winget',
+    permission: 'root_access',
+    defaultData: { timeout_seconds: 300 },
+    description:
+      'Ensure winget (App Installer) is installed on the Windows device. Run once per device before using Install/Update/Uninstall Program on Windows 10 builds where App Installer is missing.',
+  },
   INSTALL_PROGRAM: {
     label: 'Install Program',
     action: 'install_program',
