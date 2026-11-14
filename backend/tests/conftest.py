@@ -116,6 +116,15 @@ def pytest_runtest_call(item: pytest.Item) -> None:
 _arm_session_watchdog()
 
 
+@pytest.fixture(autouse=True)
+def restore_settings():
+    """Reload cached settings after test fixtures restore the environment."""
+    yield
+    from homepot.config import reload_settings
+
+    reload_settings()
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Create a test client for the HOMEPOT application."""
