@@ -68,6 +68,98 @@ function normalizeOutput(value) {
     .replace(/\r/g, '\n');
 }
 
+// A small generic table for list-style command results (processes, connections,
+// filesystem scans) that would otherwise render as an unreadable JSON blob.
+function DataTable({ columns, rows }) {
+  return (
+    <div className="overflow-auto max-h-64">
+      <table className="w-full text-xs font-mono text-left">
+        <thead className="text-slate-500 sticky top-0 bg-[#0a0a0a]">
+          <tr>
+            {columns.map((c) => (
+              <th
+                key={c.key}
+                className={`px-2 py-1 font-semibold ${c.align === 'right' ? 'text-right' : ''}`}
+              >
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className="border-t border-[#1f2735]">
+              {columns.map((c) => (
+                <td
+                  key={c.key}
+                  className={`px-2 py-1 ${c.align === 'right' ? 'text-right' : ''} ${c.color || 'text-slate-300'}`}
+                >
+                  {c.render ? c.render(row) : (row[c.key] ?? '—')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Render a list-style command result (processes / connections / filesystem)
+// as a table. Returns null when the result is not one of these shapes.
+function renderStructuredResult(result) {
+  if (result?.processes) {
+    return (
+      <DataTable
+        columns={[
+          { key: 'pid', label: 'PID' },
+          { key: 'name', label: 'Name' },
+          { key: 'cpu', label: 'CPU %', align: 'right', color: 'text-blue-300' },
+          {
+            key: 'memory',
+            label: 'Mem %',
+            align: 'right',
+            color: 'text-blue-300',
+            render: (r) => r.memory ?? '—',
+          },
+        ]}
+        rows={result.processes}
+      />
+    );
+  }
+  if (result?.connections) {
+    return (
+      <DataTable
+        columns={[
+          { key: 'pid', label: 'PID' },
+          { key: 'status', label: 'State' },
+          { key: 'laddr', label: 'Local', color: 'text-emerald-300' },
+          { key: 'raddr', label: 'Remote', color: 'text-amber-300' },
+        ]}
+        rows={result.connections}
+      />
+    );
+  }
+  if (result?.entries) {
+    return (
+      <DataTable
+        columns={[
+          { key: 'type', label: 'Type' },
+          { key: 'path', label: 'Path', color: 'text-slate-200' },
+          {
+            key: 'size',
+            label: 'Size',
+            align: 'right',
+            render: (r) => (r.size == null ? '—' : r.size),
+          },
+        ]}
+        rows={result.entries}
+      />
+    );
+  }
+  return null;
+}
+
 const COMMAND_TYPE_TO_TEMPLATE = {
   run_command: 'RUN_COMMAND',
   run_script: 'RUN_SCRIPT',
@@ -705,11 +797,15 @@ export default function DeviceHistory() {
                           })}
                         </div>
                       )}
+                      {renderStructuredResult(selectedCommand.result)}
                       {!selectedCommand.result.stdout &&
                         !selectedCommand.result.stderr &&
                         !selectedCommand.result.message &&
                         !selectedCommand.result.error &&
-                        !selectedCommand.result.results && (
+                        !selectedCommand.result.results &&
+                        !selectedCommand.result.processes &&
+                        !selectedCommand.result.connections &&
+                        !selectedCommand.result.entries && (
                           <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                             {JSON.stringify(selectedCommand.result, null, 2)}
                           </pre>
