@@ -405,8 +405,13 @@ export default function Device() {
 
   const handleToggleMonitor = async () => {
     try {
-      const updatedDevice = await api.devices.toggleMonitor(id, !device.is_monitored);
-      setDevice((prev) => ({ ...prev, is_monitored: updatedDevice.is_monitored }));
+      const updatedDevice = await api.devices.toggleMonitor(id, !device.monitoring_active);
+      setDevice((prev) => ({
+        ...prev,
+        is_monitored: updatedDevice.is_monitored,
+        monitor_dismissed_until: updatedDevice.monitor_dismissed_until,
+        monitoring_active: updatedDevice.monitoring_active,
+      }));
     } catch (err) {
       console.error('Failed to toggle monitor:', err);
     }
@@ -1021,9 +1026,9 @@ export default function Device() {
               <div className="flex items-center gap-3">
                 <ActionButton
                   onClick={handleToggleMonitor}
-                  className={device?.is_monitored ? 'text-yellow-400 border-yellow-400' : ''}
+                  className={device?.monitoring_active ? 'text-yellow-400 border-yellow-400' : ''}
                 >
-                  {device?.is_monitored ? 'Remove from Dashboard' : 'Add to Dashboard'}
+                  {device?.monitoring_active ? 'Remove from Dashboard' : 'Add to Dashboard'}
                 </ActionButton>
 
                 <ActionButton onClick={handleDirectConnect} className="flex items-center gap-2">

@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -283,5 +284,66 @@ def test_unexpected_offline_is_scored(monkeypatch, isolated_db):
         assert len(summaries) == 1
         assert summaries[0]["device_id"] == "DEV-UNEXPECTED"
         assert summaries[0]["level"] >= 1
+    finally:
+        sync_db.close()
+
+
+def test_device_monitoring_active_manual_auto_and_dismiss(isolated_db):
+    """monitoring_active reflects manual pin, Level-2 auto, and dismiss."""
+    from homepot.app.ai_ops import anomaly_scan
+    from homepot.app.models.AnalyticsModel import AnomalyScan
+    from homepot.models import Device, DeviceStatus, LifecycleState
+
+    sync_db = isolated_db()
+
+    def _make(device_id, *, is_monitored, dismissed_until=None):
+        device = Device(
+            device_id=device_id,
+            name=device_id,
+            device_type="pos_terminal",
+            site_id=1,
+            is_active=True,
+            lifecycle_state=LifecycleState.ACTIVE.value,
+            status=DeviceStatus.ONLINE.value,
+            is_monitored=is_monitored,
+            monitor_dismissed_until=dismissed_until,
+        )
+        sync_db.add(device)
+        sync_db.commit()
+        sync_db.refresh(device)
+        return device
+
+    async def _active(db, device):
+        async with db.get_session() as session:
+            return await anomaly_scan.device_monitoring_active(session, device)
+
+    try:
+        manual = _make("DEV-MANUAL", is_monitored=True)
+        auto = _make("DEV-AUTO", is_monitored=False)
+        plain = _make("DEV-PLAIN", is_monitored=False)
+        dismissed = _make(
+            "DEV-DISMISSED",
+            is_monitored=False,
+            dismissed_until=datetime.now(timezone.utc) + timedelta(minutes=30),
+        )
+
+        # Level 2 scans for the auto and dismissed devices.
+        for dev_id in ("DEV-AUTO", "DEV-DISMISSED"):
+            sync_db.add(
+                AnomalyScan(
+                    device_id=dev_id,
+                    score=0.5,
+                    level=2,
+                    severity="warning",
+                    reasons=[],
+                )
+            )
+        sync_db.commit()
+
+        db = _FakeDB(sync_db)
+        assert asyncio.run(_active(db, manual)) is True
+        assert asyncio.run(_active(db, auto)) is True
+        assert asyncio.run(_active(db, plain)) is False
+        assert asyncio.run(_active(db, dismissed)) is False
     finally:
         sync_db.close()
