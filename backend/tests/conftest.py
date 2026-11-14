@@ -117,11 +117,12 @@ _arm_session_watchdog()
 
 
 @pytest.fixture(autouse=True)
-def isolate_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Restore the settings singleton after test environment patches are undone."""
-    import homepot.config
+def restore_settings():
+    """Reload cached settings after test fixtures restore the environment."""
+    yield
+    from homepot.config import reload_settings
 
-    monkeypatch.setattr(homepot.config, "_settings", homepot.config._settings)
+    reload_settings()
 
 
 @pytest.fixture
