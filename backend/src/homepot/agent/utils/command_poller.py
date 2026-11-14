@@ -1503,15 +1503,15 @@ def _run_winget_program(command_type: str, data: Dict[str, Any]) -> Dict[str, An
 
     if os.name == "nt":
         try:
-            if not elevation_util.is_windows_task_current():
+            if elevation_util.is_windows_task_stale():
                 return {
                     "status": "failed",
                     "result": {
                         "error": (
                             f"{command_type} requires elevation, but the "
-                            "'HOMEPOT-Elevation' task is misconfigured. Re-grant "
-                            "'Manage device' access (toggle off then on) to repair "
-                            "it, then retry."
+                            "'HOMEPOT-Elevation' task runs an outdated action "
+                            "that never answers requests. Re-running the Homepot "
+                            "app's installer repairs it; then retry."
                         )
                     },
                 }
@@ -1653,18 +1653,20 @@ def _run_bootstrap_winget(data: Dict[str, Any]) -> Dict[str, Any]:
             },
         }
 
-    # If the elevation task exists but runs a stale action, the helper will never
-    # answer. Surface this immediately instead of timing out.
+    # If the elevation task positively runs an older action, the helper will
+    # never answer. Surface this immediately instead of timing out. An
+    # unreadable action is not treated as stale, so a working task is never
+    # blocked by a detection glitch.
     if os.name == "nt":
         try:
-            if not elevation_util.is_windows_task_current():
+            if elevation_util.is_windows_task_stale():
                 return {
                     "status": "failed",
                     "result": {
                         "error": (
-                            "Elevation task 'HOMEPOT-Elevation' is registered with a "
-                            "stale/misconfigured action. Re-grant 'Manage device' "
-                            "access (toggle off then on) to repair it, then retry "
+                            "Elevation task 'HOMEPOT-Elevation' runs an outdated "
+                            "action that never answers requests. Re-running the "
+                            "Homepot app's installer repairs it; then retry "
                             "bootstrap_winget."
                         )
                     },

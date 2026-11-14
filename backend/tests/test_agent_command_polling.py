@@ -604,6 +604,7 @@ class TestProgramInstallUninstall:
         system.return_value = "Windows"
         elev.is_elevation_installed.return_value = True
         elev.is_provisioned.return_value = True
+        elev.is_windows_task_stale.return_value = False
         elev.run_elevated.return_value = {
             "ok": True,
             "exit_code": 0,
@@ -635,6 +636,7 @@ class TestProgramInstallUninstall:
         system.return_value = "Windows"
         elev.is_elevation_installed.return_value = True
         elev.is_provisioned.return_value = True
+        elev.is_windows_task_stale.return_value = False
         elev.run_elevated.return_value = {
             "ok": True,
             "exit_code": 0,
@@ -663,6 +665,7 @@ class TestProgramInstallUninstall:
     def test_install_program_requires_package(self, resolve, elev, system):
         """A missing package id fails with a clear error."""
         system.return_value = "Windows"
+        elev.is_windows_task_stale.return_value = False
         result = process_command(
             {
                 "command_id": "c1",
@@ -701,6 +704,7 @@ class TestProgramInstallUninstall:
         system.return_value = "Windows"
         elev.is_elevation_installed.return_value = True
         elev.is_provisioned.return_value = True
+        elev.is_windows_task_stale.return_value = False
         elev.run_elevated.return_value = {"ok": False, "error": "winget failed"}
         result = process_command(
             {
@@ -724,6 +728,7 @@ class TestProgramInstallUninstall:
         system.return_value = "Windows"
         elev.is_elevation_installed.return_value = True
         elev.is_provisioned.return_value = True
+        elev.is_windows_task_stale.return_value = False
         elev.run_elevated.return_value = {
             "ok": True,
             "exit_code": 0,
@@ -754,6 +759,7 @@ class TestProgramInstallUninstall:
         system.return_value = "Windows"
         elev.is_elevation_installed.return_value = True
         elev.is_provisioned.return_value = True
+        elev.is_windows_task_stale.return_value = False
         elev.run_elevated.return_value = {
             "ok": True,
             "exit_code": 0,
