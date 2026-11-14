@@ -21,16 +21,24 @@ with the roadmap in `docs/ai-delegation-plan.md` (Phase D, item 16).
 
 When a technician asks the AI a question, `ContextBuilder` assembles a prompt
 containing device metadata, metrics, error logs, config history, fleet
-summaries and memory-retrieved incidents. That entire string is sent to the
+summaries and memory-retrieved incidents. Since the command-result work
+(PR #941/#942), this also includes **command execution output**: `stdout` /
+`stderr` summaries in `get_command_context`, and the `get_command` tool can
+return a command's full output (up to 2000 chars). The anomaly scan (PR #944)
+adds device-level reasons and metrics. That entire string is sent to the
 selected provider. The leakage surface is **whatever context the agent gathers
 for a query**, not just the user's question.
+
+Command output is the most sensitive of these: a technician's `run_command` /
+`run_script` can dump config files, credentials, or customer-specific strings,
+so its output must not be treated as benign.
 
 ## Threats
 
 1. **Secrets exposure** — keys in git, config, logs, or error messages.
-2. **Device data to a third party** — metrics, logs, config values, device IDs
-   and memory incidents may contain operational details a customer does not
-   want a cloud provider to see.
+2. **Device data to a third party** — metrics, logs, config values, device IDs,
+   command output (`stdout`/`stderr`), and memory incidents may contain
+   operational details a customer does not want a cloud provider to see.
 3. **Cross-tenant leakage** — in a multi-site deployment, context for one
    site must never bleed into a query scoped to another (per-device RBAC
    already exists; the agent loop must honour it).
@@ -136,7 +144,9 @@ implemented for a real deployment; F is the last.
 
 - [ ] Move keys from `.env.local`/`provider.json` into a secret manager.
 - [ ] Enable provider zero-data-retention / no-training modes and sign DPAs.
-- [ ] Implement B (redaction) with a per-customer allow-list.
+- [ ] Implement B (redaction) with a per-customer allow-list — treat command
+      `stdout`/`stderr` (PR #941/#942) and device identifiers/IPs as
+      first-class fields to redact before any cloud call.
 - [ ] Add per-site "cloud-allowed" flags (C) and route accordingly.
 - [ ] Add outbound DLP (F) as a safety net.
 - [ ] Review audit logs for provider usage and prompt hashes.
