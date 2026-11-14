@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from homepot.app.models.AnalyticsModel import ConfigurationHistory
 from homepot.database import get_database_service
-from homepot.models import JobPriority, Site
+from homepot.models import JobPriority, Site, User
 from homepot.orchestrator import get_job_orchestrator
 
 
@@ -26,6 +26,20 @@ async def test_direct_config_history():
             session.add(site)
             await session.commit()
 
+        result = await session.execute(
+            select(User).where(User.email == "config-direct-test@example.com")
+        )
+        user = result.scalars().first()
+        if not user:
+            user = User(
+                username="config-direct-test",
+                email="config-direct-test@example.com",
+                hashed_password="test-hash",
+            )
+            session.add(user)
+            await session.commit()
+        user_id = user.id
+
     # Test 1: Create a job via orchestrator
     try:
         orchestrator = await get_job_orchestrator()
@@ -35,6 +49,7 @@ async def test_direct_config_history():
             description="Direct test of configuration tracking",
             config_url="https://config-server.example.com/pos-config-v2.6.json",
             config_version="2.6.0",
+            user_id=user_id,
             priority=JobPriority.HIGH,
         )
         assert job_id is not None

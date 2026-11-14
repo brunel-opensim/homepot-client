@@ -62,13 +62,18 @@ def generate_random_id(prefix: str) -> str:
 
 
 @pytest.fixture(autouse=True)
-def file_db(monkeypatch: Any) -> Generator[None, None, None]:
+def file_db(
+    monkeypatch: Any, request: pytest.FixtureRequest
+) -> Generator[None, None, None]:
     """Use a temp file-based SQLite DB so sync+async engines share data."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     db_url = f"sqlite:///{path}"
-    monkeypatch.setenv("DATABASE_URL", db_url)
-    monkeypatch.setenv("DATABASE__URL", db_url)
+    env = pytest.MonkeyPatch()
+    request.addfinalizer(reload_settings)
+    request.addfinalizer(env.undo)
+    env.setenv("DATABASE_URL", db_url)
+    env.setenv("DATABASE__URL", db_url)
     reload_settings()
 
     if homepot.database._db_service is not None:
@@ -104,14 +109,15 @@ def file_db(monkeypatch: Any) -> Generator[None, None, None]:
     finally:
         session.close()
 
-    yield
-
-    new_engine.dispose()
-    if os.path.exists(path):
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+    try:
+        yield
+    finally:
+        new_engine.dispose()
+        if os.path.exists(path):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 def auth_headers() -> dict:

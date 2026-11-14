@@ -340,7 +340,7 @@ async def _seed_active_fleet():
 
     db_service = await get_database_service()
     seed_suffix = secrets.token_hex(4)
-    health_check_id = int(seed_suffix, 16)
+    health_check_id = int(seed_suffix, 16) & 0x7FFFFFFF or 1
 
     site = await db_service.create_site(
         site_id=f"validation-gate-seed-{seed_suffix}",

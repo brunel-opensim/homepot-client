@@ -49,6 +49,7 @@ CONTEXT_METHOD_NAMES = (
     "get_lifecycle_epoch_context",
     "get_device_credential_context",
     "get_device_command_context",
+    "get_command_context",
     "get_device_assignment_context",
     "get_device_lifecycle_event_context",
     "get_jobs_context",

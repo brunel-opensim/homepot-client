@@ -2273,30 +2273,83 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+#: Friendly descriptions for command types that do not map to a single OS argv
+#: (read-only snapshots, in-process appliers, and agent/app lifecycle acks).
+#: Shown in push history when there is no literal command to display.
+_DESCRIPTIVE_COMMANDS = {
+    "ping": "ping (connectivity check)",
+    "health_check": "health check",
+    "list_processes": "list running processes",
+    "list_connections": "list network connections",
+    "scan_filesystem": "scan filesystem",
+    "restart_agent": "restart the agent process",
+    "update_app": "update the User App to the latest release",
+    "rollback_app": "roll back the User App to the previous release",
+    "status_request": "collect a device status snapshot",
+    "bootstrap_winget": "bootstrap winget (install App Installer if missing)",
+}
+
+
+def _describe_config_update(data: Dict[str, Any], windows: bool) -> str:
+    """Describe the OS actions an ``update_config`` payload maps to.
+
+    ``update_config`` is the two-layer command: the payload keys expand to
+    platform-specific actions (PowerShell/Core Audio on Windows, helper
+    binaries/apple-script on macOS), so there is no single argv to show. This
+    describes the per-key intent + mechanism instead.
+    """
+    parts: List[str] = []
+    if "url" in data:
+        version = str(data.get("version") or "")
+        parts.append(("download+verify firmware " + version).strip())
+    for key, value in data.items():
+        if key in ("url", "checksum", "version"):
+            continue
+        if key == "brightness":
+            mechanism = "Monitor Configuration API" if windows else "brightness helper"
+            parts.append(f"set brightness to {value}% ({mechanism})")
+        elif key == "volume":
+            mechanism = "Core Audio" if windows else "osascript"
+            parts.append(f"set volume to {value}% ({mechanism})")
+        else:
+            parts.append(f"set {key} to {value}")
+    return "update_config: " + "; ".join(parts) if parts else "update_config"
+
+
 def _describe_executed_command(
     command_type: str,
     command: Dict[str, Any],
     is_windows: Optional[bool] = None,
 ) -> str:
-    """Return the OS command line that was (or would be) executed.
+    """Return the OS command that was (or would be) executed.
 
     Mirrors the argv/script used by the corresponding runner so the stored
-    ``command_executed`` value is an accurate audit trail. ``is_windows`` lets
-    the backend describe an older agent's command using the device's OS instead
-    of the server's OS (where ``_is_windows_platform`` would be wrong).
+    ``command_executed`` value is an accurate audit trail. Commands that run
+    in-process (or as agent/app lifecycle acks) get a descriptive string.
+    ``is_windows`` lets the backend describe an older agent's command using the
+    device's OS instead of the server's OS (where ``_is_windows_platform``
+    would be wrong).
     """
     data = _command_data(command)
-    if command_type in ("run_command", "run_script"):
+    windows = _is_windows_platform() if is_windows is None else is_windows
+
+    if command_type in ("run_command", "run_script", "run_command_unprivileged"):
         return str(data.get("command") or data.get("script") or command_type)
+
+    if command_type == "restart":
+        return "shutdown /r /t 0" if windows else "shutdown -r now"
+    if command_type == "shutdown":
+        return "shutdown /s /t 0" if windows else "shutdown -h now"
+
     if command_type == "restart_service":
         name = data.get("service_name", "")
-        windows = _is_windows_platform() if is_windows is None else is_windows
         if windows:
             return "Restart-Service -Name '%s'" % name
         return "systemctl restart '%s'" % name
+
     if command_type == "update_config":
-        keys = list((data or {}).keys())
-        return "update_config: " + ", ".join(keys) if keys else "update_config"
+        return _describe_config_update(data, windows)
+
     if command_type in ("install_program", "uninstall_program", "update_program"):
         package = data.get("package") or data.get("program_name") or ""
         if command_type == "install_program":
@@ -2304,15 +2357,40 @@ def _describe_executed_command(
         if command_type == "uninstall_program":
             return f"winget uninstall -e --id '{package}' --silent --scope machine"
         return f"winget upgrade -e --id '{package}' {_WINGET_FLAGS} --scope machine"
+
     if command_type == "upgrade_all_programs":
         return f"winget upgrade --all {_WINGET_FLAGS} --scope machine"
-    if command_type == "bootstrap_winget":
-        return (
-            "bootstrap_winget: Add-AppxPackage App Installer only if winget is missing"
+
+    if command_type == "start_program":
+        path = (
+            data.get("path")
+            or data.get("program")
+            or data.get("name")
+            or data.get("executable")
+            or ""
         )
-    if command_type in ("start_program", "stop_program"):
-        return "%s %s" % (command_type, data.get("path") or data.get("name") or "")
-    return command_type
+        args = data.get("args", data.get("arguments")) or []
+        if isinstance(args, str):
+            args = [args]
+        return " ".join([str(path), *[str(a) for a in args]]).strip() or "start_program"
+
+    if command_type == "stop_program":
+        target = data.get("name") or data.get("pid") or ""
+        force = bool(data.get("force"))
+        return f"{'kill' if force else 'terminate'} process '{target}'"
+
+    if command_type == "list_installed_programs":
+        if windows:
+            return "Get-ItemProperty (Add/Remove Programs registry keys)"
+        return "list installed programs"
+
+    if command_type == "health_check":
+        tests = data.get("tests") or ["network", "storage", "memory"]
+        if isinstance(tests, str):
+            tests = [tests]
+        return "health check (" + ", ".join(tests) + ")"
+
+    return _DESCRIPTIVE_COMMANDS.get(command_type, command_type)
 
 
 def process_command(
