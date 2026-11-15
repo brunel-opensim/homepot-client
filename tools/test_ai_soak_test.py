@@ -10,7 +10,7 @@ reported as BLOCKED (not FAIL), a wrong action must not be scored as a pass,
 and a plan that reached ``succeeded`` without a verified outcome must not count.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 from pathlib import Path
@@ -176,6 +176,31 @@ def test_query_proposal_records_action(soak):
     assert record["proposed_actions"] == ["list_processes"]
 
 
+def test_query_proposal_captures_provider_and_diagnostics(soak):
+    """The provider, response text and tool calls are kept for diagnosis.
+
+    These are what turn a "no proposal" failure into an explainable one: the
+    tools_called list shows whether propose_device_action was attempted, and
+    the response shows what the AI said instead.
+    """
+    proposal = {"plan_id": "p1", "steps": [{"seq": 1, "action": "list_processes"}]}
+    resp = {
+        "trust": {"actionable": True},
+        "proposal": proposal,
+        "provider": "anthropic",
+        "response": "I recorded a proposal to list processes.",
+        "agentic": {
+            "tools_called": [{"tool": "propose_device_action", "iteration": 1}]
+        },
+    }
+    client = QueryClient(resp)
+    record = make_record(soak)
+    soak.query_proposal(client, "http://x", "D", "q", record, 5, 0.0)
+    assert record["provider"] == "anthropic"
+    assert record["response"] == "I recorded a proposal to list processes."
+    assert record["tools_called"] == [{"tool": "propose_device_action", "iteration": 1}]
+
+
 # --- Outcome classification --------------------------------------------------
 
 
@@ -264,13 +289,13 @@ def terminal_plan():
 
 
 def audit_events(command_type="list_processes", command_id="cmd-1"):
-    """Build the three audit rows a healthy command produces."""
+    """Build the audit rows the AI executor actually writes.
+
+    The executor emits ``command_sent`` and ``command_completed`` but NOT
+    ``command_queued`` (that is the operator/Compose path only), so the helper
+    mirrors reality and the happy path exercises the lenient audit check.
+    """
     return [
-        {
-            "event_type": "command_queued",
-            "description": f"User 'admin' queued {command_type} command for device 'D'",
-            "created_at": iso(NOW),
-        },
         {
             "event_type": "command_sent",
             "description": f"Device 'D' acknowledged command '{command_id}'",
@@ -282,6 +307,88 @@ def audit_events(command_type="list_processes", command_id="cmd-1"):
             "created_at": iso(NOW),
         },
     ]
+
+
+def test_verify_audit_ok_without_queued_event(soak):
+    """The AI path omits command_queued; sent + terminal still verify."""
+    result = soak.verify_audit(
+        audit_events(),
+        "cmd-1",
+        "list_processes",
+        NOW,
+        NOW + timedelta(seconds=5),
+        True,
+        True,
+    )
+    assert result["ok"]
+    assert result["sent"] and result["terminal"]
+    assert not result["queued"]
+
+
+def test_verify_audit_requires_terminal_event(soak):
+    """A trail that stops at 'sent' is incomplete."""
+    result = soak.verify_audit(
+        audit_events()[:1],
+        "cmd-1",
+        "list_processes",
+        NOW,
+        NOW + timedelta(seconds=5),
+        True,
+        True,
+    )
+    assert not result["ok"]
+    assert result["sent"]
+    assert not result["terminal"]
+
+
+class ProviderClient:
+    """Fake client serving the /ai/provider GET and PUT endpoints."""
+
+    def __init__(self, current="ollama", model="llama3.2"):
+        """Record the current provider/model and any switch request."""
+        self.current = current
+        self.model = model
+        self.switched = None
+
+    def get(self, url, params=None):
+        """Return the current provider info."""
+        return FakeResponse(
+            {
+                "status": "success",
+                "data": {"current": self.current, "model": self.model},
+            }
+        )
+
+    def put(self, url, params=None):
+        """Record the switch and return the updated provider info."""
+        self.switched = (params or {}).get("provider")
+        self.current = self.switched or self.current
+        if self.switched == "anthropic":
+            self.model = "claude-haiku-4-5"
+        return FakeResponse(
+            {
+                "status": "success",
+                "data": {"current": self.current, "model": self.model},
+            }
+        )
+
+
+def test_resolve_provider_switches_when_requested(soak):
+    """A --provider that differs switches the server and reports the new model."""
+    client = ProviderClient(current="ollama")
+    provider, model = soak.resolve_provider(client, "http://x", "anthropic")
+    assert provider == "anthropic"
+    assert model == "claude-haiku-4-5"
+    assert client.switched == "anthropic"
+
+
+def test_resolve_provider_records_without_switch(soak):
+    """Omitting --provider records the active provider without a switch."""
+    client = ProviderClient(current="anthropic", model="claude-haiku-4-5")
+    provider, model = soak.resolve_provider(client, "http://x", None)
+    assert provider == "anthropic"
+    assert model == "claude-haiku-4-5"
+    assert client.switched is None
 
 
 class FakeClient:
@@ -437,6 +544,9 @@ def test_new_record_has_every_field_the_report_reads(soak):
         "proposed_actions",
         "trust",
         "gate_failure",
+        "provider",
+        "response",
+        "tools_called",
         "step_approvals",
         "steps",
         "outcome_detail",
