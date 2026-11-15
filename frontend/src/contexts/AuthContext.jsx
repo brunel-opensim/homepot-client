@@ -28,10 +28,10 @@ export function AuthProvider({ children }) {
     try {
       const resp = await api.auth.me();
       if (resp?.success && resp?.data) {
-        // Normalize role: If Admin/Engineer privileges exist but role says 'Client', fix display
+        // Normalize role: prefer the canonical role returned by the backend.
         let role = resp.data.role;
-        if (resp.data.is_admin && (!role || role === 'Client' || role === 'User')) {
-          role = 'Admin';
+        if (!role) {
+          role = resp.data.is_admin ? 'Admin' : 'Technician';
         }
 
         setUser({
@@ -84,12 +84,11 @@ export function AuthProvider({ children }) {
 
       if (resp?.success && resp?.data) {
         // Set user from response data (token is in httpOnly cookie)
-        // Normalize role: If Admin/Engineer privileges exist but role says 'Client', fix display
+        // Normalize role: prefer the canonical role returned by the backend;
+        // only fall back when the claim is missing.
         let role = resp.data.role;
-        if (resp.data.is_admin && (!role || role === 'Client' || role === 'User')) {
-          role = 'Admin';
-        } else if (!role) {
-          role = resp.data.is_admin ? 'Admin' : 'User';
+        if (!role) {
+          role = resp.data.is_admin ? 'Admin' : 'Technician';
         }
 
         const userData = {

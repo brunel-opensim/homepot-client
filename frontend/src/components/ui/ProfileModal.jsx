@@ -1,17 +1,17 @@
 import React from 'react';
-import { User, Mail, AtSign, Shield, Calendar, CheckCircle } from 'lucide-react';
+import { User, Mail, AtSign, Shield, CheckCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from './dialog';
 
 export default function ProfileModal({ open, onOpenChange, user }) {
   if (!user) return null;
 
-  // Determine visual theme based on role
-  // "Engineer" or Admin -> Indigo/Purple theme
-  // "Client" or User -> Teal/Emerald theme
-  const isEngineer =
-    (user.role && user.role.toLowerCase() === 'engineer') || user.role === 'Admin' || user.isAdmin;
+  // Determine visual theme based on role.
+  // Admin -> Indigo/Purple (elevated), Technician -> Teal/Emerald,
+  // Viewer -> Slate (read-only reviewer).
+  const isAdmin = user.isAdmin || user.role === 'Admin';
+  const isViewer = user.role === 'Viewer';
 
-  const theme = isEngineer
+  const theme = isAdmin
     ? {
         main: 'indigo',
         gradient: 'from-indigo-600 via-purple-600 to-indigo-800',
@@ -21,15 +21,27 @@ export default function ProfileModal({ open, onOpenChange, user }) {
         text: 'text-indigo-300',
         shadow: 'shadow-indigo-500/20',
       }
-    : {
-        main: 'teal',
-        gradient: 'from-teal-600 via-emerald-600 to-teal-800',
-        light: 'teal-400',
-        bg: 'bg-teal-500/10',
-        border: 'border-teal-500/20',
-        text: 'text-teal-300',
-        shadow: 'shadow-teal-500/20',
-      };
+    : isViewer
+      ? {
+          main: 'slate',
+          gradient: 'from-slate-600 via-slate-700 to-slate-900',
+          light: 'slate-400',
+          bg: 'bg-slate-500/10',
+          border: 'border-slate-500/20',
+          text: 'text-slate-300',
+          shadow: 'shadow-slate-500/20',
+        }
+      : {
+          main: 'teal',
+          gradient: 'from-teal-600 via-emerald-600 to-teal-800',
+          light: 'teal-400',
+          bg: 'bg-teal-500/10',
+          border: 'border-teal-500/20',
+          text: 'text-teal-300',
+          shadow: 'shadow-teal-500/20',
+        };
+
+  const roleLabel = isAdmin ? 'Admin' : isViewer ? 'Viewer' : user.role || 'Technician';
 
   const profileFields = [
     {
@@ -50,7 +62,7 @@ export default function ProfileModal({ open, onOpenChange, user }) {
     {
       icon: <Shield className="w-4 h-4" />,
       label: 'Role Authorization',
-      value: user.role || (user.isAdmin ? 'Admin' : 'User'),
+      value: roleLabel,
     },
   ];
 
@@ -64,7 +76,7 @@ export default function ProfileModal({ open, onOpenChange, user }) {
           {/* Decorative patterns */}
           <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"></div>
           <div className="absolute top-3 left-3 text-white/50 text-[10px] font-mono border border-white/10 px-1.5 py-0.5 rounded bg-black/10 backdrop-blur-sm">
-            ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}
+            ID: {user?.username || user?.email || '\u2014'}
           </div>
         </div>
 
@@ -85,7 +97,7 @@ export default function ProfileModal({ open, onOpenChange, user }) {
               className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider border bg-slate-900/80 backdrop-blur ${theme.text} ${theme.border} flex items-center gap-1.5 mb-2 shadow-lg`}
             >
               <div className={`w-1.5 h-1.5 rounded-full bg-${theme.main}-400 animate-pulse`}></div>
-              {isEngineer ? 'SYSTEM LEVEL' : 'ACTIVE USER'}
+              {isAdmin ? 'ADMIN' : isViewer ? 'VIEWER' : 'ACTIVE'}
             </div>
           </div>
 
@@ -142,12 +154,8 @@ export default function ProfileModal({ open, onOpenChange, user }) {
           </div>
 
           {/* Footer Metadata */}
-          <div className="mt-6 flex items-center justify-between text-[10px] text-slate-600 pt-3 border-t border-slate-900">
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3 h-3" />
-              Joined {new Date().getFullYear()}
-            </div>
-            <span>HOMEPOT Client v2.1</span>
+          <div className="mt-6 flex items-center justify-center text-[10px] text-slate-600 pt-3 border-t border-slate-900">
+            <span>HOMEPOT Client v{import.meta.env.VITE_APP_VERSION || 'dev'}</span>
           </div>
         </div>
       </DialogContent>
