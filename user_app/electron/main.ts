@@ -182,7 +182,11 @@ async function reportCommandResult(
   const apiKey = credentials.api_key
   if (!deviceId || !apiKey) return
   const backendUrl = resolveBackendUrl(credentials)
-  const url = `${backendUrl}/devices/${commandId}/status`
+  // backend_url is stored without the /api/v1 prefix (the setup wizard strips
+  // it), and the Python agent prepends it when building request paths. This
+  // function must do the same or the PUT lands on a frontend route and the
+  // backend rejects it (HTTP 405), silently dropping the enriched outcome.
+  const url = `${backendUrl}/api/v1/devices/${commandId}/status`
   const body = JSON.stringify({ status, result })
   const headers = {
     'Content-Type': 'application/json',
