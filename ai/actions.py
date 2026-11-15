@@ -370,6 +370,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "collect_support_bundle": ActionSpec(
+        name="collect_support_bundle",
+        command_type="collect_support_bundle",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="viewer",
+        description=(
+            "Bundle hardware/OS, disk, process, and metrics snapshots into a "
+            "single zip support artifact. Read-only; no state change."
+        ),
+        required_params=(),
+    ),
     "notify_user": ActionSpec(
         name="notify_user",
         command_type="notify_user",

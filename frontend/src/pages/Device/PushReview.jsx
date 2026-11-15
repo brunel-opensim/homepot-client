@@ -256,6 +256,15 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Return a hardware/OS inventory snapshot (CPU, RAM, OS build, and on Windows serial/model/GPU).',
   },
+  COLLECT_SUPPORT_BUNDLE: {
+    label: 'Collect Support Bundle',
+    action: 'collect_support_bundle',
+    group: 'Diagnostics',
+    permission: 'command_execution',
+    defaultData: {},
+    description:
+      'Bundle hardware/OS, disk, process, and metrics snapshots into a single zip support artifact.',
+  },
   SCAN_FILESYSTEM: {
     label: 'Scan Filesystem',
     action: 'scan_filesystem',

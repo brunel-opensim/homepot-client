@@ -509,6 +509,33 @@ def test_notify_user_in_command_types_and_permission():
     assert required_permissions_for_command("notify_user") == ["command_execution"]
 
 
+def test_collect_support_bundle_creates_zip():
+    """collect_support_bundle writes a zip with the diagnostic snapshots."""
+    from homepot.agent.utils.command_poller import _run_collect_support_bundle
+
+    result = _run_collect_support_bundle({})
+
+    assert result["status"] == "completed"
+    info = result["result"]
+    assert info["path"].endswith(".zip")
+    assert info["file_count"] == 4
+    assert isinstance(info["size_bytes"], int)
+    assert info["size_bytes"] > 0
+    assert os.path.exists(info["path"])
+    try:
+        os.remove(info["path"])
+    except OSError:
+        pass
+
+
+def test_collect_support_bundle_in_command_types_and_permission():
+    """collect_support_bundle is registered and gated on command_execution."""
+    assert "collect_support_bundle" in COMMAND_TYPES
+    assert required_permissions_for_command("collect_support_bundle") == [
+        "command_execution"
+    ]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent
