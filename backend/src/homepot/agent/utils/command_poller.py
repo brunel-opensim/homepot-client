@@ -13,6 +13,7 @@ import shutil
 import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 import tempfile
+import time
 from typing import Any, Dict, List, Optional
 import urllib.parse
 import urllib.request
@@ -50,6 +51,7 @@ COMMAND_TYPES = frozenset(
         "get_system_info",
         "notify_user",
         "collect_support_bundle",
+        "disk_cleanup",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -87,6 +89,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "get_system_info": "command_execution",
     "notify_user": "command_execution",
     "collect_support_bundle": "command_execution",
+    "disk_cleanup": "command_execution",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -1121,6 +1124,56 @@ def _run_collect_support_bundle(data: Dict[str, Any]) -> Dict[str, Any]:
             "status": "failed",
             "result": {"error": f"support bundle failed: {exc}"},
         }
+
+
+# --- disk_cleanup -----------------------------------------------------------
+
+
+def _run_disk_cleanup(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Clear old temp files and the agent's own temp artifacts to reclaim space.
+
+    Removes files from the system temp directory (or an optional ``target``)
+    that are older than ``max_age_days`` (default 7) or that carry the
+    ``homepot-`` prefix (the agent's own temp artifacts). Returns the number
+    of files removed and bytes freed.
+    """
+    try:
+        max_age_days = max(0.0, float(data.get("max_age_days", 7)))
+    except (TypeError, ValueError):
+        max_age_days = 7.0
+
+    target = str(data.get("target") or tempfile.gettempdir())
+    if not os.path.isdir(target):
+        return {
+            "status": "failed",
+            "result": {"error": f"cleanup target not found: {target}"},
+        }
+
+    cutoff = time.time() - max_age_days * 86400
+    removed = 0
+    bytes_freed = 0
+    for name in os.listdir(target):
+        path = os.path.join(target, name)
+        try:
+            if not os.path.isfile(path):
+                continue
+            if not (name.startswith("homepot-") or os.path.getmtime(path) < cutoff):
+                continue
+            size = os.path.getsize(path)
+            os.remove(path)
+            removed += 1
+            bytes_freed += size
+        except OSError:
+            continue
+
+    return {
+        "status": "completed",
+        "result": {
+            "removed_files": removed,
+            "bytes_freed": bytes_freed,
+            "target": target,
+        },
+    }
 
 
 # --- list_connections -------------------------------------------------------
@@ -2804,6 +2857,9 @@ def _process_command_impl(
     if command_type == "collect_support_bundle":
         return _run_collect_support_bundle(_command_data(command))
 
+    if command_type == "disk_cleanup":
+        return _run_disk_cleanup(_command_data(command))
+
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))
 
@@ -2917,6 +2973,7 @@ _DESCRIPTIVE_COMMANDS = {
     "status_request": "collect a device status snapshot",
     "bootstrap_winget": "bootstrap winget (install App Installer if missing)",
     "collect_support_bundle": "collect a zip support bundle",
+    "disk_cleanup": "clear old temp files and caches",
 }
 
 
