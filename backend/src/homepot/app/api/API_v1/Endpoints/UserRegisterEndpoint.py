@@ -36,9 +36,9 @@ from homepot.app.auth_utils import (
 )
 from homepot.app.models import UserRegisterModel as models
 from homepot.app.roles import (
-    ADMIN,
     LEGACY_ROLE_ALIASES,
     TECHNICIAN,
+    VIEWER,
     is_privileged,
     normalize_role,
 )
@@ -71,7 +71,10 @@ def response(success: bool, message: str, data: Optional[dict] = None) -> dict:
 @router.post("/signup", response_model=dict, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 def signup(
-    request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)
+    request: Request,
+    user: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    admin: Dict = Depends(require_role("Admin")),
 ) -> dict:
     """User Registration and Authentication Endpoints."""
     try:
@@ -92,18 +95,18 @@ def signup(
             logger.warning(f"Signup failed: Username {final_username} already taken")
             raise HTTPException(status_code=400, detail="Username already taken")
 
-        # Self-registration always creates a Technician. The caller-supplied
-        # `role` is intentionally ignored: preferring it would let anyone who
-        # can reach this public endpoint ask for the role they want, and a
-        # non-Admin role must never be a route to privilege. Promoting a user
-        # is an admin-only action (PUT /auth/users/{email}/role).
-        #
-        # `is_admin` is derived from the role, NOT from is_privileged(): that
-        # helper returns True for every role while HOMEPOT_DEV_UNIFIED_ACCESS is
-        # on, which would store every signup as a genuine admin and make
-        # admin-only endpoints reachable. This mirrors scripts/seed-users.sh.
-        user_role = TECHNICIAN
-        admin = user_role == ADMIN
+        # Admin-only account creation. The caller-supplied role is honoured
+        # (admins may create Technicians or Viewers) but it can never mint an
+        # Admin: promotion to Admin goes through the dedicated assign_role
+        # endpoint. This closes the open-signup gap flagged in
+        # rbac-hardening-plan.md §5.3.
+        user_role = normalize_role(user.role or "Technician")
+        if user_role not in (TECHNICIAN, VIEWER):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid role. Allowed roles: Technician, Viewer",
+            )
+        admin_flag = False  # signup never creates an admin
 
         # Assign to default tenant
         default_tenant = db.query(Tenant).filter(Tenant.slug == "default").first()
@@ -114,7 +117,7 @@ def signup(
             full_name=user.full_name,
             hashed_password=hash_password(user.password),
             role=user_role,
-            is_admin=admin,
+            is_admin=admin_flag,
             tenant_id=default_tenant.id if default_tenant else None,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -229,7 +232,7 @@ def assign_role(
         if new_role.strip().lower() not in LEGACY_ROLE_ALIASES:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid role. Allowed roles: Admin, Technician",
+                detail="Invalid role. Allowed roles: Admin, Technician, Viewer",
             )
         canonical_role = normalize_role(new_role)
         # Write BOTH the role string and the derived admin flag. Previously only

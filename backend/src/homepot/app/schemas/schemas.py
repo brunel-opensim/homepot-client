@@ -12,7 +12,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: Optional[str] = None
     username: Optional[str] = None
-    role: Optional[str] = "Technician"  # Canonical roles: Admin | Technician
+    role: Optional[str] = "Technician"  # Canonical roles: Admin | Technician | Viewer
 
 
 class UserLogin(BaseModel):

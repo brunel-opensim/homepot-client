@@ -9,7 +9,6 @@ import DashboardLayout from '../layouts/DashboardLayout';
 // Pages (reuse your existing pages)
 const Home = lazy(() => import('../pages/Home'));
 const Login = lazy(() => import('../pages/Login'));
-const Signup = lazy(() => import('../pages/Signup'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const DeviceList = lazy(() => import('../pages/Device/DeviceList'));
 
@@ -37,10 +36,9 @@ export default function RoutesIndex() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <Routes>
-        {/* Auth routes (login/signup) */}
+        {/* Auth routes (login only - signup disabled, admins create users) */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
         </Route>
 
         {/* Protected area - wrapped with ProtectedRoute and DashboardLayout */}

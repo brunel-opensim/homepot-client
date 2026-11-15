@@ -65,10 +65,6 @@ const Login = () => {
     }
   };
 
-  const handleNavigateToSignUp = () => {
-    navigate('/signup');
-  };
-
   return (
     <AuthPageLayout
       activeColor="teal"
@@ -85,7 +81,6 @@ const Login = () => {
         errorMsg={errorMsg}
         successMsg={successMsg}
         onSubmit={() => handleLogin({ email, password })}
-        onNavigateToSignUp={handleNavigateToSignUp}
       />
     </AuthPageLayout>
   );

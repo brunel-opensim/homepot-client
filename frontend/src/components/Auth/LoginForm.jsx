@@ -11,7 +11,6 @@ export default function LoginForm({
   errorMsg,
   successMsg,
   onSubmit, // () => Promise<{success: boolean}>
-  onNavigateToSignUp,
 }) {
   const activeColor = 'teal';
 
@@ -71,17 +70,6 @@ export default function LoginForm({
               {successMsg}
             </div>
           )}
-
-          <div className="text-center flex justify-center items-center mb-6 gap-3">
-            <span className="text-gray-400 text-sm">Don't have an account?</span>
-            <button
-              onClick={onNavigateToSignUp}
-              type="button"
-              className="text-sm font-semibold transition-colors duration-200 text-teal-400 hover:text-teal-300"
-            >
-              Sign up
-            </button>
-          </div>
 
           <AuthSubmitButton activeTab="CLIENT" loading={loading} loadingText="Signing in...">
             Log In
