@@ -391,7 +391,13 @@ function CommandTypeSelect({ templates, value, onChange }) {
   const [query, setQuery] = useState('');
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
-  const [panelStyle, setPanelStyle] = useState({ top: 0, left: 0, width: 0 });
+  const [panelStyle, setPanelStyle] = useState({
+    top: 0,
+    bottom: null,
+    left: 0,
+    width: 0,
+    maxHeight: 320,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -417,7 +423,19 @@ function CommandTypeSelect({ templates, value, onChange }) {
   function toggle() {
     if (!open && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPanelStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // Prefer opening downward, but flip upward when there is more room above
+      // and not enough below, so the panel never overflows the viewport.
+      const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+      const available = (openUp ? spaceAbove : spaceBelow) - 12;
+      setPanelStyle({
+        top: openUp ? null : rect.bottom + 4,
+        bottom: openUp ? window.innerHeight - rect.top + 4 : null,
+        left: rect.left,
+        width: rect.width,
+        maxHeight: Math.max(120, Math.min(320, available)),
+      });
     }
     setOpen((prev) => !prev);
   }
@@ -443,7 +461,8 @@ function CommandTypeSelect({ templates, value, onChange }) {
       ref={panelRef}
       style={{
         position: 'fixed',
-        top: panelStyle.top,
+        top: panelStyle.top ?? undefined,
+        bottom: panelStyle.bottom ?? undefined,
         left: panelStyle.left,
         width: panelStyle.width,
         zIndex: 50,
@@ -460,7 +479,10 @@ function CommandTypeSelect({ templates, value, onChange }) {
           className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-2 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-teal-500"
         />
       </div>
-      <div className="max-h-72 overflow-y-auto py-1">
+      <div
+        className="overflow-y-auto custom-scrollbar py-1 pr-2"
+        style={{ maxHeight: panelStyle.maxHeight }}
+      >
         {filtered.length === 0 ? (
           <div className="px-3 py-2 text-xs text-slate-500">No commands match</div>
         ) : (
