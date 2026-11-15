@@ -1260,8 +1260,14 @@ def parse_args() -> argparse.Namespace:
         default=180,
         help="Seconds to wait for the agent to check back in after restart_agent",
     )
+    default_output = (
+        "soak-runs/compose-soak-results-"
+        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+    )
     ap.add_argument(
-        "--output", default="compose-soak-results.json", help="Evidence JSON path"
+        "--output",
+        default=default_output,
+        help="Evidence JSON path (default: a timestamped file under soak-runs/)",
     )
     ap.add_argument(
         "--force",
@@ -1375,6 +1381,7 @@ def write_evidence(
     wall_seconds: float,
 ) -> None:
     """Write the full evidence bundle so a failure can be reviewed later."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(
             {
