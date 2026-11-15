@@ -41,9 +41,9 @@ Disruptive commands are excluded by design (see ``SOAK_COMMANDS``):
 
 Known side effects on the operator's own machine: ``update_config`` leaves the
 volume at 50 and the brightness at 75, ``notify_user`` pops a modal on screen,
-and ``start_program``/``stop_program`` open and close Notepad. The stop step
-targets the PID returned by the start step, so a Notepad window the operator
-already had open is never touched.
+and ``start_program``/``stop_program`` spawn and kill a ``ping.exe`` that runs
+for a few minutes. The stop step targets the pid returned by the start step, so
+a window the operator already has open is never touched.
 
 Usage:
     HOMEPOT_PASSWORD='...' python tools/compose-soak-test.py \\
@@ -73,6 +73,17 @@ TERMINAL_STATUSES = {"completed", "failed", "expired", "cancelled"}
 # taken on this machine. A little clock skew between the two must not make a
 # correctly recorded command look missing.
 CLOCK_SKEW_TOLERANCE_S = 300
+
+# The device log stream mixes real errors with bookkeeping rows that are not
+# errors: heartbeats (``category="status"``) and each command's own completion
+# line (``category="command"``), both written with ``severity="info"``.
+LOG_NOISE_CATEGORIES = {"status", "command"}
+ERROR_SEVERITIES = {"warning", "error", "critical", "fatal"}
+
+# An agent that has just started reports a few seconds of uptime. A soak device
+# has been up for hours, so this separates "restarted" from "still the old
+# process" without needing the restart counter.
+FRESH_UPTIME_S = 60
 
 # Outcomes reported for one command.
 OUTCOME_PASS = "PASS"
@@ -234,14 +245,19 @@ SOAK_COMMANDS: List[Dict[str, Any]] = [
         "timeout": 300,
     },
     {
+        # ping.exe stays alive for the whole run, so the stop step has a live
+        # process to kill. Notepad cannot be used for this: on Windows 11 it is
+        # a packaged app, so notepad.exe hands off to the Store process and
+        # exits immediately — the reported pid was already gone and the kill
+        # path went untested ("process not running", killed 0).
         "action": "start_program",
-        "label": "Start Program",
-        "payload": {"path": "notepad.exe", "args": []},
+        "label": "Start Program (ping)",
+        "payload": {"path": "ping.exe", "args": ["-n", "300", "127.0.0.1"]},
         "timeout": 300,
     },
     {
-        # Stops only the pid captured from start_program, so a Notepad window
-        # the operator already has open with unsaved text is left alone.
+        # Stops only the pid captured from start_program, so a window the
+        # operator already has open is never touched.
         "action": "stop_program",
         "label": "Stop Program (started pid)",
         "payload": {"pid": "$PID", "force": False},
@@ -380,10 +396,21 @@ def get_audit_events(
 def error_fingerprints(
     client: httpx.Client, base_url: str, device_id: str, limit: int = 100
 ) -> List[str]:
-    """Return recent Live Logs rows as stable fingerprint strings.
+    """Return recent *device errors* as stable fingerprint strings.
 
-    Live Logs are populated by device error reporting, so a fetch failure is
-    never fatal: an empty list simply disables the new-error comparison.
+    Despite its name, ``/error-logs`` returns the whole device log stream: the
+    periodic ``Status report: ONLINE ...`` heartbeat and every command's own
+    ``Command completed: ...`` line are stored there with ``severity="info"``.
+    Diffing the raw stream counted the command's own completion line and a
+    heartbeat as "new errors", which marked all 24 commands as notes on the
+    first run.
+
+    So bookkeeping rows are dropped: anything in a ``status``/``command``
+    category, anything below warning severity, and anything with neither a
+    severity nor an error code.
+
+    A fetch failure is never fatal: an empty list simply disables the
+    comparison.
     """
     try:
         r = client.get(
@@ -396,15 +423,27 @@ def error_fingerprints(
         return []
     if not isinstance(rows, list):
         return []
-    return [
-        "{0}|{1}|{2}".format(
-            row.get("timestamp"),
-            row.get("error_code"),
-            str(row.get("error_message") or "")[:120],
+
+    fingerprints: List[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("category") or "").lower() in LOG_NOISE_CATEGORIES:
+            continue
+        severity = str(row.get("severity") or "").lower()
+        if severity:
+            if severity not in ERROR_SEVERITIES:
+                continue
+        elif not row.get("error_code"):
+            continue
+        fingerprints.append(
+            "{0}|{1}|{2}".format(
+                row.get("timestamp"),
+                row.get("error_code"),
+                str(row.get("error_message") or "")[:120],
+            )
         )
-        for row in rows
-        if isinstance(row, dict)
-    ]
+    return fingerprints
 
 
 # --- Verification helpers ---------------------------------------------------
@@ -553,45 +592,97 @@ def verify_audit(
     }
 
 
+def snapshot_agent_state(
+    client: httpx.Client, base_url: str, device_id: str
+) -> Dict[str, Any]:
+    """Read the server-side agent liveness fields used to prove a restart."""
+    try:
+        device = get_device(client, base_url, device_id)
+    except Exception:  # noqa: BLE001 - the probe reports "unknown" and moves on
+        return {}
+    return {
+        "last_seen": device.get("last_seen"),
+        "agent_restart_count": device.get("agent_restart_count"),
+        "agent_uptime_seconds": device.get("agent_uptime_seconds"),
+    }
+
+
 def wait_for_agent_recovery(
     client: httpx.Client,
     base_url: str,
     device_id: str,
-    since: Optional[datetime],
-    restart_count_before: Any,
+    baseline: Dict[str, Any],
     timeout: int,
 ) -> Dict[str, Any]:
-    """Poll the device until it checks in again after an agent restart.
+    """Wait until the agent proves it actually restarted.
+
+    ``last_seen`` alone cannot prove a restart, which is what the first version
+    of this probe got wrong: it advanced during the ~12s the command sat queued
+    and the probe then reported "recovered" after 0.1s while the restart counter
+    had not moved. A *failed* restart looks the same, because the old process
+    keeps heartbeating.
+
+    Two signals do prove it: the server-side restart counter going up, or the
+    agent's reported uptime dropping back to a few seconds. Either is enough.
+    When neither is available the result is reported as unverified rather than
+    guessed.
 
     A failed restart would otherwise cost the full timeout of every remaining
     command (the winget trio alone is 45 minutes), so this is the one place the
     run gives up early.
     """
     started = time.monotonic()
+    base_count = baseline.get("agent_restart_count")
+    base_uptime = baseline.get("agent_uptime_seconds")
+    verifiable = isinstance(base_count, int) or isinstance(base_uptime, (int, float))
+    best: Dict[str, Any] = {}
+
     while time.monotonic() - started < timeout:
         try:
             device = get_device(client, base_url, device_id)
         except Exception:  # noqa: BLE001 - transient errors while it restarts
             time.sleep(5)
             continue
-        last_seen = parse_timestamp(device.get("last_seen"))
-        restart_count = device.get("agent_restart_count")
-        recovered = last_seen is not None and since is not None and last_seen > since
-        if (
-            isinstance(restart_count, int)
-            and isinstance(restart_count_before, int)
-            and restart_count > restart_count_before
-        ):
-            recovered = True
-        if recovered:
+
+        count = device.get("agent_restart_count")
+        uptime = device.get("agent_uptime_seconds")
+        best = {
+            "last_seen": device.get("last_seen"),
+            "agent_restart_count": count,
+            "agent_uptime_seconds": uptime,
+        }
+
+        counted = (
+            isinstance(count, int)
+            and isinstance(base_count, int)
+            and count > base_count
+        )
+        # A soak device has hours of uptime, so a few seconds of uptime means a
+        # new process even when the baseline was missed by a fast restart.
+        fresh = isinstance(uptime, (int, float)) and uptime < FRESH_UPTIME_S
+        reset = (
+            isinstance(uptime, (int, float))
+            and isinstance(base_uptime, (int, float))
+            and uptime < base_uptime - FRESH_UPTIME_S
+        )
+        if counted or fresh or reset:
+            proof = "restart_count" if counted else "uptime_reset" if reset else "fresh"
             return {
                 "recovered": True,
+                "verified": True,
+                "proof": proof,
                 "waited_s": round(time.monotonic() - started, 1),
-                "last_seen": device.get("last_seen"),
-                "agent_restart_count": restart_count,
+                **best,
             }
         time.sleep(5)
-    return {"recovered": False, "waited_s": round(time.monotonic() - started, 1)}
+
+    return {
+        "recovered": False,
+        "verified": verifiable,
+        "proof": None,
+        "waited_s": round(time.monotonic() - started, 1),
+        **best,
+    }
 
 
 # --- Readiness --------------------------------------------------------------
@@ -1081,8 +1172,6 @@ def main() -> int:
             return 1
         print()
 
-        restart_count_before: Any = None
-
         for i, spec in enumerate(SOAK_COMMANDS, 1):
             if abort_reason is not None:
                 records.append(
@@ -1105,20 +1194,6 @@ def main() -> int:
                 )
                 continue
 
-            # The restart probe compares server-stamped values only: last_seen
-            # and agent_restart_count are written by the server, whereas the
-            # command's executed_at comes from the device clock, so the two can
-            # disagree by minutes on a skewed device.
-            agent_baseline: Optional[datetime] = None
-            if spec.get("verify_agent"):
-                try:
-                    snapshot = get_device(client, base_url, args.device_id)
-                except Exception as exc:  # noqa: BLE001 - probe is best effort
-                    print(f"  could not read agent baseline: {exc}")
-                    snapshot = {}
-                agent_baseline = parse_timestamp(snapshot.get("last_seen"))
-                restart_count_before = snapshot.get("agent_restart_count")
-
             print(f"[{i}/{len(SOAK_COMMANDS)}] {spec['label']} ({spec['action']})")
             record = run_one(client, base_url, args.device_id, i, spec, state, args)
             records.append(record)
@@ -1131,30 +1206,36 @@ def main() -> int:
 
             # An agent restart is the only step whose success the command
             # itself cannot prove: it returns before the process actually exits.
+            # The baseline has to be taken *after* the command lands, because
+            # last_seen also advances while a command sits queued.
             if spec.get("verify_agent"):
-                if agent_baseline is None and restart_count_before is None:
-                    print("  no baseline to verify the restart against; skipping probe")
-                else:
-                    probe = wait_for_agent_recovery(
-                        client,
-                        base_url,
-                        args.device_id,
-                        agent_baseline,
-                        restart_count_before,
-                        args.restart_wait,
+                baseline = snapshot_agent_state(client, base_url, args.device_id)
+                probe = wait_for_agent_recovery(
+                    client, base_url, args.device_id, baseline, args.restart_wait
+                )
+                record["agent_recovery"] = probe
+                if probe["recovered"]:
+                    print(
+                        f"  agent back after {probe['waited_s']}s "
+                        f"(proof: {probe['proof']}, "
+                        f"uptime={probe.get('agent_uptime_seconds')}s)"
                     )
-                    record["agent_recovery"] = probe
-                    if probe["recovered"]:
-                        print(f"  agent back after {probe['waited_s']}s")
-                        restart_count_before = probe.get("agent_restart_count")
-                    else:
-                        abort_reason = (
-                            f"agent did not check back in within "
-                            f"{args.restart_wait}s after restart_agent"
-                        )
-                        record["outcome"] = OUTCOME_FAIL
-                        record["notes"].append(abort_reason)
-                        print(f"  {abort_reason}; remaining commands marked SKIPPED")
+                elif not probe["verified"]:
+                    # Without a restart counter or an uptime reading there is
+                    # nothing to compare, so guessing either way would be wrong.
+                    print("  restart could not be verified; continuing")
+                    record["notes"].append(
+                        "agent restart could not be verified (no restart counter "
+                        "or uptime reported)"
+                    )
+                else:
+                    abort_reason = (
+                        f"agent did not restart within {args.restart_wait}s "
+                        "(restart counter unchanged and uptime not reset)"
+                    )
+                    record["outcome"] = OUTCOME_FAIL
+                    record["notes"].append(abort_reason)
+                    print(f"  {abort_reason}; remaining commands marked SKIPPED")
 
             if abort_reason is None:
                 time.sleep(int(spec.get("settle", args.settle_delay)))
