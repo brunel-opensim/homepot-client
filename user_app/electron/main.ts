@@ -1450,7 +1450,15 @@ function startAgentProcess(): boolean {
         const decoded = decodeNotifyMarker(markerParts[1])
         if (decoded) {
           try {
-            new Notification({ title: decoded.title, body: decoded.message }).show()
+            new Notification({
+              title: decoded.title,
+              body: decoded.message,
+              // notify_user is an operator pinging the person at the device, so
+              // it must not auto-dismiss after the ~5s default. `timeoutType:
+              // 'never'` keeps the toast on screen until it is explicitly
+              // dismissed (supported on Windows and Linux).
+              timeoutType: 'never',
+            }).show()
           } catch {
             // Notifications may be unavailable on some platforms; ignore.
           }
