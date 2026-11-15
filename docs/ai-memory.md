@@ -110,6 +110,17 @@ technician cancels (Stop/Esc) is not stored either: the widget reports the cance
 to the server, which discards the abandoned answer rather than remembering it —
 see [Cancelling a query](ai-concurrency.md#cancelling-a-query-stop-esc).
 
+**Proposal answers are not stored.** When a query produces an AI action
+proposal, its answer ("recorded, pending approval") is *transient state*, not
+durable knowledge. Writing it would let a later query recall "I already
+proposed X" and skip proposing again — the memory-pollution regression observed
+on Brunel Device 001, where a second AI soak run degraded because the first
+run's proposal answers were recalled. The durable record of what actually
+happened is written separately by the verifier with `source: ai_outcome` (the
+plan outcome), so nothing is lost by skipping the proposal answer. See
+`_should_persist_answer_to_memory` in
+`backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py`.
+
 ```
 Q: <the question>
 A: <first ~500 chars of the answer>

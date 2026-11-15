@@ -629,6 +629,22 @@ def _build_proposal_info(
     }
 
 
+def _should_persist_answer_to_memory(
+    response: Optional[str], proposal_info: Optional[Dict[str, Any]]
+) -> bool:
+    """Return True when an answer may be written to long-term memory.
+
+    Proposal answers ("recorded, pending approval") are transient, not durable
+    knowledge. Writing them to the store lets a later query recall "I already
+    proposed X" and skip proposing again (observed on Brunel Device 001: a
+    second AI soak run degraded because the first run's proposal answers were
+    recalled). The durable record is the plan outcome written by the verifier
+    with ``source="ai_outcome"``, so nothing is lost by skipping the proposal
+    answer here.
+    """
+    return bool(response) and proposal_info is None
+
+
 async def _generate_direct(
     llm: Any,
     query: str,
@@ -2248,8 +2264,8 @@ async def _query_ai_impl(
         try:
             if (
                 getattr(memory, "write_on_query", True)
-                and response
-                and "unable to connect to my AI brain" not in response
+                and "unable to connect to my AI brain" not in (response or "")
+                and _should_persist_answer_to_memory(response, proposal_info)
             ):
                 digest_chars = getattr(memory, "answer_digest_chars", 500)
                 if not isinstance(digest_chars, int) or digest_chars <= 0:
