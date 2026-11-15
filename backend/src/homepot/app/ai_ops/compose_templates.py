@@ -44,6 +44,19 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         },
         "description": "Run a script with elevated privileges using the target device's shell (PowerShell on Windows, POSIX sh on macOS/Linux).",
     },
+    "RUN_COMMAND_UNPRIVILEGED": {
+        "label": "Run Command (Unprivileged)",
+        "action": "run_command_unprivileged",
+        "group": "Run Commands",
+        "permission": "command_execution",
+        "defaultData": {"command": "ipconfig", "timeout_seconds": 30},
+        "defaultDataByOS": {
+            "windows": {"command": "ipconfig"},
+            "linux": {"command": "uname -a"},
+            "macos": {"command": "sw_vers"},
+        },
+        "description": "Run a command as the unprivileged device user (no elevation, PowerShell on Windows, sh on macOS/Linux).",
+    },
     "APPLY_CONFIG": {
         "label": "Apply Configuration",
         "action": "update_config",

@@ -234,6 +234,19 @@ def test_describe_executed_command_matches_actual_os_command():
         == "systemctl stop 'Spooler'"
     )
 
+    notify = {
+        "command_type": "notify_user",
+        "payload": {"data": {"message": "hello", "title": "Test"}},
+    }
+    assert (
+        _describe_executed_command("notify_user", notify, is_windows=True)
+        == "msg * 'hello'"
+    )
+    assert (
+        _describe_executed_command("notify_user", notify, is_windows=False)
+        == "notify-send 'Test' 'hello'"
+    )
+
     install = {
         "command_type": "install_program",
         "payload": {"data": {"package": "Notepad++.Notepad++"}},
@@ -297,6 +310,13 @@ def test_describe_executed_command_covers_remaining_commands():
     assert d("list_processes", {}) == "list running processes"
     assert d("restart_agent", {}) == "restart the agent process"
     assert d("status_request", {}) == "collect a device status snapshot"
+
+    # Read-only diagnostics added after the original soak-test set
+    assert d("list_drives", {}) == "list mounted drives and free space"
+    assert d("list_sessions", {}) == "list users logged into the device"
+    assert d("get_system_info", {}) == "collect a hardware/OS inventory snapshot"
+    assert d("tail_system_log", {}) == "read recent OS error/warning events"
+    assert d("network_test", {}) == "test network connectivity to a host"
 
 
 def test_list_drives_returns_volume_usage():

@@ -124,6 +124,13 @@ def test_registry_declares_expected_actions():
     assert ACTION_REGISTRY["rollback_app"].risk_tier == "T3"
 
 
+def test_registry_required_params_match_handler_fields():
+    """run_script's required param is ``script`` (not ``command``)."""
+    assert ACTION_REGISTRY["run_script"].required_params == ("script",)
+    assert ACTION_REGISTRY["run_command"].required_params == ("command",)
+    assert ACTION_REGISTRY["run_command_unprivileged"].required_params == ("command",)
+
+
 def test_registry_permissions_match_agent_requirements():
     """Each action's required_permission matches the agent's REQUIRED_PERMISSION.
 
