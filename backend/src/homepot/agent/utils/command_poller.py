@@ -147,6 +147,18 @@ ROLLBACK_APP_MARKER = "__HOMEPOT_ROLLBACK_APP__"
 # same cleanup as a local unpair (clear creds, wipe stash, route to setup).
 UNPAIRED_MARKER = "__HOMEPOT_UNPAIRED__"
 
+# The agent writes this reserved line to stdout to show an operator-to-user
+# notification. The Electron supervisor detects it and renders a native OS
+# toast (title + body), which avoids the local-account attribution that the
+# Windows ``msg`` command would otherwise stamp on the pop-up.
+# Keep in sync with NOTIFY_USER_MARKER in user_app/electron/notifyMarker.ts.
+# A base64-encoded JSON payload ({"title", "message"}) is appended at runtime:
+# "__HOMEPOT_NOTIFY_USER__ <base64>".
+NOTIFY_USER_MARKER = "__HOMEPOT_NOTIFY_USER__"
+
+# Fallback title shown when the command payload does not specify one.
+DEFAULT_NOTIFY_TITLE = "Notification from HOMEPOT"
+
 
 def _command_data(command: Dict[str, Any]) -> Dict[str, Any]:
     payload = command.get("payload")
@@ -1007,11 +1019,27 @@ def _run_get_system_info(data: Dict[str, Any]) -> Dict[str, Any]:
 # --- notify_user ------------------------------------------------------------
 
 
+def _emit_notify_marker(title: str, message: str) -> None:
+    """Emit the reserved stdout marker that the Electron supervisor renders.
+
+    The payload is base64-encoded JSON so a message containing spaces,
+    newlines or the marker itself can never split or corrupt the reserved
+    line. In any context without the Electron supervisor (a bare agent), the
+    line is inert — it is logged and ignored.
+    """
+    payload = base64.b64encode(
+        json.dumps({"title": title, "message": message}).encode("utf-8")
+    ).decode("ascii")
+    print(f"{NOTIFY_USER_MARKER} {payload}", flush=True)
+
+
 def _run_notify_user(data: Dict[str, Any]) -> Dict[str, Any]:
     """Show a message to the person at the device (operator-to-user channel).
 
-    OS-appropriate and best-effort: Windows uses ``msg``, macOS uses
-    ``osascript``, Linux uses ``notify-send`` (or ``wall`` as a fallback).
+    Rather than shelling out to an OS tool (``msg``, ``osascript``,
+    ``notify-send``), the agent emits a reserved stdout marker; the Electron
+    User App renders it as a native toast attributed to the app — not to the
+    local Windows account that happens to run the agent.
     """
     message = data.get("message")
     if not isinstance(message, str) or not message.strip():
@@ -1020,46 +1048,10 @@ def _run_notify_user(data: Dict[str, Any]) -> Dict[str, Any]:
             "result": {"error": "A 'message' value is required"},
         }
     message = message.strip()
-    title = str(data.get("title") or "HOMEPOT")
+    title = str(data.get("title") or "").strip() or DEFAULT_NOTIFY_TITLE
 
-    if _is_windows_platform():
-        argv = ["msg", "*", message]
-    elif platform.system() == "Darwin":
-        escaped = message.replace("\\", "\\\\").replace('"', '\\"')
-        argv = [
-            "osascript",
-            "-e",
-            f'display notification "{escaped}" with title "{title}"',
-        ]
-    elif shutil.which("notify-send"):
-        argv = ["notify-send", title, message]
-    else:
-        argv = ["wall", message]
-
-    try:
-        completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
-            argv,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return {
-            "status": "failed",
-            "result": {"error": f"notification failed: {exc}"},
-        }
-
-    if completed.returncode == 0:
-        return {"status": "completed", "result": {"message": "notification sent"}}
-    return {
-        "status": "failed",
-        "result": {
-            "error": (
-                completed.stderr or completed.stdout or "notification failed"
-            ).strip()[-200:]
-        },
-    }
+    _emit_notify_marker(title, message)
+    return {"status": "completed", "result": {"message": "notification sent"}}
 
 
 # --- collect_support_bundle -------------------------------------------------
@@ -3137,10 +3129,7 @@ def _describe_executed_command(
 
     if command_type == "notify_user":
         message = str(data.get("message", ""))
-        title = str(data.get("title") or "HOMEPOT")
-        if windows:
-            return f"msg * '{message}'"
-        return f"notify-send '{title}' '{message}'"
+        return f"show notification '{message}'"
 
     if command_type == "restart_service":
         name = data.get("service_name", "")

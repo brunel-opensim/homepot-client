@@ -303,7 +303,10 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "action": "notify_user",
         "group": "Services & Agent",
         "permission": "command_execution",
-        "defaultData": {"title": "HOMEPOT", "message": "Please reboot the terminal."},
+        "defaultData": {
+            "title": "Notification from HOMEPOT",
+            "message": "Please reboot the terminal.",
+        },
         "description": "Show a message to the person at the device (operator-to-user channel).",
     },
 }
