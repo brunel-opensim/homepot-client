@@ -288,6 +288,15 @@ const FALLBACK_COMMAND_TEMPLATES = {
     defaultData: {},
     description: 'Shut down the system the User App runs on. The shutdown begins immediately.',
   },
+  DISK_CLEANUP: {
+    label: 'Disk Cleanup',
+    action: 'disk_cleanup',
+    group: 'System',
+    permission: 'command_execution',
+    defaultData: { max_age_days: 7 },
+    description:
+      'Clear old temp files and caches from the system temp directory to reclaim disk space.',
+  },
   RESTART_SERVICE: {
     label: 'Restart Service',
     action: 'restart_service',

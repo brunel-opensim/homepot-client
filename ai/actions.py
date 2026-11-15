@@ -396,6 +396,21 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=("message",),
     ),
+    "disk_cleanup": ActionSpec(
+        name="disk_cleanup",
+        command_type="disk_cleanup",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="operator",
+        description=(
+            "Clear old temp files and caches to reclaim disk space. Removes "
+            "files older than a configurable age from the system temp "
+            "directory. Reversible in that cleared temp/cache files are "
+            "regenerated on demand."
+        ),
+        required_params=(),
+    ),
 }
 
 

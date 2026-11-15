@@ -62,6 +62,7 @@ def test_registry_declares_expected_actions():
         "get_system_info",
         "collect_support_bundle",
         "notify_user",
+        "disk_cleanup",
         "update_config",
         "restart",
         "rollback_config",
@@ -108,6 +109,7 @@ def test_registry_declares_expected_actions():
         "update_program",
         "run_command_unprivileged",
         "notify_user",
+        "disk_cleanup",
     ):
         assert ACTION_REGISTRY[name].risk_tier == "T2"
         assert ACTION_REGISTRY[name].reversible is True

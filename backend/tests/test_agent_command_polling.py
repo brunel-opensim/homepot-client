@@ -537,6 +537,35 @@ def test_collect_support_bundle_in_command_types_and_permission():
     ]
 
 
+def test_disk_cleanup_removes_stale_and_prefixed_temp_files(tmp_path):
+    """disk_cleanup removes homepot-prefixed and stale temp files only."""
+    from homepot.agent.utils.command_poller import _run_disk_cleanup
+
+    prefixed = tmp_path / "homepot-test.tmp"
+    prefixed.write_bytes(b"prefixed")
+
+    old = tmp_path / "old.tmp"
+    old.write_bytes(b"old-data")
+    os.utime(old, (946684800, 946684800))  # 2000-01-01, older than 7 days
+
+    recent = tmp_path / "recent.tmp"
+    recent.write_bytes(b"recent")
+
+    result = _run_disk_cleanup({"target": str(tmp_path), "max_age_days": 7})
+
+    assert result["status"] == "completed"
+    assert result["result"]["removed_files"] == 2
+    assert not prefixed.exists()
+    assert not old.exists()
+    assert recent.exists()
+
+
+def test_disk_cleanup_in_command_types_and_permission():
+    """disk_cleanup is registered and gated on command_execution."""
+    assert "disk_cleanup" in COMMAND_TYPES
+    assert required_permissions_for_command("disk_cleanup") == ["command_execution"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent
