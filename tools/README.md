@@ -55,7 +55,9 @@ python tools/compose-soak-test.py --list
 ```
 
 Evidence for every command (checks, timings, results, new log rows) is written
-to `compose-soak-results.json` (`--output` to change it).
+to a timestamped file under `soak-runs/` (a git-ignored directory), e.g.
+`soak-runs/compose-soak-results-20261115T153000Z.json`. Pass `--output` to send
+it somewhere else. The report also prints the exact path when it finishes.
 
 ### Excluded commands
 
