@@ -417,7 +417,7 @@ function initialTemplate(templates, action) {
   const actionToTemplate = Object.fromEntries(
     Object.entries(tpls).map(([key, template]) => [template.action, key])
   );
-  return actionToTemplate[action] || 'APPLY_CONFIG';
+  return actionToTemplate[action] || 'HEALTH_CHECK';
 }
 
 function LifecycleTracker({ commandId, commandType, command, onViewHistory }) {
@@ -530,7 +530,7 @@ export default function PushReview() {
       ? typeof location.state.initialData === 'string'
         ? location.state.initialData
         : JSON.stringify(location.state.initialData, null, 2)
-      : JSON.stringify(FALLBACK_COMMAND_TEMPLATES['APPLY_CONFIG'].defaultData, null, 2)
+      : JSON.stringify(FALLBACK_COMMAND_TEMPLATES['HEALTH_CHECK'].defaultData, null, 2)
   );
   const [jsonError, setJsonError] = useState(null);
   const [trackingCommandId, setTrackingCommandId] = useState(null);
@@ -544,7 +544,7 @@ export default function PushReview() {
 
   // State for the Notification Envelope
   const [payloadConfig, setPayloadConfig] = useState({
-    title: 'Configuration Update',
+    title: 'Health Check',
     body: '',
     priority: 'high',
     ttl: 300,
