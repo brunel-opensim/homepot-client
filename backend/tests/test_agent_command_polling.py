@@ -437,6 +437,7 @@ def test_get_system_info_returns_inventory():
         patch(
             "homepot.agent.utils.command_poller.psutil.cpu_freq",
             return_value=SimpleNamespace(current=2400.0),
+            create=True,
         ),
         patch(
             "homepot.agent.utils.command_poller.psutil.virtual_memory",
