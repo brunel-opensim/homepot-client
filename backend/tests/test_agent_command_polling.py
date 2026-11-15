@@ -466,6 +466,49 @@ def test_get_system_info_in_command_types_and_permission():
     assert required_permissions_for_command("get_system_info") == ["command_execution"]
 
 
+def test_notify_user_requires_message():
+    """notify_user fails cleanly without a message."""
+    from homepot.agent.utils.command_poller import _run_notify_user
+
+    result = _run_notify_user({})
+    assert result["status"] == "failed"
+    assert "message" in result["result"]["error"]
+
+
+def test_notify_user_sends_message():
+    """notify_user (Windows) runs 'msg * <message>'."""
+    from homepot.agent.utils.command_poller import _run_notify_user
+
+    class _Completed:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller._is_windows_platform",
+            return_value=True,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.subprocess.run",
+            return_value=_Completed(),
+        ) as run,
+    ):
+        result = _run_notify_user({"message": "hello", "title": "Test"})
+
+    assert result["status"] == "completed"
+    assert result["result"]["message"] == "notification sent"
+    argv = run.call_args.args[0]
+    assert argv[0] == "msg"
+    assert "hello" in argv
+
+
+def test_notify_user_in_command_types_and_permission():
+    """notify_user is registered and gated on command_execution."""
+    assert "notify_user" in COMMAND_TYPES
+    assert required_permissions_for_command("notify_user") == ["command_execution"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent

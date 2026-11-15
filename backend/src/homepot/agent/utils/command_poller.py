@@ -47,6 +47,7 @@ COMMAND_TYPES = frozenset(
         "network_test",
         "list_sessions",
         "get_system_info",
+        "notify_user",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -82,6 +83,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "network_test": "network_monitoring",
     "list_sessions": "command_execution",
     "get_system_info": "command_execution",
+    "notify_user": "command_execution",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -990,6 +992,64 @@ def _run_get_system_info(data: Dict[str, Any]) -> Dict[str, Any]:
         info.update(_windows_system_info())
 
     return {"status": "completed", "result": info}
+
+
+# --- notify_user ------------------------------------------------------------
+
+
+def _run_notify_user(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Show a message to the person at the device (operator-to-user channel).
+
+    OS-appropriate and best-effort: Windows uses ``msg``, macOS uses
+    ``osascript``, Linux uses ``notify-send`` (or ``wall`` as a fallback).
+    """
+    message = data.get("message")
+    if not isinstance(message, str) or not message.strip():
+        return {
+            "status": "failed",
+            "result": {"error": "A 'message' value is required"},
+        }
+    message = message.strip()
+    title = str(data.get("title") or "HOMEPOT")
+
+    if _is_windows_platform():
+        argv = ["msg", "*", message]
+    elif platform.system() == "Darwin":
+        escaped = message.replace("\\", "\\\\").replace('"', '\\"')
+        argv = [
+            "osascript",
+            "-e",
+            f'display notification "{escaped}" with title "{title}"',
+        ]
+    elif shutil.which("notify-send"):
+        argv = ["notify-send", title, message]
+    else:
+        argv = ["wall", message]
+
+    try:
+        completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "failed",
+            "result": {"error": f"notification failed: {exc}"},
+        }
+
+    if completed.returncode == 0:
+        return {"status": "completed", "result": {"message": "notification sent"}}
+    return {
+        "status": "failed",
+        "result": {
+            "error": (
+                completed.stderr or completed.stdout or "notification failed"
+            ).strip()[-200:]
+        },
+    }
 
 
 # --- list_connections -------------------------------------------------------
@@ -2666,6 +2726,9 @@ def _process_command_impl(
 
     if command_type == "get_system_info":
         return _run_get_system_info(_command_data(command))
+
+    if command_type == "notify_user":
+        return _run_notify_user(_command_data(command))
 
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))

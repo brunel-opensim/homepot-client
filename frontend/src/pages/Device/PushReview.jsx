@@ -292,6 +292,14 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Restart a named OS service (Windows service, systemd unit, or launchd label) with root privileges.',
   },
+  NOTIFY_USER: {
+    label: 'Notify User',
+    action: 'notify_user',
+    group: 'Services & Agent',
+    permission: 'command_execution',
+    defaultData: { title: 'HOMEPOT', message: 'Please reboot the terminal.' },
+    description: 'Show a message to the person at the device (operator-to-user channel).',
+  },
 };
 
 // Display order for the Compose Command dropdown. Templates without a `group`
