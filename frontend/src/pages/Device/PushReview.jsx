@@ -407,7 +407,13 @@ function CommandTypeSelect({ templates, value, onChange }) {
       }
       setOpen(false);
     }
-    function handleScroll() {
+    function handleScroll(event) {
+      // Ignore scrolls of the command list itself (otherwise the list closes
+      // the moment you try to scroll it); close only when an ancestor scrolls,
+      // so the fixed panel never drifts out of position.
+      if (event.target instanceof Node && panelRef.current?.contains(event.target)) {
+        return;
+      }
       setOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
