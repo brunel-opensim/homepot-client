@@ -59,7 +59,8 @@ directly.
 The foundation is better than a rewrite would suggest:
 
 - **Site and tenant membership** with a role hierarchy of
-  `admin > operator > installer > viewer` (`backend/src/homepot/app/auth_utils.py:580-585`).
+  `admin > manager > installer > viewer` (`backend/src/homepot/app/auth_utils.py:580-585`).
+  (`operator` is retained as a legacy alias for `manager`.)
 - **`require_site_access(site_id, min_role)`** and **`require_tenant_role()`**,
   both of which read from the database.
 - **`get_accessible_site_ids()`**, which correctly scopes list queries to what a
@@ -117,8 +118,8 @@ decorative. Worse, **four** role vocabularies coexist:
 |---|---|
 | `User.role` (free text) | whatever was supplied at signup: `Client`, `Engineer`, `Admin`, … |
 | `TokenData.role` | only `Admin` or `User`, derived from `is_admin`, never from the DB |
-| `TenantMembership.role` | `admin, operator, installer, member` |
-| `SiteMembership.role` | `admin, operator, installer, viewer` |
+| `TenantMembership.role` | `admin, manager, installer, member` |
+| `SiteMembership.role` | `admin, manager, installer, viewer` |
 
 Two problems follow. `member` and `Client` score **0** in the hierarchy, i.e.
 *below* `viewer` — so a tenant member ranks lower than a site viewer. And the

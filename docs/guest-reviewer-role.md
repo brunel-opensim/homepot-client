@@ -3,6 +3,8 @@
 **Status:** Draft for team review
 **Scope:** the role model (Admin / Technician / Guest) and reviewer access to the dashboard
 **Reviewed:** 2026-10-14
+**Updated:** 2026-11-15 — Viewer role now implemented (PR #979); site-membership
+tier `operator` renamed to `manager` (PR #980). See §4 for current state.
 **Related:** `docs/rbac-hardening-plan.md`
 
 ---
@@ -137,8 +139,10 @@ choice, and it does not.
 
 - **Only two roles exist:** `Admin` and `Technician`
   (`backend/src/homepot/app/roles.py:22-25`). Every legacy name — `client`,
-  `user`, `engineer`, **`viewer`**, `member` — normalises to `Technician`
-  (`roles.py:30-41`). There is no way to express "Guest" today.
+  `user`, `engineer`, `operator`, `installer`, `member` — normalises to
+  `Technician`. The `viewer` spelling now normalises to the canonical
+  `Viewer` role (PR #979), so it is no longer a legacy alias.
+  (`roles.py:22-26`).
 - **The `Engineer` / `Client` tabs on the login page are cosmetic.** Both call
   the same `POST /auth/login` endpoint. The only difference is a client-side check
   that the `Engineer` tab requires `is_admin` (`frontend/src/pages/Login.jsx:54-72`,
@@ -158,7 +162,9 @@ choice, and it does not.
   `isAuthenticated` (`frontend/src/routes/ProtectedRoute.jsx:5-26`); the sidebar
   always renders Sites, Devices, "Add Site" and "Register Device"
   (`frontend/src/layouts/Sidebar.jsx:34-43`).
-- There is **no guest, reviewer or read-only role** anywhere in the codebase.
+- There is now a canonical **`Viewer`** role (PR #979) — read-only reviewer,
+  never privileged, even in dev mode. The full Guest capability matrix and
+  redaction (§7.2, §7.3) are still open.
 
 ---
 
@@ -227,11 +233,12 @@ Two further facts make scoping unreliable:
 
 ### 7.1 Role model and capability config
 
-- Add a canonical role **`Guest`** to `roles.py:22-25`, outside the privileged
-  set. `is_privileged("Guest")` must be `False` at every stage.
-- Add `guest` / `reviewer` aliases mapping to `Guest`. **Do not** repurpose the
-  existing `viewer` alias — it currently maps to `Technician` and silently
-  reassigning it would change behaviour for existing rows.
+- Add a canonical role **`Viewer`** (or `Guest`) to `roles.py:22-25`, outside
+  the privileged set. `is_privileged("Viewer")` must be `False` at every stage.
+  (`Viewer` is now implemented as PR #979; `is_privileged("Viewer")` is False.)
+- Add `guest` / `reviewer` aliases mapping to `Viewer`. **Do not** repurpose
+  the legacy `viewer` alias — it now maps to `Viewer` (PR #979). Add new
+  aliases instead.
 - Sort out scope: prove **role = capability, membership = scope**, and make
   scoping real (create memberships; turn unified access off — §9).
 - **Replace reliance on `HOMEPOT_DEV_UNIFIED_ACCESS`** with a small capability
@@ -391,7 +398,8 @@ before reviewer or partner accounts exist.
 
 ## 11. Definition of done
 
-- [ ] `Guest` is a canonical role; `is_privileged("Guest")` is always false
+- [ ] `Viewer` is a canonical role (done, PR #979); `is_privileged("Viewer")` is
+      always false (done). The remaining `Guest`/`reviewer` aliases are still open.
 - [ ] A stage switch (`dev`/`prod`) drives Guest capability; no reliance on
       `HOMEPOT_DEV_UNIFIED_ACCESS`
 - [ ] An Admin can create a Guest and scope a Technician; signup can do neither
