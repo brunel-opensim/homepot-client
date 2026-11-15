@@ -41,9 +41,9 @@ Disruptive commands are excluded by design (see ``SOAK_COMMANDS``):
 
 Known side effects on the operator's own machine: ``update_config`` leaves the
 volume at 50 and the brightness at 75, ``notify_user`` pops a modal on screen,
-and ``start_program``/``stop_program`` open and close Notepad. The stop step
-targets the PID returned by the start step, so a Notepad window the operator
-already had open is never touched.
+and ``start_program``/``stop_program`` spawn and kill a ``ping.exe`` that runs
+for a few minutes. The stop step targets the pid returned by the start step, so
+a window the operator already has open is never touched.
 
 Usage:
     HOMEPOT_PASSWORD='...' python tools/compose-soak-test.py \\
@@ -74,8 +74,19 @@ TERMINAL_STATUSES = {"completed", "failed", "expired", "cancelled"}
 # correctly recorded command look missing.
 CLOCK_SKEW_TOLERANCE_S = 300
 
+# The device log stream mixes real errors with bookkeeping rows that are not
+# errors: heartbeats (``category="status"``) and each command's own completion
+# line (``category="command"``), both written with ``severity="info"``.
+LOG_NOISE_CATEGORIES = {"status", "command"}
+ERROR_SEVERITIES = {"warning", "error", "critical", "fatal"}
+
+# An agent that has just started reports a few seconds of uptime. A soak device
+# has been up for hours, so this separates "restarted" from "still the old
+# process" without needing the restart counter.
+FRESH_UPTIME_S = 60
+
 # Outcomes reported for one command.
-OUTCOME_PASS = "PASS"
+OUTCOME_PASS = "PASS"  # nosec B105 - a status label, not a credential
 OUTCOME_NOTE = "PASS_NOTE"
 OUTCOME_FAIL = "FAIL"
 OUTCOME_BLOCKED = "BLOCKED"
@@ -234,14 +245,19 @@ SOAK_COMMANDS: List[Dict[str, Any]] = [
         "timeout": 300,
     },
     {
+        # ping.exe stays alive for the whole run, so the stop step has a live
+        # process to kill. Notepad cannot be used for this: on Windows 11 it is
+        # a packaged app, so notepad.exe hands off to the Store process and
+        # exits immediately — the reported pid was already gone and the kill
+        # path went untested ("process not running", killed 0).
         "action": "start_program",
-        "label": "Start Program",
-        "payload": {"path": "notepad.exe", "args": []},
+        "label": "Start Program (ping)",
+        "payload": {"path": "ping.exe", "args": ["-n", "300", "127.0.0.1"]},
         "timeout": 300,
     },
     {
-        # Stops only the pid captured from start_program, so a Notepad window
-        # the operator already has open with unsaved text is left alone.
+        # Stops only the pid captured from start_program, so a window the
+        # operator already has open is never touched.
         "action": "stop_program",
         "label": "Stop Program (started pid)",
         "payload": {"pid": "$PID", "force": False},
@@ -380,10 +396,21 @@ def get_audit_events(
 def error_fingerprints(
     client: httpx.Client, base_url: str, device_id: str, limit: int = 100
 ) -> List[str]:
-    """Return recent Live Logs rows as stable fingerprint strings.
+    """Return recent *device errors* as stable fingerprint strings.
 
-    Live Logs are populated by device error reporting, so a fetch failure is
-    never fatal: an empty list simply disables the new-error comparison.
+    Despite its name, ``/error-logs`` returns the whole device log stream: the
+    periodic ``Status report: ONLINE ...`` heartbeat and every command's own
+    ``Command completed: ...`` line are stored there with ``severity="info"``.
+    Diffing the raw stream counted the command's own completion line and a
+    heartbeat as "new errors", which marked all 24 commands as notes on the
+    first run.
+
+    So bookkeeping rows are dropped: anything in a ``status``/``command``
+    category, anything below warning severity, and anything with neither a
+    severity nor an error code.
+
+    A fetch failure is never fatal: an empty list simply disables the
+    comparison.
     """
     try:
         r = client.get(
@@ -396,15 +423,27 @@ def error_fingerprints(
         return []
     if not isinstance(rows, list):
         return []
-    return [
-        "{0}|{1}|{2}".format(
-            row.get("timestamp"),
-            row.get("error_code"),
-            str(row.get("error_message") or "")[:120],
+
+    fingerprints: List[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("category") or "").lower() in LOG_NOISE_CATEGORIES:
+            continue
+        severity = str(row.get("severity") or "").lower()
+        if severity:
+            if severity not in ERROR_SEVERITIES:
+                continue
+        elif not row.get("error_code"):
+            continue
+        fingerprints.append(
+            "{0}|{1}|{2}".format(
+                row.get("timestamp"),
+                row.get("error_code"),
+                str(row.get("error_message") or "")[:120],
+            )
         )
-        for row in rows
-        if isinstance(row, dict)
-    ]
+    return fingerprints
 
 
 # --- Verification helpers ---------------------------------------------------
@@ -553,45 +592,142 @@ def verify_audit(
     }
 
 
+def snapshot_agent_state(
+    client: httpx.Client, base_url: str, device_id: str
+) -> Dict[str, Any]:
+    """Read the server-side agent liveness fields used to prove a restart."""
+    try:
+        device = get_device(client, base_url, device_id)
+    except Exception:  # noqa: BLE001 - the probe reports "unknown" and moves on
+        return {}
+    return {
+        "last_seen": device.get("last_seen"),
+        "agent_restart_count": device.get("agent_restart_count"),
+        "agent_uptime_seconds": device.get("agent_uptime_seconds"),
+    }
+
+
 def wait_for_agent_recovery(
     client: httpx.Client,
     base_url: str,
     device_id: str,
-    since: Optional[datetime],
-    restart_count_before: Any,
+    baseline: Dict[str, Any],
     timeout: int,
 ) -> Dict[str, Any]:
-    """Poll the device until it checks in again after an agent restart.
+    """Wait until the agent proves it actually restarted.
+
+    ``last_seen`` alone cannot prove a restart, which is what the first version
+    of this probe got wrong: it advanced during the ~12s the command sat queued
+    and the probe then reported "recovered" after 0.1s while the restart counter
+    had not moved. A *failed* restart looks the same, because the old process
+    keeps heartbeating.
+
+    Two signals do prove it: the server-side restart counter going up, or the
+    agent's reported uptime dropping back to a few seconds. Either is enough.
+    When neither is available the result is reported as unverified rather than
+    guessed.
 
     A failed restart would otherwise cost the full timeout of every remaining
     command (the winget trio alone is 45 minutes), so this is the one place the
     run gives up early.
     """
     started = time.monotonic()
+    base_count = baseline.get("agent_restart_count")
+    base_uptime = baseline.get("agent_uptime_seconds")
+    verifiable = isinstance(base_count, int) or isinstance(base_uptime, (int, float))
+    best: Dict[str, Any] = {}
+
     while time.monotonic() - started < timeout:
         try:
             device = get_device(client, base_url, device_id)
         except Exception:  # noqa: BLE001 - transient errors while it restarts
             time.sleep(5)
             continue
-        last_seen = parse_timestamp(device.get("last_seen"))
-        restart_count = device.get("agent_restart_count")
-        recovered = last_seen is not None and since is not None and last_seen > since
-        if (
-            isinstance(restart_count, int)
-            and isinstance(restart_count_before, int)
-            and restart_count > restart_count_before
-        ):
-            recovered = True
-        if recovered:
+
+        count = device.get("agent_restart_count")
+        uptime = device.get("agent_uptime_seconds")
+        best = {
+            "last_seen": device.get("last_seen"),
+            "agent_restart_count": count,
+            "agent_uptime_seconds": uptime,
+        }
+
+        counted = (
+            isinstance(count, int)
+            and isinstance(base_count, int)
+            and count > base_count
+        )
+        # A soak device has hours of uptime, so a few seconds of uptime means a
+        # new process even when the baseline was missed by a fast restart.
+        fresh = isinstance(uptime, (int, float)) and uptime < FRESH_UPTIME_S
+        reset = (
+            isinstance(uptime, (int, float))
+            and isinstance(base_uptime, (int, float))
+            and uptime < base_uptime - FRESH_UPTIME_S
+        )
+        if counted or fresh or reset:
+            proof = "restart_count" if counted else "uptime_reset" if reset else "fresh"
             return {
                 "recovered": True,
+                "verified": True,
+                "proof": proof,
                 "waited_s": round(time.monotonic() - started, 1),
-                "last_seen": device.get("last_seen"),
-                "agent_restart_count": restart_count,
+                **best,
             }
         time.sleep(5)
-    return {"recovered": False, "waited_s": round(time.monotonic() - started, 1)}
+
+    return {
+        "recovered": False,
+        "verified": verifiable,
+        "proof": None,
+        "waited_s": round(time.monotonic() - started, 1),
+        **best,
+    }
+
+
+def verify_restart(
+    client: httpx.Client,
+    base_url: str,
+    device_id: str,
+    record: Dict[str, Any],
+    restart_wait: int,
+) -> Optional[str]:
+    """Prove the agent restarted; return an abort reason when it did not.
+
+    The baseline is taken *after* the command lands, because ``last_seen`` also
+    advances while a command sits queued — taking it earlier made the first
+    version of this check report "back after 0.1s" without a restart.
+    """
+    baseline = snapshot_agent_state(client, base_url, device_id)
+    probe = wait_for_agent_recovery(client, base_url, device_id, baseline, restart_wait)
+    record["agent_recovery"] = probe
+
+    if probe["recovered"]:
+        print(
+            f"  agent back after {probe['waited_s']}s "
+            f"(proof: {probe['proof']}, uptime={probe.get('agent_uptime_seconds')}s)"
+        )
+        return None
+
+    if not probe["verified"]:
+        # No restart counter and no uptime reading: there is nothing to compare,
+        # so guessing either way would be dishonest. The next commands will show
+        # whether the agent is alive.
+        print("  restart could not be verified; continuing")
+        record["notes"].append(
+            "agent restart could not be verified (no restart counter or uptime "
+            "reported)"
+        )
+        return None
+
+    reason = (
+        f"agent did not restart within {restart_wait}s "
+        "(restart counter unchanged and uptime not reset)"
+    )
+    record["outcome"] = OUTCOME_FAIL
+    record["notes"].append(reason)
+    print(f"  {reason}; remaining commands marked SKIPPED")
+    return reason
 
 
 # --- Readiness --------------------------------------------------------------
@@ -641,21 +777,15 @@ def evaluate_readiness(
 # --- One command ------------------------------------------------------------
 
 
-def run_one(
-    client: httpx.Client,
-    base_url: str,
-    device_id: str,
-    index: int,
-    spec: Dict[str, Any],
-    state: Dict[str, Any],
-    args: argparse.Namespace,
+def new_record(
+    index: int, action: str, label: str, payload: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Exercise a single command end to end and return its evidence record."""
-    action = str(spec["action"])
-    label = str(spec["label"])
-    payload = dict(spec.get("payload") or {})
+    """Build the empty evidence record shared by run and skipped commands.
 
-    record: Dict[str, Any] = {
+    Both paths used to build this literal separately, so a field added to one
+    was silently missing from the other.
+    """
+    return {
         "index": index,
         "action": action,
         "label": label,
@@ -680,108 +810,111 @@ def run_one(
         "window": {},
     }
 
-    # A $-prefixed payload value is filled from an earlier command's result.
-    for key, value in list(payload.items()):
-        if value == "$PID":
-            captured = state.get("last_started_pid")
-            if captured is None:
-                record["outcome"] = OUTCOME_SKIPPED
-                record["notes"].append("start_program returned no pid to stop")
-                return record
-            payload[key] = captured
-            record["payload"] = payload
 
-    errors_before = error_fingerprints(client, base_url, device_id)
-    queued_at = datetime.now(timezone.utc)
-    started = time.monotonic()
+def queue_with_evidence(
+    client: httpx.Client,
+    base_url: str,
+    device_id: str,
+    action: str,
+    payload: Dict[str, Any],
+    record: Dict[str, Any],
+    queued_at: datetime,
+    started: float,
+) -> bool:
+    """Queue one command, filling ``record`` when it cannot be queued.
 
+    Returns True only when the API returned a command id. A policy rejection
+    (400/403/422) is recorded as BLOCKED because it is a configuration result,
+    not a device failure, and the run continues.
+    """
     try:
         created = queue_command(client, base_url, device_id, action, payload)
     except httpx.HTTPStatusError as exc:
-        body: Any = None
+        body: Any
         try:
             body = exc.response.json().get("detail")
-        except Exception:  # noqa: BLE001 - error body is best effort
+        except Exception:  # noqa: BLE001 - the error body is best effort
             body = exc.response.text[:400]
         record["http_status"] = exc.response.status_code
         record["detail"] = body
-        if exc.response.status_code in (400, 403, 422):
-            record["outcome"] = OUTCOME_BLOCKED
-            record["notes"].append(f"queue rejected ({exc.response.status_code})")
-        else:
-            record["outcome"] = OUTCOME_FAIL
-            record["notes"].append(f"queue failed ({exc.response.status_code})")
+        rejected = exc.response.status_code in (400, 403, 422)
+        record["outcome"] = OUTCOME_BLOCKED if rejected else OUTCOME_FAIL
+        record["notes"].append(
+            f"queue {'rejected' if rejected else 'failed'} "
+            f"({exc.response.status_code})"
+        )
         record["timings"] = {"total_s": round(time.monotonic() - started, 1)}
         record["window"] = {"queued_at": queued_at.isoformat()}
-        return record
-    except Exception as exc:  # noqa: BLE001 - network errors are recorded, not raised
+        return False
+    except Exception as exc:  # noqa: BLE001 - recorded, never raised
         record["outcome"] = OUTCOME_FAIL
         record["notes"].append(f"queue error: {exc}")
         record["timings"] = {"total_s": round(time.monotonic() - started, 1)}
         record["window"] = {"queued_at": queued_at.isoformat()}
-        return record
+        return False
 
     command_id = str(created.get("command_id") or "")
     record["command_id"] = command_id
     record["checks"]["accepted"] = bool(command_id)
     if not command_id:
         record["notes"].append("queue response had no command_id")
-        return record
+        return False
+    return True
 
-    # Poll until a terminal status or the per-command timeout.
-    deadline = time.monotonic() + int(spec["timeout"])
+
+def poll_until_terminal(
+    client: httpx.Client,
+    base_url: str,
+    device_id: str,
+    command_id: str,
+    timeout: int,
+    poll_interval: int,
+) -> Tuple[Dict[str, Any], List[str]]:
+    """Poll one command until a terminal status or the per-command timeout."""
+    deadline = time.monotonic() + timeout
     detail: Dict[str, Any] = {}
-    polled_errors = 0
+    notes: List[str] = []
+    failures = 0
+
     while time.monotonic() < deadline:
         try:
             detail = get_command(client, base_url, device_id, command_id)
         except Exception as exc:  # noqa: BLE001 - retry until the deadline
-            # A device that stops polling can produce one error per attempt for
-            # the whole timeout, so only the first few are recorded.
-            polled_errors += 1
-            if polled_errors <= 3:
-                record["notes"].append(f"poll error: {exc}")
-            time.sleep(args.poll_interval)
+            # A device that stops polling fails every attempt for the whole
+            # timeout, so only the first few messages are kept.
+            failures += 1
+            if failures <= 3:
+                notes.append(f"poll error: {exc}")
+            time.sleep(poll_interval)
             continue
         if detail.get("status") in TERMINAL_STATUSES:
             break
-        time.sleep(args.poll_interval)
+        time.sleep(poll_interval)
 
-    finished_at = datetime.now(timezone.utc)
-    status = detail.get("status")
-    result = detail.get("result")
-    record["status"] = status
-    record["result"] = result
-    record["sent_at"] = detail.get("sent_at")
-    record["executed_at"] = detail.get("executed_at")
-    record["window"] = {
-        "queued_at": queued_at.isoformat(),
-        "finished_at": finished_at.isoformat(),
-    }
+    return detail, notes
 
-    timed_out = status not in TERMINAL_STATUSES
-    record["checks"]["delivered"] = parse_timestamp(detail.get("sent_at")) is not None
-    record["checks"]["executed"] = (
-        parse_timestamp(detail.get("executed_at")) is not None
-    )
-    problems = result_shape_problems(action, result)
-    record["checks"]["result_shape"] = not problems and result is not None
-    record["notes"].extend(problems)
 
-    verdict, subtests = subtests_of(action, result)
-    record["verdict"] = verdict
-    record["subtests"] = subtests
+def verify_recorded(
+    client: httpx.Client,
+    base_url: str,
+    device_id: str,
+    record: Dict[str, Any],
+    queued_at: datetime,
+    finished_at: datetime,
+    timed_out: bool,
+    errors_before: List[str],
+) -> None:
+    """Fill the Push History, audit-trail and device-log checks in ``record``."""
+    command_id = str(record["command_id"])
 
-    # Push History: the command must be listed with the status polling saw.
     try:
         history = get_history(client, base_url, device_id)
     except Exception as exc:  # noqa: BLE001 - report, do not lose the run
         history = []
         record["notes"].append(f"history fetch failed: {exc}")
-    record["history"] = verify_history(history, command_id, status)
+    record["history"] = verify_history(history, command_id, record["status"])
     record["checks"]["history"] = bool(record["history"]["ok"])
 
-    # Audit trail: queued -> sent -> terminal for this command id.
     try:
         events = get_audit_events(client, base_url, device_id)
     except Exception as exc:  # noqa: BLE001 - report, do not lose the run
@@ -790,21 +923,30 @@ def run_one(
     record["audit"] = verify_audit(
         events,
         command_id,
-        action,
+        str(record["action"]),
         queued_at,
         finished_at,
-        expect_sent=record["checks"]["delivered"],
+        expect_sent=bool(record["checks"]["delivered"]),
         expect_terminal=not timed_out,
     )
     record["checks"]["audit"] = bool(record["audit"]["ok"])
 
-    # New Live Logs rows inside this command's window are a lead, not a verdict:
+    # New device errors inside this command's window are a lead, not a verdict:
     # device error reporting lags, and winget legitimately emits warnings.
     errors_after = error_fingerprints(client, base_url, device_id)
     if errors_before and errors_after:
         seen = set(errors_before)
         record["new_errors"] = [row for row in errors_after if row not in seen]
 
+
+def record_timings(
+    record: Dict[str, Any],
+    queued_at: datetime,
+    finished_at: datetime,
+    detail: Dict[str, Any],
+    started: float,
+) -> None:
+    """Record queued -> sent -> executed -> observed latencies and clock skew."""
     record["timings"] = {
         "queued_to_sent_s": clamped_seconds(
             queued_at.isoformat(), detail.get("sent_at")
@@ -824,6 +966,92 @@ def run_one(
             f"clock skew: the device's executed_at is {-skew:.0f}s ahead of this host"
         )
 
+
+def run_one(
+    client: httpx.Client,
+    base_url: str,
+    device_id: str,
+    index: int,
+    spec: Dict[str, Any],
+    state: Dict[str, Any],
+    args: argparse.Namespace,
+) -> Dict[str, Any]:
+    """Exercise a single command end to end and return its evidence record."""
+    action = str(spec["action"])
+    payload = dict(spec.get("payload") or {})
+    record = new_record(index, action, str(spec["label"]), payload)
+
+    # A $PID placeholder is filled from the pid an earlier command returned, so
+    # the soak never touches a process the operator started.
+    if "$PID" in payload.values():
+        captured = state.get("last_started_pid")
+        if captured is None:
+            record["outcome"] = OUTCOME_SKIPPED
+            record["notes"].append("start_program returned no pid to stop")
+            return record
+        payload = {
+            key: captured if value == "$PID" else value
+            for key, value in payload.items()
+        }
+        record["payload"] = payload
+
+    errors_before = error_fingerprints(client, base_url, device_id)
+    queued_at = datetime.now(timezone.utc)
+    started = time.monotonic()
+
+    if not queue_with_evidence(
+        client, base_url, device_id, action, payload, record, queued_at, started
+    ):
+        return record
+
+    command_id = str(record["command_id"])
+    detail, poll_notes = poll_until_terminal(
+        client,
+        base_url,
+        device_id,
+        command_id,
+        int(spec["timeout"]),
+        int(args.poll_interval),
+    )
+    record["notes"].extend(poll_notes)
+
+    finished_at = datetime.now(timezone.utc)
+    status = detail.get("status")
+    result = detail.get("result")
+    timed_out = status not in TERMINAL_STATUSES
+
+    record["status"] = status
+    record["result"] = result
+    record["sent_at"] = detail.get("sent_at")
+    record["executed_at"] = detail.get("executed_at")
+    record["window"] = {
+        "queued_at": queued_at.isoformat(),
+        "finished_at": finished_at.isoformat(),
+    }
+
+    # Delivery is proven by the device's own ack and report timestamps.
+    checks = record["checks"]
+    checks["delivered"] = parse_timestamp(detail.get("sent_at")) is not None
+    checks["executed"] = parse_timestamp(detail.get("executed_at")) is not None
+    problems = result_shape_problems(action, result)
+    checks["result_shape"] = not problems and result is not None
+    record["notes"].extend(problems)
+
+    verdict, subtests = subtests_of(action, result)
+    record["verdict"] = verdict
+    record["subtests"] = subtests
+
+    verify_recorded(
+        client,
+        base_url,
+        device_id,
+        record,
+        queued_at,
+        finished_at,
+        timed_out,
+        errors_before,
+    )
+    record_timings(record, queued_at, finished_at, detail, started)
     record["outcome"] = classify_outcome(record, timed_out)
 
     if action == "start_program" and isinstance(result, dict):
@@ -892,6 +1120,53 @@ def print_table(records: List[Dict[str, Any]]) -> None:
         )
 
 
+def print_failure_detail(record: Dict[str, Any], device_id: str) -> None:
+    """Print everything needed to investigate one command."""
+    window = record.get("window") or {}
+    print(
+        f"#{record['index']} {record['action']} ({record['label']}) — "
+        f"{record['outcome']}"
+    )
+    print(f"    command_id : {record.get('command_id') or '(never queued)'}")
+    if record.get("status"):
+        print(f"    status     : {record['status']}")
+    if record.get("verdict"):
+        failed = [
+            name
+            for name, detail in record["subtests"].items()
+            if not isinstance(detail, dict) or detail.get("status") != "pass"
+        ]
+        print(f"    verdict    : {record['verdict']} (failed: {', '.join(failed)})")
+    checks = ", ".join(
+        f"{name}={'ok' if value else 'no'}" for name, value in record["checks"].items()
+    )
+    print(f"    checks     : {checks}")
+    if record.get("history") and not record["history"].get("ok"):
+        print(
+            "    history    : listed={listed} status={status} "
+            "result_present={result_present}".format(**record["history"])
+        )
+    if record.get("audit") and not record["audit"].get("ok"):
+        print(
+            "    audit      : queued={queued} sent={sent} "
+            "terminal={terminal}".format(**record["audit"])
+        )
+    for note in record.get("notes") or []:
+        print(f"    note       : {note}")
+    if record.get("detail"):
+        print(f"    api detail : {json.dumps(record['detail'])[:400]}")
+    if record.get("result") is not None:
+        print(f"    result     : {json.dumps(record['result'])[:500]}")
+    for row in record["new_errors"][:5]:
+        print(f"    new log    : {row}")
+    if window.get("queued_at"):
+        print(
+            f"    device logs: {window['queued_at']} .. "
+            f"{window.get('finished_at', 'now')}"
+        )
+    print(f"    look up    : Push History / Live Logs for device {device_id}")
+
+
 def print_failures(records: List[Dict[str, Any]], device_id: str) -> None:
     """Print the closing section: commands that need a human look."""
     problem_records = [
@@ -907,50 +1182,7 @@ def print_failures(records: List[Dict[str, Any]], device_id: str) -> None:
     print("\nCOMMANDS THAT NEED A LOOK")
     print("-" * 78)
     for record in problem_records:
-        window = record.get("window") or {}
-        print(
-            f"#{record['index']} {record['action']} ({record['label']}) — "
-            f"{record['outcome']}"
-        )
-        print(f"    command_id : {record.get('command_id') or '(never queued)'}")
-        if record.get("status"):
-            print(f"    status     : {record['status']}")
-        if record.get("verdict"):
-            failed = [
-                name
-                for name, detail in record["subtests"].items()
-                if not isinstance(detail, dict) or detail.get("status") != "pass"
-            ]
-            print(f"    verdict    : {record['verdict']} (failed: {', '.join(failed)})")
-        checks = ", ".join(
-            f"{name}={'ok' if value else 'no'}"
-            for name, value in record["checks"].items()
-        )
-        print(f"    checks     : {checks}")
-        if record.get("history") and not record["history"].get("ok"):
-            print(
-                "    history    : listed={listed} status={status} "
-                "result_present={result_present}".format(**record["history"])
-            )
-        if record.get("audit") and not record["audit"].get("ok"):
-            print(
-                "    audit      : queued={queued} sent={sent} "
-                "terminal={terminal}".format(**record["audit"])
-            )
-        for note in record.get("notes") or []:
-            print(f"    note       : {note}")
-        if record.get("detail"):
-            print(f"    api detail : {json.dumps(record['detail'])[:400]}")
-        if record.get("result") is not None:
-            print(f"    result     : {json.dumps(record['result'])[:500]}")
-        for row in record["new_errors"][:5]:
-            print(f"    new log    : {row}")
-        if window.get("queued_at"):
-            print(
-                f"    device logs: {window['queued_at']} .. "
-                f"{window.get('finished_at', 'now')}"
-            )
-        print(f"    look up    : Push History / Live Logs for device {device_id}")
+        print_failure_detail(record, device_id)
         print()
 
 
@@ -977,6 +1209,23 @@ def print_timings(records: List[Dict[str, Any]]) -> None:
         )
 
 
+def print_readiness(
+    device: Dict[str, Any], problems: List[str], warnings: List[str]
+) -> None:
+    """Print the preflight block: what the device is and what it may do."""
+    print(f"\nReadiness: {device.get('name') or device.get('device_id')}")
+    print(f"  lifecycle_state : {device.get('lifecycle_state')}")
+    print(f"  last_seen       : {device.get('last_seen')}")
+    print(f"  agent_restarts  : {device.get('agent_restart_count')}")
+    permissions = device.get("device_permissions")
+    granted = sorted(key for key, value in (permissions or {}).items() if value is True)
+    print(f"  grants          : {', '.join(granted) or '(none)'}")
+    for warning in warnings:
+        print(f"  warning         : {warning}")
+    for problem in problems:
+        print(f"  problem         : {problem}")
+
+
 def summarize(records: List[Dict[str, Any]]) -> Dict[str, int]:
     """Count records per outcome."""
     counts: Dict[str, int] = {}
@@ -988,8 +1237,8 @@ def summarize(records: List[Dict[str, Any]]) -> Dict[str, int]:
 # --- Entry point ------------------------------------------------------------
 
 
-def main() -> int:
-    """Run the compose-command soak test and print an evidence summary."""
+def parse_args() -> argparse.Namespace:
+    """Parse and validate the command line."""
     ap = argparse.ArgumentParser(description="Compose-command soak test (no AI).")
     ap.add_argument("--base-url", default="https://homepot.cabera.com/api/v1")
     ap.add_argument("--email")
@@ -1024,27 +1273,135 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    if args.list:
-        print(f"{'#':>2}  {'action':28s}  {'timeout':>7s}  payload")
-        for i, cmd in enumerate(SOAK_COMMANDS, 1):
-            print(
-                f"{i:>2}  {cmd['action']:28s}  {cmd['timeout']:>6}s  "
-                f"{json.dumps(cmd['payload'])}"
-            )
-        return 0
-
-    if not (args.email and args.device_id):
+    if not args.list and not (args.email and args.device_id):
         ap.error("--email and --device-id are required (unless --list)")
+    return args
 
-    password = args.password or os.environ.get("HOMEPOT_PASSWORD")
-    if not password:
-        password = getpass.getpass(f"Password for {args.email}: ")
 
-    base_url = args.base_url.rstrip("/")
+def print_command_list() -> None:
+    """Print the command set without sending anything."""
+    print(f"{'#':>2}  {'action':28s}  {'timeout':>7s}  payload")
+    for i, cmd in enumerate(SOAK_COMMANDS, 1):
+        print(
+            f"{i:>2}  {cmd['action']:28s}  {cmd['timeout']:>6}s  "
+            f"{json.dumps(cmd['payload'])}"
+        )
+
+
+def resolve_password(args: argparse.Namespace) -> str:
+    """Take the password from argv, the environment, or an interactive prompt."""
+    return (
+        args.password
+        or os.environ.get("HOMEPOT_PASSWORD")
+        or getpass.getpass(f"Password for {args.email}: ")
+    )
+
+
+def run_sequence(
+    client: httpx.Client,
+    base_url: str,
+    device_id: str,
+    args: argparse.Namespace,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Run every command in order.
+
+    Returns the evidence records and, when a command broke the run, the reason
+    the rest were skipped. Nothing here aborts on a single command failure: the
+    report exists to show exactly which ones need a look.
+    """
     records: List[Dict[str, Any]] = []
     state: Dict[str, Any] = {}
-    run_started = time.monotonic()
     abort_reason: Optional[str] = None
+
+    for index, spec in enumerate(SOAK_COMMANDS, 1):
+        if abort_reason is not None:
+            skipped = new_record(
+                index, spec["action"], spec["label"], spec.get("payload") or {}
+            )
+            skipped["outcome"] = OUTCOME_SKIPPED
+            skipped["notes"].append(f"not run: {abort_reason}")
+            records.append(skipped)
+            continue
+
+        print(f"[{index}/{len(SOAK_COMMANDS)}] {spec['label']} ({spec['action']})")
+        record = run_one(client, base_url, device_id, index, spec, state, args)
+        records.append(record)
+        verdict = f"  verdict={record['verdict']}" if record.get("verdict") else ""
+        print(
+            f"  {record['outcome']}"
+            f"  status={record.get('status')}"
+            f"  {format_elapsed(record['timings'].get('total_s'))}"
+            f"{verdict}"
+        )
+
+        # An agent restart is the only step whose success the command itself
+        # cannot prove: it returns before the process actually exits.
+        if spec.get("verify_agent"):
+            abort_reason = verify_restart(
+                client, base_url, device_id, record, int(args.restart_wait)
+            )
+
+        if abort_reason is None:
+            time.sleep(int(spec.get("settle", args.settle_delay)))
+
+    return records, abort_reason
+
+
+def print_report(
+    records: List[Dict[str, Any]], device_id: str, wall_seconds: float
+) -> None:
+    """Print the evidence table, timings and the closing failure section."""
+    counts = summarize(records)
+    print("\n" + "=" * 78)
+    print(f"COMPOSE SOAK TEST — {device_id}")
+    print("=" * 78)
+    print_table(records)
+    print("-" * 78)
+    print(
+        f"TOTAL {len(records)} | "
+        + " | ".join(f"{name} {count}" for name, count in sorted(counts.items()))
+        + f" | wall clock {wall_seconds}s"
+    )
+    print_timings(records)
+    print_failures(records, device_id)
+
+
+def write_evidence(
+    path: str,
+    device_id: str,
+    base_url: str,
+    records: List[Dict[str, Any]],
+    counts: Dict[str, int],
+    wall_seconds: float,
+) -> None:
+    """Write the full evidence bundle so a failure can be reviewed later."""
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "device_id": device_id,
+                "base_url": base_url,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "wall_seconds": wall_seconds,
+                "counts": counts,
+                "records": records,
+            },
+            handle,
+            indent=2,
+            default=str,
+        )
+    print(f"Evidence written to {path}")
+
+
+def main() -> int:
+    """Run the compose-command soak test and print an evidence summary."""
+    args = parse_args()
+    if args.list:
+        print_command_list()
+        return 0
+
+    password = resolve_password(args)
+    base_url = args.base_url.rstrip("/")
+    run_started = time.monotonic()
 
     with httpx.Client(timeout=60.0, follow_redirects=True) as client:
         try:
@@ -1063,133 +1420,18 @@ def main() -> int:
             return 1
 
         ready, problems, warnings = evaluate_readiness(device, SOAK_COMMANDS)
-        print(f"\nReadiness: {device.get('name') or args.device_id}")
-        print(f"  lifecycle_state : {device.get('lifecycle_state')}")
-        print(f"  last_seen       : {device.get('last_seen')}")
-        print(f"  agent_restarts  : {device.get('agent_restart_count')}")
-        permissions = device.get("device_permissions")
-        granted = sorted(
-            key for key, value in (permissions or {}).items() if value is True
-        )
-        print(f"  grants          : {', '.join(granted) or '(none)'}")
-        for warning in warnings:
-            print(f"  warning         : {warning}")
-        for problem in problems:
-            print(f"  problem         : {problem}")
+        print_readiness(device, problems, warnings)
         if not ready and not args.force:
             print("\nAborting before sending anything. Fix the above or pass --force.")
             return 1
         print()
 
-        restart_count_before: Any = None
-
-        for i, spec in enumerate(SOAK_COMMANDS, 1):
-            if abort_reason is not None:
-                records.append(
-                    {
-                        "index": i,
-                        "action": spec["action"],
-                        "label": spec["label"],
-                        "payload": spec.get("payload") or {},
-                        "command_id": None,
-                        "outcome": OUTCOME_SKIPPED,
-                        "checks": {},
-                        "verdict": None,
-                        "subtests": {},
-                        "timings": {},
-                        "new_errors": [],
-                        "notes": [f"not run: {abort_reason}"],
-                        "result": None,
-                        "window": {},
-                    }
-                )
-                continue
-
-            # The restart probe compares server-stamped values only: last_seen
-            # and agent_restart_count are written by the server, whereas the
-            # command's executed_at comes from the device clock, so the two can
-            # disagree by minutes on a skewed device.
-            agent_baseline: Optional[datetime] = None
-            if spec.get("verify_agent"):
-                try:
-                    snapshot = get_device(client, base_url, args.device_id)
-                except Exception as exc:  # noqa: BLE001 - probe is best effort
-                    print(f"  could not read agent baseline: {exc}")
-                    snapshot = {}
-                agent_baseline = parse_timestamp(snapshot.get("last_seen"))
-                restart_count_before = snapshot.get("agent_restart_count")
-
-            print(f"[{i}/{len(SOAK_COMMANDS)}] {spec['label']} ({spec['action']})")
-            record = run_one(client, base_url, args.device_id, i, spec, state, args)
-            records.append(record)
-            print(
-                f"  {record['outcome']}"
-                f"  status={record.get('status')}"
-                f"  {format_elapsed(record['timings'].get('total_s'))}"
-                + (f"  verdict={record['verdict']}" if record.get("verdict") else "")
-            )
-
-            # An agent restart is the only step whose success the command
-            # itself cannot prove: it returns before the process actually exits.
-            if spec.get("verify_agent"):
-                if agent_baseline is None and restart_count_before is None:
-                    print("  no baseline to verify the restart against; skipping probe")
-                else:
-                    probe = wait_for_agent_recovery(
-                        client,
-                        base_url,
-                        args.device_id,
-                        agent_baseline,
-                        restart_count_before,
-                        args.restart_wait,
-                    )
-                    record["agent_recovery"] = probe
-                    if probe["recovered"]:
-                        print(f"  agent back after {probe['waited_s']}s")
-                        restart_count_before = probe.get("agent_restart_count")
-                    else:
-                        abort_reason = (
-                            f"agent did not check back in within "
-                            f"{args.restart_wait}s after restart_agent"
-                        )
-                        record["outcome"] = OUTCOME_FAIL
-                        record["notes"].append(abort_reason)
-                        print(f"  {abort_reason}; remaining commands marked SKIPPED")
-
-            if abort_reason is None:
-                time.sleep(int(spec.get("settle", args.settle_delay)))
+        records, _ = run_sequence(client, base_url, args.device_id, args)
 
     wall_seconds = round(time.monotonic() - run_started, 1)
     counts = summarize(records)
-
-    print("\n" + "=" * 78)
-    print(f"COMPOSE SOAK TEST — {args.device_id}")
-    print("=" * 78)
-    print_table(records)
-    print("-" * 78)
-    print(
-        f"TOTAL {len(records)} | "
-        + " | ".join(f"{name} {count}" for name, count in sorted(counts.items()))
-        + f" | wall clock {wall_seconds}s"
-    )
-    print_timings(records)
-    print_failures(records, args.device_id)
-
-    with open(args.output, "w", encoding="utf-8") as handle:
-        json.dump(
-            {
-                "device_id": args.device_id,
-                "base_url": base_url,
-                "started_at": datetime.now(timezone.utc).isoformat(),
-                "wall_seconds": wall_seconds,
-                "counts": counts,
-                "records": records,
-            },
-            handle,
-            indent=2,
-            default=str,
-        )
-    print(f"Evidence written to {args.output}")
+    print_report(records, args.device_id, wall_seconds)
+    write_evidence(args.output, args.device_id, base_url, records, counts, wall_seconds)
 
     blocking = (
         counts.get(OUTCOME_FAIL, 0)

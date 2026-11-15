@@ -23,7 +23,7 @@ assertion:
 | `exec` | `executed_at` is set and the status is terminal |
 | `hist` | Push History lists the command with the same status polling saw |
 | `audit` | `command_queued` → `command_sent` → `command_completed` in the audit log |
-| `err` | how many *new* Live Logs rows appeared inside the command's window |
+| `err` | how many *real* device errors appeared inside the command's window |
 | `elapsed` | seconds from queue to terminal status |
 
 Outcomes are `PASS`, `PASS_NOTE` (executed, but with a failed sub-test verdict
@@ -67,13 +67,78 @@ logged in (no PIN entry) and the operator's files are left alone.
 
 - `update_config` leaves the volume at 50 and the brightness at 75.
 - `notify_user` pops a modal on screen.
-- `start_program`/`stop_program` open and close Notepad. The stop step targets
-  the pid returned by the start step, so a Notepad window the operator already
-  had open is never touched.
+- `start_program`/`stop_program` spawn and kill a `ping.exe` that runs for a few
+  minutes. The stop step targets the pid returned by the start step, so a window
+  the operator already has open is never touched.
+
+## Notes learned from real runs
+
+- **`/error-logs` is not an error-only log.** It returns the whole device log
+  stream: the periodic `Status report: ONLINE ...` heartbeat
+  (`category="status"`) and each command's own `Command completed: ...` line
+  (`category="command"`), both at `severity="info"`. The first run's error check
+  counted those and marked all 24 commands as notes. The `err` column now
+  ignores `status`/`command` categories and anything below warning severity.
+  A 300-row sample from a full run was 276 heartbeats plus 24 command lines and
+  zero errors.
+- **`last_seen` alone cannot prove an agent restart.** It advances while a
+  command sits queued, and a *failed* restart leaves the old process
+  heartbeating. The probe therefore waits for the restart counter to go up
+  (`agent_restart_count`) or the reported uptime to drop (`agent_uptime_seconds`
+  back to a few seconds), and reports "unverified" rather than guessing when
+  neither is available.
+- **`start_program` + `stop_program` cannot use Notepad on Windows 11.** Notepad
+  is a packaged app: `notepad.exe` hands off to the Store process and exits, so
+  the returned pid is already gone and the stop step reports `killed: 0`
+  ("process not running"). The soak test uses `ping.exe` instead so the kill
+  path is actually exercised.
+- **Device clocks drift.** A run reported the device's `executed_at` 5-6s ahead
+  of the workstation. Timing deltas are clamped at zero and clock skew is
+  reported as a note instead of a negative duration.
+
+## Code quality
+
+These tools are not covered by CI (pytest is scoped to `backend/tests/` and
+mypy to `backend/src/homepot/`), so run the checks by hand before changing
+them. They are not busywork: the first soak run shipped two measurement bugs —
+counting its own completion lines as "new errors", and treating `last_seen` as
+proof of an agent restart — that passed `black`/`isort`/`flake8`/`mypy` and
+were only caught by the complexity check and the test suite below.
+
+Run all of these from the repo root before opening a PR that touches `tools/`:
+
+```bash
+# Format + lint. black/isort/flake8 also run in the pre-commit hook.
+.venv/bin/black --check tools/
+.venv/bin/isort --check-only tools/
+.venv/bin/flake8 tools/
+
+# Type-check the scripts. The test file is untyped pytest, like backend/tests/,
+# so it is outside the mypy gate.
+.venv/bin/mypy --config-file=backend/mypy.ini tools/compose-soak-test.py
+
+# Stricter than CI: keep every function at McCabe <= 10. A big run_one() was
+# the reason the two bugs hid in plain sight.
+.venv/bin/flake8 --max-complexity=10 tools/compose-soak-test.py
+
+# Security lint. CI's flake8-bandit ignores S105 (hardcoded passwords), so run
+# bandit standalone too; the single B105 on OUTCOME_PASS is silenced with
+# `# nosec B105` because it is a status label, not a credential.
+.venv/bin/bandit -q tools/compose-soak-test.py
+
+# Hermetic test suite — a fake device and API, no network, never touches real
+# hardware. This is what proves the log filter and the restart probe behave.
+.venv/bin/python -m pytest tools/test_compose_soak_test.py \
+    -n 0 -p no:cacheprovider --no-cov -q
+```
+
+`black`/`isort` will rewrite in place if you drop `--check`; everything else is
+read-only.
 
 ## Filenames
 
 Use hyphens, not underscores, to match the repo convention (e.g.
 `compose-soak-test.py`, not `compose_soak_test.py`). These are standalone
 scripts run directly (`python tools/compose-soak-test.py`), never imported as
-modules.
+modules. The one exception is the test file: pytest only collects `test_*.py`,
+so it is `test_compose_soak_test.py` to match `backend/tests/`.
