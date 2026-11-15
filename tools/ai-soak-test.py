@@ -55,10 +55,16 @@ Usage:
     HOMEPOT_PASSWORD='...' python tools/ai-soak-test.py \\
         --base-url https://homepot.cabera.com/api/v1 \\
         --email maziar.ghorbani@brunel.ac.uk \\
-        --device-id DEVICE-HSZK-T24Y-TSCX
+        --device-id DEVICE-HSZK-T24Y-TSCX \\
+        --provider anthropic
 
     # Preview only (prints the delegated command list, sends nothing):
     python tools/ai-soak-test.py --list
+
+``--provider`` pins the run to one LLM provider (``ollama``/``openai``/
+``anthropic``); the server is switched via ``PUT /ai/provider`` first, and the
+provider + model are recorded in the evidence bundle. Omit it to record
+whatever provider is already active.
 """
 
 import argparse
@@ -393,6 +399,52 @@ def execute_plan(client: httpx.Client, base_url: str, plan_id: str) -> Dict[str,
     return payload if isinstance(payload, dict) else {}
 
 
+def get_provider_info(client: httpx.Client, base_url: str) -> Dict[str, Any]:
+    """Return the server's current LLM provider, model and key status."""
+    r = client.get(f"{base_url}/ai/provider")
+    r.raise_for_status()
+    payload = r.json()
+    data = payload.get("data") if isinstance(payload, dict) else {}
+    return data if isinstance(data, dict) else {}
+
+
+def switch_provider(
+    client: httpx.Client, base_url: str, provider: str
+) -> Dict[str, Any]:
+    """Switch the server's active LLM provider (admin only)."""
+    r = client.put(f"{base_url}/ai/provider", params={"provider": provider})
+    r.raise_for_status()
+    payload = r.json()
+    data = payload.get("data") if isinstance(payload, dict) else {}
+    return data if isinstance(data, dict) else {}
+
+
+def resolve_provider(
+    client: httpx.Client, base_url: str, requested: Optional[str]
+) -> Tuple[str, str]:
+    """Return (provider, model), switching the server when ``requested`` differs.
+
+    The server's provider is a global setting; ``--provider`` pins it for the
+    run. Switching is admin-only, so a 403 leaves the current provider in place
+    and the run records what actually happened rather than guessing.
+    """
+    info = get_provider_info(client, base_url)
+    current = str(info.get("current") or "unknown")
+    model = str(info.get("model") or "unknown")
+    if requested and requested != current:
+        try:
+            info = switch_provider(client, base_url, requested)
+            current = str(info.get("current") or current)
+            model = str(info.get("model") or model)
+            print(f"Switched provider to {current} (model: {model})")
+        except httpx.HTTPStatusError as exc:
+            print(
+                f"Could not switch provider to '{requested}' "
+                f"({exc.response.status_code}); using {current}"
+            )
+    return current, model
+
+
 def get_history(
     client: httpx.Client, base_url: str, device_id: str, limit: int = 10
 ) -> List[Dict[str, Any]]:
@@ -535,7 +587,14 @@ def verify_audit(
     expect_sent: bool,
     expect_terminal: bool,
 ) -> Dict[str, Any]:
-    """Check the audit trail for this command's lifecycle (see compose soak)."""
+    """Check the audit trail for this command's lifecycle.
+
+    The AI executor (``create_device_command``) records ``command_sent`` and
+    ``command_completed`` but does **not** write a ``command_queued`` event
+    (the operator/Compose path writes all three). So ``ok`` requires the sent
+    and terminal events only; ``queued`` is still computed and reported so the
+    missing-event gap stays visible in the evidence.
+    """
     cid = str(command_id)
 
     def with_id(event_type: str) -> bool:
@@ -569,7 +628,7 @@ def verify_audit(
     sent = with_id("command_sent")
     terminal = with_id("command_completed") or with_id("command_failed")
     queued = queued_within_window()
-    ok = queued and (sent or not expect_sent) and (terminal or not expect_terminal)
+    ok = (sent or not expect_sent) and (terminal or not expect_terminal)
     return {
         "queued": queued,
         "sent": sent,
@@ -760,6 +819,9 @@ def new_record(index: int, action: str, label: str, prompt: str) -> Dict[str, An
         "proposed_actions": [],
         "trust": {},
         "gate_failure": None,
+        "provider": None,
+        "response": None,
+        "tools_called": [],
         "step_approvals": [],
         "steps": [],
         "outcome_detail": None,
@@ -819,6 +881,14 @@ def query_proposal(
         return {}
 
     record["timings"]["query_s"] = round(time.monotonic() - started, 1)
+
+    record["provider"] = resp.get("provider")
+    response_text = resp.get("response")
+    if isinstance(response_text, str) and response_text:
+        record["response"] = response_text[:500]
+    agentic = resp.get("agentic")
+    if isinstance(agentic, dict):
+        record["tools_called"] = agentic.get("tools_called") or []
 
     trust: Dict[str, Any] = {}
     if isinstance(resp.get("trust"), dict):
@@ -1283,6 +1353,13 @@ def parse_args() -> argparse.Namespace:
     )
     ap.add_argument("--device-id")
     ap.add_argument(
+        "--provider",
+        choices=("ollama", "openai", "anthropic"),
+        help="LLM provider to pin for the run. Switches the server via "
+        "PUT /ai/provider (admin only) when it differs; when omitted the run "
+        "records whatever provider is already active.",
+    )
+    ap.add_argument(
         "--poll-interval", type=int, default=5, help="Seconds between status polls"
     )
     ap.add_argument(
@@ -1416,6 +1493,8 @@ def write_evidence(
     records: List[Dict[str, Any]],
     counts: Dict[str, int],
     wall_seconds: float,
+    provider: str,
+    model: str,
 ) -> None:
     """Write the full evidence bundle so a failure can be reviewed later."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -1424,6 +1503,8 @@ def write_evidence(
             {
                 "device_id": device_id,
                 "base_url": base_url,
+                "provider": provider,
+                "model": model,
                 "started_at": datetime.now(timezone.utc).isoformat(),
                 "wall_seconds": wall_seconds,
                 "counts": counts,
@@ -1455,6 +1536,9 @@ def main() -> int:
             return 1
         print(f"Logged in. Device: {args.device_id}")
 
+        provider, model = resolve_provider(client, base_url, args.provider)
+        print(f"LLM provider: {provider} (model: {model})")
+
         try:
             device = get_device(client, base_url, args.device_id)
         except Exception as exc:  # noqa: BLE001 - preflight failure is fatal
@@ -1473,7 +1557,16 @@ def main() -> int:
     wall_seconds = round(time.monotonic() - run_started, 1)
     counts = summarize(records)
     print_report(records, args.device_id, wall_seconds)
-    write_evidence(args.output, args.device_id, base_url, records, counts, wall_seconds)
+    write_evidence(
+        args.output,
+        args.device_id,
+        base_url,
+        records,
+        counts,
+        wall_seconds,
+        provider,
+        model,
+    )
 
     blocking = (
         counts.get(OUTCOME_FAIL, 0)

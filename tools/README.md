@@ -89,7 +89,7 @@ comparable (same coverage, one composed, one delegated).
 | `exec` | the plan reached a terminal status within the per-command budget |
 | `verif` | terminal status is `succeeded` and `outcome.verified` is set |
 | `hist` | Push History lists the command the plan dispatched |
-| `audit` | `command_queued` → `command_sent` → `command_completed` in the audit log |
+| `audit` | `command_sent` → `command_completed` in the audit log (the AI executor does not emit `command_queued`; that is recorded separately as evidence of the gap) |
 | `err` | how many *real* device errors appeared inside the command's window |
 | `elapsed` | seconds from the AI query to the terminal plan status |
 
@@ -115,7 +115,8 @@ export HOMEPOT_PASSWORD='...'
 python tools/ai-soak-test.py \
     --base-url https://homepot.cabera.com/api/v1 \
     --email maziar.ghorbani@brunel.ac.uk \
-    --device-id DEVICE-HSZK-T24Y-TSCX
+    --device-id DEVICE-HSZK-T24Y-TSCX \
+    --provider anthropic
 
 # Preview the delegated list without sending anything:
 python tools/ai-soak-test.py --list
@@ -124,6 +125,16 @@ python tools/ai-soak-test.py --list
 Prompts reference the device by `device_id` (not its display name) so the AI
 does not have to resolve a name through `find_device` first. Name resolution is
 a separate capability and is out of scope here.
+
+### Provider
+
+`--provider` (`ollama` / `openai` / `anthropic`) pins the run to one LLM
+provider: the server is switched via `PUT /api/v1/ai/provider` first (admin
+only), and the provider + model are recorded in the evidence bundle. Omit it to
+run against whatever provider is already active. Each command also records the
+`provider` from its own `/ai/query` response, plus a truncated copy of the AI's
+`response` and its `tools_called` list, so a "no proposal" failure is
+diagnosable after the fact.
 
 ### Registry awareness
 
