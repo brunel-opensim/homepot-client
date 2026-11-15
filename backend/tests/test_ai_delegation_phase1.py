@@ -151,6 +151,35 @@ def test_registry_permissions_match_agent_requirements():
     assert not mismatches, f"permission drift: {mismatches}"
 
 
+def test_compose_templates_and_registry_stay_in_sync():
+    """Every Compose template action is AI-proposable, and vice versa.
+
+    ``COMPOSE_TEMPLATES`` (the Dashboard's Compose Command presets) and
+    ``ACTION_REGISTRY`` (what the AI may propose) are two views of the same
+    command set. Drift means either the AI cannot be delegated a command the
+    operator can compose, or the AI proposes a command the Dashboard cannot
+    render. Two entries are intentionally asymmetric and are asserted directly:
+
+    * ``bootstrap_winget`` is a technician-only utility on the Compose page,
+      deliberately NOT AI-proposable (see ai/system_knowledge.py).
+    * ``rollback_config`` is a registry name whose ``command_type`` is
+      ``update_config``; it has no dedicated Compose template because rollback
+      is the update_config snapshot flow.
+    """
+    from homepot.app.ai_ops.compose_templates import COMPOSE_TEMPLATES
+
+    template_actions = {t["action"] for t in COMPOSE_TEMPLATES.values()}
+    registry_command_types = {s.command_type for s in ACTION_REGISTRY.values()}
+
+    # bootstrap_winget is the only Compose action the AI may not propose.
+    assert template_actions - {"bootstrap_winget"} == registry_command_types
+
+    # rollback_config is the only registry name with no Compose template.
+    registry_names = set(ACTION_REGISTRY)
+    assert "rollback_config" in registry_names
+    assert "rollback_config" not in template_actions
+
+
 def test_propose_device_action_docstring_lists_every_registered_action():
     """The tool docstring advertises exactly the registered actions (no drift)."""
     doc = propose_device_action.__doc__ or ""
