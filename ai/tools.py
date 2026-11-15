@@ -183,7 +183,7 @@ async def _check_device_access(
 
     # Role check
     user_role = scope.get("role", "viewer")
-    role_rank = {"viewer": 0, "operator": 1, "admin": 2}
+    role_rank = {"viewer": 0, "manager": 1, "admin": 2}
     if role_rank.get(user_role, 0) < role_rank.get(minimum_role, 0):
         return (
             f"Access denied: '{minimum_role}' role required for device "
@@ -871,7 +871,7 @@ async def propose_device_action(
         )
 
     # RBAC: verify the caller has access to the target device.
-    access_error = await _check_device_access(target_device_id, "operator")
+    access_error = await _check_device_access(target_device_id, "manager")
     if access_error:
         return access_error
 
@@ -1013,7 +1013,7 @@ async def propose_fleet_action(
         # RBAC: caller must have operator access to every target device.
         denied: list[str] = []
         for d in devices:
-            err = await _check_device_access(str(d.device_id), "operator")
+            err = await _check_device_access(str(d.device_id), "manager")
             if err:
                 denied.append(str(d.device_id))
         if denied:

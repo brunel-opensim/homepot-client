@@ -119,7 +119,7 @@ def _seed_operator(db: Any) -> tuple[str, str]:
     create_tenant_membership_sync(
         db, user_id=user.id, tenant_id=tenant.id, role="admin"
     )
-    create_site_membership_sync(db, user_id=user.id, site_id=site.id, role="operator")
+    create_site_membership_sync(db, user_id=user.id, site_id=site.id, role="manager")
     db.commit()
     db.refresh(site)
     db.refresh(user)
@@ -208,7 +208,7 @@ class TestCreateEnrolmentIntent:
         assert response.status_code == 401
 
     def test_rejects_insufficient_role(self, client: TestClient):
-        """A user with viewer (not operator) role gets 403."""
+        """A user with viewer (not manager) role gets 403."""
         db = homepot.database.SessionLocal()
         email, site_id = _seed_viewer(db)
 

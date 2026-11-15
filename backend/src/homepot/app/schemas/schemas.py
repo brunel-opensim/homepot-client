@@ -341,7 +341,7 @@ class SiteMembershipCreate(BaseModel):
     """Schema for adding a user to a site."""
 
     user_id: int
-    role: str = "viewer"  # admin, operator, installer, viewer
+    role: str = "viewer"  # admin, manager, installer, viewer (site tiers)
 
 
 class SiteMembershipOut(BaseModel):

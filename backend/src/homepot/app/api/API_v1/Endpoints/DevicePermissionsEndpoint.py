@@ -211,7 +211,7 @@ def admin_override_device_permissions(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
         verify_device_belongs_to_user(
-            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            db_user, device, db, minimum_role="manager", unified_fleet_access=True
         )
 
         capabilities = _get_capabilities_dict(device)
@@ -331,7 +331,7 @@ async def get_device_permissions(
                         db_user,
                         device,
                         sync_db,
-                        minimum_role="operator",
+                        minimum_role="manager",
                         unified_fleet_access=True,
                     )
                 finally:

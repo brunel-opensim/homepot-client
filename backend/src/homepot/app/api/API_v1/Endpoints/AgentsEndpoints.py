@@ -262,7 +262,7 @@ async def send_push_notification(
         User, sync_db.query(User).filter(User.email == current_user["email"]).first()
     )
     verify_device_belongs_to_user(
-        db_user, device, sync_db, minimum_role="operator", unified_fleet_access=True
+        db_user, device, sync_db, minimum_role="manager", unified_fleet_access=True
     )
     notification_data = {**notification_data, "action": "notification"}
 

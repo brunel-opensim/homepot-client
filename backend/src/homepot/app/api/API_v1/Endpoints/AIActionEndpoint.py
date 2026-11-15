@@ -5,7 +5,7 @@ the human-in-the-loop gate: **no action is executed here** (execution is
 Phase 3). Every decision is audited with its actor and device scope.
 
 Scoping: an approval is a privileged action, so it is role- and scope-checked
-with ``verify_device_belongs_to_user(..., minimum_role="operator")`` (admins
+with ``verify_device_belongs_to_user(..., minimum_role="manager")`` (admins
 bypass), not a bare admin check. Lists are filtered to the caller's accessible
 devices.
 
@@ -293,7 +293,7 @@ def _authorize_plan(db: SASession, db_user: User, plan: AIActionPlan) -> List[st
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Target device not found: {device_id}",
             )
-        verify_device_belongs_to_user(db_user, device, db, minimum_role="operator")
+        verify_device_belongs_to_user(db_user, device, db, minimum_role="manager")
     return targets
 
 

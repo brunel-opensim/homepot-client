@@ -73,7 +73,7 @@ async def create_enrolment_intent(
         db_user: User = current_db_user
         site = _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+            db_user, site_id, db, minimum_role="manager", unified_fleet_access=True
         )
 
         if payload.idempotency_key:
@@ -259,7 +259,7 @@ async def update_enrolment_intent_status(
         db_user: User = current_db_user
         _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+            db_user, site_id, db, minimum_role="manager", unified_fleet_access=True
         )
 
         intent = _get_intent_by_id_sync(db, intent_id)
@@ -361,7 +361,7 @@ async def regenerate_claim_token(
         db_user: User = current_db_user
         _get_site_by_site_id(db, site_id)
         verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+            db_user, site_id, db, minimum_role="manager", unified_fleet_access=True
         )
 
         svc = await get_database_service()

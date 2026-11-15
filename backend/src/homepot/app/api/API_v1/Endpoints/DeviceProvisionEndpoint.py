@@ -52,7 +52,7 @@ def provision_device(
             db_user,
             payload.site_id,
             db,
-            minimum_role="operator",
+            minimum_role="manager",
             unified_fleet_access=True,
         )
 

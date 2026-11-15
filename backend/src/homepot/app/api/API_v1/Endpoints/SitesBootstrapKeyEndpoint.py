@@ -36,7 +36,7 @@ def _get_site_for_operator(site_id: str, db: Session, current_user: UserDict) ->
         User, db.query(User).filter(User.email == current_user["email"]).first()
     )
     verify_site_access_for_user(
-        db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+        db_user, site_id, db, minimum_role="manager", unified_fleet_access=True
     )
     site = cast(Site, db.query(Site).filter(Site.site_id == site_id).first())
     if not site:

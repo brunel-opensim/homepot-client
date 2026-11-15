@@ -282,7 +282,9 @@ class TenantMembership(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
-    role = Column(String(50), default="member")  # admin, operator, installer, member
+    role = Column(
+        String(50), default="member"
+    )  # admin, manager, installer, viewer (site tiers)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
@@ -299,7 +301,9 @@ class SiteMembership(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=False)
-    role = Column(String(50), default="viewer")  # admin, operator, installer, viewer
+    role = Column(
+        String(50), default="viewer"
+    )  # admin, manager, installer, viewer (site tiers)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 

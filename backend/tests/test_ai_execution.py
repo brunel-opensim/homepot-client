@@ -149,7 +149,7 @@ def _seed(db, *, lifecycle=LifecycleState.ACTIVE.value, config=None):
     admin = _make_user(db, "admin@exec.test", is_admin=True)
     tech = _make_user(db, "tech@exec.test")
     nonmember = _make_user(db, "none@exec.test")
-    db.add(SiteMembership(user_id=tech.id, site_id=site.id, role="operator"))
+    db.add(SiteMembership(user_id=tech.id, site_id=site.id, role="manager"))
     db.commit()
     return {
         "site": site,

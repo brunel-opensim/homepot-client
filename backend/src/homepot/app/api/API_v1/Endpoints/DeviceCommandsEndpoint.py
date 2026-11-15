@@ -146,7 +146,7 @@ async def queue_command(
         raise HTTPException(status_code=404, detail="Device not found")
 
     verify_device_belongs_to_user(
-        db_user, device, sync_db, minimum_role="operator", unified_fleet_access=True
+        db_user, device, sync_db, minimum_role="manager", unified_fleet_access=True
     )
 
     # Commands must only be queued for active devices. A suspended device is
@@ -336,7 +336,7 @@ async def cancel_command(
         raise HTTPException(status_code=404, detail="Device not found")
 
     verify_device_belongs_to_user(
-        db_user, device, sync_db, minimum_role="operator", unified_fleet_access=True
+        db_user, device, sync_db, minimum_role="manager", unified_fleet_access=True
     )
 
     commands = await db.get_commands_for_device(cast(int, device.id))

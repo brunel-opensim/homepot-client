@@ -171,10 +171,10 @@ def seeded_db(file_db: Any) -> Any:
     )
 
     create_site_membership_sync(
-        db, user_id=user_a.id, site_id=site_a.id, role="operator"
+        db, user_id=user_a.id, site_id=site_a.id, role="manager"
     )
     create_site_membership_sync(
-        db, user_id=user_b.id, site_id=site_b.id, role="operator"
+        db, user_id=user_b.id, site_id=site_b.id, role="manager"
     )
 
     db.commit()
