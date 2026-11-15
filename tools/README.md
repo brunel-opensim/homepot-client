@@ -96,9 +96,49 @@ logged in (no PIN entry) and the operator's files are left alone.
   of the workstation. Timing deltas are clamped at zero and clock skew is
   reported as a note instead of a negative duration.
 
+## Code quality
+
+These tools are not covered by CI (pytest is scoped to `backend/tests/` and
+mypy to `backend/src/homepot/`), so run the checks by hand before changing
+them. They are not busywork: the first soak run shipped two measurement bugs —
+counting its own completion lines as "new errors", and treating `last_seen` as
+proof of an agent restart — that passed `black`/`isort`/`flake8`/`mypy` and
+were only caught by the complexity check and the test suite below.
+
+Run all of these from the repo root before opening a PR that touches `tools/`:
+
+```bash
+# Format + lint. black/isort/flake8 also run in the pre-commit hook.
+.venv/bin/black --check tools/
+.venv/bin/isort --check-only tools/
+.venv/bin/flake8 tools/
+
+# Type-check the scripts. The test file is untyped pytest, like backend/tests/,
+# so it is outside the mypy gate.
+.venv/bin/mypy --config-file=backend/mypy.ini tools/compose-soak-test.py
+
+# Stricter than CI: keep every function at McCabe <= 10. A big run_one() was
+# the reason the two bugs hid in plain sight.
+.venv/bin/flake8 --max-complexity=10 tools/compose-soak-test.py
+
+# Security lint. CI's flake8-bandit ignores S105 (hardcoded passwords), so run
+# bandit standalone too; the single B105 on OUTCOME_PASS is silenced with
+# `# nosec B105` because it is a status label, not a credential.
+.venv/bin/bandit -q tools/compose-soak-test.py
+
+# Hermetic test suite — a fake device and API, no network, never touches real
+# hardware. This is what proves the log filter and the restart probe behave.
+.venv/bin/python -m pytest tools/test_compose_soak_test.py \
+    -n 0 -p no:cacheprovider --no-cov -q
+```
+
+`black`/`isort` will rewrite in place if you drop `--check`; everything else is
+read-only.
+
 ## Filenames
 
 Use hyphens, not underscores, to match the repo convention (e.g.
 `compose-soak-test.py`, not `compose_soak_test.py`). These are standalone
 scripts run directly (`python tools/compose-soak-test.py`), never imported as
-modules.
+modules. The one exception is the test file: pytest only collects `test_*.py`,
+so it is `test_compose_soak_test.py` to match `backend/tests/`.
