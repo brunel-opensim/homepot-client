@@ -240,11 +240,11 @@ def test_describe_executed_command_matches_actual_os_command():
     }
     assert (
         _describe_executed_command("notify_user", notify, is_windows=True)
-        == "msg * 'hello'"
+        == "show notification 'hello'"
     )
     assert (
         _describe_executed_command("notify_user", notify, is_windows=False)
-        == "notify-send 'Test' 'hello'"
+        == "show notification 'hello'"
     )
 
     install = {
@@ -565,31 +565,62 @@ def test_notify_user_requires_message():
 
 
 def test_notify_user_sends_message():
-    """notify_user (Windows) runs 'msg * <message>'."""
-    from homepot.agent.utils.command_poller import _run_notify_user
+    """notify_user emits the reserved marker the Electron app renders as a toast."""
+    import base64
+    import json
 
-    class _Completed:
-        returncode = 0
-        stdout = ""
-        stderr = ""
+    from homepot.agent.utils.command_poller import NOTIFY_USER_MARKER, _run_notify_user
 
-    with (
-        patch(
-            "homepot.agent.utils.command_poller._is_windows_platform",
-            return_value=True,
-        ),
-        patch(
-            "homepot.agent.utils.command_poller.subprocess.run",
-            return_value=_Completed(),
-        ) as run,
-    ):
+    with patch(
+        "homepot.agent.utils.command_poller.print",
+    ) as emit:
         result = _run_notify_user({"message": "hello", "title": "Test"})
 
     assert result["status"] == "completed"
     assert result["result"]["message"] == "notification sent"
-    argv = run.call_args.args[0]
-    assert argv[0] == "msg"
-    assert "hello" in argv
+
+    line = emit.call_args.args[0]
+    assert isinstance(line, str)
+    marker, payload_b64 = line.split(" ", 1)
+    assert marker == NOTIFY_USER_MARKER
+    decoded = json.loads(base64.b64decode(payload_b64).decode("utf-8"))
+    assert decoded == {"title": "Test", "message": "hello"}
+
+
+def test_notify_user_defaults_title():
+    """notify_user falls back to the HOMEPOT title when none is supplied."""
+    import base64
+    import json
+
+    from homepot.agent.utils.command_poller import (
+        DEFAULT_NOTIFY_TITLE,
+        _run_notify_user,
+    )
+
+    with patch("homepot.agent.utils.command_poller.print") as emit:
+        result = _run_notify_user({"message": "hello"})
+
+    assert result["status"] == "completed"
+    payload_b64 = emit.call_args.args[0].split(" ", 1)[1]
+    decoded = json.loads(base64.b64decode(payload_b64).decode("utf-8"))
+    assert decoded["title"] == DEFAULT_NOTIFY_TITLE
+    assert decoded["message"] == "hello"
+
+
+def test_notify_user_round_trips_multiline_message():
+    """A message with newlines survives the marker encoding unchanged."""
+    import base64
+    import json
+
+    from homepot.agent.utils.command_poller import _run_notify_user
+
+    with patch("homepot.agent.utils.command_poller.print") as emit:
+        result = _run_notify_user({"message": "line one\nline two"})
+
+    assert result["status"] == "completed"
+    payload_b64 = emit.call_args.args[0].split(" ", 1)[1]
+    decoded = json.loads(base64.b64decode(payload_b64).decode("utf-8"))
+    assert decoded["message"] == "line one\nline two"
 
 
 def test_notify_user_in_command_types_and_permission():

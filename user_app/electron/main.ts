@@ -7,6 +7,7 @@ import { spawn, execFile, execFileSync, type ChildProcess } from 'node:child_pro
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { AgentSupervisor, AGENT_SHUTDOWN_GRACE_MS } from './agentSupervisor'
+import { NOTIFY_USER_MARKER, decodeNotifyMarker } from './notifyMarker'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -1437,6 +1438,21 @@ function startAgentProcess(): boolean {
         recordAppEvent('info', 'agent', 'Device unpaired remotely; stopping agent')
         agentUnpaired = true
         agentSupervisor.markIntentionalStop()
+        continue
+      }
+      if (markerParts[0] === NOTIFY_USER_MARKER) {
+        // The agent received a `notify_user` command; render it as a native
+        // toast attributed to this app (never the local Windows account).
+        const decoded = decodeNotifyMarker(markerParts[1])
+        if (decoded) {
+          try {
+            new Notification({ title: decoded.title, body: decoded.message }).show()
+          } catch {
+            // Notifications may be unavailable on some platforms; ignore.
+          }
+        } else {
+          recordAppEvent('error', 'agent', 'Malformed notify_user marker from agent')
+        }
         continue
       }
       safeLog(`[agent] ${line}`)
