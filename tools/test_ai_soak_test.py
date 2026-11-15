@@ -317,7 +317,7 @@ class FakeClient:
             return FakeResponse(
                 [{"command_id": "cmd-1", "status": "completed", "result": {"count": 1}}]
             )
-        if "/action-plans/" in url:
+        if "/ai/action-plans/" in url:
             self.plan_gets += 1
             if self.plan_gets == 1 and self.plan_status != "succeeded":
                 return FakeResponse(
