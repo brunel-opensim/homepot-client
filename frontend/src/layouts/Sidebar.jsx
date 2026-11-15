@@ -126,9 +126,15 @@ export default function Sidebar() {
               {user?.fullName || user?.username || (user?.isAdmin ? 'Admin' : 'User')}
             </p>
             <p
-              className={`text-xs truncate ${user?.role === 'Engineer' ? 'text-indigo-400' : 'text-slate-400'}`}
+              className={`text-xs truncate ${
+                user?.role === 'Admin'
+                  ? 'text-indigo-400'
+                  : user?.role === 'Viewer'
+                    ? 'text-slate-500'
+                    : 'text-slate-400'
+              }`}
             >
-              {user?.role || 'View Profile'}
+              {user?.role || (user?.isAdmin ? 'Admin' : 'Technician')}
             </p>
           </div>
         </button>
