@@ -425,6 +425,20 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=("service_name", "action"),
     ),
+    "lock_screen": ActionSpec(
+        name="lock_screen",
+        command_type="lock_screen",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="command_execution",
+        min_role="operator",
+        description=(
+            "Lock the terminal's screen (session lock). The person at the "
+            "device unlocks it with their credentials. Reversible; no "
+            "persistent state change."
+        ),
+        required_params=(),
+    ),
 }
 
 
