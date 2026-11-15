@@ -255,9 +255,11 @@ db = Session()
 
 try:
     for username, email, password, role in entries:
-        # Recognised legacy spellings (Engineer, Client, Viewer, ...) are a
-        # deliberate alias and normalise quietly. Anything outside that map
-        # would silently collapse to Technician, so warn loudly instead.
+        # Recognised legacy spellings (Engineer, Client, operator, installer,
+        # ...) are a deliberate alias and normalise quietly. ``Viewer`` is
+        # now a canonical read-only role, not a legacy spelling. Anything
+        # outside the alias map would silently collapse to Technician, so warn
+        # loudly instead.
         canonical = normalize_role(role)
         if role.strip().lower() not in LEGACY_ROLE_ALIASES:
             print(
