@@ -267,6 +267,9 @@ android/
 *.sqlite3
 *.db-journal
 ai/data/
+# Snapshots of ai/data/ taken on the server before a re-index. Runtime state,
+# never source; leaving them untracked made every server build report dirty.
+ai/.data.bak-*/
 # Runtime LLM provider preference + any API keys written via PUT /ai/provider/key.
 # Plaintext secrets must never be committed.
 ai/provider.json
