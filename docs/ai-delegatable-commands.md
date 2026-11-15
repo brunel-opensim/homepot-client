@@ -14,30 +14,40 @@ and for the automated soak script (Option B). Reboot (`restart`) and shutdown
 | 3 | `scan_filesystem` | `scan_filesystem` | `path`, `max_depth`, `include_sizes` | Scan filesystem for files |
 | 4 | `list_installed_programs` | `list_installed_programs` | none | List installed programs (registry) |
 | 5 | `list_connections` | `list_connections` | `filter_state`, `limit` | List active network connections |
+| 6 | `list_drives` | `list_drives` | none | List mounted drives/volumes and free space |
+| 7 | `list_sessions` | `list_sessions` | none | List users currently logged into the device |
+| 8 | `get_system_info` | `get_system_info` | none | Hardware/OS inventory (CPU/RAM/GPU, serial, BIOS, OS build) |
+| 9 | `tail_system_log` | `tail_system_log` | `lines` | Recent OS errors (Windows Event Log / `journalctl`) |
+| 10 | `network_test` | `network_test` | `host`, `port` (optional), `timeout_seconds` | DNS/ping/TCP-port test to a target |
+| 11 | `collect_support_bundle` | `collect_support_bundle` | none | Zip hardware/OS, disk, process, and metrics snapshots into a support artifact |
 
 ## T2 — Reversible (requires approval, can be rolled back)
 
 | # | Action | Command type | Params | Description |
 |---|--------|-------------|--------|-------------|
-| 6 | `update_config` | `update_config` | `config` (dict of settings) | Apply configuration change |
-| 7 | `rollback_config` | `update_config` | `config` (previous values) | Roll back a config change |
-| 8 | `start_program` | `start_program` | `path`, `args` | Launch a program |
-| 9 | `stop_program` | `stop_program` | `name`, `force` | Stop a running process |
-| 10 | `install_program` | `install_program` | `package`, `timeout_seconds` | Install via winget |
-| 11 | `uninstall_program` | `uninstall_program` | `package`, `timeout_seconds` | Uninstall via winget |
-| 12 | `update_program` | `update_program` | `package`, `timeout_seconds` | Update a single program |
-| 13 | `run_command_unprivileged` | `run_command_unprivileged` | `command`, `timeout_seconds` | Run command as user |
+| 12 | `update_config` | `update_config` | `config` (dict of settings) | Apply configuration change |
+| 13 | `rollback_config` | `update_config` | `config` (previous values) | Roll back a config change |
+| 14 | `start_program` | `start_program` | `path`, `args` | Launch a program |
+| 15 | `stop_program` | `stop_program` | `name`, `force` | Stop a running process |
+| 16 | `install_program` | `install_program` | `package`, `timeout_seconds` | Install via winget |
+| 17 | `uninstall_program` | `uninstall_program` | `package`, `timeout_seconds` | Uninstall via winget |
+| 18 | `update_program` | `update_program` | `package`, `timeout_seconds` | Update a single program |
+| 19 | `run_command_unprivileged` | `run_command_unprivileged` | `command`, `timeout_seconds` | Run command as user |
+| 20 | `notify_user` | `notify_user` | `message`, `title` (optional) | Show a message to the person at the device |
+| 21 | `disk_cleanup` | `disk_cleanup` | `max_age_days` | Clear old temp files and caches to reclaim space |
+| 22 | `set_service_state` | `set_service_state` | `service_name`, `action` | Enable/disable/start/stop a service |
+| 23 | `lock_screen` | `lock_screen` | none | Lock the terminal remotely |
 
 ## T3 — Disruptive (requires approval + maintenance window, not reversible)
 
 | # | Action | Command type | Params | Description |
 |---|--------|-------------|--------|-------------|
-| 14 | `restart_service` | `restart_service` | `service_name` | Restart a named OS service (Windows: PowerShell `Restart-Service`; POSIX: `systemctl`) |
-| 15 | `upgrade_all_programs` | `upgrade_all_programs` | `timeout_seconds` | Upgrade all programs via winget |
-| 16 | `run_command` | `run_command` | `command`, `timeout_seconds` | Run elevated command |
-| 17 | `run_script` | `run_script` | `script`, `timeout_seconds` | Run elevated script |
-| 18 | `update_app` | `update_app` | none | Update the User App to the latest published release (check + download + restart) |
-| 19 | `rollback_app` | `rollback_app` | none | Roll the User App back to the previously served release (check `previous` channel + download + restart) |
+| 24 | `restart_service` | `restart_service` | `service_name` | Restart a named OS service (Windows: PowerShell `Restart-Service`; POSIX: `systemctl`) |
+| 25 | `upgrade_all_programs` | `upgrade_all_programs` | `timeout_seconds` | Upgrade all programs via winget |
+| 26 | `run_command` | `run_command` | `command`, `timeout_seconds` | Run elevated command |
+| 27 | `run_script` | `run_script` | `script`, `timeout_seconds` | Run elevated script |
+| 28 | `update_app` | `update_app` | none | Update the User App to the latest published release (check + download + restart) |
+| 29 | `rollback_app` | `rollback_app` | none | Roll the User App back to the previously served release (check `previous` channel + download + restart) |
 
 ## Excluded from automated testing
 
@@ -105,12 +115,6 @@ additions, each following the same tier classification and the
 
 | Command type | What it solves | Priority |
 |---|---|---|
-| `get_system_info` | Full hardware/OS inventory (CPU/RAM/GPU, serial, BIOS, OS build, drivers) | High |
-| `list_drives` | Per-drive/per-volume free space + SMART health (disk-full triage) | High |
-| `network_test` | Structured ping/traceroute/DNS/TCP port test to a target | High |
-| `tail_system_log` | Recent OS errors (Windows Event Log / `journalctl`) | High |
-| `collect_support_bundle` | Zip logs + config + metrics into one support artifact | High |
-| `list_sessions` | Who is logged in / active sessions | High |
 | `get_patch_status` | Pending OS updates (Windows Update / apt / brew) + last patched | Medium |
 | `get_firewall_rules` | Firewall posture + open ports | Medium |
 | `get_hardware_sensors` | CPU/GPU temperature, fan speed | Medium |
@@ -122,12 +126,8 @@ additions, each following the same tier classification and the
 
 | Command type | What it solves | Priority |
 |---|---|---|
-| `disk_cleanup` | Clear temp files / logs / caches to reclaim space | High |
-| `set_service_state` | Enable/disable/start/stop a service (beyond restart) | High |
-| `notify_user` | Show a toast/banner message on the device (operator-to-user channel) | High |
 | `flush_dns` | Flush DNS cache / reset network adapter | Medium |
 | `set_device_name` | Rename / tag the device from the dashboard | Medium |
-| `lock_screen` | Lock the terminal remotely | Medium |
 | `sleep` | Power-state control (sleep/hibernate) | Medium |
 | `rotate_credential` | Rotate the device's own API key | Medium |
 | `set_agent_config` | Toggle telemetry/alerts/collection intervals | Medium |
