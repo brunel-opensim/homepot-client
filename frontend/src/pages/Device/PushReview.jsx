@@ -310,6 +310,15 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Restart a named OS service (Windows service, systemd unit, or launchd label) with root privileges.',
   },
+  SET_SERVICE_STATE: {
+    label: 'Set Service State',
+    action: 'set_service_state',
+    group: 'Services & Agent',
+    permission: 'root_access',
+    defaultData: { service_name: 'Spooler', action: 'start' },
+    description:
+      'Enable, disable, start, or stop a named OS service (Windows service, systemd unit, or launchd label) with root privileges.',
+  },
   NOTIFY_USER: {
     label: 'Notify User',
     action: 'notify_user',

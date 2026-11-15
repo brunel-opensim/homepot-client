@@ -149,6 +149,61 @@ def test_restart_service_builds_os_command(monkeypatch):
     assert calls == []
 
 
+def test_set_service_state_builds_os_command(monkeypatch):
+    """_set_service_state maps actions to PowerShell (Windows) / systemctl (POSIX)."""
+    from homepot.agent.utils.command_poller import _set_service_state
+
+    calls = []
+
+    def fake_execute(command, script):
+        calls.append(command)
+        return {"status": "completed", "result": {}}
+
+    monkeypatch.setattr(
+        "homepot.agent.utils.command_poller._execute_local", fake_execute
+    )
+    monkeypatch.setattr(
+        "homepot.agent.utils.command_poller._is_windows_platform", lambda: True
+    )
+    _set_service_state({"service_name": "Spooler", "action": "start"})
+    assert calls[-1]["payload"]["data"]["command"] == "Start-Service -Name 'Spooler'"
+    _set_service_state({"service_name": "Spooler", "action": "stop"})
+    assert calls[-1]["payload"]["data"]["command"] == "Stop-Service -Name 'Spooler'"
+    _set_service_state({"service_name": "Spooler", "action": "enable"})
+    assert (
+        calls[-1]["payload"]["data"]["command"]
+        == "Set-Service -Name 'Spooler' -StartupType Automatic"
+    )
+    _set_service_state({"service_name": "Spooler", "action": "disable"})
+    assert (
+        calls[-1]["payload"]["data"]["command"]
+        == "Set-Service -Name 'Spooler' -StartupType Disabled"
+    )
+
+    monkeypatch.setattr(
+        "homepot.agent.utils.command_poller._is_windows_platform", lambda: False
+    )
+    _set_service_state({"service_name": "spooler", "action": "start"})
+    assert calls[-1]["payload"]["data"]["command"] == "systemctl start 'spooler'"
+    _set_service_state({"service_name": "spooler", "action": "disable"})
+    assert calls[-1]["payload"]["data"]["command"] == "systemctl disable 'spooler'"
+
+    # Missing service_name / invalid action fail cleanly without executing.
+    calls.clear()
+    assert _set_service_state({})["status"] == "failed"
+    assert (
+        _set_service_state({"service_name": "Spooler", "action": "explode"})["status"]
+        == "failed"
+    )
+    assert calls == []
+
+
+def test_set_service_state_in_command_types_and_permission():
+    """set_service_state is registered and gated on root_access."""
+    assert "set_service_state" in COMMAND_TYPES
+    assert required_permissions_for_command("set_service_state") == ["root_access"]
+
+
 def test_describe_executed_command_matches_actual_os_command():
     """The stored audit description mirrors the command that actually runs."""
     from homepot.agent.utils.command_poller import _describe_executed_command
@@ -164,6 +219,19 @@ def test_describe_executed_command_matches_actual_os_command():
     assert (
         _describe_executed_command("restart_service", restart, is_windows=False)
         == "systemctl restart 'Spooler'"
+    )
+
+    set_state = {
+        "command_type": "set_service_state",
+        "payload": {"data": {"service_name": "Spooler", "action": "stop"}},
+    }
+    assert (
+        _describe_executed_command("set_service_state", set_state, is_windows=True)
+        == "Stop-Service -Name 'Spooler'"
+    )
+    assert (
+        _describe_executed_command("set_service_state", set_state, is_windows=False)
+        == "systemctl stop 'Spooler'"
     )
 
     install = {
