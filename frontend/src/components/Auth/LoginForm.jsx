@@ -1,11 +1,8 @@
 // frontend/src/components/Auth/LoginForm.jsx
 import React from 'react';
-import RoleTabs from './RoleTabs';
 import AuthSubmitButton from './AuthSubmitButton';
 
 export default function LoginForm({
-  activeTab,
-  setActiveTab,
   email,
   setEmail,
   password,
@@ -16,13 +13,10 @@ export default function LoginForm({
   onSubmit, // () => Promise<{success: boolean}>
   onNavigateToSignUp,
 }) {
-  const activeColor = activeTab === 'ENGINEER' ? 'indigo' : 'teal';
+  const activeColor = 'teal';
 
   return (
     <>
-      {/* Tab Selector */}
-      <RoleTabs activeTab={activeTab} setActiveTab={setActiveTab} />
-
       {/* Login Form */}
       <form
         onSubmit={(e) => {
@@ -78,55 +72,18 @@ export default function LoginForm({
             </div>
           )}
 
-          {/* SSO Button - More prominent for Engineers (Coming Soon) */}
-          {activeTab === 'ENGINEER' && (
-            <button
-              type="button"
-              disabled
-              title="Coming Soon"
-              className="w-full mb-4 py-3 px-4 bg-gray-800 border border-gray-600 rounded-lg text-gray-500 font-medium text-sm cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Sign in with SSO (Coming Soon)
-            </button>
-          )}
-
           <div className="text-center flex justify-center items-center mb-6 gap-3">
-            {activeTab === 'CLIENT' && (
-              <>
-                <button
-                  type="button"
-                  disabled
-                  title="Coming Soon"
-                  className="text-gray-500 text-sm cursor-not-allowed hover:text-gray-400 transition-colors"
-                >
-                  SSO
-                </button>
-                <div className="h-4 w-px bg-gray-700"></div>
-              </>
-            )}
-
             <span className="text-gray-400 text-sm">Don't have an account?</span>
             <button
               onClick={onNavigateToSignUp}
               type="button"
-              className={`text-sm font-semibold transition-colors duration-200 ${
-                activeTab === 'ENGINEER'
-                  ? 'text-indigo-400 hover:text-indigo-300'
-                  : 'text-teal-400 hover:text-teal-300'
-              }`}
+              className="text-sm font-semibold transition-colors duration-200 text-teal-400 hover:text-teal-300"
             >
               Sign up
             </button>
           </div>
 
-          <AuthSubmitButton activeTab={activeTab} loading={loading} loadingText="Signing in...">
+          <AuthSubmitButton activeTab="CLIENT" loading={loading} loadingText="Signing in...">
             Log In
             <svg
               className="w-5 h-5 opacity-70"
