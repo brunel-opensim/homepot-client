@@ -80,3 +80,23 @@ def test_development_mode_is_the_shipped_default():
     """Development mode is on unless explicitly disabled."""
     # Guard against accidentally disabling the dev-mode unification.
     assert roles.DEV_UNIFIED_ACCESS is True
+
+
+@pytest.mark.parametrize("spelling", ["Viewer", "viewer", "VIEWER"])
+def test_normalize_role_viewer_spellings(spelling):
+    """Viewer spellings resolve to the read-only Viewer role."""
+    assert roles.normalize_role(spelling) == roles.VIEWER
+
+
+def test_viewer_is_never_privileged():
+    """Viewer is read-only and is never privileged, even in dev mode."""
+    assert roles.is_privileged(roles.VIEWER) is False
+    assert roles.is_privileged(roles.VIEWER, dev_unified_access=True) is False
+    assert roles.is_privileged(roles.VIEWER, dev_unified_access=False) is False
+
+
+def test_development_mode_does_not_privilege_viewer():
+    """Development unification covers Admin and Technician only."""
+    assert roles.is_privileged(roles.ADMIN) is True
+    assert roles.is_privileged(roles.TECHNICIAN) is True
+    assert roles.is_privileged(roles.VIEWER) is False

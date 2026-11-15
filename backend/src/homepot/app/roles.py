@@ -6,12 +6,14 @@ vocabularies coexisted (``User.role`` free text, the ``TokenData`` projection,
 assignment could mean different things depending on where it was read. Signup,
 role updates and token issuance now all resolve roles through this module.
 
-The two operator roles are:
+The three operator roles are:
 
 ``Admin``
     Full access. A small number of trusted operators.
 ``Technician``
     Field engineers working on devices and sites.
+``Viewer``
+    Read-only reviewer (guest). Can inspect but cannot act.
 
 Device permission tiers (``root_access`` / the monitoring keys) are a separate,
 device-owned consent system and are deliberately NOT modelled here.
@@ -21,8 +23,9 @@ import os
 
 ADMIN = "Admin"
 TECHNICIAN = "Technician"
+VIEWER = "Viewer"
 
-CANONICAL_ROLES = (ADMIN, TECHNICIAN)
+CANONICAL_ROLES = (ADMIN, TECHNICIAN, VIEWER)
 
 #: Legacy spellings mapped onto the canonical vocabulary. ``Client`` was the
 #: original default, ``Engineer`` was introduced later, and ``User`` was what
@@ -36,7 +39,7 @@ LEGACY_ROLE_ALIASES = {
     "technician": TECHNICIAN,
     "operator": TECHNICIAN,
     "installer": TECHNICIAN,
-    "viewer": TECHNICIAN,
+    "viewer": VIEWER,
     "member": TECHNICIAN,
 }
 
@@ -49,8 +52,9 @@ def _env_flag(name: str, default: bool) -> bool:
 
 
 # REVERT WHEN PRODUCTION READY
-# While we are still in development, every operator is granted admin-equivalent
-# access so that role granularity does not block feature work. Set
+# While we are still in development, Admin and Technician operators are granted
+# admin-equivalent access so that role granularity does not block feature work.
+# Viewer is never privileged (read-only). Set
 # HOMEPOT_DEV_UNIFIED_ACCESS=false to restore per-role privilege, in which case
 # only an Admin is privileged and a Technician is an ordinary operator.
 DEV_UNIFIED_ACCESS = _env_flag("HOMEPOT_DEV_UNIFIED_ACCESS", default=True)
@@ -59,8 +63,8 @@ DEV_UNIFIED_ACCESS = _env_flag("HOMEPOT_DEV_UNIFIED_ACCESS", default=True)
 def normalize_role(value: object) -> str:
     """Map any known role spelling onto a canonical role.
 
-    Unknown or missing values resolve to ``Technician`` - the least privileged
-    role - so an unrecognised value can never grant extra access.
+    Unknown or missing values resolve to ``Technician`` (the default operator
+    role) so an unrecognised value never grants Admin access.
     """
     if not isinstance(value, str):
         return TECHNICIAN
@@ -70,10 +74,11 @@ def normalize_role(value: object) -> str:
 def is_privileged(role: object, *, dev_unified_access: bool | None = None) -> bool:
     """Whether ``role`` carries admin-equivalent access.
 
-    While ``HOMEPOT_DEV_UNIFIED_ACCESS`` is on (the development default) every
-    canonical role is privileged, so Admin and Technician behave identically.
+    While ``HOMEPOT_DEV_UNIFIED_ACCESS`` is on (the development default) Admin
+    and Technician are privileged (Viewer is never privileged, as it is
+    read-only).
     """
     unified = DEV_UNIFIED_ACCESS if dev_unified_access is None else dev_unified_access
     if unified:
-        return True
+        return normalize_role(role) in (ADMIN, TECHNICIAN)
     return normalize_role(role) == ADMIN
