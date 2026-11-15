@@ -7,7 +7,7 @@ are **never** executed by CI (pytest is scoped to `backend/tests/`).
 | Script | Purpose |
 |--------|---------|
 | `compose-soak-test.py` | Sends each compose command to a device via the command API, verifies the device executed it and that the server recorded it, and reports pass/fail per command. |
-| `ai-soak-test.py` | *(planned)* AI-delegation soak test (propose → approve → execute → verify). |
+| `ai-soak-test.py` | Delegates each compose command to the AI in natural language and verifies the AI proposed the right action, the plan was approved and executed, and the device result was verified. |
 
 ## compose-soak-test.py
 
@@ -73,6 +73,69 @@ logged in (no PIN entry) and the operator's files are left alone.
   minutes. The stop step targets the pid returned by the start step, so a window
   the operator already has open is never touched.
 
+## ai-soak-test.py
+
+Drives the AI delegation loop instead of the command API: ask the AI in natural
+language, then prove the loop completed. It exercises the **same 24 commands in
+the same order** as `compose-soak-test.py`, so the two runs are directly
+comparable (same coverage, one composed, one delegated).
+
+| Column | Meaning |
+|--------|---------|
+| `prop` | `POST /ai/query` returned a proposal (not a direct answer) |
+| `match` | the proposal's action set contains the expected action |
+| `plan` | a `plan_id` was returned, so the plan was persisted |
+| `approv` | the plan reached `approved` (or was auto-approved by autonomy) |
+| `exec` | the plan reached a terminal status within the per-command budget |
+| `verif` | terminal status is `succeeded` and `outcome.verified` is set |
+| `hist` | Push History lists the command the plan dispatched |
+| `audit` | `command_queued` → `command_sent` → `command_completed` in the audit log |
+| `err` | how many *real* device errors appeared inside the command's window |
+| `elapsed` | seconds from the AI query to the terminal plan status |
+
+Outcomes are the same set as the compose soak (`PASS`, `PASS_NOTE`, `FAIL`,
+`BLOCKED`, `TIMEOUT`, `SKIPPED`), with two AI-specific meanings for `BLOCKED`:
+the validation envelope was not actionable (a gate failed), or the plan was
+blocked by policy / rejected.
+
+### What it checks that the compose soak cannot
+
+- **The AI actually proposes the expected action.** A query that answers
+  directly, or proposes the wrong action (e.g. `run_command` instead of
+  `start_program`), is a `FAIL` with the proposed actions recorded. This is the
+  point of the run: it finds delegation gaps, not just transport failures.
+- **Per-step approval.** T3 actions (`restart_agent`, `restart_service`,
+  `run_command`, `run_script`) get their own gate after plan approval. The
+  script releases each gated step before executing.
+
+### Usage
+
+```bash
+export HOMEPOT_PASSWORD='...'
+python tools/ai-soak-test.py \
+    --base-url https://homepot.cabera.com/api/v1 \
+    --email maziar.ghorbani@brunel.ac.uk \
+    --device-id DEVICE-HSZK-T24Y-TSCX
+
+# Preview the delegated list without sending anything:
+python tools/ai-soak-test.py --list
+```
+
+Prompts reference the device by `device_id` (not its display name) so the AI
+does not have to resolve a name through `find_device` first. Name resolution is
+a separate capability and is out of scope here.
+
+### Registry awareness
+
+The AI can only propose an action that is declared in `ACTION_REGISTRY`
+(`ai/actions.py`); the Compose Command page reads `COMPOSE_TEMPLATES`
+(`backend/src/homepot/app/ai_ops/compose_templates.py`). The two are kept in
+sync by `test_compose_templates_and_registry_stay_in_sync` in
+`backend/tests/test_ai_delegation_phase1.py`, which fails if a template or
+registry entry is added without the other. Two entries are intentionally
+asymmetric: `bootstrap_winget` (Compose-only, technician utility) and
+`rollback_config` (registry-only alias for `update_config`).
+
 ## Notes learned from real runs
 
 - **`/error-logs` is not an error-only log.** It returns the whole device log
@@ -115,23 +178,26 @@ Run all of these from the repo root before opening a PR that touches `tools/`:
 .venv/bin/isort --check-only tools/
 .venv/bin/flake8 tools/
 
-# Type-check the scripts. The test file is untyped pytest, like backend/tests/,
-# so it is outside the mypy gate.
-.venv/bin/mypy --config-file=backend/mypy.ini tools/compose-soak-test.py
+# Type-check the scripts. The test files are untyped pytest, like
+# backend/tests/, so they are outside the mypy gate.
+.venv/bin/mypy --config-file=backend/mypy.ini \
+    tools/compose-soak-test.py tools/ai-soak-test.py
 
 # Stricter than CI: keep every function at McCabe <= 10. A big run_one() was
 # the reason the two bugs hid in plain sight.
-.venv/bin/flake8 --max-complexity=10 tools/compose-soak-test.py
+.venv/bin/flake8 --max-complexity=10 \
+    tools/compose-soak-test.py tools/ai-soak-test.py
 
 # Security lint. CI's flake8-bandit ignores S105 (hardcoded passwords), so run
 # bandit standalone too; the single B105 on OUTCOME_PASS is silenced with
 # `# nosec B105` because it is a status label, not a credential.
-.venv/bin/bandit -q tools/compose-soak-test.py
+.venv/bin/bandit -q tools/compose-soak-test.py tools/ai-soak-test.py
 
-# Hermetic test suite — a fake device and API, no network, never touches real
-# hardware. This is what proves the log filter and the restart probe behave.
+# Hermetic test suites — fake devices and APIs, no network, never touch real
+# hardware or the LLM. These prove the log filter, the restart probe, and the
+# AI proposal/outcome classification behave.
 .venv/bin/python -m pytest tools/test_compose_soak_test.py \
-    -n 0 -p no:cacheprovider --no-cov -q
+    tools/test_ai_soak_test.py -n 0 -p no:cacheprovider --no-cov -q
 ```
 
 `black`/`isort` will rewrite in place if you drop `--check`; everything else is
