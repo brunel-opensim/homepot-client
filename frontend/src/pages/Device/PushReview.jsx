@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   Clock,
   FileJson,
   Loader2,
@@ -17,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -377,6 +379,135 @@ function groupedCommandTemplates(templates) {
   );
   if (other.length > 0) ordered.push(['Other', other]);
   return ordered;
+}
+
+// A scrollable, searchable command picker. Native <select> dropdowns scroll but
+// become unwieldy as the command list grows; this caps the list height, adds a
+// search box, and keeps the Diagnostics/Run Commands/… grouping. The list is
+// rendered in a portal so it floats above the page's scroll containers instead
+// of being clipped by them.
+function CommandTypeSelect({ templates, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const triggerRef = useRef(null);
+  const panelRef = useRef(null);
+  const [panelStyle, setPanelStyle] = useState({ top: 0, left: 0, width: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(event) {
+      if (triggerRef.current?.contains(event.target) || panelRef.current?.contains(event.target)) {
+        return;
+      }
+      setOpen(false);
+    }
+    function handleScroll() {
+      setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPanelStyle({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+    setOpen((prev) => !prev);
+  }
+
+  const groups = groupedCommandTemplates(templates);
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? groups
+        .map(([group, entries]) => [
+          group,
+          entries.filter(
+            ([key, template]) =>
+              template.label.toLowerCase().includes(q) || key.toLowerCase().includes(q)
+          ),
+        ])
+        .filter(([, entries]) => entries.length > 0)
+    : groups;
+
+  const selected = templates[value];
+
+  const panel = (
+    <div
+      ref={panelRef}
+      style={{
+        position: 'fixed',
+        top: panelStyle.top,
+        left: panelStyle.left,
+        width: panelStyle.width,
+        zIndex: 50,
+      }}
+      className="rounded-lg border border-[#0e3b3f] bg-[#06181c] shadow-2xl"
+    >
+      <div className="p-2 border-b border-[#0e2f37]">
+        <input
+          autoFocus
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search commands…"
+          className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-2 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-teal-500"
+        />
+      </div>
+      <div className="max-h-72 overflow-y-auto py-1">
+        {filtered.length === 0 ? (
+          <div className="px-3 py-2 text-xs text-slate-500">No commands match</div>
+        ) : (
+          filtered.map(([group, entries]) => (
+            <div key={group}>
+              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-slate-500">
+                {group}
+              </div>
+              {entries.map(([key, template]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    onChange(key);
+                    setOpen(false);
+                    setQuery('');
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-[#0e2f37] ${
+                    key === value ? 'text-teal-300' : 'text-slate-200'
+                  }`}
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggle}
+        className="w-full flex items-center justify-between gap-2 bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
+      >
+        <span className="truncate">{selected?.label || 'Select a command'}</span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && createPortal(panel, document.body)}
+    </>
+  );
 }
 
 // Map a device's os_details string to a canonical OS family, mirroring the
@@ -857,21 +988,11 @@ export default function PushReview() {
                     Command Type
                   </label>
                   <div className="grid grid-cols-1 gap-1">
-                    <select
+                    <CommandTypeSelect
+                      templates={templates}
                       value={selectedCommand}
-                      onChange={(e) => setSelectedCommand(e.target.value)}
-                      className="w-full bg-[#0a2b2f] border border-[#0e3b3f] rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
-                    >
-                      {groupedCommandTemplates(templates).map(([group, entries]) => (
-                        <optgroup key={group} label={group}>
-                          {entries.map(([key, template]) => (
-                            <option key={key} value={key}>
-                              {template.label} ({key})
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                      onChange={setSelectedCommand}
+                    />
                     <p className="text-[10px] text-slate-500 mt-1">
                       {templates[selectedCommand]?.description || 'Custom command'}
                     </p>
