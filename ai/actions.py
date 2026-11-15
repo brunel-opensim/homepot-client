@@ -34,7 +34,6 @@ class ActionSpec:
     risk_tier: str
     reversible: bool
     required_permission: Optional[str]
-    min_role: str
     description: str
     required_params: Tuple[str, ...] = ()
 
@@ -49,7 +48,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="command_execution",
-        min_role="viewer",
         description=(
             "Run a health check on a device (CPU, memory, disk, network). "
             "Read-only; no state change. Can be used as a verification step."
@@ -62,7 +60,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="process_monitoring",
-        min_role="viewer",
         description=("List running processes on a device. Read-only; no state change."),
         required_params=(),
     ),
@@ -72,7 +69,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="command_execution",
-        min_role="viewer",
         description=(
             "List mounted drives/volumes and free space on a device. "
             "Read-only; no state change."
@@ -85,7 +81,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="command_execution",
-        min_role="viewer",
         description=(
             "Read the most recent OS error/warning events (Windows Event Log, "
             "journalctl, or macOS unified log). Read-only; no state change."
@@ -98,7 +93,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description=("Scan the filesystem of a device. Read-only; no state change."),
         required_params=(),
     ),
@@ -109,7 +103,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Apply a configuration change to a device. The 'config' param is a "
             "dict of settings to apply, e.g. config with keys brightness, "
@@ -125,7 +118,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Restart the device or host. Recovers to the prior running state; "
             "requires the owner's root_access grant."
@@ -138,7 +130,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Roll back a previous configuration change using the snapshotted "
             "previous values. Reversible; requires root_access."
@@ -152,7 +143,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Restart the on-device agent process. The agent exits and its "
             "supervisor respawns it, briefly interrupting heartbeat/telemetry. "
@@ -167,7 +157,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Restart a named OS service on a device (Windows service or "
             "systemd unit). Disruptive; may cause brief service interruption. "
@@ -181,7 +170,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Update the HOMEPOT User App on a device to the latest published "
             "release. The app checks the server-hosted feed, downloads, and "
@@ -196,7 +184,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Roll the HOMEPOT User App on a device back to the previously "
             "served release. The app checks the server-hosted 'previous' "
@@ -214,7 +201,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description="Shut down the device host. Disruptive and not reversible.",
         required_params=(),
     ),
@@ -224,7 +210,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description="Start a program. Use 'path' (executable path or name on PATH) and optional 'args'.",
         required_params=("path",),
     ),
@@ -234,7 +219,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Stop a running process. Use 'name' (process name) or 'pid'. "
             "Set 'force' to terminate immediately."
@@ -247,7 +231,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Install a program via winget. Use 'package' (winget package ID). "
             "Reversible via uninstall."
@@ -260,7 +243,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description="Uninstall a program via winget. Use 'package' (winget package ID).",
         required_params=("package",),
     ),
@@ -270,7 +252,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description="Update a single installed program. Use 'package' (winget package ID).",
         required_params=("package",),
     ),
@@ -280,7 +261,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description="Upgrade all installed programs. Disruptive; affects the whole device.",
         required_params=(),
     ),
@@ -290,7 +270,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description="Run an elevated (root) command on the device. Disruptive; not reversible.",
         required_params=("command",),
     ),
@@ -300,7 +279,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="command_execution",
-        min_role="operator",
         description="Run a command as the unprivileged user on the device.",
         required_params=("command",),
     ),
@@ -310,7 +288,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T3",
         reversible=False,
         required_permission="root_access",
-        min_role="operator",
         description="Run an elevated script on the device. Disruptive; not reversible.",
         required_params=("script",),
     ),
@@ -320,7 +297,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="command_execution",
-        min_role="viewer",
         description="List installed programs on the device. Read-only.",
         required_params=(),
     ),
@@ -330,7 +306,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="network_monitoring",
-        min_role="viewer",
         description="List active network connections on the device. Read-only.",
         required_params=(),
     ),
@@ -340,7 +315,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="network_monitoring",
-        min_role="viewer",
         description=(
             "Probe a host's connectivity (DNS resolution, ICMP ping, and an "
             "optional TCP port check). Read-only; no state change."
@@ -353,7 +327,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="command_execution",
-        min_role="viewer",
         description="List users currently logged into the device. Read-only.",
         required_params=(),
     ),
@@ -363,7 +336,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="command_execution",
-        min_role="viewer",
         description=(
             "Return a hardware/OS inventory snapshot (CPU, RAM, OS build, and "
             "on Windows serial/model/GPU). Read-only; no state change."
@@ -376,7 +348,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T1",
         reversible=True,
         required_permission="command_execution",
-        min_role="viewer",
         description=(
             "Bundle hardware/OS, disk, process, and metrics snapshots into a "
             "single zip support artifact. Read-only; no state change."
@@ -389,7 +360,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="command_execution",
-        min_role="operator",
         description=(
             "Show a message to the person at the device. Transient; no "
             "persistent state change."
@@ -402,7 +372,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="command_execution",
-        min_role="operator",
         description=(
             "Clear old temp files and caches to reclaim disk space. Removes "
             "files older than a configurable age from the system temp "
@@ -417,7 +386,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="root_access",
-        min_role="operator",
         description=(
             "Enable, disable, start, or stop a named OS service. Use "
             "'service_name' and 'action' (start, stop, enable, or disable). "
@@ -431,7 +399,6 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         risk_tier="T2",
         reversible=True,
         required_permission="command_execution",
-        min_role="operator",
         description=(
             "Lock the terminal's screen (session lock). The person at the "
             "device unlocks it with their credentials. Reversible; no "
