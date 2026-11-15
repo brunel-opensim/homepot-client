@@ -103,7 +103,7 @@ def _seed(db):
     admin = _make_user(db, "admin@deleg.test", is_admin=True)
     tech_a = _make_user(db, "tech-a@deleg.test")
     tech_none = _make_user(db, "tech-none@deleg.test")
-    db.add(SiteMembership(user_id=tech_a.id, site_id=site_a.id, role="operator"))
+    db.add(SiteMembership(user_id=tech_a.id, site_id=site_a.id, role="manager"))
     db.commit()
     return {
         "site_a": site_a,

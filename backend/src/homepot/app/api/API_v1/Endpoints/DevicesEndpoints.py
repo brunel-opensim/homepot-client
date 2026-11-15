@@ -165,7 +165,7 @@ async def create_device(
             ),
             device_request.site_id,
             db,
-            minimum_role="operator",
+            minimum_role="manager",
         )
 
         db_service = await get_database_service()
@@ -243,7 +243,7 @@ async def register_device_to_site(
             ),
             site_id,
             db,
-            minimum_role="operator",
+            minimum_role="manager",
         )
 
         db_service = await get_database_service()
@@ -688,7 +688,7 @@ async def update_device(
                 status_code=404, detail=f"Device '{device_id}' not found"
             )
         verify_device_belongs_to_user(
-            db_user, existing, db, minimum_role="operator", unified_fleet_access=True
+            db_user, existing, db, minimum_role="manager", unified_fleet_access=True
         )
 
         # Prepare config update
@@ -784,7 +784,7 @@ async def delete_device(
         # Authorise before validating the destructive confirmation so an
         # unauthorised caller gets 403 (not a hint that the device exists).
         verify_device_belongs_to_user(
-            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            db_user, device, db, minimum_role="manager", unified_fleet_access=True
         )
 
         if not confirm:
@@ -1221,7 +1221,7 @@ async def suspend_device(
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(
-            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            db_user, device, db, minimum_role="manager", unified_fleet_access=True
         )
 
         # ----- Idempotency check (parity with unpair) -----
@@ -1366,7 +1366,7 @@ async def resume_device(
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(
-            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            db_user, device, db, minimum_role="manager", unified_fleet_access=True
         )
 
         # ----- Idempotency check (parity with unpair) -----
@@ -1508,7 +1508,7 @@ async def retire_device(
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         verify_device_belongs_to_user(
-            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            db_user, device, db, minimum_role="manager", unified_fleet_access=True
         )
 
         current_lifecycle = device.lifecycle_state
@@ -1605,7 +1605,7 @@ async def reenrol_device(
             db_user,
             payload.site_id,
             db,
-            minimum_role="operator",
+            minimum_role="manager",
             unified_fleet_access=True,
         )
 
@@ -1795,7 +1795,7 @@ async def transfer_device(
 
         # Verify access on source site
         verify_device_belongs_to_user(
-            db_user, device, db, minimum_role="operator", unified_fleet_access=True
+            db_user, device, db, minimum_role="manager", unified_fleet_access=True
         )
 
         # Verify access on target site
@@ -1803,7 +1803,7 @@ async def transfer_device(
             db_user,
             payload.target_site_id,
             db,
-            minimum_role="operator",
+            minimum_role="manager",
             unified_fleet_access=True,
         )
 
@@ -2009,7 +2009,7 @@ async def toggle_device_monitor(
 
             # Verify access before modifying
             verify_device_belongs_to_user(
-                db_user, device, db, minimum_role="operator", unified_fleet_access=True
+                db_user, device, db, minimum_role="manager", unified_fleet_access=True
             )
 
             device.is_monitored = monitor  # type: ignore

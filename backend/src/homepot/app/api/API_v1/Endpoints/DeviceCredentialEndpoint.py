@@ -53,7 +53,7 @@ def rotate_device_key(
             db_user,
             device.site.site_id if device.site else "",
             db,
-            minimum_role="operator",
+            minimum_role="manager",
             unified_fleet_access=True,
         )
 

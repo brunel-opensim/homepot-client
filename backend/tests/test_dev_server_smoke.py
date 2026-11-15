@@ -130,9 +130,7 @@ def seeded_db(file_db: Any) -> Any:
     create_tenant_membership_sync(
         db, user_id=op_user.id, tenant_id=tenant.id, role="admin"
     )
-    create_site_membership_sync(
-        db, user_id=op_user.id, site_id=site.id, role="operator"
-    )
+    create_site_membership_sync(db, user_id=op_user.id, site_id=site.id, role="manager")
 
     db.commit()
     db.close()

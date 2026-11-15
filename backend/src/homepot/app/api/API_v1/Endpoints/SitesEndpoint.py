@@ -483,7 +483,7 @@ async def delete_site(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
         verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+            db_user, site_id, db, minimum_role="manager", unified_fleet_access=True
         )
 
         db_service = await get_database_service()
@@ -797,7 +797,7 @@ async def restore_site(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
         verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+            db_user, site_id, db, minimum_role="manager", unified_fleet_access=True
         )
 
         db_service = await get_database_service()
@@ -868,7 +868,7 @@ async def toggle_site_monitor(
             User, db.query(User).filter(User.email == current_user["email"]).first()
         )
         verify_site_access_for_user(
-            db_user, site_id, db, minimum_role="operator", unified_fleet_access=True
+            db_user, site_id, db, minimum_role="manager", unified_fleet_access=True
         )
 
         db_service = await get_database_service()

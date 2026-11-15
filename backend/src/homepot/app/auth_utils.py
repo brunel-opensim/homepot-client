@@ -553,11 +553,12 @@ def require_tenant_role(required_role: str) -> Any:
 def require_site_access(site_id: int, minimum_role: str = "viewer") -> Any:
     """Dependency to verify a user has at least the minimum role on a site.
 
-    Admins bypass this check. Role hierarchy: admin > operator > installer > viewer.
+    Admins bypass this check. Role hierarchy: admin > manager > installer > viewer.
     """
     _ROLE_HIERARCHY: dict[str, int] = {
         "admin": 4,
-        "operator": 3,
+        "manager": 3,
+        "operator": 3,  # legacy alias for manager (site tier)
         "installer": 2,
         "viewer": 1,
     }
@@ -659,7 +660,8 @@ def get_current_user_id(
 
 _ROLE_HIERARCHY: dict[str, int] = {
     "admin": 4,
-    "operator": 3,
+    "manager": 3,
+    "operator": 3,  # legacy alias for manager (site tier)
     "installer": 2,
     "viewer": 1,
 }
