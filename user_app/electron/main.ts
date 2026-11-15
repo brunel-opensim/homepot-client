@@ -110,7 +110,6 @@ let installOnDownload = false
 const UPDATE_APP_MARKER = '__HOMEPOT_UPDATE_APP__'
 
 // The device agent prints this reserved line to stdout after a `rollback_app`
-// channel. Keep in sync with ROLLBACK_APP_MARKER in
 // command is acknowledged. We then roll back through the `previous` update
 // channel. Keep in sync with ROLLBACK_APP_MARKER in
 // backend/src/homepot/agent/utils/command_poller.py.
@@ -123,6 +122,13 @@ const ROLLBACK_APP_MARKER = '__HOMEPOT_ROLLBACK_APP__'
 // backend/src/homepot/agent/utils/command_poller.py.
 const UNPAIRED_MARKER = '__HOMEPOT_UNPAIRED__'
 const UNPAIRED_EXIT_CODE = 43
+
+// The agent exits with this reserved code after a `restart_agent` command is
+// acknowledged, so the supervisor can distinguish a requested restart from a
+// crash and respawn without counting it against the crash-loop budget. Keep in
+// sync with RESTART_AGENT_EXIT_CODE in
+// backend/src/homepot/agent/utils/command_poller.py.
+const RESTART_AGENT_EXIT_CODE = 42
 
 // True while a rollback to the `previous` channel is in flight, so the update
 // lifecycle handlers can restore the default channel once it settles.
@@ -1449,9 +1455,9 @@ function startAgentProcess(): boolean {
   child.on('exit', (code) => {
     safeLog(`[agent] exited with code ${code}`)
     // A `restart_agent` command exits with a reserved code so we can respawn
-    // cleanly without counting it against the crash-loop budget. Keep in sync
-    // with RESTART_AGENT_EXIT_CODE in command_poller.py.
-    if (code === 42) {
+    // cleanly without counting it against the crash-loop budget. See the
+    // RESTART_AGENT_EXIT_CODE constant above (kept in sync with command_poller.py).
+    if (code === RESTART_AGENT_EXIT_CODE) {
       recordAppEvent('info', 'agent', 'Device agent restarted on request')
       if (agentProcess === child) agentProcess = null
       agentSupervisor.resetCrashLoop()
