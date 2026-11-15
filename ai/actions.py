@@ -411,6 +411,20 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "set_service_state": ActionSpec(
+        name="set_service_state",
+        command_type="set_service_state",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="root_access",
+        min_role="operator",
+        description=(
+            "Enable, disable, start, or stop a named OS service. Use "
+            "'service_name' and 'action' (start, stop, enable, or disable). "
+            "Reversible via the inverse action."
+        ),
+        required_params=("service_name", "action"),
+    ),
 }
 
 

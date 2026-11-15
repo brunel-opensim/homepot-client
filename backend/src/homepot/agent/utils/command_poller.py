@@ -35,6 +35,7 @@ COMMAND_TYPES = frozenset(
         "restart",
         "restart_agent",
         "restart_service",
+        "set_service_state",
         "run_command",
         "run_script",
         "shutdown",
@@ -74,6 +75,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "restart": "root_access",
     "restart_agent": "root_access",
     "restart_service": "root_access",
+    "set_service_state": "root_access",
     "run_command": "root_access",
     "run_script": "root_access",
     "shutdown": "root_access",
@@ -2743,6 +2745,51 @@ def _restart_service(data: Dict[str, Any]) -> Dict[str, Any]:
     return _execute_local({"payload": {"data": {"command": command}}}, script=False)
 
 
+_SERVICE_STATE_ACTIONS = ("start", "stop", "enable", "disable")
+
+
+def _service_state_command(service_name: str, action: str, windows: bool) -> str:
+    """Return the OS command for enabling/disabling/starting/stopping a service.
+
+    Windows uses PowerShell (``Start-Service``/``Stop-Service``/
+    ``Set-Service``); POSIX uses ``systemctl``.
+    """
+    if windows:
+        if action == "start":
+            return f"Start-Service -Name '{service_name}'"
+        if action == "stop":
+            return f"Stop-Service -Name '{service_name}'"
+        if action == "enable":
+            return f"Set-Service -Name '{service_name}' -StartupType Automatic"
+        return f"Set-Service -Name '{service_name}' -StartupType Disabled"
+    return f"systemctl {action} '{service_name}'"
+
+
+def _set_service_state(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Enable, disable, start, or stop a named OS service.
+
+    Windows uses PowerShell (``Start-Service``/``Stop-Service``/
+    ``Set-Service``); POSIX uses ``systemctl``. Execution reuses the elevated
+    command path so a service state change carries the same elevation and
+    permission gating as ``restart_service``.
+    """
+    service_name = data.get("service_name")
+    if not isinstance(service_name, str) or not service_name.strip():
+        return {"status": "failed", "result": {"error": "'service_name' is required"}}
+    service_name = service_name.strip()
+
+    action = str(data.get("action") or "").strip().lower()
+    if action not in _SERVICE_STATE_ACTIONS:
+        allowed = ", ".join(_SERVICE_STATE_ACTIONS)
+        return {
+            "status": "failed",
+            "result": {"error": f"'action' must be one of: {allowed}"},
+        }
+
+    command = _service_state_command(service_name, action, _is_windows_platform())
+    return _execute_local({"payload": {"data": {"command": command}}}, script=False)
+
+
 def _restart_agent(data: Dict[str, Any]) -> Dict[str, Any]:
     """Acknowledge a restart of the agent process itself.
 
@@ -2880,6 +2927,9 @@ def _process_command_impl(
 
     if command_type == "restart_service":
         return _restart_service(_command_data(command))
+
+    if command_type == "set_service_state":
+        return _set_service_state(_command_data(command))
 
     if command_type == "update_config":
         return _apply_config(_command_data(command))
@@ -3033,6 +3083,11 @@ def _describe_executed_command(
         if windows:
             return "Restart-Service -Name '%s'" % name
         return "systemctl restart '%s'" % name
+
+    if command_type == "set_service_state":
+        name = data.get("service_name", "")
+        action = str(data.get("action") or "").strip().lower()
+        return _service_state_command(name, action, windows)
 
     if command_type == "update_config":
         return _describe_config_update(data, windows)
