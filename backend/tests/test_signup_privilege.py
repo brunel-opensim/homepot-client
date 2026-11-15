@@ -1,23 +1,17 @@
-"""Signup must never create a privileged account.
+"""Signup is admin-only and never creates a privileged account.
 
-``POST /auth/signup`` is public (rate-limited only), and its request body
-carries a caller-supplied ``role``. Historically the endpoint derived the
-stored ``User.is_admin`` flag from ``is_privileged()``, which returns ``True``
-for every role while ``HOMEPOT_DEV_UNIFIED_ACCESS`` is on. That meant a
-self-registered ``Technician`` was written to the database as a genuine admin
-and could reach admin-only endpoints -- the role-assignment and user-deletion
-routes both authorise via ``require_role("Admin")``, which treats a set
-``is_admin`` column as Admin.
+``POST /auth/signup`` now requires an authenticated Admin (it is no longer
+public).  Admins use it to provision Technician or Viewer accounts; the
+caller-supplied ``role`` is honoured (admin-only, so it is safe) but it can
+never mint an Admin -- promotion to Admin goes through ``PUT
+/auth/users/{email}/role``.
 
-Against the old code the end-to-end test below observes a self-registered
-account receiving 200 from ``PUT /auth/users/{email}/role`` and promoting
-another user; with the fix it receives 403.
-
-These tests exercise the endpoint rather than the helper, because the helper
-was already covered and correct; the defect was in how signup called it.
+These tests exercise the endpoint rather than the helper, because the
+defect being guarded against is in how signup calls it.
 """
 
 import asyncio
+from datetime import datetime, timezone
 import os
 import tempfile
 from typing import Any, Generator
@@ -28,22 +22,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from homepot.app.api.API_v1.Endpoints import UserRegisterEndpoint
-from homepot.app.roles import ADMIN
 from homepot.config import reload_settings
 import homepot.database
-from homepot.models import Base
+from homepot.models import Base, User
 
 pytestmark = pytest.mark.slow
 
 
+_ADMIN_EMAIL = "admin@test.com"
+_ADMIN_PASSWORD = "admin-password-correct-horse"
+_TECH_EMAIL = "tech@test.com"
+_TECH_PASSWORD = "tech-password-correct-horse"
+
+
 @pytest.fixture(autouse=True)
 def file_db(monkeypatch: Any) -> Generator[None, None, None]:
-    """Use a temporary file-based SQLite DB so sync+async engines share data.
-
-    An in-memory database is private to a single connection, so a helper
-    reading through ``get_db()`` would not see rows the request wrote. The
-    file-backed engine is the pattern the other endpoint tests use.
-    """
+    """Use a temporary file-based SQLite DB so sync+async engines share data."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
 
@@ -52,10 +46,6 @@ def file_db(monkeypatch: Any) -> Generator[None, None, None]:
     monkeypatch.setenv("DATABASE__URL", db_url)
     reload_settings()
 
-    # Drop any service left over from the previous test before re-initialising.
-    # The suite's autouse reset_db_service fixture closes the service after each
-    # test, but ordering means a stale service can still be bound to a file that
-    # has since been deleted, which surfaces as "no such table: users".
     if homepot.database._db_service is not None:
         try:
             asyncio.run(homepot.database._db_service.close())
@@ -71,27 +61,45 @@ def file_db(monkeypatch: Any) -> Generator[None, None, None]:
 
     monkeypatch.setattr(homepot.database, "sync_engine", new_engine)
     monkeypatch.setattr(homepot.database, "SessionLocal", new_session_local)
-
-    # ``UserRegisterEndpoint`` binds ``SessionLocal`` at import time
-    # (``from homepot.database import SessionLocal``), so patching the attribute
-    # on ``homepot.database`` alone is not enough -- the endpoint module keeps
-    # its own reference to the original session factory. Without this second
-    # patch the endpoint keeps reading the database that was current when the
-    # module was first imported, which only has the schema on the first test.
     monkeypatch.setattr(
         UserRegisterEndpoint,
         "SessionLocal",
         new_session_local,
     )
 
-    # The tenant FK matters: signup attaches the new user to the "default"
-    # tenant when one exists. Seed it through the same session factory the API
-    # uses so it lands in the shared file database.
     db = new_session_local()
     try:
         if db.query(homepot.models.Tenant).count() == 0:
             db.add(homepot.models.Tenant(name="Default", slug="default"))
             db.commit()
+        # Seed an admin and a technician so the access-control tests can log in.
+        from homepot.app.auth_utils import hash_password
+
+        if db.query(User).filter(User.email == _ADMIN_EMAIL).count() == 0:
+            db.add(
+                User(
+                    email=_ADMIN_EMAIL,
+                    username="admin",
+                    hashed_password=hash_password(_ADMIN_PASSWORD),
+                    role="Admin",
+                    is_admin=True,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        if db.query(User).filter(User.email == _TECH_EMAIL).count() == 0:
+            db.add(
+                User(
+                    email=_TECH_EMAIL,
+                    username="tech",
+                    hashed_password=hash_password(_TECH_PASSWORD),
+                    role="Technician",
+                    is_admin=False,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+        db.commit()
     finally:
         db.close()
 
@@ -116,12 +124,7 @@ def client() -> Generator[TestClient, None, None]:
 
 @pytest.fixture(autouse=True)
 def reset_rate_limiter() -> Generator[None, None, None]:
-    """Clear the signup rate limiter between tests.
-
-    ``POST /auth/signup`` is limited to 5 requests per minute and the limiter
-    uses process-wide in-memory storage, so without this the later tests in the
-    module receive 429 rather than exercising the endpoint.
-    """
+    """Clear the signup rate limiter between tests."""
     from homepot.app.utils.limiter import limiter
 
     limiter.reset()
@@ -129,134 +132,129 @@ def reset_rate_limiter() -> Generator[None, None, None]:
     limiter.reset()
 
 
-_SIGNUP_PASSWORD = "correct-horse-battery-staple"
+def _login(client: TestClient, email: str, password: str) -> None:
+    resp = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert resp.status_code == 200, resp.text
 
 
-@pytest.fixture
-def signed_up_user(client: TestClient, request: Any) -> Any:
-    """Register a user with an explicit requested role; return its email."""
-    counter = {"n": 0}
+class TestSignupRequiresAdmin:
+    """Signup is admin-only: unauthenticated and non-admin callers are rejected."""
 
-    def _signup(role: str) -> str:
-        counter["n"] += 1
-        email = (
-            f"signup-{role.lower()}-{abs(hash(request.node.name))}"
-            f"-{counter['n']}@example.com"
+    def test_unauthenticated_signup_is_rejected(self, client: TestClient) -> None:
+        """Unauthenticated signup must be rejected (401/403)."""
+        resp = client.post(
+            "/api/v1/auth/signup",
+            json={
+                "email": "anon@example.com",
+                "password": "correct-horse-battery-staple",
+                "full_name": "Anon",
+                "username": "anon",
+            },
         )
+        assert resp.status_code in (401, 403), resp.text
+
+    def test_non_admin_signup_is_rejected(self, client: TestClient) -> None:
+        """A non-admin (Technician) caller must be rejected (401/403)."""
+        _login(client, _TECH_EMAIL, _TECH_PASSWORD)
+        resp = client.post(
+            "/api/v1/auth/signup",
+            json={
+                "email": "second@example.com",
+                "password": "correct-horse-battery-staple",
+                "full_name": "Second",
+                "username": "second",
+            },
+        )
+        assert resp.status_code in (401, 403), resp.text
+        # Clear the session so later tests start unauthenticated.
+        client.cookies.clear()
+
+
+class TestAdminCanCreateUsers:
+    """An admin can create Technician and Viewer accounts via signup."""
+
+    def _signup_as_admin(self, client: TestClient, role: str, email: str) -> Any:
+        _login(client, _ADMIN_EMAIL, _ADMIN_PASSWORD)
         resp = client.post(
             "/api/v1/auth/signup",
             json={
                 "email": email,
-                "password": _SIGNUP_PASSWORD,
-                "full_name": "Signup Probe",
+                "password": "correct-horse-battery-staple",
+                "full_name": "Created User",
+                "username": email.split("@")[0],
                 "role": role,
             },
         )
         assert resp.status_code == 201, resp.text
         return email
 
-    return _signup
+    def test_admin_creates_technician(self, client: TestClient) -> None:
+        """An admin can create a Technician account."""
+        email = "newtech@example.com"
+        self._signup_as_admin(client, "Technician", email)
 
+        db = homepot.database.SessionLocal()
+        try:
+            user = db.query(homepot.models.User).filter_by(email=email).first()
+            assert user is not None
+            assert user.role == "Technician"
+            assert bool(user.is_admin) is False
+        finally:
+            db.close()
 
-def _stored_user(email: str) -> Any:
-    """Read a user row through the shared session factory."""
-    db = homepot.database.SessionLocal()
-    try:
-        return db.query(homepot.models.User).filter_by(email=email).first()
-    finally:
-        db.close()
+    def test_admin_creates_viewer(self, client: TestClient) -> None:
+        """An admin can create a Viewer account."""
+        email = "newviewer@example.com"
+        self._signup_as_admin(client, "Viewer", email)
 
+        db = homepot.database.SessionLocal()
+        try:
+            user = db.query(homepot.models.User).filter_by(email=email).first()
+            assert user is not None
+            assert user.role == "Viewer"
+            assert bool(user.is_admin) is False
+        finally:
+            db.close()
 
-def _login(client: TestClient, email: str) -> str:
-    resp = client.post(
-        "/api/v1/auth/login",
-        json={"email": email, "password": _SIGNUP_PASSWORD},
-    )
-    assert resp.status_code == 200, resp.text
-    return str(resp.json()["data"]["access_token"])
-
-
-class TestSignupCannotCreatePrivilegedUser:
-    """A public signup must never produce an admin-equivalent row."""
-
-    @pytest.mark.parametrize(
-        "requested_role",
-        ["Technician", "technician", "viewer", "Client", "engineer"],
-    )
-    def test_non_admin_role_is_not_stored_as_admin(
-        self, signed_up_user: Any, requested_role: str
-    ) -> None:
-        """Any non-Admin role must store is_admin=False."""
-        user = _stored_user(signed_up_user(requested_role))
-        assert user is not None
-        assert bool(user.is_admin) is False, (
-            f"signup with role={requested_role!r} stored is_admin=True; a "
-            "non-admin role must never be a route to privilege"
-        )
-
-    def test_requested_admin_role_is_also_not_honoured(
-        self, signed_up_user: Any
-    ) -> None:
-        """Self-registration must not mint an admin even if Admin is asked for."""
-        user = _stored_user(signed_up_user(ADMIN))
-        assert user is not None
-        assert bool(user.is_admin) is False
-        assert user.role != ADMIN
-
-    def test_signup_always_lands_on_the_least_privileged_role(
-        self, signed_up_user: Any
-    ) -> None:
-        """The stored role is Technician regardless of what was requested."""
-        user = _stored_user(signed_up_user("Admin"))
-        assert user is not None
-        assert user.role == "Technician"
-
-
-class TestSignupEscalationIsClosed:
-    """The concrete escalation that motivated the fix must no longer work."""
-
-    def test_self_registered_user_cannot_assign_roles(
-        self, client: TestClient, signed_up_user: Any
-    ) -> None:
-        """A signup-created account must be refused by the admin-only route.
-
-        Before the fix the row carried is_admin=True, so require_role("Admin")
-        saw "Admin" and returned 200, promoting the victim. The victim account
-        is created too, so a 404 ("User not found") cannot be what stops the
-        request -- a 403 is only evidence of the role check if the target
-        exists.
-        """
-        attacker_email = signed_up_user("Technician")
-        victim_email = signed_up_user("Technician")
-        token = _login(client, attacker_email)
-
-        resp = client.put(
-            f"/api/v1/auth/users/{victim_email}/role",
-            params={"new_role": "Admin"},
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        assert resp.status_code == 403, (
-            "a self-registered account reached the role-assignment endpoint "
-            f"for an existing user; expected 403, got {resp.status_code}"
-        )
-
-        victim = _stored_user(victim_email)
-        assert victim is not None
-        assert bool(victim.is_admin) is False
-        assert victim.role != ADMIN
-
-    def test_login_response_reports_signup_user_as_non_admin(
-        self, client: TestClient, signed_up_user: Any
-    ) -> None:
-        """The login response and the stored column must agree."""
-        email = signed_up_user("Technician")
+    def test_admin_cannot_create_admin_via_signup(self, client: TestClient) -> None:
+        """Signup must never create an admin, even when Admin is requested."""
+        email = "newadmin@example.com"
+        _login(client, _ADMIN_EMAIL, _ADMIN_PASSWORD)
         resp = client.post(
-            "/api/v1/auth/login",
-            json={"email": email, "password": _SIGNUP_PASSWORD},
+            "/api/v1/auth/signup",
+            json={
+                "email": email,
+                "password": "correct-horse-battery-staple",
+                "full_name": "Created Admin",
+                "username": "newadmin",
+                "role": "Admin",
+            },
         )
-        assert resp.status_code == 200, resp.text
+        assert resp.status_code in (400, 403), resp.text
 
-        user = _stored_user(email)
-        assert user is not None
-        assert resp.json()["data"]["is_admin"] is False
-        assert resp.json()["data"]["is_admin"] == bool(user.is_admin)
+    def test_signup_defaults_to_technician(self, client: TestClient) -> None:
+        """Signup defaults to Technician when no role is supplied."""
+        email = "defaultrole@example.com"
+        _login(client, _ADMIN_EMAIL, _ADMIN_PASSWORD)
+        resp = client.post(
+            "/api/v1/auth/signup",
+            json={
+                "email": email,
+                "password": "correct-horse-battery-staple",
+                "full_name": "Default Role",
+                "username": "defaultrole",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+
+        db = homepot.database.SessionLocal()
+        try:
+            user = db.query(homepot.models.User).filter_by(email=email).first()
+            assert user is not None
+            assert user.role == "Technician"
+            assert bool(user.is_admin) is False
+        finally:
+            db.close()
