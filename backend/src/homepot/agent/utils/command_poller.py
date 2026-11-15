@@ -3063,6 +3063,11 @@ _DESCRIPTIVE_COMMANDS = {
     "list_processes": "list running processes",
     "list_connections": "list network connections",
     "scan_filesystem": "scan filesystem",
+    "list_drives": "list mounted drives and free space",
+    "list_sessions": "list users logged into the device",
+    "get_system_info": "collect a hardware/OS inventory snapshot",
+    "tail_system_log": "read recent OS error/warning events",
+    "network_test": "test network connectivity to a host",
     "restart_agent": "restart the agent process",
     "update_app": "update the User App to the latest release",
     "rollback_app": "roll back the User App to the previous release",
@@ -3129,6 +3134,13 @@ def _describe_executed_command(
             if windows
             else "loginctl lock-session"
         )
+
+    if command_type == "notify_user":
+        message = str(data.get("message", ""))
+        title = str(data.get("title") or "HOMEPOT")
+        if windows:
+            return f"msg * '{message}'"
+        return f"notify-send '{title}' '{message}'"
 
     if command_type == "restart_service":
         name = data.get("service_name", "")

@@ -312,7 +312,7 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         required_permission="root_access",
         min_role="operator",
         description="Run an elevated script on the device. Disruptive; not reversible.",
-        required_params=("command",),
+        required_params=("script",),
     ),
     "list_installed_programs": ActionSpec(
         name="list_installed_programs",
