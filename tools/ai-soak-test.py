@@ -356,7 +356,7 @@ def query_ai(
 
 def get_plan(client: httpx.Client, base_url: str, plan_id: str) -> Dict[str, Any]:
     """Fetch one action plan with its serialized steps and outcome."""
-    r = client.get(f"{base_url}/action-plans/{plan_id}")
+    r = client.get(f"{base_url}/ai/action-plans/{plan_id}")
     r.raise_for_status()
     payload = r.json()
     return payload if isinstance(payload, dict) else {}
@@ -365,7 +365,7 @@ def get_plan(client: httpx.Client, base_url: str, plan_id: str) -> Dict[str, Any
 def approve_plan(client: httpx.Client, base_url: str, plan_id: str) -> Dict[str, Any]:
     """Approve a pending plan (does not execute)."""
     r = client.post(
-        f"{base_url}/action-plans/{plan_id}/approve", json={"reason": "soak test"}
+        f"{base_url}/ai/action-plans/{plan_id}/approve", json={"reason": "soak test"}
     )
     r.raise_for_status()
     payload = r.json()
@@ -377,7 +377,7 @@ def approve_step(
 ) -> Dict[str, Any]:
     """Release one per-step approval gate on a plan."""
     r = client.post(
-        f"{base_url}/action-plans/{plan_id}/steps/{step_id}/approve",
+        f"{base_url}/ai/action-plans/{plan_id}/steps/{step_id}/approve",
         json={"reason": "soak test"},
     )
     r.raise_for_status()
@@ -387,7 +387,7 @@ def approve_step(
 
 def execute_plan(client: httpx.Client, base_url: str, plan_id: str) -> Dict[str, Any]:
     """Execute an approved plan; completion is asynchronous (reconcile loop)."""
-    r = client.post(f"{base_url}/action-plans/{plan_id}/execute")
+    r = client.post(f"{base_url}/ai/action-plans/{plan_id}/execute")
     r.raise_for_status()
     payload = r.json()
     return payload if isinstance(payload, dict) else {}
