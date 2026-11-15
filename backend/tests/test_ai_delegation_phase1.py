@@ -60,6 +60,7 @@ def test_registry_declares_expected_actions():
         "network_test",
         "list_sessions",
         "get_system_info",
+        "collect_support_bundle",
         "notify_user",
         "update_config",
         "restart",
@@ -92,6 +93,7 @@ def test_registry_declares_expected_actions():
         "network_test",
         "list_sessions",
         "get_system_info",
+        "collect_support_bundle",
     ):
         assert ACTION_REGISTRY[name].risk_tier == "T1"
     # T2 reversible actions

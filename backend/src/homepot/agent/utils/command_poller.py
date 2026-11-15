@@ -12,6 +12,7 @@ import shlex
 import shutil
 import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
+import tempfile
 from typing import Any, Dict, List, Optional
 import urllib.parse
 import urllib.request
@@ -48,6 +49,7 @@ COMMAND_TYPES = frozenset(
         "list_sessions",
         "get_system_info",
         "notify_user",
+        "collect_support_bundle",
         "scan_filesystem",
         "run_command_unprivileged",
         "install_program",
@@ -84,6 +86,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_sessions": "command_execution",
     "get_system_info": "command_execution",
     "notify_user": "command_execution",
+    "collect_support_bundle": "command_execution",
     "scan_filesystem": "root_access",
     "run_command_unprivileged": "command_execution",
     "install_program": "root_access",
@@ -1050,6 +1053,74 @@ def _run_notify_user(data: Dict[str, Any]) -> Dict[str, Any]:
             ).strip()[-200:]
         },
     }
+
+
+# --- collect_support_bundle -------------------------------------------------
+
+
+def _metrics_snapshot() -> Dict[str, Any]:
+    """Return a point-in-time CPU/memory/disk metrics snapshot (best-effort)."""
+    snapshot: Dict[str, Any] = {}
+    try:
+        snapshot["cpu_percent"] = round(float(psutil.cpu_percent(interval=0.1)), 1)
+    except Exception:  # noqa: BLE001 - best-effort field
+        snapshot["cpu_percent"] = None
+    try:
+        mem = psutil.virtual_memory()
+        snapshot["memory_percent"] = round(float(mem.percent), 1)
+        snapshot["memory_total_gb"] = round(float(mem.total) / (1024**3), 1)
+    except Exception:  # noqa: BLE001 - best-effort field
+        snapshot["memory_percent"] = None
+        snapshot["memory_total_gb"] = None
+    try:
+        disk = psutil.disk_usage("/")
+        snapshot["disk_percent"] = round(float(disk.percent), 1)
+    except Exception:  # noqa: BLE001 - best-effort field
+        snapshot["disk_percent"] = None
+    return snapshot
+
+
+def _run_collect_support_bundle(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Bundle logs, config, and metrics into a single zip support artifact.
+
+    Read-only: gathers a point-in-time snapshot of hardware/OS info, drives,
+    processes, and live metrics into a zip file under the system temp dir.
+    """
+    try:
+        snapshots = {
+            "system_info.json": _run_get_system_info({}).get("result", {}),
+            "drives.json": _run_list_drives({}).get("result", {}),
+            "processes.json": _run_list_processes({}).get("result", {}),
+            "metrics.json": _metrics_snapshot(),
+        }
+
+        tmp_dir = tempfile.mkdtemp(prefix="homepot-support-")
+        try:
+            for name, payload in snapshots.items():
+                with open(os.path.join(tmp_dir, name), "w", encoding="utf-8") as fh:
+                    json.dump(payload, fh, default=str, indent=2)
+
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            zip_base = os.path.join(tempfile.gettempdir(), f"homepot-support-{stamp}")
+            zip_path = shutil.make_archive(zip_base, "zip", root_dir=tmp_dir)
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        size_bytes = os.path.getsize(zip_path) if os.path.exists(zip_path) else 0
+        return {
+            "status": "completed",
+            "result": {
+                "path": zip_path,
+                "size_bytes": size_bytes,
+                "file_count": len(snapshots),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+    except Exception as exc:  # noqa: BLE001 - surface any collection error
+        return {
+            "status": "failed",
+            "result": {"error": f"support bundle failed: {exc}"},
+        }
 
 
 # --- list_connections -------------------------------------------------------
@@ -2730,6 +2801,9 @@ def _process_command_impl(
     if command_type == "notify_user":
         return _run_notify_user(_command_data(command))
 
+    if command_type == "collect_support_bundle":
+        return _run_collect_support_bundle(_command_data(command))
+
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))
 
@@ -2842,6 +2916,7 @@ _DESCRIPTIVE_COMMANDS = {
     "rollback_app": "roll back the User App to the previous release",
     "status_request": "collect a device status snapshot",
     "bootstrap_winget": "bootstrap winget (install App Installer if missing)",
+    "collect_support_bundle": "collect a zip support bundle",
 }
 
 
