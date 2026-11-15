@@ -634,6 +634,75 @@ def test_disk_cleanup_in_command_types_and_permission():
     assert required_permissions_for_command("disk_cleanup") == ["command_execution"]
 
 
+def test_lock_screen_builds_os_command():
+    """lock_screen uses rundll32 on Windows, pmset on macOS, loginctl on Linux."""
+    from types import SimpleNamespace
+
+    from homepot.agent.utils.command_poller import _run_lock_screen
+
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller.subprocess.run",
+            side_effect=fake_run,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller._is_windows_platform",
+            return_value=True,
+        ),
+    ):
+        result = _run_lock_screen({})
+
+    assert result["status"] == "completed"
+    assert result["result"]["message"] == "screen locked"
+    assert calls[-1] == ["rundll32.exe", "user32.dll,LockWorkStation"]
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller.subprocess.run",
+            side_effect=fake_run,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller._is_windows_platform",
+            return_value=False,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.platform.system",
+            return_value="Linux",
+        ),
+    ):
+        _run_lock_screen({})
+    assert calls[-1] == ["loginctl", "lock-session"]
+
+    with (
+        patch(
+            "homepot.agent.utils.command_poller.subprocess.run",
+            side_effect=fake_run,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller._is_windows_platform",
+            return_value=False,
+        ),
+        patch(
+            "homepot.agent.utils.command_poller.platform.system",
+            return_value="Darwin",
+        ),
+    ):
+        _run_lock_screen({})
+    assert calls[-1] == ["pmset", "displaysleepnow"]
+
+
+def test_lock_screen_in_command_types_and_permission():
+    """lock_screen is registered and gated on command_execution."""
+    assert "lock_screen" in COMMAND_TYPES
+    assert required_permissions_for_command("lock_screen") == ["command_execution"]
+
+
 def test_restart_agent_returns_completed():
     """restart_agent acknowledges success; the exit is driven by the poll loop."""
     from homepot.agent.utils.command_poller import _restart_agent

@@ -39,6 +39,7 @@ COMMAND_TYPES = frozenset(
         "run_command",
         "run_script",
         "shutdown",
+        "lock_screen",
         "status_request",
         "update_config",
         "update_app",
@@ -79,6 +80,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "run_command": "root_access",
     "run_script": "root_access",
     "shutdown": "root_access",
+    "lock_screen": "command_execution",
     "update_config": "root_access",
     "update_app": "root_access",
     "rollback_app": "root_access",
@@ -1176,6 +1178,47 @@ def _run_disk_cleanup(data: Dict[str, Any]) -> Dict[str, Any]:
             "target": target,
         },
     }
+
+
+# --- lock_screen ------------------------------------------------------------
+
+
+def _run_lock_screen(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Lock the terminal's screen (session lock).
+
+    Windows locks the workstation via ``rundll32``; macOS sleeps the display
+    (``pmset``); Linux locks the session via ``loginctl``. No elevation is
+    required — locking is a per-session action.
+    """
+    if _is_windows_platform():
+        argv = ["rundll32.exe", "user32.dll,LockWorkStation"]
+    elif platform.system() == "Darwin":
+        argv = ["pmset", "displaysleepnow"]
+    else:
+        argv = ["loginctl", "lock-session"]
+
+    try:
+        completed = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "failed",
+            "result": {"error": f"lock screen failed: {exc}"},
+        }
+
+    if completed.returncode != 0:
+        raw_error = completed.stderr or completed.stdout or "lock screen failed"
+        return {
+            "status": "failed",
+            "result": {"error": raw_error[-MAX_COMMAND_OUTPUT:]},
+        }
+
+    return {"status": "completed", "result": {"message": "screen locked"}}
 
 
 # --- list_connections -------------------------------------------------------
@@ -2907,6 +2950,9 @@ def _process_command_impl(
     if command_type == "disk_cleanup":
         return _run_disk_cleanup(_command_data(command))
 
+    if command_type == "lock_screen":
+        return _run_lock_screen(_command_data(command))
+
     if command_type == "scan_filesystem":
         return _run_scan_filesystem(_command_data(command))
 
@@ -3077,6 +3123,12 @@ def _describe_executed_command(
         return "shutdown /r /t 0" if windows else "shutdown -r now"
     if command_type == "shutdown":
         return "shutdown /s /t 0" if windows else "shutdown -h now"
+    if command_type == "lock_screen":
+        return (
+            "rundll32.exe user32.dll,LockWorkStation"
+            if windows
+            else "loginctl lock-session"
+        )
 
     if command_type == "restart_service":
         name = data.get("service_name", "")

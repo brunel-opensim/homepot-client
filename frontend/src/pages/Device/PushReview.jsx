@@ -297,6 +297,15 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Clear old temp files and caches from the system temp directory to reclaim disk space.',
   },
+  LOCK_SCREEN: {
+    label: 'Lock Screen',
+    action: 'lock_screen',
+    group: 'System',
+    permission: 'command_execution',
+    defaultData: {},
+    description:
+      'Lock the terminal\u2019s screen (session lock). The person at the device unlocks it with their credentials.',
+  },
   RESTART_SERVICE: {
     label: 'Restart Service',
     action: 'restart_service',
