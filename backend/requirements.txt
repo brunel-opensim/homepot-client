@@ -31,6 +31,7 @@ asyncio-mqtt==0.16.2  # For async MQTT client communication (IoT device messagin
 
 # Utilities
 pydantic==2.12.5  # Data validation using Python type hints
+docstring-parser==0.18.0  # Reads tool docstrings into LLM parameter descriptions
 pydantic-settings==2.12.0  # Settings management using Pydantic
 python-dotenv==1.2.1  # Read key-value pairs from .env file
 structlog==25.5.0  # For structured logging

@@ -153,9 +153,10 @@ longer auto-recall memory at all (`_should_recall_memory`); see
 generic `run_command`. `start_program` showed the same failure in the first
 runs, then mapped correctly.
 
-Root cause: `allowed_actions_summary()` — the single source of truth rendered
-into `propose_device_action`'s docstring — advertised **bare action names
-grouped by risk tier**, with no description and no parameters:
+Root cause, in two layers. The first was visible: `allowed_actions_summary()`
+— the single source of truth rendered into `propose_device_action`'s docstring
+— advertised **bare action names grouped by risk tier**, with no description and
+no parameters:
 
 ```
 'run_command_unprivileged', 'set_service_state', 'start_program',
@@ -163,15 +164,49 @@ grouped by risk tier**, with no description and no parameters:
 'restart_agent', 'run_script', 'run_command' ... (T3 disruptive)
 ```
 
-The registry carried good descriptions the whole time; the model never saw
-them, so it had no way to tell `run_command` from `run_command_unprivileged` or
-`run_script`, and no hint that `run_script` takes a `script` parameter while
-`run_command` takes a `command`.
+The registry carried good descriptions the whole time, so the model had no way
+to tell `run_command` from `run_command_unprivileged` or `run_script`, and no
+hint that `run_script` takes a `script` parameter while `run_command` takes a
+`command`.
 
-Fixed: every entry now carries a short description and its required
-parameters, e.g. `'run_script' - Run an elevated script on the device.
-[params: script]`. The summary grows from ~640 B to ~3 KB (roughly 580 extra
-tokens per request) — the cost of the model being able to choose correctly.
+The second layer was hidden and is the reason the first fix changed nothing.
+Parameter descriptions are not taken from the docstring directly —
+`_function_to_tool_schema()` parses it with `docstring_parser` and copies each
+parsed parameter description into the JSON schema sent to the model. In
+`propose_device_action`'s `Args` block, `target_device_id`'s continuation line
+was indented no deeper than the parameter name:
+
+```
+    target_device_id: The device identifier the action applies to. If you only
+    have a device name, call find_device first to resolve the business ID.
+```
+
+The Google-style parser reads that second line as the start of a new parameter
+and raises "Expected a colon". The exception was swallowed, `param_descriptions`
+became `{}`, and **every parameter description for the tool was dropped** —
+including the action list. So the list had never reached the model, in any run,
+with or without descriptions.
+
+This was proved by measurement, not inspection: the description fix was
+deployed and a full run came back at exactly the same 19/24 with the same five
+failures. `list_devices` had the same defect and was also delivering no
+parameter descriptions.
+
+Fixed: continuation lines are indented deeper than their parameter name in both
+tools, `_function_to_tool_schema()` now logs a warning instead of failing
+silently, and `docstring-parser` is pinned in `backend/requirements.txt`
+(it was only present as a transitive dependency of `anthropic`, so a deployment
+using another provider would have lost every parameter description). Tests now
+assert the action list survives into the schema and that no tool ships an
+undocumented parameter.
+
+The action list itself also carries a description and required parameters per
+action now, e.g. `'run_script' - Run an elevated script on the device.
+[params: script]`. That grows the summary from ~640 B to ~3 KB (roughly 580
+extra tokens per request).
+
+Status: **Partial** — the delivery defect is fixed and covered by tests; the
+effect on the soak score has not been measured yet.
 
 ### Direct-answer gaps
 

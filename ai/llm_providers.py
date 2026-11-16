@@ -477,8 +477,24 @@ def _function_to_tool_schema(func: Any) -> Dict[str, Any]:
             for p in parsed.params:
                 if p.arg_name:
                     param_descriptions[p.arg_name] = (p.description or "").strip()
-        except Exception:
+        except Exception as exc:
+            # A docstring the parser cannot read silently costs the model every
+            # parameter description, which is how the advertised action list
+            # went missing for months without any test noticing.
+            logger.warning(
+                "Could not parse the docstring for tool %r, so parameter "
+                "descriptions are dropped: %s. Continuation lines in an Args "
+                "block must be indented deeper than the parameter name.",
+                name,
+                exc,
+            )
             param_descriptions = {}
+        if not param_descriptions and "Args:" in doc:
+            logger.warning(
+                "Tool %r has an Args block but no parameter descriptions were "
+                "parsed; the model will not see them.",
+                name,
+            )
 
     sig = inspect.signature(func)
     properties: Dict[str, Any] = {}

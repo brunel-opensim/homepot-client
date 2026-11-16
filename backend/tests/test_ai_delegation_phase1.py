@@ -228,6 +228,68 @@ def test_update_config_entry_names_the_settings_it_changes():
     assert "volume" in line and "brightness" in line, line
 
 
+def test_propose_docstring_parses_with_the_google_parser():
+    """The Args block must be readable by ``docstring_parser``.
+
+    ``_function_to_tool_schema`` builds every parameter description from this
+    parse. A continuation line indented no deeper than its parameter name makes
+    the Google parser raise, and the exception was swallowed -- so the whole
+    action list was advertised in the docstring and delivered to the model as
+    nothing at all.
+    """
+    parser = pytest.importorskip("docstring_parser")
+    parsed = parser.parse(
+        propose_device_action.__doc__ or "",
+        style=parser.DocstringStyle.GOOGLE,
+    )
+    assert {p.arg_name for p in parsed.params} == {
+        "action",
+        "target_device_id",
+        "rationale",
+        "params",
+    }
+
+
+def test_action_list_reaches_the_llm_tool_schema():
+    """Every registered action must survive into the schema sent to the model."""
+    pytest.importorskip("docstring_parser")
+    from ai.llm_providers import _function_to_tool_schema
+
+    schema = _function_to_tool_schema(propose_device_action)["function"]
+    action_desc = schema["parameters"]["properties"]["action"].get("description", "")
+    missing = [name for name in ACTION_REGISTRY if f"'{name}'" not in action_desc]
+    assert not missing, f"action list missing from the tool schema: {missing}"
+    for name, spec in ACTION_REGISTRY.items():
+        for param in spec.required_params:
+            assert param in action_desc, f"'{name}' does not advertise '{param}'"
+    assert "volume" in action_desc and "brightness" in action_desc
+
+
+def test_every_tool_parameter_reaches_the_schema_with_a_description():
+    """No tool may silently lose its parameter docs to an unreadable Args block.
+
+    Two tools did: ``propose_device_action`` (all four parameters) and
+    ``list_devices`` (all three). Both had a continuation line indented no
+    deeper than its parameter name, which the Google parser reads as the start
+    of a new parameter and then rejects for having no colon.
+    """
+    pytest.importorskip("docstring_parser")
+    from ai.llm_providers import _function_to_tool_schema
+    from ai.tools import TOOL_FUNCTIONS
+
+    undocumented = {}
+    for func in TOOL_FUNCTIONS:
+        schema = _function_to_tool_schema(func)["function"]
+        missing = [
+            name
+            for name, prop in schema["parameters"]["properties"].items()
+            if not prop.get("description")
+        ]
+        if missing:
+            undocumented[func.__name__] = missing
+    assert not undocumented, f"parameters with no description: {undocumented}"
+
+
 def test_validate_proposal_accepts_known_action():
     """A well-formed proposal validates against the registry."""
     spec, error = validate_proposal("restart", "POS-001", {})
