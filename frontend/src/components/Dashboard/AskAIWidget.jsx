@@ -87,8 +87,11 @@ function MessageDetails({ message }) {
             )}
             {(trust.gates || []).map((gate, index) => (
               <p key={`${gate.gate_id}-${index}`}>
-                Gate {gate.gate_id} ({gate.name}): {gate.status}.{' '}
-                {(gate.checks || []).map((check) => check.message).join(' ') || gate.error}
+                Gate {gate.gate_id} ({gate.name}):{' '}
+                <span className={gate.status === 'pass' ? 'ai-gate-pass' : 'ai-gate-fail'}>
+                  {gate.status}
+                </span>
+                . {(gate.checks || []).map((check) => check.message).join(' ') || gate.error}
               </p>
             ))}
             {!trust.actionable && <p>Advisory only. Device actions require separate review.</p>}
