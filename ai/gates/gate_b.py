@@ -30,7 +30,7 @@ real-device deployments. See docs/gate-review-real-device.md.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 from sqlalchemy import or_, select
 from sqlalchemy.sql import func
@@ -154,8 +154,107 @@ class DataIntegrityGate(Gate):
             )
         return digest
 
+    async def _online_scope(
+        self, session: Any, device_int_id: Optional[int]
+    ) -> Tuple[List[int], Optional[str], int]:
+        """Resolve the online device scope for the integrity checks.
+
+        Returns ``(online_pks, target_connectivity, offline_count)`` where
+        ``online_pks`` are the int ids of active devices that are currently
+        online (``compute_connectivity``), ``target_connectivity`` is the
+        connectivity of the query's device (``None`` when fleet-scoped or the
+        device is not active), and ``offline_count`` is how many active devices
+        were excluded for being offline/unknown.
+        """
+        from homepot.models import ConnectivityState, Device, compute_connectivity
+
+        devices = (
+            (await session.execute(select(Device).where(Device.is_active.is_(True))))
+            .scalars()
+            .all()
+        )
+        online_pks: List[int] = []
+        offline_count = 0
+        target_connectivity: Optional[str] = None
+        for device in devices:
+            conn = compute_connectivity(device)
+            if conn == ConnectivityState.ONLINE.value:
+                online_pks.append(device.id)
+            else:
+                offline_count += 1
+            if device_int_id is not None and device.id == device_int_id:
+                target_connectivity = conn
+        return online_pks, target_connectivity, offline_count
+
+    def _connectivity_check(
+        self,
+        device_int_id: Optional[int],
+        target_connectivity: Optional[str],
+        online_pks: List[int],
+        offline_count: int,
+    ) -> CheckResult:
+        """Check that the target (or fleet) device scope is online.
+
+        A device-scoped query requires its target to be online. A fleet-scoped
+        query requires at least one online device; offline/unknown devices are
+        excluded from the downstream pool rather than failing the gate.
+        """
+        evidence = [
+            EvidenceRef(
+                table="devices",
+                field="connectivity",
+                query_id="B.connectivity",
+                extra={
+                    "online_count": len(online_pks),
+                    "offline_count": offline_count,
+                },
+            )
+        ]
+        if device_int_id is not None:
+            if target_connectivity == "online":
+                return CheckResult(
+                    check_id="B.connectivity",
+                    name="Device connectivity",
+                    passed=True,
+                    message="Target device is online.",
+                    evidence=evidence,
+                )
+            if target_connectivity is None:
+                return CheckResult(
+                    check_id="B.connectivity",
+                    name="Device connectivity",
+                    passed=False,
+                    message="Target device is not in the active fleet.",
+                    evidence=evidence,
+                )
+            return CheckResult(
+                check_id="B.connectivity",
+                name="Device connectivity",
+                passed=False,
+                message=f"Target device is {target_connectivity}.",
+                evidence=evidence,
+            )
+        if online_pks:
+            return CheckResult(
+                check_id="B.connectivity",
+                name="Device connectivity",
+                passed=True,
+                message=(
+                    f"{len(online_pks)} online device(s) assessed; "
+                    f"{offline_count} offline/unknown excluded."
+                ),
+                evidence=evidence,
+            )
+        return CheckResult(
+            check_id="B.connectivity",
+            name="Device connectivity",
+            passed=False,
+            message="No online devices; fleet telemetry is unavailable.",
+            evidence=evidence,
+        )
+
     async def evaluate(self, context: GateContext) -> GateResult:
-        """Check completeness, freshness, continuity, gaps, and value validity."""
+        """Check connectivity, completeness, freshness, continuity, gaps, validity."""
         session = context.session
         if session is None:
             return GateResult(
@@ -173,39 +272,43 @@ class DataIntegrityGate(Gate):
             )
 
         from homepot.app.models.AnalyticsModel import DeviceMetrics
-        from homepot.models import Device, HealthCheck
+        from homepot.models import HealthCheck
 
         window_start = datetime.utcnow() - timedelta(seconds=context.window_seconds)
         device_int_id = context.device_int_id
 
-        # Scope every check to live (non-archived, non-retired) devices only, so
-        # telemetry from unpaired/archived devices never influences trust.
-        active_pks = (
-            (await session.execute(select(Device.id).where(Device.is_active.is_(True))))
-            .scalars()
-            .all()
+        # Connectivity is the FIRST integrity question: a device that is not
+        # online cannot contribute live telemetry, so offline/unknown devices
+        # are excluded from the pool below (their stale records never influence
+        # the fleet-level trust). A device-scoped query requires its target to
+        # be online.
+        online_pks, target_connectivity, offline_count = await self._online_scope(
+            session, device_int_id
         )
 
         checks: List[CheckResult] = [
+            self._connectivity_check(
+                device_int_id, target_connectivity, online_pks, offline_count
+            ),
             await self._check_completeness(
-                session, DeviceMetrics, window_start, device_int_id, active_pks
+                session, DeviceMetrics, window_start, device_int_id, online_pks
             ),
             await self._check_freshness(
-                session, DeviceMetrics, device_int_id, active_pks
+                session, DeviceMetrics, device_int_id, online_pks
             ),
         ]
         checks.extend(
             await self._check_continuity_and_gaps(
-                session, HealthCheck, window_start, device_int_id, active_pks
+                session, HealthCheck, window_start, device_int_id, online_pks
             )
         )
         checks.append(
             await self._check_validity(
-                session, DeviceMetrics, window_start, device_int_id, active_pks
+                session, DeviceMetrics, window_start, device_int_id, online_pks
             )
         )
         checks.append(
-            self._as_digest_check(await self.collect_device_digest(context, active_pks))
+            self._as_digest_check(await self.collect_device_digest(context, online_pks))
         )
 
         status = GateStatus.PASS if all(c.passed for c in checks) else GateStatus.FAIL
