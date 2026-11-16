@@ -213,6 +213,7 @@ nav:
       - Getting Started: get_start_userapp.md
       - Frontend Guide: user-app-frontend-guide.md
       - Releases & Versioning: user-app-releases.md
+      - Windows Install & Uninstall Troubleshooting: user-app-windows-troubleshooting.md
       - Wireframes: user-app-wireframes.md
       - Device Lifecycle & Unpairing: user-app-device-lifecycle-and-unpairing.md
       - Restart Agent Command (Design): restart-user-app-command.md

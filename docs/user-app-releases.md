@@ -269,3 +269,46 @@ Downloads page. This is the one-step-back path.
   `/downloads`. A draft is never mirrored, so it never reaches a device.
 - The agent binary inside the app is updated as part of the app update — no separate agent update needed.
 - On Windows, the NSIS installer runs silently and replaces the app in `%LOCALAPPDATA%\Programs\homepot-agent\`.
+- Windows artifacts are **not code-signed**; see [§11](#11-code-signing).
+
+## 11. Code signing
+
+Status: **Open** — no certificate is configured, so every Windows artifact ships
+unsigned.
+
+This is not cosmetic. An unsigned NSIS uninstaller copies itself to `%TEMP%` as
+`Un_A.exe`, Windows Security refuses to start it, and the uninstall ends with
+"Error launching installer" ([#1003](https://github.com/brunel-opensim/homepot-client/issues/1003)).
+Workarounds for affected machines are in
+[Windows Install and Uninstall Troubleshooting](user-app-windows-troubleshooting.md).
+
+### What has to be signed
+
+Three binaries, all produced by the same certificate:
+
+| Binary | Produced by |
+|---|---|
+| `HOMEPOT Agent.exe` | electron-builder, app packaging |
+| `homepot-agent-setup-<version>.exe` | electron-builder, NSIS target |
+| The embedded uninstaller | electron-builder, `NsisTarget.computeScriptAndSignUninstaller` |
+
+electron-builder signs the uninstaller only when it generates the NSIS script
+itself; a custom `nsis.script` disables uninstaller signing. We use the stock
+script, so nothing blocks it.
+
+### Options
+
+| Option | Cost | Notes |
+|---|---|---|
+| OV Authenticode certificate | ~£200–400/yr | Simplest wiring: `CSC_LINK` + `CSC_KEY_PASSWORD` as CI secrets, no config change needed — electron-builder picks them up automatically. Publisher is confirmed immediately; SmartScreen reputation still accrues over weeks. |
+| EV certificate | ~£300–500/yr | Instant SmartScreen reputation, but the key lives on a hardware token, which is awkward on hosted CI and usually needs a signing service. |
+| Azure Trusted Signing | ~$10/mo | Native support via `win.azureSignOptions` in the electron-builder version we pin. CI-friendly. Requires roughly three years of verifiable organisation history. |
+
+### Verifying a signed build
+
+```powershell
+Get-AuthenticodeSignature .\homepot-agent-setup-0.3.42.exe | Format-List Status, SignerCertificate
+```
+
+`Status` must read `Valid`. Equivalently, the PE Authenticode directory must be
+non-zero — it is `(0, 0)` on every build published to date.
