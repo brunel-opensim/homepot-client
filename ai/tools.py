@@ -601,6 +601,46 @@ def _tool_connectivity(device: Any) -> str:
         return "unknown"
 
 
+def _device_online_gate(device_id: str) -> Optional[str]:
+    """Return an error string when a device is missing or not online.
+
+    A proposal targets a real, currently-online device, so the model cannot
+    suggest an action the device would never receive (offline) or a device that
+    no longer exists. Returns ``None`` when the device is online. Uses the same
+    ``compute_connectivity`` the Dashboard does, so the AI never disagrees with
+    the UI on online/offline. Failures fail closed (no proposal) rather than
+    allow an action on an unverifiable device.
+    """
+    try:
+        from homepot.database import SessionLocal
+        from homepot.models import (
+            ConnectivityState,
+        )
+        from homepot.models import (
+            compute_connectivity,
+        )
+        from homepot.models import Device as DeviceModel
+
+        db = SessionLocal()
+        try:
+            device = (
+                db.query(DeviceModel).filter(DeviceModel.device_id == device_id).first()
+            )
+        finally:
+            db.close()
+    except Exception as exc:  # noqa: BLE001 - fail closed, do not propose
+        return f"could not verify device connectivity: {exc}"
+
+    if device is None:
+        return f"target device '{device_id}' not found"
+
+    connectivity = compute_connectivity(device)
+    if connectivity != ConnectivityState.ONLINE.value:
+        return f"target device '{device_id}' is {connectivity}"
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Tool 6c: list_devices (full device list at a site or across the fleet)
 # ---------------------------------------------------------------------------
@@ -875,6 +915,13 @@ async def propose_device_action(
     if access_error:
         return access_error
 
+    # The target must be online: the model must not propose an action the
+    # device would never receive (offline/unknown) or a device that no longer
+    # exists (a stale proposal that cannot be executed).
+    online_error = _device_online_gate(target_device_id)
+    if online_error:
+        return f"Proposal rejected: {online_error}"
+
     parsed: dict = {}
     if params:
         try:
@@ -1024,6 +1071,7 @@ async def propose_fleet_action(
             )
 
         from ai.actions import validate_proposal
+        from homepot.models import ConnectivityState, compute_connectivity
 
         sink = get_tool_proposal_sink()
         if sink is None:
@@ -1035,6 +1083,10 @@ async def propose_fleet_action(
         recorded = 0
         rejected: list[str] = []
         for d in devices:
+            connectivity = compute_connectivity(d)
+            if connectivity != ConnectivityState.ONLINE.value:
+                rejected.append(f"{d.device_id}: device is {connectivity}")
+                continue
             spec, error = validate_proposal(action, str(d.device_id), parsed)
             if error or spec is None:
                 rejected.append(f"{d.device_id}: {error}")

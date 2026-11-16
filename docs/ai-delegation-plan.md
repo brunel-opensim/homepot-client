@@ -176,8 +176,11 @@ today, where it lives, and how to exercise it. The design rationale is in § 1�
    action is warranted, calls the `propose_device_action` tool.
 2. That tool **never executes anything**. It validates the proposal against the
    allowlist (`ai/actions.py::validate_proposal` — unknown action, missing
-   target id or missing required params are rejected) and pushes a validated
-   `ActionProposal` into a per-run ContextVar sink.
+   target id or missing required params are rejected) **and gates on device
+   connectivity** (`ai/tools.py::_device_online_gate` — the target must be
+   *online*, so an offline, unknown-connectivity or already-removed device is
+   refused up front). It then pushes a validated `ActionProposal` into a
+   per-run ContextVar sink.
 3. `run_agent` returns them on `AgentResult.proposals`.
 4. `AIEndpoint.py` surfaces proposals **only if** the trust envelope marks the
    answer *actionable* **and** the agent run completed normally (a direct-LLM
@@ -220,13 +223,19 @@ finished, target devices, and the trust score/mode. Buttons are status-driven:
 | `GET /action-plans` | list plans, newest first | auth; filtered to the caller's accessible devices |
 | `GET /action-plans/{id}` | one plan | auth; `404` if any target is outside scope |
 | `POST /action-plans/{id}/approve` | record an approval (**no execution**) | `pending_approval` only (else `409`); operator on every target device |
-| `POST /action-plans/{id}/reject` | record a rejection + optional reason | same |
+| `POST /action-plans/{id}/reject` | record a rejection + optional reason | same; tolerates a missing target device so a stale proposal can be dismissed |
+| `POST /action-plans/{id}/cancel` | cancel a pending/approved/executing plan | same; also tolerates a missing target device |
 | `POST /action-plans/{id}/execute` | hand an approved plan to the executor | `approved` only (atomic claim, else `409`) |
 
 Every decision is scope-checked with
 `verify_device_belongs_to_user(..., minimum_role="operator")` (admins bypass) and
 audited (`AI_PROPOSAL_APPROVED` / `AI_PROPOSAL_REJECTED`). Approving does **not**
 run anything — execution is a deliberate second action.
+
+The proposal-time connectivity gate applies to both the single-device and fleet
+tools: `propose_device_action` refuses an offline/unknown/removed target, and
+`propose_fleet_action` skips such devices (reporting them in its result) rather
+than recording a proposal for them.
 
 ### Execution pipeline
 

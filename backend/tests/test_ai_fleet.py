@@ -1,6 +1,7 @@
 """Tests for fleet-wide action proposals (B5)."""
 
 import asyncio
+from datetime import datetime, timezone
 import os
 import sys
 import tempfile
@@ -85,6 +86,9 @@ async def test_propose_fleet_action_records_per_device_proposals():
                 device_type="pos_terminal",
                 site_id=site.id,
                 is_active=True,
+                lifecycle_state="active",
+                status="online",
+                last_heartbeat_at=datetime.now(timezone.utc),
             )
         )
         db.commit()

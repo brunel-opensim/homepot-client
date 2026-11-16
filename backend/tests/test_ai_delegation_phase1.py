@@ -6,6 +6,7 @@ plan. Nothing is executed. These tests cover the registry, the
 ``propose_device_action`` tool, and the repository write path.
 """
 
+from datetime import datetime, timezone
 import os
 import sys
 import tempfile
@@ -42,7 +43,7 @@ from homepot.app.repositories.ai_action_repository import (  # noqa: E402
 )
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
-from homepot.models import Base  # noqa: E402
+from homepot.models import Base, Device, Site  # noqa: E402
 
 # ── Action registry tests ────────────────────────────────────────────────────
 
@@ -234,9 +235,37 @@ def test_max_risk_tier_and_all_reversible():
 # ── propose_device_action tool tests ─────────────────────────────────────────
 
 
+def _seed_device(device_id="POS-001", *, online=True):
+    """Seed a device (and its site) so the connectivity guard can run.
+
+    ``online`` controls the device's heartbeat: the guard only lets the tool
+    propose to online devices, so the happy-path tests seed ``online=True``.
+    """
+    db = homepot.database.SessionLocal()
+    try:
+        site = Site(site_id="site-x", name="Site X", location="Lab")
+        db.add(site)
+        db.commit()
+        db.refresh(site)
+        device = Device(
+            device_id=device_id,
+            name=device_id,
+            device_type="pos_terminal",
+            site_id=site.id,
+            lifecycle_state="active",
+            status="online" if online else "offline",
+            last_heartbeat_at=datetime.now(timezone.utc) if online else None,
+        )
+        db.add(device)
+        db.commit()
+    finally:
+        db.close()
+
+
 @pytest.mark.asyncio
 async def test_tool_captures_validated_proposal_in_sink():
     """The tool appends a validated proposal to the bound sink."""
+    _seed_device()
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
@@ -259,6 +288,7 @@ async def test_tool_captures_validated_proposal_in_sink():
 @pytest.mark.asyncio
 async def test_tool_rejects_unknown_action():
     """The tool refuses to record an action outside the registry."""
+    _seed_device()
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
@@ -272,6 +302,7 @@ async def test_tool_rejects_unknown_action():
 @pytest.mark.asyncio
 async def test_tool_rejects_invalid_json_params():
     """Non-JSON params are rejected, not silently dropped."""
+    _seed_device()
     sink = []
     token = set_tool_proposal_sink(sink)
     try:
@@ -287,6 +318,7 @@ async def test_tool_rejects_invalid_json_params():
 @pytest.mark.asyncio
 async def test_tool_without_sink_does_not_crash():
     """Calling the tool with no active sink reports nothing was recorded."""
+    _seed_device()
     assert get_tool_proposal_sink() is None
     result = await propose_device_action("restart", "POS-001", "stuck")
     assert "no proposal sink" in result
@@ -323,6 +355,35 @@ def test_proposal_block_reason_is_scoped():
     finally:
         reset_tool_proposal_block_reason(token)
     assert get_tool_proposal_block_reason() is None
+
+
+@pytest.mark.asyncio
+async def test_tool_refuses_to_propose_to_offline_device():
+    """An offline device is refused, so the AI cannot target it."""
+    _seed_device(online=False)
+    sink = []
+    token = set_tool_proposal_sink(sink)
+    try:
+        result = await propose_device_action("health_check", "POS-001", "looks down")
+        assert "rejected" in result.lower()
+        assert "offline" in result
+        assert sink == []
+    finally:
+        reset_tool_proposal_sink(token)
+
+
+@pytest.mark.asyncio
+async def test_tool_refuses_to_propose_to_missing_device():
+    """A device that no longer exists is refused (no stale proposal forms)."""
+    sink = []
+    token = set_tool_proposal_sink(sink)
+    try:
+        result = await propose_device_action("health_check", "GONE-001", "cleanup")
+        assert "rejected" in result.lower()
+        assert "not found" in result
+        assert sink == []
+    finally:
+        reset_tool_proposal_sink(token)
 
 
 # ── Repository write-path tests ──────────────────────────────────────────────
