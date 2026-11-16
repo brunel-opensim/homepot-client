@@ -133,9 +133,10 @@ execute → verify loop.
 Long-term memory recalled the first run's "proposal recorded, pending approval"
 answers, so on the second run the model answered "I already proposed X" and
 skipped proposing (`list_processes`, `scan_filesystem`, `uninstall_program`,
-`notify_user`). Fixed: proposal answers are no longer written to long-term
-memory (`_should_persist_answer_to_memory`; see
-[docs/ai-memory.md](ai-memory.md)).
+`notify_user`). Fixed on both sides: proposal answers are no longer written to
+long-term memory (`_should_persist_answer_to_memory`), and action requests no
+longer auto-recall memory at all (`_should_recall_memory`); see
+[docs/ai-memory.md](ai-memory.md).
 
 ### Deterministic action-mapping gaps
 

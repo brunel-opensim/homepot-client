@@ -323,5 +323,20 @@ def test_proposal_answers_are_not_persisted_to_memory():
     assert _should_persist_answer_to_memory("", None) is False
 
 
+def test_agentic_queries_do_not_recall_memory():
+    """Action (agentic) requests skip recall; only plain diagnostics recall.
+
+    Feeding the model its own past answers into an action request is the
+    echo-chamber that made a second soak run answer "I already proposed X"
+    instead of proposing. Knowledge answers skip recall too.
+    """
+    from homepot.app.api.API_v1.Endpoints.AIEndpoint import _should_recall_memory
+
+    assert _should_recall_memory("diagnostic", False) is True  # plain query
+    assert _should_recall_memory("diagnostic", True) is False  # action request
+    assert _should_recall_memory("knowledge", False) is False  # docs-only
+    assert _should_recall_memory("knowledge", True) is False
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

@@ -153,15 +153,16 @@ Three code paths read the store:
 
 | Path | When | What |
 |---|---|---|
-| Automatic recall | `AIEndpoint.py` — **every** diagnostic query | `query_similar(query, scope)` → a `[RELEVANT MEMORIES]` block injected into the prompt |
+| Automatic recall | `AIEndpoint.py` — plain (non-agentic) diagnostic queries | `query_similar(query, scope)` → a `[RELEVANT MEMORIES]` block injected into the prompt |
 | Incident search | `ai/tools.py::search_similar_incidents` — **on demand** | past incidents/resolutions, only when the agent calls the tool |
 | Legacy recall | `ai/api.py` — every query | `query_similar(query)` → `long_term_context` |
 
-The **automatic recall** is the one to watch: it feeds the model its own prior
-assertions back as ground truth on every query, which is both the echo-chamber
-risk (a stale "device is healthy" recalled against live data) and the cause of
-the pollution bug above. The **incident search** is the high-signal, on-demand
-path.
+The **automatic recall** is scoped to plain diagnostic queries: **action
+(agentic) requests skip it** (`_should_recall_memory`), because feeding the model
+its own prior assertions into an action request is the echo chamber that made a
+second soak run answer "I already proposed X" instead of proposing. The agent
+can still read the store on demand via `search_similar_incidents`, which is the
+high-signal path.
 
 ### Metadata
 

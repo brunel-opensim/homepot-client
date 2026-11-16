@@ -645,6 +645,19 @@ def _should_persist_answer_to_memory(
     return bool(response) and proposal_info is None
 
 
+def _should_recall_memory(routing_resolved: str, agentic: bool) -> bool:
+    """Return True when a request may recall long-term memory.
+
+    Action (agentic) requests skip recall: feeding the model its own past
+    answers back into the prompt is what made a second AI soak run degrade (the
+    model answered "I already proposed X" instead of proposing). Knowledge
+    answers skip recall too (documentation-only); only plain diagnostic queries
+    recall. The agent can still read memory on demand via
+    ``search_similar_incidents``.
+    """
+    return routing_resolved != MODE_KNOWLEDGE and not agentic
+
+
 async def _generate_direct(
     llm: Any,
     query: str,
@@ -1396,9 +1409,10 @@ async def _query_ai_impl(
 
         # 2c. Build Long-Term Context (Vector Memory). Only the device-backed
         # diagnostic path recalls memory; knowledge answers skip it entirely so
-        # they can never echo the model's own past output.
+        # they can never echo the model's own past output, and action (agentic)
+        # requests skip it too (see _should_recall_memory).
         long_term_context = ""
-        if routing.resolved != MODE_KNOWLEDGE:
+        if _should_recall_memory(routing.resolved, request.agentic):
             try:
                 # Get Memory Stats (Self-Awareness)
                 mem_stats = memory.get_memory_stats()
