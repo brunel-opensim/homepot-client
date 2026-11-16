@@ -283,16 +283,27 @@ def _plan_targets(plan: AIActionPlan) -> List[str]:
     return targets
 
 
-def _authorize_plan(db: SASession, db_user: User, plan: AIActionPlan) -> List[str]:
-    """Verify operator access to every targeted device; return the targets."""
+def _authorize_plan(
+    db: SASession, db_user: User, plan: AIActionPlan, require_devices: bool = True
+) -> List[str]:
+    """Verify operator access to every targeted device; return the targets.
+
+    ``require_devices`` controls whether a target device that no longer exists
+    is an error. Reject/cancel pass ``False`` so a stale proposal (e.g. one
+    targeting a device that has since been removed) can still be dismissed;
+    approve/execute keep ``True`` because acting on a missing device is
+    meaningless.
+    """
     targets = _plan_targets(plan)
     for device_id in targets:
         device = db.query(Device).filter(Device.device_id == device_id).first()
         if device is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Target device not found: {device_id}",
-            )
+            if require_devices:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Target device not found: {device_id}",
+                )
+            continue
         verify_device_belongs_to_user(db_user, device, db, minimum_role="manager")
     return targets
 
@@ -479,8 +490,12 @@ async def _decide(
         )
 
     # Scope first, so a caller outside the device's site cannot even learn the
-    # plan state (and cannot act on it).
-    targets = _authorize_plan(db, db_user, plan)
+    # plan state (and cannot act on it). Rejecting a stale proposal (whose
+    # target device has since been removed) is still allowed; approving one is
+    # not.
+    targets = _authorize_plan(
+        db, db_user, plan, require_devices=(decision == "approved")
+    )
 
     if plan.status not in REVIEWABLE_STATUSES:
         raise HTTPException(
@@ -672,7 +687,7 @@ async def cancel_action_plan(
             status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
         )
 
-    targets = _authorize_plan(db, db_user, plan)
+    targets = _authorize_plan(db, db_user, plan, require_devices=False)
 
     if plan.status not in ("executing", "approved", "pending_approval"):
         raise HTTPException(
