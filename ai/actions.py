@@ -104,11 +104,9 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="root_access",
         description=(
-            "Apply a configuration change to a device. The 'config' param is a "
-            "dict of settings to apply, e.g. config with keys brightness, "
-            "volume, log_level, hostname. Common keys: volume, brightness, "
-            "log_level, hostname. Reversible via snapshot; requires the "
-            "owner's root_access grant."
+            "Change device settings: volume, brightness, log_level, or hostname. "
+            "The 'config' param is a dict of settings to apply; reversible via "
+            "snapshot; requires the owner's root_access grant."
         ),
         required_params=("config",),
     ),
@@ -496,13 +494,35 @@ _RISK_LABELS = {
 }
 
 
+# Longest description fragment rendered into the tool docstring, in characters.
+# Names alone are not enough: without a hint of what each action does the model
+# cannot tell ``run_command`` from ``run_command_unprivileged`` or discover that
+# ``update_config`` is how volume and brightness are changed.
+_DESCRIPTION_BUDGET = 96
+
+
+def _brief(spec: "ActionSpec") -> str:
+    """Return the leading clause of an action's description, within budget."""
+    text = " ".join(spec.description.split())
+    for separator in (". ", ";"):
+        cut = text.find(separator)
+        if 0 < cut <= _DESCRIPTION_BUDGET:
+            return text[: cut + 1]
+    if len(text) <= _DESCRIPTION_BUDGET:
+        return text
+    trimmed = text[:_DESCRIPTION_BUDGET].rsplit(" ", 1)[0]
+    return f"{trimmed}..."
+
+
 def allowed_actions_summary() -> str:
     """Render the registered actions grouped by risk tier.
 
     This is the single source of truth for the human-readable action list used
     by the proposal tool's docstring, so it can never drift from
-    :data:`ACTION_REGISTRY`. Each line is indented to fit inside the tool's
-    ``Args`` block.
+    :data:`ACTION_REGISTRY`. Each entry carries a short description and its
+    required parameters so the model can map an intent onto the right action
+    instead of guessing from the name. Each line is indented to fit inside the
+    tool's ``Args`` block.
     """
     grouped: Dict[str, List[str]] = {}
     for name, spec in sorted(ACTION_REGISTRY.items()):
@@ -513,6 +533,11 @@ def allowed_actions_summary() -> str:
         names = grouped.get(tier)
         if not names:
             continue
-        rendered = ", ".join(f"'{name}'" for name in names)
-        lines.append(f"{rendered} ({tier} {_RISK_LABELS[tier]})")
-    return "\n            ".join(lines)
+        lines.append(f"{tier} ({_RISK_LABELS[tier]}):")
+        for name in names:
+            spec = ACTION_REGISTRY[name]
+            entry = f"    '{name}' - {_brief(spec)}"
+            if spec.required_params:
+                entry += f" [params: {', '.join(spec.required_params)}]"
+            lines.append(entry)
+    return "\n        ".join(lines)
