@@ -266,6 +266,54 @@ def test_member_can_reject_with_reason(client: TestClient):
         db.close()
 
 
+def test_reject_still_works_when_target_device_is_gone(client: TestClient):
+    """A stale proposal for a removed device can still be rejected.
+
+    The device may be unpaired/removed after the AI proposed an action on it;
+    the technician must still be able to dismiss the proposal rather than have
+    it stuck in ``pending_approval`` forever.
+    """
+    db = homepot.database.SessionLocal()
+    try:
+        seed = _seed(db)
+        plan_id = _make_plan(db, "POS-A").plan_id
+        admin_email = seed["admin"].email
+        device = db.query(Device).filter(Device.device_id == "POS-A").first()
+        db.delete(device)
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/ai/action-plans/{plan_id}/reject",
+        json={"reason": "device gone"},
+        headers=_headers(admin_email),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "rejected"
+
+
+def test_approve_is_blocked_when_target_device_is_gone(client: TestClient):
+    """Approving a plan whose device no longer exists is still an error."""
+    db = homepot.database.SessionLocal()
+    try:
+        seed = _seed(db)
+        plan_id = _make_plan(db, "POS-A").plan_id
+        admin_email = seed["admin"].email
+        device = db.query(Device).filter(Device.device_id == "POS-A").first()
+        db.delete(device)
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/ai/action-plans/{plan_id}/approve",
+        json={},
+        headers=_headers(admin_email),
+    )
+    assert resp.status_code == 404
+
+
 def test_non_member_cannot_decide(client: TestClient):
     """A technician outside the device's site is forbidden."""
     db = homepot.database.SessionLocal()
