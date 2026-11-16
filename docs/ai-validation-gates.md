@@ -44,15 +44,18 @@ Failing Gate A falls back to **Mode 1: Status-only** -- we can't even trust the 
 
 ### Gate B -- Data Integrity
 
-Implemented in `ai/gates/gate_b.py`. Confirms the telemetry itself is fit to reason over:
+Implemented in `ai/gates/gate_b.py`. Connectivity is the **first** integrity question: a device that is not online cannot contribute live telemetry, so offline/unknown devices are excluded from the telemetry pool before the data checks run.
 
 | Check | What it verifies |
 |---|---|
-| `B.completeness` | Non-null completeness across recent `device_metrics` rows. |
+| `B.connectivity` | The target device is online (device-scoped query) / at least one online device exists (fleet-scoped query). Offline/unknown devices are excluded from the pool below. |
+| `B.completeness` | Non-null completeness across recent `device_metrics` rows for online devices. |
 | `B.freshness` | Latest telemetry timestamp is within threshold (default 300s). |
-| `B.continuity` | No excessive inter-arrival gap between health checks (default 60s). |
+| `B.continuity` | No excessive inter-arrival gap between health checks (default 1800s, relaxed for real devices). |
 | `B.gap_checks` | No sustained discontinuities in telemetry (default 3600s). |
 | `B.validity` | CPU/Memory/Disk values fall within a valid `[0, 100]` range. |
+
+Connectivity uses the same `compute_connectivity` signal as the Dashboard's online/offline badge, so the gate never disagrees with the UI. A **device-scoped** query requires its target to be online; if it is offline or its connectivity is unknown, Gate B fails with a clear "target device is offline/unknown" reason. A **fleet-scoped** query excludes offline/unknown devices from the pool (so their stale records don't influence completeness/validity or the trust score) and fails only when no online device remains.
 
 Failing Gate B falls back to **Mode 2: Best-effort analytics** -- the LLM may still analyze the data, but the result is marked limited-trust / not audit-ready.
 
@@ -114,7 +117,7 @@ If every gate in the chain passes, the envelope reports the **`grounded`** mode:
 
 ## AI Insights are gated on Gate B
 
-The chat response also surfaces the same anomaly-detection and failure-prediction signals a technician would see elsewhere in the product (see [Anomaly Detection](anomaly-detection.md)) -- but **only when Gate B (data integrity) has passed**. Anomaly scores and failure predictions are themselves derived from the same telemetry Gate B validates, so computing and presenting them on data that has already failed integrity checks would hand the LLM a confident-looking conclusion built on data known not to be trustworthy. When Gate B fails, the AI Insights section is replaced with an explicit skip note instead.
+The chat response also surfaces the same anomaly-detection and failure-prediction signals a technician would see elsewhere in the product (see [Anomaly Detection](anomaly-detection.md)) -- but **only when Gate B (data integrity, including device connectivity) has passed**. Anomaly scores and failure predictions are themselves derived from the same telemetry Gate B validates, so computing and presenting them on data that has already failed integrity checks would hand the LLM a confident-looking conclusion built on data known not to be trustworthy. When Gate B fails, the AI Insights section is replaced with an explicit skip note instead.
 
 ## API response shape
 

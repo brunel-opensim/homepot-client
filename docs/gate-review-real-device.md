@@ -73,6 +73,12 @@ above. It correctly gates on infrastructure availability.
 
 ## Gate B — Data Integrity
 
+> **Update (2026-11-16):** Gate B now checks device **connectivity** first
+> (`B.connectivity`) — offline/unknown devices are excluded from the telemetry
+> pool before the data checks below run. See
+> [Trust & Validation Gates](ai-validation-gates.md). The observations in this
+> section predate that change.
+
 ### What it checks
 
 1. **Completeness** (`B.completeness`): Null ratio of key metrics (cpu, memory,

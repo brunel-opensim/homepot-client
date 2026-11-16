@@ -199,10 +199,12 @@ created and nothing appears on the review page.
 
 Proposals only exist downstream of the ordered gate chain
 (`ai/gates/envelope.py`; first failure wins): **A** infrastructure/schema, **B**
-data integrity, **C** context readiness, **D** permission/capability, **E**
-lifecycle. The first failing gate sets a non-actionable Mode and a
-`failed_gate_id` (e.g. `"C (post-insight)"`). The resulting `trust_score`,
-`passed_gate_ids` and `failed_gate` are copied onto the plan and shown in the UI.
+data integrity (starting with device connectivity — offline/unknown devices are
+excluded from the telemetry pool), **C** context readiness, **D**
+permission/capability, **E** lifecycle. The first failing gate sets a
+non-actionable Mode and a `failed_gate_id` (e.g. `"C (post-insight)"`). The
+resulting `trust_score`, `passed_gate_ids` and `failed_gate` are copied onto the
+plan and shown in the UI.
 
 ### Review UI — `/ai-proposals` ("AI Proposals" in the sidebar)
 

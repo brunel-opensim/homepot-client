@@ -41,6 +41,29 @@ from ai.gates import (  # noqa: E402
 )
 
 
+async def _mark_device_online(db_service, device_id):
+    """Mark a seeded device active + fresh heartbeat so it reads as online.
+
+    ``create_device`` seeds a device in the ``pending`` lifecycle with no
+    heartbeat, which ``compute_connectivity`` reads as offline. Gate B now
+    excludes offline devices from the telemetry pool, so the happy-path tests
+    mark their device online explicitly.
+    """
+    from sqlalchemy import select
+
+    from homepot.models import Device
+
+    async with db_service.get_session() as session:
+        device = (
+            (await session.execute(select(Device).where(Device.device_id == device_id)))
+            .scalars()
+            .first()
+        )
+        device.lifecycle_state = "active"
+        device.last_heartbeat_at = datetime.utcnow()
+        await session.commit()
+
+
 class _FakeGate(Gate):
     """Minimal Gate stub for exercising ValidationEnvelope logic in isolation."""
 
@@ -295,6 +318,7 @@ async def test_gate_b_passes_with_fresh_complete_data():
         ip_address="10.0.0.1",
         api_key_hash=hash_password(secrets.token_urlsafe(16)),
     )
+    await _mark_device_online(db_service, device.device_id)
 
     now = datetime.utcnow()
     async with db_service.get_session() as session:
@@ -632,6 +656,9 @@ async def test_gate_b_fails_on_stale_and_invalid_readings():
         ip_address="10.0.0.2",
         api_key_hash=hash_password(secrets.token_urlsafe(16)),
     )
+    # The device is online (active + fresh heartbeat) but its METRICS are stale
+    # and out-of-range, so freshness and validity fail while connectivity passes.
+    await _mark_device_online(db_service, device.device_id)
 
     # Stale (well past the default 300s freshness threshold) and out-of-range
     # readings so both freshness and validity checks fail.
@@ -665,3 +692,101 @@ async def test_gate_b_fails_on_stale_and_invalid_readings():
     failed_ids = {c.check_id for c in result.checks if not c.passed}
     assert "B.freshness" in failed_ids
     assert "B.validity" in failed_ids
+
+
+@pytest.mark.asyncio
+async def test_gate_b_connectivity_fails_when_device_offline():
+    """A device-scoped query against an offline device fails on connectivity."""
+    from homepot.database import get_database_service
+
+    db_service = await get_database_service()
+    site = await db_service.create_site(
+        site_id="gates-test-site-offline",
+        name="Gates Test Site Offline",
+        description="Offline device site",
+        location="Test Location",
+        latitude=0.0,
+        longitude=0.0,
+    )
+    # create_device seeds "pending" + no heartbeat, which reads as offline.
+    device = await db_service.create_device(
+        device_id="gates-test-device-offline",
+        name="Gates Test Device Offline",
+        device_type="POS",
+        site_id=site.id,
+    )
+
+    async with db_service.get_session() as session:
+        result = await DataIntegrityGate().run(
+            GateContext(session=session, device_int_id=device.id, window_seconds=3600)
+        )
+
+    assert result.status == GateStatus.FAIL
+    failed = {c.check_id for c in result.checks if not c.passed}
+    assert "B.connectivity" in failed
+    connectivity = next(c for c in result.checks if c.check_id == "B.connectivity")
+    assert "offline" in connectivity.message
+
+
+@pytest.mark.asyncio
+async def test_gate_b_excludes_offline_devices_from_fleet_pool():
+    """Fleet-scoped: an offline device's records don't affect integrity checks."""
+    from homepot.app.models.AnalyticsModel import DeviceMetrics
+    from homepot.database import get_database_service
+
+    db_service = await get_database_service()
+    site = await db_service.create_site(
+        site_id="gates-test-site-mixed",
+        name="Gates Test Site Mixed",
+        description="Mixed online/offline site",
+        location="Test Location",
+        latitude=0.0,
+        longitude=0.0,
+    )
+    online_dev = await db_service.create_device(
+        device_id="gates-test-device-online",
+        name="Gates Test Device Online",
+        device_type="POS",
+        site_id=site.id,
+    )
+    offline_dev = await db_service.create_device(
+        device_id="gates-test-device-offline-mixed",
+        name="Gates Test Device Offline Mixed",
+        device_type="POS",
+        site_id=site.id,
+    )
+    await _mark_device_online(db_service, online_dev.device_id)
+
+    now = datetime.utcnow()
+    async with db_service.get_session() as session:
+        session.add(
+            DeviceMetrics(
+                timestamp=now,
+                device_id=online_dev.id,
+                cpu_percent=50.0,
+                memory_percent=40.0,
+                disk_percent=30.0,
+                network_latency_ms=15.0,
+            )
+        )
+        # The offline device's reading is out-of-range, but it must be excluded.
+        session.add(
+            DeviceMetrics(
+                timestamp=now,
+                device_id=offline_dev.id,
+                cpu_percent=150.0,
+                memory_percent=40.0,
+                disk_percent=30.0,
+                network_latency_ms=15.0,
+            )
+        )
+        await session.commit()
+
+    async with db_service.get_session() as session:
+        result = await DataIntegrityGate().run(
+            GateContext(session=session, window_seconds=3600)
+        )
+
+    assert result.status == GateStatus.PASS, [c.to_dict() for c in result.checks]
+    validity = next(c for c in result.checks if c.check_id == "B.validity")
+    assert "0 range violations" in validity.message

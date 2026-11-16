@@ -188,7 +188,7 @@ The existing validation gate framework provides safety for agentic tool use:
 
 ### Tool Output Validation
 
-After each tool execution, the result passes through Gate B (data integrity) to verify the data is fresh and complete:
+After each tool execution, the result passes through Gate B (data integrity, including device connectivity) to verify the data is fresh and complete:
 
 ```python
 async def execute_tool_with_validation(tool_name, args):
