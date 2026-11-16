@@ -190,6 +190,44 @@ def test_propose_device_action_docstring_lists_every_registered_action():
     ), f"propose_device_action docstring is missing registered actions: {missing}"
 
 
+def _advertised_entries() -> dict:
+    """Parse the docstring action list into {name: line} for assertions."""
+    doc = propose_device_action.__doc__ or ""
+    entries = {}
+    for line in doc.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("'") or "' - " not in stripped:
+            continue
+        entries[stripped[1:].split("'", 1)[0]] = stripped
+    return entries
+
+
+def test_docstring_entries_carry_description_and_params():
+    """Each advertised action shows what it does and the params it needs.
+
+    Names alone are ambiguous: a model shown only ``run_command`` and
+    ``run_command_unprivileged`` cannot tell them apart, and nothing hints that
+    ``update_config`` is how volume is changed. Both failures were observed on
+    a real device.
+    """
+    entries = _advertised_entries()
+    assert set(entries) == set(ACTION_REGISTRY)
+    for name, spec in ACTION_REGISTRY.items():
+        line = entries[name]
+        description = line.split(" - ", 1)[1]
+        assert description.strip(), f"entry for {name} has no description"
+        for param in spec.required_params:
+            assert (
+                param in line
+            ), f"entry for {name} does not advertise param '{param}': {line!r}"
+
+
+def test_update_config_entry_names_the_settings_it_changes():
+    """Volume/brightness must be visible, not buried past the first clause."""
+    line = _advertised_entries()["update_config"]
+    assert "volume" in line and "brightness" in line, line
+
+
 def test_validate_proposal_accepts_known_action():
     """A well-formed proposal validates against the registry."""
     spec, error = validate_proposal("restart", "POS-001", {})
