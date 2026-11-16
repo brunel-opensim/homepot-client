@@ -5,7 +5,7 @@ scoped for multi-tenant safety, and how to configure them.
 
 | | Short-term memory | Long-term memory |
 |---|---|---|
-| **What** | Recent conversation turns | Past answers / incidents |
+| **What** | Recent conversation turns | Past answers / outcomes / incidents |
 | **Where** | Supplied by the client per request | ChromaDB vector store (on disk) |
 | **Lifetime** | One request | Until pruned (default 90 days) |
 | **Recall** | Last 4 messages (2 turns), verbatim | Semantic similarity + scope filter |
@@ -90,32 +90,83 @@ backend:
 
 ## Long-term memory (vector recall)
 
-Long-term memory is a persistent **ChromaDB** collection. Each entry is a small
-text record plus metadata, stored as an embedding so the AI can recall entries
-that are *semantically similar* to the current question.
+Long-term memory is a persistent **ChromaDB** collection named `device_logs`
+(path `ai/data/chroma_db`). Each entry is a small text record plus metadata,
+stored as an embedding (ChromaDB's default `all-MiniLM-L6-v2`, run locally) so
+the AI can recall entries that are *semantically similar* to the current
+question. Embedding is provider-independent: it is the same store and embedder
+for Ollama, OpenAI and Anthropic.
+
+!!! note "Not the documentation index"
+    `device_logs` is a **different** store from the documentation index
+    (`data/docs_chroma`, collection `project_docs`) that grounds the knowledge
+    path. That index is documentation retrieval, not memory — see
+    [AI Doc Retrieval](ai-doc-retrieval.md).
 
 !!! note "Knowledge answers are docs-only"
-    Long-term memory is used **only by the device-backed diagnostic path**. A
-    knowledge (how-to/definition) answer is grounded in documentation alone: it
-    neither recalls past memories nor writes its answer to the store. The store
-    holds the model's own past output, and feeding it back on a path with no live
-    ground truth would let a wrong answer reinforce itself with nothing to
-    correct it. See [AI Query Routing](ai-query-routing.md).
+    Long-term memory is used by the device-backed **diagnostic** path and the
+    agent's on-demand **incident search**, but never by the **knowledge**
+    (how-to/definition) path. A knowledge answer is grounded in documentation
+    alone: it neither recalls past memories nor writes its answer to the store.
+    The store holds the model's own past output, and feeding it back on a path
+    with no live ground truth would let a wrong answer reinforce itself with
+    nothing to correct it. See [AI Query Routing](ai-query-routing.md).
 
-### What gets stored
+### Writers
 
-After a successful **diagnostic** query the endpoint stores a compact record
-(`write_on_query: true`); knowledge answers are never stored. A query the
-technician cancels (Stop/Esc) is not stored either: the widget reports the cancel
-to the server, which discards the abandoned answer rather than remembering it —
-see [Cancelling a query](ai-concurrency.md#cancelling-a-query-stop-esc).
+Three code paths write to the store:
 
-```
-Q: <the question>
-A: <first ~500 chars of the answer>
-```
+| `source` | Writer | Record |
+|---|---|---|
+| `ai_query` | `AIEndpoint.py` — after each diagnostic query | `Q: <question>\nA: <first ~500 chars of the answer>` |
+| `ai_outcome` | `verifier.py::_record_outcome` — when a plan reaches terminal | `AI action plan <id> (<tier>): status=…, verified=…, rolled_back=…, actions=[…]` |
+| *(none)* | `ai/api.py` `analyze` endpoint (legacy) | `Analysis for <device>: …` + anomaly score |
 
-with metadata:
+**`ai_query` — past answers.** After a successful diagnostic query the endpoint
+stores a compact record (`write_on_query: true`); knowledge answers are never
+stored. A query the technician cancels (Stop/Esc) is not stored either — see
+[Cancelling a query](ai-concurrency.md#cancelling-a-query-stop-esc).
+
+**Proposal answers are not stored.** When a query produces an AI action
+proposal, its answer ("recorded, pending approval") is *transient state*, not
+durable knowledge. Writing it would let a later query recall "I already
+proposed X" and skip proposing again — the memory-pollution regression observed
+on Brunel Device 001, where a second AI soak run degraded because the first
+run's proposal answers were recalled. The durable record is the plan outcome
+(`ai_outcome`) written by the verifier, so nothing is lost by skipping the
+proposal answer. See `_should_persist_answer_to_memory` in
+`backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py`.
+
+**`ai_outcome` — plan outcomes.** When an AI action plan reaches a terminal
+state the verifier records the outcome (verified / failed / rolled back) as the
+"what actually happened" record. This is the trustworthy half of the store,
+distinct from the model's own past answers.
+
+**Legacy analysis.** The standalone `ai/api.py` service (a separate FastAPI app,
+not mounted in the main backend) writes one record per anomaly analysis with
+`device_id` + `anomaly_score` metadata and **no** `source` tag. In the current
+deployment this path is dormant.
+
+### Readers
+
+Three code paths read the store:
+
+| Path | When | What |
+|---|---|---|
+| Automatic recall | `AIEndpoint.py` — plain (non-agentic) diagnostic queries | `query_similar(query, scope)` → a `[RELEVANT MEMORIES]` block injected into the prompt |
+| Incident search | `ai/tools.py::search_similar_incidents` — **on demand** | past incidents/resolutions, only when the agent calls the tool |
+| Legacy recall | `ai/api.py` — every query | `query_similar(query)` → `long_term_context` |
+
+The **automatic recall** is scoped to plain diagnostic queries: **action
+(agentic) requests skip it** (`_should_recall_memory`), because feeding the model
+its own prior assertions into an action request is the echo chamber that made a
+second soak run answer "I already proposed X" instead of proposing. The agent
+can still read the store on demand via `search_similar_incidents`, which is the
+high-signal path.
+
+### Metadata
+
+A stored record carries:
 
 | Field | Meaning |
 |---|---|
@@ -123,8 +174,8 @@ with metadata:
 | `site_id` | Site the memory belongs to (when unambiguous) |
 | `device_id` | Device, for device-focused queries |
 | `created_at` | Unix timestamp, used for retention |
-| `source` | `ai_query` |
-| `trust_score`, `is_actionable` | Validation-gate outcome for the answer |
+| `source` | `ai_query` or `ai_outcome` (legacy analyses carry none) |
+| `trust_score`, `is_actionable` | Validation-gate outcome (`ai_query` records only) |
 
 The store is written with `upsert` and a content-derived id, so re-storing the
 same record is a no-op (deduplicated).
@@ -186,6 +237,11 @@ memory:
   write_on_query: true                  # persist a memory after each diagnostic answer
 ```
 
+Recall depth can be overridden per provider via
+`llm.external.{openai,anthropic}.memory_n_results` (default 3), so a cloud
+provider recalls the same shallow set by default — deeper recall stays an
+explicit `search_similar_incidents` tool call rather than a longer prompt.
+
 To change the distance metric on an existing deployment, stop the backend and
 delete `ai/data/chroma_db` (the collection is rebuilt on next start).
 
@@ -213,5 +269,6 @@ scope and age of every memory.
 deterministic embedding function and a throwaway database: similarity recall,
 site/user/device scoping, admin bypass, the distance cutoff, deduplication, and
 retention pruning — plus endpoint tests asserting that a diagnostic query both
-recalls with a scope and persists the answer, while a knowledge query touches
-long-term memory in neither direction.
+recalls with a scope and persists the answer, that a knowledge query touches
+long-term memory in neither direction, and that a proposal answer is *not*
+persisted (`_should_persist_answer_to_memory`).

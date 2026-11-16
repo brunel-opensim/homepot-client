@@ -296,5 +296,47 @@ def test_knowledge_query_isolates_long_term_memory():
     assert not mock_memory.remember.called
 
 
+def test_proposal_answers_are_not_persisted_to_memory():
+    """Proposal answers are transient and must not be written to memory.
+
+    Writing "recorded, pending approval" lets a later query recall "I already
+    proposed X" and skip proposing again -- the memory-pollution regression
+    observed on Brunel Device 001, where a second soak run degraded because the
+    first run's proposal answers were recalled.
+    """
+    from homepot.app.api.API_v1.Endpoints.AIEndpoint import (
+        _should_persist_answer_to_memory,
+    )
+
+    # A plain diagnostic answer is persisted.
+    assert _should_persist_answer_to_memory("The fleet is healthy.", None) is True
+    # An answer that produced a proposal is transient, so it is not persisted.
+    assert (
+        _should_persist_answer_to_memory(
+            "Recorded proposal: health_check (pending approval).",
+            {"plan_id": "p1", "status": "pending_approval"},
+        )
+        is False
+    )
+    # An empty/absent answer is never persisted.
+    assert _should_persist_answer_to_memory(None, None) is False
+    assert _should_persist_answer_to_memory("", None) is False
+
+
+def test_agentic_queries_do_not_recall_memory():
+    """Action (agentic) requests skip recall; only plain diagnostics recall.
+
+    Feeding the model its own past answers into an action request is the
+    echo-chamber that made a second soak run answer "I already proposed X"
+    instead of proposing. Knowledge answers skip recall too.
+    """
+    from homepot.app.api.API_v1.Endpoints.AIEndpoint import _should_recall_memory
+
+    assert _should_recall_memory("diagnostic", False) is True  # plain query
+    assert _should_recall_memory("diagnostic", True) is False  # action request
+    assert _should_recall_memory("knowledge", False) is False  # docs-only
+    assert _should_recall_memory("knowledge", True) is False
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

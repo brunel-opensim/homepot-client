@@ -120,11 +120,51 @@ Run each scenario 2–3 times. Record results in the table at the bottom.
 | 2 | S2 | | Brunel Device 001 | | | | | |
 | 3 | S8 | | Brunel Device 001 | | | | | |
 
+## Findings (first runs)
+
+Two runs of `tools/ai-soak-test.py` against Anthropic (`claude-haiku-4-5`)
+recorded 18/24 then 14/24 commands delegating end-to-end. The second run
+*degraded*, and the diagnostics the tool now captures explain why. Every gap
+below is in the AI's **action selection**, not in the propose → approve →
+execute → verify loop.
+
+### Memory pollution (fixed)
+
+Long-term memory recalled the first run's "proposal recorded, pending approval"
+answers, so on the second run the model answered "I already proposed X" and
+skipped proposing (`list_processes`, `scan_filesystem`, `uninstall_program`,
+`notify_user`). Fixed on both sides: proposal answers are no longer written to
+long-term memory (`_should_persist_answer_to_memory`), and action requests no
+longer auto-recall memory at all (`_should_recall_memory`); see
+[docs/ai-memory.md](ai-memory.md).
+
+### Deterministic action-mapping gaps
+
+`run_command_unprivileged`, `start_program` and `run_script` are consistently
+proposed as the generic `run_command`. The registry/system-prompt guidance does
+not distinguish them sharply enough.
+
+### Direct-answer gaps
+
+`tail_system_log` and `get_system_info` are answered directly from context
+instead of proposed as actions. "Read the log" / "get system info" read as
+informational to the model rather than imperative.
+
+### `update_config` capability confusion
+
+"Set volume/brightness" is answered with "the toolkit has no action for volume
+or brightness", even though `update_config` declares exactly those keys. The
+action's description is not reaching the model, or is not clear enough.
+
+### Audit trail gap
+
+AI-dispatched commands emit `command_sent` + `command_completed` but not
+`command_queued` (only the operator/Compose path writes all three). The soak
+tool records `command_queued` as evidence of the gap rather than failing on it.
+
 ## After the soak test
 
 Once the success criteria are met, proceed to **Phase 3: background execution
 runner** (see `docs/ai-delegation-plan.md` §17.4). The runner auto-executes
 approved plans whose autonomy level permits it, removing the manual Execute
 click and enabling true "delegate and forget" operation.
-PYEOF
-echo written
