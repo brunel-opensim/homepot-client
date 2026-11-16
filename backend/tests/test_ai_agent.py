@@ -535,12 +535,14 @@ async def test_run_agent_collects_proposals():
     final_response.message.tool_calls = None
     mock_llm.generate_with_tools.side_effect = [tool_response, final_response]
 
-    result = await run_agent(
-        query="POS-001 is stuck, fix it",
-        context="[CONTEXT]",
-        llm=mock_llm,
-        device_id="POS-001",
-    )
+    result = None
+    with patch("ai.tools._device_online_gate", return_value=None):
+        result = await run_agent(
+            query="POS-001 is stuck, fix it",
+            context="[CONTEXT]",
+            llm=mock_llm,
+            device_id="POS-001",
+        )
 
     assert len(result.proposals) == 1
     proposal = result.proposals[0]
