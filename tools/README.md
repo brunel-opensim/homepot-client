@@ -207,8 +207,8 @@ Run all of these from the repo root before opening a PR that touches `tools/`:
 # Hermetic test suites — fake devices and APIs, no network, never touch real
 # hardware or the LLM. These prove the log filter, the restart probe, and the
 # AI proposal/outcome classification behave.
-.venv/bin/python -m pytest tools/test_compose_soak_test.py \
-    tools/test_ai_soak_test.py -n 0 -p no:cacheprovider --no-cov -q
+.venv/bin/python -m pytest tools/test-compose-soak-test.py \
+    tools/test-ai-soak-test.py -n 0 -p no:cacheprovider --no-cov -q
 ```
 
 `black`/`isort` will rewrite in place if you drop `--check`; everything else is
@@ -216,8 +216,11 @@ read-only.
 
 ## Filenames
 
-Use hyphens, not underscores, to match the repo convention (e.g.
-`compose-soak-test.py`, not `compose_soak_test.py`). These are standalone
-scripts run directly (`python tools/compose-soak-test.py`), never imported as
-modules. The one exception is the test file: pytest only collects `test_*.py`,
-so it is `test_compose_soak_test.py` to match `backend/tests/`.
+Use hyphens, not underscores, in filenames to match the repo convention
+(`compose-soak-test.py` and `test-compose-soak-test.py`, not
+`compose_soak_test.py`). Scripts are standalone and run directly
+(`python tools/compose-soak-test.py`), never imported as modules. Test files
+are always named explicitly on the pytest command line
+(`pytest tools/test-compose-soak-test.py`) because a hyphenated name does not
+match pytest's default `test_*.py` collection pattern; running `pytest tools/`
+would silently skip them.
