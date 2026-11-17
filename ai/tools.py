@@ -252,7 +252,11 @@ async def _gate_b_note(device_id: str) -> str:
 
 
 async def get_device_status(device_id: str) -> str:
-    """Check the current status and health of a specific device.
+    """Check the status HOMEPOT last recorded for a device (cached telemetry).
+
+    A summary of the agent's latest status report, not a live query of the
+    machine. For a live OS and hardware inventory, propose the get_system_info
+    action.
 
     Args:
         device_id: The device identifier (e.g., 'POS-001', 'EMU-002')
@@ -328,7 +332,10 @@ async def get_device_metrics(device_id: str, metric: Optional[str] = None) -> st
 
 
 async def get_error_logs(device_id: str, limit: int = 10) -> str:
-    """Retrieve recent error logs for a device.
+    """Retrieve HOMEPOT-recorded device events, not the device's own OS log.
+
+    Returns the status reports and command events the platform recorded for the
+    device. For the machine's own log, propose the tail_system_log action.
 
     Args:
         device_id: The device identifier to fetch errors for.
