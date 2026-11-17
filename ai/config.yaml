@@ -43,7 +43,7 @@ llm:
     # same baseline (fair comparison). Raise these for external providers to
     # unlock their larger windows / faster inference.
     openai:
-      model: "gpt-4o-mini"
+      model: "gpt-4o"
       api_key_env: "OPENAI_API_KEY"
       base_url: "https://api.openai.com/v1"
       context_budget: 5500   # chars of enriched context (default 2000)
