@@ -130,16 +130,31 @@ Run each scenario 2–3 times. Record results in the table at the bottom.
 
 ## Findings (first runs)
 
-Three runs of `tools/ai-soak-test.py` against Anthropic (`claude-haiku-4-5`)
-recorded 18/24, then 14/24, then 19/24 commands delegating end-to-end. The
-second run *degraded*; the third ran against a clean memory store and an
+Five runs of `tools/ai-soak-test.py` against Anthropic (`claude-haiku-4-5`)
+recorded 18/24, then 14/24, then 19/24, then 19/24 again, and finally **24/24**.
+The second run *degraded*; the third ran against a clean memory store and an
 uncontaminated command history, and is the baseline the fixes below are
-measured against. Every gap is in the AI's **action selection**, not in the
+measured against. Every gap was in the AI's **action selection**, not in the
 propose → approve → execute → verify loop.
 
-A fourth run, after the action descriptions were deployed, returned 19/24 with
-the same five failures. That identical score is what exposed the schema
-delivery defect below: the descriptions were never reaching the model.
+The earlier 18/24 and 14/24 runs predate the retained evidence files; the
+three most recent runs are:
+
+| Run | Score | Trigger | Evidence |
+|-----|-------|---------|----------|
+| baseline | 19/24 | clean memory + command history | `ai-soak-results-20261116T125701Z.json` |
+| after #1004 | 19/24 | action descriptions deployed, but not delivered | `ai-soak-results-20261116T134459Z.json` |
+| after #1006 + #1007 | **24/24** | schema delivery and telemetry provenance fixed | `ai-soak-results-20261117T091430Z.json` |
+
+The baseline file came from a run at 2026-11-16 13:10 UTC (788.4 s). Run 5
+used `claude-haiku-4-5-20251001` on `DEVICE-HSZK-T24Y-TSCX`, started
+2026-11-17 09:28 UTC, and took 850.8 s. All 24 commands proposed the expected
+action, reached `succeeded`, verified, appeared in Push History, and had a
+matching audit trail. The proposal queue was empty at the end.
+
+A sixth attempt was refused before sending anything: the device had not polled
+for ~9.6 hours and was `offline`, so every proposal would have been rejected by
+the connectivity gate. The harness now blocks that case in preflight (#1008).
 
 One caution when comparing runs: the AI's `get_command_history` tool returns
 the last five commands for the device, with no age filter. A command executed
@@ -217,8 +232,9 @@ action now, e.g. `'run_script' - Run an elevated script on the device.
 [params: script]`. That grows the summary from ~640 B to ~3 KB (roughly 580
 extra tokens per request).
 
-Status: **Partial** — the delivery defect is fixed and covered by tests; the
-effect on the soak score has not been measured yet.
+Status: **Done** — run 5 proposed the expected action for all 24 commands,
+including `update_config` (#13), `run_command_unprivileged` (#14) and
+`run_script` (#21), each approved, executed and verified.
 
 ### Direct-answer gaps
 
@@ -248,8 +264,9 @@ because the ambiguity is real:
   part of a docstring that reaches the model — and point to the action that
   reads the machine
 
-Status: **Open** — the change is tested at the schema and prompt level, but the
-effect on the soak score is not measured yet.
+Status: **Done** — run 5 proposed `tail_system_log` (#5) and `get_system_info`
+(#8) as actions instead of answering from telemetry; both executed and
+verified.
 
 ### `update_config` capability confusion
 
@@ -264,12 +281,19 @@ The description now opens with what it changes — "Change device settings:
 volume, brightness, log_level, or hostname" — and that leading clause is what
 the advertised list shows.
 
+Status: **Done** — run 5 delegated the volume/brightness command to
+`update_config` and verified the change.
+
 ### Audit trail gap
 
 AI-dispatched commands emit `command_sent` + `command_completed` but not
 `command_queued` (only the operator/Compose path writes all three). The soak
 tool records `command_queued` as evidence of the gap rather than failing on it.
-Unchanged across all three runs (`queued=false` on every row).
+Unchanged across every run, including the 24/24 one (`queued=false` on all 24
+rows; `sent` and `terminal` true on all 24). This does not block delegation but
+does leave the audit trail incomplete for AI-dispatched commands.
+
+Status: **Open**.
 
 ## After the soak test
 
