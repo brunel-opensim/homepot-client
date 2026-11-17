@@ -817,6 +817,17 @@ dependency ordering and cycle rejection, preconditions/postconditions,
 maintenance-window deferral, retry/backoff, idempotency, autonomy thresholds,
 reliability/summary endpoints, cancel, dry-run, plan-and-execute, and tool RBAC.
 
+**Real-device soak (2026-11-17).** The 24-command AI soak against Anthropic
+`claude-haiku-4-5` on `DEVICE-HSZK-T24Y-TSCX` passes **24/24**: every command
+proposed the expected action, executed, verified, and appeared in Push History
+with a matching audit trail. Earlier runs exposed three action-selection gaps,
+all fixed and measured closed — the tool schema silently dropping every
+parameter description (#1006), device-side requests answered from server
+telemetry (#1007), and the `update_config` description that hid the settings it
+changes. See [Real-device AI soak test](real-device-ai-soak-test.md) for the
+run-by-run evidence. One gap remains open: AI-dispatched commands do not emit
+`command_queued`.
+
 ---
 
 ## 18. AI context pipeline — known limitations and tech debt
