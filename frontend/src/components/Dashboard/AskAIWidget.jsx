@@ -162,6 +162,9 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
+  // Prompt history navigation (Up/Down arrows in the composer).
+  const [historyCursor, setHistoryCursor] = useState(null);
+  const [historyDraft, setHistoryDraft] = useState('');
   // Both variants render the same thread; sizing comes entirely from the parent.
   // The response fallback also preserves pre-session browser storage on upgrade.
   const messages = c.messages.length
@@ -226,6 +229,13 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     input.style.height = 'auto';
     input.style.height = `${Math.min(96, Math.max(42, input.scrollHeight))}px`;
   }, [c.query]);
+  // Reset prompt-history navigation whenever the thread changes size (new
+  // message sent or conversation cleared).
+  useEffect(() => {
+    setHistoryCursor(null);
+    setHistoryDraft('');
+  }, [c.messages.length]);
+
   const newConversation = () => {
     c.clearHistory();
     setStickToBottom(true);
@@ -369,8 +379,47 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
           spellCheck="true"
           lang="en"
           value={c.query}
-          onChange={(e) => c.setQuery(e.target.value)}
+          onChange={(e) => {
+            if (historyCursor !== null) setHistoryCursor(null);
+            c.setQuery(e.target.value);
+          }}
           onKeyDown={(e) => {
+            const prompts = c.messages
+              .filter((message) => message.role === 'user')
+              .map((message) => message.content);
+            if (e.key === 'ArrowUp' && !c.loading && prompts.length > 0) {
+              const input = inputRef.current;
+              const atStart = !input || (input.selectionStart === 0 && input.selectionEnd === 0);
+              if (!c.query || atStart) {
+                e.preventDefault();
+                if (historyCursor === null) {
+                  setHistoryDraft(c.query);
+                  const next = prompts.length - 1;
+                  setHistoryCursor(next);
+                  c.setQuery(prompts[next]);
+                } else if (historyCursor > 0) {
+                  const next = historyCursor - 1;
+                  setHistoryCursor(next);
+                  c.setQuery(prompts[next]);
+                }
+                return;
+              }
+            }
+            if (e.key === 'ArrowDown' && historyCursor !== null) {
+              const promptsDown = c.messages
+                .filter((message) => message.role === 'user')
+                .map((message) => message.content);
+              e.preventDefault();
+              if (historyCursor < promptsDown.length - 1) {
+                const next = historyCursor + 1;
+                setHistoryCursor(next);
+                c.setQuery(promptsDown[next]);
+              } else {
+                setHistoryCursor(null);
+                c.setQuery(historyDraft);
+              }
+              return;
+            }
             if (
               e.key === 'Enter' &&
               !e.shiftKey &&
@@ -442,7 +491,7 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
         </div>
         <div className="ai-composer-note">
           <span>Device actions require review.</span>
-          <span className="ai-keyboard-hint">Enter ↵ · Shift+Enter new line</span>
+          <span className="ai-keyboard-hint">Enter ↵ · Shift+Enter new line · ↑/↓ history</span>
         </div>
       </form>
     </section>
