@@ -87,11 +87,18 @@ The agent has access to 8 tools that map to existing `ContextBuilder` methods an
 | Device Status | `get_device_status(device_id)` | `ContextBuilder.get_device_context()` | Check device health on demand |
 | Device Metrics | `get_device_metrics(device_id, metric)` | `ContextBuilder.get_metrics_context()` | Drill into specific CPU/memory/disk metrics |
 | Error Logs | `get_error_logs(device_id, limit)` | `ContextBuilder.get_error_context()` | Investigate recent errors |
-| Command History | `get_command_history(device_id)` | `ContextBuilder.get_command_context()` | Check what commands were already tried |
+| Command History | `get_command_history(device_id)` | `ContextBuilder.get_command_context()` | Check what commands were already tried; results older than 30 minutes are labelled historical and stripped from model context |
 | Config History | `get_config_history(device_id)` | `ContextBuilder.get_config_context()` | Check recent configuration changes |
 | Similar Incidents | `search_similar_incidents(query)` | `DeviceMemory.query_similar()` | Find past solutions via vector search |
 | Fleet Summary | `get_fleet_summary()` | Fleet SQL query | Check fleet-wide impact of an issue |
 | Active Alerts | `get_alerts(severity)` | Alert query | Correlate alerts across devices |
+
+Command records are audit evidence, not live readings. `get_command_history`
+keeps the metadata and payload of older commands but omits their result
+payloads, so a previous run cannot be mistaken for a fresh device answer.
+`get_command(command_id)` still returns the full result when the technician
+asks about that specific past command, with a warning that it is not a live
+reading.
 
 ### Tool Definition Pattern
 

@@ -16,7 +16,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.actions import ActionProposal, allowed_actions_summary, validate_proposal
-from ai.context_builder import ContextBuilder, summarize_command_result
+from ai.context_builder import (
+    COMMAND_HISTORY_FRESH_WINDOW_MINUTES,
+    ContextBuilder,
+    command_age_seconds,
+    format_command_age,
+    summarize_command_result,
+)
 from ai.device_memory import DeviceMemory, MemoryScope
 
 logger = logging.getLogger(__name__)
@@ -371,11 +377,15 @@ async def get_error_logs(device_id: str, limit: int = 10) -> str:
 async def get_command_history(device_id: str) -> str:
     """Retrieve recent commands sent to a device, including payloads and results.
 
+    Command records are historical audit evidence, not live readings. Only
+    results from the last 30 minutes are included; older commands keep their
+    metadata and payload but have their result removed.
+
     Args:
         device_id: The device identifier to fetch command history for.
 
     Returns:
-        Recent commands with their types, statuses, payloads, and results.
+        Recent commands with types, statuses, ages and fresh result payloads.
     """
     try:
         context = await ContextBuilder.get_command_context(device_id=device_id)
@@ -418,6 +428,7 @@ async def get_command(device_id: str, command_id: str) -> str:
                     f"Command '{command_id}' does not belong to device '{device_id}'."
                 )
 
+        age = command_age_seconds(command.executed_at or command.created_at)
         lines = [
             f"command_id={command.command_id}",
             f"type={command.command_type}",
@@ -425,6 +436,15 @@ async def get_command(device_id: str, command_id: str) -> str:
             f"created={command.created_at.isoformat() if command.created_at else None}",
             f"executed_at={command.executed_at.isoformat() if command.executed_at else None}",
             f"issued_by={command.issued_by}",
+            "note=This is a past command record from "
+            f"{format_command_age(age)}, not a live reading; propose a fresh "
+            "action for current device state."
+            + (
+                f" Older than the {COMMAND_HISTORY_FRESH_WINDOW_MINUTES}-minute "
+                "fresh window, so get_command_history omits its result."
+                if age is not None and age > COMMAND_HISTORY_FRESH_WINDOW_MINUTES * 60
+                else ""
+            ),
         ]
         if command.payload:
             payload = json.dumps(command.payload, default=str)

@@ -1,7 +1,7 @@
 """Module for building rich context for the AI from various data sources."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 from typing import Any, Optional
@@ -47,6 +47,54 @@ logger = logging.getLogger(__name__)
 # from the tail (the final lines usually carry the status/error).
 _RESULT_FIELD_MAX = 500
 _RESULT_TAIL_MAX = 500
+
+# Command results older than this are historical evidence, not a live reading.
+# They stay in the database for audit, but are labelled and stripped of their
+# result payload before reaching the model, so a previous run cannot masquerade
+# as a fresh answer.
+COMMAND_HISTORY_FRESH_WINDOW_MINUTES = 30
+
+
+def command_age_seconds(
+    created_at: Any, now: Optional[datetime] = None
+) -> Optional[float]:
+    """Return the age of a command timestamp in seconds, clamped at zero.
+
+    Args:
+        created_at: The command's creation or execution timestamp.
+        now: Reference time; defaults to the current UTC time.
+
+    Returns:
+        Age in seconds, or ``None`` when the timestamp is missing. Naive
+        timestamps are treated as UTC, matching ``utc_now()`` in the models.
+    """
+    if created_at is None:
+        return None
+    reference = now or datetime.now(timezone.utc)
+    stamp = created_at
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return float(max(0.0, (reference - stamp).total_seconds()))
+
+
+def format_command_age(age_seconds: Optional[float]) -> str:
+    """Render a command age as a compact, human-readable string.
+
+    Args:
+        age_seconds: Age in seconds, or ``None`` for an unknown timestamp.
+
+    Returns:
+        A short string such as ``12s ago`` or ``3h ago``.
+    """
+    if age_seconds is None:
+        return "unknown age"
+    if age_seconds < 60:
+        return f"{int(age_seconds)}s ago"
+    if age_seconds < 3600:
+        return f"{int(age_seconds // 60)}m ago"
+    if age_seconds < 86400:
+        return f"{int(age_seconds // 3600)}h ago"
+    return f"{int(age_seconds // 86400)}d ago"
 
 
 def _clip(value: Any, maxlen: int = _RESULT_FIELD_MAX, tail: bool = False) -> str:
@@ -991,29 +1039,33 @@ class ContextBuilder:
         device_id: Optional[str] = None,
         limit: int = 5,
         session: Optional[AsyncSession] = None,
+        fresh_window_minutes: int = COMMAND_HISTORY_FRESH_WINDOW_MINUTES,
     ) -> str:
         """Retrieve recent commands with their payloads and results.
 
         Unlike ``get_device_command_context`` (which shows only metadata),
         this method includes the ``payload`` and ``result`` JSON fields so
         the LLM can see real command patterns and adapt them for new
-        payloads a technician requests.
+        payloads a technician requests. Results older than the fresh window
+        are labelled historical and have their result payload removed: they
+        are audit evidence, not current device readings.
 
         Args:
             device_id: Optional device ID (UUID) to filter by.
             limit: Number of recent commands to fetch.
             session: Optional database session to reuse.
+            fresh_window_minutes: Age below which a result is still shown.
         """
         try:
             if session:
                 return await ContextBuilder._get_command_context_impl(
-                    session, device_id, limit
+                    session, device_id, limit, fresh_window_minutes
                 )
 
             db_service = await get_database_service()
             async with db_service.get_session() as session:
                 return await ContextBuilder._get_command_context_impl(
-                    session, device_id, limit
+                    session, device_id, limit, fresh_window_minutes
                 )
 
         except Exception as e:
@@ -1025,6 +1077,7 @@ class ContextBuilder:
         session: AsyncSession,
         device_id: Optional[str],
         limit: int,
+        fresh_window_minutes: int = COMMAND_HISTORY_FRESH_WINDOW_MINUTES,
     ) -> str:
         stmt = select(DeviceCommand).order_by(DeviceCommand.created_at.desc())
 
@@ -1043,19 +1096,33 @@ class ContextBuilder:
         if not commands:
             return "No recent commands."
 
-        context_lines = ["[RECENT COMMANDS WITH PAYLOADS]"]
+        now = datetime.now(timezone.utc)
+        window_seconds = fresh_window_minutes * 60
+        context_lines = [
+            "[RECENT COMMAND HISTORY - historical records, not live readings]",
+            f"Only results from the last {fresh_window_minutes} minutes are "
+            "shown; older results are omitted. Do not answer a current-state "
+            "question from a historical result - propose a fresh action with "
+            "propose_device_action.",
+        ]
         for cmd in commands:
+            age = command_age_seconds(cmd.executed_at or cmd.created_at, now)
+            is_fresh = age is not None and age <= window_seconds
             payload_summary = ""
             if cmd.payload:
                 payload_str = json.dumps(cmd.payload, default=str)
                 if len(payload_str) > 200:
                     payload_str = payload_str[:200] + "..."
                 payload_summary = f" payload={payload_str}"
-            result_summary = summarize_command_result(cmd.result)
-            if result_summary:
-                result_summary = f" result={result_summary}"
+            result_summary = ""
+            if is_fresh:
+                summary = summarize_command_result(cmd.result)
+                if summary:
+                    result_summary = f" result={summary}"
             context_lines.append(
                 f"- type={cmd.command_type} status={cmd.status}"
+                f" age={format_command_age(age)}"
+                f" {'fresh' if is_fresh else 'historical'}"
                 f"{payload_summary}{result_summary}"
             )
         return "\n".join(context_lines)
