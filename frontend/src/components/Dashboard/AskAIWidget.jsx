@@ -3,6 +3,8 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronDown,
+  ChevronUp,
   Copy,
   Loader2,
   Sparkles,
@@ -235,6 +237,34 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
     setHistoryCursor(null);
     setHistoryDraft('');
   }, [c.messages.length]);
+
+  const promptHistory = c.messages
+    .filter((message) => message.role === 'user')
+    .map((message) => message.content);
+  const recallPreviousPrompt = () => {
+    if (c.loading || promptHistory.length === 0) return;
+    if (historyCursor === null) {
+      setHistoryDraft(c.query);
+      const next = promptHistory.length - 1;
+      setHistoryCursor(next);
+      c.setQuery(promptHistory[next]);
+    } else if (historyCursor > 0) {
+      const next = historyCursor - 1;
+      setHistoryCursor(next);
+      c.setQuery(promptHistory[next]);
+    }
+  };
+  const recallNextPrompt = () => {
+    if (historyCursor === null) return;
+    if (historyCursor < promptHistory.length - 1) {
+      const next = historyCursor + 1;
+      setHistoryCursor(next);
+      c.setQuery(promptHistory[next]);
+    } else {
+      setHistoryCursor(null);
+      c.setQuery(historyDraft);
+    }
+  };
 
   const newConversation = () => {
     c.clearHistory();
@@ -478,6 +508,30 @@ export default function AskAIWidget({ variant = 'compact', className = '' }) {
           {c.llmSwitching && (
             <Loader2 className="ai-switching animate-spin" aria-label="Switching provider" />
           )}
+          <button
+            type="button"
+            onClick={recallPreviousPrompt}
+            disabled={
+              c.loading ||
+              promptHistory.length === 0 ||
+              (historyCursor !== null && historyCursor === 0)
+            }
+            className="ai-icon-action"
+            aria-label="Previous prompt"
+            title="Previous prompt (Up arrow)"
+          >
+            <ChevronUp aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={recallNextPrompt}
+            disabled={historyCursor === null}
+            className="ai-icon-action"
+            aria-label="Next prompt"
+            title="Next prompt (Down arrow)"
+          >
+            <ChevronDown aria-hidden="true" />
+          </button>
           <button
             type={c.loading ? 'button' : 'submit'}
             onClick={c.loading ? c.handleCancel : undefined}
