@@ -156,13 +156,15 @@ A sixth attempt was refused before sending anything: the device had not polled
 for ~9.6 hours and was `offline`, so every proposal would have been rejected by
 the connectivity gate. The harness now blocks that case in preflight (#1008).
 
-One caution when comparing runs: the AI's `get_command_history` tool returns
-the last five commands for the device, with no age filter. A command executed
-shortly before the soak — the tail of a previous soak, or an aborted run — can
-make the model answer from that result instead of proposing a new one. Two
-read-only failures (`list_processes`, `list_connections`) were traced to
-exactly this and disappeared on the clean re-run. Treat a run that starts
-inside another run's history window as contaminated.
+Earlier runs could be contaminated when the AI's `get_command_history` tool
+returned the last five command results with no age filter: a command executed
+shortly before a soak could be answered from instead of proposing a new one.
+Two read-only failures (`list_processes`, `list_connections`) were traced to
+exactly this and disappeared on the clean re-run. The context builder now
+labels every command with its age, removes result payloads older than 30
+minutes, and states in the prompt that command history is historical evidence
+rather than a live reading. Runs no longer need database records removed
+between attempts; the full audit history can stay in place.
 
 ### Memory pollution (fixed)
 

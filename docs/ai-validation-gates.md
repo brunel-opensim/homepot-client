@@ -57,6 +57,11 @@ Implemented in `ai/gates/gate_b.py`. Connectivity is the **first** integrity que
 
 Connectivity uses the same `compute_connectivity` signal as the Dashboard's online/offline badge, so the gate never disagrees with the UI. A **device-scoped** query requires its target to be online; if it is offline or its connectivity is unknown, Gate B fails with a clear "target device is offline/unknown" reason. A **fleet-scoped** query excludes offline/unknown devices from the pool (so their stale records don't influence completeness/validity or the trust score) and fails only when no online device remains.
 
+The same freshness rule applies to command history: `get_command_history`
+marks each command with its age and omits results older than 30 minutes. The
+records stay in the database for audit; the model sees them as historical
+evidence and must propose a fresh action when asked about current state.
+
 Failing Gate B falls back to **Mode 2: Best-effort analytics** -- the LLM may still analyze the data, but the result is marked limited-trust / not audit-ready.
 
 ### Gate C -- Context Readiness
