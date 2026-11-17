@@ -314,8 +314,9 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         reversible=True,
         required_permission="network_monitoring",
         description=(
-            "Probe a host's connectivity (DNS resolution, ICMP ping, and an "
-            "optional TCP port check). Read-only; no state change."
+            "Probe a host by DNS/ping; pass bare hostname in 'host', TCP port "
+            "separately in 'port'. Never put a port in 'host' (for example "
+            "host='homepot.cabera.com', port=443). Read-only; no state change."
         ),
         required_params=("host",),
     ),

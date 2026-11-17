@@ -920,6 +920,31 @@ Returns:
 """
 
 
+def _normalize_network_test_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Split a ``host:port`` value into separate ``host`` and ``port`` params.
+
+    The device probes DNS and ICMP with ``host`` as given, so a port appended
+    to the hostname makes both checks fail. IPv6 literals (multiple colons)
+    and explicitly supplied ports are left alone.
+
+    Args:
+        params: Parsed proposal parameters.
+
+    Returns:
+        The original parameters or a copy with the port separated out.
+    """
+    host = params.get("host")
+    if not isinstance(host, str) or host.count(":") != 1:
+        return params
+    name, _, value = host.rpartition(":")
+    if not name or not value.isdigit() or params.get("port") is not None:
+        return params
+    normalized = dict(params)
+    normalized["host"] = name
+    normalized["port"] = int(value)
+    return normalized
+
+
 async def propose_device_action(
     action: str,
     target_device_id: str,
@@ -961,6 +986,15 @@ async def propose_device_action(
         if not isinstance(parsed, dict):
             return f"Invalid params for '{action}': expected a JSON object."
 
+    normalization_note = ""
+    if action == "network_test":
+        normalized = _normalize_network_test_params(parsed)
+        if normalized != parsed:
+            normalization_note = (
+                " Normalized 'host:port' into separate 'host' and 'port' params."
+            )
+        parsed = normalized
+
     spec, error = validate_proposal(action, target_device_id, parsed)
     if error or spec is None:
         return f"Proposal rejected: {error}"
@@ -984,7 +1018,8 @@ async def propose_device_action(
 
     return (
         f"Recorded proposal: {spec.name} on {target_device_id} "
-        f"(risk {spec.risk_tier}, reversible={spec.reversible}). "
+        f"(risk {spec.risk_tier}, reversible={spec.reversible})."
+        f"{normalization_note} "
         "This is a PROPOSAL only — it has NOT been executed and requires "
         "technician approval. In your final answer, state clearly that the "
         "action is pending approval and must not be assumed to have happened. "

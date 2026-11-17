@@ -145,6 +145,8 @@ three most recent runs are:
 | baseline | 19/24 | clean memory + command history | `ai-soak-results-20261116T125701Z.json` |
 | after #1004 | 19/24 | action descriptions deployed, but not delivered | `ai-soak-results-20261116T134459Z.json` |
 | after #1006 + #1007 | **24/24** | schema delivery and telemetry provenance fixed | `ai-soak-results-20261117T091430Z.json` |
+| after #1010 | 23/24 | prior command history retained, freshness fix not yet deployed | `ai-soak-results-20261117T123719Z.json` |
+| after #1011 | 23/24 | stale history labelled; no records removed between runs | `ai-soak-results-20261117T133211Z.json` |
 
 The baseline file came from a run at 2026-11-16 13:10 UTC (788.4 s). Run 5
 used `claude-haiku-4-5-20251001` on `DEVICE-HSZK-T24Y-TSCX`, started
@@ -155,6 +157,8 @@ matching audit trail. The proposal queue was empty at the end.
 A sixth attempt was refused before sending anything: the device had not polled
 for ~9.6 hours and was `offline`, so every proposal would have been rejected by
 the connectivity gate. The harness now blocks that case in preflight (#1008).
+Two later runs took 803.4 s and 865.4 s; both scored 23/24 for the same
+`network_test` reason described below.
 
 Earlier runs could be contaminated when the AI's `get_command_history` tool
 returned the last five command results with no age filter: a command executed
@@ -164,7 +168,20 @@ exactly this and disappeared on the clean re-run. The context builder now
 labels every command with its age, removes result payloads older than 30
 minutes, and states in the prompt that command history is historical evidence
 rather than a live reading. Runs no longer need database records removed
-between attempts; the full audit history can stay in place.
+between attempts; the full audit history can stay in place. The run after
+#1011 confirmed this: with all prior command records still in the database,
+every command except `network_test` proposed the expected action and passed.
+
+### network_test host/port (fixed in #1012)
+
+The two runs after #1010 both failed only command 6 (`network_test`). The
+recorded payload was `host='homepot.cabera.com:443'`: the model appended the
+port to the hostname. The device resolves DNS and sends ICMP with `host` as
+given, so `getaddrinfo` failed even though the host itself is reachable. The
+action description now leads with the rule that `host` is a bare hostname and
+the TCP port belongs in the separate `port` param, and
+`propose_device_action` splits a single-colon `host:port` value when no
+explicit port was supplied. IPv6 literals and explicit ports are unchanged.
 
 ### Memory pollution (fixed)
 
