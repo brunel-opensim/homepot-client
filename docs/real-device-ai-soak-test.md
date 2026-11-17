@@ -137,6 +137,11 @@ uncontaminated command history, and is the baseline the fixes below are
 measured against. Every gap was in the AI's **action selection**, not in the
 propose → approve → execute → verify loop.
 
+The harness prints each command's risk tier (T1 read-only, T2 reversible, T3
+disruptive) in the preview, evidence table, timings, failure detail and JSON
+records. The value comes from `ACTION_REGISTRY`, so the report cannot drift
+from the actions the AI is allowed to propose.
+
 The earlier 18/24 and 14/24 runs predate the retained evidence files; the
 three most recent runs are:
 
