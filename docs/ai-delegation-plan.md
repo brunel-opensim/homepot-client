@@ -937,7 +937,10 @@ Risk: session contention on the shared async session.
 ### 18.10 Operational query granularity and gate over-validation (open design question)
 
 A count such as "How many active devices are online?" currently routes to
-`diagnostic` because it matches the `online` operational pattern. It therefore
+`diagnostic` because it matches the `online` operational pattern. The plan also
+requires explicit prompt definitions for active, online, offline/unknown, and
+healthy, since the backend distinguishes them but the prompt currently only
+implies the difference through labels. It therefore
 runs the full gate chain, including Gate B telemetry checks. When the fleet has
 no online devices, Gate B connectivity fails and the answer is capped at Mode 2
 / best-effort analytics with cautionary framing, even though the count itself

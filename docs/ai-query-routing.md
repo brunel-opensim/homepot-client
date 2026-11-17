@@ -536,6 +536,29 @@ Query: "How many active devices are online?"
   example carried a trust score around 44%, though the exact score depends on
   the other gate results. The count itself is a valid fleet observation.
 
+### Terminology to make explicit
+
+The backend already distinguishes these terms, but the prompt does not define
+them. The AI infers meaning only from labels such as `Total Active Devices` and
+`Online Devices`, which is not reliable enough for small models or mixed
+questions.
+
+- **Active**: the device record is enabled and visible in the fleet
+  (`Device.is_active = true`).
+- **Online**: an active device whose latest heartbeat is inside the configured
+  offline threshold, computed by `compute_connectivity()`. Online is a subset
+  of active.
+- **Offline / Unknown**: an active device whose heartbeat is stale or absent.
+- **Healthy**: a separate health-state field (`health_state`), not the same as
+  online.
+
+Before implementation, the fleet-summary context block should define these
+terms and use a clearer label such as
+`Online Devices (active with fresh heartbeat)`. When a question mixes "active"
+and "online" (for example, "How many active devices are online?"), the answer
+should state both counts briefly: "There are N active devices, of which M are
+online."
+
 ### Possible differentiation axes
 
 1. **Intent granularity.** Add a third operational class such as `fleet_summary`
@@ -609,6 +632,8 @@ or proposal behavior while the new route is being validated.
 
 Tests to add:
 - "How many active devices are online?" -> `fleet_summary`.
+- "How many devices are active?" -> `fleet_summary` (active count, not online).
+- "How many devices are online?" -> `fleet_summary` (online count).
 - "How many devices reported high CPU?" -> `diagnostic`.
 - "Why is device X offline?" -> `diagnostic` (device scope wins).
 - "How do I enroll a device?" -> `knowledge`.
@@ -644,6 +669,13 @@ uses the existing `Online Devices` count from `site_context`.
 
 - Apply the "Actionable is no => cautionary" prompt mandate only to
   non-actionable trust modes, not to a grounded `fleet_summary` answer.
+- Define active, online, offline/unknown, and healthy in the fleet-summary
+  context block, using the terminology in section 14.1.
+- Rename the context line `Online Devices` to
+  `Online Devices (active with fresh heartbeat)` and keep `Total Active
+  Devices` explicitly labelled as the enabled/visible fleet count.
+- Instruct the model that a mixed active/online question should report both
+  counts: "There are N active devices, of which M are online."
 - Add `Fleet summary` to the mode selector alongside Auto, Knowledge, and
   Diagnostic.
 - Show a `Fleet summary` chip for the new route; keep the existing trust UI for
@@ -659,13 +691,19 @@ uses the existing `Online Devices` count from `site_context`.
 - Add a status row to `docs/ai-delegation-plan.md` section 17.7 when the work is
   implemented.
 - Acceptance checks:
-  1. "How many active devices are online?" returns a grounded count without
-     telemetry gate checks or cautionary framing.
-  2. "Why is device X offline?" stays on the full diagnostic path.
-  3. "How many devices have high memory?" stays diagnostic and still runs
+  1. "How many active devices are online?" returns a grounded answer without
+     telemetry gate checks or cautionary framing, and states both the active
+     count and the online count.
+  2. "How many devices are active?" returns the active count, not the online
+     count.
+  3. "How many devices are online?" returns the online count.
+  4. "How many healthy devices are online?" does not conflate `health_state`
+     with connectivity.
+  5. "Why is device X offline?" stays on the full diagnostic path.
+  6. "How many devices have high memory?" stays diagnostic and still runs
      telemetry gates.
-  4. "How do I enroll a device?" stays on the knowledge path.
-  5. "Restart device X" keeps the existing action / proposal path.
+  7. "How do I enroll a device?" stays on the knowledge path.
+  8. "Restart device X" keeps the existing action / proposal path.
 
 Status: **Proposed** (no code changes).
 
