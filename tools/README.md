@@ -38,8 +38,10 @@ compare against. The only early exit is when the device stops polling after
 report is still printed.
 
 Before sending anything the script reads the device and prints its lifecycle
-state, last-seen time and granted permissions, aborting when a command would be
-rejected (pass `--force` to run anyway).
+state, connectivity state, last-seen time and granted permissions, aborting
+when a command would be rejected or when the device is not online — proposals
+are refused for offline devices, so a run started then measures nothing (pass
+`--force` to run anyway).
 
 ### Usage
 
