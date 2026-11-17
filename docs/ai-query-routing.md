@@ -513,6 +513,75 @@ operational path.
 5. **Naming:** `knowledge` vs `informational` vs `general`; and the new
    `trust_mode` label.
 
+## 14.1 Operational query granularity (open design question)
+
+A binary `knowledge` / `diagnostic` split is not always enough. A query such as
+"How many active devices are online?" is operational, but its answer is a simple
+aggregate count derived from the `devices` table. Running the full telemetry
+gate chain (Gate B completeness, freshness, continuity, validity) and then
+capping trust at Mode 2 when the fleet has zero online devices can make a
+correct count look untrustworthy.
+
+### Observed example
+
+Query: "How many active devices are online?"
+
+- Route: `diagnostic` (matches `active` and `online` in `OPERATIONAL_PATTERNS`).
+- Gate B connectivity fails when there are no online devices, because the check
+  treats "no online devices" as "fleet telemetry is unavailable".
+- Result: Mode 2 / best-effort analytics, trust around 44%, with cautionary
+  framing, even though the count itself is a valid fleet observation.
+
+### Possible differentiation axes
+
+1. **Intent granularity.** Add a third operational class such as `fleet_summary`
+   or `status` for inventory/count questions. This class would remain
+   operational, but would not need telemetry-integrity validation or AI
+   insights.
+2. **Data dependency.** Split Gate B by what the answer actually depends on:
+   - Fleet count / inventory: Gate A + connectivity; skip telemetry integrity.
+   - Telemetry trend / health: Gate A + full Gate B + Gate C.
+   - Anomaly analysis: Gate A + full Gate B + Gate C + insights.
+   - Device-specific diagnosis: Gate A + target connectivity + telemetry gates.
+   - Action / proposal: full gates plus policy controls.
+3. **Connectivity semantics.** For fleet-scoped counts, "0 online devices" can
+   be a valid observation rather than a data-integrity failure. For
+   device-scoped queries, an offline target should still fail because that
+   device cannot be diagnosed.
+4. **Trust presentation.** Aggregate/status answers could use a non-cautionary
+   trust presentation, while telemetry-dependent diagnostics keep the current
+   Mode 2 / Mode 3 framing.
+5. **Explicit control.** Extend the UI mode selector or add a `needs` /
+   `scope` field (`inventory` vs `telemetry`) so the technician can state the
+   required evidence instead of relying only on natural-language heuristics.
+
+### Trade-offs
+
+- Skipping gates can hide real data-quality problems. A count of zero online
+  devices may be correct, or it may indicate a heartbeat pipeline failure.
+- Heuristic routing is already conservative and can misclassify. More classes
+  increase that risk, so the default should remain `diagnostic`.
+- Trust scores need a clear meaning: a count can be trusted even when telemetry
+  is stale, but users must be able to see that distinction.
+- Action and proposal paths must remain fully gated.
+- Any new class should be validated with soak tests and trust-score checks
+  before it affects production answers.
+
+### Open questions
+
+- Should "How many active devices are online?" be `knowledge`, `diagnostic`, or
+  a new `fleet_summary` class?
+- Should Gate B's connectivity check pass for fleet-scoped counts when zero
+  devices are online, while telemetry checks still fail independently?
+- Should aggregate counts use a lighter gate set (Gate A + connectivity) and
+  skip completeness, freshness, continuity, and validity?
+- Should the system prompt's cautionary mandate apply only to
+  telemetry-dependent diagnostics?
+- Would an explicit `scope` or `needs` parameter be more reliable than
+  natural-language routing?
+
+Status: **Open** (design discussion only; no code changes).
+
 ## 15. References
 
 - `backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py` — `/ai/query`

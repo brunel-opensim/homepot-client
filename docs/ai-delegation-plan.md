@@ -934,6 +934,25 @@ diagnostic path always provides a session, so it's always sequential.
 **Potential fix:** Use separate sessions per query to enable parallelism.
 Risk: session contention on the shared async session.
 
+### 18.10 Operational query granularity and gate over-validation (open design question)
+
+A count such as "How many active devices are online?" currently routes to
+`diagnostic` because it matches operational vocabulary (`active`, `online`).
+It therefore runs the full gate chain, including Gate B telemetry checks. When
+the fleet has no online devices, Gate B connectivity fails and the answer is
+capped at Mode 2 / best-effort analytics with cautionary framing, even though
+the count itself is a valid fleet observation derived from the `devices` table.
+
+This is tracked as a design question rather than a defect: the validation
+gates are doing exactly what they were asked to do, but the binary
+`knowledge` / `diagnostic` split may be too coarse for aggregate/status
+queries. Candidate directions include a third `fleet_summary` / `status`
+intent, data-dependency-aware gate selection, non-failing connectivity for
+fleet-scoped counts, and an explicit `scope` / `needs` parameter.
+
+Full discussion, trade-offs, and open questions:
+[AI Query Intent Routing § 14.1](ai-query-routing.md#141-operational-query-granularity-open-design-question).
+
 ### Status
 
 All items above are **Open** (not implemented). They are tracked here for
