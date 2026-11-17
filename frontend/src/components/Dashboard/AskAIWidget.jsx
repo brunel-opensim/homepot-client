@@ -138,8 +138,8 @@ function ConversationMessage({ message }) {
               </span>
             )}
             {message.elapsedMs != null && <span>{Math.round(message.elapsedMs / 1000)} s</span>}
-            <CopyButton text={message.content} />
           </div>
+          <CopyButton text={message.content} />
           {message.toolCalls?.length > 0 && (
             <ul className="ai-activity ai-activity-done" aria-label="AI actions taken">
               {message.toolCalls.map((tc) => (
