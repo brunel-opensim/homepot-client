@@ -959,6 +959,8 @@ Full discussion, trade-offs, and open questions:
 [AI Query Intent Routing § 14.1](ai-query-routing.md#141-operational-query-granularity-open-design-question).
 A proposed implementation sequence is in
 [§ 14.2](ai-query-routing.md#142-implementation-plan-proposed-not-implemented).
+The plan preserves the existing invariant that only fully gated diagnostic /
+action paths can create proposals, including compose-command proposals.
 
 ### Status
 

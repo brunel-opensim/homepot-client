@@ -683,6 +683,35 @@ uses the existing `Online Devices` count from `site_context`.
 - Keep `fleet_summary` answers non-actionable at the tool level: no proposal
   tools, no approval flow, even if trust is grounded.
 
+### Proposal-creation invariant
+
+The current endpoint already enforces the rule that a proposal is created only
+after the full validation envelope passes:
+
+- The canonical envelope runs Gate A -> B -> C -> D -> E, then repeats Gate C
+  against the final context after AI insights are appended.
+- `trust.is_actionable` is true only for `MODE_GROUNDED`, which is returned only
+  when no gate failed. Any gate failure selects a non-actionable mode.
+- When validation is not actionable, the endpoint passes a
+  `proposal_block_reason` into the agent loop; `propose_device_action` and
+  `propose_fleet_action` return without appending an `ActionProposal`.
+- The endpoint persists an `AIActionPlan` only when `trust.is_actionable` and
+  the agent did not fall back to direct generation.
+- Knowledge and direct paths never offer proposal tools. The action registry,
+  RBAC check, target-online check, and honesty guard remain additional
+  downstream controls.
+
+This must remain true for compose-command proposals such as `start_program`,
+`restart_service`, and `run_command`: they are registered actions, but they are
+still only reachable through the fully gated diagnostic/action path.
+
+Because `fleet_summary` skips telemetry gates, it must not be allowed to create
+proposals even if its own trust label is "grounded" for inventory questions.
+Phase 2 must therefore set `effective_agentic = False` for `fleet_summary` and
+pass an unconditional `proposal_block_reason` such as "fleet summary is
+informational; no proposals". Phase 3 must not expose a proposal/action
+control on the fleet-summary route.
+
 ### Verification and rollout
 
 - Add an env flag such as `AI_FLEET_SUMMARY_ROUTING` (default off) for phases 2
@@ -703,7 +732,11 @@ uses the existing `Online Devices` count from `site_context`.
   6. "How many devices have high memory?" stays diagnostic and still runs
      telemetry gates.
   7. "How do I enroll a device?" stays on the knowledge path.
-  8. "Restart device X" keeps the existing action / proposal path.
+  8. "Restart device X" keeps the existing action / proposal path, including
+     full gates and a registered compose-command action.
+  9. A compose-command request immediately after a fleet-summary answer still
+     routes to the diagnostic/action path; the fleet-summary answer itself
+     creates no proposal.
 
 Status: **Proposed** (no code changes).
 
