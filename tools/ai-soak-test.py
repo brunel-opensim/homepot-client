@@ -28,6 +28,10 @@ audit           ``command_queued`` -> ``command_sent`` -> ``command_completed``
                 appears in the device audit log for that command
 ==============  ==============================================================
 
+Each row shows the action's risk tier (T1 read-only, T2 reversible, T3
+disruptive), read from ``ACTION_REGISTRY`` so the report cannot drift from the
+AI's allowlist.
+
 The command set mirrors ``compose-soak-test.py`` exactly (the same 24 safe
 actions, in the same order) so the two runs are directly comparable: same
 coverage, one through the command API and one through the AI.
@@ -77,6 +81,13 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+
+# The risk tier shown for each command comes from the action registry, so the
+# soak report cannot drift from what the AI is actually allowed to propose.
+WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
+from ai.actions import ACTION_REGISTRY  # noqa: E402
 
 # Terminal plan statuses: polling stops at any of these.
 TERMINAL_PLAN_STATUSES = {
@@ -803,11 +814,18 @@ def evaluate_readiness(
 # --- One command ------------------------------------------------------------
 
 
+def action_tier(action: str) -> str:
+    """Return the registry risk tier for an action, or ``?`` if unregistered."""
+    spec = ACTION_REGISTRY.get(action)
+    return spec.risk_tier if spec is not None else "?"
+
+
 def new_record(index: int, action: str, label: str, prompt: str) -> Dict[str, Any]:
     """Build the empty evidence record shared by run and skipped commands."""
     return {
         "index": index,
         "action": action,
+        "tier": action_tier(action),
         "label": label,
         "prompt": prompt,
         "plan_id": None,
@@ -1219,7 +1237,7 @@ def format_elapsed(seconds: Optional[float]) -> str:
 def print_table(records: List[Dict[str, Any]]) -> None:
     """Print one evidence row per command."""
     print(
-        f"{'#':>3}  {'action':26s}  {'prop':4s} {'match':5s} {'plan':4s} "
+        f"{'#':>3}  {'tier':4s}  {'action':26s}  {'prop':4s} {'match':5s} {'plan':4s} "
         f"{'approv':6s} {'exec':4s} {'verif':5s} {'hist':4s} {'audit':5s} "
         f"{'err':>3s} {'elapsed':>8s}  outcome"
     )
@@ -1227,7 +1245,8 @@ def print_table(records: List[Dict[str, Any]]) -> None:
         checks = record["checks"]
         if record["outcome"] == OUTCOME_SKIPPED:
             print(
-                f"{record['index']:>3}  {record['action']:26s}  "
+                f"{record['index']:>3}  {record['tier']:4s}  "
+                f"{record['action']:26s}  "
                 f"{'':57s} {OUTCOME_SKIPPED}"
             )
             continue
@@ -1236,7 +1255,8 @@ def print_table(records: List[Dict[str, Any]]) -> None:
             return "ok" if checks.get(name) else "--"
 
         print(
-            f"{record['index']:>3}  {record['action']:26s}  "
+            f"{record['index']:>3}  {record['tier']:4s}  "
+            f"{record['action']:26s}  "
             f"{mark('proposed'):4s} {mark('action_match'):5s} "
             f"{mark('persisted'):4s} {mark('approved'):6s} "
             f"{mark('executed'):4s} {mark('verified'):5s} "
@@ -1252,8 +1272,8 @@ def print_failure_detail(record: Dict[str, Any], device_id: str) -> None:
     window = record.get("window") or {}
     proposed = ", ".join(record.get("proposed_actions") or []) or "-"
     print(
-        f"#{record['index']} {record['action']} ({record['label']}) — "
-        f"{record['outcome']}"
+        f"#{record['index']} {record['action']} [{record['tier']}] "
+        f"({record['label']}) — {record['outcome']}"
     )
     print(f"    prompt     : {record['prompt']}")
     print(f"    plan_id    : {record.get('plan_id') or '(never created)'}")
@@ -1305,7 +1325,10 @@ def print_timings(records: List[Dict[str, Any]]) -> None:
     """Print per-command latency: query -> execute -> terminal."""
     print("\nTIMINGS (seconds)")
     print("-" * 78)
-    print(f"{'#':>3}  {'action':26s}  {'query':>7s} {'total':>8s} {'plan_status':>12s}")
+    print(
+        f"{'#':>3}  {'tier':4s}  {'action':26s}  "
+        f"{'query':>7s} {'total':>8s} {'plan_status':>12s}"
+    )
     for record in records:
         timings = record["timings"]
 
@@ -1313,7 +1336,8 @@ def print_timings(records: List[Dict[str, Any]]) -> None:
             return "-" if value is None else f"{value:.1f}"
 
         print(
-            f"{record['index']:>3}  {record['action']:26s}  "
+            f"{record['index']:>3}  {record['tier']:4s}  "
+            f"{record['action']:26s}  "
             f"{cell(timings.get('query_s')):>7s} "
             f"{cell(timings.get('total_s')):>8s} "
             f"{str(record.get('plan_status') or ''):>12s}"
@@ -1411,9 +1435,12 @@ def parse_args() -> argparse.Namespace:
 
 def print_command_list() -> None:
     """Print the delegated command set without sending anything."""
-    print(f"{'#':>2}  {'action':28s}  {'timeout':>7s}  prompt")
+    print(f"{'#':>2}  {'tier':4s}  {'action':28s}  {'timeout':>7s}  prompt")
     for i, cmd in enumerate(SOAK_COMMANDS, 1):
-        print(f"{i:>2}  {cmd['action']:28s}  {cmd['timeout']:>6}s  {cmd['prompt']}")
+        print(
+            f"{i:>2}  {action_tier(cmd['action']):4s}  "
+            f"{cmd['action']:28s}  {cmd['timeout']:>6}s  {cmd['prompt']}"
+        )
 
 
 def resolve_password(args: argparse.Namespace) -> str:

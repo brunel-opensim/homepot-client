@@ -64,3 +64,31 @@ def test_missing_connectivity_state_stays_a_warning(soak):
     )
     assert ready, problems
     assert any("last_seen" in w for w in warnings), warnings
+
+
+def test_action_tier_comes_from_registry(soak):
+    """The report uses the registry tier, with a fallback for unknown actions."""
+    assert soak.action_tier("network_test") == "T1"
+    assert soak.action_tier("update_config") == "T2"
+    assert soak.action_tier("not_registered") == "?"
+
+
+def test_new_record_carries_tier(soak):
+    """Every evidence record records the tier for the JSON bundle."""
+    record = soak.new_record(1, "network_test", "Network Test", "prompt")
+    assert record["tier"] == "T1"
+
+
+def test_report_and_preview_show_tier_column(soak, capsys):
+    """The operator sees the tier in the preview and the evidence table."""
+    soak.print_command_list()
+    preview = capsys.readouterr().out
+    assert "tier" in preview
+    assert "T1" in preview
+
+    record = soak.new_record(1, "update_config", "Update Config", "prompt")
+    record["outcome"] = soak.OUTCOME_PASS
+    soak.print_table([record])
+    table = capsys.readouterr().out
+    assert "tier" in table
+    assert "T2" in table
