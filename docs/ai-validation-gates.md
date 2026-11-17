@@ -82,8 +82,20 @@ Implemented in `ai/gates/gate_d.py`. Validates that a device's requested permiss
 | `D.capabilities_defined` | The device has a defined capability set. |
 | `D.permissions_defined` | The device has a defined permission set. |
 | `D.permissions_within_capabilities` | Every requested permission is a subset of the device's capabilities. |
+| `D.device_found` | The focus device still exists in the registry. A deleted device fails this and blocks proposals. |
 
 Failing Gate D falls back to **Mode 4: Permission Gap** (trust ceiling `0.75`) -- the AI cannot safely recommend device actions when permissions and capabilities are inconsistent or undefined. Gate D only applies when a specific device is the subject of the query; it passes trivially when no device is identified.
+
+**Stale focus device (fixed).** When a caller does not pass a `device_id`, the
+query endpoint carries one forward from conversation history so follow-up
+questions keep their subject. It used to copy the last `DEVICE-...` token
+without checking the registry. If that device had since been removed or
+deactivated, `D.device_found` failed and **every proposal was blocked**, even
+when the question named a different, registered device. The helper
+`_resolve_history_device_id` now skips ids that no longer resolve and keeps
+looking through older turns. This is the practical meaning of "history is
+informational only": a past turn cannot force a deleted device into the live
+gate context.
 
 ### Gate E -- Lifecycle Integrity
 
