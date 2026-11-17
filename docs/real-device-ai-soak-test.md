@@ -129,6 +129,10 @@ uncontaminated command history, and is the baseline the fixes below are
 measured against. Every gap is in the AI's **action selection**, not in the
 propose → approve → execute → verify loop.
 
+A fourth run, after the action descriptions were deployed, returned 19/24 with
+the same five failures. That identical score is what exposed the schema
+delivery defect below: the descriptions were never reaching the model.
+
 One caution when comparing runs: the AI's `get_command_history` tool returns
 the last five commands for the device, with no age filter. A command executed
 shortly before the soak — the tail of a previous soak, or an aborted run — can
@@ -210,13 +214,34 @@ effect on the soak score has not been measured yet.
 
 ### Direct-answer gaps
 
-`tail_system_log` and `get_system_info` are answered directly from context
-instead of proposed as actions. "Read the log" / "get system info" read as
-informational to the model rather than imperative. Unlike the mapping gaps,
-these survive a clean run and are the remaining open issue: the model prefers
-the telemetry tools (`get_error_logs`, `get_device_status`) over delegating,
-even though the tool docstring says to propose whenever the user asks for a
-device action.
+`tail_system_log` and `get_system_info` are answered directly instead of being
+proposed as actions. "Read the most recent system log events" and "get the
+system information" read as questions, so the model calls a telemetry tool and
+stops.
+
+The telemetry tools made that look like the right answer. `get_error_logs`
+returns HOMEPOT's own event log — status reports and command events, including
+`info`-level rows — and its description said "error logs for a device", so a
+table of timestamped events reads exactly like a system log.
+`get_device_status` returns identity, OS, firmware and health, which reads
+exactly like system information. Neither tool said where its data comes from,
+and the system prompt never distinguished a fresh reading from the device from
+what the server last recorded.
+
+Fixed in the prompt and the tool descriptions rather than in the soak prompts,
+because the ambiguity is real:
+
+- the action verb list in `AGENT_SYSTEM_PROMPT` now includes read, get, fetch,
+  gather and inspect, and names "read the device's system log" and "get its
+  system or hardware information"
+- a new rule states that server telemetry is a summary, not a fresh reading,
+  and that asking for data only the device can produce must be proposed
+- `get_error_logs` and `get_device_status` say it in their first line — the only
+  part of a docstring that reaches the model — and point to the action that
+  reads the machine
+
+Status: **Open** — the change is tested at the schema and prompt level, but the
+effect on the soak score is not measured yet.
 
 ### `update_config` capability confusion
 

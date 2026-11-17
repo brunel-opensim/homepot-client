@@ -16,7 +16,13 @@ workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
-from ai.agent import AgentResult, ToolCallRecord, _execute_tool, run_agent  # noqa: E402
+from ai.agent import (  # noqa: E402
+    AGENT_SYSTEM_PROMPT,
+    AgentResult,
+    ToolCallRecord,
+    _execute_tool,
+    run_agent,
+)
 from ai.device_memory import MemoryScope  # noqa: E402
 from ai.exceptions import AIBusyError  # noqa: E402
 from ai.tools import (  # noqa: E402
@@ -568,3 +574,32 @@ def test_agentic_flag_in_request_model():
         source = f.read()
     assert "agentic: bool" in source
     assert "agentic=False" in source or "default=False" in source
+
+
+# ── Device-side requests vs server telemetry ────────────────────────────────
+
+
+def test_system_prompt_sends_device_side_requests_to_the_proposal_layer():
+    """Reading the device's log or inventory is an action, not a Q&A answer.
+
+    Two soak commands failed because the model answered them from server
+    telemetry: ``get_error_logs`` returns HOMEPOT's own event log, which reads
+    like a system log, and ``get_device_status`` reads like system information.
+    Nothing told the model those tools serve platform telemetry.
+    """
+    prompt = AGENT_SYSTEM_PROMPT
+    assert "read, get, fetch, gather, inspect" in prompt
+    assert "read the device's system log" in prompt
+    assert "system or hardware information" in prompt
+    assert "Server telemetry is a summary" in prompt
+
+
+def test_telemetry_tools_say_they_are_not_the_device_log():
+    """Only the first docstring line reaches the model, so it must be explicit."""
+    pytest.importorskip("docstring_parser")
+    from ai.llm_providers import _function_to_tool_schema
+
+    logs = _function_to_tool_schema(get_error_logs)["function"]["description"]
+    status = _function_to_tool_schema(get_device_status)["function"]["description"]
+    assert "not the device's own OS log" in logs, logs
+    assert "cached telemetry" in status, status
