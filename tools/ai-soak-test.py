@@ -766,6 +766,13 @@ def evaluate_readiness(
             "'active' devices"
         )
 
+    connectivity = str(device.get("connectivity_state") or "").strip().lower()
+    if connectivity and connectivity != "online":
+        problems.append(
+            f"connectivity_state is '{connectivity}'; proposals are refused for "
+            "devices that are not online, so a run would measure nothing"
+        )
+
     permissions = device.get("device_permissions")
     granted = permissions if isinstance(permissions, dict) else {}
     blocked: Dict[str, List[str]] = {}
@@ -1319,6 +1326,7 @@ def print_readiness(
     """Print the preflight block: what the device is and what it may do."""
     print(f"\nReadiness: {device.get('name') or device.get('device_id')}")
     print(f"  lifecycle_state : {device.get('lifecycle_state')}")
+    print(f"  connectivity    : {device.get('connectivity_state') or '(unknown)'}")
     print(f"  last_seen       : {device.get('last_seen')}")
     print(f"  agent_restarts  : {device.get('agent_restart_count')}")
     permissions = device.get("device_permissions")

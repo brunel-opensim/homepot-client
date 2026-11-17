@@ -12,8 +12,16 @@ Device under test: **Brunel Device 001** at site **Brunel Site**.
 - [ ] Device enrolled, online, agent reporting a version (not "REAL") in
       Device Details → Source.
 - [ ] Technician account has operator access to Brunel Site.
-- [ ] LLM provider is Ollama (local) for this run, so no device data leaves
-      the host. Confirm via `GET /api/v1/ai/provider`.
+- [ ] `connectivity_state` is `online`. The harness aborts before sending
+      anything otherwise: proposals are refused for offline devices, so a run
+      started then measures nothing. Check the last-seen age too — a device
+      that has not polled for hours is not reachable even if `status` still
+      says online.
+- [ ] LLM provider chosen for the run is recorded in the evidence file. Server
+      runs follow the provider matrix order Anthropic → OpenAI → Ollama, so
+      they used Anthropic (`claude-haiku-4-5`); use Ollama when device data
+      must not leave the host. Confirm via `GET /api/v1/ai/provider` or pass
+      `--provider`.
 - [ ] `HOMEPOT_AI_STEP_MAX_RETRIES` left at default (2) so retry fires on
       real transport failures.
 - [ ] A baseline `Apply Configuration` (volume/brightness) has succeeded on
