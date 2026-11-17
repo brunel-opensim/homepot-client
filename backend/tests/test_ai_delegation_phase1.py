@@ -25,10 +25,12 @@ from ai.actions import (  # noqa: E402
     ACTION_REGISTRY,
     ActionProposal,
     all_reversible,
+    allowed_actions_summary,
     max_risk_tier,
     validate_proposal,
 )
 from ai.tools import (  # noqa: E402
+    _normalize_network_test_params,
     get_tool_proposal_block_reason,
     get_tool_proposal_sink,
     propose_device_action,
@@ -381,6 +383,49 @@ async def test_tool_captures_validated_proposal_in_sink():
         assert proposal.action == "update_config"
         assert proposal.params == {"config": {"log_level": "debug"}}
         assert proposal.risk_tier == "T2"
+    finally:
+        reset_tool_proposal_sink(token)
+
+
+def test_network_test_summary_keeps_host_port_guidance():
+    """The model-visible action list must explain the separate port param."""
+    line = next(
+        line
+        for line in allowed_actions_summary().splitlines()
+        if "'network_test'" in line
+    )
+    assert "pass bare hostname in 'host', TCP port separately in 'port'" in line
+    assert "..." not in line
+
+
+def test_network_test_normalizer_leaves_ipv6_and_explicit_port():
+    """Only a single-colon host without an explicit port is split."""
+    assert _normalize_network_test_params({"host": "::1"}) == {"host": "::1"}
+    assert _normalize_network_test_params({"host": "example.com", "port": 80}) == {
+        "host": "example.com",
+        "port": 80,
+    }
+    assert _normalize_network_test_params({"host": "example.com:notaport"}) == {
+        "host": "example.com:notaport"
+    }
+
+
+@pytest.mark.asyncio
+async def test_tool_normalizes_host_port_for_network_test():
+    """A model-supplied host:port is recorded as two device-ready params."""
+    _seed_device()
+    sink = []
+    token = set_tool_proposal_sink(sink)
+    try:
+        result = await propose_device_action(
+            "network_test",
+            "POS-001",
+            "test connectivity",
+            params='{"host": "homepot.cabera.com:443"}',
+        )
+        assert "Normalized" in result
+        assert len(sink) == 1
+        assert sink[0].params == {"host": "homepot.cabera.com", "port": 443}
     finally:
         reset_tool_proposal_sink(token)
 
