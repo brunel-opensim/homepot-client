@@ -194,6 +194,13 @@ Low priority for tuning.
   required permissions (`command_execution`, `process_monitoring`,
   `filesystem_access`, `network_monitoring`).
 - **Trust impact:** Full credit (1.0).
+- **Failure seen in the UI:** asking about Brunel Device 001 was blocked with
+  "focus device DEVICE-Z9SG-UZBS-58S2 is not found in the device registry".
+  The chat had mentioned that device in an earlier turn and it had since been
+  deleted; the endpoint carried the stale id forward into the gate context.
+  Removed devices now fail `D.device_found` only if they are still explicitly
+  requested; history no longer supplies them. Clicking **New conversation**
+  was the workaround before the fix.
 
 ### Recommendations
 

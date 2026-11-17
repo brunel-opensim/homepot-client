@@ -482,6 +482,42 @@ def get_ai_services() -> Any:
 _ai_gates: dict[str, AIConcurrencyGate] = {}
 
 
+async def _resolve_history_device_id(history: list, session: Any) -> Optional[str]:
+    """Return the newest device id in history that still resolves.
+
+    Conversation history regularly mentions devices that have since been
+    removed or deactivated. Using one as ``[FOCUS DEVICE]`` without checking
+    makes Gate D reject the whole query — no proposal is created even when the
+    question is about a different, valid device. Skip ids that no longer
+    resolve and keep looking through older turns.
+
+    Args:
+        history: Conversation messages, oldest first.
+        session: Async database session used to resolve device ids.
+
+    Returns:
+        The most recent still-registered device id, or None if there is none.
+    """
+    from homepot.canonical_ids import _GROUP_LENGTH, _ID_CHARS
+
+    search = re.compile(
+        rf"DEVICE-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
+        rf"-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
+        rf"-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
+    )
+    resolver = DeviceResolver(session)
+    for msg in reversed(history):
+        content = getattr(msg, "content", None) or ""
+        for match in reversed(search.findall(str(content))):
+            candidate = str(match)
+            if await resolver.resolve(candidate) is not None:
+                return candidate
+            logger.info(
+                "Ignoring stale device id %s from conversation history", candidate
+            )
+    return None
+
+
 def _select_history(history: list, max_messages: int = 5, max_tokens: int = 0) -> tuple:
     """Select a bounded subset of conversation history.
 
@@ -1284,29 +1320,18 @@ async def _query_ai_impl(
         # 1a. Carry device context forward from conversation history when the
         # caller did not supply an explicit device_id. This lets follow-up
         # questions ("What has already been tried?") reuse the device from an
-        # earlier turn instead of losing focus. The most recent device id
-        # mentioned in history wins.
+        # earlier turn instead of losing focus. Stale ids are skipped: a device
+        # that was removed after the conversation would fail Gate D and block
+        # every proposal, even for a question about a different device.
         if not request.device_id and effective_history:
             try:
-                import re as _re
-
-                from homepot.canonical_ids import _GROUP_LENGTH, _ID_CHARS
-
-                _search_pat = _re.compile(
-                    rf"DEVICE-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
-                    rf"-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
-                    rf"-[{_ID_CHARS}]{{{_GROUP_LENGTH}}}"
-                )
-                for msg in reversed(effective_history):
-                    content = getattr(msg, "content", None) or ""
-                    matches = _search_pat.findall(str(content))
-                    if matches:
-                        request.device_id = matches[-1]
-                        logger.info(
-                            "Carried device_id=%s forward from conversation history",
-                            request.device_id,
-                        )
-                        break
+                carried = await _resolve_history_device_id(effective_history, db)
+                if carried:
+                    request.device_id = carried
+                    logger.info(
+                        "Carried device_id=%s forward from conversation history",
+                        carried,
+                    )
             except Exception as e:
                 logger.warning("Failed to carry device context: %s", e)
 
