@@ -663,7 +663,7 @@ async def list_devices(
         status_filter: One of "active" (default, non-suspended paired devices),
             "suspended", "unpaired", or "all" (every paired device). "active"
             excludes suspended/unpaired; "all" includes suspended.
-        status_filter values are case-insensitive.
+            status_filter values are case-insensitive.
         limit: Maximum rows to return (default 50, max 200).
 
     Returns:
@@ -880,7 +880,7 @@ Args:
     action: The proposed action. Must be one of the registered actions:
         {allowed_actions_summary()}
     target_device_id: The device identifier the action applies to. If you only
-    have a device name, call find_device first to resolve the business ID.
+        have a device name, call find_device first to resolve the business ID.
     rationale: Why the action is recommended, citing the evidence you
             observed (metrics, errors, config history).
     params: Optional JSON object string of action parameters, e.g.
