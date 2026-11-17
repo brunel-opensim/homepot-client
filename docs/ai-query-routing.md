@@ -526,11 +526,15 @@ correct count look untrustworthy.
 
 Query: "How many active devices are online?"
 
-- Route: `diagnostic` (matches `active` and `online` in `OPERATIONAL_PATTERNS`).
+- Route: `diagnostic` (matches `online` in `OPERATIONAL_PATTERNS`; `active` is
+  not itself a pattern).
 - Gate B connectivity fails when there are no online devices, because the check
-  treats "no online devices" as "fleet telemetry is unavailable".
-- Result: Mode 2 / best-effort analytics, trust around 44%, with cautionary
-  framing, even though the count itself is a valid fleet observation.
+  treats "no online devices" as "fleet telemetry is unavailable". This is
+  distinct from the existing zero-fleet short-circuit, which applies only when
+  there are no active devices at all.
+- Result: Mode 2 / best-effort analytics, with cautionary framing. The observed
+  example carried a trust score around 44%, though the exact score depends on
+  the other gate results. The count itself is a valid fleet observation.
 
 ### Possible differentiation axes
 
@@ -539,7 +543,9 @@ Query: "How many active devices are online?"
    operational, but would not need telemetry-integrity validation or AI
    insights.
 2. **Data dependency.** Split Gate B by what the answer actually depends on:
-   - Fleet count / inventory: Gate A + connectivity; skip telemetry integrity.
+   - Fleet count / inventory: Gate A + Gate B connectivity only; skip telemetry
+     integrity. Connectivity currently lives inside Gate B, so this would mean
+     treating it as a separately selectable check.
    - Telemetry trend / health: Gate A + full Gate B + Gate C.
    - Anomaly analysis: Gate A + full Gate B + Gate C + insights.
    - Device-specific diagnosis: Gate A + target connectivity + telemetry gates.
