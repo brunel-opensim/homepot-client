@@ -289,13 +289,16 @@ def terminal_plan():
 
 
 def audit_events(command_type="list_processes", command_id="cmd-1"):
-    """Build the audit rows the AI executor actually writes.
-
-    The executor emits ``command_sent`` and ``command_completed`` but NOT
-    ``command_queued`` (that is the operator/Compose path only), so the helper
-    mirrors reality and the happy path exercises the lenient audit check.
-    """
+    """Build the full audit trail an AI-dispatched command now writes."""
     return [
+        {
+            "event_type": "command_queued",
+            "description": (
+                f"AI plan 'p-1' queued {command_type} command '{command_id}' "
+                "for device 'D'"
+            ),
+            "created_at": iso(NOW),
+        },
         {
             "event_type": "command_sent",
             "description": f"Device 'D' acknowledged command '{command_id}'",
@@ -309,8 +312,8 @@ def audit_events(command_type="list_processes", command_id="cmd-1"):
     ]
 
 
-def test_verify_audit_ok_without_queued_event(soak):
-    """The AI path omits command_queued; sent + terminal still verify."""
+def test_verify_audit_ok_with_full_lifecycle(soak):
+    """Queued, sent and terminal events all verify the AI command path."""
     result = soak.verify_audit(
         audit_events(),
         "cmd-1",
@@ -321,14 +324,13 @@ def test_verify_audit_ok_without_queued_event(soak):
         True,
     )
     assert result["ok"]
-    assert result["sent"] and result["terminal"]
-    assert not result["queued"]
+    assert result["queued"] and result["sent"] and result["terminal"]
 
 
-def test_verify_audit_requires_terminal_event(soak):
-    """A trail that stops at 'sent' is incomplete."""
+def test_verify_audit_requires_queued_event(soak):
+    """A missing command_queued event is no longer accepted."""
     result = soak.verify_audit(
-        audit_events()[:1],
+        audit_events()[1:],
         "cmd-1",
         "list_processes",
         NOW,
@@ -337,7 +339,23 @@ def test_verify_audit_requires_terminal_event(soak):
         True,
     )
     assert not result["ok"]
-    assert result["sent"]
+    assert not result["queued"]
+    assert result["sent"] and result["terminal"]
+
+
+def test_verify_audit_requires_terminal_event(soak):
+    """A trail that stops at 'sent' is incomplete."""
+    result = soak.verify_audit(
+        audit_events()[:2],
+        "cmd-1",
+        "list_processes",
+        NOW,
+        NOW + timedelta(seconds=5),
+        True,
+        True,
+    )
+    assert not result["ok"]
+    assert result["queued"] and result["sent"]
     assert not result["terminal"]
 
 

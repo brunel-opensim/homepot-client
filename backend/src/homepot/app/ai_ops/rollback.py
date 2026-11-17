@@ -22,6 +22,7 @@ from typing import Any, Dict, List
 from sqlalchemy import update
 from sqlalchemy.orm import Session as SASession
 
+from homepot.app.ai_ops.command_audit import log_ai_command_queued
 from homepot.app.ai_ops.registry import get_action_spec
 from homepot.app.models.AnalyticsModel import AIActionStep
 from homepot.database import get_database_service
@@ -157,6 +158,18 @@ async def begin_rollback(db: SASession, plan: Any, db_service: Any = None) -> bo
             .values(rollback_params=merged)
         )
         db.commit()
+
+        device = db.query(Device).filter(Device.id == item["device_pk"]).first()
+        if device is not None:
+            await log_ai_command_queued(
+                db,
+                plan,
+                command,
+                device,
+                "ai:rollback",
+                step_id=item["step_id"],
+                origin="AI rollback for plan",
+            )
         queued = True
 
     db.expire_all()

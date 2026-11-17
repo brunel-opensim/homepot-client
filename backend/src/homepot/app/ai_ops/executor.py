@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Tuple
 from sqlalchemy import update
 from sqlalchemy.orm import Session as SASession
 
+from homepot.app.ai_ops.command_audit import log_ai_command_queued
 from homepot.app.ai_ops.policy import PolicyResult, evaluate_plan
 from homepot.app.ai_ops.registry import get_action_spec
 from homepot.app.models.AnalyticsModel import AIActionStep, utc_now
@@ -192,6 +193,8 @@ async def _dispatch_step(
         .values(**values)
     )
     db.commit()
+
+    await log_ai_command_queued(db, plan, command, device, actor, step_id=step.step_id)
     return True
 
 

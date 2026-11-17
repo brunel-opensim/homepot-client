@@ -12,6 +12,7 @@ import os
 import sys
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
+from unittest.mock import AsyncMock, MagicMock
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
@@ -39,6 +40,7 @@ from homepot.app.models.AnalyticsModel import AIActionOutcome, utc_now  # noqa: 
 from homepot.app.repositories.ai_action_repository import (  # noqa: E402
     AIActionRepository,
 )
+from homepot.audit import AuditEventType  # noqa: E402
 from homepot.config import reload_settings  # noqa: E402
 import homepot.database  # noqa: E402
 from homepot.models import (  # noqa: E402
@@ -276,6 +278,29 @@ def test_start_execution_queues_commands():
         db.close()
 
 
+def test_start_execution_logs_command_queued(monkeypatch):
+    """AI-dispatched commands emit the same queue audit event as operators."""
+    audit_logger = MagicMock()
+    audit_logger.log_event = AsyncMock()
+    monkeypatch.setattr("homepot.audit.get_audit_logger", lambda: audit_logger)
+
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db)
+        plan, _ = _queue_plan(db, "POS-A")
+
+        assert audit_logger.log_event.await_count == 1
+        call = audit_logger.log_event.await_args
+        assert call.kwargs["event_type"] == AuditEventType.COMMAND_QUEUED
+        assert "restart" in call.kwargs["description"]
+        assert "cmd-1" in call.kwargs["description"]
+        assert call.kwargs["new_values"]["command_id"] == "cmd-1"
+        assert call.kwargs["event_metadata"]["source"] == "ai"
+        assert call.kwargs["event_metadata"]["plan_id"] == plan.plan_id
+    finally:
+        db.close()
+
+
 def test_start_execution_snapshots_config_for_rollback():
     """update_config captures the prior value and wraps the payload."""
     db = homepot.database.SessionLocal()
@@ -506,6 +531,31 @@ def test_begin_rollback_is_idempotent():
         rollback = [c for c in fake.created if c.issued_by == "ai:rollback"]
         assert len(rollback) == 1
         assert plan.steps[0].rollback_params["previous"] == {"brightness": 10}
+    finally:
+        db.close()
+
+
+def test_begin_rollback_logs_command_queued(monkeypatch):
+    """Rollback commands also get a queue-side audit event."""
+    db = homepot.database.SessionLocal()
+    try:
+        _seed(db, config={"brightness": 10})
+        plan, fake = _queue_plan(
+            db, "POS-A", action="update_config", params={"config": {"brightness": 80}}
+        )
+        plan.steps[0].status = "failed"
+        db.commit()
+
+        audit_logger = MagicMock()
+        audit_logger.log_event = AsyncMock()
+        monkeypatch.setattr("homepot.audit.get_audit_logger", lambda: audit_logger)
+
+        assert asyncio.run(begin_rollback(db, plan, db_service=fake)) is True
+        assert audit_logger.log_event.await_count == 1
+        call = audit_logger.log_event.await_args
+        assert call.kwargs["event_type"] == AuditEventType.COMMAND_QUEUED
+        assert "rollback" in call.kwargs["description"].lower()
+        assert "update_config" in call.kwargs["description"]
     finally:
         db.close()
 
