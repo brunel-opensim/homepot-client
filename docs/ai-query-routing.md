@@ -588,6 +588,87 @@ Query: "How many active devices are online?"
 
 Status: **Open** (design discussion only; no code changes).
 
+## 14.2 Implementation plan (proposed, not implemented)
+
+The following sequence keeps each change reviewable and avoids altering action
+or proposal behavior while the new route is being validated.
+
+### Phase 1 — Router classification only
+
+**Files:** `ai/query_router.py`, `backend/tests/test_ai_query_routing.py`
+
+- Add `MODE_FLEET_SUMMARY = "fleet_summary"` and include it in `VALID_MODES`.
+- Add `FLEET_SUMMARY_PATTERNS` ahead of `OPERATIONAL_PATTERNS` for aggregate /
+  inventory questions: `how many`, `count of`, `number of`, `total`,
+  `list devices`, `list sites`, `which devices`, `online devices`,
+  `offline devices`, `healthy devices`, `fleet status`, `device inventory`.
+- Add negative patterns so telemetry questions stay diagnostic: `cpu`,
+  `memory`, `disk`, `latency`, `metric`, `telemetry`, `heartbeat gap`.
+- Keep the full diagnostic pipeline for now; this phase only classifies and
+  echoes `routing.resolved = "fleet_summary"`.
+
+Tests to add:
+- "How many active devices are online?" -> `fleet_summary`.
+- "How many devices reported high CPU?" -> `diagnostic`.
+- "Why is device X offline?" -> `diagnostic` (device scope wins).
+- "How do I enroll a device?" -> `knowledge`.
+- "Restart device X" -> `diagnostic` / action.
+
+### Phase 2 — Backend gate selection
+
+**Files:** `ai/gates/gate_b.py`, `ai/gates/envelope.py`, `ai/gates/config.py`,
+`backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py`, new
+`backend/tests/test_ai_fleet_summary_gates.py`.
+
+- Extend `DataIntegrityGate` with `telemetry_checks` and
+  `connectivity_required` options.
+- For `fleet_summary`, run Gate A, Gate B connectivity only, and Gate C:
+  - `B.connectivity` is an informational PASS carrying `online_count` and
+    `offline_count` as evidence.
+  - Completeness, freshness, continuity, validity, and the per-device digest
+    are skipped.
+- Skip anomaly detection and failure prediction for `fleet_summary`.
+- Disable agentic / proposal handling for `fleet_summary`:
+  `effective_agentic = request.agentic and routing.resolved == MODE_DIAGNOSTIC`.
+- Leave the zero-fleet short-circuit unchanged: no active devices still means
+  status-only refusal.
+
+Expected result for the example query: Gate A pass, connectivity evidence pass,
+Gate C pass, grounded trust, high score, no cautionary framing, and the answer
+uses the existing `Online Devices` count from `site_context`.
+
+### Phase 3 — Prompt and UI alignment
+
+**Files:** `ai/system_knowledge.py`, `frontend/src/hooks/useAIConversation.js`,
+`frontend/src/components/Dashboard/AskAIWidget.jsx`, frontend tests.
+
+- Apply the "Actionable is no => cautionary" prompt mandate only to
+  non-actionable trust modes, not to a grounded `fleet_summary` answer.
+- Add `Fleet summary` to the mode selector alongside Auto, Knowledge, and
+  Diagnostic.
+- Show a `Fleet summary` chip for the new route; keep the existing trust UI for
+  diagnostic answers.
+- Keep `fleet_summary` answers non-actionable at the tool level: no proposal
+  tools, no approval flow, even if trust is grounded.
+
+### Verification and rollout
+
+- Add an env flag such as `AI_FLEET_SUMMARY_ROUTING` (default off) for phases 2
+  and 3, then enable it after local and server verification.
+- Log `routing.resolved` and the selected gate IDs on every query.
+- Add a status row to `docs/ai-delegation-plan.md` section 17.7 when the work is
+  implemented.
+- Acceptance checks:
+  1. "How many active devices are online?" returns a grounded count without
+     telemetry gate checks or cautionary framing.
+  2. "Why is device X offline?" stays on the full diagnostic path.
+  3. "How many devices have high memory?" stays diagnostic and still runs
+     telemetry gates.
+  4. "How do I enroll a device?" stays on the knowledge path.
+  5. "Restart device X" keeps the existing action / proposal path.
+
+Status: **Proposed** (no code changes).
+
 ## 15. References
 
 - `backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py` — `/ai/query`
