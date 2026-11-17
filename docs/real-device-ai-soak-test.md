@@ -318,16 +318,18 @@ the advertised list shows.
 Status: **Done** — run 5 delegated the volume/brightness command to
 `update_config` and verified the change.
 
-### Audit trail gap
+### Audit trail parity
 
-AI-dispatched commands emit `command_sent` + `command_completed` but not
-`command_queued` (only the operator/Compose path writes all three). The soak
-tool records `command_queued` as evidence of the gap rather than failing on it.
-Unchanged across every run, including the 24/24 one (`queued=false` on all 24
-rows; `sent` and `terminal` true on all 24). This does not block delegation but
-does leave the audit trail incomplete for AI-dispatched commands.
+Earlier runs showed `command_sent` + `command_completed` but no
+`command_queued` for AI-dispatched commands, so the soak tool recorded
+`queued=false` on all 24 rows even in the 24/24 run. The executor and rollback
+paths now write the same `command_queued` event as the operator command
+endpoint, with the command id, type, payload, plan id and acting technician in
+the audit metadata. The soak tool now treats a missing queued event as a
+failure instead of a note.
 
-Status: **Open**.
+Status: **Done** in code; backend tests cover both dispatch paths and the
+post-fix soak is the end-to-end confirmation.
 
 ## After the soak test
 

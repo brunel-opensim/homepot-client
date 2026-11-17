@@ -600,11 +600,10 @@ def verify_audit(
 ) -> Dict[str, Any]:
     """Check the audit trail for this command's lifecycle.
 
-    The AI executor (``create_device_command``) records ``command_sent`` and
-    ``command_completed`` but does **not** write a ``command_queued`` event
-    (the operator/Compose path writes all three). So ``ok`` requires the sent
-    and terminal events only; ``queued`` is still computed and reported so the
-    missing-event gap stays visible in the evidence.
+    All paths now write ``command_queued`` when the command row is created, so
+    ``ok`` requires queued, sent and terminal events. The queued event is
+    correlated by command id (AI path) or command type (operator path) because
+    the operator event does not carry the id in its description.
     """
     cid = str(command_id)
 
@@ -619,7 +618,8 @@ def verify_audit(
         for event in events:
             if event.get("event_type") != "command_queued":
                 continue
-            if command_type not in str(event.get("description") or ""):
+            description = str(event.get("description") or "")
+            if cid not in description and command_type not in description:
                 continue
             created = parse_timestamp(event.get("created_at"))
             if created is None:
@@ -639,7 +639,7 @@ def verify_audit(
     sent = with_id("command_sent")
     terminal = with_id("command_completed") or with_id("command_failed")
     queued = queued_within_window()
-    ok = (sent or not expect_sent) and (terminal or not expect_terminal)
+    ok = queued and (sent or not expect_sent) and (terminal or not expect_terminal)
     return {
         "queued": queued,
         "sent": sent,

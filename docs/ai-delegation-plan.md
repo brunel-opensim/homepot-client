@@ -827,9 +827,10 @@ telemetry (#1007), and the `update_config` description that hid the settings it
 changes. A final run after #1011–#1013 again passed **24/24** with the full
 command history retained: #1011 labels old command results as historical,
 #1012 stops `network_test` from putting the port in `host`, and #1013 adds the
-risk tier to the soak report. See [Real-device AI soak test](real-device-ai-soak-test.md)
-for the run-by-run evidence. One gap remains open: AI-dispatched commands do
-not emit `command_queued`.
+risk tier to the soak report. AI-dispatched commands now emit `command_queued`
+as well, so the operator and AI paths share the same three-event audit trail.
+See [Real-device AI soak test](real-device-ai-soak-test.md) for the run-by-run
+evidence.
 
 ---
 
