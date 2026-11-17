@@ -152,6 +152,7 @@ three most recent runs are:
 | after #1006 + #1007 | **24/24** | schema delivery and telemetry provenance fixed | `ai-soak-results-20261117T091430Z.json` |
 | after #1010 | 23/24 | prior command history retained, freshness fix not yet deployed | `ai-soak-results-20261117T123719Z.json` |
 | after #1011 | 23/24 | stale history labelled; no records removed between runs | `ai-soak-results-20261117T133211Z.json` |
+| after #1012 + #1013 | **24/24** | host/port normalized; tier column added; history untouched | `ai-soak-results-20261117T142741Z.json` |
 
 The baseline file came from a run at 2026-11-16 13:10 UTC (788.4 s). Run 5
 used `claude-haiku-4-5-20251001` on `DEVICE-HSZK-T24Y-TSCX`, started
@@ -159,11 +160,18 @@ used `claude-haiku-4-5-20251001` on `DEVICE-HSZK-T24Y-TSCX`, started
 action, reached `succeeded`, verified, appeared in Push History, and had a
 matching audit trail. The proposal queue was empty at the end.
 
+The final run after #1012 and #1013 used the same provider, model and device,
+started 2026-11-17 14:40 UTC, and took 770.0 s. It also scored **24/24** with
+all actions matching, executing, verifying, appearing in Push History and
+having matching audit trails. No command records were removed before it; the
+new tier column showed 11 T1, 9 T2 and 4 T3 commands.
+
 A sixth attempt was refused before sending anything: the device had not polled
 for ~9.6 hours and was `offline`, so every proposal would have been rejected by
 the connectivity gate. The harness now blocks that case in preflight (#1008).
 Two later runs took 803.4 s and 865.4 s; both scored 23/24 for the same
-`network_test` reason described below.
+`network_test` reason described below. The final run took 770.0 s and passed
+24/24.
 
 Earlier runs could be contaminated when the AI's `get_command_history` tool
 returned the last five command results with no age filter: a command executed
@@ -187,6 +195,8 @@ action description now leads with the rule that `host` is a bare hostname and
 the TCP port belongs in the separate `port` param, and
 `propose_device_action` splits a single-colon `host:port` value when no
 explicit port was supplied. IPv6 literals and explicit ports are unchanged.
+The final run recorded `host='homepot.cabera.com'` and `port=443` and passed
+command 6.
 
 ### Memory pollution (fixed)
 
