@@ -799,7 +799,7 @@ roadmap item to its as-built location. Legend: **Done** = implemented,
 | E19 | Parallel tool calls | Done | `ai/agent.py` (`asyncio.gather`) |
 | E20 | Extended timeout / deeper iterations | Done | Configurable via `ai/config.yaml` `agent:` and `run_agent` params (Phase E #756); defaults remain 5 iterations / 60 s |
 | E21 | Cross-session task aggregation | Done | `GET /ai/action-plans/summary`, `AIActionRepository.plan_summary`, UI panel |
-| Q1 | Operational query granularity / `fleet_summary` route | Partial | `ai/query_router.py`; `ai/gates/gate_b.py`; `ai/gates/envelope.py`; `AIEndpoint.py`; Dashboard AI UI; `docs/ai-query-routing.md` §14. Server acceptance pending |
+| Q1 | Operational query granularity / `fleet_summary` route | Done | `ai/query_router.py`; `ai/gates/gate_b.py`; `ai/gates/envelope.py`; `AIEndpoint.py`; Dashboard AI UI; `docs/ai-query-routing.md` §14; server acceptance in §14.3 |
 
 **Remaining work:**
 
@@ -963,14 +963,14 @@ The implementation sequence is in
 The plan preserves the existing invariant that only fully gated diagnostic /
 action paths can create proposals, including compose-command proposals.
 
-**Status for §18.10:** **Partial**. The `fleet_summary` route, reduced gate
-chain, prompt/UI labels and `AI_FLEET_SUMMARY_ROUTING` default-on change are
-implemented; server acceptance is recorded in
+**Status for §18.10:** **Done**. The `fleet_summary` route, reduced gate chain,
+prompt/UI labels and `AI_FLEET_SUMMARY_ROUTING` default-on change are
+implemented and verified; server acceptance is recorded in
 [`docs/ai-query-routing.md` §14.3](ai-query-routing.md#143-acceptance-results).
 
 ### Status
 
-All items above remain **Open** except §18.10, which is **Partial** as noted.
+All items above remain **Open** except §18.10, which is **Done** as noted.
 They are tracked here for future work. None block the soak test or current
 functionality.
 - [RBAC Hardening Plan](rbac-hardening-plan.md) — role model and the
