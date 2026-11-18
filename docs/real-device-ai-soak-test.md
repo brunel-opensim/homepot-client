@@ -331,6 +331,44 @@ failure instead of a note.
 Status: **Done** in code; backend tests cover both dispatch paths and the
 post-fix soak is the end-to-end confirmation.
 
+### Historical failed plans and harness cleanup
+
+A triage of `GET /api/v1/ai/action-plans?status=failed` found eight failed
+plans, not six. Four are from `DEVICE-MRUU-AUCA-8TJB` and were intentional S3
+rollback drills: they used `update_config` with `brightness="abc"` and carried
+no rollback snapshot, so a failed step was the expected result. Two more manual
+probes on that same device (`restart_service` for `spooler` and `start_program`
+for `notepad.exe`) also failed. That device has since been removed, its command
+records are gone, and the root cause of those two probes is no longer
+recoverable from retained data. None of these six plans came from a final soak
+run.
+
+The other two failed plans are the `network_test` runs from 2026-11-17
+12:40 UTC and 13:34 UTC on `DEVICE-HSZK-T24Y-TSCX`. Both sent
+`host="homepot.cabera.com:443"`; the device tried to resolve the port as part
+of the hostname and failed. This is the host/port defect fixed in #1012 and
+documented above. The final 24/24 run used separate `host` and `port` fields.
+
+A separate harness gap remains. `tools/ai-soak-test.py::run_one` checks
+`action_match` before it reads `plan_id`. When the AI proposes an unexpected
+action, the command is recorded as FAIL and the function returns without
+approving or executing anything. That is correct for safety, but a proposal
+that was already persisted is not rejected and its `plan_id` is not written to
+the evidence record. The gap did not create an orphan in the observed runs: the
+only action-mismatch failure (`gpt-4o-mini`, 2026-11-17 16:04 UTC, command 15)
+produced no proposal, so `plan_id` was `null`. The risk is real for a future
+provider that proposes the wrong action but still returns a plan.
+
+The API can reject a plan in `pending_approval` even when its target device has
+been removed, so cleanup is safe. Recommended fix: capture `plan_id` before the
+action-match check, reject the pending plan with an explicit reason, and record
+the rejection in the evidence while keeping the command FAIL. Add a unit test
+that asserts the reject call and that no approve or execute call follows.
+
+Status: **Open** for the harness cleanup; the eight historical failed plans
+need no further action. Triage evidence is in
+`soak-runs/failed-plans-investigation-20261118T082147Z.json` (git-ignored).
+
 ## After the soak test
 
 Once the success criteria are met, proceed to **Phase 3: background execution
